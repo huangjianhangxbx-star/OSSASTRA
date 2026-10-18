@@ -1,0 +1,32 @@
+# OSSASTRA PRE-00 exact first-publication allowlist.
+# Local legacy content, third-party packages and user-authored scenes remain on disk.
+/*
+!/.gitignore
+!/README.md
+!/DEPENDENCIES.md
+!/ProjectSettings/
+/ProjectSettings/*
+!/ProjectSettings/ProjectVersion.txt
+!/docs/
+/docs/*
+!/docs/ossastra/
+/docs/ossastra/*
+!/docs/ossastra/PRE00.md
+!/Assets/
+/Assets/*
+!/Assets/OSSASTRA.meta
+!/Assets/OSSASTRA/
+/Assets/OSSASTRA/*
+!/Assets/OSSASTRA/Scenes.meta
+!/Assets/OSSASTRA/Scenes/
+/Assets/OSSASTRA/Scenes/*
+!/Assets/OSSASTRA/Scenes/SC_PRE00_Recheck.unity
+!/Assets/OSSASTRA/Scenes/SC_PRE00_Recheck.unity.meta
+!/Assets/旧代码.meta
+!/Assets/旧代码/
+/Assets/旧代码/*
+!/Assets/旧代码/Script.meta
+!/Assets/旧代码/Script/
+/Assets/旧代码/Script/*
+!/Assets/旧代码/Script/OSSASTRA.Legacy.Disabled.asmdef
+!/Assets/旧代码/Script/OSSASTRA.Legacy.Disabled.asmdef.meta

@@ -1,0 +1,13 @@
+# Dependencies
+
+## 技术首发
+团结编辑器 2022.3.62t16 / 1.10.4；场景使用内建 Transform、Camera。新 asmdef 没有外部程序集引用，旧代码启用符号默认未定义。没有第三方插件、模型、贴图、音频或字体随本次候选分发。
+
+## 本机已验证环境（不随首发纳入）
+- URP 14.2.0-t1，含既有 Graphics/Quality 指向的多份自定义 Renderer、Shader 和其他渲染资源。本机默认 Renderer 索引0；旧备用索引1引用已隔离的旧 GameRenderFeature 和未解析Feature，OnValidate 会报告 missing RendererFeatures。未修改旧配置，也未重新启用旧脚本。
+- Input System 1.14.4-t1、Addressables 1.22.4-t1、Cinemachine 2.10.3、uGUI 1.0.0、TextMeshPro 3.0.9、Test Framework 1.1.33、Timeline 1.8.9-t1、VFX Graph 14.2.0-t1。实际后续闭环需要哪些包须另行审定，以上不是首发自动安装清单。
+- 本地 AI 生成工具使用 file: 包依赖；另有 Codely Bridge 1.0.76 和 Funplay MCP 编辑工具。工具路径/配置不进入首发。
+- Spine、RealToon、其他本机商业插件和美术资源未核验再分发权，不纳入。需要时应从各权利方取得许可并按其官方安装方式安装，后续记录确切版本，不猜测版本。
+
+## 验证限制
+目前只验证了本机已有依赖环境下的编译图和技术场景Play，没有执行干净克隆编译、独立Player构建或任何旧场景功能验收。首发不包含商用资源的替代品，不含旧Bootstrap，也不包含新正式玩法入口。
