@@ -1,16 +1,21 @@
 # OSSASTRA
 
-《星骸回廊》受控迁移工程的版本管理起点。
+《星骸回廊》受控迁移工程。当前公开进度：**M01 单角色动作闭环候选，可供架构审查**。
 
-本次 PRE-00 仅完成本机工程隔离与技术空场景验证，不包含可玩的游戏系统，也不代表 M01 已实施。公开首发候选是技术骨架，不是本机完整团结工程的备份。
+## 给 Chat / 后续任务的接手入口
+
+先读 [M01 交接状态](docs/ossastra/M01-HANDOFF.md)，再读 [实际场景与接线](docs/ossastra/M01-scene-review.md)、[审查账本](docs/ossastra/M01-user-review-ledger.md)及实际源码。
+
+已实现：rozeul 验证角色的移动、Idle/Run、单次普攻、真实范围命中/HP、取消与暂停/失焦保护。尚未完整移植原型小黄/小蓝的连段、技能、资源、装备和队友AI。架构逐行审查仍待用户进行。
 
 - 编辑器：团结 2022.3.62t16 / 1.10.4。
-- 技术验证场景：Assets/OSSASTRA/Scenes/SC_PRE00_Recheck.unity，仅正交相机。
-- 旧参考代码仅保留在本机，不进入此仓库。专用 asmdef 只有显式定义 OSSASTRA_LEGACY_COMPILE_OPT_IN 时才可能编译旧目录；正常保持该符号未定义。
-- 本机商业插件、渲染实验、个人场景和模型不随仓库分发。
-
-依赖及重建限制见 [DEPENDENCIES.md](DEPENDENCIES.md)，实际验收边界见 [PRE00.md](docs/ossastra/PRE00.md)。本机既有旧渲染配置与新技术场景应区别验收。
+- 领域源码：Assets/OSSASTRA/CharacterCore。
+- Unity适配器及测试场：Assets/OSSASTRA/M01。
+- 核心测试：`dotnet run --project Candidates/M01/Tests/Ossastra.CharacterCore.Tests.csproj -c Release`（.NET 9 宿主，核心 netstandard2.1）。
+- 核心29项测试通过；场景此前14项受控自动化通过。自动化不代替用户手感或架构批准。
 
 ## 克隆限制
 
-首发不包含 Packages/manifest.json、packages-lock.json 或旧 Graphics/Quality/BuildSettings；这些本机配置包含旧资产引用和本地工具依赖，不宜直接公开。干净克隆尚未编译验证，也不能保证直接用编辑器打开即可运行。可在相同团结版本的新建空工程中导入此技术场景；这仅是重建建议，尚未实测。不要为重建本机环境擅自复制商业插件。
+本仓库发布自有源码、测试和场景引用快照，不是本机完整工程备份。没有商用Spine运行库、用户Spine媒体、target 1模型、Packages清单及全局渲染设置；干净克隆不能保证直接运行。不得将缺失引用误认作已分发资源。
+
+依赖见 [DEPENDENCIES.md](DEPENDENCIES.md)，历史起点见 [PRE00.md](docs/ossastra/PRE00.md)。仅同步GitHub，不同步Gitee。

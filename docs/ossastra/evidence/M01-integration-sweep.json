@@ -1,0 +1,147 @@
+{
+  "state": "completed",
+  "completedSteps": 44,
+  "failed": 0,
+  "records": [
+    {
+      "name": "input-to-spine-to-real-hit",
+      "pass": true,
+      "at": 0.8516483000003063,
+      "hp": 88,
+      "last": "MoveReady @0.500 0d3d6137",
+      "clip": "atk1",
+      "position": "(-0.1500, 0.0200, 0.0000)",
+      "paused": false
+    },
+    {
+      "name": "held-does-not-repeat",
+      "pass": true,
+      "at": 1.6014469000001554,
+      "hp": 88,
+      "last": "Finished @1.100 0d3d6137",
+      "clip": "idle1_1",
+      "position": "(-0.1500, 0.0200, 0.0000)",
+      "paused": false
+    },
+    {
+      "name": "cancel-before-release",
+      "pass": true,
+      "at": 2.4012701000010566,
+      "hp": 100,
+      "last": "Cancelled @0.151 5fbabab1 player-cancel",
+      "clip": "idle1_1",
+      "position": "(-0.1500, 0.0200, 0.0000)",
+      "paused": false
+    },
+    {
+      "name": "cancel-after-release-keeps-hit",
+      "pass": true,
+      "at": 3.800493799999458,
+      "hp": 88,
+      "last": "Cancelled @0.500 77cec200 player-cancel",
+      "clip": "idle1_1",
+      "position": "(-0.1500, 0.0200, 0.0000)",
+      "paused": false
+    },
+    {
+      "name": "owner-block-rejects-input",
+      "pass": true,
+      "at": 4.600931000000855,
+      "hp": 100,
+      "last": "Rejected: attack-blocked",
+      "clip": "idle1_1",
+      "position": "(-0.1500, 0.0200, 0.0000)",
+      "paused": false
+    },
+    {
+      "name": "empty-swing-no-hit",
+      "pass": true,
+      "at": 5.650266000000556,
+      "hp": 100,
+      "last": "MoveReady @0.500 cc3f09ed",
+      "clip": "atk1",
+      "position": "(-0.1500, 0.0200, 0.0000)",
+      "paused": false
+    },
+    {
+      "name": "pause-freezes-domain",
+      "pass": true,
+      "at": 6.601015399999596,
+      "hp": 100,
+      "last": "Accepted @0.000 db0069a4",
+      "clip": "atk1",
+      "position": "(-0.1500, 0.0200, 0.0000)",
+      "paused": true
+    },
+    {
+      "name": "pause-freezes-spine",
+      "pass": true,
+      "at": 7.100449100000333,
+      "hp": 100,
+      "last": "Accepted @0.000 db0069a4",
+      "clip": "atk1",
+      "position": "(-0.1500, 0.0200, 0.0000)",
+      "paused": true
+    },
+    {
+      "name": "unpause-resumes-single-release",
+      "pass": true,
+      "at": 8.101154699999825,
+      "hp": 88,
+      "last": "AttackReady @0.800 db0069a4",
+      "clip": "atk1",
+      "position": "(-0.1500, 0.0200, 0.0000)",
+      "paused": false
+    },
+    {
+      "name": "focus-reset-held-cannot-restart",
+      "pass": true,
+      "at": 8.801188999999795,
+      "hp": 88,
+      "last": "Cancelled @0.950 db0069a4 focus-lost",
+      "clip": "idle1_1",
+      "position": "(-0.1500, 0.0200, 0.0000)",
+      "paused": false
+    },
+    {
+      "name": "disable-enable-held-cannot-restart",
+      "pass": true,
+      "at": 10.00077600000077,
+      "hp": 100,
+      "last": "Cancelled @0.100 9c505449 disabled",
+      "clip": "idle1_1",
+      "position": "(-0.1500, 0.0200, 0.0000)",
+      "paused": false
+    },
+    {
+      "name": "device-move-and-run",
+      "pass": true,
+      "at": 10.70078730000023,
+      "hp": 100,
+      "last": "Cancelled @0.100 9c505449 disabled",
+      "clip": "run",
+      "position": "(-0.1500, 0.0200, 1.1996)",
+      "paused": false
+    },
+    {
+      "name": "release-direction-stops-to-idle",
+      "pass": true,
+      "at": 11.200395600000775,
+      "hp": 100,
+      "last": "Cancelled @0.100 9c505449 disabled",
+      "clip": "idle1_1",
+      "position": "(-0.1500, 0.0200, 1.5003)",
+      "paused": false
+    },
+    {
+      "name": "real-zero-hp-visible-state",
+      "pass": true,
+      "at": 12.300803600001018,
+      "hp": 0,
+      "last": "MoveReady @0.500 0c19be69",
+      "clip": "atk1",
+      "position": "(-0.1500, 0.0200, 0.0000)",
+      "paused": false
+    }
+  ]
+}

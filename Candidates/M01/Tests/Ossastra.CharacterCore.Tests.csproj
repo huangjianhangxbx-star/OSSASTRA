@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>net9.0</TargetFramework><OutputType>Exe</OutputType><LangVersion>8.0</LangVersion><Nullable>disable</Nullable></PropertyGroup>
+  <ItemGroup><ProjectReference Include="../Core/Ossastra.CharacterCore.csproj" /></ItemGroup>
+</Project>
