@@ -1,0 +1,41 @@
+using System;
+using System.Linq;
+using UnityEngine;
+using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.LowLevel;
+using UnityEditor.SceneManagement;
+using UnityEngine.SceneManagement;
+using Funplay.Editor.Tools.Scripting;
+public class InputBehaviorContract : IFunplayCommand {
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx) {
+ var type=AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType("Ossastra.Characters.CharacterInputHandler")).FirstOrDefault(t=>t!=null);
+ if(type==null){ctx.LogError("FAIL input remapping: configurable per-character input component is absent");return;}
+ var originalSettings=InputSystem.settings;var testSettings=UnityEngine.Object.Instantiate(originalSettings);testSettings.hideFlags=HideFlags.HideAndDontSave;InputSystem.settings=testSettings;testSettings.SetInternalFeatureFlag("RUN_PLAYER_UPDATES_IN_EDIT_MODE",true);testSettings.updateMode=InputSettings.UpdateMode.ProcessEventsManually;var scene=EditorSceneManager.NewPreviewScene();Keyboard keyboard=null;Gamepad gamepad=null;Mouse mouse=null;GameObject a=null,b=null;int passed=0;
+ Action<bool,string> check=(ok,label)=>{if(!ok)throw new Exception("FAIL "+label);passed++;ctx.Log("PASS "+label);};
+ Func<Component,string,object> read=(c,name)=>{var f=type.GetMethod("Read").Invoke(c,null);return f.GetType().GetField(name).GetValue(f);};
+ Action<Component,string,InputAction> set=(c,name,action)=>type.GetField(name).SetValue(c,action);
+ Func<string,string,InputAction> button=(name,path)=>new InputAction(name,InputActionType.Button,path);
+ try {
+ keyboard=InputSystem.AddDevice<Keyboard>();gamepad=InputSystem.AddDevice<Gamepad>();mouse=InputSystem.AddDevice<Mouse>();
+ a=new GameObject("InputContractA");a.SetActive(false);SceneManager.MoveGameObjectToScene(a,scene);var ca=a.AddComponent(type);
+ b=new GameObject("InputContractB");b.SetActive(false);SceneManager.MoveGameObjectToScene(b,scene);var cb=b.AddComponent(type);
+ foreach(var component in new[]{ca,cb}){
+ var move=new InputAction("move",InputActionType.Value,expectedControlType:"Vector2");move.AddCompositeBinding("2DVector").With("Up",component==ca?"<Keyboard>/j":"<Keyboard>/i");move.AddBinding("<Gamepad>/leftStick");
+ set(component,"movementAction",move);set(component,"mouseAction",new InputAction("pointer",InputActionType.Value,"<Mouse>/position",expectedControlType:"Vector2"));set(component,"gamepadAimAction",new InputAction("Aim",InputActionType.Value,"<Gamepad>/rightStick",expectedControlType:"Vector2"));
+ set(component,"attackAction",button("Attack",component==ca?"<Keyboard>/n":"<Keyboard>/m"));set(component,"cancelAction",button("cancel","<Keyboard>/x"));set(component,"pauseAction",button("pause","<Keyboard>/p"));
+ }
+ a.SetActive(true);b.SetActive(true);a.SendMessage("OnEnable",SendMessageOptions.DontRequireReceiver);b.SendMessage("OnEnable",SendMessageOptions.DontRequireReceiver);
+ InputSystem.QueueStateEvent(keyboard,new KeyboardState(Key.J,Key.N));InputSystem.QueueStateEvent(mouse,new MouseState{position=new Vector2(320,240)});InputSystem.Update();
+ check(((Vector2)read(ca,"move")).y>.9f,"serialized remapping J moves without WASD");check((bool)read(ca,"attackHeld"),"serialized N attack binding is honored");check(((Vector2)read(cb,"move")).sqrMagnitude<.001f && !(bool)read(cb,"attackHeld"),"two character binding sets are independent");check(Vector2.Distance((Vector2)read(ca,"pointer"),new Vector2(320,240))<.1f,"pointer action returns actual mouse coordinates");
+ InputSystem.QueueStateEvent(keyboard,new KeyboardState());InputSystem.Update();check(!(bool)read(ca,"attackHeld"),"release clears held attack");
+ var gamepadState=new GamepadState{leftStick=new Vector2(.6f,.8f),rightStick=new Vector2(.5f,.8f)};InputSystem.QueueStateEvent(gamepad,gamepadState);InputSystem.Update();check(((Vector2)read(ca,"move")).sqrMagnitude>.5f,"same movement action accepts gamepad stick");check((bool)read(ca,"hasDirectionalAim"),"gamepad aim stays directional rather than pixel coordinates");
+ a.SendMessage("OnDisable",SendMessageOptions.DontRequireReceiver);InputSystem.QueueStateEvent(keyboard,new KeyboardState(Key.N));InputSystem.Update();check(!(bool)read(ca,"attackHeld"),"disabled input component cannot emit held attack");check(((InputAction)type.GetField("attackAction").GetValue(cb)).enabled,"disabling one input does not disable another character");
+ a.SendMessage("OnEnable",SendMessageOptions.DontRequireReceiver);InputSystem.QueueStateEvent(keyboard,new KeyboardState());InputSystem.Update();InputSystem.QueueStateEvent(keyboard,new KeyboardState(Key.N));InputSystem.Update();check((bool)read(ca,"attackHeld"),"enable restores configured bindings");
+ ctx.Log("RESULT "+passed+"/10 passed; isolated devices and preview scene cleaned in finally");
+ } finally {
+ if(a!=null){a.SendMessage("OnDisable",SendMessageOptions.DontRequireReceiver);a.SendMessage("OnDestroy",SendMessageOptions.DontRequireReceiver);UnityEngine.Object.DestroyImmediate(a);}if(b!=null){b.SendMessage("OnDisable",SendMessageOptions.DontRequireReceiver);b.SendMessage("OnDestroy",SendMessageOptions.DontRequireReceiver);UnityEngine.Object.DestroyImmediate(b);}
+ if(keyboard!=null)InputSystem.RemoveDevice(keyboard);if(gamepad!=null)InputSystem.RemoveDevice(gamepad);if(mouse!=null)InputSystem.RemoveDevice(mouse);EditorSceneManager.ClosePreviewScene(scene);InputSystem.settings=originalSettings;UnityEngine.Object.DestroyImmediate(testSettings);
+ }
+ }
+}
+

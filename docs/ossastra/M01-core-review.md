@@ -1,3 +1,5 @@
+> 历史M01候选文档。2026-10-19共享脚本命名、路径和输入接线已修整；当前以 [修整报告](character-control-refinement.md) 和 [用户规则](../../OSSASTRA_RULES.md) 为准。旧逐行解释不代表新版本已审。
+
 # M01 当前核心审查状态
 核心源码已从Candidates/M01/Core迁到Assets/OSSASTRA/CharacterCore，作为唯一生产权威。Candidates中的netstandard2.1项目通过Compile链接读取这些相同源文件；没有双份运行时。原先“未导入Unity/无正式测试场”的描述仅属于第一批历史，已由本轮场景接入取代。
 

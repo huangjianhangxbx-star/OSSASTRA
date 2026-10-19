@@ -1,0 +1,65 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [
+      {
+        "Level": "info",
+        "Message": "PASS orientation resolves normalized XZ direction"
+      },
+      {
+        "Level": "info",
+        "Message": "PASS orienting does not move character body"
+      },
+      {
+        "Level": "info",
+        "Message": "PASS DataBus reads authoritative orientation immediately"
+      },
+      {
+        "Level": "info",
+        "Message": "PASS two actors keep independent facing state"
+      },
+      {
+        "Level": "info",
+        "Message": "PASS owner restriction stays within its actor"
+      },
+      {
+        "Level": "info",
+        "Message": "PASS DataBus permission reflects owner release without copied flags"
+      },
+      {
+        "Level": "info",
+        "Message": "PASS bus follows own runtime acceptance only"
+      },
+      {
+        "Level": "info",
+        "Message": "PASS move and attack readiness remain separate through bus"
+      },
+      {
+        "Level": "info",
+        "Message": "PASS cancellation is visible without a second action state"
+      },
+      {
+        "Level": "info",
+        "Message": "PASS input owner publishes actual action sample to its bus"
+      },
+      {
+        "Level": "info",
+        "Message": "PASS consumer cannot mutate input owner through returned snapshot"
+      },
+      {
+        "Level": "info",
+        "Message": "PASS bus exposes read-only data rather than public mutable state"
+      },
+      {
+        "Level": "info",
+        "Message": "RESULT 12/12 passed"
+      }
+    ],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": null
+  }
+}

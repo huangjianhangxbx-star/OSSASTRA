@@ -1,9 +1,9 @@
 using Ossastra.CharacterCore;
 using UnityEngine;
 
-namespace Ossastra.M01
+namespace Ossastra.Development
 {
-    public sealed class M01HealthTarget : MonoBehaviour
+    public sealed class CombatTestTarget : MonoBehaviour
     {
         [SerializeField] private string targetId = "target-a";
         [SerializeField, Min(1)] private int maximumHp = 100;

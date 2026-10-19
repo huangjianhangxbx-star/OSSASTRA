@@ -16,3 +16,6 @@
 领域核心Ossastra.CharacterCore没有UnityEngine或第三方依赖，独立测试需要.NET 9 SDK。Unity适配器使用CharacterController/Physics、Input System（当前本机1.14.4-t1，有旧Input条件回退）、Spine.Unity SkeletonAnimation（本机角色数据4.3.26）和URP靶材质。Spine数据版本不代表运行库精确版本已核验。
 
 本次仅发布自有C#/asmdef、场景/靶材质及meta、测试与审查文档；用户target 1.fbx、rozeul数据/贴图/图集和第三方插件仍不分发。场景保留这些本机引用，干净克隆缺少它们；没有执行干净克隆Unity运行或Player构建。旧RendererFeatures错误仍是本机已知问题。
+
+## 当前角色候选（2026-10-19）
+角色C#现位于Assets/OSSASTRA/Scripts。新增DataBus与独立Orientation，不新增外部包。公开Prefab/场景仍引用未分发的本机Spine/模型/URP资源，无法仅靠当前仓库保证直接试玩。旧代码本机解禁仅用于配置参考，旧源码不分发，历史隔离配置不属于新控制系统依赖。

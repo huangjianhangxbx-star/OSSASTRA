@@ -1,0 +1,32 @@
+using System;
+using System.Linq;
+using System.Reflection;
+using UnityEngine;
+using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.LowLevel;
+using UnityEditor.SceneManagement;
+using UnityEngine.SceneManagement;
+using Ossastra.CharacterCore;
+using Funplay.Editor.Tools.Scripting;
+public class FoundationContract : IFunplayCommand {
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx) {
+ Func<string,Type> find=name=>AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType("Ossastra.Characters."+name)).FirstOrDefault(t=>t!=null);
+ var orientationType=find("CharacterOrientation");var movementType=find("CharacterMovement");var inputType=find("CharacterInputHandler");var busType=find("CharacterDataBus");
+ if(orientationType==null||movementType==null||busType==null){ctx.LogError("FAIL independent orientation/movement and per-character DataBus are not implemented");return;}
+ var scene=EditorSceneManager.NewPreviewScene();var settings=InputSystem.settings;var testSettings=UnityEngine.Object.Instantiate(settings);testSettings.hideFlags=HideFlags.HideAndDontSave;InputSystem.settings=testSettings;testSettings.SetInternalFeatureFlag("RUN_PLAYER_UPDATES_IN_EDIT_MODE",true);testSettings.updateMode=InputSettings.UpdateMode.ProcessEventsManually;
+ GameObject a=null,b=null;Keyboard keyboard=null;int count=0;Action<bool,string> check=(ok,name)=>{if(!ok)throw new Exception("FAIL "+name);count++;ctx.Log("PASS "+name);};
+ Func<object,string,object> get=(obj,name)=>obj.GetType().GetProperty(name).GetValue(obj);
+ try {
+ keyboard=InputSystem.AddDevice<Keyboard>();a=new GameObject("FoundationA");a.SetActive(false);SceneManager.MoveGameObjectToScene(a,scene);b=new GameObject("FoundationB");b.SetActive(false);SceneManager.MoveGameObjectToScene(b,scene);
+ var ia=a.AddComponent(inputType);var ib=b.AddComponent(inputType);var ma=a.AddComponent(movementType);var mb=b.AddComponent(movementType);var oa=a.AddComponent(orientationType);var ob=b.AddComponent(orientationType);
+ var ra=new BasicActionRuntime("a");var rb=new BasicActionRuntime("b");var ca=new ControlAuthority();var cb=new ControlAuthority();var ba=Activator.CreateInstance(busType,new object[]{"a",ia,ma,oa,ra,ca});var bb=Activator.CreateInstance(busType,new object[]{"b",ib,mb,ob,rb,cb});
+ movementType.GetMethod("Initialize").Invoke(ma,new[]{ba});movementType.GetMethod("Initialize").Invoke(mb,new[]{bb});
+ var point=a.transform.position+new Vector3(-2,8,2);orientationType.GetMethod("OrientTowards").Invoke(oa,new object[]{point});var direction=(Vector3)get(oa,"Direction");check(Math.Abs(direction.y)<.001f&&direction.x<0&&Math.Abs(direction.magnitude-1)<.001f,"orientation resolves normalized XZ direction");check(a.transform.position==Vector3.zero,"orienting does not move character body");check(Vector3.Distance((Vector3)get(ba,"Direction"),direction)<.001f,"DataBus reads authoritative orientation immediately");check((float)get(ba,"FacingX")==-1 && (float)get(bb,"FacingX")==1,"two actors keep independent facing state");
+ var owner=new object();ca.Block(owner,ControlChannel.Move);check(!(bool)get(ba,"AllowsMovement")&&(bool)get(bb,"AllowsMovement"),"owner restriction stays within its actor");ca.Release(owner);check((bool)get(ba,"AllowsMovement"),"DataBus permission reflects owner release without copied flags");
+ ra.Request(new BasicAttackDefinition(.3,.5,.8,1.1,12),"test",ca,false);check((bool)get(ba,"ActionActive")&&!(bool)get(ba,"MoveReady")&&!(bool)get(bb,"ActionActive"),"bus follows own runtime acceptance only");ra.Advance(.5,false);check((bool)get(ba,"MoveReady")&&!(bool)get(ba,"AttackReady"),"move and attack readiness remain separate through bus");ra.Cancel("test-cancel");check(!(bool)get(ba,"ActionActive")&&(bool)get(ba,"AttackReady"),"cancellation is visible without a second action state");
+ var move=new InputAction("Move",InputActionType.Value,expectedControlType:"Vector2");move.AddCompositeBinding("2DVector").With("Up","<Keyboard>/j");inputType.GetField("movementAction").SetValue(ia,move);a.SetActive(true);a.SendMessage("OnEnable",SendMessageOptions.DontRequireReceiver);InputSystem.QueueStateEvent(keyboard,new KeyboardState(Key.J));InputSystem.Update();inputType.GetMethod("Read").Invoke(ia,null);var frame=get(ba,"Input");var moveField=frame.GetType().GetField("move");check(((Vector2)moveField.GetValue(frame)).y>.9f,"input owner publishes actual action sample to its bus");moveField.SetValue(frame,Vector2.zero);check(((Vector2)moveField.GetValue(get(ba,"Input"))).y>.9f,"consumer cannot mutate input owner through returned snapshot");
+ check(busType.GetProperties().All(p=>p.SetMethod==null)&&busType.GetFields().Length==0,"bus exposes read-only data rather than public mutable state");
+ ctx.Log("RESULT "+count+"/12 passed");
+ }finally{foreach(var obj in new[]{a,b})if(obj!=null){obj.SendMessage("OnDisable",SendMessageOptions.DontRequireReceiver);obj.SendMessage("OnDestroy",SendMessageOptions.DontRequireReceiver);UnityEngine.Object.DestroyImmediate(obj);}if(keyboard!=null)InputSystem.RemoveDevice(keyboard);EditorSceneManager.ClosePreviewScene(scene);InputSystem.settings=settings;UnityEngine.Object.DestroyImmediate(testSettings);}
+ }
+}

@@ -1,3 +1,5 @@
+> 历史M01候选文档。2026-10-19共享脚本命名、路径和输入接线已修整；当前以 [修整报告](character-control-refinement.md) 和 [用户规则](../../OSSASTRA_RULES.md) 为准。旧逐行解释不代表新版本已审。
+
 # M01 核心实际权威与调用关系
 
 范围：仅Candidates/M01中的纯C#候选。没有MonoBehaviour、Root、UnityEvent、静态广播、单例、Spine适配器或Inspector接线；这些不存在的脚本不能记为已完成。

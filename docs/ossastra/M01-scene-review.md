@@ -1,3 +1,5 @@
+> 历史M01候选文档。2026-10-19共享脚本命名、路径和输入接线已修整；当前以 [修整报告](character-control-refinement.md) 和 [用户规则](../../OSSASTRA_RULES.md) 为准。旧逐行解释不代表新版本已审。
+
 # M01 场景候选：试玩与审查入口
 
 状态：CANDIDATE / UNDER_USER_REVIEW。2026-10-19用户明确授权推送此候选供Chat查阅；该授权不代表手感、动画观感或逐行架构审查通过。最新接手状态及场景快照差异见M01-HANDOFF.md。
