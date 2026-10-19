@@ -2,7 +2,7 @@
  * 脚本：CharacterInputHandler
  * 功能：从Inspector配置的InputAction采样单角色输入快照。
  * 边界：只采输入；不接受动作、不驱动物理或写HP；每实例管理Action生命周期。
- * 协作：Root经ICharacterInputSource读取；场景协调者只读授权；未受管理时保持单角色使用。
+ * 协作：选择器经ICharacterInputSource读取；实时许可接口让外层帧随撤权失效，不复制Current。
  */
 using UnityEngine.EventSystems;
 using System.Collections.Generic;
@@ -20,7 +20,7 @@ namespace Ossastra.Characters
 
     // Each character owns its serialized actions. Input does not accept attacks or write gameplay state.
     [DisallowMultipleComponent]
-    public sealed class CharacterInputHandler : MonoBehaviour, ICharacterInputSource
+    public sealed class CharacterInputHandler : MonoBehaviour, ICharacterInputSource, ICharacterInputAvailability
     {
         [Header("移动 / VELGITA movementAction")]
         public InputAction movementAction = new InputAction("Move", InputActionType.Value, expectedControlType: "Vector2");

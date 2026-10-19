@@ -2,7 +2,7 @@
  * 脚本：CharacterRoot
  * 功能：组织单角色的接口接线、输入、动作事实、运动和表现。
  * 边界：持有本角色运行时；不实现设备绑定、目标HP写入或开发GUI。
- * 协作：输入→朝向→请求→推进→释放命中→运动→Spine；Bus只读访问原状态。
+ * 协作：唯一意图选择器→朝向→请求→推进→释放命中→运动→Spine；场景可注入伙伴帧源。
  */
 using System;
 using Ossastra.CharacterCore;
@@ -30,6 +30,7 @@ namespace Ossastra.Characters
         private readonly ControlAuthority authority = new ControlAuthority();
         private readonly AttackIntent intent = new AttackIntent();
         private ICharacterInputSource inputSource;
+        private CharacterIntentSelector intentSelector;
         private ICharacterMovement mover;
         private ICharacterOrientation orienter;
         private ICharacterPresentation presentation;
@@ -43,6 +44,15 @@ namespace Ossastra.Characters
         public string LastFact => lastFact;
         public bool IsPaused => paused || applicationPaused;
         public bool ActionActive => DataBus != null && DataBus.ActionActive;
+        public bool CanSimulateIntent => ready && isActiveAndEnabled && focused && !IsPaused;
+        public CharacterIntentKind EffectiveIntentKind => intentSelector == null ? CharacterIntentKind.Neutral : intentSelector.EffectiveKind;
+
+        public bool CanBindCompanionIntent(ICharacterControlSession session, ICompanionIntentSource source)
+            => ready && intentSelector != null && intentSelector.CanBind(session,source);
+        public bool BindCompanionIntent(ICharacterControlSession session, ICompanionIntentSource source)
+            => CanBindCompanionIntent(session,source) && intentSelector.Bind(session,source);
+        public void ClearCompanionIntent(ICompanionIntentSource owner)
+        { if (intentSelector != null) intentSelector.Clear(owner); }
 
         private void Awake()
         {
@@ -50,7 +60,9 @@ namespace Ossastra.Characters
             if (movement == null || orientation == null || view == null || melee == null || input == null || viewCamera == null)
             { Debug.LogError("Character requires registered input/movement/orientation/view/melee/camera", this); enabled = false; return; }
             // Inspector保留具体组件槽；运行期通过窄接口消费，不反向依赖开发GUI或测试靶。
-            inputSource = input;
+            // 每角色只有这一条有效Frame入口；没有Director绑定时保持原玩家适配器行为。
+            intentSelector = new CharacterIntentSelector(this,input);
+            inputSource = intentSelector;
             mover = movement;
             orienter = orientation;
             presentation = view;
@@ -77,7 +89,7 @@ namespace Ossastra.Characters
         private void Update()
         {
             if (!ready) return;
-            // 受管理输入源会先检查场景许可；非实控发布空帧，但下方动作时钟仍继续。
+            // 选择器只采一个源；伙伴只能提供移动，切人屏障为空帧，动作时钟仍继续。
             inputSource.Read();
             var frame = DataBus.Input;
             if (frame.pause) SetPaused(!paused);
@@ -149,8 +161,8 @@ namespace Ossastra.Characters
         { focused = hasFocus; if (!hasFocus) CancelAction("focus-lost"); else intent.SuppressUntilRelease(); }
         private void OnApplicationPause(bool value)
         { applicationPaused = value; if (value) intent.SuppressUntilRelease(); }
-        private void OnEnable() { intent.SuppressUntilRelease(); }
-        private void OnDisable() { CancelAction("disabled"); if (ready && presentation != null) presentation.SetPaused(false); }
+        private void OnEnable() { intent.SuppressUntilRelease(); if (intentSelector != null) intentSelector.Clear(); }
+        private void OnDisable() { CancelAction("disabled"); if (intentSelector != null) intentSelector.Clear(); if (ready && presentation != null) presentation.SetPaused(false); }
         private void OnDestroy()
         {
             // 终止本角色动作后解除本对象引用；不清其它角色或场景控制权威。
@@ -159,6 +171,8 @@ namespace Ossastra.Characters
             DataBus = null;
             runtime = null;
             inputSource = null;
+            if (intentSelector != null) intentSelector.Clear();
+            intentSelector = null;
             mover = null;
             orienter = null;
             presentation = null;

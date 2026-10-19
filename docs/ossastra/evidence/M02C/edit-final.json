@@ -1,0 +1,25 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [
+      {
+        "Level": "info",
+        "Message": "project=E:/WORLDCREATOR/new/Project_ANKALUTE/Assets scene=Assets/OSSASTRA/M02C/SC_M02C_FollowControl.unity dirty=False play=False missing=0 prefabStage=False actors=2 coordinatorBound=True probeDevices=0 inputSettings=Assets/InputSystem.inputsettings.asset"
+      },
+      {
+        "Level": "info",
+        "Message": "temporary-a refs=movement:True,orientation:True,view:True,melee:True,input:True,viewCamera:True"
+      },
+      {
+        "Level": "info",
+        "Message": "temporary-b refs=movement:True,orientation:True,view:True,melee:True,input:True,viewCamera:True"
+      }
+    ],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": null
+  }
+}

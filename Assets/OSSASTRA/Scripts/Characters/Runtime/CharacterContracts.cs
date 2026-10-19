@@ -6,9 +6,29 @@
  */
 using Ossastra.CharacterCore;
 using UnityEngine;
+using System.Collections.Generic;
 
 namespace Ossastra.Characters
 {
+    /// <summary>场景唯一控制权的只读视图；代际和共享屏障同时约束玩家与伙伴来源。</summary>
+    public interface ICharacterControlSession
+    {
+        CharacterRoot Current { get; }
+        IReadOnlyList<CharacterRoot> Characters { get; }
+        bool IsIntentSamplingAllowed { get; }
+        int ControlRevision { get; }
+    }
+    /// <summary>伙伴策略只提供移动候选帧；选择器剥离攻击、暂停、取消和开发命令。</summary>
+    public interface ICompanionIntentSource
+    {
+        bool IsAvailable { get; }
+        CharacterInputFrame ReadCompanionIntent(CharacterRoot character, float delta);
+    }
+    /// <summary>玩家源的实时许可；外层已采样帧在许可撤回时同样失效，兼容未挂跟随模块的旧场。</summary>
+    public interface ICharacterInputAvailability
+    {
+        bool HasPlayerInput { get; }
+    }
     /// <summary>由场景实控权威回答谁可以采样玩家输入；输入源不保存第二份选中状态。</summary>
     public interface ICharacterPlayerControlSource
     {
@@ -16,6 +36,7 @@ namespace Ossastra.Characters
     }
     /// <summary>仅为确需角色Bus的模块提供显式初始化；失败阻止角色启动。</summary>
     public interface ICharacterSubsystem { bool Initialize(CharacterDataBus dataBus); }
+    /// <summary>提供单角色唯一有效输入快照，不判定动作是否成功。</summary>
     public interface ICharacterInputSource
     {
         CharacterInputFrame CurrentFrame { get; }
@@ -30,6 +51,7 @@ namespace Ossastra.Characters
         void Tick(bool allowed, float delta);
         void Teleport(Vector3 position);
     }
+    /// <summary>分别维护攻击方向与可见翻转，由Root显式调度。</summary>
     public interface ICharacterOrientation
     {
         Vector3 AttackDirection { get; }
@@ -45,12 +67,13 @@ namespace Ossastra.Characters
         void SetPaused(bool paused);
         void Present();
     }
+    /// <summary>消费一次释放与方向快照，执行世界目标筛选。</summary>
     public interface ICharacterHitResolver
     {
         string LastResult { get; }
         void Resolve(AttackRelease release, Vector3 releaseDirection);
     }
-    // World target adapter: retains the existing sole Health writer.
+    /// <summary>提供同一Health和命中反馈；生产命中模块不依赖开发靶类型。</summary>
     public interface ICharacterHitTarget
     {
         Health Health { get; }

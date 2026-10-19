@@ -1,0 +1,29 @@
+// 真实选择器的可替换接口合同：源只调用一次，代际立即清旧帧，伙伴不能注入攻击或玩家命令。
+using System;using System.Collections.Generic;using UnityEngine;using UnityEditor;using Ossastra.Characters;using Ossastra.CharacterCore;using Funplay.Editor.Tools.Scripting;
+public class SelectorContract:IFunplayCommand
+{
+ private class Player:ICharacterInputSource { public int reads; public CharacterInputFrame CurrentFrame{get;private set;} public bool IsConfigured=>true; public CharacterInputFrame Read(){reads++;CurrentFrame=new CharacterInputFrame{move=Vector2.left,attackHeld=true};return CurrentFrame;} }
+ private class Companion:ICompanionIntentSource { public int reads;public bool available=true;public bool IsAvailable=>available;public CharacterInputFrame ReadCompanionIntent(Ossastra.Characters.CharacterRoot character,float delta){reads++;return new CharacterInputFrame{move=Vector2.right,attackHeld=true,pause=true,cancel=true,debugCommand=4,hasPointer=true};} }
+ private class Session:ICharacterControlSession {public Ossastra.Characters.CharacterRoot current;public bool allowed=true;public int revision;public Ossastra.Characters.CharacterRoot Current=>current;public IReadOnlyList<Ossastra.Characters.CharacterRoot> Characters=>new[]{current};public bool IsIntentSamplingAllowed=>allowed;public int ControlRevision=>revision;}
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+ {
+  if(!Application.isPlaying)throw new Exception("Play required");var prefab=AssetDatabase.LoadAssetAtPath<GameObject>("Assets/OSSASTRA/Prefabs/Characters/PlayerCharacter.prefab");if(prefab==null)throw new Exception("Missing prefab");var parent=new GameObject("M02CSelectorProbe");parent.SetActive(false);
+  try{
+   var a=UnityEngine.Object.Instantiate(prefab,parent.transform);a.transform.position=new Vector3(-4,.03f,3);var root=a.GetComponent<Ossastra.Characters.CharacterRoot>();typeof(Ossastra.Characters.CharacterRoot).GetField("actorId",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).SetValue(root,"selector-probe");parent.SetActive(true);if(root.DataBus==null)throw new Exception("Probe root failed initialization");
+   int passed=0;void Check(bool ok,string label){if(!ok)throw new Exception("FAIL "+label);passed++;ctx.Log("PASS "+label);}
+   var p=new Player();var ai=new Companion();var session=new Session{current=root};var selector=new CharacterIntentSelector(root,p);
+   Check(selector.Read().move==Vector2.left&&p.reads==1,"unbound single-player fallback uses original source");
+   Check(selector.Bind(session,ai),"explicit companion binding accepted");
+   var playerFrame=selector.Read();Check(playerFrame.move==Vector2.left&&playerFrame.attackHeld&&p.reads==2&&ai.reads==0,"current consumes only player source");
+   session.current=null;session.allowed=false;session.revision++;Check(selector.CurrentFrame.move==Vector2.zero&&selector.EffectiveKind==CharacterIntentKind.Neutral,"authority revision invalidates already published frame immediately");
+   Check(selector.Read().move==Vector2.zero&&p.reads==2&&ai.reads==0,"invalid session reads neither source");
+   session.allowed=true;session.revision++;var frame=selector.Read();Check(frame.move==Vector2.right&&ai.reads==1&&p.reads==2,"non-current consumes only companion source");
+   Check(!frame.attackHeld&&!frame.cancel&&!frame.pause&&frame.debugCommand==0&&!frame.hasPointer,"selector strips malicious companion attack and player-only fields");
+   var second=new Companion();Check(!selector.Bind(session,second),"live companion owner cannot be stolen");
+   ai.available=false;Check(selector.CurrentFrame.move==Vector2.zero,"provider disable invalidates prior companion frame");Check(selector.Read().move==Vector2.zero&&ai.reads==1&&p.reads==2,"unavailable companion becomes neutral not player");
+   session.current=root;session.revision++;Check(selector.Read().move==Vector2.left&&p.reads==3,"player takeover uses same player adapter");
+   selector.Clear(second);Check(selector.CurrentFrame.move==Vector2.left,"foreign owner cannot clear effective frame");selector.Clear(ai);Check(selector.CurrentFrame.move==Vector2.zero,"own provider can clear effective frame");
+   ctx.Log("RESULT "+passed+"/13 passed");
+  }finally{UnityEngine.Object.DestroyImmediate(parent);}
+ }
+}

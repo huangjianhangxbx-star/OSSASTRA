@@ -1,0 +1,98 @@
+[
+  {
+    "path": "Assets/OSSASTRA/Scripts/Characters/Core/CharacterIntentPolicy.cs",
+    "types": [
+      "CharacterIntentKind",
+      "CharacterIntentPolicy"
+    ],
+    "lines": 21,
+    "sha256": "EA9814A24E7CAABEBE38CC53E2C54002A59D51857E7025CD09A40C736E592CA9",
+    "status": "待审"
+  },
+  {
+    "path": "Assets/OSSASTRA/Scripts/Characters/Core/CompanionFollowPolicy.cs",
+    "types": [
+      "CompanionFollowState",
+      "CompanionFollowDecision",
+      "CompanionFollowPolicy"
+    ],
+    "lines": 66,
+    "sha256": "A45C38E2457A71D18AB52E0D8A3FD7AB0393E33870DB02DC4991D72465F98009",
+    "status": "待审"
+  },
+  {
+    "path": "Assets/OSSASTRA/Scripts/Characters/Runtime/CharacterContracts.cs",
+    "types": [
+      "ICharacterControlSession",
+      "ICompanionIntentSource",
+      "ICharacterInputAvailability",
+      "ICharacterPlayerControlSource",
+      "ICharacterSubsystem",
+      "ICharacterInputSource",
+      "ICharacterMovement",
+      "ICharacterOrientation",
+      "ICharacterPresentation",
+      "ICharacterHitResolver",
+      "ICharacterHitTarget"
+    ],
+    "lines": 82,
+    "sha256": "2AB3866A56D5DF6CC5626DCA6B01FEA77129CE72F679CBB35B7E56F3443EB6FF",
+    "status": "待审"
+  },
+  {
+    "path": "Assets/OSSASTRA/Scripts/Characters/Runtime/CharacterControlCoordinator.cs",
+    "types": [
+      "CharacterControlCoordinator"
+    ],
+    "lines": 139,
+    "sha256": "1F4CEB2C68E0CA291319B291514436F06DAC7113D40F8F370330718C6D2597C1",
+    "status": "待审"
+  },
+  {
+    "path": "Assets/OSSASTRA/Scripts/Characters/Runtime/CharacterInputHandler.cs",
+    "types": [
+      "CharacterInputFrame",
+      "CharacterInputHandler"
+    ],
+    "lines": 135,
+    "sha256": "73AA2CBCF0399FB2CAFC422644607C2ADABDA484073A6FF48693ABD059491DCC",
+    "status": "待审"
+  },
+  {
+    "path": "Assets/OSSASTRA/Scripts/Characters/Runtime/CharacterRoot.cs",
+    "types": [
+      "CharacterRoot"
+    ],
+    "lines": 182,
+    "sha256": "904BEE796A9F7F249AF8FD77907DF9B41EFDE42D28CA08F193A75233CAEFFE2A",
+    "status": "待审"
+  },
+  {
+    "path": "Assets/OSSASTRA/Scripts/Characters/Runtime/CharacterIntentSelector.cs",
+    "types": [
+      "CharacterIntentSelector"
+    ],
+    "lines": 70,
+    "sha256": "87F0CDAA2B7695E525682B3FDD8394B6E4D1A63E863D80325F924C64CE5A1A18",
+    "status": "待审"
+  },
+  {
+    "path": "Assets/OSSASTRA/Scripts/Characters/Runtime/CompanionFollowDirector.cs",
+    "types": [
+      "CompanionFollowObservation",
+      "CompanionFollowDirector"
+    ],
+    "lines": 126,
+    "sha256": "C2BC03A9CE95338BB2739423F094DC9066FD6555D703E002606D823850B63ECD",
+    "status": "待审"
+  },
+  {
+    "path": "Assets/OSSASTRA/Scripts/Development/Combat/CompanionFollowDebugView.cs",
+    "types": [
+      "CompanionFollowDebugView"
+    ],
+    "lines": 50,
+    "sha256": "C917CE39D099DE4EB9226DF6356279A6D8536240E0BAB1BDE06B6090350DD43F",
+    "status": "待审"
+  }
+]

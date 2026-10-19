@@ -2,7 +2,7 @@
  * 脚本：CharacterControlCoordinator
  * 功能：保存同组角色唯一的玩家实控对象，并读取Inspector切换输入。
  * 边界：不接管各角色动作时钟、HP或AI；不使用全局单例。
- * 协作：在Root之前更新；InputHandler通过只读契约查询许可，不复制选中布尔。
+ * 协作：在Root之前更新；玩家与伙伴选择器只读查询许可/代际，不复制Current或选中布尔。
  */
 using System;
 using System.Collections.Generic;
@@ -14,7 +14,7 @@ namespace Ossastra.Characters
 {
     [DefaultExecutionOrder(-200)]
     [DisallowMultipleComponent]
-    public sealed class CharacterControlCoordinator : MonoBehaviour, ICharacterPlayerControlSource
+    public sealed class CharacterControlCoordinator : MonoBehaviour, ICharacterPlayerControlSource, ICharacterControlSession
     {
         [SerializeField] private CharacterRoot[] characters = Array.Empty<CharacterRoot>();
         [SerializeField, Min(0)] private int initialIndex;
@@ -27,6 +27,9 @@ namespace Ossastra.Characters
         public CharacterRoot Current { get; private set; }
         public IReadOnlyList<CharacterRoot> Characters => Array.AsReadOnly(characters);
         public string Status { get; private set; } = "未初始化";
+        public int ControlRevision { get; private set; }
+        public bool IsIntentSamplingAllowed => configured && isActiveAndEnabled && focused && !applicationPaused &&
+            Current != null && Current.isActiveAndEnabled && Current.DataBus != null && Time.frameCount > handoverFrame;
 
         private void Awake()
         {
@@ -72,8 +75,7 @@ namespace Ossastra.Characters
         /// <summary>只有Current对应的输入源可消费玩家输入；切换当帧新源禁止采样。</summary>
         public bool IsPlayerInputAllowed(ICharacterInputSource source)
         {
-            if (!configured || !isActiveAndEnabled || !focused || applicationPaused ||
-                Current == null || !Current.isActiveAndEnabled || Time.frameCount <= handoverFrame) return false;
+            if (!IsIntentSamplingAllowed) return false;
             for (var i = 0; i < characters.Length; i++)
                 if (characters[i] == Current) return ReferenceEquals(inputs[i], source);
             return false;
@@ -98,6 +100,7 @@ namespace Ossastra.Characters
         {
             // 先撤回旧权威并清所有快照，再授予新身份。整帧禁入避免外部晚调用导致同帧双控。
             Current = null;
+            ControlRevision++;
             foreach (var input in inputs) if (input != null) input.ResetPlayerInput();
             handoverFrame = Time.frameCount;
             Current = next;
@@ -119,12 +122,14 @@ namespace Ossastra.Characters
         private void OnApplicationFocus(bool value)
         {
             focused = value;
+            ControlRevision++;
             switchIntent.SuppressUntilRelease();
             if (bindingsOwned) foreach (var input in inputs) if (input != null) input.ResetPlayerInput();
         }
         private void OnApplicationPause(bool value)
         {
             applicationPaused = value;
+            ControlRevision++;
             switchIntent.SuppressUntilRelease();
             if (bindingsOwned) foreach (var input in inputs) if (input != null) input.ResetPlayerInput();
         }
