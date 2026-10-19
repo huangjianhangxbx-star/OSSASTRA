@@ -1,0 +1,55 @@
+using System;
+using System.Collections.Generic;
+using System.Reflection;
+using UnityEngine;
+using Ossastra.Characters;
+using Ossastra.CharacterCore;
+using Funplay.Editor.Tools.Scripting;
+namespace Ossastra.R1Checks {
+ public sealed class InputStub : ICharacterInputSource {
+  public CharacterInputFrame CurrentFrame {get;set;}
+  public bool IsConfigured => true;
+  public int reads;
+  public CharacterInputFrame Read(){reads++;return CurrentFrame;}
+ }
+ public sealed class MovementStub : ICharacterMovement {
+  public bool IsMoving=>false;public Vector3 Velocity=>Vector3.zero;public Vector2 observed;
+  private Ossastra.Characters.CharacterDataBus bus;private readonly List<string> trace;
+  public MovementStub(List<string> trace){this.trace=trace;}
+  public bool Initialize(Ossastra.Characters.CharacterDataBus dataBus){bus=dataBus;trace.Add("movement");return true;}
+  public void Tick(bool allowed,float delta){observed=allowed?bus.Input.move:Vector2.zero;}
+  public void Teleport(Vector3 position){}
+ }
+ public sealed class OrientationStub : ICharacterOrientation {
+  public Vector3 AttackDirection {get;set;}=Vector3.left;public float VisualFacingX {get;set;}=1;
+  public void ResolveDirections(Vector2 move,Vector3? pointer,Vector2 stick,bool allowed){}
+  public void OrientTowards(Vector3 point){}public void FaceAttackDirection(){}
+ }
+ public sealed class PresentationStub : ICharacterPresentation {
+  public string CurrentClip=>"stub";private Ossastra.Characters.CharacterDataBus bus;private readonly List<string> trace;public float observed;
+  public PresentationStub(List<string> trace){this.trace=trace;}
+  public bool Initialize(Ossastra.Characters.CharacterDataBus dataBus){bus=dataBus;trace.Add("presentation");return true;}
+  public void SetPaused(bool paused){}public void Present(){observed=bus.VisualFacingX;}
+ }
+ public sealed class HitStub : ICharacterHitResolver {
+  public string LastResult=>"stub";private readonly List<string> trace;public Vector3 observed;public readonly Health health=new Health("stub-target",100);
+  public HitStub(List<string> trace){this.trace=trace;}
+  public bool Initialize(Ossastra.Characters.CharacterDataBus dataBus){trace.Add("hit");return true;}
+  public void Resolve(AttackRelease release,Vector3 direction){observed=direction;release.Resolve(new[]{health});}
+ }
+ public sealed class FailingSubsystem : Ossastra.Characters.ICharacterSubsystem {
+  private readonly List<string> trace;public FailingSubsystem(List<string> trace){this.trace=trace;}
+  public bool Initialize(Ossastra.Characters.CharacterDataBus bus){trace.Add("failure");return false;}
+ }
+ public class InterfaceContract : IFunplayCommand {
+  public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx){int passed=0;Action<bool,string> check=(ok,name)=>{if(!ok)throw new Exception("FAIL "+name);passed++;ctx.Log("PASS "+name);};var trace=new List<string>();var source=new InputStub{CurrentFrame=new CharacterInputFrame{move=Vector2.left}};var movement=new MovementStub(trace);var orientation=new OrientationStub();var hit=new HitStub(trace);var presentation=new PresentationStub(trace);var runtime=new BasicActionRuntime("interface-actor");var gate=new ControlAuthority();var bus=new Ossastra.Characters.CharacterDataBus("interface-actor",source,movement,orientation,runtime,gate);
+  var initialize=typeof(Ossastra.Characters.CharacterRoot).GetMethod("InitializeSubsystems",BindingFlags.NonPublic|BindingFlags.Static);check(initialize!=null&&(bool)initialize.Invoke(null,new object[]{bus,new Ossastra.Characters.ICharacterSubsystem[]{movement,presentation}})&&string.Join(",",trace)=="movement,presentation","actual Root initialization protocol preserves declared order");
+  check(!((object)source is Ossastra.Characters.ICharacterSubsystem) && !((object)hit is Ossastra.Characters.ICharacterSubsystem),"input source has no fake initialization obligation");source.Read();check(source.reads==1&&bus.Input.move==Vector2.left,"replaceable input source is consumed through same bus contract");movement.Tick(true,.1f);check(movement.observed==Vector2.left,"replaceable movement reads bus input");check(bus.AttackDirection==Vector3.left&&bus.VisualFacingX==1,"presentation facing and attack direction are separate interface data");orientation.VisualFacingX=-1;presentation.Present();check(presentation.observed==-1,"presentation replacement sees live orientation owner without cache");
+  runtime.Request(new BasicAttackDefinition(.3,.5,.8,1.1,12),"interface",gate);check(bus.ActionActive,"interface substitution retains actual domain runtime authority");var facts=runtime.Advance(.3,false);hit.Resolve(facts[0].Release,Vector3.right);check(hit.observed==Vector3.right&&bus.AttackDirection==Vector3.left,"hit resolver receives explicit release-frame snapshot");check(hit.health.Current==88,"substituted target uses original sole Health settlement");bool duplicateRejected=false;try{hit.Resolve(facts[0].Release,Vector3.left);}catch(InvalidOperationException){duplicateRejected=true;}check(duplicateRejected&&hit.health.Current==88,"substitution cannot resolve a release twice");
+  trace.Clear();var ok=(bool)initialize.Invoke(null,new object[]{bus,new Ossastra.Characters.ICharacterSubsystem[]{new FailingSubsystem(trace),movement}});check(!ok&&string.Join(",",trace)=="failure","failed initialization does not run later subsystem");
+  var other=new Ossastra.Characters.CharacterDataBus("other",new InputStub{CurrentFrame=new CharacterInputFrame{move=Vector2.right}},new MovementStub(new List<string>()),new OrientationStub(),new BasicActionRuntime("other"),new ControlAuthority());check(other.Input.move==Vector2.right&&bus.Input.move==Vector2.left&&!other.ActionActive,"two interface-backed actors keep state isolated");ctx.Log("RESULT "+passed+"/12 passed");}
+ }
+}
+
+
+

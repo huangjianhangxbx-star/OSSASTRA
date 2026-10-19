@@ -1,3 +1,9 @@
+/*
+ * 脚本：CharacterDataBus
+ * 功能：为单个角色提供输入、运动、朝向、动作和权限的只读访问门面。
+ * 边界：状态仍由原模块唯一写入；不复制可写HP、动作时钟或全局控制状态。
+ * 协作：Root创建；Movement／Spine及消费者实时读取接口拥有者。
+ */
 using System;
 using Ossastra.CharacterCore;
 using UnityEngine;
@@ -7,9 +13,9 @@ namespace Ossastra.Characters
     // Per-character read facade; referenced modules remain the sole mutable-state owners.
     public sealed class CharacterDataBus
     {
-        private readonly CharacterInputHandler input;
-        private readonly CharacterMovement movement;
-        private readonly CharacterOrientation orientation;
+        private readonly ICharacterInputSource input;
+        private readonly ICharacterMovement movement;
+        private readonly ICharacterOrientation orientation;
         private readonly BasicActionRuntime actionRuntime;
         private readonly ControlAuthority controlAuthority;
 
@@ -17,8 +23,8 @@ namespace Ossastra.Characters
         public CharacterInputFrame Input => input.CurrentFrame;
         public bool IsMoving => movement.IsMoving;
         public Vector3 Velocity => movement.Velocity;
-        public Vector3 Direction => orientation.Direction;
-        public float FacingX => orientation.FacingX;
+        public Vector3 AttackDirection => orientation.AttackDirection;
+        public float VisualFacingX => orientation.VisualFacingX;
         public bool ActionActive => actionRuntime.IsActive;
         public Guid ActionId => actionRuntime.ActionId;
         public bool MoveReady => actionRuntime.MoveReady;
@@ -26,8 +32,8 @@ namespace Ossastra.Characters
         public bool AllowsMovement => controlAuthority.Allows(ControlChannel.Move);
         public bool AllowsAttack => controlAuthority.Allows(ControlChannel.Attack);
 
-        public CharacterDataBus(string actorId, CharacterInputHandler input, CharacterMovement movement,
-            CharacterOrientation orientation, BasicActionRuntime actionRuntime, ControlAuthority controlAuthority)
+        public CharacterDataBus(string actorId, ICharacterInputSource input, ICharacterMovement movement,
+            ICharacterOrientation orientation, BasicActionRuntime actionRuntime, ControlAuthority controlAuthority)
         {
             if (string.IsNullOrWhiteSpace(actorId)) throw new ArgumentException("Actor identity required", nameof(actorId));
             if (input == null) throw new ArgumentNullException(nameof(input));

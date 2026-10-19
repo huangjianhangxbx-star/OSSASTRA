@@ -1,3 +1,9 @@
+/*
+ * 脚本：CharacterMovement
+ * 功能：依据角色输入与移动许可执行XZ位移、碰撞及贴地。
+ * 边界：只管理运动；不决定攻击方向、不结算伤害。
+ * 协作：Root初始化Bus并调用Tick；CharacterController实际位移决定速度和Run资格。
+ */
 using System;
 using UnityEngine;
 
@@ -5,7 +11,7 @@ namespace Ossastra.Characters
 {
     [DisallowMultipleComponent]
     [RequireComponent(typeof(CharacterController))]
-    public sealed class CharacterMovement : MonoBehaviour
+    public sealed class CharacterMovement : MonoBehaviour, ICharacterMovement
     {
         [SerializeField, Min(.01f)] private float speed = 3;
         [SerializeField, Min(.01f)] private float groundStick = 2;
@@ -14,11 +20,12 @@ namespace Ossastra.Characters
         public bool IsMoving { get; private set; }
         public Vector3 Velocity { get; private set; }
 
-        public void Initialize(CharacterDataBus dataBus)
+        public bool Initialize(CharacterDataBus dataBus)
         {
             if (dataBus == null) throw new ArgumentNullException(nameof(dataBus));
             this.dataBus = dataBus;
             body = GetComponent<CharacterController>();
+            return body != null;
         }
 
         public void Tick(bool allowed, float delta)

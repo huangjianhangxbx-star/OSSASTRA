@@ -306,6 +306,7 @@ GameObject:
   - component: {fileID: 3178852648357337582}
   - component: {fileID: 6855529470788851489}
   - component: {fileID: 62508862999485397}
+  - component: {fileID: 4248756889777462975}
   m_Layer: 0
   m_HasEditorInfo: 1
   m_Name: PlayerCharacter
@@ -408,15 +409,14 @@ MonoBehaviour:
   orientation: {fileID: 62508862999485397}
   view: {fileID: 553735603128144088}
   melee: {fileID: 4380353501325685047}
+  input: {fileID: 6855529470788851489}
   viewCamera: {fileID: 0}
-  debugTarget: {fileID: 0}
   releaseAt: 0.3
   moveReadyAt: 0.5
   attackReadyAt: 0.8
   finishAt: 1.1
   damage: 12
   verboseTrace: 0
-  input: {fileID: 6855529470788851489}
 --- !u!114 &6855529470788851489
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -699,6 +699,20 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e5e4a045cd0650f4288da1c421f2a387, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+--- !u!114 &4248756889777462975
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6821041145637747292}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8facea0b4b56fc047a411f92133879c3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  character: {fileID: 3178852648357337582}
+  target: {fileID: 0}
 --- !u!1 &9036645340740745320
 GameObject:
   m_ObjectHideFlags: 0

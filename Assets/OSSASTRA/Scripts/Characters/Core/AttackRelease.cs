@@ -1,3 +1,9 @@
+/*
+ * 脚本：AttackRelease
+ * 功能：结算一次动作释放的目标批次，并返回命中结果。
+ * 边界：同一释放只结算一次；按目标身份去重；HP只经Health写入。
+ * 协作：世界适配器先做空间筛选，再调用Resolve；空挥同样关闭该批次。
+ */
 using System;
 using System.Collections.Generic;
 using System.Linq;

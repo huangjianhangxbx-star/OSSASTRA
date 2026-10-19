@@ -1,0 +1,160 @@
+[
+  {
+    "path": "Assets/OSSASTRA/Scripts/Characters/Core/AttackIntent.cs",
+    "types": [
+      "AttackIntent"
+    ],
+    "lines": 29,
+    "sha256": "DD1F501F5756FBED7AFBDF5A7898F9B35422C5878C38C95631AF015EBDF2C78E",
+    "status": "待审"
+  },
+  {
+    "path": "Assets/OSSASTRA/Scripts/Characters/Core/AttackRelease.cs",
+    "types": [
+      "HitReason",
+      "HitOutcome",
+      "AttackRelease"
+    ],
+    "lines": 71,
+    "sha256": "3C96F30D6F5D9B5B2B728308D95F681D9DC9A0AB7DEF09B0A315E5262F2FCBAB",
+    "status": "待审"
+  },
+  {
+    "path": "Assets/OSSASTRA/Scripts/Characters/Core/BasicActionRuntime.cs",
+    "types": [
+      "ActionFactKind",
+      "ActionFact",
+      "ActionRequestResult",
+      "BasicActionRuntime"
+    ],
+    "lines": 138,
+    "sha256": "4DC090007A7CF622A62A67D72B8E8912C63003F191743D2EBA2EC67F9DF3C933",
+    "status": "待审"
+  },
+  {
+    "path": "Assets/OSSASTRA/Scripts/Characters/Core/BasicAttackDefinition.cs",
+    "types": [
+      "BasicAttackDefinition"
+    ],
+    "lines": 29,
+    "sha256": "CE126E0F1A4A6E9CC65D32E04B2FB41CDB7E9305F97669A9D01D2BDB587CD5D1",
+    "status": "待审"
+  },
+  {
+    "path": "Assets/OSSASTRA/Scripts/Characters/Core/ControlAuthority.cs",
+    "types": [
+      "ControlChannel",
+      "ControlAuthority",
+      "OwnerComparer"
+    ],
+    "lines": 49,
+    "sha256": "15B1692C37C998AB27D049AAC324B02FC50BE1EDD1E2104A49314D0E4AFBB6CA",
+    "status": "待审"
+  },
+  {
+    "path": "Assets/OSSASTRA/Scripts/Characters/Core/Health.cs",
+    "types": [
+      "Health"
+    ],
+    "lines": 27,
+    "sha256": "4EFA12B068ED93D0156A0F7B3D2BF08D80DDE3067DED471501B29088FC8DD707",
+    "status": "待审"
+  },
+  {
+    "path": "Assets/OSSASTRA/Scripts/Characters/Runtime/CharacterContracts.cs",
+    "types": [
+      "ICharacterSubsystem",
+      "ICharacterInputSource",
+      "ICharacterMovement",
+      "ICharacterOrientation",
+      "ICharacterPresentation",
+      "ICharacterHitResolver",
+      "ICharacterHitTarget"
+    ],
+    "lines": 45,
+    "sha256": "8D394CB92AEAFA7AF88E931657D92221DEFC9419653E081F169FA79AE129647D",
+    "status": "待审"
+  },
+  {
+    "path": "Assets/OSSASTRA/Scripts/Characters/Runtime/CharacterDataBus.cs",
+    "types": [
+      "CharacterDataBus"
+    ],
+    "lines": 46,
+    "sha256": "2EB20A5BBBBC8BFF846842B95980C59DA30ECB0BB98F8FA5DD0088A9838FB594",
+    "status": "待审"
+  },
+  {
+    "path": "Assets/OSSASTRA/Scripts/Characters/Runtime/CharacterInputHandler.cs",
+    "types": [
+      "CharacterInputFrame",
+      "CharacterInputHandler"
+    ],
+    "lines": 103,
+    "sha256": "E6D859DA5C58856A29B8C5F20A340DDE66F72EACF9846FC8F31911BF7ADE2BA5",
+    "status": "待审"
+  },
+  {
+    "path": "Assets/OSSASTRA/Scripts/Characters/Runtime/CharacterMeleeHit.cs",
+    "types": [
+      "CharacterMeleeHit"
+    ],
+    "lines": 30,
+    "sha256": "0A259D33FE3948688F785CA09E49AE075F3025EA824890F6D14FBD3BB80FC398",
+    "status": "待审"
+  },
+  {
+    "path": "Assets/OSSASTRA/Scripts/Characters/Runtime/CharacterMovement.cs",
+    "types": [
+      "CharacterMovement"
+    ],
+    "lines": 50,
+    "sha256": "61C538C455F66C9BF6F5F396A0FDECC7C2328197ADC4A43EF0AE6CAF4DA637C7",
+    "status": "待审"
+  },
+  {
+    "path": "Assets/OSSASTRA/Scripts/Characters/Runtime/CharacterOrientation.cs",
+    "types": [
+      "CharacterOrientation"
+    ],
+    "lines": 35,
+    "sha256": "87E4DDD0BC60C59419C22B689699CC6234F3AF02EEA0B3CE5F415E3A7091369D",
+    "status": "待审"
+  },
+  {
+    "path": "Assets/OSSASTRA/Scripts/Characters/Runtime/CharacterRoot.cs",
+    "types": [
+      "CharacterRoot"
+    ],
+    "lines": 153,
+    "sha256": "B99C7D9438F338B219EE92CDD2C2A8140F2B8ED7DC257B526EA5D7A1DA79982F",
+    "status": "待审"
+  },
+  {
+    "path": "Assets/OSSASTRA/Scripts/Characters/Runtime/CharacterSpineView.cs",
+    "types": [
+      "CharacterSpineView"
+    ],
+    "lines": 56,
+    "sha256": "F8E6B69C2D8665F17A95686D618F4415F293CC039AED6673252B5AE998BA78BA",
+    "status": "待审"
+  },
+  {
+    "path": "Assets/OSSASTRA/Scripts/Development/Combat/CharacterDebugControls.cs",
+    "types": [
+      "CharacterDebugControls"
+    ],
+    "lines": 74,
+    "sha256": "E87FA6FEEA674F29DE9BF0C07EA1DF69608C2550F33A6489DD838BDED524D2A3",
+    "status": "待审"
+  },
+  {
+    "path": "Assets/OSSASTRA/Scripts/Development/Combat/CombatTestTarget.cs",
+    "types": [
+      "CombatTestTarget"
+    ],
+    "lines": 58,
+    "sha256": "0AA909B79AB31A42630237694A5321744B4F2071DAD81499A1D3EF1FC33CA557",
+    "status": "待审"
+  }
+]

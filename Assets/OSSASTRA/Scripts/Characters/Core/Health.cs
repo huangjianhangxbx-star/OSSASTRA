@@ -1,3 +1,9 @@
+/*
+ * 脚本：Health
+ * 功能：保存目标身份与唯一可写的当前HP，限制伤害结果不低于零。
+ * 边界：不管理动画、控制权、敌人AI或正式死亡流程。
+ * 协作：AttackRelease经内部ApplyDamage写入；开发靶只持有同一对象。
+ */
 using System;
 
 namespace Ossastra.CharacterCore

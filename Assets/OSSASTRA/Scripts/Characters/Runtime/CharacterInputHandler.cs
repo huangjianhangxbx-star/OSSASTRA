@@ -1,3 +1,10 @@
+/*
+ * 脚本：CharacterInputHandler
+ * 功能：从Inspector配置的InputAction采样单角色输入快照。
+ * 边界：只采输入；不接受动作、不驱动物理或写HP；每实例管理Action生命周期。
+ * 协作：Root经ICharacterInputSource读取；UI区域会阻止鼠标方向和攻击穿透。
+ */
+using UnityEngine.EventSystems;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -7,13 +14,13 @@ namespace Ossastra.Characters
     public struct CharacterInputFrame
     {
         public Vector2 move, pointer, aimDirection;
-        public bool attackHeld, cancel, pause, hasPointer, hasDirectionalAim;
+        public bool attackHeld, cancel, pause, hasPointer, hasDirectionalAim, attackPointerBlocked;
         public int debugCommand;
     }
 
     // Each character owns its serialized actions. Input does not accept attacks or write gameplay state.
     [DisallowMultipleComponent]
-    public sealed class CharacterInputHandler : MonoBehaviour
+    public sealed class CharacterInputHandler : MonoBehaviour, ICharacterInputSource
     {
         [Header("移动 / VELGITA movementAction")]
         public InputAction movementAction = new InputAction("Move", InputActionType.Value, expectedControlType: "Vector2");
@@ -31,6 +38,18 @@ namespace Ossastra.Characters
         public InputAction debugBlockedAction = new InputAction("DebugBlocked", InputActionType.Button);
         public InputAction debugResetAction = new InputAction("DebugReset", InputActionType.Button);
         public InputAction debugInspectAction = new InputAction("DebugInspect", InputActionType.Button);
+
+        private readonly Dictionary<object, Rect> pointerRegions = new Dictionary<object, Rect>();
+        public void RegisterPointerRegion(object owner, Rect region) { pointerRegions[owner] = region; }
+        public void RemovePointerRegion(object owner) { pointerRegions.Remove(owner); }
+
+        private bool IsPointerBlocked(Vector2 pointer)
+        {
+            if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject()) return true;
+            var guiPoint = new Vector2(pointer.x, Screen.height - pointer.y);
+            foreach (var region in pointerRegions.Values) if (region.Contains(guiPoint)) return true;
+            return false;
+        }
 
         public CharacterInputFrame CurrentFrame { get; private set; }
 
@@ -66,7 +85,8 @@ namespace Ossastra.Characters
             if (mouseAction != null && mouseAction.enabled)
             {
                 frame.pointer = mouseAction.ReadValue<Vector2>();
-                frame.hasPointer = mouseAction.controls.Count > 0;
+                frame.hasPointer = mouseAction.controls.Count > 0 && frame.pointer.x >= 0 && frame.pointer.x <= Screen.width &&
+                    frame.pointer.y >= 0 && frame.pointer.y <= Screen.height && !IsPointerBlocked(frame.pointer);
             }
             if (gamepadAimAction != null && gamepadAimAction.enabled)
             {
@@ -74,6 +94,8 @@ namespace Ossastra.Characters
                 frame.hasDirectionalAim = frame.aimDirection.sqrMagnitude > .01f;
             }
             frame.attackHeld = attackAction != null && attackAction.enabled && attackAction.IsPressed();
+            if (attackAction != null && attackAction.activeControl != null && attackAction.activeControl.device is Pointer &&
+                !frame.hasPointer) frame.attackPointerBlocked = true;
             frame.cancel = Pressed(cancelAction);
             frame.pause = Pressed(pauseAction);
             frame.debugCommand = Pressed(debugValidAction) ? 1 : Pressed(debugBlockedAction) ? 2 :

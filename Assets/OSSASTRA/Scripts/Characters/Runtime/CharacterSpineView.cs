@@ -1,10 +1,16 @@
+/*
+ * 脚本：CharacterSpineView
+ * 功能：把角色动作、实际移动和显示翻转投影到Spine。
+ * 边界：只写表现，不用动画回调判命中或推进动作时钟。
+ * 协作：Root初始化和调度；按ActionId区分同名攻击重播，暂停恢复原动画速度。
+ */
 using System;
 using Spine.Unity;
 using UnityEngine;
 
 namespace Ossastra.Characters
 {
-    public sealed class CharacterSpineView : MonoBehaviour
+    public sealed class CharacterSpineView : MonoBehaviour, ICharacterPresentation
     {
         [SerializeField] private SkeletonAnimation skeleton;
         [SerializeField] private string idle = "idle1_1", move = "run", attack = "atk1";
@@ -41,7 +47,7 @@ namespace Ossastra.Characters
             var actionActive = dataBus.ActionActive;
             var actionId = dataBus.ActionId;
             var moving = dataBus.IsMoving;
-            var facing = dataBus.FacingX;
+            var facing = dataBus.VisualFacingX;
             var clip = actionActive && !moving ? attack : moving ? move : idle;
             var replay = clip == attack && actionId != lastAction;
             skeleton.Skeleton.ScaleX = originalScaleX * facing;

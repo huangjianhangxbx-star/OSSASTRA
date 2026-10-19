@@ -1,6 +1,12 @@
+/*
+ * 脚本：AttackIntent
+ * 功能：将按住状态转换为一次按下意图，并在失焦、禁启或移交输入后要求松键重武装。
+ * 边界：只维护边沿；不读设备、不判断动作资格、不释放攻击。
+ * 协作：Root调用Observe／SuppressUntilRelease；每角色独立。
+ */
 namespace Ossastra.CharacterCore
 {
-    // 设备采样由未来Unity适配器负责；这里只保留按下边沿和重新武装规则。
+    // 设备采样由Unity输入适配器负责；这里只保留按下边沿和重新武装规则。
     public sealed class AttackIntent
     {
         private bool previousHeld;

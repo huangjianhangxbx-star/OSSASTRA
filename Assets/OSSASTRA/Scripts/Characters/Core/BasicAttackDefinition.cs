@@ -1,3 +1,9 @@
+/*
+ * 脚本：BasicAttackDefinition
+ * 功能：验证并保存一次基础攻击的不可变时间节点和伤害配置。
+ * 边界：不内置正式平衡默认值；拒绝无效时间顺序和非正伤害。
+ * 协作：由Root构造，BasicActionRuntime读取。
+ */
 using System;
 
 namespace Ossastra.CharacterCore

@@ -1,3 +1,9 @@
+/*
+ * 脚本：BasicActionRuntime
+ * 功能：维护单角色的动作身份、时钟与Accepted／Released／Ready／终结事实。
+ * 边界：不采设备、不驱动Spine、不查询碰撞、不直接改HP。
+ * 协作：Root请求并推进；Release对象交世界适配器；暂停不推进时钟。
+ */
 using System;
 using System.Collections.Generic;
 using System.Linq;

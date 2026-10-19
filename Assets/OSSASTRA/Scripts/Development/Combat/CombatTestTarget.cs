@@ -1,9 +1,16 @@
+/*
+ * 脚本：CombatTestTarget
+ * 功能：提供开发验证靶、独立Health和短暂命中闪白／数值显示。
+ * 边界：仅验证辅助，不代表正式敌人、受击或死亡系统已经迁移。
+ * 协作：通过ICharacterHitTarget被命中模块发现；Health保持唯一写入。
+ */
+using Ossastra.Characters;
 using Ossastra.CharacterCore;
 using UnityEngine;
 
 namespace Ossastra.Development
 {
-    public sealed class CombatTestTarget : MonoBehaviour
+    public sealed class CombatTestTarget : MonoBehaviour, ICharacterHitTarget
     {
         [SerializeField] private string targetId = "target-a";
         [SerializeField, Min(1)] private int maximumHp = 100;

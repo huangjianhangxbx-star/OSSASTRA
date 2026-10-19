@@ -1,4 +1,9 @@
-using Ossastra.Development;
+/*
+ * 脚本：CharacterMeleeHit
+ * 功能：将一次释放的方向快照转换为物理范围检测和目标批次。
+ * 边界：不创建动作时钟或另一份HP；不直接依赖开发靶类型。
+ * 协作：Root经ICharacterHitResolver调用；ICharacterHitTarget连接Health及命中表现。
+ */
 using System;
 using System.Linq;
 using Ossastra.CharacterCore;
@@ -6,28 +11,20 @@ using UnityEngine;
 
 namespace Ossastra.Characters
 {
-    public sealed class CharacterMeleeHit : MonoBehaviour
+    public sealed class CharacterMeleeHit : MonoBehaviour, ICharacterHitResolver
     {
         [SerializeField, Min(0)] private float reach = .8f;
         [SerializeField, Min(.01f)] private float radius = .65f;
         [SerializeField] private float height = .8f;
         [SerializeField] private LayerMask targetLayers = ~0;
-        private CharacterDataBus dataBus;
         public string LastResult { get; private set; } = "未释放";
 
-        public void Initialize(CharacterDataBus dataBus)
+public void Resolve(AttackRelease release, Vector3 releaseDirection)
         {
-            if (dataBus == null) throw new ArgumentNullException(nameof(dataBus));
-            this.dataBus = dataBus;
-        }
-
-        public void Resolve(AttackRelease release)
-        {
-            if (dataBus == null) throw new InvalidOperationException("Melee requires character DataBus initialization");
-            var direction = dataBus.Direction;
+            var direction = releaseDirection;
             var center = transform.position + Vector3.up * height + direction * reach;
             var targets = Physics.OverlapSphere(center, radius, targetLayers, QueryTriggerInteraction.Collide)
-                .Select(c => c.GetComponentInParent<CombatTestTarget>()).Where(t => t != null).Distinct().ToArray();
+                .Select(c => c.GetComponentsInParent<MonoBehaviour>().OfType<ICharacterHitTarget>().FirstOrDefault()).Where(t => t != null).Distinct().ToArray();
             var outcomes = release.Resolve(targets.Select(t => t.Health));
             foreach (var outcome in outcomes)
                 if (outcome.Reason == HitReason.Applied)

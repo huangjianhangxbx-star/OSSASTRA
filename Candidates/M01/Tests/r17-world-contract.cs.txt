@@ -1,0 +1,42 @@
+using System;
+using System.Linq;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEditor;
+using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.LowLevel;
+using Ossastra.Characters;
+using Ossastra.Development;
+using Ossastra.CharacterCore;
+using Funplay.Editor.Tools.Scripting;
+public class R17WorldContract : IFunplayCommand {
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx) {
+ var p=UnityEngine.Object.FindObjectOfType<Ossastra.Characters.CharacterRoot>();if(!Application.isPlaying||p==null)throw new Exception("Own Play scene required");var input=p.GetComponent<CharacterInputHandler>();var movement=p.GetComponent<CharacterMovement>();var hit=p.GetComponent<CharacterMeleeHit>();var skeleton=p.GetComponentInChildren<Spine.Unity.SkeletonAnimation>();var targets=UnityEngine.Object.FindObjectsOfType<CombatTestTarget>();var right=targets.Single(t=>t.Health.Id=="target-a");var left=targets.Single(t=>t.Health.Id=="target-b");
+ var oldRight=right.transform.position;var oldLeft=left.transform.position;var keyboard=InputSystem.AddDevice<Keyboard>("R17WorldKeyboard");var mouse=InputSystem.AddDevice<Mouse>("R17WorldMouse");var pad=InputSystem.AddDevice<Gamepad>("R17WorldGamepad");var pointerJson=input.mouseAction.SaveBindingOverridesAsJson();var keyboardJson=input.movementAction.SaveBindingOverridesAsJson();var stickJson=input.gamepadAimAction.SaveBindingOverridesAsJson();input.mouseAction.ApplyBindingOverride(0,mouse.path+"/position");input.gamepadAimAction.ApplyBindingOverride(0,pad.path+"/rightStick");for(int i=0;i<input.movementAction.bindings.Count;i++){var b=input.movementAction.bindings[i];if(b.path!=null&&b.path.Contains("<Keyboard>"))input.movementAction.ApplyBindingOverride(i,b.path.Replace("<Keyboard>",keyboard.path));}
+ var gameType=typeof(EditorWindow).Assembly.GetType("UnityEditor.GameView");if(gameType==null)throw new Exception("GameView missing");EditorWindow.GetWindow(gameType).Focus();p.SendMessage("OnApplicationFocus",true);var owner=new object();var records=new List<object>();var steps=new List<(double at,Action work)>();var started=EditorApplication.timeSinceStartup;int next=0,failed=0;
+ void Keys(params Key[] keys){InputSystem.QueueStateEvent(keyboard,new KeyboardState(keys));}
+ void Pointer(Vector3 world,bool down=false,bool invalid=false){var screen=Camera.main.WorldToScreenPoint(world);InputSystem.QueueStateEvent(mouse,new MouseState{position=invalid?new Vector2(-20,-20):new Vector2(screen.x,screen.y),buttons=(ushort)(down?1:0)});}
+ void Stick(Vector2 direction){InputSystem.QueueStateEvent(pad,new GamepadState{rightStick=direction});}
+ void Reset(){p.CancelAction("world-contract-reset");p.SetPaused(false);movement.Teleport(new Vector3(0,.03f,0));right.transform.position=new Vector3(1.15f,0,0);left.transform.position=new Vector3(-1.15f,0,0);right.RestoreHealth();left.RestoreHealth();Keys();Stick(Vector2.zero);Pointer(right.transform.position);Physics.SyncTransforms();}
+ void Flush(string state){SessionState.SetString("OSSASTRA_R17_WORLD",Newtonsoft.Json.JsonConvert.SerializeObject(new{state,completedSteps=next,failed,records},Newtonsoft.Json.Formatting.Indented));}
+ void Check(string label,bool pass){if(!pass)failed++;records.Add(new{label,pass,rightHp=right.Health.Current,leftHp=left.Health.Current,visual=skeleton.Skeleton.ScaleX,attack=p.DataBus.AttackDirection.ToString("F3"),position=p.transform.position.ToString("F3"),last=p.LastFact});Flush("running");}
+ Reset();
+ steps.Add((.15,()=>{Keys(Key.A);Pointer(right.transform.position);}));steps.Add((.5,()=>Check("A-left-run-with-pointer-right",p.transform.position.x<-.3f&&skeleton.Skeleton.ScaleX<0&&p.DataBus.AttackDirection.x>.5f)));
+ steps.Add((.6,Reset));steps.Add((.85,()=>Pointer(right.transform.position,true)));steps.Add((1.25,()=>Check("right-pointer-damages-right-only-and-faces-right",right.Health.Current==88&&left.Health.Current==100&&skeleton.Skeleton.ScaleX>0)));
+ steps.Add((1.4,Reset));steps.Add((1.6,()=>{Keys(Key.D);Pointer(left.transform.position);}));steps.Add((1.95,()=>Check("D-right-run-with-pointer-left",p.transform.position.x>.3f&&skeleton.Skeleton.ScaleX>0&&p.DataBus.AttackDirection.x<-.5f)));
+ steps.Add((2.05,Reset));steps.Add((2.3,()=>Pointer(left.transform.position,true)));steps.Add((2.7,()=>Check("left-pointer-damages-left-only-and-faces-left",left.Health.Current==88&&right.Health.Current==100&&skeleton.Skeleton.ScaleX<0)));
+ steps.Add((2.85,Reset));steps.Add((3.1,()=>Pointer(right.transform.position,true)));steps.Add((3.25,()=>Pointer(left.transform.position,true)));steps.Add((3.65,()=>Check("windup-retarget-is-sampled-at-release",left.Health.Current==88&&right.Health.Current==100)));
+ steps.Add((3.8,Reset));steps.Add((4.0,()=>{Pointer(right.transform.position,false,true);Stick(Vector2.left);}));steps.Add((4.2,()=>Check("invalid-pointer-falls-back-to-gamepad",p.DataBus.AttackDirection.x<-.9f)));
+ steps.Add((4.3,()=>{Stick(Vector2.zero);Keys(Key.D);}));steps.Add((4.5,()=>Check("no-pointer-or-stick-falls-back-to-movement",p.DataBus.AttackDirection.x>.9f&&skeleton.Skeleton.ScaleX>0)));
+ steps.Add((4.6,()=>Keys()));steps.Add((4.8,()=>Check("idle-persists-legal-direction-and-facing",p.DataBus.AttackDirection.x>.9f&&skeleton.Skeleton.ScaleX>0)));
+ steps.Add((4.9,Reset));steps.Add((5.05,()=>{var point=Camera.main.WorldToScreenPoint(right.transform.position);input.RegisterPointerRegion(owner,new Rect(point.x-30,Screen.height-point.y-30,60,60));Pointer(right.transform.position,true);}));steps.Add((5.4,()=>Check("UI-pointer-does-not-start-attack",!p.ActionActive&&right.Health.Current==100&&left.Health.Current==100)));
+ steps.Add((5.5,()=>input.RemovePointerRegion(owner)));steps.Add((5.7,()=>Check("dragging-held-pointer-out-of-UI-does-not-create-ghost-press",!p.ActionActive&&right.Health.Current==100)));
+ steps.Add((5.8,()=>Pointer(right.transform.position)));steps.Add((6.0,()=>Pointer(right.transform.position,true)));steps.Add((6.4,()=>Check("fresh-press-after-UI-releases-still-attacks",right.Health.Current==88)));
+ steps.Add((6.55,Reset));steps.Add((6.8,()=>{var runtime=new BasicActionRuntime("coarse-frame-actor");runtime.Request(new BasicAttackDefinition(.3,.5,.8,1.1,12),"coarse",new ControlAuthority());var releases=runtime.Advance(3,false).Where(f=>f.Release!=null).ToArray();hit.Resolve(releases[0].Release,Vector3.left);bool duplicate=false;try{hit.Resolve(releases[0].Release,Vector3.right);}catch(InvalidOperationException){duplicate=true;}Check("coarse-frame-one-release-one-real-target-settlement",releases.Length==1&&left.Health.Current==88&&right.Health.Current==100&&duplicate);}));
+ steps.Add((7.0,Reset));steps.Add((7.2,()=>{Pointer(right.transform.position);Stick(Vector2.left);}));steps.Add((7.4,()=>Check("valid-pointer-has-priority-over-stick",p.DataBus.AttackDirection.x>.9f)));
+ steps.Add((7.5,()=>Pointer(p.transform.position)));steps.Add((7.7,()=>Check("zero-pointer-vector-falls-back-to-stick",p.DataBus.AttackDirection.x<-.9f)));
+ steps.Add((7.8,()=>{p.SetPaused(true);Pointer(right.transform.position);Keys(Key.D);}));steps.Add((8.1,()=>Check("pause-freezes-orientation-despite-new-input",p.DataBus.AttackDirection.x<-.9f)));
+ EditorApplication.CallbackFunction tick=null;void Cleanup(){EditorApplication.update-=tick;input.RemovePointerRegion(owner);input.mouseAction.LoadBindingOverridesFromJson(pointerJson);input.movementAction.LoadBindingOverridesFromJson(keyboardJson);input.gamepadAimAction.LoadBindingOverridesFromJson(stickJson);p.CancelAction("world-contract-cleanup");p.SetPaused(false);right.transform.position=oldRight;left.transform.position=oldLeft;right.RestoreHealth();left.RestoreHealth();InputSystem.RemoveDevice(keyboard);InputSystem.RemoveDevice(mouse);InputSystem.RemoveDevice(pad);}
+ tick=()=>{try{if(!Application.isPlaying||p==null)throw new Exception("Scene ended");while(next<steps.Count&&EditorApplication.timeSinceStartup-started>=steps[next].at)steps[next++].work();if(next==steps.Count){Cleanup();Flush("completed");}}catch(Exception error){failed++;records.Add(new{error=error.ToString()});Cleanup();Flush("failed");}};EditorApplication.update+=tick;Flush("running");ctx.Log("Scheduled 15 actual input/Spine/physical-hit contracts; 8.1 seconds");
+ }
+}
