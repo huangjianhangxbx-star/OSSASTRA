@@ -1,3 +1,5 @@
+> 当前接续：M02-A双临时实例控制候选，参见 [审查入口](docs/ossastra/M02A-review.md)。中文规范已生效，当前源码行号以M02A-source-review为准。下方M01状态为历史。
+
 # OSSASTRA
 
 《星骸回廊》受控迁移工程。当前公开进度：**M01 单角色动作闭环候选，可供架构审查**。
@@ -22,3 +24,4 @@
 
 依赖见 [DEPENDENCIES.md](DEPENDENCIES.md)，历史起点见 [PRE00.md](docs/ossastra/PRE00.md)。仅同步GitHub，不同步Gitee。
 中文注释与审查规则：[代码规范](docs/ossastra/代码规范.md)。
+

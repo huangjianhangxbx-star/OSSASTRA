@@ -1,3 +1,4 @@
+// 输入合同：虚拟设备与预览场；重新启用后必须真实采样一次释放，再形成新攻击。
 using System;
 using System.Linq;
 using UnityEngine;
@@ -30,7 +31,7 @@ public class InputBehaviorContract : IFunplayCommand {
  InputSystem.QueueStateEvent(keyboard,new KeyboardState());InputSystem.Update();check(!(bool)read(ca,"attackHeld"),"release clears held attack");
  var gamepadState=new GamepadState{leftStick=new Vector2(.6f,.8f),rightStick=new Vector2(.5f,.8f)};InputSystem.QueueStateEvent(gamepad,gamepadState);InputSystem.Update();check(((Vector2)read(ca,"move")).sqrMagnitude>.5f,"same movement action accepts gamepad stick");check((bool)read(ca,"hasDirectionalAim"),"gamepad aim stays directional rather than pixel coordinates");
  a.SendMessage("OnDisable",SendMessageOptions.DontRequireReceiver);InputSystem.QueueStateEvent(keyboard,new KeyboardState(Key.N));InputSystem.Update();check(!(bool)read(ca,"attackHeld"),"disabled input component cannot emit held attack");check(((InputAction)type.GetField("attackAction").GetValue(cb)).enabled,"disabling one input does not disable another character");
- a.SendMessage("OnEnable",SendMessageOptions.DontRequireReceiver);InputSystem.QueueStateEvent(keyboard,new KeyboardState());InputSystem.Update();InputSystem.QueueStateEvent(keyboard,new KeyboardState(Key.N));InputSystem.Update();check((bool)read(ca,"attackHeld"),"enable restores configured bindings");
+ a.SendMessage("OnEnable",SendMessageOptions.DontRequireReceiver);InputSystem.QueueStateEvent(keyboard,new KeyboardState());InputSystem.Update();read(ca,"attackHeld");InputSystem.QueueStateEvent(keyboard,new KeyboardState(Key.N));InputSystem.Update();check((bool)read(ca,"attackHeld"),"enable restores configured bindings");
  ctx.Log("RESULT "+passed+"/10 passed; isolated devices and preview scene cleaned in finally");
  } finally {
  if(a!=null){a.SendMessage("OnDisable",SendMessageOptions.DontRequireReceiver);a.SendMessage("OnDestroy",SendMessageOptions.DontRequireReceiver);UnityEngine.Object.DestroyImmediate(a);}if(b!=null){b.SendMessage("OnDisable",SendMessageOptions.DontRequireReceiver);b.SendMessage("OnDestroy",SendMessageOptions.DontRequireReceiver);UnityEngine.Object.DestroyImmediate(b);}
@@ -38,4 +39,5 @@ public class InputBehaviorContract : IFunplayCommand {
  }
  }
 }
+
 

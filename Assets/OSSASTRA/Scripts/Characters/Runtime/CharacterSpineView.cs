@@ -49,6 +49,7 @@ namespace Ossastra.Characters
             var moving = dataBus.IsMoving;
             var facing = dataBus.VisualFacingX;
             var clip = actionActive && !moving ? attack : moving ? move : idle;
+            // 同名攻击也可能属于新ActionId，需重播；同一动作逐帧Present不可反复从头播放。
             var replay = clip == attack && actionId != lastAction;
             skeleton.Skeleton.ScaleX = originalScaleX * facing;
             if (clip != lastClip || replay)

@@ -1,0 +1,51 @@
+{
+  "success": false,
+  "code": "COMMAND_RUNTIME_ERROR",
+  "error": "COMMAND_RUNTIME_ERROR",
+  "data": {
+    "message": "FAIL enable restores configured bindings",
+    "stack": "  at InputBehaviorContract+<>c__DisplayClass0_0.<Execute>b__2 (System.Boolean ok, System.String label) [0x00014] in <1504a5cc90d8450f90a1c62b36325aea>:0 \r\n  at InputBehaviorContract.Execute (Funplay.Editor.Tools.Scripting.ExecutionContext ctx) [0x0062b] in <1504a5cc90d8450f90a1c62b36325aea>:0 \r\n  at Funplay.Editor.Tools.Builtins.ScriptExecutionFunctions.ExecuteAsCommand (System.Type commandType, System.String compilerName) [0x00037] in E:\\WORLDCREATOR\\new\\Project_ANKALUTE\\Assets\\unity-mcp\\Editor\\Tools\\Builtins\\ScriptExecutionFunctions.cs:611 ",
+    "compiler": "Roslyn",
+    "logs": [
+      {
+        "Level": "info",
+        "Message": "PASS serialized remapping J moves without WASD"
+      },
+      {
+        "Level": "info",
+        "Message": "PASS serialized N attack binding is honored"
+      },
+      {
+        "Level": "info",
+        "Message": "PASS two character binding sets are independent"
+      },
+      {
+        "Level": "info",
+        "Message": "PASS pointer action returns actual mouse coordinates"
+      },
+      {
+        "Level": "info",
+        "Message": "PASS release clears held attack"
+      },
+      {
+        "Level": "info",
+        "Message": "PASS same movement action accepts gamepad stick"
+      },
+      {
+        "Level": "info",
+        "Message": "PASS gamepad aim stays directional rather than pixel coordinates"
+      },
+      {
+        "Level": "info",
+        "Message": "PASS disabled input component cannot emit held attack"
+      },
+      {
+        "Level": "info",
+        "Message": "PASS disabling one input does not disable another character"
+      }
+    ],
+    "created": [],
+    "modified": [],
+    "destroyed": []
+  }
+}

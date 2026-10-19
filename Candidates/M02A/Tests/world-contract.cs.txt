@@ -1,0 +1,90 @@
+// M02-A Play合同：虚拟设备驱动实际InputAction、两套Root/Spine/物理命中；不代替人工键鼠手感。
+using System;
+using System.Linq;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEditor;
+using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.LowLevel;
+using Ossastra.Characters;
+using Ossastra.Development;
+using Funplay.Editor.Tools.Scripting;
+public class DualWorldContract : IFunplayCommand
+{
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+ {
+  var c=UnityEngine.Object.FindObjectOfType<CharacterControlCoordinator>();
+  if(!Application.isPlaying||c==null||c.Characters.Count!=2)throw new Exception("Dual Play scene required");
+  var a=c.Characters[0];var b=c.Characters[1];var actors=new[]{a,b};
+  var inputs=actors.Select(x=>x.GetComponent<CharacterInputHandler>()).ToArray();
+  var moves=actors.Select(x=>x.GetComponent<CharacterMovement>()).ToArray();
+  var views=actors.Select(x=>x.GetComponentInChildren<Spine.Unity.SkeletonAnimation>()).ToArray();
+  var targets=UnityEngine.Object.FindObjectsOfType<CombatTestTarget>().OrderBy(x=>x.transform.position.z).ToArray();
+  if(targets.Length!=2)throw new Exception("Two targets required");
+  var keyboard=InputSystem.AddDevice<Keyboard>("M02WorldKeyboard");
+  var mouse=InputSystem.AddDevice<Mouse>("M02WorldMouse");
+  var originalOverrides=new Dictionary<InputAction,string>();
+  foreach(var action in inputs.SelectMany(x=>new[]{x.movementAction,x.mouseAction,x.attackAction,x.pauseAction,x.cancelAction}).Concat(new[]{c.switchAction}))
+  {
+   originalOverrides[action]=action.SaveBindingOverridesAsJson();
+   for(int i=0;i<action.bindings.Count;i++){var binding=action.bindings[i];if(binding.isComposite)continue;var p=binding.path;if(p==null)continue;
+    if(p.Contains("<Keyboard>"))action.ApplyBindingOverride(i,p.Replace("<Keyboard>",keyboard.path));
+    if(p.Contains("<Mouse>"))action.ApplyBindingOverride(i,p.Replace("<Mouse>",mouse.path));
+   }
+  }
+  var gameType=typeof(EditorWindow).Assembly.GetType("UnityEditor.GameView");if(gameType!=null)EditorWindow.GetWindow(gameType).Focus();
+  foreach(var actor in actors)actor.SendMessage("OnApplicationFocus",true);c.SendMessage("OnApplicationFocus",true);
+  var busA=a.DataBus;var busB=b.DataBus;var owner=new object();
+  var records=new List<object>();var steps=new List<(double at,Action work)>();int next=0,failed=0;
+  var started=EditorApplication.timeSinceStartup;
+  void Keys(params Key[] keys){InputSystem.QueueStateEvent(keyboard,new KeyboardState(keys));}
+  void Pointer(int target,bool down=false){var s=Camera.main.WorldToScreenPoint(targets[target].transform.position);InputSystem.QueueStateEvent(mouse,new MouseState{position=new Vector2(s.x,s.y),buttons=(ushort)(down?1:0)});}
+  void Flush(string state){SessionState.SetString("OSSASTRA_M02_WORLD",Newtonsoft.Json.JsonConvert.SerializeObject(new{state,steps=next,failed,records},Newtonsoft.Json.Formatting.Indented));}
+  void Check(string label,bool pass){if(!pass)failed++;records.Add(new{label,pass,current=c.Current==null?"none":c.Current.ActorId,aPosition=a.transform.position.ToString("F3"),bPosition=b.transform.position.ToString("F3"),aInput=inputs[0].CurrentFrame.move.ToString(),bInput=inputs[1].CurrentFrame.move.ToString(),aHp=targets[0].Health.Current,bHp=targets[1].Health.Current,aFact=a.LastFact,bFact=b.LastFact,aClip=a.GetComponentInChildren<CharacterSpineView>().CurrentClip,bClip=b.GetComponentInChildren<CharacterSpineView>().CurrentClip});Flush("running");}
+  void Reset(){foreach(var actor in actors){actor.CancelAction("dual-contract-reset");actor.SetPaused(false);actor.SetAttackRestriction(owner,false);}if(!c.enabled)c.enabled=true;if(c.Current!=a)c.SwitchNext();moves[0].Teleport(new Vector3(-2,.03f,-1.7f));moves[1].Teleport(new Vector3(-2,.03f,1.7f));targets[0].transform.position=new Vector3(-.85f,0,-1.7f);targets[1].transform.position=new Vector3(-.85f,0,1.7f);foreach(var t in targets)t.RestoreHealth();Keys();Pointer(0);Physics.SyncTransforms();}
+  Reset();
+  steps.Add((.2,()=>Keys(Key.D)));
+  steps.Add((.55,()=>Check("A-only-real-movement",a.transform.position.x> -1.7f&&Mathf.Abs(b.transform.position.x+2)<.01f&&inputs[1].CurrentFrame.move==Vector2.zero)));
+  float aAfterSwitch=0;
+  steps.Add((.65,()=>{aAfterSwitch=a.transform.position.x;Keys(Key.D,Key.Tab);}));
+  steps.Add((.8,()=>Keys(Key.D)));
+  steps.Add((1.1,()=>Check("Inspector-switch-B-moves-A-stops",c.Current==b&&b.transform.position.x> -1.5f&&Mathf.Abs(a.transform.position.x-aAfterSwitch)<.09f)));
+  steps.Add((1.2,()=>{Keys();moves[0].Teleport(new Vector3(-2,.03f,-1.7f));moves[1].Teleport(new Vector3(-2,.03f,1.7f));Pointer(1);}));
+  steps.Add((1.45,()=>Pointer(1,true)));
+  steps.Add((1.9,()=>Check("B-actual-release-physics-HP-only-B-target",targets[0].Health.Current==100&&targets[1].Health.Current==88&&b.ActionActive&&!a.ActionActive)));
+  steps.Add((2.0,()=>{Pointer(0);Keys(Key.Tab);}));steps.Add((2.15,()=>Keys()));
+  steps.Add((2.4,()=>Pointer(0,true)));
+  steps.Add((2.85,()=>Check("switch-back-A-actual-hit-independent",c.Current==a&&targets[0].Health.Current==88&&targets[1].Health.Current==88&&a.DataBus.ActionId!=b.DataBus.ActionId)));
+  steps.Add((3.0,Reset));steps.Add((3.2,()=>Pointer(0,true)));
+  Guid windupId=Guid.Empty;
+  steps.Add((3.3,()=>{windupId=a.DataBus.ActionId;Keys(Key.Tab);}));steps.Add((3.45,()=>Keys()));
+  steps.Add((3.8,()=>Check("windup-switch-old-action-releases-once-new-held-suppressed",c.Current==b&&windupId!=Guid.Empty&&a.DataBus.ActionId==windupId&&targets[0].Health.Current==88&&targets[1].Health.Current==100&&!b.ActionActive)));
+  steps.Add((4.1,()=>{Keys(Key.Tab);Pointer(0,true);}));steps.Add((4.25,()=>Keys()));
+  steps.Add((4.65,()=>Check("switch-after-release-no-rehit-or-held-ghost",targets[0].Health.Current==88&&targets[1].Health.Current==100&&!a.ActionActive&&!b.ActionActive)));
+  steps.Add((4.8,()=>Pointer(0)));steps.Add((5.0,()=>Pointer(0,true)));
+  steps.Add((5.45,()=>Check("release-then-fresh-press-rearms",targets[0].Health.Current==76)));
+  steps.Add((5.6,Reset));
+  for(int i=0;i<10;i++){int n=i;double t=5.8+i*.24;steps.Add((t,()=>Keys(Key.Tab)));steps.Add((t+.1,()=>Keys()));steps.Add((t+.19,()=>Check("repeat-switch-"+(n+1),c.Current==((n%2==0)?b:a)&&ReferenceEquals(a.DataBus,busA)&&ReferenceEquals(b.DataBus,busB)&&a.ActorId=="temporary-a"&&b.ActorId=="temporary-b"&&!ReferenceEquals(a.DataBus,b.DataBus))));}
+  steps.Add((8.3,Reset));steps.Add((8.5,()=>{Keys(Key.A);Pointer(0);}));
+  steps.Add((8.85,()=>Check("R17-left-display-right-attack-direction",views[0].Skeleton.ScaleX<0&&a.DataBus.AttackDirection.x>.5f&&Mathf.Abs(b.transform.position.x+2)<.01f)));
+  steps.Add((9.0,()=>Keys(Key.W)));steps.Add((9.25,()=>Check("R17-WS-retains-visible-horizontal-facing",views[0].Skeleton.ScaleX<0)));
+  steps.Add((9.4,Reset));steps.Add((9.6,()=>{Pointer(0,true);c.enabled=false;}));
+  steps.Add((9.9,()=>Check("coordinator-disable-fails-closed",!inputs[0].HasPlayerInput&&!inputs[1].HasPlayerInput&&!a.ActionActive&&!b.ActionActive)));
+  steps.Add((10.0,()=>c.enabled=true));steps.Add((10.4,()=>Check("coordinator-enable-held-no-ghost",c.Current==a&&!a.ActionActive&&targets[0].Health.Current==100)));
+  steps.Add((10.5,()=>Pointer(0)));steps.Add((10.7,()=>Pointer(0,true)));
+  steps.Add((11.1,()=>Check("enable-fresh-press-works",targets[0].Health.Current==88)));
+  steps.Add((11.25,Reset));steps.Add((11.45,()=>{a.SetPaused(true);Keys(Key.Tab);}));steps.Add((11.6,()=>Keys(Key.D)));
+  steps.Add((11.9,()=>Check("per-actor-pause-does-not-contaminate-B",c.Current==b&&a.IsPaused&&!b.IsPaused&&b.transform.position.x> -1.5f&&Mathf.Abs(a.transform.position.x+2)<.01f)));
+  steps.Add((12.05,Reset));steps.Add((12.2,()=>{foreach(var actor in actors)actor.SendMessage("OnApplicationFocus",false);c.SendMessage("OnApplicationFocus",false);Keys(Key.Tab);Pointer(0,true);}));
+  steps.Add((12.45,()=>{foreach(var actor in actors)actor.SendMessage("OnApplicationFocus",true);c.SendMessage("OnApplicationFocus",true);}));
+  steps.Add((12.8,()=>Check("focus-return-held-does-not-switch-or-attack",c.Current==a&&!a.ActionActive&&!b.ActionActive&&targets[0].Health.Current==100)));
+  steps.Add((12.95,Reset));steps.Add((13.15,()=>{a.SetAttackRestriction(owner,true,"dual-contract-block");Pointer(0,true);}));
+  steps.Add((13.6,()=>Check("restriction-remains-per-actor",!a.DataBus.AllowsAttack&&b.DataBus.AllowsAttack&&!a.ActionActive&&targets[0].Health.Current==100)));
+  steps.Add((13.75,Reset));steps.Add((13.95,()=>{a.enabled=false;Keys();}));steps.Add((14.2,()=>Keys(Key.Tab)));steps.Add((14.35,()=>Keys()));
+  steps.Add((14.65,()=>Check("disabled-current-safe-switch-to-B",c.Current==b&&!inputs[0].HasPlayerInput&&inputs[1].HasPlayerInput)));
+  EditorApplication.CallbackFunction tick=null;
+  void Cleanup(){EditorApplication.update-=tick;a.enabled=true;foreach(var pair in originalOverrides)pair.Key.LoadBindingOverridesFromJson(pair.Value);Reset();InputSystem.RemoveDevice(keyboard);InputSystem.RemoveDevice(mouse);}
+  tick=()=>{try{if(!Application.isPlaying||c==null)throw new Exception("Scene ended");while(next<steps.Count&&EditorApplication.timeSinceStartup-started>=steps[next].at)steps[next++].work();if(next==steps.Count){Cleanup();Flush("completed");}}catch(Exception e){failed++;records.Add(new{error=e.ToString()});Cleanup();Flush("failed");}};
+  EditorApplication.update+=tick;Flush("running");ctx.Log("Scheduled 14.65s dual InputAction/Spine/physics contract; do not block Unity main thread during run");
+ }
+}

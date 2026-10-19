@@ -1,0 +1,57 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [
+      {
+        "Level": "info",
+        "Message": "PASS serialized remapping J moves without WASD"
+      },
+      {
+        "Level": "info",
+        "Message": "PASS serialized N attack binding is honored"
+      },
+      {
+        "Level": "info",
+        "Message": "PASS two character binding sets are independent"
+      },
+      {
+        "Level": "info",
+        "Message": "PASS pointer action returns actual mouse coordinates"
+      },
+      {
+        "Level": "info",
+        "Message": "PASS release clears held attack"
+      },
+      {
+        "Level": "info",
+        "Message": "PASS same movement action accepts gamepad stick"
+      },
+      {
+        "Level": "info",
+        "Message": "PASS gamepad aim stays directional rather than pixel coordinates"
+      },
+      {
+        "Level": "info",
+        "Message": "PASS disabled input component cannot emit held attack"
+      },
+      {
+        "Level": "info",
+        "Message": "PASS disabling one input does not disable another character"
+      },
+      {
+        "Level": "info",
+        "Message": "PASS enable restores configured bindings"
+      },
+      {
+        "Level": "info",
+        "Message": "RESULT 10/10 passed; isolated devices and preview scene cleaned in finally"
+      }
+    ],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": null
+  }
+}

@@ -2,7 +2,7 @@
  * 脚本：CharacterInputHandler
  * 功能：从Inspector配置的InputAction采样单角色输入快照。
  * 边界：只采输入；不接受动作、不驱动物理或写HP；每实例管理Action生命周期。
- * 协作：Root经ICharacterInputSource读取；UI区域会阻止鼠标方向和攻击穿透。
+ * 协作：Root经ICharacterInputSource读取；场景协调者只读授权；未受管理时保持单角色使用。
  */
 using UnityEngine.EventSystems;
 using System.Collections.Generic;
@@ -40,6 +40,28 @@ namespace Ossastra.Characters
         public InputAction debugInspectAction = new InputAction("DebugInspect", InputActionType.Button);
 
         private readonly Dictionary<object, Rect> pointerRegions = new Dictionary<object, Rect>();
+        private ICharacterPlayerControlSource playerControl;
+        private bool managedPlayerInput, attackArmed = true;
+
+        public bool HasPlayerInput => !managedPlayerInput || (ControlSourceAlive && playerControl.IsPlayerInputAllowed(this));
+        private bool ControlSourceAlive => playerControl != null &&
+            (!(playerControl is Object unityObject) || unityObject != null);
+
+        public bool CanBindPlayerControl(ICharacterPlayerControlSource source)
+            => source != null && (!managedPlayerInput || !ControlSourceAlive || ReferenceEquals(playerControl, source));
+
+        /// <summary>绑定唯一场景权威；拒绝另一存活协调者抢占同一输入。</summary>
+        public bool BindPlayerControl(ICharacterPlayerControlSource source)
+        {
+            if (!CanBindPlayerControl(source)) return false;
+            playerControl = source;
+            managedPlayerInput = true;
+            ResetPlayerInput();
+            return true;
+        }
+
+        /// <summary>移交时清掉旧快照；不假装一次松键，必须真正观察释放后才重武装攻击。</summary>
+        public void ResetPlayerInput() { CurrentFrame = default; attackArmed = false; }
         public void RegisterPointerRegion(object owner, Rect region) { pointerRegions[owner] = region; }
         public void RemovePointerRegion(object owner) { pointerRegions.Remove(owner); }
 
@@ -60,6 +82,7 @@ namespace Ossastra.Characters
 
         private IEnumerable<InputAction> Actions()
         {
+            // 同步枚举仅统一启用/禁用/释放清单；不是Unity协程，没有跨帧等待。
             yield return movementAction;
             yield return mouseAction;
             yield return gamepadAimAction;
@@ -73,13 +96,14 @@ namespace Ossastra.Characters
         }
 
         private void OnEnable() { foreach (var action in Actions()) if (action != null) action.Enable(); }
-        private void OnDisable() { CurrentFrame = default; foreach (var action in Actions()) if (action != null) action.Disable(); }
+        private void OnDisable() { ResetPlayerInput(); foreach (var action in Actions()) if (action != null) action.Disable(); }
         private void OnDestroy() { foreach (var action in Actions()) if (action != null) action.Dispose(); }
 
         public CharacterInputFrame Read()
         {
             var frame = new CharacterInputFrame();
-            if (!isActiveAndEnabled || movementAction == null || !movementAction.enabled)
+            // 非实控在读取设备前返回空帧；Root仍推进自己已接受的动作，不会偷读另一角色输入。
+            if (!HasPlayerInput || !isActiveAndEnabled || movementAction == null || !movementAction.enabled)
             { CurrentFrame = frame; return frame; }
             frame.move = movementAction.ReadValue<Vector2>();
             if (mouseAction != null && mouseAction.enabled)
@@ -93,7 +117,9 @@ namespace Ossastra.Characters
                 frame.aimDirection = gamepadAimAction.ReadValue<Vector2>();
                 frame.hasDirectionalAim = frame.aimDirection.sqrMagnitude > .01f;
             }
-            frame.attackHeld = attackAction != null && attackAction.enabled && attackAction.IsPressed();
+            var held = attackAction != null && attackAction.enabled && attackAction.IsPressed();
+            if (!held) attackArmed = true;
+            frame.attackHeld = held && attackArmed;
             if (attackAction != null && attackAction.activeControl != null && attackAction.activeControl.device is Pointer &&
                 !frame.hasPointer) frame.attackPointerBlocked = true;
             frame.cancel = Pressed(cancelAction);

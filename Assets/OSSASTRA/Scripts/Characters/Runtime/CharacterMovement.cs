@@ -36,6 +36,7 @@ namespace Ossastra.Characters
             var move = allowed ? Vector2.ClampMagnitude(dataBus.Input.move, 1) : Vector2.zero;
             var before = transform.position;
             body.Move((new Vector3(move.x, 0, move.y) * speed + Vector3.down * groundStick) * delta);
+            // 用碰撞处理后的实际位移报告运动，而不是把“按住移动键”当成真的跑动。
             var displacement = transform.position - before;
             displacement.y = 0;
             Velocity = displacement / delta;

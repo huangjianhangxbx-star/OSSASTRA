@@ -1,0 +1,77 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [
+      {
+        "Level": "info",
+        "Message": "PASS empty rejected without Current"
+      },
+      {
+        "Level": "info",
+        "Message": "PASS null rejected without Current"
+      },
+      {
+        "Level": "info",
+        "Message": "PASS null known member input closed"
+      },
+      {
+        "Level": "info",
+        "Message": "PASS duplicate-id rejected without Current"
+      },
+      {
+        "Level": "info",
+        "Message": "PASS duplicate-id known member input closed"
+      },
+      {
+        "Level": "info",
+        "Message": "PASS duplicate-ref rejected without Current"
+      },
+      {
+        "Level": "info",
+        "Message": "PASS duplicate-ref known member input closed"
+      },
+      {
+        "Level": "info",
+        "Message": "PASS bad-index rejected without Current"
+      },
+      {
+        "Level": "info",
+        "Message": "PASS bad-index known member input closed"
+      },
+      {
+        "Level": "info",
+        "Message": "PASS no-binding rejected without Current"
+      },
+      {
+        "Level": "info",
+        "Message": "PASS no-binding known member input closed"
+      },
+      {
+        "Level": "info",
+        "Message": "PASS same-frame transfer embargo prevents two input consumers"
+      },
+      {
+        "Level": "info",
+        "Message": "PASS same-frame repeated switch retains entity identity"
+      },
+      {
+        "Level": "info",
+        "Message": "PASS input accepts explicit first control source"
+      },
+      {
+        "Level": "info",
+        "Message": "PASS destroyed control provider remains fail-closed"
+      },
+      {
+        "Level": "info",
+        "Message": "RESULT 15/15 passed"
+      }
+    ],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": null
+  }
+}

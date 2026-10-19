@@ -39,6 +39,7 @@ namespace Ossastra.Characters
         private bool ready, focused = true, paused, applicationPaused;
         private string lastFact = "Idle";
         public CharacterDataBus DataBus { get; private set; }
+        public string ActorId => actorId;
         public string LastFact => lastFact;
         public bool IsPaused => paused || applicationPaused;
         public bool ActionActive => DataBus != null && DataBus.ActionActive;
@@ -48,6 +49,7 @@ namespace Ossastra.Characters
             if (viewCamera == null) viewCamera = Camera.main;
             if (movement == null || orientation == null || view == null || melee == null || input == null || viewCamera == null)
             { Debug.LogError("Character requires registered input/movement/orientation/view/melee/camera", this); enabled = false; return; }
+            // Inspector保留具体组件槽；运行期通过窄接口消费，不反向依赖开发GUI或测试靶。
             inputSource = input;
             mover = movement;
             orienter = orientation;
@@ -60,6 +62,7 @@ namespace Ossastra.Characters
                 runtime = new BasicActionRuntime(actorId);
             }
             catch (ArgumentException error) { Debug.LogError("Character configuration: " + error.Message, this); enabled = false; return; }
+            // 每角色独立Bus只读取原所有者；只有确需Bus的运动和表现执行初始化。
             DataBus = new CharacterDataBus(actorId, inputSource, mover, orienter, runtime, authority);
             ready = InitializeSubsystems(DataBus, mover, presentation);
             if (!ready) { Debug.LogError("Character subsystem initialization failed", this); enabled = false; }
@@ -74,6 +77,7 @@ namespace Ossastra.Characters
         private void Update()
         {
             if (!ready) return;
+            // 受管理输入源会先检查场景许可；非实控发布空帧，但下方动作时钟仍继续。
             inputSource.Read();
             var frame = DataBus.Input;
             if (frame.pause) SetPaused(!paused);
@@ -81,6 +85,7 @@ namespace Ossastra.Characters
             var canMove = focused && !IsPaused && DataBus.AllowsMovement && DataBus.MoveReady;
             if (focused && !IsPaused)
                 orienter.ResolveDirections(frame.move, PointerDirection(frame), frame.hasDirectionalAim ? frame.aimDirection : Vector2.zero, canMove);
+            // 输入边沿不等于动作成功：焦点、UI和Runtime的暂停/权限/Ready资格分别把关。
             if (intent.Observe(frame.attackHeld) && focused && !frame.attackPointerBlocked)
             {
                 var request = runtime.Request(definition, "player-input", authority, IsPaused);
@@ -88,6 +93,7 @@ namespace Ossastra.Characters
                 if (request.Accepted) { Observe(request.Fact); orienter.FaceAttackDirection(); }
                 else lastFact = "Rejected: " + request.Reason;
             }
+            // Accepted只建立动作身份；只有Released带一次性命中凭据。切人不会重发事实。
             foreach (var fact in runtime.Advance(Time.deltaTime, IsPaused || !focused))
             {
                 Observe(fact);
@@ -99,6 +105,7 @@ namespace Ossastra.Characters
                     hitResolver.Resolve(fact.Release, releaseDirection);
                 }
             }
+            // 本帧可能跨过MoveReady；推进事实后重新查询许可，Run依据真实位移。
             canMove = focused && !IsPaused && DataBus.AllowsMovement && DataBus.MoveReady;
             mover.Tick(canMove, IsPaused || !focused ? 0 : Time.deltaTime);
             presentation.SetPaused(IsPaused || !focused);
@@ -125,6 +132,7 @@ namespace Ossastra.Characters
 
         public void CancelAction(string reason)
         {
+            // 取消必须具名；抑制仍按住的输入，不能把下一帧误判为新请求。
             intent.SuppressUntilRelease();
             var terminal = runtime == null ? null : runtime.Cancel(reason);
             if (terminal != null) Observe(terminal);
@@ -145,6 +153,7 @@ namespace Ossastra.Characters
         private void OnDisable() { CancelAction("disabled"); if (ready && presentation != null) presentation.SetPaused(false); }
         private void OnDestroy()
         {
+            // 终止本角色动作后解除本对象引用；不清其它角色或场景控制权威。
             CancelAction("destroyed");
             ready = false;
             DataBus = null;

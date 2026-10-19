@@ -1,0 +1,17 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [
+      {
+        "Level": "info",
+        "Message": "{\"expected\":\"only selected A moves\",\"aDelta\":1.50137854,\"bDelta\":1.50137854,\"aInput\":\"(1.00, 0.00)\",\"bInput\":\"(1.00, 0.00)\",\"pass\":false}"
+      }
+    ],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": null
+  }
+}

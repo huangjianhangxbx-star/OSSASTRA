@@ -9,6 +9,11 @@ using UnityEngine;
 
 namespace Ossastra.Characters
 {
+    /// <summary>由场景实控权威回答谁可以采样玩家输入；输入源不保存第二份选中状态。</summary>
+    public interface ICharacterPlayerControlSource
+    {
+        bool IsPlayerInputAllowed(ICharacterInputSource source);
+    }
     /// <summary>仅为确需角色Bus的模块提供显式初始化；失败阻止角色启动。</summary>
     public interface ICharacterSubsystem { bool Initialize(CharacterDataBus dataBus); }
     public interface ICharacterInputSource

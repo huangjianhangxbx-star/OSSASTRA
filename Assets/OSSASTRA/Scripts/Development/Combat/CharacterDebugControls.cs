@@ -66,6 +66,7 @@ namespace Ossastra.Development
         private void OnGUI()
         {
             if (character == null) return;
+            if (input != null && !input.HasPlayerInput) return;
             GUILayout.BeginArea(panel, GUI.skin.box);
             GUILayout.Label("角色候选 · WASD移动 / 左键普攻 / X取消 / P暂停");
             GUILayout.Label(character.LastFact);

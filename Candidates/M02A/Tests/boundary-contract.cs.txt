@@ -1,0 +1,35 @@
+// M02-A 边界合同：无效配置失败关闭、重复owner拒绝、移交同帧禁止采样、销毁后不恢复双控。
+using System;using System.Linq;using System.Collections.Generic;using UnityEngine;using UnityEditor;using UnityEngine.InputSystem;using Ossastra.Characters;using Funplay.Editor.Tools.Scripting;
+public class DualBoundaryContract:IFunplayCommand
+{
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+ {
+  if(!Application.isPlaying)throw new Exception("Play required");
+  var prefab=AssetDatabase.LoadAssetAtPath<GameObject>("Assets/OSSASTRA/Prefabs/Characters/PlayerCharacter.prefab");if(prefab==null)throw new Exception("Prefab missing");
+  int passed=0;void Check(bool ok,string label){if(!ok)throw new Exception("FAIL "+label);passed++;ctx.Log("PASS "+label);}
+  void Scenario(string label,string kind)
+  {
+   var parent=new GameObject("M02BoundaryProbe");parent.SetActive(false);
+   try
+   {
+    var actors=new Ossastra.Characters.CharacterRoot[2];for(int i=0;i<2;i++){var go=UnityEngine.Object.Instantiate(prefab,parent.transform);go.transform.position=new Vector3(-4+i*6,.03f,-3);actors[i]=go.GetComponent<Ossastra.Characters.CharacterRoot>();var so=new SerializedObject(actors[i]);so.FindProperty("actorId").stringValue=kind=="duplicate-id"?"duplicate":"boundary-"+i;so.ApplyModifiedPropertiesWithoutUndo();}
+    var g=new GameObject("Coordinator");g.transform.SetParent(parent.transform);var c=g.AddComponent<CharacterControlCoordinator>();var config=new SerializedObject(c);var array=config.FindProperty("characters");array.arraySize=kind=="empty"?0:2;
+    if(array.arraySize>0){array.GetArrayElementAtIndex(0).objectReferenceValue=actors[0];array.GetArrayElementAtIndex(1).objectReferenceValue=kind=="null"?null:kind=="duplicate-ref"?actors[0]:actors[1];}
+    if(kind=="bad-index")config.FindProperty("initialIndex").intValue=8;config.ApplyModifiedPropertiesWithoutUndo();if(kind!="no-binding")c.switchAction.AddBinding("<Keyboard>/tab");
+    parent.SetActive(true);
+    Check(!c.enabled&&c.Current==null&&!c.SwitchNext(),label+" rejected without Current");
+    if(kind!="empty")Check(!actors[0].GetComponent<CharacterInputHandler>().HasPlayerInput,label+" known member input closed");
+   }finally{UnityEngine.Object.DestroyImmediate(parent);}
+  }
+  foreach(var kind in new[]{"empty","null","duplicate-id","duplicate-ref","bad-index","no-binding"})Scenario(kind,kind);
+  var existing=UnityEngine.Object.FindObjectOfType<CharacterControlCoordinator>();if(existing==null)throw new Exception("Scene coordinator missing");
+  var original=existing.Current;existing.SwitchNext();
+  Check(existing.Characters.All(a=>!a.GetComponent<CharacterInputHandler>().HasPlayerInput&&a.GetComponent<CharacterInputHandler>().Read().move==Vector2.zero),"same-frame transfer embargo prevents two input consumers");
+  existing.SwitchNext();
+  Check(existing.Current==original,"same-frame repeated switch retains entity identity");
+  var sourceGo=new GameObject("M02DestroyedSourceProbe");sourceGo.SetActive(false);var orphanInput=sourceGo.AddComponent<CharacterInputHandler>();var controllerGo=new GameObject("M02DestroyedCoordinatorProbe");controllerGo.SetActive(false);var dead=controllerGo.AddComponent<CharacterControlCoordinator>();
+  try{Check(orphanInput.BindPlayerControl(dead),"input accepts explicit first control source");UnityEngine.Object.DestroyImmediate(controllerGo);Check(!orphanInput.HasPlayerInput&&orphanInput.Read().move==Vector2.zero,"destroyed control provider remains fail-closed");}
+  finally{if(controllerGo!=null)UnityEngine.Object.DestroyImmediate(controllerGo);UnityEngine.Object.DestroyImmediate(sourceGo);}
+  ctx.Log("RESULT "+passed+"/15 passed");
+ }
+}

@@ -1,3 +1,4 @@
+// 单角色R17真实世界回归；严格限定M01单角色场，防止误取未受控双角色实例。
 using System;
 using System.Linq;
 using System.Collections.Generic;
@@ -11,7 +12,7 @@ using Ossastra.CharacterCore;
 using Funplay.Editor.Tools.Scripting;
 public class R17WorldContract : IFunplayCommand {
  public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx) {
- var p=UnityEngine.Object.FindObjectOfType<Ossastra.Characters.CharacterRoot>();if(!Application.isPlaying||p==null)throw new Exception("Own Play scene required");var input=p.GetComponent<CharacterInputHandler>();var movement=p.GetComponent<CharacterMovement>();var hit=p.GetComponent<CharacterMeleeHit>();var skeleton=p.GetComponentInChildren<Spine.Unity.SkeletonAnimation>();var targets=UnityEngine.Object.FindObjectsOfType<CombatTestTarget>();var right=targets.Single(t=>t.Health.Id=="target-a");var left=targets.Single(t=>t.Health.Id=="target-b");
+ var p=UnityEngine.Object.FindObjectOfType<Ossastra.Characters.CharacterRoot>();if(!Application.isPlaying||p==null||UnityEngine.Object.FindObjectsOfType<Ossastra.Characters.CharacterRoot>().Length!=1)throw new Exception("Own single-character Play scene required");var input=p.GetComponent<CharacterInputHandler>();var movement=p.GetComponent<CharacterMovement>();var hit=p.GetComponent<CharacterMeleeHit>();var skeleton=p.GetComponentInChildren<Spine.Unity.SkeletonAnimation>();var targets=UnityEngine.Object.FindObjectsOfType<CombatTestTarget>();var right=targets.Single(t=>t.Health.Id=="target-a");var left=targets.Single(t=>t.Health.Id=="target-b");
  var oldRight=right.transform.position;var oldLeft=left.transform.position;var keyboard=InputSystem.AddDevice<Keyboard>("R17WorldKeyboard");var mouse=InputSystem.AddDevice<Mouse>("R17WorldMouse");var pad=InputSystem.AddDevice<Gamepad>("R17WorldGamepad");var pointerJson=input.mouseAction.SaveBindingOverridesAsJson();var keyboardJson=input.movementAction.SaveBindingOverridesAsJson();var stickJson=input.gamepadAimAction.SaveBindingOverridesAsJson();input.mouseAction.ApplyBindingOverride(0,mouse.path+"/position");input.gamepadAimAction.ApplyBindingOverride(0,pad.path+"/rightStick");for(int i=0;i<input.movementAction.bindings.Count;i++){var b=input.movementAction.bindings[i];if(b.path!=null&&b.path.Contains("<Keyboard>"))input.movementAction.ApplyBindingOverride(i,b.path.Replace("<Keyboard>",keyboard.path));}
  var gameType=typeof(EditorWindow).Assembly.GetType("UnityEditor.GameView");if(gameType==null)throw new Exception("GameView missing");EditorWindow.GetWindow(gameType).Focus();p.SendMessage("OnApplicationFocus",true);var owner=new object();var records=new List<object>();var steps=new List<(double at,Action work)>();var started=EditorApplication.timeSinceStartup;int next=0,failed=0;
  void Keys(params Key[] keys){InputSystem.QueueStateEvent(keyboard,new KeyboardState(keys));}
@@ -40,3 +41,4 @@ public class R17WorldContract : IFunplayCommand {
  tick=()=>{try{if(!Application.isPlaying||p==null)throw new Exception("Scene ended");while(next<steps.Count&&EditorApplication.timeSinceStartup-started>=steps[next].at)steps[next++].work();if(next==steps.Count){Cleanup();Flush("completed");}}catch(Exception error){failed++;records.Add(new{error=error.ToString()});Cleanup();Flush("failed");}};EditorApplication.update+=tick;Flush("running");ctx.Log("Scheduled 15 actual input/Spine/physical-hit contracts; 8.1 seconds");
  }
 }
+
