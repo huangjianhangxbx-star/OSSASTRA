@@ -23,4 +23,4 @@
 - [x] 新M02C场从M02A保存副本，绑定Director与Development面板，不改源场/Prefab/相机/素材。
 - [x] 纯策略/旧核心、世界P01–P12与M01/M02A必要回归；保留失败原件，定时测试不并发阻塞Unity。
 - [x] 本轮修改源码行号SHA/实际图/权限/注释/待审索引、保护SHA复验，Edit clean。
-- [ ] R11选择性提交GitHub main/远端SHA核对；停M02C，不M02B/跟随战斗AI/连段。
+- [x] R11选择性提交GitHub main/远端SHA核对；停M02C，不M02B/跟随战斗AI/连段。
