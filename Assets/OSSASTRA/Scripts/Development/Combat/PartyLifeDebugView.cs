@@ -11,7 +11,7 @@ namespace Ossastra.Development
     {
         [SerializeField] private PartyRespawnCoordinator respawn;
         [SerializeField] private CharacterControlCoordinator session;
-        private static readonly Rect panel=new Rect(1150,12,410,220);
+        private static readonly Rect panel=new Rect(1150,12,410,360);
         private void OnEnable(){Register(true);}
         private void OnDisable(){Register(false);}
         private void Register(bool add)
@@ -35,6 +35,12 @@ namespace Ossastra.Development
                 var root=session.Characters[i];if(root==null)continue;
                 GUILayout.Label(root.ActorId+" Alive="+root.IsAlive+" Gen="+root.LifeGeneration+" Current="+(session.Current==root));
                 GUILayout.Label("HP="+root.Vitals.Health.Current+" Posture="+root.GetComponent<Ossastra.Combat.CombatPosture>().Current+" Died="+respawn.DiedAt(i).ToString("F2")+" Due="+respawn.DueAt(i).ToString("F2"));
+                var animation=root.GetComponentInChildren<CharacterSpineView>();
+                if(animation!=null)
+                {
+                    GUILayout.Label(animation.CurrentSemantic+" → "+animation.CurrentClip+" / "+animation.CurrentSource+" #"+animation.CurrentReplayId.ToString("N").Substring(0,8));
+                    if(!string.IsNullOrEmpty(animation.FallbackReason)) GUILayout.Label(animation.FallbackReason);
+                }
                 if(GUILayout.Button(new GUIContent("开发致死："+root.ActorId,"通过真实伤害结算触发死亡；由生产场内返场服务等待恢复。")))
                     CombatDeathDebugView.ApplyDevelopmentHit(root.Vitals,10000);
             }

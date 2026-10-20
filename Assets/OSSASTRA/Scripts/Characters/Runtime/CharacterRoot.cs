@@ -46,7 +46,7 @@ namespace Ossastra.Characters
         private bool ready, focused = true, paused, applicationPaused;
         private string lastFact = "Idle";
         private object respawnOwner;
-        private int lifeGeneration;
+        private int lifeGeneration, animationGeneration;
         public int LifeGeneration => lifeGeneration;
         public bool IsSimulationSuspended => !focused || IsPaused;
         public CharacterDataBus DataBus { get; private set; }
@@ -139,7 +139,8 @@ namespace Ossastra.Characters
 
         private void Update()
         {
-            if (!ready || !IsAlive) return;
+            if (!ready) return;
+            if (!IsAlive) { CommitPresentation(); return; }
             // 本体显式调度入口：以下阶段在一次Update中按书写顺序执行。
             // DefaultExecutionOrder只约束跨组件先后，不能替代这里的模块调用顺序。
             // 1. 采唯一意图源并处理暂停/取消；不由各子模块另开输入Update。
@@ -180,10 +181,16 @@ namespace Ossastra.Characters
             mover.Tick(canMove, IsPaused || !focused ? 0 : Time.deltaTime);
             // 7. 最后提交表现，Run读取已完成的实际位移。
             // 当前没有本体IK/骨骼后处理，故不虚设LateUpdate；Spine内部播放仍由插件驱动。
+            CommitPresentation();
+        }
+
+        // 7. Animation Intent → One Commit；无子模块Update争抢主轨。
+        private void CommitPresentation()
+        {
+            (presentation as Ossastra.AnimationPresentation.ICharacterAnimationFacts)?.CollectFacts(IsAlive, posture!=null && posture.IsStaggered, vitals!=null && vitals.IsHitReacting, animationGeneration);
             presentation.SetPaused(IsPaused || !focused);
             presentation.Present();
         }
-
         private Vector3? PointerDirection(CharacterInputFrame frame)
         {
             if (!frame.hasPointer) return null;
@@ -204,6 +211,7 @@ namespace Ossastra.Characters
 
         public void CancelAction(string reason)
         {
+            animationGeneration++;
             // 取消必须具名；抑制仍按住的输入，不能把下一帧误判为新请求。
             intent.SuppressUntilRelease();
             var terminal = runtime == null ? null : runtime.Cancel(reason);

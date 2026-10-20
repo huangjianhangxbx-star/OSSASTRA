@@ -12,3 +12,7 @@
 
 ## S2 / S3 / S4
 未实施；必须通过各自Gate后更新。
+
+## S2 PASS
+纯路由10/10；真实Spine+虚拟InputSystem14/14：Idle/Run/Attack、相同动作不重播、新动作同片段重播、移动不抢攻击、双实例、暂停、破势/死亡fallback、返场、失焦取消。首次夹具把第二次按键安排在AttackReady之前，合法拒绝导致1项失败；改到Ready之后通过，未放宽生产输入资格。兼容本机Spine4.3 GetTrack API。旧全局同名类型用明确别名隔离，无旧代码修改。
+动画仍仅单主轨，暂无真实Hit/Break/Death片段；fallback明确可读。未迁移完整VELGITA动画系统。

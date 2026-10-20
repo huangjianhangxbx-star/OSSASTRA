@@ -25,6 +25,7 @@ namespace Ossastra.Combat
         private float flashUntil;
         public Health Health { get; private set; }
         public bool IsAlive => Health != null && Health.Current>0;
+        public bool IsHitReacting => flashing && IsAlive;
         public bool IsAvailable => isActiveAndEnabled && IsAlive;
         public Vector3 WorldPosition => transform.position;
         public Transform TargetTransform => transform;
