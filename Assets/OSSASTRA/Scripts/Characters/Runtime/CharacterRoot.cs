@@ -2,7 +2,7 @@
  * 脚本：CharacterRoot
  * 功能：组织单角色的接口接线、输入、动作事实、运动和表现。
  * 边界：持有本角色运行时；不实现设备绑定、目标HP写入或开发GUI。
- * 协作：唯一意图选择器→朝向→请求→推进→释放命中→运动→Spine；场景可注入伙伴帧源。
+ * 协作：初始化可选本体Follow，场景只分配目标；单意图入口与原动作/运动时序保持。
  */
 using System;
 using Ossastra.CharacterCore;
@@ -23,6 +23,7 @@ namespace Ossastra.Characters
         [SerializeField] private CharacterMeleeHit melee;
         [SerializeField] private CharacterInputHandler input;
         [SerializeField] private Camera viewCamera;
+        [SerializeField] private CharacterFollow follow;
         [Header("Prototype timing — not final balance")]
         [SerializeField] private float releaseAt = .3f, moveReadyAt = .5f, attackReadyAt = .8f, finishAt = 1.1f;
         [SerializeField, Min(1)] private int damage = 12;
@@ -45,10 +46,11 @@ namespace Ossastra.Characters
         public bool IsPaused => paused || applicationPaused;
         public bool ActionActive => DataBus != null && DataBus.ActionActive;
         public bool CanSimulateIntent => ready && isActiveAndEnabled && focused && !IsPaused;
+        public CharacterFollow Follow => follow;
         public CharacterIntentKind EffectiveIntentKind => intentSelector == null ? CharacterIntentKind.Neutral : intentSelector.EffectiveKind;
 
         public bool CanBindCompanionIntent(ICharacterControlSession session, ICompanionIntentSource source)
-            => ready && intentSelector != null && intentSelector.CanBind(session,source);
+            => ready && follow != null && ReferenceEquals(source,follow) && intentSelector != null && intentSelector.CanBind(session,source);
         public bool BindCompanionIntent(ICharacterControlSession session, ICompanionIntentSource source)
             => CanBindCompanionIntent(session,source) && intentSelector.Bind(session,source);
         public void ClearCompanionIntent(ICompanionIntentSource owner)
@@ -78,6 +80,8 @@ namespace Ossastra.Characters
             DataBus = new CharacterDataBus(actorId, inputSource, mover, orienter, runtime, authority);
             ready = InitializeSubsystems(DataBus, mover, presentation);
             if (!ready) { Debug.LogError("Character subsystem initialization failed", this); enabled = false; }
+            // 可选能力只接受本角色初始化；无组件/无assignment的旧场保持普通玩家行为。
+            if (follow != null && !follow.Initialize(this)) Debug.LogWarning("Character follow unavailable: configuration or owner invalid", this);
         }
 
         private static bool InitializeSubsystems(CharacterDataBus dataBus, params ICharacterSubsystem[] subsystems)
@@ -150,7 +154,7 @@ namespace Ossastra.Characters
             if (terminal != null) Observe(terminal);
         }
 
-        public void SetPaused(bool value) { paused = value; intent.SuppressUntilRelease(); }
+        public void SetPaused(bool value) { paused = value; intent.SuppressUntilRelease(); if (follow != null) follow.ResetIntent(); }
         public void SetAttackRestriction(object owner, bool restricted, string reason = "attack-restricted")
         {
             if (restricted) { authority.Block(owner, ControlChannel.Attack); CancelAction(reason); }
@@ -158,11 +162,11 @@ namespace Ossastra.Characters
         }
 
         private void OnApplicationFocus(bool hasFocus)
-        { focused = hasFocus; if (!hasFocus) CancelAction("focus-lost"); else intent.SuppressUntilRelease(); }
+        { focused = hasFocus; if (follow != null) follow.ResetIntent(); if (!hasFocus) CancelAction("focus-lost"); else intent.SuppressUntilRelease(); }
         private void OnApplicationPause(bool value)
-        { applicationPaused = value; if (value) intent.SuppressUntilRelease(); }
+        { applicationPaused = value; if (follow != null) follow.ResetIntent(); if (value) intent.SuppressUntilRelease(); }
         private void OnEnable() { intent.SuppressUntilRelease(); if (intentSelector != null) intentSelector.Clear(); }
-        private void OnDisable() { CancelAction("disabled"); if (intentSelector != null) intentSelector.Clear(); if (ready && presentation != null) presentation.SetPaused(false); }
+        private void OnDisable() { CancelAction("disabled"); if (follow != null) follow.ResetIntent(); if (intentSelector != null) intentSelector.Clear(); if (ready && presentation != null) presentation.SetPaused(false); }
         private void OnDestroy()
         {
             // 终止本角色动作后解除本对象引用；不清其它角色或场景控制权威。

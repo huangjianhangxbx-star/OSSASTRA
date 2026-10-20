@@ -1,0 +1,21 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [
+      {
+        "Level": "info",
+        "Message": "{\"contract\":\"Each actor owns its independently disableable intent provider\",\"pass\":false,\"sourceA\":\"Ossastra.Characters.CompanionFollowDirector\",\"sourceB\":\"Ossastra.Characters.CompanionFollowDirector\",\"shared\":true}"
+      },
+      {
+        "Level": "info",
+        "Message": "followStartDistance=2.4,followStopDistance=1.6,blockedCheckWindow=0.5,retryTargetDelta=0.5"
+      }
+    ],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": null
+  }
+}

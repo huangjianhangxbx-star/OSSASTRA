@@ -1,0 +1,69 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [
+      {
+        "Level": "info",
+        "Message": "PASS unbound single-player fallback uses original source"
+      },
+      {
+        "Level": "info",
+        "Message": "PASS explicit companion binding accepted"
+      },
+      {
+        "Level": "info",
+        "Message": "PASS current consumes only player source"
+      },
+      {
+        "Level": "info",
+        "Message": "PASS authority revision invalidates already published frame immediately"
+      },
+      {
+        "Level": "info",
+        "Message": "PASS invalid session reads neither source"
+      },
+      {
+        "Level": "info",
+        "Message": "PASS non-current consumes only companion source"
+      },
+      {
+        "Level": "info",
+        "Message": "PASS selector strips malicious companion attack and player-only fields"
+      },
+      {
+        "Level": "info",
+        "Message": "PASS live companion owner cannot be stolen"
+      },
+      {
+        "Level": "info",
+        "Message": "PASS provider disable invalidates prior companion frame"
+      },
+      {
+        "Level": "info",
+        "Message": "PASS unavailable companion becomes neutral not player"
+      },
+      {
+        "Level": "info",
+        "Message": "PASS player takeover uses same player adapter"
+      },
+      {
+        "Level": "info",
+        "Message": "PASS foreign owner cannot clear effective frame"
+      },
+      {
+        "Level": "info",
+        "Message": "PASS own provider can clear effective frame"
+      },
+      {
+        "Level": "info",
+        "Message": "RESULT 13/13 passed"
+      }
+    ],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": null
+  }
+}

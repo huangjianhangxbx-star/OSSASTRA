@@ -1,0 +1,29 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [
+      {
+        "Level": "info",
+        "Message": "scene=Assets/OSSASTRA/M02C/SC_M02C_R1_CharacterFollow.unity dirty=False actors=2 missing=0 directorRef=True probeDevices=0 inputSettings=Assets/InputSystem.inputsettings.asset"
+      },
+      {
+        "Level": "info",
+        "Message": "temporary-a follow=True refs=movement:True,orientation:True,view:True,melee:True,input:True,viewCamera:True,follow:True"
+      },
+      {
+        "Level": "info",
+        "Message": "temporary-b follow=True refs=movement:True,orientation:True,view:True,melee:True,input:True,viewCamera:True,follow:True"
+      },
+      {
+        "Level": "info",
+        "Message": "prefabGuid=8079c97cafbb7c24a880ed8e1bab96b3 followCount=1 followRef=True"
+      }
+    ],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": null
+  }
+}

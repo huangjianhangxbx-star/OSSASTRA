@@ -307,6 +307,7 @@ GameObject:
   - component: {fileID: 6855529470788851489}
   - component: {fileID: 62508862999485397}
   - component: {fileID: 4248756889777462975}
+  - component: {fileID: 907842511012513439}
   m_Layer: 0
   m_HasEditorInfo: 1
   m_Name: PlayerCharacter
@@ -411,6 +412,7 @@ MonoBehaviour:
   melee: {fileID: 4380353501325685047}
   input: {fileID: 6855529470788851489}
   viewCamera: {fileID: 0}
+  follow: {fileID: 907842511012513439}
   releaseAt: 0.3
   moveReadyAt: 0.5
   attackReadyAt: 0.8
@@ -713,6 +715,22 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   character: {fileID: 3178852648357337582}
   target: {fileID: 0}
+--- !u!114 &907842511012513439
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6821041145637747292}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2f9af8b8ee48e6a4aa532ae11d6edfde, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  followStartDistance: 2.4
+  followStopDistance: 1.6
+  blockedCheckWindow: 0.5
+  retryTargetDelta: 0.5
 --- !u!1 &9036645340740745320
 GameObject:
   m_ObjectHideFlags: 0

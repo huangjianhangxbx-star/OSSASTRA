@@ -1,0 +1,17 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [
+      {
+        "Level": "info",
+        "Message": "{\r\n  \"failed\": 0,\r\n  \"records\": [\r\n    {\r\n      \"name\": \"original-binder-follow-valid\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"name\": \"second-director-rejected-preserves-effective-frame\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"name\": \"failed-owner-destroy-does-not-clear-original\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"name\": \"invalid-session-director-fails-closed\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"name\": \"destroy-director-revokes-assignment-immediately\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"name\": \"new-valid-assignment-restores-fresh-source\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"name\": \"destroy-session-invalidates-both-sources\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"name\": \"director-has-no-character-strategy-cache\",\r\n      \"pass\": true\r\n    }\r\n  ]\r\n}"
+      }
+    ],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": null
+  }
+}

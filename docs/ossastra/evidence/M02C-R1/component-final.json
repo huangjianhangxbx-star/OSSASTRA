@@ -1,0 +1,17 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [
+      {
+        "Level": "info",
+        "Message": "{\r\n  \"failed\": 0,\r\n  \"records\": [\r\n    {\r\n      \"name\": \"no-assignment-no-follow\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"name\": \"independent-ability-policy-and-parameters\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"name\": \"only-own-root-can-initialize-or-bind\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"name\": \"own-assign-and-route\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"name\": \"A-blocked-does-not-block-B\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"name\": \"wrong-actor-read-is-neutral-preserves-owner\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"name\": \"foreign-assignment-cannot-steal\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"name\": \"foreign-unassign-cannot-clear\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"name\": \"observation-does-not-advance-policy\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"name\": \"target-A-to-B-clears-blocked\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"name\": \"target-B-back-to-A-no-old-blocked\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"name\": \"self-target-rejected\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"name\": \"restored-target-fresh-follow\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"name\": \"provider-reset-during-sample-retains-new-kind\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"name\": \"individual-disable-immediate-frame-zero\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"name\": \"individual-reenable-queries-valid-target-fresh\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"name\": \"assignment-revocation-immediate-zero\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"name\": \"assignment-returns-without-old-blocked\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"name\": \"pause-immediate-zero\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"name\": \"resume-new-sample\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"name\": \"unassign-immediate-zero-no-autofollow\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"name\": \"invalid-parameter-fails-closed\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"name\": \"valid-parameter-reinitialize\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"name\": \"destroy-target-immediate-zero\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"name\": \"destroy-follow-immediate-zero\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"name\": \"root-before-destroy-has-effective-follow\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"name\": \"destroy-root-revokes-captured-bus-frame\",\r\n      \"pass\": true\r\n    }\r\n  ]\r\n}"
+      }
+    ],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": null
+  }
+}

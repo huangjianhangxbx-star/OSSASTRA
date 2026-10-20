@@ -1,126 +1,71 @@
 /*
  * 脚本：CompanionFollowDirector
- * 功能：场景级最小跟随策略，读取唯一控制会话，为非实控角色提供移动帧。
- * 边界：不写Current、Transform、HP、Spine或动作时钟；不寻路、加速或自动攻击。
- * 协作：Start在所有Root初始化后显式绑定选择器；选择器Read时惰性计算，每角色策略独立。
+ * 功能：场景级目标分配与绑定，读取唯一会话为成员分配Current目标。
+ * 边界：不保存角色策略/距离/受阻/位移历史，不执行运动或动作。
+ * 协作：Start在Root初始化后预检全组；将各角色自己的Follow接至其Selector，归还仅清自己绑定。
  */
-using System;
 using System.Collections.Generic;
-using Ossastra.CharacterCore;
 using UnityEngine;
 
 namespace Ossastra.Characters
 {
-    public readonly struct CompanionFollowObservation
-    {
-        public CompanionFollowState State { get; }
-        public string Reason { get; }
-        public float Distance { get; }
-        public string TargetId { get; }
-        public CompanionFollowObservation(CompanionFollowState state, string reason, float distance, string targetId)
-        { State=state; Reason=reason; Distance=distance; TargetId=targetId; }
-    }
-
-    public sealed class CompanionFollowDirector : MonoBehaviour, ICompanionIntentSource
+    public sealed class CompanionFollowDirector : MonoBehaviour, ICharacterFollowTargetSource
     {
         [SerializeField] private CharacterControlCoordinator coordinator;
-        [Header("跟随候选参数 / 世界单位，不是正式玩法平衡")]
-        [SerializeField, Min(.01f)] private float followStartDistance=2.4f, followStopDistance=1.6f;
-        [SerializeField, Min(.01f)] private float blockedCheckWindow=.5f, retryTargetDelta=.5f;
-        private readonly Dictionary<CharacterRoot, Entry> entries = new Dictionary<CharacterRoot, Entry>();
-        private ICharacterControlSession session;
-        private bool started, configured, bindingsOwned;
-        public bool IsAvailable => configured && isActiveAndEnabled && coordinator != null;
-        public float StartDistance => followStartDistance;
-        public float StopDistance => followStopDistance;
+        // 仅保留旧场序列化迁移证据，不再参与运行时计算；权威参数在每角色CharacterFollow。
+        [SerializeField, HideInInspector] private float followStartDistance=2.4f, followStopDistance=1.6f;
+        [SerializeField, HideInInspector] private float blockedCheckWindow=.5f, retryTargetDelta=.5f;
+        private readonly List<CharacterFollow> bindings = new List<CharacterFollow>();
+        private bool started, configured;
+        public bool IsAvailable => configured && isActiveAndEnabled && coordinator != null && coordinator.isActiveAndEnabled;
         public string Status { get; private set; } = "未绑定";
         public CharacterControlCoordinator Coordinator => coordinator;
-
-        private sealed class Entry
-        {
-            public CompanionFollowPolicy policy;
-            public Vector3 lastPosition;
-            public int revision=-1;
-            public CompanionFollowState state;
-            public string reason="等待采样";
-        }
-
         private void Start() { started=true; BindMembers(); }
         private void OnEnable() { if (started) BindMembers(); }
 
         private void BindMembers()
         {
             configured=false;
-            // 绑定失败/禁用的会话不能借Director占用原角色选择器，即使它仍保存成员引用。
             if (coordinator == null || !coordinator.isActiveAndEnabled) { Status="控制会话缺失或未启用"; return; }
-            session=coordinator;
-            try { new CompanionFollowPolicy(followStartDistance,followStopDistance,blockedCheckWindow,retryTargetDelta); }
-            catch (ArgumentException) { Status="跟随阈值无效"; return; }
-            // 先验证全部消费者；第二Director不得清理或替换原Director的有效帧。
-            foreach (var character in session.Characters)
-                if (character == null || !character.CanBindCompanionIntent(session,this))
-                { Status="角色未就绪或伙伴来源已被占用"; return; }
-            foreach (var character in session.Characters)
+            var ids=new HashSet<string>();
+            // 先检查全部成员；列表只记录待归还的绑定，不成为第二成员/Current权威。
+            foreach (var character in coordinator.Characters)
+                if (character == null || !ids.Add(character.ActorId) || character.Follow == null ||
+                    !character.Follow.CanAssign(coordinator,this) || !character.CanBindCompanionIntent(coordinator,character.Follow))
+                { Status="角色能力未就绪或分配已被占用"; return; }
+            foreach (var character in coordinator.Characters)
             {
-                character.BindCompanionIntent(session,this);
-                entries[character]=new Entry { policy=new CompanionFollowPolicy(followStartDistance,followStopDistance,blockedCheckWindow,retryTargetDelta) };
+                var follow=character.Follow;
+                if (!follow.Assign(coordinator,this)) { ReleaseBindings(); Status="分配失败，已归还自身绑定"; return; }
+                bindings.Add(follow);
+                if (!character.BindCompanionIntent(coordinator,follow))
+                { ReleaseBindings(); Status="接线失败，已归还自身绑定"; return; }
             }
-            bindingsOwned=true; configured=true; Status="直接追随 / 无寻路";
+            configured=true; Status="队伍目标分配 / 角色自身计算跟随";
         }
 
-        /// <summary>只从合法会话的非Current成员产生移动；实际碰撞、Ready与表现仍经原角色管线。</summary>
-        public CharacterInputFrame ReadCompanionIntent(CharacterRoot character, float delta)
+        public bool TryGetFollowTarget(CharacterRoot follower, out CharacterRoot target)
         {
-            if (!IsAvailable || session == null || character == null || !entries.TryGetValue(character,out var entry)) return default;
-            var target=session.Current;
-            var allowed=session.IsIntentSamplingAllowed && target != null && target != character &&
-                target.CanSimulateIntent && character.CanSimulateIntent && character.DataBus != null &&
-                character.DataBus.AllowsMovement && character.DataBus.MoveReady;
-            var position=character.transform.position;
-            var travel=position-entry.lastPosition; travel.y=0;
-            if (entry.revision != session.ControlRevision)
-            {
-                // 切人后的策略不能继承上一来源的运动命令或无位移计时。
-                entry.policy.Reset(); travel=Vector3.zero; entry.revision=session.ControlRevision;
-            }
-            entry.lastPosition=position;
-            var targetPosition=target == null ? position : target.transform.position;
-            var offset=targetPosition-position;
-            var decision=entry.policy.Sample(offset.x,offset.z,targetPosition.x,targetPosition.z,travel.magnitude,delta,allowed);
-            entry.state=decision.State;
-            entry.reason=!allowed ? "会话／焦点／暂停／Ready／移动许可不足" :
-                decision.State==CompanionFollowState.Blocked ? "受阻等待领队移动；不承诺绕墙" :
-                decision.State==CompanionFollowState.CloseEnough ? "停止区或启动阈值内" : "朝领队位置移动";
-            // 只设置move；这里没有攻击、取消、暂停或调试命令，也不直接执行位移。
-            return new CharacterInputFrame { move=new Vector2((float)decision.MoveX,(float)decision.MoveZ) };
+            target=null;
+            if (!IsAvailable || !coordinator.IsIntentSamplingAllowed || follower == null ||
+                coordinator.Current == null || follower==coordinator.Current) return false;
+            foreach (var character in coordinator.Characters)
+                if (character==follower) { target=coordinator.Current; return true; }
+            return false;
         }
 
-        /// <summary>开发只读观察，不推进策略；未采样的新代际不展示旧Following作为当前事实。</summary>
+        // 历史开发调用的只读转发；本体观察才是唯一状态来源，Director没有镜像缓存。
         public CompanionFollowObservation Observe(CharacterRoot character)
-        {
-            var target=coordinator == null ? null : coordinator.Current;
-            var offset=target == null || character == null ? Vector3.zero : target.transform.position-character.transform.position;
-            offset.y=0;
-            var targetId=target == null ? "无" : target.ActorId;
-            if (!IsAvailable || session == null || !session.IsIntentSamplingAllowed || character == null || !character.CanSimulateIntent)
-                return new CompanionFollowObservation(CompanionFollowState.Inactive,"无合法会话／不可行动",offset.magnitude,targetId);
-            if (target==character) return new CompanionFollowObservation(CompanionFollowState.Inactive,"玩家接管",0,targetId);
-            if (!entries.TryGetValue(character,out var entry) || entry.revision!=session.ControlRevision)
-                return new CompanionFollowObservation(CompanionFollowState.Inactive,"等待新代际采样",offset.magnitude,targetId);
-            return new CompanionFollowObservation(entry.state,entry.reason,offset.magnitude,targetId);
-        }
+            => character != null && character.Follow != null ? character.Follow.Observe() :
+                new CompanionFollowObservation(CharacterCore.CompanionFollowState.Inactive,"缺少角色跟随能力",0,"无");
 
-        private void OnDisable()
+        private void ReleaseBindings()
         {
             configured=false;
-            if (!bindingsOwned) return;
-            foreach (var pair in entries)
-            {
-                pair.Value.policy.Reset();
-                if (pair.Key != null) pair.Key.ClearCompanionIntent(this);
-            }
-            Status="跟随关闭，玩家仍由原会话管理";
+            foreach (var follow in bindings) if (follow != null) follow.Unassign(this);
+            bindings.Clear();
         }
-        private void OnDestroy() { entries.Clear(); session=null; }
+        private void OnDisable() { ReleaseBindings(); Status="目标分配关闭，玩家仍由原会话管理"; }
+        private void OnDestroy() { ReleaseBindings(); }
     }
 }

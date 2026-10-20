@@ -10,6 +10,11 @@ using System.Collections.Generic;
 
 namespace Ossastra.Characters
 {
+    /// <summary>队伍只分配合法目标；角色能力自行计算移动，不从此契约取得方向或策略状态。</summary>
+    public interface ICharacterFollowTargetSource
+    {
+        bool TryGetFollowTarget(CharacterRoot follower, out CharacterRoot target);
+    }
     /// <summary>场景唯一控制权的只读视图；代际和共享屏障同时约束玩家与伙伴来源。</summary>
     public interface ICharacterControlSession
     {

@@ -51,15 +51,17 @@ namespace Ossastra.Characters
         {
             Clear();
             if (character == null || !character.isActiveAndEnabled) return default;
-            kind=CharacterIntentPolicy.Select(managed, Alive(session) && session.IsIntentSamplingAllowed,
+            var selectedKind=CharacterIntentPolicy.Select(managed, Alive(session) && session.IsIntentSamplingAllowed,
                 Alive(session) && session.Current == character, Alive(companion) && companion.IsAvailable);
-            if (kind == CharacterIntentKind.Player) frame=player.Read();
-            else if (kind == CharacterIntentKind.Companion)
+            if (selectedKind == CharacterIntentKind.Player) frame=player.Read();
+            else if (selectedKind == CharacterIntentKind.Companion)
             {
                 // 伙伴即使给了其它字段，也只准传递move；不能借AI帧自动攻击、取消或暂停。
                 var candidate=companion.ReadCompanionIntent(character,Time.deltaTime);
                 frame=new CharacterInputFrame { move=candidate.move };
             }
+            // 提供者发现新目标会先撤回旧帧；只有本次读取完成后才发布新来源身份。
+            kind=selectedKind;
             sampledFrame=Time.frameCount;
             sampledRevision=Alive(session) ? session.ControlRevision : 0;
             return CurrentFrame;
