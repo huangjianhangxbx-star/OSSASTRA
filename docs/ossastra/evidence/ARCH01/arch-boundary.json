@@ -1,0 +1,17 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [
+      {
+        "Level": "info",
+        "Message": "{\r\n  \"failed\": 0,\r\n  \"records\": [\r\n    {\r\n      \"label\": \"real-hit-feedback-does-not-throw-and-records-source\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"label\": \"real-overlap-friend-and-self-no-damage\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"label\": \"real-enemy-self-overlap-no-damage\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"label\": \"source-identity-mismatch-fails-closed\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"label\": \"dead-source-late-token-cannot-damage\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"label\": \"rejected-late-token-closed\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"label\": \"paused-current-death-still-hands-over\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"label\": \"application-pause-death-selects-survivor-but-no-input\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"label\": \"focus-loss-death-keeps-control-neutral\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"label\": \"disabled-session-all-dead-reenable-neutral\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"label\": \"enemy-has-real-accepted-windup\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"label\": \"enemy-death-cancels-own-runtime-and-hides\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"label\": \"dead-enemy-cannot-release\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"label\": \"same-Health-objects-after-all-development-resets\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"label\": \"restored-collision-and-presentation\",\r\n      \"pass\": true\r\n    }\r\n  ]\r\n}"
+      }
+    ],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": null
+  }
+}

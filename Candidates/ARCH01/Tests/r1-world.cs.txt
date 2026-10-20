@@ -1,0 +1,54 @@
+// M02-C实际世界合同：虚拟键鼠驱动原Root/Controller/Spine/靶HP，验证跟随/切控/受阻，不代人工手感。
+using System;using System.Linq;using System.Collections.Generic;using UnityEngine;using UnityEditor;using UnityEngine.InputSystem;using UnityEngine.InputSystem.LowLevel;using Ossastra.Characters;using Ossastra.CharacterCore;using Ossastra.Development;using Funplay.Editor.Tools.Scripting;
+public class FollowWorldContract:IFunplayCommand
+{
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+ {
+  var d=UnityEngine.Object.FindObjectOfType<CompanionFollowDirector>();if(!Application.isPlaying||d==null||!d.IsAvailable)throw new Exception("Ready M02C Play required");
+  var c=d.Coordinator;var a=c.Characters[0];var b=c.Characters[1];var actors=new[]{a,b};var moves=actors.Select(x=>x.GetComponent<CharacterMovement>()).ToArray();
+  var inputs=actors.Select(x=>x.GetComponent<CharacterInputHandler>()).ToArray();var targets=UnityEngine.Object.FindObjectsOfType<CombatTestTarget>().OrderBy(x=>x.Health.Id).ToArray();if(targets.Length!=2)throw new Exception("Two targets required");
+  var originalSettings=InputSystem.settings;var testSettings=UnityEngine.Object.Instantiate(originalSettings);testSettings.backgroundBehavior=InputSettings.BackgroundBehavior.IgnoreFocus;testSettings.editorInputBehaviorInPlayMode=InputSettings.EditorInputBehaviorInPlayMode.AllDeviceInputAlwaysGoesToGameView;InputSystem.settings=testSettings;var keyboard=InputSystem.AddDevice<Keyboard>("M02CWorldKeyboard");var mouse=InputSystem.AddDevice<Mouse>("M02CWorldMouse");var overrides=new Dictionary<InputAction,string>();
+  foreach(var action in inputs.SelectMany(x=>new[]{x.movementAction,x.mouseAction,x.attackAction,x.pauseAction,x.cancelAction}).Concat(new[]{c.switchAction})){overrides[action]=action.SaveBindingOverridesAsJson();for(int i=0;i<action.bindings.Count;i++){var path=action.bindings[i].path;if(path==null||action.bindings[i].isComposite)continue;if(path.Contains("<Keyboard>"))action.ApplyBindingOverride(i,path.Replace("<Keyboard>",keyboard.path));if(path.Contains("<Mouse>"))action.ApplyBindingOverride(i,path.Replace("<Mouse>",mouse.path));}}
+  var gameType=typeof(EditorWindow).Assembly.GetType("UnityEditor.GameView");if(gameType!=null)EditorWindow.GetWindow(gameType).Focus();foreach(var actor in actors)actor.SendMessage("OnApplicationFocus",true);c.SendMessage("OnApplicationFocus",true);
+  var records=new List<object>();var steps=new List<(double at,Action work)>();var start=EditorApplication.timeSinceStartup;int next=0,failed=0;GameObject wall=null;Vector3 savedA=default,savedB=default;Guid actionId=Guid.Empty;
+  void Keys(params Key[] keys){InputSystem.QueueStateEvent(keyboard,new KeyboardState(keys));}
+  void Pointer(int index,bool down=false){var s=Camera.main.WorldToScreenPoint(targets[index].transform.position);InputSystem.QueueStateEvent(mouse,new MouseState{position=new Vector2(s.x,s.y),buttons=(ushort)(down?1:0)});}
+  float Distance(){var off=a.transform.position-b.transform.position;off.y=0;return off.magnitude;}
+  void Flush(string state){SessionState.SetString("OSSASTRA_M02C_WORLD",Newtonsoft.Json.JsonConvert.SerializeObject(new{state,steps=next,failed,records},Newtonsoft.Json.Formatting.Indented));}
+  void Check(string label,bool pass){if(!pass)failed++;records.Add(new{label,pass,current=c.Current==null?"none":c.Current.ActorId,positionA=a.transform.position.ToString("F3"),positionB=b.transform.position.ToString("F3"),distance=Distance(),sourceA=a.EffectiveIntentKind.ToString(),sourceB=b.EffectiveIntentKind.ToString(),moveA=a.DataBus.Input.move.ToString(),moveB=b.DataBus.Input.move.ToString(),followA=d.Observe(a).State.ToString(),followB=d.Observe(b).State.ToString(),hpA=targets[0].Health.Current,hpB=targets[1].Health.Current,factA=a.LastFact,factB=b.LastFact});Flush("running");}
+  void Reset(){Keys();foreach(var actor in actors){actor.enabled=true;actor.SetPaused(false);actor.CancelAction("follow-contract-reset");actor.SendMessage("OnApplicationFocus",true);}c.SendMessage("OnApplicationFocus",true);if(!c.enabled)c.enabled=true;if(c.Current!=a)c.SwitchNext();d.enabled=false;moves[0].Teleport(new Vector3(2,.03f,-3));moves[1].Teleport(new Vector3(-2,.03f,-3));targets[0].transform.position=new Vector3(3.15f,0,-3);targets[1].transform.position=new Vector3(-.85f,0,2);foreach(var t in targets)t.RestoreHealth();d.enabled=true;Pointer(0);Physics.SyncTransforms();}
+  Reset();
+  steps.Add((.2,()=>Keys(Key.D)));steps.Add((.6,()=>Check("P01-player-A-and-real-companion-B-pipeline",a.transform.position.x>2.2f&&b.transform.position.x> -1.4f&&a.EffectiveIntentKind==CharacterIntentKind.Player&&b.EffectiveIntentKind==CharacterIntentKind.Companion&&b.GetComponentInChildren<CharacterSpineView>().CurrentClip=="run")));
+  steps.Add((.7,()=>Keys()));steps.Add((2.25,()=>{savedB=b.transform.position;Check("P02-enter-stop-zone",Distance()<=1.66f&&d.Observe(b).State==CompanionFollowState.CloseEnough);}));
+  steps.Add((2.55,()=>Check("P02-stable-stop-and-no-auto-attack",Vector3.Distance(savedB,b.transform.position)<.02f&&b.DataBus.Input.move==Vector2.zero&&!b.ActionActive&&!b.DataBus.Input.attackHeld&&!b.DataBus.Input.cancel&&!b.DataBus.Input.pause&&b.DataBus.Input.debugCommand==0)));
+  steps.Add((2.65,()=>moves[0].Teleport(a.transform.position+Vector3.right*.15f)));steps.Add((2.9,()=>Check("P02-hysteresis-small-distance-change-stays-stopped",Vector3.Distance(savedB,b.transform.position)<.02f)));
+  steps.Add((3.0,Reset));steps.Add((3.2,()=>Keys(Key.Tab)));steps.Add((3.35,()=>Keys(Key.A)));
+  steps.Add((3.85,()=>Check("P03-switch-B-player-A-companion",c.Current==b&&b.transform.position.x< -2.7f&&a.transform.position.x<1.6f&&b.EffectiveIntentKind==CharacterIntentKind.Player&&a.EffectiveIntentKind==CharacterIntentKind.Companion)));
+  steps.Add((4.0,Reset));steps.Add((4.2,()=>Pointer(0,true)));
+  steps.Add((4.3,()=>{actionId=a.DataBus.ActionId;savedA=a.transform.position;Keys(Key.Tab);}));
+  steps.Add((4.44,()=>Check("P06-windup-follow-does-not-bypass-MoveReady",c.Current==b&&a.ActionActive&&!a.DataBus.MoveReady&&Mathf.Abs(a.transform.position.x-savedA.x)<.03f)));
+  steps.Add((4.5,()=>{Keys();Pointer(1,true);}));
+  steps.Add((4.9,()=>Check("P05-old-action-releases-once-then-can-follow",actionId!=Guid.Empty&&a.DataBus.ActionId==actionId&&targets[0].Health.Current==88&&a.transform.position.x<savedA.x-.1f&&!b.ActionActive&&targets[1].Health.Current==100)));
+  steps.Add((5.1,()=>Check("P04-held-across-switch-no-new-attack",!b.ActionActive&&targets[0].Health.Current==88&&targets[1].Health.Current==100)));
+  steps.Add((5.2,()=>{moves[1].Teleport(new Vector3(-2,.03f,-3));targets[1].transform.position=new Vector3(-.85f,0,-3);Physics.SyncTransforms();Pointer(1);}));steps.Add((5.4,()=>Pointer(1,true)));
+  steps.Add((5.85,()=>Check("P04-real-release-and-fresh-press-works",targets[1].Health.Current==88)));
+  steps.Add((6.0,Reset));steps.Add((6.2,()=>{foreach(var actor in actors)actor.SendMessage("OnApplicationFocus",false);c.SendMessage("OnApplicationFocus",false);savedA=a.transform.position;savedB=b.transform.position;Keys(Key.D);}));
+  steps.Add((6.5,()=>Check("P08-focus-loss-neutral-both-sources",Vector3.Distance(savedA,a.transform.position)<.02f&&Vector3.Distance(savedB,b.transform.position)<.02f&&a.DataBus.Input.move==Vector2.zero&&b.DataBus.Input.move==Vector2.zero)));
+  steps.Add((6.6,Reset));steps.Add((6.8,()=>{a.SetPaused(true);savedB=b.transform.position;}));
+  steps.Add((7.1,()=>Check("P08-paused-leader-stops-companion",Vector3.Distance(savedB,b.transform.position)<.02f&&b.DataBus.Input.move==Vector2.zero)));
+  steps.Add((7.25,Reset));steps.Add((7.4,()=>{d.enabled=false;savedB=b.transform.position;Keys(Key.D);}));
+  steps.Add((7.8,()=>Check("P08-director-disabled-keeps-player-no-companion",a.transform.position.x>2.2f&&Vector3.Distance(savedB,b.transform.position)<.02f&&b.DataBus.Input.move==Vector2.zero)));
+  steps.Add((7.9,()=>{Keys();d.enabled=true;}));steps.Add((8.2,()=>Check("P08-director-reenable-resumes-follow",b.transform.position.x>savedB.x+.3f)));
+  steps.Add((8.35,()=>{c.enabled=false;savedA=a.transform.position;savedB=b.transform.position;}));
+  steps.Add((8.7,()=>Check("P09-no-current-neutral-player-and-AI",c.Current==null&&a.DataBus.Input.move==Vector2.zero&&b.DataBus.Input.move==Vector2.zero&&Vector3.Distance(savedA,a.transform.position)<.02f&&Vector3.Distance(savedB,b.transform.position)<.02f)));
+  steps.Add((8.8,Reset));steps.Add((9.0,()=>{b.enabled=false;savedB=b.transform.position;}));steps.Add((9.3,()=>Check("P08-disabled-follower-does-not-move",Vector3.Distance(savedB,b.transform.position)<.02f)));
+  steps.Add((9.45,()=>{Reset();wall=GameObject.CreatePrimitive(PrimitiveType.Cube);wall.name="M02CFollowerWallProbe";wall.transform.position=new Vector3(0,.75f,-3);wall.transform.localScale=new Vector3(.3f,2,3);Physics.SyncTransforms();}));
+  steps.Add((11.1,()=>{savedB=b.transform.position;Check("P11-wall-collision-no-teleport-Blocked",b.transform.position.x<-.3f&&d.Observe(b).State==CompanionFollowState.Blocked&&b.DataBus.Input.move==Vector2.zero);}));
+  steps.Add((11.4,()=>Check("P11-blocked-stays-still",Vector3.Distance(savedB,b.transform.position)<.02f)));
+  steps.Add((11.5,()=>{UnityEngine.Object.DestroyImmediate(wall);wall=null;Physics.SyncTransforms();Keys(Key.W);}));steps.Add((11.8,()=>Keys()));
+  steps.Add((12.3,()=>Check("P11-target-real-movement-retries-after-obstacle",b.transform.position.x>savedB.x+.3f&&d.Observe(b).State!=CompanionFollowState.Blocked)));
+  steps.Add((12.5,()=>{c.SwitchNext();Check("P03-late-same-frame-handover-both-neutral",a.DataBus.Input.move==Vector2.zero&&b.DataBus.Input.move==Vector2.zero&&a.EffectiveIntentKind==CharacterIntentKind.Neutral&&b.EffectiveIntentKind==CharacterIntentKind.Neutral);}));
+  EditorApplication.CallbackFunction tick=null;void Cleanup(){EditorApplication.update-=tick;if(wall!=null)UnityEngine.Object.DestroyImmediate(wall);foreach(var pair in overrides)pair.Key.LoadBindingOverridesFromJson(pair.Value);Reset();InputSystem.RemoveDevice(keyboard);InputSystem.RemoveDevice(mouse);InputSystem.settings=originalSettings;UnityEngine.Object.DestroyImmediate(testSettings);}
+  tick=()=>{try{if(!Application.isPlaying||d==null)throw new Exception("Scene ended");while(next<steps.Count&&EditorApplication.timeSinceStartup-start>=steps[next].at)steps[next++].work();if(next==steps.Count){Cleanup();Flush("completed");}}catch(Exception error){failed++;records.Add(new{error=error.ToString()});Cleanup();Flush("failed");}};EditorApplication.update+=tick;Flush("running");ctx.Log("Scheduled M02C 12.5s actual-world contracts; do not block Unity while running");
+ }
+}

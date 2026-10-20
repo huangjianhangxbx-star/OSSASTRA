@@ -1,0 +1,26 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "project": "E:/WORLDCREATOR/new/Project_ANKALUTE/Assets",
+      "scene": "Assets/OSSASTRA/M02B/SC_M02B1_CombatDeath.unity",
+      "dirty": false,
+      "enemyComponents": [
+        "Ossastra.Characters.CharacterVitals",
+        "Ossastra.Characters.CharacterMeleeHit",
+        "Ossastra.Enemies.StationaryMeleeEnemy"
+      ],
+      "targetField": "Ossastra.Characters.CharacterRoot[]",
+      "neutralTargetAccepted": false,
+      "expected": true,
+      "pass": false,
+      "reason": "现行targets为玩家Root数组，不能接受已存在且有真实Health的独立Vitals目标"
+    }
+  }
+}

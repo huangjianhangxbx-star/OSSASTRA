@@ -1,0 +1,17 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [
+      {
+        "Level": "info",
+        "Message": "{\r\n  \"scene\": \"Assets/OSSASTRA/M01/SC_M01_CharacterTest.unity\",\r\n  \"failed\": 0,\r\n  \"records\": [\r\n    {\r\n      \"label\": \"original-root-input-and-neutral-hit-wiring\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"label\": \"actor-player-real-physical-hit-and-once\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"label\": \"missing-scripts-zero\",\r\n      \"pass\": true\r\n    }\r\n  ]\r\n}"
+      }
+    ],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": null
+  }
+}

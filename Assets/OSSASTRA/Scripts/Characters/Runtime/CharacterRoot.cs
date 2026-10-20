@@ -6,13 +6,14 @@
  */
 using System;
 using Ossastra.CharacterCore;
+using Ossastra.Combat;
 using UnityEngine;
 using UnityEngine.Serialization;
 
 namespace Ossastra.Characters
 {
     [DefaultExecutionOrder(-100)]
-    [RequireComponent(typeof(CharacterMovement), typeof(CharacterMeleeHit), typeof(CharacterInputHandler))]
+    [RequireComponent(typeof(CharacterMovement), typeof(CombatMeleeHit), typeof(CharacterInputHandler))]
     [RequireComponent(typeof(CharacterOrientation))]
     public sealed class CharacterRoot : MonoBehaviour
     {
@@ -20,12 +21,12 @@ namespace Ossastra.Characters
         [FormerlySerializedAs("motor"), SerializeField] private CharacterMovement movement;
         [SerializeField] private CharacterOrientation orientation;
         [SerializeField] private CharacterSpineView view;
-        [SerializeField] private CharacterMeleeHit melee;
+        [SerializeField] private CombatMeleeHit melee;
         [SerializeField] private CharacterInputHandler input;
         [SerializeField] private Camera viewCamera;
         [SerializeField] private CharacterFollow follow;
-        [SerializeField] private CharacterVitals vitals;
-        private ICharacterLifeState lifeState;
+        [SerializeField] private CombatVitals vitals;
+        private ICombatLifeState lifeState;
         [Header("Prototype timing — not final balance")]
         [SerializeField] private float releaseAt = .3f, moveReadyAt = .5f, attackReadyAt = .8f, finishAt = 1.1f;
         [SerializeField, Min(1)] private int damage = 12;
@@ -37,7 +38,7 @@ namespace Ossastra.Characters
         private ICharacterMovement mover;
         private ICharacterOrientation orienter;
         private ICharacterPresentation presentation;
-        private ICharacterHitResolver hitResolver;
+        private ICombatHitResolver hitResolver;
         private BasicActionRuntime runtime;
         private BasicAttackDefinition definition;
         private bool ready, focused = true, paused, applicationPaused;
@@ -49,7 +50,7 @@ namespace Ossastra.Characters
         public bool ActionActive => DataBus != null && DataBus.ActionActive;
         public bool IsAlive => lifeState==null || lifeState.IsAlive;
         public bool CanSimulateIntent => ready && IsAlive && isActiveAndEnabled && focused && !IsPaused;
-        public CharacterVitals Vitals => vitals;
+        public CombatVitals Vitals => vitals;
         public event Action<CharacterRoot> Died;
         public CharacterFollow Follow => follow;
         public CharacterIntentKind EffectiveIntentKind => intentSelector == null ? CharacterIntentKind.Neutral : intentSelector.EffectiveKind;

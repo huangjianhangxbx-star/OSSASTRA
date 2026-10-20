@@ -1,0 +1,17 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [
+      {
+        "Level": "info",
+        "Message": "{\r\n  \"state\": \"completed\",\r\n  \"failed\": 0,\r\n  \"records\": [\r\n    {\r\n      \"label\": \"neutral-target-has-no-CharacterRoot\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"label\": \"neutral-target-real-Accepted-no-damage\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"label\": \"neutral-target-real-Enemy-Update-Release-hit\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"label\": \"neutral-target-shared-resolver-hit\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"label\": \"repeat-release-token-rejected\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"label\": \"disabled-target-ineligible\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"label\": \"disabled-target-not-hit\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"label\": \"duplicate-identity-brain-rejected\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"label\": \"duplicate-identity-physical-rejected\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"label\": \"windup-before-source-disabled\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"label\": \"disabled-source-cancels-pending-action\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"label\": \"paused-enemy-cancels\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"label\": \"disabled-brain-cancels\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"label\": \"LOS-loss-during-windup-cancels\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"label\": \"target-death-during-windup-cancels\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"label\": \"removed-target-cancels\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"label\": \"destroyed-interface-fake-null-fails-closed\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"label\": \"NPC-independent-no-combat-components\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"label\": \"NPC-real-consumer-observes-response\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"label\": \"NPC-repeated-request-one-response-each\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"label\": \"NPC-distance-refused\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"label\": \"NPC-disabled-refused\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"label\": \"NPC-invalid-caller-refused\",\r\n      \"pass\": true\r\n    }\r\n  ]\r\n}"
+      }
+    ],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": null
+  }
+}

@@ -6,6 +6,7 @@
  */
 using System.Linq;
 using Ossastra.CharacterCore;
+using Ossastra.Combat;
 using Ossastra.Characters;
 using Ossastra.Enemies;
 using UnityEngine;
@@ -15,7 +16,7 @@ namespace Ossastra.Development
     {
         [SerializeField] private CharacterControlCoordinator coordinator;
         [SerializeField] private CompanionFollowDirector director;
-        [SerializeField] private StationaryMeleeEnemy enemy;
+        [SerializeField] private Ossastra.Enemies.EnemyRoot enemy;
         private Vector3[] spawns;
         private static readonly Rect panel=new Rect(490,12,650,370);
         private void Start() { spawns=coordinator.Characters.Select(c=>c.transform.position).ToArray(); Register(true); }
@@ -28,7 +29,7 @@ namespace Ossastra.Development
         private void OnDisable() { Register(false); }
         private void OnEnable() { if (spawns!=null) Register(true); }
 
-        public static void ApplyDevelopmentHit(CharacterVitals target, int damage)
+        public static void ApplyDevelopmentHit(CombatVitals target, int damage)
         {
             if (target==null || !target.IsAlive || damage<=0) return;
             var runtime=new BasicActionRuntime("development-hit-probe");

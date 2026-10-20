@@ -1,17 +1,18 @@
 /*
- * 脚本：CharacterVitals
+ * 脚本：CombatVitals
  * 功能：持有本体唯一Health/阵营，接收正式结算反馈并单次通知死亡、关闭自身表现和碰撞。
  * 边界：IsAlive只读Health；不另存isDead，不选Current、不计算攻击、不自动复活。
  * 协作：Root/敌人显式Initialize；Melee回调只反馈已Applied结果，Development显式恢复同一Health。
  */
 using System;
 using Ossastra.CharacterCore;
+using Ossastra.Combat;
 using UnityEngine;
 
-namespace Ossastra.Characters
+namespace Ossastra.Combat
 {
     [DisallowMultipleComponent]
-    public sealed class CharacterVitals : MonoBehaviour, ICombatHitTarget
+    public sealed class CombatVitals : MonoBehaviour, ICombatTarget
     {
         [SerializeField, Min(1)] private int maximumHp=100;
         [SerializeField] private CombatFaction faction=CombatFaction.Allied;
@@ -24,6 +25,9 @@ namespace Ossastra.Characters
         private float flashUntil;
         public Health Health { get; private set; }
         public bool IsAlive => Health != null && Health.Current>0;
+        public bool IsAvailable => isActiveAndEnabled && IsAlive;
+        public Vector3 WorldPosition => transform.position;
+        public Transform TargetTransform => transform;
         public CombatFaction Faction => faction;
         public int DeathCount { get; private set; }
         public string LastResult { get; private set; }="尚未受击";
