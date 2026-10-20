@@ -1,0 +1,121 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "failed": 0,
+      "count": 26,
+      "records": [
+        {
+          "name": "B2-18-one-HP-and-posture",
+          "pass": true
+        },
+        {
+          "name": "B2-19-repeat-release-rejected",
+          "pass": true
+        },
+        {
+          "name": "B2-13-post-release-effect-retained",
+          "pass": true
+        },
+        {
+          "name": "B2-18-multicollider-once",
+          "pass": true
+        },
+        {
+          "name": "B2-19-source-identity-rejected",
+          "pass": true
+        },
+        {
+          "name": "B2-19-source-component-disabled",
+          "pass": true
+        },
+        {
+          "name": "B2-18-empty-swing-inert",
+          "pass": true
+        },
+        {
+          "name": "B2-18-friend-self-inert",
+          "pass": true
+        },
+        {
+          "name": "B2-18-same-ID-rejected",
+          "pass": true
+        },
+        {
+          "name": "B2-07-stagger-hit-HP-normal-no-refresh",
+          "pass": true
+        },
+        {
+          "name": "B2-10-pause-no-clock",
+          "pass": true
+        },
+        {
+          "name": "B2-10-focus-no-clock",
+          "pass": true
+        },
+        {
+          "name": "B2-20-component-disabled-own-token-only",
+          "pass": true
+        },
+        {
+          "name": "B2-20-reenable-no-ghost",
+          "pass": true
+        },
+        {
+          "name": "B2-20-root-disabled-clears-progress",
+          "pass": true
+        },
+        {
+          "name": "B2-20-disabled-root-no-new-stagger",
+          "pass": true
+        },
+        {
+          "name": "B2-19-same-outcome-guard",
+          "pass": true
+        },
+        {
+          "name": "B2-19-wrong-target-guard",
+          "pass": true
+        },
+        {
+          "name": "B2-zero-impact-inert",
+          "pass": true
+        },
+        {
+          "name": "B2-NaN-definition-rejected",
+          "pass": true
+        },
+        {
+          "name": "B2-17-lethal-priority-no-stagger",
+          "pass": true
+        },
+        {
+          "name": "B2-17-dead-no-resurrection",
+          "pass": true
+        },
+        {
+          "name": "B2-22-NPC-no-combat",
+          "pass": true
+        },
+        {
+          "name": "B2-22-enemy-no-player-root-input",
+          "pass": true
+        },
+        {
+          "name": "B2-21-reset-same-health-full-posture",
+          "pass": true
+        },
+        {
+          "name": "B2-20-destroy-release-own-token-only",
+          "pass": true
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,92 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "failed": 1,
+      "count": 19,
+      "records": [
+        {
+          "name": "B2-18-one-HP-and-posture",
+          "pass": true
+        },
+        {
+          "name": "B2-19-repeat-release-rejected",
+          "pass": true
+        },
+        {
+          "name": "B2-13-post-release-effect-retained",
+          "pass": true
+        },
+        {
+          "name": "B2-18-multicollider-once",
+          "pass": true
+        },
+        {
+          "name": "B2-19-source-identity-rejected",
+          "pass": true
+        },
+        {
+          "name": "B2-19-source-component-disabled",
+          "pass": true
+        },
+        {
+          "name": "B2-18-empty-swing-inert",
+          "pass": true
+        },
+        {
+          "name": "B2-18-friend-self-inert",
+          "pass": true
+        },
+        {
+          "name": "B2-18-same-ID-rejected",
+          "pass": true
+        },
+        {
+          "name": "B2-07-stagger-hit-HP-normal-no-refresh",
+          "pass": true
+        },
+        {
+          "name": "B2-10-pause-no-clock",
+          "pass": true
+        },
+        {
+          "name": "B2-10-focus-no-clock",
+          "pass": true
+        },
+        {
+          "name": "B2-20-component-disabled-own-token-only",
+          "pass": true
+        },
+        {
+          "name": "B2-20-reenable-no-ghost",
+          "pass": true
+        },
+        {
+          "name": "B2-20-root-disabled-clears-progress",
+          "pass": true
+        },
+        {
+          "name": "B2-19-same-outcome-guard",
+          "pass": true
+        },
+        {
+          "name": "B2-19-wrong-target-guard",
+          "pass": true
+        },
+        {
+          "name": "B2-zero-impact-inert",
+          "pass": true
+        },
+        {
+          "error": "System.ArgumentOutOfRangeException: Specified argument was out of the range of valid values.\r\nParameter name: postureImpact\r\n  at Ossastra.CharacterCore.BasicAttackDefinition..ctor (System.Double release, System.Double move, System.Double ready, System.Double finish, System.Int32 damage, System.Double postureImpact) [0x0007b] in E:\\WORLDCREATOR\\new\\Project_ANKALUTE\\Assets\\OSSASTRA\\Scripts\\Characters\\Core\\BasicAttackDefinition.cs:27 \r\n  at PostureBoundary.<Execute>g__Release|0_1 (System.String id, System.Int32 damage, System.Double impact) [0x00008] in <e86caf29dd2b4c018df4e80cfe98c870>:0 \r\n  at PostureBoundary.<Execute>g__Impact|0_3 (Ossastra.Combat.CombatVitals v, System.Int32 damage, System.Double impact) [0x00001] in <e86caf29dd2b4c018df4e80cfe98c870>:0 \r\n  at PostureBoundary.Execute (Funplay.Editor.Tools.Scripting.ExecutionContext ctx) [0x0099a] in <e86caf29dd2b4c018df4e80cfe98c870>:0 "
+        }
+      ]
+    }
+  }
+}

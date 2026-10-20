@@ -1,0 +1,8 @@
+using System;using System.Linq;using UnityEngine;using UnityEditor;using UnityEditor.SceneManagement;using Ossastra.Combat;using Funplay.Editor.Tools.Scripting;
+public class ConfigureB2:IFunplayCommand{public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx){
+var s=EditorSceneManager.GetActiveScene();if(Application.isPlaying||s.isDirty||s.path!="Assets/OSSASTRA/M02B/SC_M02B2_PostureStagger.unity")throw new Exception("B2 clean edit required");
+var players=UnityEngine.Object.FindObjectsOfType<Ossastra.Characters.CharacterRoot>();var enemy=UnityEngine.Object.FindObjectOfType<Ossastra.Enemies.EnemyRoot>();if(players.Length!=2||enemy==null)throw new Exception("Expected two players and enemy");
+foreach(var root in players.Cast<MonoBehaviour>().Concat(new MonoBehaviour[]{enemy})){
+if(root.GetComponent<CombatPosture>()!=null)throw new Exception("Already configured");ctx.RegisterObjectModification(root);var p=Undo.AddComponent<CombatPosture>(root.gameObject);var so=new SerializedObject(root);so.FindProperty("posture").objectReferenceValue=p;so.FindProperty("postureImpact").floatValue=root==enemy?60:55;so.ApplyModifiedProperties();PrefabUtility.RecordPrefabInstancePropertyModifications(root);}
+EditorSceneManager.MarkSceneDirty(s);if(!EditorSceneManager.SaveScene(s))throw new Exception("Save failed");
+ctx.ReturnValue=new{path=s.path,postures=UnityEngine.Object.FindObjectsOfType<CombatPosture>().Length,dirty=s.isDirty};}}

@@ -2,7 +2,7 @@
  * 脚本：EnemyRoot
  * 功能：敌方唯一组合根，组织身份、生命、决策与单一动作推进/释放。
  * 边界：无玩家Root/Input/Bus/Current，不选最近目标、不直接扣HP。
- * 协作：Brain提交并验证目标；根独占BasicActionRuntime，生命周期撤销未释放动作。
+ * 协作：Brain提交并验证目标；根独占动作和可选架势推进，破势/生命周期撤销未释放动作。
  */
 using System;
 using Ossastra.CharacterCore;
@@ -16,6 +16,8 @@ namespace Ossastra.Enemies
         [SerializeField] private string actorId="enemy-stationary-01";
         [SerializeField] private float releaseAt=.5f, moveReadyAt=.6f, attackReadyAt=.9f, finishAt=1.1f;
         [SerializeField, Min(1)] private int damage=20;
+        [SerializeField, Min(0)] private float postureImpact;
+        [SerializeField] private CombatPosture posture;
         [SerializeField] private bool attacksEnabled=true;
         private CombatVitals vitals;
         private ICombatHitResolver melee;
@@ -35,17 +37,26 @@ namespace Ossastra.Enemies
         private void Awake()
         {
             vitals=GetComponent<CombatVitals>(); melee=GetComponent<CombatMeleeHit>(); brain=GetComponent<StationaryEnemyBrain>();
-            try { attack=new BasicAttackDefinition(releaseAt,moveReadyAt,attackReadyAt,finishAt,damage); runtime=new BasicActionRuntime(actorId); }
+            try { attack=new BasicAttackDefinition(releaseAt,moveReadyAt,attackReadyAt,finishAt,damage,postureImpact); runtime=new BasicActionRuntime(actorId); }
             catch(ArgumentException e) { Debug.LogError("Enemy configuration: "+e.Message,this); enabled=false; return; }
             if(!vitals.Initialize(actorId) || brain==null || !brain.Initialize(vitals))
             { Debug.LogError("Enemy identity/brain invalid",this); enabled=false; return; }
             vitals.Died+=OnDied;
+            if (posture != null)
+            {
+                if (!posture.Initialize(vitals, this)) { Debug.LogError("Enemy posture configuration invalid", this); enabled=false; return; }
+                posture.Broken += OnPostureBroken;
+                posture.Recovered += OnPostureRecovered;
+            }
         }
         private void Update()
         {
             if(runtime==null) return;
             if(vitals==null || !vitals.IsAvailable) { Cancel("source-unavailable"); return; }
-            if(!attacksEnabled || !focused || applicationPaused || paused) return;
+            // 1. 根独占架势时钟，禁用开发攻击不冻结恢复；失焦/暂停停钟。
+            if (posture != null) posture.Tick(!focused || applicationPaused || paused ? 0 : Time.deltaTime, runtime.IsActive);
+            if(!attacksEnabled || !focused || applicationPaused || paused || !authority.Allows(ControlChannel.Attack)) return;
+            // 2. 决策资格先于动作请求；Brain不掌握架势数值或第二时钟。
             if(brain==null || !brain.isActiveAndEnabled) { Cancel("brain-disabled"); return; }
             if(runtime.IsActive && (!brain.IsEligible(target) || !ReferenceEquals(target.Health,targetHealth)))
                 Cancel("target-dead-out-of-range-or-occluded-or-stale");
@@ -58,7 +69,7 @@ namespace Ossastra.Enemies
                     LastFact="Accepted #"+request.Fact.ActionId.ToString("N");
                 }
             }
-            // 唯一推进者；Brain没有Update/Advance，不生成第二套释放事实。
+            // 3. 唯一动作推进/命中阶段；破势回调立即Cancel，不保留冻结的待释放动作。
             foreach(var fact in runtime.Advance(Time.deltaTime,false))
             {
                 LastFact=fact.Kind+" #"+fact.ActionId.ToString("N");
@@ -76,12 +87,24 @@ namespace Ossastra.Enemies
             target=null; targetHealth=null;
         }
         public void SetPaused(bool value) { paused=value; if(value) Cancel("enemy-paused"); }
+        private void OnPostureBroken(string cause)
+        {
+            authority.Block(posture, ControlChannel.Move | ControlChannel.Attack);
+            Cancel("posture-broken:" + cause);
+        }
+        private void OnPostureRecovered() { authority.Release(posture); }
         private void OnDied(HitOutcome outcome) { Cancel("death:"+outcome.ActorId); }
-        private void OnDisable() { Cancel("enemy-disabled"); }
+        private void OnDisable() { Cancel("enemy-disabled"); if (posture != null) posture.ResetState(); authority.Release(posture); }
         private void OnApplicationFocus(bool value) { focused=value; if(!value) Cancel("focus-lost"); }
         private void OnApplicationPause(bool value) { applicationPaused=value; if(value) Cancel("application-paused"); }
-        private void OnDestroy() { if(vitals!=null) vitals.Died-=OnDied; Cancel("destroyed"); }
+        private void OnDestroy()
+        {
+            if(vitals!=null) vitals.Died-=OnDied;
+            if(posture!=null) { posture.Broken-=OnPostureBroken; posture.Recovered-=OnPostureRecovered; }
+            authority.Release(posture);
+            Cancel("destroyed");
+        }
         public void RestoreForDevelopment()
-        { Cancel("development-reset"); vitals.RestoreForDevelopment(); brain.ResetDecision(Time.time); }
+        { Cancel("development-reset"); vitals.RestoreForDevelopment(); if(posture!=null) posture.ResetState(); brain.ResetDecision(Time.time); }
     }
 }

@@ -120,7 +120,7 @@ namespace Ossastra.CharacterCore
                 var node = nodes[nextNode++];
                 AttackRelease release = null;
                 if (node.Kind == ActionFactKind.Released)
-                    release = new AttackRelease(actionId, actorId, definition.Damage);
+                    release = new AttackRelease(actionId, actorId, definition.Damage, definition.PostureImpact);
                 if (node.Kind == ActionFactKind.MoveReady) moveReady = true;
                 if (node.Kind == ActionFactKind.AttackReady) attackReady = true;
                 facts.Add(Fact(node.Kind, node.At, release: release));

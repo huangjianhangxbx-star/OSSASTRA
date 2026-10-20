@@ -2,7 +2,7 @@
  * 脚本：AttackRelease
  * 功能：结算一次动作释放的目标批次，并返回命中结果。
  * 边界：同一释放只结算一次；按目标身份去重；HP只经Health写入。
- * 协作：世界适配器先做空间筛选，再调用Resolve；空挥同样关闭该批次。
+ * 协作：世界适配器先做空间筛选，再调用Resolve；空挥关闭批次。冻结架势载荷由同批存活结果消费。
  */
 using System;
 using System.Collections.Generic;
@@ -41,12 +41,14 @@ namespace Ossastra.CharacterCore
         private bool resolved;
         public string ActorId => actorId;
         public Guid ActionId => actionId;
+        public double PostureImpact { get; }
 
-        internal AttackRelease(Guid actionId, string actorId, int damage)
+        internal AttackRelease(Guid actionId, string actorId, int damage, double postureImpact = 0)
         {
             this.actionId = actionId;
             this.actorId = actorId;
             this.damage = damage;
+            PostureImpact = postureImpact;
         }
 
         // 调用方必须先完成实际空间/阵营过滤；本方法不谎称已做物理检测。

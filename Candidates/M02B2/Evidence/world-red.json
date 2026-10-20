@@ -1,0 +1,17 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "hp": 60,
+      "posturePresent": false,
+      "expectedB2Posture45": false,
+      "note": "Original path HP 72->60; B2 posture absent (expected RED)"
+    }
+  }
+}

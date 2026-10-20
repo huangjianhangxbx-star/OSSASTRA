@@ -1,5 +1,12 @@
 # OSSASTRA
 
+最新候选：**M02-B2 共享架势、破势与硬直**。技术定向验证通过，等待用户集中代码/架构及手感审查。
+
+从 [B2审查入口](docs/ossastra/M02B2-review.md)、[验证](docs/ossastra/M02B2-verification.md)、[10份完整变化源码](docs/ossastra/M02B2-source-review.md)、[发布记录](docs/ossastra/M02B2-publication.md) 开始。
+
+本机打开 `Assets/OSSASTRA/M02B/SC_M02B2_PostureStagger.unity` 后 Play。WASD移动、Tab切人、左键普攻。A/B/敌方各自拥有架势，破势打断并短暂限制行动；滚动开发面板显示真实HP/架势/来源。敌人胶囊仅测试占位，正式视觉仍为2D。未进入B3/M03或正式动画重构。
+
+以下保留上一阶段入口供回归，不代表最新范围：
 《星骸回廊》受控迁移工程。最新进度：**ARCH-01 三类实体根与共享战斗边界候选**。技术定向验证通过，等待用户功能和集中架构审查；未开始B2/M03。
 
 ## 接手与试玩

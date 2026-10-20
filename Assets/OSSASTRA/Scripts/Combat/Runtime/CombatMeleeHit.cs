@@ -2,7 +2,7 @@
  * 脚本：CombatMeleeHit
  * 功能：将一次释放转换为物理候选、身份/阵营资格和唯一伤害批次。
  * 边界：中立能力，无玩家Root依赖，不建动作时钟或HP；空挥也关闭Release。
- * 协作：两类战斗根各自释放，Applied交回目标只做反馈/死亡，不重复扣血。
+ * 协作：两类战斗根各自释放；Applied先反馈/死亡，存活者再接可选架势，不重复扣血。
  */
 using System;
 using System.Linq;
@@ -39,6 +39,10 @@ namespace Ossastra.Combat
                 {
                     var target=targets.First(t=>t.Health.Id==outcome.TargetId);
                     if(target is ICombatTarget combat) combat.OnHitResolved(outcome); else target.ShowHit();
+                    // HP/死亡通知已完成；同批存活者才消费架势。不会再做空间查询或伤害结算。
+                    if (outcome.HpAfter > 0 && target is MonoBehaviour component && component != null)
+                        foreach (var receiver in component.GetComponents<MonoBehaviour>().OfType<ICombatPostureReceiver>())
+                            receiver.ReceiveImpact(outcome, release.PostureImpact);
                 }
             LastResult=outcomes.Count==0?"空挥／无合法敌对目标":string.Join("; ",outcomes.Select(o=>
                 o.ActorId+" → "+o.TargetId+" "+o.HpBefore+"→"+o.HpAfter+" "+o.Reason+" #"+o.ActionId.ToString("N")));

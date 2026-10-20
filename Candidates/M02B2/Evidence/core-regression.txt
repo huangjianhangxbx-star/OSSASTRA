@@ -1,0 +1,30 @@
+PASS owner release cannot unlock another owner's block
+PASS move and attack permissions remain independent
+PASS owner changes only its own channels
+PASS held input emits only a rising edge
+PASS focus reset requires release before a fresh press
+PASS request acceptance creates identity without releasing
+PASS blocked and busy requests create no new action
+PASS large delta emits ordered nodes exactly once
+PASS paused clock does not consume elapsed time
+PASS move and attack readiness remain separate from finish
+PASS zero-time nodes wait for tick then follow stable tie order
+PASS invalid time never mutates a live action
+PASS invalid configuration rejected before use
+PASS pre-release cancel has one terminal and no damage credential
+PASS empty cancel cause cannot erase an action
+PASS cancel after release preserves committed damage and never releases again
+PASS re-enable simulation cannot reuse cancelled action identity
+PASS duplicate collider candidates damage one target only once
+PASS one release may hit two independently identified targets
+PASS empty swing closes the release without later phantom hits
+PASS same release cannot be resolved for new targets a second time
+PASS different actions can damage the same target
+PASS self and dead target do not receive damage
+PASS null target batch is validated before any HP changes
+PASS invalid identity and health cannot enter authority
+PASS source identity follows accepted action into all facts and hit result
+PASS sixty-Hz frame partition releases on frame fifteen, not sixteen
+PASS AttackReady actually accepts a new press before old Finish
+PASS pause rejects new requests without consuming the next valid press
+RESULT 29/29 passed

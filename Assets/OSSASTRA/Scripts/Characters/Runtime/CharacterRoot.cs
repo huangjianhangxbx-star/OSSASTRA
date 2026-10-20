@@ -2,7 +2,7 @@
  * 脚本：CharacterRoot
  * 功能：组织单角色的接口接线、输入、动作事实、运动和表现。
  * 边界：持有本角色运行时；只读生命资格，不实现HP写入、设备绑定或开发GUI。
- * 协作：初始化可选本体Follow，场景只分配目标；单意图入口与原动作/运动时序保持。
+ * 协作：初始化可选本体Follow/Posture；显式按输入、架势、朝向、动作、运动、表现推进。
  */
 using System;
 using Ossastra.CharacterCore;
@@ -26,10 +26,12 @@ namespace Ossastra.Characters
         [SerializeField] private Camera viewCamera;
         [SerializeField] private CharacterFollow follow;
         [SerializeField] private CombatVitals vitals;
+        [SerializeField] private CombatPosture posture;
         private ICombatLifeState lifeState;
         [Header("Prototype timing — not final balance")]
         [SerializeField] private float releaseAt = .3f, moveReadyAt = .5f, attackReadyAt = .8f, finishAt = 1.1f;
         [SerializeField, Min(1)] private int damage = 12;
+        [SerializeField, Min(0)] private float postureImpact;
         [SerializeField] private bool verboseTrace;
         private readonly ControlAuthority authority = new ControlAuthority();
         private readonly AttackIntent intent = new AttackIntent();
@@ -49,7 +51,7 @@ namespace Ossastra.Characters
         public bool IsPaused => paused || applicationPaused;
         public bool ActionActive => DataBus != null && DataBus.ActionActive;
         public bool IsAlive => lifeState==null || lifeState.IsAlive;
-        public bool CanSimulateIntent => ready && IsAlive && isActiveAndEnabled && focused && !IsPaused;
+        public bool CanSimulateIntent => ready && IsAlive && isActiveAndEnabled && focused && !IsPaused && (posture == null || !posture.IsStaggered);
         public CombatVitals Vitals => vitals;
         public event Action<CharacterRoot> Died;
         public CharacterFollow Follow => follow;
@@ -83,7 +85,7 @@ namespace Ossastra.Characters
             if (!inputSource.IsConfigured) { Debug.LogError("Character actions are not configured", this); enabled = false; return; }
             try
             {
-                definition = new BasicAttackDefinition(releaseAt, moveReadyAt, attackReadyAt, finishAt, damage);
+                definition = new BasicAttackDefinition(releaseAt, moveReadyAt, attackReadyAt, finishAt, damage, postureImpact);
                 runtime = new BasicActionRuntime(actorId);
             }
             catch (ArgumentException error) { Debug.LogError("Character configuration: " + error.Message, this); enabled = false; return; }
@@ -93,6 +95,12 @@ namespace Ossastra.Characters
             if (!ready) { Debug.LogError("Character subsystem initialization failed", this); enabled = false; }
             // 可选能力只接受本角色初始化；无组件/无assignment的旧场保持普通玩家行为。
             if (follow != null && !follow.Initialize(this)) Debug.LogWarning("Character follow unavailable: configuration or owner invalid", this);
+            if (posture != null)
+            {
+                if (!posture.Initialize(vitals, this)) { Debug.LogError("Character posture configuration invalid", this); enabled = false; return; }
+                posture.Broken += OnPostureBroken;
+                posture.Recovered += OnPostureRecovered;
+            }
         }
 
         private static bool InitializeSubsystems(CharacterDataBus dataBus, params ICharacterSubsystem[] subsystems)
@@ -104,15 +112,22 @@ namespace Ossastra.Characters
         private void Update()
         {
             if (!ready || !IsAlive) return;
+            // 本体显式调度入口：以下阶段在一次Update中按书写顺序执行。
+            // DefaultExecutionOrder只约束跨组件先后，不能替代这里的模块调用顺序。
+            // 1. 采唯一意图源并处理暂停/取消；不由各子模块另开输入Update。
             // 选择器只采一个源；伙伴只能提供移动，切人屏障为空帧，动作时钟仍继续。
             inputSource.Read();
             var frame = DataBus.Input;
             if (frame.pause) SetPaused(!paused);
             if (frame.cancel) CancelAction("player-cancel");
+            // 2. 同一根时钟推进架势；主动作暂停自然恢复，暂停/失焦完全停钟。
+            // 在Request前解除到期的本owner禁令；不会回滚其他根已释放的命中。
+            if (posture != null) posture.Tick(IsPaused || !focused ? 0 : Time.deltaTime, runtime.IsActive);
+            // 3. 先解算朝向，攻击释放才能读取本帧鼠标/键盘方向。
             var canMove = focused && !IsPaused && DataBus.AllowsMovement && DataBus.MoveReady;
             if (focused && !IsPaused)
                 orienter.ResolveDirections(frame.move, PointerDirection(frame), frame.hasDirectionalAim ? frame.aimDirection : Vector2.zero, canMove);
-            // 输入边沿不等于动作成功：焦点、UI和Runtime的暂停/权限/Ready资格分别把关。
+            // 4. 观察按键边沿，再由Runtime的暂停/权限/Ready资格决定是否接受动作。
             if (intent.Observe(frame.attackHeld) && focused && !frame.attackPointerBlocked)
             {
                 var request = runtime.Request(definition, "player-input", authority, IsPaused);
@@ -120,7 +135,7 @@ namespace Ossastra.Characters
                 if (request.Accepted) { Observe(request.Fact); orienter.FaceAttackDirection(); }
                 else lastFact = "Rejected: " + request.Reason;
             }
-            // Accepted只建立动作身份；只有Released带一次性命中凭据。切人不会重发事实。
+            // 5. 唯一动作时钟推进与Release命中。Accepted不扣血，切人不重发事实。
             foreach (var fact in runtime.Advance(Time.deltaTime, IsPaused || !focused))
             {
                 Observe(fact);
@@ -132,9 +147,11 @@ namespace Ossastra.Characters
                     hitResolver.Resolve(fact.Release, releaseDirection);
                 }
             }
-            // 本帧可能跨过MoveReady；推进事实后重新查询许可，Run依据真实位移。
+            // 6. 动作/命中可能改变MoveReady或架势权限，重新查询后才执行真实移动。
             canMove = focused && !IsPaused && DataBus.AllowsMovement && DataBus.MoveReady;
             mover.Tick(canMove, IsPaused || !focused ? 0 : Time.deltaTime);
+            // 7. 最后提交表现，Run读取已完成的实际位移。
+            // 当前没有本体IK/骨骼后处理，故不虚设LateUpdate；Spine内部播放仍由插件驱动。
             presentation.SetPaused(IsPaused || !focused);
             presentation.Present();
         }
@@ -165,6 +182,19 @@ namespace Ossastra.Characters
             if (terminal != null) Observe(terminal);
         }
 
+        private void OnPostureBroken(string cause)
+        {
+            authority.Block(posture, ControlChannel.Move | ControlChannel.Attack);
+            CancelAction("posture-broken:" + cause);
+            if (follow != null) follow.ResetIntent();
+        }
+        private void OnPostureRecovered()
+        {
+            authority.Release(posture);
+            intent.SuppressUntilRelease();
+            if (follow != null) follow.ResetIntent();
+        }
+
         private void OnDied(HitOutcome outcome)
         {
             // HP已由结算归零；这里仅终止本体未释放动作/有效帧，再交唯一会话处理实控。
@@ -186,10 +216,12 @@ namespace Ossastra.Characters
         private void OnApplicationPause(bool value)
         { applicationPaused = value; if (follow != null) follow.ResetIntent(); if (value) intent.SuppressUntilRelease(); }
         private void OnEnable() { intent.SuppressUntilRelease(); if (intentSelector != null) intentSelector.Clear(); }
-        private void OnDisable() { CancelAction("disabled"); if (follow != null) follow.ResetIntent(); if (intentSelector != null) intentSelector.Clear(); if (ready && presentation != null) presentation.SetPaused(false); }
+        private void OnDisable() { CancelAction("disabled"); if (posture != null) posture.ResetState(); authority.Release(posture); if (follow != null) follow.ResetIntent(); if (intentSelector != null) intentSelector.Clear(); if (ready && presentation != null) presentation.SetPaused(false); }
         private void OnDestroy()
         {
             if (vitals!=null) vitals.Died-=OnDied;
+            if (posture != null) { posture.Broken -= OnPostureBroken; posture.Recovered -= OnPostureRecovered; }
+            authority.Release(posture);
             // 终止本角色动作后解除本对象引用；不清其它角色或场景控制权威。
             CancelAction("destroyed");
             ready = false;

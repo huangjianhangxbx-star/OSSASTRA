@@ -1,0 +1,17 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [
+      {
+        "Level": "info",
+        "Message": "{\r\n  \"scene\": \"Assets/OSSASTRA/M02B/SC_M02B2_PostureStagger.unity\",\r\n  \"dirty\": false,\r\n  \"play\": true,\r\n  \"players\": [\r\n    {\r\n      \"root\": \"temporary-b\",\r\n      \"refs\": [\r\n        {\r\n          \"name\": \"movement\",\r\n          \"bound\": true\r\n        },\r\n        {\r\n          \"name\": \"orientation\",\r\n          \"bound\": true\r\n        },\r\n        {\r\n          \"name\": \"view\",\r\n          \"bound\": true\r\n        },\r\n        {\r\n          \"name\": \"melee\",\r\n          \"bound\": true\r\n        },\r\n        {\r\n          \"name\": \"input\",\r\n          \"bound\": true\r\n        },\r\n        {\r\n          \"name\": \"viewCamera\",\r\n          \"bound\": true\r\n        },\r\n        {\r\n          \"name\": \"follow\",\r\n          \"bound\": true\r\n        },\r\n        {\r\n          \"name\": \"vitals\",\r\n          \"bound\": true\r\n        }\r\n      ]\r\n    },\r\n    {\r\n      \"root\": \"temporary-a\",\r\n      \"refs\": [\r\n        {\r\n          \"name\": \"movement\",\r\n          \"bound\": true\r\n        },\r\n        {\r\n          \"name\": \"orientation\",\r\n          \"bound\": true\r\n        },\r\n        {\r\n          \"name\": \"view\",\r\n          \"bound\": true\r\n        },\r\n        {\r\n          \"name\": \"melee\",\r\n          \"bound\": true\r\n        },\r\n        {\r\n          \"name\": \"input\",\r\n          \"bound\": true\r\n        },\r\n        {\r\n          \"name\": \"viewCamera\",\r\n          \"bound\": true\r\n        },\r\n        {\r\n          \"name\": \"follow\",\r\n          \"bound\": true\r\n        },\r\n        {\r\n          \"name\": \"vitals\",\r\n          \"bound\": true\r\n        }\r\n      ]\r\n    }\r\n  ],\r\n  \"members\": 2,\r\n  \"enemyTypes\": [\r\n    \"Ossastra.Combat.CombatVitals\",\r\n    \"Ossastra.Combat.CombatMeleeHit\",\r\n    \"Ossastra.Enemies.EnemyRoot\",\r\n    \"Ossastra.Enemies.StationaryEnemyBrain\",\r\n    \"Ossastra.Combat.CombatPosture\"\r\n  ],\r\n  \"npcTypes\": [\r\n    \"Ossastra.Npcs.NpcRoot\"\r\n  ],\r\n  \"enemyTargets\": [\r\n    true,\r\n    true\r\n  ],\r\n  \"trigger\": 1.7,\r\n  \"interval\": 1.8,\r\n  \"missing\": 0,\r\n  \"probes\": 0,\r\n  \"prefabMissing\": 0,\r\n  \"prefabVitals\": 1,\r\n  \"prefabHit\": 1,\r\n  \"prefabGuid\": \"8079c97cafbb7c24a880ed8e1bab96b3\",\r\n  \"inputSettings\": \"Assets/InputSystem.inputsettings.asset\",\r\n  \"devices\": [\r\n    \"Keyboard\",\r\n    \"Mouse\",\r\n    \"Pen\"\r\n  ],\r\n  \"guids\": [\r\n    {\r\n      \"path\": \"Assets/OSSASTRA/Scripts/Combat/Runtime/CombatVitals.cs\",\r\n      \"guid\": \"4f9f3d913aeea6c4f8b28394afcbc332\"\r\n    },\r\n    {\r\n      \"path\": \"Assets/OSSASTRA/Scripts/Combat/Runtime/CombatMeleeHit.cs\",\r\n      \"guid\": \"a9f877cde05b85342a1c025a015827d8\"\r\n    },\r\n    {\r\n      \"path\": \"Assets/OSSASTRA/Scripts/Enemies/Runtime/EnemyRoot.cs\",\r\n      \"guid\": \"80e2b61929afb5944bdad0f90f64f52b\"\r\n    }\r\n  ]\r\n}"
+      }
+    ],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": null
+  }
+}

@@ -8,6 +8,11 @@ using Ossastra.CharacterCore;
 using UnityEngine;
 namespace Ossastra.Combat
 {
+    /// <summary>世界命中器向同一合法存活目标递交架势冲击，不拥有第二次HP写入。</summary>
+    public interface ICombatPostureReceiver
+    {
+        void ReceiveImpact(HitOutcome outcome, double impact);
+    }
     public interface ICombatLifeState { bool IsAlive { get; } }
     public interface IHitTarget { Health Health { get; } void ShowHit(); }
     public interface ICombatTarget : IHitTarget, ICombatLifeState
