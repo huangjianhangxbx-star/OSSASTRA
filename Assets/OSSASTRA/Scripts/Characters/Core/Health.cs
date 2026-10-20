@@ -2,7 +2,7 @@
  * 脚本：Health
  * 功能：保存目标身份与唯一可写的当前HP，限制伤害结果不低于零。
  * 边界：不管理动画、控制权、敌人AI或正式死亡流程。
- * 协作：AttackRelease经内部ApplyDamage写入；开发靶只持有同一对象。
+ * 协作：AttackRelease经内部ApplyDamage写入；真实目标和开发重置保留同一个Health引用。
  */
 using System;
 
@@ -29,5 +29,8 @@ namespace Ossastra.CharacterCore
             if (damage <= 0) throw new ArgumentOutOfRangeException(nameof(damage));
             Current = Math.Max(0, Current - damage);
         }
+
+        /// <summary>显式开发回放入口；不代表生产自动返场，不更换目标身份或Health引用。</summary>
+        public void RestoreForDevelopment() { Current=Maximum; }
     }
 }

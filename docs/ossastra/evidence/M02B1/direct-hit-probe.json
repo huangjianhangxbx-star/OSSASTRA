@@ -1,0 +1,14 @@
+{
+  "success": false,
+  "code": "COMMAND_RUNTIME_ERROR",
+  "error": "COMMAND_RUNTIME_ERROR",
+  "data": {
+    "message": "Object reference not set to an instance of an object",
+    "stack": "  at Ossastra.Characters.CharacterVitals.ShowHit () [0x00029] in E:\\WORLDCREATOR\\new\\Project_ANKALUTE\\Assets\\OSSASTRA\\Scripts\\Characters\\Runtime\\CharacterVitals.cs:64 \r\n  at Ossastra.Characters.CharacterVitals.OnHitResolved (Ossastra.CharacterCore.HitOutcome outcome) [0x000b0] in E:\\WORLDCREATOR\\new\\Project_ANKALUTE\\Assets\\OSSASTRA\\Scripts\\Characters\\Runtime\\CharacterVitals.cs:51 \r\n  at Ossastra.Characters.CharacterMeleeHit.Resolve (Ossastra.CharacterCore.AttackRelease release, UnityEngine.Vector3 releaseDirection) [0x0018c] in E:\\WORLDCREATOR\\new\\Project_ANKALUTE\\Assets\\OSSASTRA\\Scripts\\Characters\\Runtime\\CharacterMeleeHit.cs:38 \r\n  at HitProbe.Execute (Funplay.Editor.Tools.Scripting.ExecutionContext ctx) [0x000f1] in <2d74442cf47f4f3bafccae836d7a94ce>:0 \r\n  at Funplay.Editor.Tools.Builtins.ScriptExecutionFunctions.ExecuteAsCommand (System.Type commandType, System.String compilerName) [0x00037] in E:\\WORLDCREATOR\\new\\Project_ANKALUTE\\Assets\\unity-mcp\\Editor\\Tools\\Builtins\\ScriptExecutionFunctions.cs:611 ",
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": []
+  }
+}

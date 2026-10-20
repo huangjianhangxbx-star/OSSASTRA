@@ -10,6 +10,14 @@ using System.Collections.Generic;
 
 namespace Ossastra.Characters
 {
+    /// <summary>Root只读本体生命资格；唯一HP仍由Vitals内的Health持有。</summary>
+    public interface ICharacterLifeState { bool IsAlive { get; } }
+    /// <summary>真实战斗目标的阵营与结算通知；通知反馈/死亡，不再次扣血。</summary>
+    public interface ICombatHitTarget : ICharacterHitTarget, ICharacterLifeState
+    {
+        CombatFaction Faction { get; }
+        void OnHitResolved(HitOutcome outcome);
+    }
     /// <summary>队伍只分配合法目标；角色能力自行计算移动，不从此契约取得方向或策略状态。</summary>
     public interface ICharacterFollowTargetSource
     {

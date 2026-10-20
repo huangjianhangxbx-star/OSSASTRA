@@ -1,0 +1,14 @@
+PASS current selects player only
+PASS non-current selects companion only
+PASS no current or transfer barrier is neutral
+PASS no session preserves player adapter semantics
+PASS no companion stays neutral in managed session
+PASS A-B identity exchange keeps one source
+PASS far target emits normalized movement
+PASS start stop hysteresis does not chatter
+PASS blocked requires prior commanded zero travel
+PASS actual travel prevents false blocking
+PASS ineligible resets moving state
+PASS invalid samples are neutral not NaN movement
+PASS threshold configuration fails before use
+RESULT 13/13 passed

@@ -23,7 +23,7 @@ namespace Ossastra.Characters
         public CharacterIntentSelector(CharacterRoot character, ICharacterInputSource player)
         { this.character=character; this.player=player; }
         public bool IsConfigured => player != null && player.IsConfigured;
-        private bool ValidSample => sampledFrame == Time.frameCount && character != null && character.isActiveAndEnabled &&
+        private bool ValidSample => sampledFrame == Time.frameCount && character != null && character.IsAlive && character.isActiveAndEnabled &&
             (!managed || (Alive(session) && session.IsIntentSamplingAllowed && session.ControlRevision == sampledRevision)) &&
             // 即使旧场未绑定Director，玩家适配器被撤权也必须立即使外层帧归零。
             (kind != CharacterIntentKind.Player || !(player is ICharacterInputAvailability availability) || availability.HasPlayerInput) &&
@@ -50,7 +50,7 @@ namespace Ossastra.Characters
         public CharacterInputFrame Read()
         {
             Clear();
-            if (character == null || !character.isActiveAndEnabled) return default;
+            if (character == null || !character.IsAlive || !character.isActiveAndEnabled) return default;
             var selectedKind=CharacterIntentPolicy.Select(managed, Alive(session) && session.IsIntentSamplingAllowed,
                 Alive(session) && session.Current == character, Alive(companion) && companion.IsAvailable);
             if (selectedKind == CharacterIntentKind.Player) frame=player.Read();

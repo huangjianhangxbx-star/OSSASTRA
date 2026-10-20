@@ -39,6 +39,8 @@ namespace Ossastra.CharacterCore
         private readonly string actorId;
         private readonly int damage;
         private bool resolved;
+        public string ActorId => actorId;
+        public Guid ActionId => actionId;
 
         internal AttackRelease(Guid actionId, string actorId, int damage)
         {

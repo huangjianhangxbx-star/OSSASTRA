@@ -2,7 +2,7 @@
  * 脚本：CharacterInputHandler
  * 功能：从Inspector配置的InputAction采样单角色输入快照。
  * 边界：只采输入；不接受动作、不驱动物理或写HP；每实例管理Action生命周期。
- * 协作：选择器经ICharacterInputSource读取；实时许可接口让外层帧随撤权失效，不复制Current。
+ * 协作：选择器经接口读取；死亡交接额外等待移动中立，普通Tab仍保留原移动语义。
  */
 using UnityEngine.EventSystems;
 using System.Collections.Generic;
@@ -42,6 +42,7 @@ namespace Ossastra.Characters
         private readonly Dictionary<object, Rect> pointerRegions = new Dictionary<object, Rect>();
         private ICharacterPlayerControlSource playerControl;
         private bool managedPlayerInput, attackArmed = true;
+        private bool movementArmed=true;
 
         public bool HasPlayerInput => !managedPlayerInput || (ControlSourceAlive && playerControl.IsPlayerInputAllowed(this));
         private bool ControlSourceAlive => playerControl != null &&
@@ -61,7 +62,8 @@ namespace Ossastra.Characters
         }
 
         /// <summary>移交时清掉旧快照；不假装一次松键，必须真正观察释放后才重武装攻击。</summary>
-        public void ResetPlayerInput() { CurrentFrame = default; attackArmed = false; }
+        public void ResetPlayerInput(bool requireMovementRelease=false)
+        { CurrentFrame=default; attackArmed=false; if (requireMovementRelease) movementArmed=false; }
         public void RegisterPointerRegion(object owner, Rect region) { pointerRegions[owner] = region; }
         public void RemovePointerRegion(object owner) { pointerRegions.Remove(owner); }
 
@@ -106,6 +108,12 @@ namespace Ossastra.Characters
             if (!HasPlayerInput || !isActiveAndEnabled || movementAction == null || !movementAction.enabled)
             { CurrentFrame = frame; return frame; }
             frame.move = movementAction.ReadValue<Vector2>();
+            if (!movementArmed)
+            {
+                // 死亡交接不能把旧WASD/摇杆位移转发给幸存者；必须真实回中才重新采移动。
+                if (frame.move.sqrMagnitude<.0001f) movementArmed=true;
+                frame.move=Vector2.zero;
+            }
             if (mouseAction != null && mouseAction.enabled)
             {
                 frame.pointer = mouseAction.ReadValue<Vector2>();

@@ -1,0 +1,14 @@
+PASS allies do not damage allies
+PASS enemy does not damage its own faction
+PASS allied damages enemy
+PASS enemy damages allied
+PASS legacy neutral development target remains damageable
+PASS dead source cannot release damage
+PASS dead target cannot receive damage
+PASS identity excludes self even with wrong faction
+PASS missing source identity is rejected
+PASS missing target identity is rejected
+PASS lethal damage is clamped to zero
+PASS explicit reset keeps same Health identity
+PASS reset does not reopen an old release
+RESULT 13/13

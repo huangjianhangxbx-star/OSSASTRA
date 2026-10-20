@@ -1,0 +1,25 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [
+      {
+        "Level": "info",
+        "Message": "focus=False update=ProcessEventsInDynamicUpdate background=ResetAndDisableNonBackgroundDevices devices=Keyboard:True;Mouse:True;Pen:True"
+      },
+      {
+        "Level": "info",
+        "Message": "temporary-b inputEnabled=True moveEnabled=True attackEnabled=True hasPlayer=False attackJson="
+      },
+      {
+        "Level": "info",
+        "Message": "temporary-a inputEnabled=True moveEnabled=True attackEnabled=True hasPlayer=True attackJson="
+      }
+    ],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": null
+  }
+}

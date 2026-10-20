@@ -1,0 +1,33 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [
+      {
+        "Level": "info",
+        "Message": "scene=Assets/OSSASTRA/M02B/SC_M02B1_CombatDeath.unity clean=True roots=2 enemy=167674 missing=0 probes=0 settings=Assets/InputSystem.inputsettings.asset"
+      },
+      {
+        "Level": "info",
+        "Message": "temporary-a refs=movement:True,orientation:True,view:True,melee:True,input:True,viewCamera:True,follow:True,vitals:True"
+      },
+      {
+        "Level": "info",
+        "Message": "temporary-b refs=movement:True,orientation:True,view:True,melee:True,input:True,viewCamera:True,follow:True,vitals:True"
+      },
+      {
+        "Level": "info",
+        "Message": "enemyTargets=2 refs=True attacks=True health=167678"
+      },
+      {
+        "Level": "info",
+        "Message": "prefabGuid=8079c97cafbb7c24a880ed8e1bab96b3"
+      }
+    ],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": null
+  }
+}

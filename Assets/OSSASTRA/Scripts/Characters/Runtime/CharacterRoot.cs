@@ -1,7 +1,7 @@
 /*
  * 脚本：CharacterRoot
  * 功能：组织单角色的接口接线、输入、动作事实、运动和表现。
- * 边界：持有本角色运行时；不实现设备绑定、目标HP写入或开发GUI。
+ * 边界：持有本角色运行时；只读生命资格，不实现HP写入、设备绑定或开发GUI。
  * 协作：初始化可选本体Follow，场景只分配目标；单意图入口与原动作/运动时序保持。
  */
 using System;
@@ -24,6 +24,8 @@ namespace Ossastra.Characters
         [SerializeField] private CharacterInputHandler input;
         [SerializeField] private Camera viewCamera;
         [SerializeField] private CharacterFollow follow;
+        [SerializeField] private CharacterVitals vitals;
+        private ICharacterLifeState lifeState;
         [Header("Prototype timing — not final balance")]
         [SerializeField] private float releaseAt = .3f, moveReadyAt = .5f, attackReadyAt = .8f, finishAt = 1.1f;
         [SerializeField, Min(1)] private int damage = 12;
@@ -45,7 +47,10 @@ namespace Ossastra.Characters
         public string LastFact => lastFact;
         public bool IsPaused => paused || applicationPaused;
         public bool ActionActive => DataBus != null && DataBus.ActionActive;
-        public bool CanSimulateIntent => ready && isActiveAndEnabled && focused && !IsPaused;
+        public bool IsAlive => lifeState==null || lifeState.IsAlive;
+        public bool CanSimulateIntent => ready && IsAlive && isActiveAndEnabled && focused && !IsPaused;
+        public CharacterVitals Vitals => vitals;
+        public event Action<CharacterRoot> Died;
         public CharacterFollow Follow => follow;
         public CharacterIntentKind EffectiveIntentKind => intentSelector == null ? CharacterIntentKind.Neutral : intentSelector.EffectiveKind;
 
@@ -59,6 +64,11 @@ namespace Ossastra.Characters
         private void Awake()
         {
             if (viewCamera == null) viewCamera = Camera.main;
+            if (vitals!=null)
+            {
+                if (!vitals.Initialize(actorId)) { Debug.LogError("Character vitals identity/configuration invalid",this); enabled=false; return; }
+                lifeState=vitals; vitals.Died+=OnDied;
+            }
             if (movement == null || orientation == null || view == null || melee == null || input == null || viewCamera == null)
             { Debug.LogError("Character requires registered input/movement/orientation/view/melee/camera", this); enabled = false; return; }
             // Inspector保留具体组件槽；运行期通过窄接口消费，不反向依赖开发GUI或测试靶。
@@ -92,7 +102,7 @@ namespace Ossastra.Characters
 
         private void Update()
         {
-            if (!ready) return;
+            if (!ready || !IsAlive) return;
             // 选择器只采一个源；伙伴只能提供移动，切人屏障为空帧，动作时钟仍继续。
             inputSource.Read();
             var frame = DataBus.Input;
@@ -154,6 +164,15 @@ namespace Ossastra.Characters
             if (terminal != null) Observe(terminal);
         }
 
+        private void OnDied(HitOutcome outcome)
+        {
+            // HP已由结算归零；这里仅终止本体未释放动作/有效帧，再交唯一会话处理实控。
+            CancelAction("death:"+outcome.ActorId+":"+outcome.ActionId.ToString("N"));
+            if (follow!=null) follow.ResetIntent();
+            if (intentSelector!=null) intentSelector.Clear();
+            Died?.Invoke(this);
+        }
+
         public void SetPaused(bool value) { paused = value; intent.SuppressUntilRelease(); if (follow != null) follow.ResetIntent(); }
         public void SetAttackRestriction(object owner, bool restricted, string reason = "attack-restricted")
         {
@@ -169,6 +188,7 @@ namespace Ossastra.Characters
         private void OnDisable() { CancelAction("disabled"); if (follow != null) follow.ResetIntent(); if (intentSelector != null) intentSelector.Clear(); if (ready && presentation != null) presentation.SetPaused(false); }
         private void OnDestroy()
         {
+            if (vitals!=null) vitals.Died-=OnDied;
             // 终止本角色动作后解除本对象引用；不清其它角色或场景控制权威。
             CancelAction("destroyed");
             ready = false;

@@ -1,0 +1,9 @@
+FAIL allies do not damage allies
+FAIL enemy does not damage its own faction
+PASS allied damages enemy
+PASS enemy damages allied
+PASS legacy neutral development target remains damageable
+PASS dead source cannot release damage
+PASS dead target cannot receive damage
+PASS identity excludes self even with wrong faction
+RESULT 6/8

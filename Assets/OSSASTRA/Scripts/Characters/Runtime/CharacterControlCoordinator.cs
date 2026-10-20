@@ -2,7 +2,7 @@
  * 脚本：CharacterControlCoordinator
  * 功能：保存同组角色唯一的玩家实控对象，并读取Inspector切换输入。
  * 边界：不接管各角色动作时钟、HP或AI；不使用全局单例。
- * 协作：在Root之前更新；玩家与伙伴选择器只读查询许可/代际，不复制Current或选中布尔。
+ * 协作：在Root之前更新；订阅本体死亡立即交接，玩家/伙伴只读同一许可/代际，不复制Current。
  */
 using System;
 using System.Collections.Generic;
@@ -29,7 +29,7 @@ namespace Ossastra.Characters
         public string Status { get; private set; } = "未初始化";
         public int ControlRevision { get; private set; }
         public bool IsIntentSamplingAllowed => configured && isActiveAndEnabled && focused && !applicationPaused &&
-            Current != null && Current.isActiveAndEnabled && Current.DataBus != null && Time.frameCount > handoverFrame;
+            Current != null && Current.IsAlive && Current.isActiveAndEnabled && Current.DataBus != null && Time.frameCount > handoverFrame;
 
         private void Awake()
         {
@@ -53,6 +53,7 @@ namespace Ossastra.Characters
                 { Status = "输入已归另一协调者；拒绝抢占"; enabled = false; return; }
             foreach (var input in inputs) if (input != null) input.BindPlayerControl(this);
             bindingsOwned = true;
+            foreach (var character in characters) if (character!=null) character.Died+=OnCharacterDied;
             configured = valid;
             if (!valid) { Status = "角色／身份／输入配置无效，输入关闭"; enabled = false; }
         }
@@ -62,12 +63,14 @@ namespace Ossastra.Characters
             switchIntent.SuppressUntilRelease();
             if (!configured) return;
             switchAction.Enable();
-            Select(characters[initialIndex]);
+            if (characters[initialIndex]!=null && characters[initialIndex].IsAlive) Select(characters[initialIndex]);
+            else SelectSurvivor(false);
         }
 
         private void Update()
         {
-            if (Current != null && (!Current.isActiveAndEnabled || Current.DataBus == null)) Revoke("当前角色不可用");
+            if (Current != null && !Current.IsAlive) SelectSurvivor(true);
+            else if (Current != null && (!Current.isActiveAndEnabled || Current.DataBus == null)) Revoke("当前角色不可用");
             var held = switchAction != null && switchAction.enabled && switchAction.IsPressed();
             if (switchIntent.Observe(held) && focused && !applicationPaused) SwitchNext();
         }
@@ -89,25 +92,50 @@ namespace Ossastra.Characters
             for (var step = 1; step <= characters.Length; step++)
             {
                 var candidate = characters[(index + step) % characters.Length];
-                if (candidate != null && candidate.isActiveAndEnabled && candidate.DataBus != null)
+                if (candidate != null && candidate.IsAlive && candidate.isActiveAndEnabled && candidate.DataBus != null)
                 { Select(candidate); return true; }
             }
             Revoke("没有可控制角色");
             return false;
         }
 
-        private void Select(CharacterRoot next)
+        private void Select(CharacterRoot next, bool requireMovementRelease=false)
         {
             // 先撤回旧权威并清所有快照，再授予新身份。整帧禁入避免外部晚调用导致同帧双控。
             Current = null;
             ControlRevision++;
-            foreach (var input in inputs) if (input != null) input.ResetPlayerInput();
+            foreach (var input in inputs) if (input != null) input.ResetPlayerInput(requireMovementRelease);
             handoverFrame = Time.frameCount;
             Current = next;
             Status = next == null ? "无实控" : "玩家输入 → " + next.ActorId;
         }
 
         private void Revoke(string reason) { Select(null); Status = reason; }
+        private void OnCharacterDied(CharacterRoot character)
+        { if (bindingsOwned && configured && character==Current) SelectSurvivor(true); }
+
+        private void SelectSurvivor(bool deathTransfer)
+        {
+            if (!configured || !isActiveAndEnabled) return;
+            var index=Array.IndexOf(characters,Current);
+            for (var step=1;step<=characters.Length;step++)
+            {
+                var candidate=characters[(index+step)%characters.Length];
+                if (candidate!=null && candidate.IsAlive && candidate.isActiveAndEnabled && candidate.DataBus!=null)
+                { Select(candidate,deathTransfer); return; }
+            }
+            Select(null,deathTransfer); Status="无可控制角色";
+        }
+
+        /// <summary>显式开发回放：由外部先恢复同一组实体，随后重新选合法存活者；无自动返场。</summary>
+        public void RestoreControlForDevelopment()
+        {
+            if (!configured || !isActiveAndEnabled) return;
+            foreach (var candidate in characters)
+                if (candidate!=null && candidate.IsAlive && candidate.isActiveAndEnabled && candidate.DataBus!=null)
+                { Select(candidate,true); return; }
+            Select(null,true); Status="无可控制角色";
+        }
         private void OnDisable()
         {
             if (switchAction != null) switchAction.Disable();
@@ -134,6 +162,10 @@ namespace Ossastra.Characters
             if (bindingsOwned) foreach (var input in inputs) if (input != null) input.ResetPlayerInput();
         }
         // 输入仍保留“曾受管理”的关系；本对象销毁后查询失败关闭，不能突然恢复多个玩家源。
-        private void OnDestroy() { if (switchAction != null) switchAction.Dispose(); }
+        private void OnDestroy()
+        {
+            if (bindingsOwned) foreach (var character in characters) if (character!=null) character.Died-=OnCharacterDied;
+            if (switchAction != null) switchAction.Dispose();
+        }
     }
 }
