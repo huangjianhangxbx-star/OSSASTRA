@@ -1,0 +1,11 @@
+PASS no early respawn
+PASS paused does not advance
+PASS single due
+PASS placement failure remains pending
+PASS one completion generation
+PASS wipe supersedes old single
+PASS wipe due as batch
+PASS wipe clears after restored facts
+PASS unavailable entity not restored
+PASS no phantom generation
+10 life contracts passed

@@ -111,6 +111,14 @@ namespace Ossastra.Characters
         }
 
         private void Revoke(string reason) { Select(null); Status = reason; }
+
+        /// <summary>返场只补空缺的实控；不抢存活者Current。恢复者本体已重武装输入。</summary>
+        internal void ReconcileAfterRespawn()
+        {
+            if(!configured || !isActiveAndEnabled) return;
+            if(Current!=null && Current.IsAlive && Current.isActiveAndEnabled) return;
+            SelectSurvivor(true);
+        }
         private void OnCharacterDied(CharacterRoot character)
         { if (bindingsOwned && configured && character==Current) SelectSurvivor(true); }
 

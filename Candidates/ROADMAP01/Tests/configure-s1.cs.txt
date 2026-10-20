@@ -1,0 +1,17 @@
+using System;using System.Linq;using UnityEngine;using UnityEditor;using UnityEditor.SceneManagement;using Ossastra.Characters;using Ossastra.Development;using Funplay.Editor.Tools.Scripting;
+public class ConfigureRoadmap:IFunplayCommand {public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx){
+var scene=EditorSceneManager.GetActiveScene();if(Application.isPlaying||scene.isDirty||scene.path!="Assets/OSSASTRA/M02B/SC_M02B2_PostureStagger.unity")throw new Exception("Expected saved B2 edit scene");
+var path="Assets/OSSASTRA/ROADMAP01/SC_ROADMAP01_CombatLoop.unity";if(System.IO.File.Exists(path))throw new Exception("Destination already exists");
+if(!AssetDatabase.IsValidFolder("Assets/OSSASTRA/ROADMAP01"))AssetDatabase.CreateFolder("Assets/OSSASTRA","ROADMAP01");
+if(!EditorSceneManager.SaveScene(scene,path,true))throw new Exception("Copy failed");scene=EditorSceneManager.OpenScene(path);
+var session=UnityEngine.Object.FindObjectOfType<CharacterControlCoordinator>();if(session==null||session.Characters.Count!=2)throw new Exception("Missing session");
+var go=new GameObject("PartyLifeService");ctx.RegisterObjectCreation(go);
+var placement=go.AddComponent<CapsuleRespawnPlacement>();var respawn=go.AddComponent<PartyRespawnCoordinator>();var view=go.AddComponent<PartyLifeDebugView>();
+var so=new SerializedObject(respawn);so.FindProperty("session").objectReferenceValue=session;so.FindProperty("placement").objectReferenceValue=placement;
+var points=so.FindProperty("checkpoints");points.arraySize=2;
+for(int i=0;i<2;i++)points.GetArrayElementAtIndex(i).vector3Value=new Vector3(-3+i*2,.03f,-3);
+so.ApplyModifiedPropertiesWithoutUndo();
+var vo=new SerializedObject(view);vo.FindProperty("session").objectReferenceValue=session;vo.FindProperty("respawn").objectReferenceValue=respawn;vo.ApplyModifiedPropertiesWithoutUndo();
+EditorSceneManager.MarkSceneDirty(scene);if(!EditorSceneManager.SaveScene(scene))throw new Exception("Save failed");
+ctx.ReturnValue=new{scene=scene.path,dirty=scene.isDirty,points=2};
+}}

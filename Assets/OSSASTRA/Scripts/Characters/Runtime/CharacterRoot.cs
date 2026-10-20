@@ -45,6 +45,10 @@ namespace Ossastra.Characters
         private BasicAttackDefinition definition;
         private bool ready, focused = true, paused, applicationPaused;
         private string lastFact = "Idle";
+        private object respawnOwner;
+        private int lifeGeneration;
+        public int LifeGeneration => lifeGeneration;
+        public bool IsSimulationSuspended => !focused || IsPaused;
         public CharacterDataBus DataBus { get; private set; }
         public string ActorId => actorId;
         public string LastFact => lastFact;
@@ -63,6 +67,30 @@ namespace Ossastra.Characters
             => CanBindCompanionIntent(session,source) && intentSelector.Bind(session,source);
         public void ClearCompanionIntent(ICompanionIntentSource owner)
         { if (intentSelector != null) intentSelector.Clear(owner); }
+
+        internal bool BindRespawnOwner(object owner)
+        {
+            if(owner==null || (respawnOwner!=null && !ReferenceEquals(respawnOwner,owner))) return false;
+            respawnOwner=owner; return true;
+        }
+        internal void UnbindRespawnOwner(object owner)
+        { if(ReferenceEquals(respawnOwner,owner)) respawnOwner=null; }
+        internal bool CanRespawn(object owner) => ready && isActiveAndEnabled && !IsAlive &&
+            vitals!=null && vitals.isActiveAndEnabled && ReferenceEquals(respawnOwner,owner);
+        internal bool Respawn(object owner, Vector3 position)
+        {
+            if(!CanRespawn(owner)) return false;
+            CancelAction("scene-respawn");
+            if(follow!=null) follow.ResetIntent();
+            if(intentSelector!=null) intentSelector.Clear();
+            input.ResetPlayerInput(true);
+            orientation.ResetOrientation();
+            movement.Teleport(position);
+            if(posture!=null) posture.ResetState();
+            if(!vitals.RestoreAfterDeath()) return false;
+            lifeGeneration++;
+            return true;
+        }
 
         private void Awake()
         {

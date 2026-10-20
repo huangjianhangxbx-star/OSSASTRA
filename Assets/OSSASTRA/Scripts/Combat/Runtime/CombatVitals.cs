@@ -2,7 +2,7 @@
  * 脚本：CombatVitals
  * 功能：持有本体唯一Health/阵营，接收正式结算反馈并单次通知死亡、关闭自身表现和碰撞。
  * 边界：IsAlive只读Health；不另存isDead，不选Current、不计算攻击、不自动复活。
- * 协作：Root/敌人显式Initialize；Melee回调只反馈已Applied结果，Development显式恢复同一Health。
+ * 协作：Root/敌人显式Initialize；Melee反馈已Applied结果；生产返场与开发回放分别进入同一本体恢复。
  */
 using System;
 using Ossastra.CharacterCore;
@@ -83,7 +83,16 @@ namespace Ossastra.Combat
         public void RestoreForDevelopment()
         {
             if (Health==null) return;
-            Health.RestoreForDevelopment(); deathNotified=false; flashing=false; LastResult="Development重置";
+            Health.RestoreForDevelopment(); RestoreBody("Development重置");
+        }
+        internal bool RestoreAfterDeath()
+        {
+            if(Health==null || !isActiveAndEnabled || !Health.RestoreAfterDeath()) return false;
+            RestoreBody("场景内返场"); return true;
+        }
+        private void RestoreBody(string reason)
+        {
+            deathNotified=false; flashing=false; LastResult=reason;
             for (var i=0;i<renderers.Length;i++) if (renderers[i]!=null) renderers[i].enabled=rendererEnabled[i];
             for (var i=0;i<colliders.Length;i++) if (colliders[i]!=null) colliders[i].enabled=colliderEnabled[i];
             RestoreBlocks();

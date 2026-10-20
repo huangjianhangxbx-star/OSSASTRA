@@ -1,0 +1,14 @@
+using System;using System.Collections.Generic;using UnityEngine;using UnityEditor;using Funplay.Editor.Tools.Scripting;using Ossastra.Characters;using Ossastra.Development;
+public class LifeBoundary:IFunplayCommand{public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx){
+var service=UnityEngine.Object.FindObjectOfType<PartyRespawnCoordinator>();var d=UnityEngine.Object.FindObjectOfType<CompanionFollowDirector>();var c=d.Coordinator;var a=c.Characters[0];var b=c.Characters[1];var e=UnityEngine.Object.FindObjectOfType<Ossastra.Enemies.EnemyRoot>();e.AttacksEnabled=false;d.enabled=false;var debug=UnityEngine.Object.FindObjectOfType<CombatDeathDebugView>();debug.RestartForDevelopment();foreach(var r in c.Characters){r.SetPaused(false);r.SendMessage("OnApplicationFocus",true);}service.SendMessage("OnApplicationFocus",true);
+var records=new List<object>();var steps=new List<(double t,Action run)>();int next=0,failed=0;double t=0;var start=EditorApplication.timeSinceStartup;var g=a.LifeGeneration;
+void Check(string label,bool pass){records.Add(new{label,pass});if(!pass)failed++;}void Kill(Ossastra.Characters.CharacterRoot r){CombatDeathDebugView.ApplyDevelopmentHit(r.Vitals,10000);}
+steps.Add((.1,()=>{Kill(a);Kill(b);service.enabled=false;t=service.SimulationTime;}));
+steps.Add((.9,()=>{Check("disabled service no clock or revival",service.SimulationTime==t&&!a.IsAlive&&!b.IsAlive);service.enabled=true;service.SendMessage("OnApplicationPause",true);}));
+steps.Add((1.6,()=>{Check("application pause no clock",service.SimulationTime==t);service.SendMessage("OnApplicationPause",false);b.SetPaused(true);}));
+steps.Add((2.3,()=>{Check("player pause no clock",service.SimulationTime==t);b.SetPaused(false);}));
+steps.Add((3.1,()=>{Check("reenable exactly one restoration",a.IsAlive&&b.IsAlive&&a.LifeGeneration==g+1);Kill(b);b.enabled=false;}));
+steps.Add((3.3,()=>{Check("disabled body not revived",!b.IsAlive);UnityEngine.Object.Destroy(b.gameObject);}));
+steps.Add((4,()=>{Check("destroyed member not respawned",b==null&&a.IsAlive);Check("service remains enabled",service.isActiveAndEnabled);d.enabled=true;}));
+EditorApplication.CallbackFunction tick=null;tick=()=>{try{while(next<steps.Count&&EditorApplication.timeSinceStartup-start>=steps[next].t)steps[next++].run();if(next<steps.Count)return;EditorApplication.update-=tick;SessionState.SetString("ROADMAP_S1_BOUNDARY",Newtonsoft.Json.JsonConvert.SerializeObject(new{failed,records}));}catch(Exception ex){EditorApplication.update-=tick;SessionState.SetString("ROADMAP_S1_BOUNDARY",ex.ToString());}};EditorApplication.update+=tick;
+}}

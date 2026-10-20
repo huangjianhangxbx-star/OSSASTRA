@@ -32,5 +32,9 @@ namespace Ossastra.CharacterCore
 
         /// <summary>显式开发回放入口；不代表生产自动返场，不更换目标身份或Health引用。</summary>
         public void RestoreForDevelopment() { Current=Maximum; }
+
+        /// <summary>生命服务经本体验证后恢复同一Health；不更换身份或重播死亡事件。</summary>
+        public bool RestoreAfterDeath()
+        { if(Current>0) return false; Current=Maximum; return true; }
     }
 }

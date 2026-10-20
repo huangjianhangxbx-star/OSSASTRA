@@ -24,6 +24,9 @@ namespace Ossastra.Characters
 
         public void OrientTowards(Vector3 worldPosition) { TrySetAttackDirection(worldPosition - transform.position); }
 
+        /// <summary>本体生命循环清除死亡前的朝向残留，后续正常输入重新采样。</summary>
+        public void ResetOrientation() { AttackDirection=Vector3.right; VisualFacingX=1; }
+
         public void FaceAttackDirection()
         {
             if (Mathf.Abs(AttackDirection.x) > .01f) VisualFacingX = Mathf.Sign(AttackDirection.x);
