@@ -103,11 +103,11 @@ SHA256: 64E9FDB2B76F3A78D7D1ADC3612BF55F1BE812FD5731BC2DB335E701A5A4BF63；审�
    7 | using System;
    8 | using System.Collections.Generic;
    9 | using System.Linq;
-  10 | 
+  10 |
   11 | namespace Ossastra.CharacterCore
   12 | {
   13 |     public enum ActionFactKind { Accepted, Released, MoveReady, AttackReady, Finished, Cancelled }
-  14 | 
+  14 |
   15 |     // 事实是结果，不是任意广播；调用者按返回顺序处理。
   16 |     public sealed class ActionFact
   17 |     {
@@ -117,7 +117,7 @@ SHA256: 64E9FDB2B76F3A78D7D1ADC3612BF55F1BE812FD5731BC2DB335E701A5A4BF63；审�
   21 |         public string Reason { get; }
   22 |         public double At { get; }
   23 |         public AttackRelease Release { get; }
-  24 | 
+  24 |
   25 |         internal ActionFact(ActionFactKind kind, Guid id, string source, double at,
   26 |             string reason = null, AttackRelease release = null)
   27 |         {
@@ -129,14 +129,14 @@ SHA256: 64E9FDB2B76F3A78D7D1ADC3612BF55F1BE812FD5731BC2DB335E701A5A4BF63；审�
   33 |             Release = release;
   34 |         }
   35 |     }
-  36 | 
+  36 |
   37 |     public sealed class ActionRequestResult
   38 |     {
   39 |         public bool Accepted => Fact != null;
   40 |         public string Reason { get; }
   41 |         public ActionFact Fact { get; }
   42 |         public ActionFact PreviousTerminal { get; }
-  43 | 
+  43 |
   44 |         internal ActionRequestResult(string reason, ActionFact fact = null, ActionFact previousTerminal = null)
   45 |         {
   46 |             Reason = reason;
@@ -144,7 +144,7 @@ SHA256: 64E9FDB2B76F3A78D7D1ADC3612BF55F1BE812FD5731BC2DB335E701A5A4BF63；审�
   48 |             PreviousTerminal = previousTerminal;
   49 |         }
   50 |     }
-  51 | 
+  51 |
   52 |     // 单角色单动作权威，不读设备/Spine/世界碰撞，也不直接写HP。
   53 |     public sealed class BasicActionRuntime
   54 |     {
@@ -158,20 +158,20 @@ SHA256: 64E9FDB2B76F3A78D7D1ADC3612BF55F1BE812FD5731BC2DB335E701A5A4BF63；审�
   62 |         private string source;
   63 |         private bool moveReady;
   64 |         private bool attackReady;
-  65 | 
+  65 |
   66 |         public bool IsActive => definition != null;
   67 |         public bool MoveReady => !IsActive || moveReady;
   68 |         public bool AttackReady => !IsActive || attackReady;
   69 |         public Guid ActionId => IsActive ? actionId : Guid.Empty;
   70 |         // 同一时钟的绝对读数供有限接续窗口使用；没有动作时也推进，不另建连段计时器。
   71 |         public double SimulationTime { get; private set; }
-  72 | 
+  72 |
   73 |         public BasicActionRuntime(string actorId)
   74 |         {
   75 |             if (string.IsNullOrWhiteSpace(actorId)) throw new ArgumentException("Actor identity required", nameof(actorId));
   76 |             this.actorId = actorId;
   77 |         }
-  78 | 
+  78 |
   79 |         public ActionRequestResult Request(BasicAttackDefinition attack, string requestSource,
   80 |             ControlAuthority gate, bool paused = false)
   81 |         {
@@ -200,7 +200,7 @@ SHA256: 64E9FDB2B76F3A78D7D1ADC3612BF55F1BE812FD5731BC2DB335E701A5A4BF63；审�
  104 |             }.OrderBy(n => n.Item1).ThenBy(n => n.Item2).ToArray();
  105 |             return new ActionRequestResult(null, Fact(ActionFactKind.Accepted, 0), previousTerminal);
  106 |         }
- 107 | 
+ 107 |
  108 |         public IReadOnlyList<ActionFact> Advance(double delta, bool paused)
  109 |         {
  110 |             if (!BasicAttackDefinition.Finite(delta) || delta < 0)
@@ -228,7 +228,7 @@ SHA256: 64E9FDB2B76F3A78D7D1ADC3612BF55F1BE812FD5731BC2DB335E701A5A4BF63；审�
  132 |             }
  133 |             return facts;
  134 |         }
- 135 | 
+ 135 |
  136 |         public ActionFact Cancel(string reason)
  137 |         {
  138 |             if (string.IsNullOrWhiteSpace(reason)) throw new ArgumentException("Cancellation cause required", nameof(reason));
@@ -237,7 +237,7 @@ SHA256: 64E9FDB2B76F3A78D7D1ADC3612BF55F1BE812FD5731BC2DB335E701A5A4BF63；审�
  141 |             definition = null;
  142 |             return terminal;
  143 |         }
- 144 | 
+ 144 |
  145 |         private ActionFact Fact(ActionFactKind kind, double at, string reason = null, AttackRelease release = null)
  146 |             => new ActionFact(kind, actionId, source, at, reason, release);
  147 |     }
@@ -307,7 +307,7 @@ SHA256: 17312E2E0601EDA6E54C6ACC56EF031DA57011C339777167049C9A0C12DED1B7；审�
    5 |  * 协作：AttackRelease经内部ApplyDamage写入；真实目标和开发重置保留同一个Health引用。
    6 |  */
    7 | using System;
-   8 | 
+   8 |
    9 | namespace Ossastra.CharacterCore
   10 | {
   11 |     // HP只有本对象能够写；测试目标将来引用同一个Health，不能维护另一份真实HP。
@@ -316,7 +316,7 @@ SHA256: 17312E2E0601EDA6E54C6ACC56EF031DA57011C339777167049C9A0C12DED1B7；审�
   14 |         public string Id { get; }
   15 |         public int Maximum { get; }
   16 |         public int Current { get; private set; }
-  17 | 
+  17 |
   18 |         public Health(string id, int maximum)
   19 |         {
   20 |             if (string.IsNullOrWhiteSpace(id)) throw new ArgumentException("Target identity required", nameof(id));
@@ -325,16 +325,16 @@ SHA256: 17312E2E0601EDA6E54C6ACC56EF031DA57011C339777167049C9A0C12DED1B7；审�
   23 |             Maximum = maximum;
   24 |             Current = maximum;
   25 |         }
-  26 | 
+  26 |
   27 |         internal void ApplyDamage(int damage)
   28 |         {
   29 |             if (damage <= 0) throw new ArgumentOutOfRangeException(nameof(damage));
   30 |             Current = Math.Max(0, Current - damage);
   31 |         }
-  32 | 
+  32 |
   33 |         /// <summary>显式开发回放入口；不代表生产自动返场，不更换目标身份或Health引用。</summary>
   34 |         public void RestoreForDevelopment() { Current=Maximum; }
-  35 | 
+  35 |
   36 |         /// <summary>生命服务经本体验证后恢复同一Health；不更换身份或重播死亡事件。</summary>
   37 |         public bool RestoreAfterDeath()
   38 |         { if(Current>0) return false; Current=Maximum; return true; }
@@ -519,7 +519,7 @@ SHA256: 8C83E3B26AE8CF1C36A1AA7040520EFCF290A2C3AB4484FCD3701176AACC11B0；审�
    9 | using Ossastra.CharacterCore;
   10 | using UnityEngine;
   11 | using UnityEngine.InputSystem;
-  12 | 
+  12 |
   13 | namespace Ossastra.Characters
   14 | {
   15 |     [DefaultExecutionOrder(-200)]
@@ -540,7 +540,7 @@ SHA256: 8C83E3B26AE8CF1C36A1AA7040520EFCF290A2C3AB4484FCD3701176AACC11B0；审�
   30 |         public int ControlRevision { get; private set; }
   31 |         public bool IsIntentSamplingAllowed => configured && isActiveAndEnabled && focused && !applicationPaused &&
   32 |             Current != null && Current.IsAlive && Current.isActiveAndEnabled && Current.DataBus != null && Time.frameCount > handoverFrame;
-  33 | 
+  33 |
   34 |         private void Awake()
   35 |         {
   36 |             if (characters == null) characters = Array.Empty<CharacterRoot>();
@@ -567,7 +567,7 @@ SHA256: 8C83E3B26AE8CF1C36A1AA7040520EFCF290A2C3AB4484FCD3701176AACC11B0；审�
   57 |             configured = valid;
   58 |             if (!valid) { Status = "角色／身份／输入配置无效，输入关闭"; enabled = false; }
   59 |         }
-  60 | 
+  60 |
   61 |         private void OnEnable()
   62 |         {
   63 |             switchIntent.SuppressUntilRelease();
@@ -576,7 +576,7 @@ SHA256: 8C83E3B26AE8CF1C36A1AA7040520EFCF290A2C3AB4484FCD3701176AACC11B0；审�
   66 |             if (characters[initialIndex]!=null && characters[initialIndex].IsAlive) Select(characters[initialIndex]);
   67 |             else SelectSurvivor(false);
   68 |         }
-  69 | 
+  69 |
   70 |         private void Update()
   71 |         {
   72 |             if (Current != null && !Current.IsAlive) SelectSurvivor(true);
@@ -584,7 +584,7 @@ SHA256: 8C83E3B26AE8CF1C36A1AA7040520EFCF290A2C3AB4484FCD3701176AACC11B0；审�
   74 |             var held = switchAction != null && switchAction.enabled && switchAction.IsPressed();
   75 |             if (switchIntent.Observe(held) && focused && !applicationPaused) SwitchNext();
   76 |         }
-  77 | 
+  77 |
   78 |         /// <summary>只有Current对应的输入源可消费玩家输入；切换当帧新源禁止采样。</summary>
   79 |         public bool IsPlayerInputAllowed(ICharacterInputSource source)
   80 |         {
@@ -593,7 +593,7 @@ SHA256: 8C83E3B26AE8CF1C36A1AA7040520EFCF290A2C3AB4484FCD3701176AACC11B0；审�
   83 |                 if (characters[i] == Current) return ReferenceEquals(inputs[i], source);
   84 |             return false;
   85 |         }
-  86 | 
+  86 |
   87 |         /// <summary>场景级切人入口；不会取消、复制或重建任一角色的已接受动作。</summary>
   88 |         public bool SwitchNext()
   89 |         {
@@ -608,7 +608,7 @@ SHA256: 8C83E3B26AE8CF1C36A1AA7040520EFCF290A2C3AB4484FCD3701176AACC11B0；审�
   98 |             Revoke("没有可控制角色");
   99 |             return false;
  100 |         }
- 101 | 
+ 101 |
  102 |         private void Select(CharacterRoot next, bool requireMovementRelease=false)
  103 |         {
  104 |             // 先撤回旧权威并清所有快照，再授予新身份。整帧禁入避免外部晚调用导致同帧双控。
@@ -619,9 +619,9 @@ SHA256: 8C83E3B26AE8CF1C36A1AA7040520EFCF290A2C3AB4484FCD3701176AACC11B0；审�
  109 |             Current = next;
  110 |             Status = next == null ? "无实控" : "玩家输入 → " + next.ActorId;
  111 |         }
- 112 | 
+ 112 |
  113 |         private void Revoke(string reason) { Select(null); Status = reason; }
- 114 | 
+ 114 |
  115 |         /// <summary>返场只补空缺的实控；不抢存活者Current。恢复者本体已重武装输入。</summary>
  116 |         internal void ReconcileAfterRespawn()
  117 |         {
@@ -631,7 +631,7 @@ SHA256: 8C83E3B26AE8CF1C36A1AA7040520EFCF290A2C3AB4484FCD3701176AACC11B0；审�
  121 |         }
  122 |         private void OnCharacterDied(CharacterRoot character)
  123 |         { if (bindingsOwned && configured && character==Current) SelectSurvivor(true); }
- 124 | 
+ 124 |
  125 |         private void SelectSurvivor(bool deathTransfer)
  126 |         {
  127 |             if (!configured || !isActiveAndEnabled) return;
@@ -644,7 +644,7 @@ SHA256: 8C83E3B26AE8CF1C36A1AA7040520EFCF290A2C3AB4484FCD3701176AACC11B0；审�
  134 |             }
  135 |             Select(null,deathTransfer); Status="无可控制角色";
  136 |         }
- 137 | 
+ 137 |
  138 |         /// <summary>显式开发回放：由外部先恢复同一组实体，随后重新选合法存活者；无自动返场。</summary>
  139 |         public void RestoreControlForDevelopment()
  140 |         {
@@ -701,7 +701,7 @@ SHA256: 89CA1CF5FF9AA6E3DD0A5AB5472CEEB26D80B3928FA2BA3307E25F0579745C7B；审�
    5 |  * 协作：Root解析输入并在接受／释放时要求面向攻击；Spine只读取显示翻转。
    6 |  */
    7 | using UnityEngine;
-   8 | 
+   8 |
    9 | namespace Ossastra.Characters
   10 | {
   11 |     [DisallowMultipleComponent]
@@ -709,7 +709,7 @@ SHA256: 89CA1CF5FF9AA6E3DD0A5AB5472CEEB26D80B3928FA2BA3307E25F0579745C7B；审�
   13 |     {
   14 |         public Vector3 AttackDirection { get; private set; } = Vector3.right;
   15 |         public float VisualFacingX { get; private set; } = 1;
-  16 | 
+  16 |
   17 |         public void ResolveDirections(Vector2 moveInput, Vector3? pointerDirection, Vector2 stickDirection, bool movementFacing)
   18 |         {
   19 |             var pointerValid = pointerDirection.HasValue && TrySetAttackDirection(pointerDirection.Value);
@@ -717,17 +717,17 @@ SHA256: 89CA1CF5FF9AA6E3DD0A5AB5472CEEB26D80B3928FA2BA3307E25F0579745C7B；审�
   21 |                 TrySetAttackDirection(new Vector3(moveInput.x, 0, moveInput.y));
   22 |             if (movementFacing && Mathf.Abs(moveInput.x) > .01f) VisualFacingX = Mathf.Sign(moveInput.x);
   23 |         }
-  24 | 
+  24 |
   25 |         public void OrientTowards(Vector3 worldPosition) { TrySetAttackDirection(worldPosition - transform.position); }
-  26 | 
+  26 |
   27 |         /// <summary>本体生命循环清除死亡前的朝向残留，后续正常输入重新采样。</summary>
   28 |         public void ResetOrientation() { AttackDirection=Vector3.right; VisualFacingX=1; }
-  29 | 
+  29 |
   30 |         public void FaceAttackDirection()
   31 |         {
   32 |             if (Mathf.Abs(AttackDirection.x) > .01f) VisualFacingX = Mathf.Sign(AttackDirection.x);
   33 |         }
-  34 | 
+  34 |
   35 |         private bool TrySetAttackDirection(Vector3 direction)
   36 |         {
   37 |             direction.y = 0;
@@ -756,7 +756,7 @@ SHA256: CF482E94DE06095FA5E55E000635CAD9316AFE28C60E5F548DBF2F67EB7CEF5B；审�
    9 | using Ossastra.Combat;
   10 | using UnityEngine;
   11 | using UnityEngine.Serialization;
-  12 | 
+  12 |
   13 | namespace Ossastra.Characters
   14 | {
   15 |     [DefaultExecutionOrder(-100)]
@@ -815,14 +815,14 @@ SHA256: CF482E94DE06095FA5E55E000635CAD9316AFE28C60E5F548DBF2F67EB7CEF5B；审�
   68 |         public event Action<CharacterRoot> Died;
   69 |         public CharacterFollow Follow => follow;
   70 |         public CharacterIntentKind EffectiveIntentKind => intentSelector == null ? CharacterIntentKind.Neutral : intentSelector.EffectiveKind;
-  71 | 
+  71 |
   72 |         public bool CanBindCompanionIntent(ICharacterControlSession session, ICompanionIntentSource source)
   73 |             => ready && follow != null && ReferenceEquals(source,follow) && intentSelector != null && intentSelector.CanBind(session,source);
   74 |         public bool BindCompanionIntent(ICharacterControlSession session, ICompanionIntentSource source)
   75 |             => CanBindCompanionIntent(session,source) && intentSelector.Bind(session,source);
   76 |         public void ClearCompanionIntent(ICompanionIntentSource owner)
   77 |         { if (intentSelector != null) intentSelector.Clear(owner); }
-  78 | 
+  78 |
   79 |         internal bool BindRespawnOwner(object owner)
   80 |         {
   81 |             if(owner==null || (respawnOwner!=null && !ReferenceEquals(respawnOwner,owner))) return false;
@@ -846,7 +846,7 @@ SHA256: CF482E94DE06095FA5E55E000635CAD9316AFE28C60E5F548DBF2F67EB7CEF5B；审�
   99 |             lifeGeneration++;
  100 |             return true;
  101 |         }
- 102 | 
+ 102 |
  103 |         private void Awake()
  104 |         {
  105 |             if (viewCamera == null) viewCamera = Camera.main;
@@ -892,13 +892,13 @@ SHA256: CF482E94DE06095FA5E55E000635CAD9316AFE28C60E5F548DBF2F67EB7CEF5B；审�
  145 |                 posture.Recovered += OnPostureRecovered;
  146 |             }
  147 |         }
- 148 | 
+ 148 |
  149 |         private static bool InitializeSubsystems(CharacterDataBus dataBus, params ICharacterSubsystem[] subsystems)
  150 |         {
  151 |             foreach (var subsystem in subsystems) if (subsystem == null || !subsystem.Initialize(dataBus)) return false;
  152 |             return true;
  153 |         }
- 154 | 
+ 154 |
  155 |         private void Update()
  156 |         {
  157 |             if (!ready) return;
@@ -951,7 +951,7 @@ SHA256: CF482E94DE06095FA5E55E000635CAD9316AFE28C60E5F548DBF2F67EB7CEF5B；审�
  204 |             // 当前没有本体IK/骨骼后处理，故不虚设LateUpdate；Spine内部播放仍由插件驱动。
  205 |             CommitPresentation();
  206 |         }
- 207 | 
+ 207 |
  208 |         // 7. Animation Intent → One Commit；无子模块Update争抢主轨。
  209 |         private void CommitPresentation()
  210 |         {
@@ -969,7 +969,7 @@ SHA256: CF482E94DE06095FA5E55E000635CAD9316AFE28C60E5F548DBF2F67EB7CEF5B；审�
  222 |             direction.y = 0;
  223 |             return direction.sqrMagnitude < .0001f ? (Vector3?)null : direction;
  224 |         }
- 225 | 
+ 225 |
  226 |         private void Observe(ActionFact fact)
  227 |         {
  228 |             lastFact = fact.Kind + " @" + fact.At.ToString("F3") + " " + fact.ActionId.ToString("N").Substring(0, 8);
@@ -989,7 +989,7 @@ SHA256: CF482E94DE06095FA5E55E000635CAD9316AFE28C60E5F548DBF2F67EB7CEF5B；审�
  242 |             else lastFact="Rejected: "+request.Reason;
  243 |         }
  244 |         private void OnHitReceipt(Guid id,bool applied){chain?.Hit(id,applied);}
- 245 | 
+ 245 |
  246 |         public void CancelAction(string reason)
  247 |         {
  248 |             animationGeneration++;
@@ -999,7 +999,7 @@ SHA256: CF482E94DE06095FA5E55E000635CAD9316AFE28C60E5F548DBF2F67EB7CEF5B；审�
  252 |             var terminal = runtime == null ? null : runtime.Cancel(reason);
  253 |             if (terminal != null) Observe(terminal);
  254 |         }
- 255 | 
+ 255 |
  256 |         private void OnPostureBroken(string cause)
  257 |         {
  258 |             authority.Block(posture, ControlChannel.Move | ControlChannel.Attack);
@@ -1012,7 +1012,7 @@ SHA256: CF482E94DE06095FA5E55E000635CAD9316AFE28C60E5F548DBF2F67EB7CEF5B；审�
  265 |             intent.SuppressUntilRelease();
  266 |             if (follow != null) follow.ResetIntent();
  267 |         }
- 268 | 
+ 268 |
  269 |         private void OnDied(HitOutcome outcome)
  270 |         {
  271 |             // HP已由结算归零；这里仅终止本体未释放动作/有效帧，再交唯一会话处理实控。
@@ -1021,14 +1021,14 @@ SHA256: CF482E94DE06095FA5E55E000635CAD9316AFE28C60E5F548DBF2F67EB7CEF5B；审�
  274 |             if (intentSelector!=null) intentSelector.Clear();
  275 |             Died?.Invoke(this);
  276 |         }
- 277 | 
+ 277 |
  278 |         public void SetPaused(bool value) { paused = value; chain?.Clear(); intent.SuppressUntilRelease(); if (follow != null) follow.ResetIntent(); }
  279 |         public void SetAttackRestriction(object owner, bool restricted, string reason = "attack-restricted")
  280 |         {
  281 |             if (restricted) { authority.Block(owner, ControlChannel.Attack); CancelAction(reason); }
  282 |             else authority.Release(owner);
  283 |         }
- 284 | 
+ 284 |
  285 |         private void OnApplicationFocus(bool hasFocus)
  286 |         { focused = hasFocus; if (follow != null) follow.ResetIntent(); if (!hasFocus) CancelAction("focus-lost"); else intent.SuppressUntilRelease(); }
  287 |         private void OnApplicationPause(bool value)
@@ -1394,7 +1394,7 @@ SHA256: 6782EF455ACE8BA9BEC668A320CAEC2AA39322D1F2307609493D44D8C3A3516D；审�
    8 | using Ossastra.CharacterCore;
    9 | using Ossastra.Combat;
   10 | using UnityEngine;
-  11 | 
+  11 |
   12 | namespace Ossastra.Combat
   13 | {
   14 |     [DisallowMultipleComponent]
@@ -1419,7 +1419,7 @@ SHA256: 6782EF455ACE8BA9BEC668A320CAEC2AA39322D1F2307609493D44D8C3A3516D；审�
   33 |         public int DeathCount { get; private set; }
   34 |         public string LastResult { get; private set; }="尚未受击";
   35 |         public event Action<HitOutcome> Died;
-  36 | 
+  36 |
   37 |         public bool Initialize(string actorId)
   38 |         {
   39 |             if (Health != null) return Health.Id==actorId;
@@ -1436,7 +1436,7 @@ SHA256: 6782EF455ACE8BA9BEC668A320CAEC2AA39322D1F2307609493D44D8C3A3516D；审�
   50 |             for (var i=0;i<colliders.Length;i++) colliderEnabled[i]=colliders[i].enabled;
   51 |             return true;
   52 |         }
-  53 | 
+  53 |
   54 |         public void OnHitResolved(HitOutcome outcome)
   55 |         {
   56 |             if (Health==null || outcome==null || outcome.TargetId!=Health.Id || outcome.Reason!=HitReason.Applied) return;
@@ -1449,7 +1449,7 @@ SHA256: 6782EF455ACE8BA9BEC668A320CAEC2AA39322D1F2307609493D44D8C3A3516D；审�
   63 |             foreach (var c in colliders) if (c!=null) c.enabled=false;
   64 |             Died?.Invoke(outcome);
   65 |         }
-  66 | 
+  66 |
   67 |         public void ShowHit()
   68 |         {
   69 |             if (!IsAlive || renderers==null) return;
@@ -1457,7 +1457,7 @@ SHA256: 6782EF455ACE8BA9BEC668A320CAEC2AA39322D1F2307609493D44D8C3A3516D；审�
   71 |             flashBlock.SetColor("_Color",Color.white); flashBlock.SetColor("_BaseColor",Color.white);
   72 |             foreach (var r in renderers) if (r!=null) r.SetPropertyBlock(flashBlock);
   73 |         }
-  74 | 
+  74 |
   75 |         private void Update()
   76 |         {
   77 |             if (!flashing || Time.time<flashUntil) return;
@@ -1465,7 +1465,7 @@ SHA256: 6782EF455ACE8BA9BEC668A320CAEC2AA39322D1F2307609493D44D8C3A3516D；审�
   79 |         }
   80 |         private void RestoreBlocks()
   81 |         { for (var i=0;i<renderers.Length;i++) if (renderers[i]!=null) renderers[i].SetPropertyBlock(originalBlocks[i]); }
-  82 | 
+  82 |
   83 |         /// <summary>开发回放恢复同一身份/Health，仅还原本组件关掉的Renderer/Collider；无生产计时返场。</summary>
   84 |         public void RestoreForDevelopment()
   85 |         {
@@ -1524,7 +1524,7 @@ SHA256: 193D4A3A7C4A5CA80946D40563363AB66E684D550DB109AF7DEC1446ACA844BA；审�
   29 |         }
   30 |         private void OnDisable() { Register(false); }
   31 |         private void OnEnable() { if (spawns!=null) Register(true); }
-  32 | 
+  32 |
   33 |         public static void ApplyDevelopmentHit(CombatVitals target, int damage)
   34 |         {
   35 |             if (target==null || !target.IsAlive || damage<=0) return;
