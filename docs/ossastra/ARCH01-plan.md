@@ -19,6 +19,6 @@
 - [x] P3 NPC公开请求经自身交互资格/事件回执；重复请求每次有效调用计一次，无自动对话。
 - [x] P4 Editor API迁移B1并保存重开；新ARCH01场真实交互消费者。
 - [x] P5 ARCH20合同/B1世界/定向旧场；失败分类原件保留。
-- [ ] P6 中文源审查/SHA/证据/README/GitHub main发布，释放租约停ARCH01。
+- [x] P6 中文源审查/SHA/证据/README/GitHub main发布，释放租约停ARCH01。
 
 初始共享GUID/Prefab/InputSettings/原场SHA已保存在外部work/OSSASTRA/ARCH01-20261020。只迁移本轮授权B1/共享自有引用，不碰用户媒体、旧禁编删除、全局渲染。已批准计划包含具体设计，直接顺序执行，不另要设计批准。
