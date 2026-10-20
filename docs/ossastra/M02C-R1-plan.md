@@ -21,6 +21,6 @@ Coordinator→Director.TryGetFollowTarget→本角色Follow.ReadCompanionIntent�
 - [x] Editor API共享Prefab加Follow/Root引用；复制干净M02C为R1场，旧场字节不改；回读阈值迁移并验证保存重开。
 - [x] 纯策略/核心，真实R1场T01–T14及M01/M02A/原M02C定向回归；成功/失败日志分别保留，成本C级定向按B级规模。
 - [x] 变化源码完整行号/SHA/中文说明、集中审查入口、待审账本、保护与Edit清理。
-- [ ] 选择性GitHub main发布、远端SHA、释放租约；不Gitee、不自动M02B/M03。
+- [x] 选择性GitHub main发布、远端SHA、释放租约；不Gitee、不自动M02B/M03。
 
 实现不写新动作时钟、不直接位移、不寻路、不攻击；用户媒体/旧代码/用户原稿/开发细则不改。共享Prefab的变化明确允许，M01/M02A未分配组件保持原行为。
