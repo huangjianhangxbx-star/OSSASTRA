@@ -16,3 +16,9 @@
 ## S2 PASS
 纯路由10/10；真实Spine+虚拟InputSystem14/14：Idle/Run/Attack、相同动作不重播、新动作同片段重播、移动不抢攻击、双实例、暂停、破势/死亡fallback、返场、失焦取消。首次夹具把第二次按键安排在AttackReady之前，合法拒绝导致1项失败；改到Ready之后通过，未放宽生产输入资格。兼容本机Spine4.3 GetTrack API。旧全局同名类型用明确别名隔离，无旧代码修改。
 动画仍仅单主轨，暂无真实Hit/Break/Death片段；fallback明确可读。未迁移完整VELGITA动画系统。
+
+## S3 PASS
+纯连段14/14；原动作核心29/29；真实InputSystem双角色14/14；旧B2世界22/22。
+实测Stage1造成12HP、Stage2造成18HP，每段只Release一次；原场敌最大HP为72（夹具首次误写100已修正）。一条预输入、按住不自动第三段、空挥重新Stage1、切人清缓冲、B也可独立两段、破势取消未释放、真实墙挡命中均通过。
+修复真实初始化缺陷：早期Root.Awake检查Profile.isActiveAndEnabled发生在Profile.OnEnable之前，改读序列化enabled，运行时仍查真实激活。first/diagnostic失败与green均保留。
+新场A/B加BasicChainProfile，旧场未加、保持一段。Stage2暂无专用动画，明确复用atk1且新ActionId重播。没有真人手感验收。

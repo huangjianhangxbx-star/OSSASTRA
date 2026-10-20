@@ -43,6 +43,14 @@ namespace Ossastra.Characters
         private ICombatHitResolver hitResolver;
         private BasicActionRuntime runtime;
         private BasicAttackDefinition definition;
+        private BasicAttackDefinition secondDefinition;
+        private BasicChainState chain;
+        private BasicChainProfile chainProfile;
+        private ICombatHitReceiptSource hitReceipts;
+        public int AttackStage { get; private set; }
+        public int ReleaseCount { get; private set; }
+        public bool HasBufferedAttack => chain!=null && chain.HasBuffer;
+        public double ComboWindowUntil => chain==null?-1:chain.WindowUntil;
         private bool ready, focused = true, paused, applicationPaused;
         private string lastFact = "Idle";
         private object respawnOwner;
@@ -115,6 +123,13 @@ namespace Ossastra.Characters
             {
                 definition = new BasicAttackDefinition(releaseAt, moveReadyAt, attackReadyAt, finishAt, damage, postureImpact);
                 runtime = new BasicActionRuntime(actorId);
+                chainProfile=GetComponent<BasicChainProfile>();
+                // Root的早期Awake可能先于Profile.OnEnable；此处读取序列化enabled，运行期再查isActiveAndEnabled。
+                if(chainProfile!=null && chainProfile.enabled)
+                {
+                    definition=chainProfile.stage1.Freeze(); secondDefinition=chainProfile.stage2.Freeze();
+                    chain=chainProfile.CreateState(); hitReceipts=melee; hitReceipts.Resolved+=OnHitReceipt;
+                }
             }
             catch (ArgumentException error) { Debug.LogError("Character configuration: " + error.Message, this); enabled = false; return; }
             // 每角色独立Bus只读取原所有者；只有确需Bus的运动和表现执行初始化。
@@ -147,6 +162,7 @@ namespace Ossastra.Characters
             // 选择器只采一个源；伙伴只能提供移动，切人屏障为空帧，动作时钟仍继续。
             inputSource.Read();
             var frame = DataBus.Input;
+            if(chain!=null && (!input.HasPlayerInput || IsPaused || !focused || chainProfile==null || !chainProfile.isActiveAndEnabled)) chain.Clear();
             if (frame.pause) SetPaused(!paused);
             if (frame.cancel) CancelAction("player-cancel");
             // 2. 同一根时钟推进架势；主动作暂停自然恢复，暂停/失焦完全停钟。
@@ -159,10 +175,9 @@ namespace Ossastra.Characters
             // 4. 观察按键边沿，再由Runtime的暂停/权限/Ready资格决定是否接受动作。
             if (intent.Observe(frame.attackHeld) && focused && !frame.attackPointerBlocked)
             {
-                var request = runtime.Request(definition, "player-input", authority, IsPaused);
-                if (request.PreviousTerminal != null) Observe(request.PreviousTerminal);
-                if (request.Accepted) { Observe(request.Fact); orienter.FaceAttackDirection(); }
-                else lastFact = "Rejected: " + request.Reason;
+                var stage=chain==null?1:chain.Request(runtime.SimulationTime,runtime.AttackReady,
+                    input.HasPlayerInput && !IsPaused && authority.Allows(ControlChannel.Attack) && chainProfile!=null && chainProfile.isActiveAndEnabled);
+                if(stage>0) RequestStage(stage);
             }
             // 5. 唯一动作时钟推进与Release命中。Accepted不扣血，切人不重发事实。
             foreach (var fact in runtime.Advance(Time.deltaTime, IsPaused || !focused))
@@ -170,11 +185,17 @@ namespace Ossastra.Characters
                 Observe(fact);
                 if (fact.Release != null)
                 {
+                    ReleaseCount++;
                     // 在释放当帧按值采样方向；不是接受动作时锁定，前摇中仍可重新瞄准。
                     var releaseDirection = orienter.AttackDirection;
                     orienter.FaceAttackDirection();
                     hitResolver.Resolve(fact.Release, releaseDirection);
                 }
+            }
+            if(chain!=null && input.HasPlayerInput && !IsPaused && focused && authority.Allows(ControlChannel.Attack))
+            {
+                var bufferedStage=chain.Poll(runtime.SimulationTime,runtime.AttackReady);
+                if(bufferedStage>0) RequestStage(bufferedStage);
             }
             // 6. 动作/命中可能改变MoveReady或架势权限，重新查询后才执行真实移动。
             canMove = focused && !IsPaused && DataBus.AllowsMovement && DataBus.MoveReady;
@@ -187,7 +208,7 @@ namespace Ossastra.Characters
         // 7. Animation Intent → One Commit；无子模块Update争抢主轨。
         private void CommitPresentation()
         {
-            (presentation as Ossastra.AnimationPresentation.ICharacterAnimationFacts)?.CollectFacts(IsAlive, posture!=null && posture.IsStaggered, vitals!=null && vitals.IsHitReacting, animationGeneration);
+            (presentation as Ossastra.AnimationPresentation.ICharacterAnimationFacts)?.CollectFacts(IsAlive, posture!=null && posture.IsStaggered, vitals!=null && vitals.IsHitReacting, animationGeneration, AttackStage);
             presentation.SetPaused(IsPaused || !focused);
             presentation.Present();
         }
@@ -208,10 +229,24 @@ namespace Ossastra.Characters
             if (fact.Reason != null) lastFact += " " + fact.Reason;
             if (verboseTrace) Debug.Log("Character " + lastFact, this);
         }
+        private void RequestStage(int stage)
+        {
+            var selected=stage==2?secondDefinition:definition;
+            var request=runtime.Request(selected,"player-input:Stage"+stage,authority,IsPaused);
+            if(request.PreviousTerminal!=null) Observe(request.PreviousTerminal);
+            if(request.Accepted)
+            {
+                AttackStage=stage; chain?.Accepted(stage,request.Fact.ActionId,runtime.SimulationTime,selected.AttackReadyAt);
+                Observe(request.Fact); orienter.FaceAttackDirection();
+            }
+            else lastFact="Rejected: "+request.Reason;
+        }
+        private void OnHitReceipt(Guid id,bool applied){chain?.Hit(id,applied);}
 
         public void CancelAction(string reason)
         {
             animationGeneration++;
+            chain?.Clear();
             // 取消必须具名；抑制仍按住的输入，不能把下一帧误判为新请求。
             intent.SuppressUntilRelease();
             var terminal = runtime == null ? null : runtime.Cancel(reason);
@@ -240,7 +275,7 @@ namespace Ossastra.Characters
             Died?.Invoke(this);
         }
 
-        public void SetPaused(bool value) { paused = value; intent.SuppressUntilRelease(); if (follow != null) follow.ResetIntent(); }
+        public void SetPaused(bool value) { paused = value; chain?.Clear(); intent.SuppressUntilRelease(); if (follow != null) follow.ResetIntent(); }
         public void SetAttackRestriction(object owner, bool restricted, string reason = "attack-restricted")
         {
             if (restricted) { authority.Block(owner, ControlChannel.Attack); CancelAction(reason); }
@@ -250,11 +285,12 @@ namespace Ossastra.Characters
         private void OnApplicationFocus(bool hasFocus)
         { focused = hasFocus; if (follow != null) follow.ResetIntent(); if (!hasFocus) CancelAction("focus-lost"); else intent.SuppressUntilRelease(); }
         private void OnApplicationPause(bool value)
-        { applicationPaused = value; if (follow != null) follow.ResetIntent(); if (value) intent.SuppressUntilRelease(); }
+          { applicationPaused = value; if(value)chain?.Clear(); if (follow != null) follow.ResetIntent(); if (value) intent.SuppressUntilRelease(); }
         private void OnEnable() { intent.SuppressUntilRelease(); if (intentSelector != null) intentSelector.Clear(); }
         private void OnDisable() { CancelAction("disabled"); if (posture != null) posture.ResetState(); authority.Release(posture); if (follow != null) follow.ResetIntent(); if (intentSelector != null) intentSelector.Clear(); if (ready && presentation != null) presentation.SetPaused(false); }
         private void OnDestroy()
         {
+            if(hitReceipts!=null) hitReceipts.Resolved-=OnHitReceipt;
             if (vitals!=null) vitals.Died-=OnDied;
             if (posture != null) { posture.Broken -= OnPostureBroken; posture.Recovered -= OnPostureRecovered; }
             authority.Release(posture);

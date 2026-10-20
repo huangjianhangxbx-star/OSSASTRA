@@ -10,23 +10,25 @@ using Ossastra.CharacterCore;
 using UnityEngine;
 namespace Ossastra.Combat
 {
-    public sealed class CombatMeleeHit : MonoBehaviour, ICombatHitResolver
+    public sealed class CombatMeleeHit : MonoBehaviour, ICombatHitResolver, ICombatHitReceiptSource
     {
         [SerializeField, Min(0)] private float reach=.8f;
         [SerializeField, Min(.01f)] private float radius=.65f;
         [SerializeField] private float height=.8f;
         [SerializeField] private LayerMask targetLayers=~0;
         public string LastResult { get; private set; }="未释放";
+        public event Action<Guid, bool> Resolved;
         public void Resolve(AttackRelease release, Vector3 releaseDirection)
         {
             if(release==null) throw new ArgumentNullException(nameof(release));
             var source=GetComponent<CombatVitals>();
             if(!isActiveAndEnabled || (source!=null && (!source.IsAvailable || source.Health.Id!=release.ActorId)))
-            { release.Resolve(Array.Empty<Health>()); LastResult="来源失效或释放身份不符"; return; }
+            { release.Resolve(Array.Empty<Health>()); LastResult="来源失效或释放身份不符"; Resolved?.Invoke(release.ActionId,false); return; }
             var center=transform.position+Vector3.up*height+releaseDirection*reach;
             var candidates=Physics.OverlapSphere(center,radius,targetLayers,QueryTriggerInteraction.Collide)
                 .Select(c=>c.GetComponentsInParent<MonoBehaviour>().OfType<IHitTarget>().FirstOrDefault())
-                .Where(CombatTargetValidity.IsAvailable).Distinct().ToArray();
+                .Where(CombatTargetValidity.IsAvailable).Distinct()
+                .Where(t=>t is MonoBehaviour body && CombatSight.IsClear(transform,body.transform,height)).ToArray();
             // 同一接收者多个Collider合并；不同接收者冒用同ID整组拒绝，不能任取一个扣HP。
             var targets=candidates.GroupBy(t=>t.Health.Id,StringComparer.Ordinal)
                 .Where(g=>g.Count()==1).Select(g=>g.Single())
@@ -46,6 +48,7 @@ namespace Ossastra.Combat
                 }
             LastResult=outcomes.Count==0?"空挥／无合法敌对目标":string.Join("; ",outcomes.Select(o=>
                 o.ActorId+" → "+o.TargetId+" "+o.HpBefore+"→"+o.HpAfter+" "+o.Reason+" #"+o.ActionId.ToString("N")));
+            Resolved?.Invoke(release.ActionId,outcomes.Any(o=>o.Reason==HitReason.Applied));
         }
     }
 }

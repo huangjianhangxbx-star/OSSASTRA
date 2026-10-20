@@ -6481,6 +6481,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 6821041145637747292, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1139401549}
+    - targetCorrespondingSourceObject: {fileID: 6821041145637747292, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1139401550}
   m_SourcePrefab: {fileID: 100100000, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
 --- !u!114 &721048150 stripped
 MonoBehaviour:
@@ -9156,6 +9159,35 @@ MonoBehaviour:
   recoveryFraction: 0.5
   recoveryDelay: 1.5
   recoveryRate: 0.25
+--- !u!114 &1139401550
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1139401540}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 94bfb9884d6f8b143815b67b3a7330ce, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  stage1:
+    releaseAt: 0.3
+    moveReadyAt: 0.5
+    attackReadyAt: 0.8
+    finishAt: 1.1
+    damage: 12
+    postureImpact: 35
+  stage2:
+    releaseAt: 0.35
+    moveReadyAt: 0.55
+    attackReadyAt: 0.9
+    finishAt: 1.2
+    damage: 18
+    postureImpact: 45
+  preInput: 0.12
+  bufferLifetime: 0.17
+  continuationWindow: 0.45
 --- !u!1 &1146589729
 GameObject:
   m_ObjectHideFlags: 0
@@ -15623,6 +15655,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 6821041145637747292, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
       insertIndex: -1
       addedObject: {fileID: 2593720448214277161}
+    - targetCorrespondingSourceObject: {fileID: 6821041145637747292, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 2593720448214277162}
   m_SourcePrefab: {fileID: 100100000, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
 --- !u!114 &2593720448214277151 stripped
 MonoBehaviour:
@@ -15664,6 +15699,35 @@ MonoBehaviour:
   recoveryFraction: 0.5
   recoveryDelay: 1.5
   recoveryRate: 0.25
+--- !u!114 &2593720448214277162
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1414902145}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 94bfb9884d6f8b143815b67b3a7330ce, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  stage1:
+    releaseAt: 0.3
+    moveReadyAt: 0.5
+    attackReadyAt: 0.8
+    finishAt: 1.1
+    damage: 12
+    postureImpact: 35
+  stage2:
+    releaseAt: 0.35
+    moveReadyAt: 0.55
+    attackReadyAt: 0.9
+    finishAt: 1.2
+    damage: 18
+    postureImpact: 45
+  preInput: 0.12
+  bufferLifetime: 0.17
+  continuationWindow: 0.45
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

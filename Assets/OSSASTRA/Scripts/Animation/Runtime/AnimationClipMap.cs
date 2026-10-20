@@ -18,6 +18,6 @@ namespace Ossastra.AnimationPresentation
     }
     public interface ICharacterAnimationFacts
     {
-        void CollectFacts(bool alive, bool staggered, bool hitReaction, int generation);
+        void CollectFacts(bool alive, bool staggered, bool hitReaction, int generation, int attackStage=1);
     }
 }

@@ -1,0 +1,15 @@
+PASS first explicit request
+PASS no automatic stage2
+PASS too early discarded
+PASS one preinput
+PASS repeat does not add
+PASS buffer consumes once
+PASS no second consume
+PASS stage2 ends chain
+PASS miss restarts stage1
+PASS expired window restarts
+PASS expired buffer discarded
+PASS foreign receipt cannot grant stage2
+PASS control loss clears buffer
+PASS ineligible cannot attack
+14 chain contracts passed

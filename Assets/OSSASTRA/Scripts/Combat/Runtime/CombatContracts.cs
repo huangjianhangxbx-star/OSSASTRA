@@ -28,6 +28,11 @@ namespace Ossastra.Combat
         string LastResult { get; }
         void Resolve(AttackRelease release, Vector3 releaseDirection);
     }
+    /// <summary>原物理结算的只读回执；禁止消费者再查物理或再扣血。</summary>
+    public interface ICombatHitReceiptSource
+    {
+        event System.Action<System.Guid, bool> Resolved;
+    }
     /// <summary>接口非null不代表Unity宿主有效；销毁/禁用/无生命立即失效。</summary>
     public static class CombatTargetValidity
     {

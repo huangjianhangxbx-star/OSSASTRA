@@ -67,6 +67,8 @@ namespace Ossastra.CharacterCore
         public bool MoveReady => !IsActive || moveReady;
         public bool AttackReady => !IsActive || attackReady;
         public Guid ActionId => IsActive ? actionId : Guid.Empty;
+        // 同一时钟的绝对读数供有限接续窗口使用；没有动作时也推进，不另建连段计时器。
+        public double SimulationTime { get; private set; }
 
         public BasicActionRuntime(string actorId)
         {
@@ -107,7 +109,9 @@ namespace Ossastra.CharacterCore
         {
             if (!BasicAttackDefinition.Finite(delta) || delta < 0)
                 throw new ArgumentOutOfRangeException(nameof(delta));
-            if (!IsActive || paused) return Array.Empty<ActionFact>();
+            if (paused) return Array.Empty<ActionFact>();
+            SimulationTime += delta;
+            if (!IsActive) return Array.Empty<ActionFact>();
             // 补偿累计舍入误差；不靠提前Release的任意epsilon修补帧边界。
             var correctedDelta = delta - timeCorrection;
             var sum = elapsed + correctedDelta;

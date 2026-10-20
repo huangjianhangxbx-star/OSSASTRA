@@ -7,7 +7,7 @@ using System;
 using System.Collections.Generic;
 namespace Ossastra.AnimationCore
 {
-    public enum AnimationSemantic { Idle, Move, BasicAttack, HitReaction, PostureBroken, Death }
+    public enum AnimationSemantic { Idle, Move, BasicAttack, HitReaction, PostureBroken, Death, BasicAttackSecond }
     public readonly struct AnimationIntent
     {
         public string ActorId { get; }
@@ -33,7 +33,7 @@ namespace Ossastra.AnimationCore
             return best;
         }
         // 明确主轨优先级：死亡>破势>受击>动作>移动>待机，与具体Spine片段名称无关。
-        private static int Priority(AnimationSemantic semantic) => (int)semantic;
+        private static int Priority(AnimationSemantic semantic) => semantic==AnimationSemantic.BasicAttackSecond?2:(int)semantic;
     }
     public sealed class AnimationPlaybackIdentity
     {

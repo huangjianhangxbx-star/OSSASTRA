@@ -25,7 +25,7 @@ namespace Ossastra.Characters
         private readonly List<SemanticIntent> intents=new List<SemanticIntent>(6);
         private float originalScaleX, originalTimeScale;
         private bool alive=true, staggered, hitReaction;
-        private int generation;
+        private int generation, attackStage;
         public string CurrentClip { get; private set; }
         public AnimationSemantic CurrentSemantic { get; private set; }
         public string CurrentSource { get; private set; }
@@ -42,8 +42,8 @@ namespace Ossastra.Characters
             originalScaleX=Mathf.Abs(skeleton.Skeleton.ScaleX);originalTimeScale=skeleton.timeScale;return true;
         }
         public void SetPaused(bool paused){if(skeleton!=null)skeleton.timeScale=paused?0:originalTimeScale;}
-        public void CollectFacts(bool alive,bool staggered,bool hitReaction,int generation)
-        {this.alive=alive;this.staggered=staggered;this.hitReaction=hitReaction;this.generation=generation;}
+        public void CollectFacts(bool alive,bool staggered,bool hitReaction,int generation,int attackStage=1)
+        {this.alive=alive;this.staggered=staggered;this.hitReaction=hitReaction;this.generation=generation;this.attackStage=attackStage;}
         private void Add(AnimationSemantic semantic,string source,Guid replay)
         {intents.Add(new SemanticIntent(dataBus.ActorId,semantic,source,replay,generation));}
         public void Present()
@@ -52,7 +52,7 @@ namespace Ossastra.Characters
             // 每帧重新采集，不保留过期请求；Root本帧事实是唯一资格来源。
             intents.Clear();Add(AnimationSemantic.Idle,"movement",Guid.Empty);
             if(dataBus.IsMoving)Add(AnimationSemantic.Move,"movement",Guid.Empty);
-            if(dataBus.ActionActive)Add(AnimationSemantic.BasicAttack,"action",dataBus.ActionId);
+            if(dataBus.ActionActive)Add(attackStage==2?AnimationSemantic.BasicAttackSecond:AnimationSemantic.BasicAttack,"action",dataBus.ActionId);
             if(hitReaction)Add(AnimationSemantic.HitReaction,"vitals",Guid.Empty);
             if(staggered)Add(AnimationSemantic.PostureBroken,"posture",Guid.Empty);
             if(!alive)Add(AnimationSemantic.Death,"life",Guid.Empty);
@@ -60,7 +60,7 @@ namespace Ossastra.Characters
             var intent=selected.Value;var clip=idle;var loop=true;var mix=.08f;FallbackReason="";
             // 旧三片段为兼容默认映射；Inspector catalog可覆盖全部语义，无需改战斗代码。
             if(intent.Semantic==AnimationSemantic.Move)clip=move;
-            else if(intent.Semantic==AnimationSemantic.BasicAttack){clip=attack;loop=false;}
+            else if(intent.Semantic==AnimationSemantic.BasicAttack || intent.Semantic==AnimationSemantic.BasicAttackSecond){clip=attack;loop=false;if(intent.Semantic==AnimationSemantic.BasicAttackSecond)FallbackReason="Stage2无独立片段，复用atk1并按新ActionId重播";}
             else if(intent.Semantic!=AnimationSemantic.Idle)FallbackReason="缺少 "+intent.Semantic+" 映射，回退Idle（玩法事实不变）";
             foreach(var entry in catalog??Array.Empty<AnimationClipMap>())
                 if(entry!=null&&entry.semantic==intent.Semantic){clip=entry.clip;loop=entry.loop;mix=Mathf.Max(0,entry.mixDuration);FallbackReason="";break;}
