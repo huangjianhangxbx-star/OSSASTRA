@@ -18,3 +18,11 @@ BasicChainState只拥有段序/有限预输入；原BasicActionRuntime保持唯�
 旧StationaryBrain保留；新Brain仅决策，EnemyMovement真实CharacterController，EnemyRoot唯一动作与推进。检测/LOS/停距/受阻/返回/死亡清理；新场墙体和联动验证。胶囊仅技术占位，正式2D素材不在本轮。通过后提交并停止。
 
 风险C，测试成本B：每阶段纯合同+真实Unity关键流程；历史只复验受影响路径。失焦/暂停/服务生命周期、同一HP/Posture/Current/ActionId为共同底线。禁止修改旧场、媒体、原型、细则、Packages；不Gitee。
+
+## 实际阶段进度
+- S0：本地与远端108ea250核对；本地附件完整读取，Chat链接登录墙；Unity重启恢复，无其它写租约。
+- S1：PASS，cc071897f598ddf28eb90755defec95e1af297e1，已推送。
+- S2：PASS，6adef5dc18bcc91ef24a3f58071852824090d2ac，已推送。
+- S3：PASS，a70973dcf92b2e29b5e668883f23303bedc8ac5e，已推送。
+- S4：PASS，有限追击完成，本阶段发布记录见ROADMAP01-publication.md。
+- 结束于S4；正式2D敌人/动画素材、完整旧系统、真人手感待后续；不额外开展任务。

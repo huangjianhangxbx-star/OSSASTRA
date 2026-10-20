@@ -1,5 +1,14 @@
 # OSSASTRA
 
+最新候选：**ROADMAP01：场景内返场、动画路由、两段手动普攻、有限敌人追击**。技术Gate通过，等待用户集中代码/架构和手感审查。
+
+入口：[集中审查](docs/ossastra/ROADMAP01-review.md)、[全部变化源码](docs/ossastra/ROADMAP01-source-review.md)、[真实验证](docs/ossastra/ROADMAP01-verification.md)、[发布记录](docs/ossastra/ROADMAP01-publication.md)。
+
+本机打开 `Assets/OSSASTRA/ROADMAP01/SC_ROADMAP01_CombatLoop.unity` 后 Play。WASD移动、Tab切人、左键独立请求每段普攻；第一段命中后，在合法接续窗口再按可出第二段，长按不自动续段。非实控仅跟随。死亡退场并按场内SAMPLE计时安全返场。红胶囊敌人可感知、追击、停距攻击、受阻和归位。开发面板读取生命/姿态/返场时刻/段数/动画/敌动，不代表正式游戏UI。
+
+正式2D敌人、专用第二段/受击动画、完整死亡世界规则、正式多职业技能与复杂AI均未迁移。仓库不是可直接运行的完整商用依赖包，见下方克隆限制。只GitHub，不同步Gitee。
+
+## 历史阶段（供回归）
 最新候选：**M02-B2 共享架势、破势与硬直**。技术定向验证通过，等待用户集中代码/架构及手感审查。
 
 从 [B2审查入口](docs/ossastra/M02B2-review.md)、[验证](docs/ossastra/M02B2-verification.md)、[10份完整变化源码](docs/ossastra/M02B2-source-review.md)、[发布记录](docs/ossastra/M02B2-publication.md) 开始。

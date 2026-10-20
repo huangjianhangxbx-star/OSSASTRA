@@ -1,38 +1,158 @@
 [
   {
+    "reviewEndLine": 50,
+    "reviewStartLine": 1,
+    "sha": "43F112070AC62FC57B9BC32C5E2E8E186727A94169936BB175277A22E03F7B63",
+    "path": "Assets/OSSASTRA/Scripts/Animation/Core/AnimationRouting.cs"
+  },
+  {
+    "reviewEndLine": 23,
+    "reviewStartLine": 1,
+    "sha": "660932CF1CE2270F09A26EECDFB6BF9F2A09D3EB6B5A2625925226801BE7912B",
+    "path": "Assets/OSSASTRA/Scripts/Animation/Runtime/AnimationClipMap.cs"
+  },
+  {
+    "reviewEndLine": 148,
+    "reviewStartLine": 1,
+    "sha": "64E9FDB2B76F3A78D7D1ADC3612BF55F1BE812FD5731BC2DB335E701A5A4BF63",
+    "path": "Assets/OSSASTRA/Scripts/Characters/Core/BasicActionRuntime.cs"
+  },
+  {
+    "reviewEndLine": 44,
+    "reviewStartLine": 1,
+    "sha": "B3A0125C371167D654EADD52D0DFBAA0B7C2B5649DE3C67E70DA35A2578B8295",
+    "path": "Assets/OSSASTRA/Scripts/Characters/Core/BasicChainState.cs"
+  },
+  {
+    "reviewEndLine": 40,
+    "reviewStartLine": 1,
     "sha": "17312E2E0601EDA6E54C6ACC56EF031DA57011C339777167049C9A0C12DED1B7",
     "path": "Assets/OSSASTRA/Scripts/Characters/Core/Health.cs"
   },
   {
-    "sha": "8C83E3B26AE8CF1C36A1AA7040520EFCF290A2C3AB4484FCD3701176AACC11B0",
-    "path": "Assets/OSSASTRA/Scripts/Characters/Runtime/CharacterControlCoordinator.cs"
-  },
-  {
-    "sha": "89CA1CF5FF9AA6E3DD0A5AB5472CEEB26D80B3928FA2BA3307E25F0579745C7B",
-    "path": "Assets/OSSASTRA/Scripts/Characters/Runtime/CharacterOrientation.cs"
-  },
-  {
-    "sha": "6925F9F5C21907D4AFA08C8E50FF0948B0E673DB917601465AAAA1D2B76F20C1",
-    "path": "Assets/OSSASTRA/Scripts/Characters/Runtime/CharacterRoot.cs"
-  },
-  {
-    "sha": "9CA34693D69F1BBD93864329ADD5310489DB6D07440556EC249893009B9AA52C",
-    "path": "Assets/OSSASTRA/Scripts/Combat/Runtime/CombatVitals.cs"
-  },
-  {
+    "reviewEndLine": 63,
+    "reviewStartLine": 1,
     "sha": "033B4C67A726B3B93531B9CC99E907EA899B7E538710E930DBBD10F8D08F2319",
     "path": "Assets/OSSASTRA/Scripts/Characters/Core/RespawnSchedule.cs"
   },
   {
+    "reviewEndLine": 27,
+    "reviewStartLine": 1,
+    "sha": "6C3B7A21A88F7FF069B5A8E0693DDBAE7671C98B3C5926C10A8C7542E9625669",
+    "path": "Assets/OSSASTRA/Scripts/Characters/Runtime/BasicChainProfile.cs"
+  },
+  {
+    "reviewEndLine": 50,
+    "reviewStartLine": 1,
     "sha": "E70F8ED332E338121F42182AA6B586A0A5E6DF2C5AFA965D6C057ED5D45F8E95",
     "path": "Assets/OSSASTRA/Scripts/Characters/Runtime/CapsuleRespawnPlacement.cs"
   },
   {
+    "reviewEndLine": 179,
+    "reviewStartLine": 1,
+    "sha": "8C83E3B26AE8CF1C36A1AA7040520EFCF290A2C3AB4484FCD3701176AACC11B0",
+    "path": "Assets/OSSASTRA/Scripts/Characters/Runtime/CharacterControlCoordinator.cs"
+  },
+  {
+    "reviewEndLine": 44,
+    "reviewStartLine": 1,
+    "sha": "89CA1CF5FF9AA6E3DD0A5AB5472CEEB26D80B3928FA2BA3307E25F0579745C7B",
+    "path": "Assets/OSSASTRA/Scripts/Characters/Runtime/CharacterOrientation.cs"
+  },
+  {
+    "reviewEndLine": 311,
+    "reviewStartLine": 1,
+    "sha": "CF482E94DE06095FA5E55E000635CAD9316AFE28C60E5F548DBF2F67EB7CEF5B",
+    "path": "Assets/OSSASTRA/Scripts/Characters/Runtime/CharacterRoot.cs"
+  },
+  {
+    "reviewEndLine": 75,
+    "reviewStartLine": 1,
+    "sha": "371128DB4EAEAE18A561B3A9B25D09C0433BCC22FA7C667D48EF8BD4AEE78169",
+    "path": "Assets/OSSASTRA/Scripts/Characters/Runtime/CharacterSpineView.cs"
+  },
+  {
+    "reviewEndLine": 91,
+    "reviewStartLine": 1,
     "sha": "6E25917BBA6A6E99BF0FE0D77670D0EACD09367B06750C9C7DBB4AC00C617AE4",
     "path": "Assets/OSSASTRA/Scripts/Characters/Runtime/PartyRespawnCoordinator.cs"
   },
   {
-    "sha": "28C0A0BEE593C63E80BF59FB0ECAEDE07F65EE25B15DD0AC2937C6A0A255D4BD",
+    "reviewEndLine": 46,
+    "reviewStartLine": 1,
+    "sha": "30B2ED98B92641B10528326617F79E8506642D727A3CECF5582110B3B26BC338",
+    "path": "Assets/OSSASTRA/Scripts/Combat/Runtime/CombatContracts.cs"
+  },
+  {
+    "reviewEndLine": 54,
+    "reviewStartLine": 1,
+    "sha": "6171818EA358EB89A98CC3ED70D43FAD71923ABF48ACD9853E4D7E5BCAEF10B9",
+    "path": "Assets/OSSASTRA/Scripts/Combat/Runtime/CombatMeleeHit.cs"
+  },
+  {
+    "reviewEndLine": 20,
+    "reviewStartLine": 1,
+    "sha": "DAE4D1B586A482517AC60C84E7605D119926F19E0EA3A81B7876E55ECBB6B105",
+    "path": "Assets/OSSASTRA/Scripts/Combat/Runtime/CombatSight.cs"
+  },
+  {
+    "reviewEndLine": 102,
+    "reviewStartLine": 1,
+    "sha": "6782EF455ACE8BA9BEC668A320CAEC2AA39322D1F2307609493D44D8C3A3516D",
+    "path": "Assets/OSSASTRA/Scripts/Combat/Runtime/CombatVitals.cs"
+  },
+  {
+    "reviewEndLine": 86,
+    "reviewStartLine": 1,
+    "sha": "193D4A3A7C4A5CA80946D40563363AB66E684D550DB109AF7DEC1446ACA844BA",
+    "path": "Assets/OSSASTRA/Scripts/Development/Combat/CombatDeathDebugView.cs"
+  },
+  {
+    "reviewEndLine": 25,
+    "reviewStartLine": 1,
+    "sha": "2CF67ED2656567B83DB7E3CB0F95F54DEA52A17ADE540D36B41C599CEC2FFFCB",
+    "path": "Assets/OSSASTRA/Scripts/Development/Combat/EnemyChaseDebugView.cs"
+  },
+  {
+    "reviewEndLine": 51,
+    "reviewStartLine": 1,
+    "sha": "EE7D8BDDF346AA7640AA11B06EE245FE40F468B3AE694C8CEC71B03DD575E4E1",
     "path": "Assets/OSSASTRA/Scripts/Development/Combat/PartyLifeDebugView.cs"
+  },
+  {
+    "reviewEndLine": 21,
+    "reviewStartLine": 1,
+    "sha": "B23FDA6D90B51F10FF7482697F7E48BD014EC901342DFC6D01D3351C0EF9E39A",
+    "path": "Assets/OSSASTRA/Scripts/Enemies/Core/ChasePolicy.cs"
+  },
+  {
+    "reviewEndLine": 75,
+    "reviewStartLine": 1,
+    "sha": "B20423C533C63C60F035F3F457901225D51D8647DFAAF13B8982929D529EB058",
+    "path": "Assets/OSSASTRA/Scripts/Enemies/Runtime/ChaseEnemyBrain.cs"
+  },
+  {
+    "reviewEndLine": 28,
+    "reviewStartLine": 1,
+    "sha": "282C22EC3ED4B0D27ED82E0F4C40D1B56F9D196C9C9615D8B2B71DF2431967B1",
+    "path": "Assets/OSSASTRA/Scripts/Enemies/Runtime/EnemyContracts.cs"
+  },
+  {
+    "reviewEndLine": 27,
+    "reviewStartLine": 1,
+    "sha": "0EA9EE408D7E45D047B0DC063BC01E54884DE8712E569210B8F8604A6B66597D",
+    "path": "Assets/OSSASTRA/Scripts/Enemies/Runtime/EnemyMovement.cs"
+  },
+  {
+    "reviewEndLine": 119,
+    "reviewStartLine": 1,
+    "sha": "757B50764F9E5CD8FB91DF8AF8AC3FBC105E6EFDD5CBA1C1684D51F14777E378",
+    "path": "Assets/OSSASTRA/Scripts/Enemies/Runtime/EnemyRoot.cs"
+  },
+  {
+    "reviewEndLine": 70,
+    "reviewStartLine": 1,
+    "sha": "E3048058DC828A6F86D61F5B6C94DA8953BFA9D13441544FC1A7DFBF982A8B52",
+    "path": "Assets/OSSASTRA/Scripts/Enemies/Runtime/StationaryEnemyBrain.cs"
   }
 ]

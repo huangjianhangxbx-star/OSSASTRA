@@ -21,7 +21,8 @@ namespace Ossastra.Enemies
         [SerializeField] private bool attacksEnabled=true;
         private CombatVitals vitals;
         private ICombatHitResolver melee;
-        private StationaryEnemyBrain brain;
+        private IEnemyBrain brain;
+        private IEnemyMovement movement;
         private BasicActionRuntime runtime;
         private BasicAttackDefinition attack;
         private readonly ControlAuthority authority=new ControlAuthority();
@@ -36,7 +37,10 @@ namespace Ossastra.Enemies
         public bool AttacksEnabled { get => attacksEnabled; set { attacksEnabled=value; if(!value) Cancel("development-attacks-disabled"); } }
         private void Awake()
         {
-            vitals=GetComponent<CombatVitals>(); melee=GetComponent<CombatMeleeHit>(); brain=GetComponent<StationaryEnemyBrain>();
+            vitals=GetComponent<CombatVitals>(); melee=GetComponent<CombatMeleeHit>();
+            var chase=GetComponent<ChaseEnemyBrain>();
+            brain=chase!=null&&chase.enabled?(IEnemyBrain)chase:GetComponent<StationaryEnemyBrain>();
+            movement=GetComponent<EnemyMovement>();
             try { attack=new BasicAttackDefinition(releaseAt,moveReadyAt,attackReadyAt,finishAt,damage,postureImpact); runtime=new BasicActionRuntime(actorId); }
             catch(ArgumentException e) { Debug.LogError("Enemy configuration: "+e.Message,this); enabled=false; return; }
             if(!vitals.Initialize(actorId) || brain==null || !brain.Initialize(vitals))
@@ -55,14 +59,15 @@ namespace Ossastra.Enemies
             if(vitals==null || !vitals.IsAvailable) { Cancel("source-unavailable"); return; }
             // 1. 根独占架势时钟，禁用开发攻击不冻结恢复；失焦/暂停停钟。
             if (posture != null) posture.Tick(!focused || applicationPaused || paused ? 0 : Time.deltaTime, runtime.IsActive);
-            if(!attacksEnabled || !focused || applicationPaused || paused || !authority.Allows(ControlChannel.Attack)) return;
+            if(!attacksEnabled || !focused || applicationPaused || paused || !authority.Allows(ControlChannel.Attack)) {movement?.Stop();return;}
             // 2. 决策资格先于动作请求；Brain不掌握架势数值或第二时钟。
-            if(brain==null || !brain.isActiveAndEnabled) { Cancel("brain-disabled"); return; }
+            if(brain==null || !brain.IsAvailable) { Cancel("brain-disabled"); return; }
+            brain.Tick(Time.time,Time.deltaTime);
             if(runtime.IsActive && (!brain.IsEligible(target) || !ReferenceEquals(target.Health,targetHealth)))
                 Cancel("target-dead-out-of-range-or-occluded-or-stale");
             if(!runtime.IsActive && brain.TrySelect(Time.time,out var selected))
             {
-                var request=runtime.Request(attack,"stationary-enemy",authority);
+                var request=runtime.Request(attack,"enemy-brain",authority);
                 if(request.Accepted)
                 {
                     target=selected; targetHealth=selected.Health; brain.OnAccepted(Time.time);
@@ -79,12 +84,16 @@ namespace Ossastra.Enemies
                     melee.Resolve(fact.Release,direction.normalized);
                 }
             }
+            // 根的最后物理阶段：只消费Brain方向；已接受攻击全段停步，避免贴人重叠攻击。
+            movement?.Tick(runtime.IsActive?Vector3.zero:brain.MoveDirection,Time.deltaTime);
         }
         public void Cancel(string reason)
         {
             var fact=runtime==null?null:runtime.Cancel(reason);
             if(fact!=null) LastFact="Cancelled "+reason+" #"+fact.ActionId.ToString("N");
             target=null; targetHealth=null;
+            movement?.Stop();
+            brain?.ResetDecision(Time.time);
         }
         public void SetPaused(bool value) { paused=value; if(value) Cancel("enemy-paused"); }
         private void OnPostureBroken(string cause)

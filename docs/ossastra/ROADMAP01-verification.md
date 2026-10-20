@@ -11,7 +11,7 @@
 - 证据：Candidates/ROADMAP01/Evidence，夹具Tests。缺商业媒体/包的克隆限制沿用DEPENDENCIES。
 
 ## S2 / S3 / S4
-未实施；必须通过各自Gate后更新。
+各阶段已依序通过，详见下方最终记录。
 
 ## S2 PASS
 纯路由10/10；真实Spine+虚拟InputSystem14/14：Idle/Run/Attack、相同动作不重播、新动作同片段重播、移动不抢攻击、双实例、暂停、破势/死亡fallback、返场、失焦取消。首次夹具把第二次按键安排在AttackReady之前，合法拒绝导致1项失败；改到Ready之后通过，未放宽生产输入资格。兼容本机Spine4.3 GetTrack API。旧全局同名类型用明确别名隔离，无旧代码修改。
@@ -22,3 +22,14 @@
 实测Stage1造成12HP、Stage2造成18HP，每段只Release一次；原场敌最大HP为72（夹具首次误写100已修正）。一条预输入、按住不自动第三段、空挥重新Stage1、切人清缓冲、B也可独立两段、破势取消未释放、真实墙挡命中均通过。
 修复真实初始化缺陷：早期Root.Awake检查Profile.isActiveAndEnabled发生在Profile.OnEnable之前，改读序列化enabled，运行时仍查真实激活。first/diagnostic失败与green均保留。
 新场A/B加BasicChainProfile，旧场未加、保持一段。Stage2暂无专用动画，明确复用atk1且新ActionId重播。没有真人手感验收。
+
+## S4 PASS
+纯策略8/8；真实Unity敌动12/12（最终修正受阻检测以实际运动请求为准后重验），旧B2固定敌人22/22；新综合场两段攻击联动14/14。
+检查覆盖：三根独立、真CharacterController位移、停距真伤害、目标不镜像Current、物理归位且不回血、高墙挡感知、低墙挡身体/Blocked、破势停手与恢复、双人返场保留敌HP、敌死亡和Brain禁用无残留。保存重开回读：2个Profile、1个返场服务、1个Chase、1个独立NPC，Edit clean。
+最后180秒运行错误缓存为空；截图本机保存在work/OSSASTRA/ROADMAP01-20261021/composite.png，未上传商业Spine图像。74份旧场/Prefab/meta SHA不变。
+
+## 失败分类与范围
+- 纯测试最初RED为缺新类型源码的编译失败，非预先存在错误产品行为；真实世界异常与夹具失败分开记录。
+- S3真实初始化故障已定向修复并复测；S1代际、S2Ready按键时间、S3敌HP预期属于夹具问题。
+- 本机旧全局类型与新命名空间类型同名，使用明确别名/限定名解决编译，不改旧代码。
+- 未做真人键鼠/手柄手感验收、全工程构建、正式2D敌人素材、NavMesh/群体AI、完整旧动画/死亡世界规则或正式平衡。

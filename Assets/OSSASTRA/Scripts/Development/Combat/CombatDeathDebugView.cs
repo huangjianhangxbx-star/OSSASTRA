@@ -58,7 +58,7 @@ namespace Ossastra.Development
             GUILayout.BeginArea(panel,GUI.skin.box);
             var showPosture=enemy.GetComponent<CombatPosture>()!=null;
             if(showPosture) postureScroll=GUILayout.BeginScrollView(postureScroll);
-            GUILayout.Label("Development Only · 双向攻防 / 真死亡 · 无正式返场");
+            GUILayout.Label("Development Only · 双向攻防 / 真死亡 · 返场由场景服务决定");
             GUILayout.Label("Current: "+(coordinator.Current==null?"无可控制角色":coordinator.Current.ActorId));
             foreach (var c in coordinator.Characters)
             {

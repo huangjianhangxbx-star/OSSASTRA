@@ -17,3 +17,11 @@ Root运动后CommitPresentation → ICharacterAnimationFacts采样本体事实 �
 ## S3 调用链
 InputAction新边沿 → BasicChainState（有限资格，不累计delta）→ Root.RequestStage → 原BasicActionRuntime唯一模拟时钟 → Released → CombatMeleeHit唯一物理/LOS/HP批次 → ICombatHitReceiptSource只读Applied回执 → 同ActionId允许接续。阶段2映射独立语义、暂回退atk1。
 BasicChainProfile只在本场装配；切控、暂停、失焦、破势、死亡清待用授权，已Released不回滚。重点看Root第4/5阶段、Core/BasicChainState、BasicActionRuntime.SimulationTime和CombatSight。
+
+## S4 调用链与最终审查
+EnemyRoot → IEnemyBrain（旧Stationary或新Chase）→ 中立候选/CombatSight/ChasePolicy → 原Runtime Request/Advance/CombatMeleeHit → IEnemyMovement.Tick → CharacterController.Move。Brain无Input/Current/玩家根，不扣HP；Movement不选择目标。Home只用于返程，不治疗、不传送。受阻判断采用上次真正提交给物理层的移动请求，攻击停步不算卡墙。
+
+[全部变化源码、行号与SHA](ROADMAP01-source-review.md)；[清单](ROADMAP01-source-manifest.json)；[分阶段测试与失败](ROADMAP01-verification.md)。
+用户重点审查：Root第4至7阶段的连段与动画连接是否清晰；场景生命服务与角色本体边界；IEnemyBrain/IEnemyMovement的独立性；10秒/0.5秒返场、两段节奏与1.8速度追击的SAMPLE手感。发布不等于用户验收。
+
+正式敌人仍待2D素材；当前胶囊只验证物理和动作，不迁移整套原型敌人，也不宣称复刻《灰烬之国》内部实现。结束于S4，无追加阶段。

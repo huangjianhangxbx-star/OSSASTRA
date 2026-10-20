@@ -10,13 +10,16 @@ using Ossastra.Combat;
 using UnityEngine;
 namespace Ossastra.Enemies
 {
-    public sealed class StationaryEnemyBrain : MonoBehaviour
+    public sealed class StationaryEnemyBrain : MonoBehaviour,IEnemyBrain
     {
         [SerializeField] private CombatVitals[] targets=Array.Empty<CombatVitals>();
         [SerializeField, Min(.1f)] private float triggerDistance=1.7f, attackInterval=1.8f;
         private CombatVitals owner;
         private EnemyRoot root;
         private float nextAttack;
+        public bool IsAvailable=>isActiveAndEnabled;
+        public Vector3 MoveDirection=>Vector3.zero;
+        public void Tick(float now,float delta) { }
         public bool Initialize(CombatVitals value)
         {
             if(value==null || value.gameObject!=gameObject || value.Health==null) return false;
