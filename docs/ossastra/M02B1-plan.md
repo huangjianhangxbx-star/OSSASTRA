@@ -23,6 +23,6 @@
 - [x] P3死者停意图/取消/退场/单通知，Current安全交接，攻击和移动真实松键，全灭Neutral。
 - [x] P4Editor API共享Prefab增量、R1干净副本建M02B1场，Development读数/正式入口受击与显式重置。
 - [x] P5纯核心与真实B1世界、相关R1/M01/M02A必要回归；C级风险按B级定向成本，不PlayerBuild或全旧项目扫描。
-- [ ] P6变化源中文说明/行号SHA/待审与验证记录，选择性GitHub main/远端SHA，释放租约停B1。
+- [x] P6变化源中文说明/行号SHA/待审与验证记录，选择性GitHub main/远端SHA，释放租约停B1。
 
 默认不动BasicActionRuntime/运动/朝向/Spine/纯跟随数学。共享Prefab只增生命/受击资格及明确引用；四旧场文件不保存。无正式返场/架势/连段/技能/掉落/世界持久化；候选通过不是用户架构批准。
