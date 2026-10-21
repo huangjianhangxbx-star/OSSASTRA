@@ -1,0 +1,81 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a0f0df05ff0882f4eb8dba4acbba5a96, type: 3}
+  m_Name: Rozeul_Animation
+  m_EditorClassIdentifier: 
+  bindings:
+  - key: idle
+    clip: idle1_1
+    semantic: 0
+    loop: 1
+    mixDuration: 0.08
+    sourceDuration: 4
+  - key: move
+    clip: run
+    semantic: 1
+    loop: 1
+    mixDuration: 0.08
+    sourceDuration: 0.8
+  - key: dodge
+    clip: dodge_front
+    semantic: 7
+    loop: 0
+    mixDuration: 0.08
+    sourceDuration: 0.6333333
+  - key: guard
+    clip: ready_loop
+    semantic: 8
+    loop: 1
+    mixDuration: 0.08
+    sourceDuration: 1
+  - key: hurt
+    clip: upper_hitted_all
+    semantic: 3
+    loop: 0
+    mixDuration: 0.08
+    sourceDuration: 0.5
+  - key: broken
+    clip: dizzy_loop
+    semantic: 4
+    loop: 1
+    mixDuration: 0.08
+    sourceDuration: 1.1666666
+  - key: death
+    clip: death
+    semantic: 5
+    loop: 0
+    mixDuration: 0.08
+    sourceDuration: 1.1166667
+  - key: basic-1
+    clip: atk1
+    semantic: 2
+    loop: 0
+    mixDuration: 0.08
+    sourceDuration: 1.1
+  - key: basic-2
+    clip: atk2
+    semantic: 6
+    loop: 0
+    mixDuration: 0.08
+    sourceDuration: 1.2666667
+  - key: basic-3
+    clip: atk3
+    semantic: 2
+    loop: 0
+    mixDuration: 0.08
+    sourceDuration: 1.3
+  - key: basic-4
+    clip: atk4
+    semantic: 2
+    loop: 0
+    mixDuration: 0.08
+    sourceDuration: 1.4666667

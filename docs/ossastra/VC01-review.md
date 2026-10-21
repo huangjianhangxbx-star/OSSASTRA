@@ -27,3 +27,13 @@
 CharacterActionCoordinator成为普攻/闪避/盾起手/投弹的最终接受与付款入口，Root组织初始化，窄接口集中CharacterContracts。每请求有Actor/生命/控制代际、来源、请求身份；原执行端保留动作身份/状态/CD。维护Trace SourceLabel以便区分玩家Stage与伙伴来源。
 接受账本纯4；实际错误Actor/生命/控制/来源4项拒绝无副作用；持续移动后Shift18、盾10、主副手投弹13、资源与伙伴收费/返场18通过。恢复移动主轨修复纯4/真实3通过。拒绝不调用提交端口、不付款、不清现有动作。没有把虚拟输入通过写成真人键盘已验收。
 本阶段仍有配置化连段/技能加入后的再验证；G2—G6尚未完成。临时能力的重复早期依赖检查保留为防御，但接受/付款最终均走同一端口；无新Update/Move/Health权威。
+
+## G2 与 G3 手持表现增量（2026-10-21）
+- 实际配置 rozeul 四段完整普攻；Release=hit_start、MoveReady/AttackReady=hit_to_idle、Finished=片段结束是本轮明确 SAMPLE 映射，不由 Spine 回调再结算伤害。
+- CharacterDefinition / ActionDefinition / AnimationProfile 均为 SO；动作接受冻结播放方案和伤害时点；原运行时仍拥有唯一时钟。旧场保留兼容配置。
+- 新装备定义接回原 EquipmentState 的实例 ID/耐久/CD；角色根 LateUpdate 读取真实 Lhand 挂点。刀仍是模型内附件，不复制一个刀渲染器。
+- 用户批准缺盾时生成匹配素材；生成图保存 Assets/OSSASTRA/Art/Equipment/RozeulShield_v1.png。透明 PNG 1263x1246，Sprite PPU1024。来源为内置 imagegen，本轮新生成；未改旧媒体。提示词约束：单个独立透明盾，匹配 rozeul 的 chibi 深蓝/黄铜/蓝色，清晰描边与手绘阴影，实用尖底鸢盾，占画布80%，小尺寸可读，无手/角色/字/背景，轻微厚度；参考候选场 rozeul 截图仅作风格参考。
+- 炸弹图引用既有本机第三方 Bomb.png；不上传第三方纹理，不宣称干净克隆包含商业资源。盾图仅提供左手显示，尚不代表 G3 正常 UI 交互收口。
+- 当前代码复验：configured-actions-final.json 9项（四段实际动画/释放/独立付款、持续移动闪避）；equipment-view.json 10项（实际挂点、左右翻转、装备定义换装、实例隔离、非法定义拒绝、死亡当帧隐藏）；纯契约 Combo5 + Presentation4 + Coordination4。
+- 之前 fresh legacy-chain 15项通过；stale-chain-read-not-validation.json 是失败切场后读到旧 SessionState，明确不计作验证。
+- 仍待：G3 正常换装 UI / E1；G4代表技能和物品 SO；G5原型HUD与音画；G6集中自然操作和视口对照。VC01 未完成。

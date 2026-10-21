@@ -2,7 +2,7 @@
  * 脚本：CharacterSpineView
  * 功能：Root运动后采集只读语义，经公共仲裁和配置映射，单次提交Spine主轨；合法恢复移动后让出攻击姿势。
  * 边界：不定义战斗时钟、不监听Complete扣血；死亡仍由Vitals立即隐藏。
- * 协作：旧idle/move/attack序列化引用保留；可选catalog覆盖，缺片段明确回退。
+ * 协作：旧idle/move/attack序列化引用保留；SO配置与接受时冻结方案优先；catalog和旧三片段仅为旧资产兼容。
  */
 using System;
 using System.Collections.Generic;
@@ -15,9 +15,14 @@ using Spine.Unity;
 using UnityEngine;
 namespace Ossastra.Characters
 {
-    public sealed class CharacterSpineView : MonoBehaviour, ICharacterPresentation, ICharacterAnimationFacts
+    public sealed class CharacterSpineView : MonoBehaviour, ICharacterPresentation, ICharacterAnimationFacts, ICharacterConfiguredAnimation
     {
         [SerializeField] private SkeletonAnimation skeleton;
+        [SerializeField] private CharacterAnimationProfileSO profile;
+        private Guid capturedAction;
+        private string capturedClip;
+        private float capturedMix,capturedRate=1;
+        private Ossastra.Combat.ICombatGuard guard;
         [SerializeField] private string idle="idle1_1", move="run", attack="atk1";
         [SerializeField] private AnimationClipMap[] catalog=Array.Empty<AnimationClipMap>();
         private CharacterDataBus dataBus;
@@ -39,8 +44,34 @@ namespace Ossastra.Characters
             if(skeleton==null)skeleton=GetComponent<SkeletonAnimation>();
             if(skeleton==null||skeleton.skeletonDataAsset==null)return false;
             skeleton.Initialize(false);var data=skeleton.skeletonDataAsset.GetSkeletonData(false);
-            if(data==null||data.FindAnimation(idle)==null||data.FindAnimation(move)==null||data.FindAnimation(attack)==null||skeleton.Skeleton==null)return false;
+            if(data==null||skeleton.Skeleton==null)return false;
+            var root=GetComponentInParent<CharacterRoot>();
+            if(profile==null&&root!=null&&root.Definition!=null)profile=root.Definition.animationProfile;
+            if(profile!=null)
+            {
+                foreach(var binding in profile.bindings)
+                    if(binding==null||string.IsNullOrEmpty(binding.clip)||data.FindAnimation(binding.clip)==null)
+                    {Debug.LogError("Animation profile contains missing clip",this);return false;}
+                var idleBinding=profile.FindSemantic(AnimationSemantic.Idle);
+                var moveBinding=profile.FindSemantic(AnimationSemantic.Move);
+                var attackBinding=profile.FindSemantic(AnimationSemantic.BasicAttack);
+                if(idleBinding==null||moveBinding==null||attackBinding==null)return false;
+                idle=idleBinding.clip;move=moveBinding.clip;attack=attackBinding.clip;
+                if(root!=null&&root.Definition!=null)
+                    foreach(var action in root.Definition.basicAttacks)
+                        if(action==null||profile.FindKey(action.animationKey)==null)return false;
+            }
+            if(data.FindAnimation(idle)==null||data.FindAnimation(move)==null||data.FindAnimation(attack)==null)return false;            if(root!=null)guard=root.GetComponent<ShieldGuard>();
             originalScaleX=Mathf.Abs(skeleton.Skeleton.ScaleX);originalTimeScale=skeleton.timeScale;return true;
+        }
+        /// <summary>接受时冻结片段/速率；SO后续变化不改写本次正在执行的播放方案。</summary>
+        public void CaptureAction(Guid actionId,ActionDefinitionSO definition)
+        {
+            if(profile==null||definition==null)return;
+            var binding=profile.FindKey(definition.animationKey);
+            if(binding==null)throw new InvalidOperationException("Missing action animation key "+definition.animationKey);
+            capturedAction=actionId;capturedClip=binding.clip;capturedMix=binding.mixDuration;
+            capturedRate=binding.sourceDuration/(float)definition.Freeze().FinishAt;
         }
         public void SetPaused(bool paused){if(skeleton!=null)skeleton.timeScale=paused?0:originalTimeScale;}
         public void CollectFacts(bool alive,bool staggered,bool hitReaction,int generation,int attackStage=1)
@@ -55,22 +86,33 @@ namespace Ossastra.Characters
             if(dataBus.IsMoving)Add(AnimationSemantic.Move,"movement",Guid.Empty);
             // 恢复门与呈现占用分离；跑步交接不取消主动作或提前开放AttackReady。
             if(ActionPresentationPolicy.RetainMainPose(dataBus.ActionActive,dataBus.MoveReady,dataBus.IsMoving))Add(attackStage==2?AnimationSemantic.BasicAttackSecond:AnimationSemantic.BasicAttack,"action",dataBus.ActionId);
+            var motion=dataBus.MotionOverride as ICharacterMotionAnimation;
+            if(motion!=null&&motion.IsActive)Add(AnimationSemantic.Dodge,"dodge",motion.ActionId);
+            if(guard!=null&&guard.IsGuarding)Add(AnimationSemantic.Guard,"guard",Guid.Empty);
             if(hitReaction)Add(AnimationSemantic.HitReaction,"vitals",Guid.Empty);
             if(staggered)Add(AnimationSemantic.PostureBroken,"posture",Guid.Empty);
             if(!alive)Add(AnimationSemantic.Death,"life",Guid.Empty);
             var selected=policy.Resolve(intents,generation);if(!selected.HasValue)return;
-            var intent=selected.Value;var clip=idle;var loop=true;var mix=.08f;FallbackReason="";
+            var intent=selected.Value;var clip=idle;var loop=true;var mix=.08f;var rate=1f;FallbackReason="";
             // 旧三片段为兼容默认映射；Inspector catalog可覆盖全部语义，无需改战斗代码。
             if(intent.Semantic==AnimationSemantic.Move)clip=move;
             else if(intent.Semantic==AnimationSemantic.BasicAttack || intent.Semantic==AnimationSemantic.BasicAttackSecond){clip=attack;loop=false;if(intent.Semantic==AnimationSemantic.BasicAttackSecond)FallbackReason="Stage2无独立片段，复用atk1并按新ActionId重播";}
             else if(intent.Semantic!=AnimationSemantic.Idle)FallbackReason="缺少 "+intent.Semantic+" 映射，回退Idle（玩法事实不变）";
             foreach(var entry in catalog??Array.Empty<AnimationClipMap>())
                 if(entry!=null&&entry.semantic==intent.Semantic){clip=entry.clip;loop=entry.loop;mix=Mathf.Max(0,entry.mixDuration);FallbackReason="";break;}
-            if(string.IsNullOrEmpty(clip)||skeleton.Skeleton.Data.FindAnimation(clip)==null)
+            if(profile!=null)
+            {
+                var binding=profile.FindSemantic(intent.Semantic);
+                if(binding!=null){clip=binding.clip;loop=binding.loop;mix=binding.mixDuration;FallbackReason="";}
+                if(intent.Source=="action"&&capturedAction==intent.ReplayId&&capturedClip!=null)
+                {clip=capturedClip;loop=false;mix=capturedMix;rate=capturedRate;FallbackReason="";}
+                else if(intent.Semantic==AnimationSemantic.Dodge&&binding!=null&&motion!=null)
+                    rate=binding.sourceDuration/motion.Duration;
+            }            if(string.IsNullOrEmpty(clip)||skeleton.Skeleton.Data.FindAnimation(clip)==null)
             {FallbackReason="片段缺失："+clip+"，回退Idle";clip=idle;loop=true;}
             skeleton.Skeleton.ScaleX=originalScaleX*dataBus.VisualFacingX;
             if(identity.ShouldCommit(clip,intent))
-            {var track=skeleton.AnimationState.SetAnimation(0,clip,loop);track.MixDuration=mix;CommitCount++;}
+            {var track=skeleton.AnimationState.SetAnimation(0,clip,loop);track.MixDuration=mix;track.TimeScale=rate;CommitCount++;}
             CurrentClip=clip;CurrentSemantic=intent.Semantic;CurrentSource=intent.Source;CurrentReplayId=intent.ReplayId;
         }
     }

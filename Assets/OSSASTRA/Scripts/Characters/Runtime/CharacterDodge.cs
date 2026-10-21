@@ -9,7 +9,7 @@ using UnityEngine;
 namespace Ossastra.Characters
 {
     [DisallowMultipleComponent]
-    public sealed class CharacterDodge:MonoBehaviour,ICharacterMotionOverride,ICombatEvasion
+    public sealed class CharacterDodge:MonoBehaviour,ICharacterMotionAnimation,ICombatEvasion
     {
         [SerializeField,Min(.01f)] private float duration=.45f,distance=1.5f;
         [SerializeField,Min(0)] private float invulnerableFrom=.12f,invulnerableTo=.32f,cost=22;
@@ -21,8 +21,11 @@ namespace Ossastra.Characters
         public string LastResult {get;private set;}="无";
         public bool IsActive=>isActiveAndEnabled&&state!=null&&state.IsActive;
         public bool IsEvading=>IsActive&&owner!=null&&owner.CanSimulateIntent&&state.IsInvulnerable;
+        public float Duration=>duration;
         public Vector3 MotionVelocity=>IsActive?direction*(distance/duration):Vector3.zero;
-        public void Initialize(CharacterRoot root,CharacterStamina resource){owner=root;stamina=resource;state=new DodgeState(duration,invulnerableFrom,invulnerableTo);}
+        public void Initialize(CharacterRoot root,CharacterStamina resource){owner=root;stamina=resource;var config=root.Definition;
+            if(config!=null){duration=config.dodgeDuration;distance=config.dodgeDistance;cost=config.dodgeCost;invulnerableFrom=config.invulnerableFrom;invulnerableTo=config.invulnerableTo;}
+            state=new DodgeState(duration,invulnerableFrom,invulnerableTo);}
         public bool Request(Vector2 move,bool playerInput)
         {
             if(!isActiveAndEnabled||state==null||owner==null||!owner.CanSimulateIntent||!playerInput||IsActive||
@@ -35,7 +38,7 @@ namespace Ossastra.Characters
             if(!owner.Actions.TryCommit(request,cost,()=>state.TryStart(owner.SimulationTime)?request.RequestId:Guid.Empty,out var reason))
             {LastResult="拒绝："+reason;return false;}
             ActionId=request.RequestId;
-            LastResult="Accepted SAMPLE，未配置专用动画";return true;
+            LastResult="Accepted SAMPLE，表现由角色动画配置映射";return true;
         }
         public void Tick(double time){state?.Tick(time);}
         public void Cancel(){state?.Cancel();}

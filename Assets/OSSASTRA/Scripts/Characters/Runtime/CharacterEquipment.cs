@@ -1,9 +1,11 @@
 /* 脚本：CharacterEquipment
- * 功能：显式初始化本体独立装备；Inspector初始左手仅用于新场样板。
+ * 功能：显式初始化本体独立装备；Inspector定义引用与初始左手仅用于新场样板；SO不保存实例状态。
  * 边界：不控制主手资格，不重置耐久/CD；开发切装也必须本体存活空闲。
  */
 using Ossastra.CharacterCore;
 using UnityEngine;
+using System;
+using System.Linq;
 namespace Ossastra.Characters
 {
     [DisallowMultipleComponent]
@@ -11,7 +13,14 @@ namespace Ossastra.Characters
     {
         [SerializeField] private OffhandKind initialOffhand=OffhandKind.Shield;
         [SerializeField,Min(1)] private int initialDurability=100;
+        [SerializeField] private EquipmentDefinitionSO rightDefinition;
+        [SerializeField] private EquipmentDefinitionSO[] ownedOffhands=Array.Empty<EquipmentDefinitionSO>();
         private CharacterRoot owner;
+        public EquipmentDefinitionSO RightDefinition=>rightDefinition;
+        public EquipmentDefinitionSO LeftDefinition=>State==null?null:ownedOffhands.FirstOrDefault(d=>d!=null&&d.offhandKind==State.LeftKind);
+        public EquipmentDefinitionSO[] OwnedOffhands=>(EquipmentDefinitionSO[])ownedOffhands.Clone();
+        public bool TryEquip(EquipmentDefinitionSO definition)
+        {if(definition==null||definition.mainHand||!ownedOffhands.Contains(definition)){LastResult="拒绝：非本体持有的副手定义";return false;}return TryEquip(definition.offhandKind);}
         public EquipmentState State {get;private set;}
         public string LastResult {get;private set;}="无";
         public void Initialize(CharacterRoot root)

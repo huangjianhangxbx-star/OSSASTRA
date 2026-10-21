@@ -11,16 +11,29 @@ using System.Collections.Generic;
 
 namespace Ossastra.Characters
 {
+    /// <summary>动作接受后冻结播放配置；表现端不反向接受动作或写伤害。</summary>
+    public interface ICharacterConfiguredAnimation
+    {
+        void CaptureAction(System.Guid actionId,ActionDefinitionSO definition);
+    }
+    /// <summary>位移能力的只读表现身份；仍由唯一Movement执行速度。</summary>
+    public interface ICharacterMotionAnimation:ICharacterMotionOverride
+    {
+        System.Guid ActionId {get;}
+        float Duration {get;}
+    }
     public enum CharacterActionKind { Main, Dodge, Guard, Offhand }
     public enum CharacterActionSource { Player, Companion, UserInterface }
     /// <summary>请求携带角色/生命/控制代际和请求身份；动作身份由原执行端接受时产生。</summary>
     public readonly struct CharacterActionRequest
     {
-        public readonly string ActorId,SourceLabel;
-        public readonly int LifeGeneration,ControlRevision;
-        public readonly CharacterActionKind Kind;
-        public readonly CharacterActionSource Source;
-        public readonly System.Guid RequestId;
+        public string ActorId {get;}
+        public string SourceLabel {get;}
+        public int LifeGeneration {get;}
+        public int ControlRevision {get;}
+        public CharacterActionKind Kind {get;}
+        public CharacterActionSource Source {get;}
+        public System.Guid RequestId {get;}
         public CharacterActionRequest(string actorId,int lifeGeneration,int controlRevision,CharacterActionKind kind,CharacterActionSource source,System.Guid requestId,string sourceLabel=null)
         {ActorId=actorId;LifeGeneration=lifeGeneration;ControlRevision=controlRevision;Kind=kind;Source=source;RequestId=requestId;SourceLabel=sourceLabel;}
     }

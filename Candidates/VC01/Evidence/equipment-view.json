@@ -1,0 +1,56 @@
+{
+  "state": "completed",
+  "failed": 0,
+  "rows": [
+    {
+      "name": "generated shield attached",
+      "ok": true,
+      "result": "巡行盾"
+    },
+    {
+      "name": "same definitions isolated instances",
+      "ok": true,
+      "result": "巡行盾"
+    },
+    {
+      "name": "shield follows flipped actor",
+      "ok": true,
+      "result": "巡行盾"
+    },
+    {
+      "name": "owned definition command equips bomb",
+      "ok": true,
+      "result": "巡行盾"
+    },
+    {
+      "name": "hand sprite changes to actual bomb",
+      "ok": true,
+      "result": "投掷炸弹"
+    },
+    {
+      "name": "equipment identity and durability preserved",
+      "ok": true,
+      "result": "投掷炸弹"
+    },
+    {
+      "name": "other actor remains shield",
+      "ok": true,
+      "result": "投掷炸弹"
+    },
+    {
+      "name": "unowned definition rejected",
+      "ok": true,
+      "result": "投掷炸弹"
+    },
+    {
+      "name": "reequip retains shield instance",
+      "ok": true,
+      "result": "巡行盾"
+    },
+    {
+      "name": "death immediately hides runtime equipment",
+      "ok": true,
+      "result": "巡行盾"
+    }
+  ]
+}

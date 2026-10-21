@@ -1,0 +1,38 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5bba4018ccf9dcc4791e5343ec68a44f, type: 3}
+  m_Name: Rozeul_Basic3
+  m_EditorClassIdentifier: 
+  definitionId: rozeul.basic.3
+  animationKey: basic-3
+  eventTimeline:
+  - marker: 1
+    sourceEvent: hit_start
+    seconds: 0.23333333
+  - marker: 2
+    sourceEvent: hit_to_idle
+    seconds: 0.68333334
+  - marker: 3
+    sourceEvent: hit_to_idle
+    seconds: 0.68333334
+  - marker: 4
+    sourceEvent: clip-duration
+    seconds: 1.3
+  releaseAt: 0.23333333
+  moveReadyAt: 0.68333334
+  attackReadyAt: 0.68333334
+  finishAt: 1.3
+  damage: 18
+  postureImpact: 35
+  staminaCost: 10
+  timingEvidence: 'SAMPLE event mapping: Release=hit_start; MoveReady/AttackReady=hit_to_idle;
+    End=clip duration. Mark names explicit, one Runtime source; no callback damage.'

@@ -6888,6 +6888,10 @@ PrefabInstance:
       propertyPath: postureImpact
       value: 55
       objectReference: {fileID: 0}
+    - target: {fileID: 3178852648357337582, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
+      propertyPath: characterDefinition
+      value: 
+      objectReference: {fileID: 11400000, guid: 442933471b308d740aaaf8811c5c9d17, type: 2}
     - target: {fileID: 4248756889777462975, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
       propertyPath: target
       value: 
@@ -7003,6 +7007,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 6821041145637747292, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1139401557}
+    - targetCorrespondingSourceObject: {fileID: 6821041145637747292, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1139401558}
   m_SourcePrefab: {fileID: 100100000, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
 --- !u!114 &721048150 stripped
 MonoBehaviour:
@@ -10260,6 +10267,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   initialOffhand: 1
   initialDurability: 100
+  rightDefinition: {fileID: 11400000, guid: b067a767195e0b14b945f08cf609a71a, type: 2}
+  ownedOffhands:
+  - {fileID: 11400000, guid: 60c52b2dca614674ab3cc0bae98276e1, type: 2}
+  - {fileID: 11400000, guid: 998325500e7f87f458df9ab7cc805ab3, type: 2}
 --- !u!114 &1139401557
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -10270,6 +10281,18 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: d5581de84e3b3d24285628e5ccade0f4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+--- !u!114 &1139401558
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1139401540}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 770f2421f819b8c4085ce07cd6b12d35, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
 --- !u!1 &1146589729
@@ -17099,6 +17122,10 @@ PrefabInstance:
       propertyPath: postureImpact
       value: 55
       objectReference: {fileID: 0}
+    - target: {fileID: 3178852648357337582, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
+      propertyPath: characterDefinition
+      value: 
+      objectReference: {fileID: 11400000, guid: 7a7547c0887370d4a9b989241e2b3f60, type: 2}
     - target: {fileID: 4248756889777462975, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
       propertyPath: target
       value: 
@@ -17214,6 +17241,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 6821041145637747292, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
       insertIndex: -1
       addedObject: {fileID: 2593720448214277169}
+    - targetCorrespondingSourceObject: {fileID: 6821041145637747292, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 2593720448214277170}
   m_SourcePrefab: {fileID: 100100000, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
 --- !u!114 &2593720448214277151 stripped
 MonoBehaviour:
@@ -17374,6 +17404,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   initialOffhand: 1
   initialDurability: 100
+  rightDefinition: {fileID: 11400000, guid: b067a767195e0b14b945f08cf609a71a, type: 2}
+  ownedOffhands:
+  - {fileID: 11400000, guid: 60c52b2dca614674ab3cc0bae98276e1, type: 2}
+  - {fileID: 11400000, guid: 998325500e7f87f458df9ab7cc805ab3, type: 2}
 --- !u!114 &2593720448214277169
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -17384,6 +17418,18 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: d5581de84e3b3d24285628e5ccade0f4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+--- !u!114 &2593720448214277170
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1414902145}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 770f2421f819b8c4085ce07cd6b12d35, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
 --- !u!1660057539 &9223372036854775807
