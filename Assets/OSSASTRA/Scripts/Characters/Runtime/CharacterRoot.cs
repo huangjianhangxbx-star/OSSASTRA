@@ -33,6 +33,7 @@ namespace Ossastra.Characters
         private CharacterDodge dodge;
         private CharacterEquipment equipment;
         private ShieldGuard guard;
+        private CharacterOffhand offhand;
         private CombatVitals autonomousTarget;
         private bool autonomousAction;
         public event Action<ActionFact> ActionObserved;
@@ -153,6 +154,7 @@ namespace Ossastra.Characters
             equipment=GetComponent<CharacterEquipment>();if(equipment!=null)equipment.Initialize(this);
             guard=GetComponent<ShieldGuard>();if(guard!=null)guard.Initialize(this,stamina,equipment);
             DataBus.BindResources(stamina,dodge);
+            offhand=GetComponent<CharacterOffhand>(); offhand?.Initialize(this,equipment,stamina);
             ready = InitializeSubsystems(DataBus, mover, presentation);
             if (!ready) { Debug.LogError("Character subsystem initialization failed", this); enabled = false; }
             // 可选能力只接受本角色初始化；无组件/无assignment的旧场保持普通玩家行为。
@@ -174,7 +176,7 @@ namespace Ossastra.Characters
         private void Update()
         {
             if (!ready) return;
-            if (!IsAlive) { CommitPresentation(); return; }
+            if (!IsAlive) { offhand?.CancelAll(); CommitPresentation(); return; }
             // 本体显式调度入口：以下阶段在一次Update中按书写顺序执行。
             // DefaultExecutionOrder只约束跨组件先后，不能替代这里的模块调用顺序。
             // 1. 采唯一意图源并处理暂停/取消；不由各子模块另开输入Update。
@@ -207,6 +209,9 @@ namespace Ossastra.Characters
                     input.HasPlayerInput && !IsPaused && authority.Allows(ControlChannel.Attack) && chainProfile!=null && chainProfile.isActiveAndEnabled);
                 if(stage>0) RequestStage(stage);
             }
+            // 4a. 副手独立请求/时钟；同帧主手已按自身资格处理，二者不共享动作身份。
+            if(frame.offhandPressed)offhand?.Request(PointerGroundPoint(frame),input.HasPlayerInput);
+            offhand?.Tick(Time.deltaTime,input.HasPlayerInput);
             // 4b. 窄自治请求与玩家边沿互斥；仅Stage1，不通过输入帧注入攻击/暂停。
             if(!input.HasPlayerInput && CanSimulateIntent && combatBrain!=null &&
                 ((ICompanionActionCandidate)combatBrain).TryGetAttackTarget(out var aiTarget))
@@ -250,6 +255,11 @@ namespace Ossastra.Characters
             (presentation as Ossastra.AnimationPresentation.ICharacterAnimationFacts)?.CollectFacts(IsAlive, posture!=null && posture.IsStaggered, vitals!=null && vitals.IsHitReacting, animationGeneration, AttackStage);
             presentation.SetPaused(IsPaused || !focused);
             presentation.Present();
+        }
+        private Vector3? PointerGroundPoint(CharacterInputFrame frame)
+        {
+            if(!frame.hasPointer)return null; var plane=new Plane(Vector3.up,transform.position);
+            var ray=viewCamera.ScreenPointToRay(frame.pointer); return plane.Raycast(ray,out var distance)?ray.GetPoint(distance):(Vector3?)null;
         }
         private Vector3? PointerDirection(CharacterInputFrame frame)
         {
@@ -295,6 +305,7 @@ namespace Ossastra.Characters
         {
             dodge?.Cancel();
             guard?.Cancel();
+            offhand?.CancelPending();
             animationGeneration++; autonomousAction=false; autonomousTarget=null; combatBrain?.ResetCandidate();
             chain?.Clear();
             // 取消必须具名；抑制仍按住的输入，不能把下一帧误判为新请求。
@@ -319,13 +330,15 @@ namespace Ossastra.Characters
         private void OnDied(HitOutcome outcome)
         {
             // HP已由结算归零；这里仅终止本体未释放动作/有效帧，再交唯一会话处理实控。
+            offhand?.CancelAll();
             CancelAction("death:"+outcome.ActorId+":"+outcome.ActionId.ToString("N"));
             if (follow!=null) follow.ResetIntent();
             if (intentSelector!=null) intentSelector.Clear();
             Died?.Invoke(this);
         }
 
-        public void SetPaused(bool value) { paused = value; if(value){dodge?.Cancel();guard?.Cancel();} chain?.Clear(); intent.SuppressUntilRelease(); if (follow != null) follow.ResetIntent(); }
+        public void SetPaused(bool value) { paused = value; if(value){dodge?.Cancel();guard?.Cancel();
+            offhand?.CancelPending();} chain?.Clear(); intent.SuppressUntilRelease(); if (follow != null) follow.ResetIntent(); }
         public void SetAttackRestriction(object owner, bool restricted, string reason = "attack-restricted")
         {
             if (restricted) { authority.Block(owner, ControlChannel.Attack); CancelAction(reason); }
@@ -337,7 +350,7 @@ namespace Ossastra.Characters
         private void OnApplicationPause(bool value)
           { applicationPaused = value; if(value)chain?.Clear(); if (follow != null) follow.ResetIntent(); if (value) intent.SuppressUntilRelease(); }
         private void OnEnable() { intent.SuppressUntilRelease(); if (intentSelector != null) intentSelector.Clear(); }
-        private void OnDisable() { CancelAction("disabled"); if (posture != null) posture.ResetState(); authority.Release(posture); if (follow != null) follow.ResetIntent(); if (intentSelector != null) intentSelector.Clear(); if (ready && presentation != null) presentation.SetPaused(false); }
+        private void OnDisable() { offhand?.CancelAll(); CancelAction("disabled"); if (posture != null) posture.ResetState(); authority.Release(posture); if (follow != null) follow.ResetIntent(); if (intentSelector != null) intentSelector.Clear(); if (ready && presentation != null) presentation.SetPaused(false); }
         private void OnDestroy()
         {
             if(hitReceipts!=null) hitReceipts.Resolved-=OnHitReceipt;
