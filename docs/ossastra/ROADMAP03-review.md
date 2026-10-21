@@ -1,0 +1,7 @@
+# ROADMAP03 审查
+
+S9调用顺序：CombatMeleeHit查询球体/LOS→CombatContactGateway验证来源、真身份去重、阵营、防御快照→AttackRelease.ResolveContacts唯一扣血批→Applied生命/死亡反馈，Guarded/Evaded防御回执→同批存活且有效接触的Posture。Resolved bool仍仅Applied驱动连段，盾挡不自动进段。
+
+DefenseSnapshot位于CharacterCore避免核心反向依赖Runtime/Combat程序集。Resolve(IEnumerable<Health>)保留且与新入口共享resolved水位；HitReason末尾追加不改既有枚举值。新结果PostureScale不增加HP写入者。网关只接空间筛选完成的候选，范围投弹后续复用。
+
+当前ICombatDefense由测试适配器验证，正式盾/闪避在S10/S11装配。已有用户动画恢复移动问题为后续独立动画策略缺口，本轮不顺手重构。

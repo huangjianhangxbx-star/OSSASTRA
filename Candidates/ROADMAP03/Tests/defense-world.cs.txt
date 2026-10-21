@@ -1,0 +1,15 @@
+using System;using System.Linq;using UnityEngine;using UnityEditor;using Ossastra.CharacterCore;using Ossastra.Combat;using Funplay.Editor.Tools.Scripting;
+public class DefenseFixture:MonoBehaviour,ICombatDefense { public int mode,receipts;public DefenseSnapshot CaptureDefense(Vector3 p)=>new DefenseSnapshot(mode==2,mode==1,1,.5,.5);public void OnDefenseResolved(HitOutcome o){receipts++;}}
+public class DefenseWorld:IFunplayCommand{public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx){
+if(!Application.isPlaying)throw new Exception("Play required");var c=UnityEngine.Object.FindObjectOfType<Ossastra.Characters.CharacterControlCoordinator>();var a=c.Characters[0];var e=UnityEngine.Object.FindObjectOfType<Ossastra.Enemies.EnemyRoot>();e.AttacksEnabled=false;foreach(var root in c.Characters){root.CancelAction("fixture");root.GetComponent<Ossastra.Characters.CompanionCombatBrain>().enabled=false;}
+var posture=a.GetComponent<CombatPosture>();var melee=e.GetComponent<CombatMeleeHit>();var original=a.transform.position;var other=c.Characters[1];var otherPos=other.transform.position;other.GetComponent<Ossastra.Characters.CharacterMovement>().Teleport(original+Vector3.left*8);
+a.GetComponent<Ossastra.Characters.CharacterMovement>().Teleport(e.transform.position+Vector3.forward*melee.Reach);Physics.SyncTransforms();a.Vitals.RestoreForDevelopment();posture.ResetState();
+var fixture=a.gameObject.AddComponent<DefenseFixture>();var rows=new System.Collections.Generic.List<object>();
+void Check(string name,bool ok){rows.Add(new{name,ok});if(!ok)throw new Exception(name);}
+AttackRelease Release(){var runtime=new BasicActionRuntime(e.ActorId);var accepted=runtime.Request(new BasicAttackDefinition(0,0,0,.1,10,20),"physics-defense-fixture",new ControlAuthority());if(!accepted.Accepted)throw new Exception("not accepted");return runtime.Advance(0,false).Single(f=>f.Release!=null).Release;}
+try{fixture.mode=1;var before=posture.Current;var r=Release();melee.Resolve(r,Vector3.forward);Check("sphere guarded zero HP",a.Vitals.Health.Current==a.Vitals.Health.Maximum);Check("guard posture half",Math.Abs(posture.Current-(before-10))<.001);Check("guard one receipt",fixture.receipts==1);bool duplicate=false;try{melee.Resolve(r,Vector3.forward);}catch(InvalidOperationException){duplicate=true;}Check("same release cannot reopen",duplicate);
+fixture.mode=2;before=posture.Current;melee.Resolve(Release(),Vector3.forward);Check("evaded no HP posture",a.Vitals.Health.Current==a.Vitals.Health.Maximum&&posture.Current==before);
+fixture.mode=0;before=posture.Current;melee.Resolve(Release(),Vector3.forward);Check("normal HP posture compatibility",a.Vitals.Health.Current==a.Vitals.Health.Maximum-10&&Math.Abs(posture.Current-(before-20))<.001);
+ctx.ReturnValue=rows;
+}finally{UnityEngine.Object.DestroyImmediate(fixture);a.Vitals.RestoreForDevelopment();posture.ResetState();a.GetComponent<Ossastra.Characters.CharacterMovement>().Teleport(original);other.GetComponent<Ossastra.Characters.CharacterMovement>().Teleport(otherPos);}}
+}

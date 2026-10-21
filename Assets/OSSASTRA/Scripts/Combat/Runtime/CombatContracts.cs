@@ -8,6 +8,12 @@ using Ossastra.CharacterCore;
 using UnityEngine;
 namespace Ossastra.Combat
 {
+    /// <summary>只采样防御资格；回执后才允许更新盾耐久，不直接写生命或架势。</summary>
+    public interface ICombatDefense
+    {
+        DefenseSnapshot CaptureDefense(Vector3 incomingOrigin);
+        void OnDefenseResolved(HitOutcome outcome);
+    }
     /// <summary>世界命中器向同一合法存活目标递交架势冲击，不拥有第二次HP写入。</summary>
     public interface ICombatPostureReceiver
     {

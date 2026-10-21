@@ -1,16 +1,26 @@
 /*
  * 脚本：AttackRelease
  * 功能：结算一次动作释放的目标批次，并返回命中结果。
- * 边界：同一释放只结算一次；按目标身份去重；HP只经Health写入。
- * 协作：世界适配器先做空间筛选，再调用Resolve；空挥关闭批次。冻结架势载荷由同批存活结果消费。
+ * 边界：新旧入口共享一次性批次；按目标身份去重；HP只经Health写入，零伤防御不调用扣血。
+ * 协作：世界适配器先做空间筛选，再调用Resolve；空挥关闭批次。防御快照决定HP及架势倍率，同批回执供世界适配器消费。
  */
 using System;
 using System.Collections.Generic;
 using System.Linq;
 
+
 namespace Ossastra.CharacterCore
 {
-    public enum HitReason { Applied, Duplicate, Dead, Self }
+    public enum HitReason { Applied, Duplicate, Dead, Self, Guarded, Evaded }
+
+    /// <summary>空间/身份已合法的候选及同帧只读防御快照；不另持有HP余额。</summary>
+    public readonly struct AttackContact
+    {
+        public Health Health { get; }
+        public DefenseSnapshot Defense { get; }
+        public AttackContact(Health health, DefenseSnapshot defense)
+        { Health=health ?? throw new ArgumentNullException(nameof(health)); Defense=defense; }
+    }
 
     public sealed class HitOutcome
     {
@@ -20,8 +30,9 @@ namespace Ossastra.CharacterCore
         public Guid ActionId { get; }
         public string ActorId { get; }
         public string TargetId { get; }
+        public double PostureScale { get; }
 
-        internal HitOutcome(HitReason reason, int before, Health target, Guid actionId, string actorId)
+        internal HitOutcome(HitReason reason, int before, Health target, Guid actionId, string actorId, double postureScale=1)
         {
             Reason = reason;
             HpBefore = before;
@@ -29,6 +40,7 @@ namespace Ossastra.CharacterCore
             TargetId = target.Id;
             ActionId = actionId;
             ActorId = actorId;
+            PostureScale = reason==HitReason.Applied || reason==HitReason.Guarded ? postureScale : 0;
         }
     }
 
@@ -54,26 +66,36 @@ namespace Ossastra.CharacterCore
         // 调用方必须先完成实际空间/阵营过滤；本方法不谎称已做物理检测。
         public IReadOnlyList<HitOutcome> Resolve(IEnumerable<Health> targets)
         {
+            if(targets==null) throw new ArgumentNullException(nameof(targets));
+            return ResolveContacts(targets.Select(t=>new AttackContact(t,DefenseSnapshot.Normal)));
+        }
+
+        /// <summary>与旧Resolve共享一次性水位；盾挡零伤不调用ApplyDamage，闪避不消费架势。</summary>
+        public IReadOnlyList<HitOutcome> ResolveContacts(IEnumerable<AttackContact> contacts)
+        {
             if (resolved) throw new InvalidOperationException("Attack release already resolved");
-            if (targets == null) throw new ArgumentNullException(nameof(targets));
-            var batch = targets.ToArray();
-            if (batch.Any(t => t == null)) throw new ArgumentException("Null candidate target", nameof(targets));
+            if (contacts == null) throw new ArgumentNullException(nameof(contacts));
+            var batch = contacts.ToArray();
+            if (batch.Any(t => t.Health == null)) throw new ArgumentException("Null candidate target", nameof(contacts));
             resolved = true;
             var seen = new HashSet<string>(StringComparer.Ordinal);
             var outcomes = new List<HitOutcome>();
-            foreach (var target in batch)
+            foreach (var contact in batch)
             {
+                var target=contact.Health;
                 var before = target.Current;
                 HitReason reason;
                 if (!seen.Add(target.Id)) reason = HitReason.Duplicate;
                 else if (target.Id == actorId) reason = HitReason.Self;
                 else if (target.Current == 0) reason = HitReason.Dead;
+                else if (contact.Defense.Evading) reason=HitReason.Evaded;
+                else if (contact.Defense.Guarded) reason=HitReason.Guarded;
                 else
                 {
                     target.ApplyDamage(damage);
                     reason = HitReason.Applied;
                 }
-                outcomes.Add(new HitOutcome(reason, before, target, actionId, actorId));
+                outcomes.Add(new HitOutcome(reason, before, target, actionId, actorId,contact.Defense.PostureScale));
             }
             return outcomes;
         }

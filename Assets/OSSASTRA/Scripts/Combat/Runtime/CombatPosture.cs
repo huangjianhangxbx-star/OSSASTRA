@@ -1,6 +1,6 @@
 /*
  * 脚本：CombatPosture
- * 功能：把本体合法HP命中交给唯一PostureState；报告破势与解除。
+ * 功能：把本体合法普通命中或盾挡接触交给唯一PostureState；报告破势与解除。
  * 边界：不扣HP、不查世界目标、不找玩家根，不自带Update；无组件时旧场不变。
  * 协作：CharacterRoot/EnemyRoot初始化、Tick、监听并管理自己的权限owner。
  */
@@ -46,13 +46,13 @@ namespace Ossastra.Combat
             return true;
         }
 
-        /// <summary>仅消费同一HP批次存活者的Applied结果；不再次Resolve或寻找目标。</summary>
+        /// <summary>仅消费同一接触批次存活者的Applied/Guarded结果，倍率由网关计算；不再次Resolve或寻找目标。</summary>
         public void ReceiveImpact(HitOutcome outcome, double impact)
         {
             // 根关闭后不能再留下无人推进的硬直；只依赖显式注入的生命周期，不反查具体根类型。
             if (!isActiveAndEnabled || driver == null || !driver.isActiveAndEnabled ||
                 state == null || vitals == null || !vitals.IsAvailable ||
-                outcome == null || outcome.Reason != HitReason.Applied || outcome.HpAfter <= 0 ||
+                outcome == null || (outcome.Reason != HitReason.Applied && outcome.Reason != HitReason.Guarded) || outcome.HpAfter <= 0 ||
                 outcome.TargetId != vitals.Health.Id || outcome.HpAfter != vitals.Health.Current ||
                 outcome.ActionId == Guid.Empty || string.IsNullOrWhiteSpace(outcome.ActorId) ||
                 outcome.ActorId == outcome.TargetId ||
