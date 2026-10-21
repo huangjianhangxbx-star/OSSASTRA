@@ -14,3 +14,11 @@
 工具及证据：本机work/OSSASTRA/ROADMAP03-20261021/tools.ps1，公开Candidates/ROADMAP03/Tests。详细事实见ROADMAP03-verification.md；自然手感/逐行架构仍待用户。
 
 2026-10-21恢复：用户重启Unity后标准prepare成功，日志阻塞解除。S10将定向发布，继续原授权后续阶段。上文阻塞记录保留为历史。
+
+## 最终阶段发布
+- S9：7b2a1046923a9a64435ee5f62fa2f17a19199eb8。
+- S10：aec1181badee05b5359215c8eec06fd5f9aaa4fd。
+- S11：123f08391b2fe5cc99d64eff7eddb91970b32a0b（追加主手三装备连段证据随S12）。
+- S12：df5f15d73cbfbc822090a3d70bf9e11338b148e3。
+- S13：本记录所在收口提交，发布后核对GitHub main；此前工具阻塞记录为历史，已解除。
+最终停止于S13；不开始ROADMAP04。试玩场 Assets/OSSASTRA/ROADMAP03/SC_ROADMAP03_DefenseLoadout.unity。

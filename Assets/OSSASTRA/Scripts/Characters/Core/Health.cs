@@ -24,6 +24,10 @@ namespace Ossastra.CharacterCore
             Current = maximum;
         }
 
+        /// <summary>唯一治疗入口：返回实际恢复值；正值、存活且不超过上限。</summary>
+        public int Heal(int amount)
+        { if(amount<=0)throw new ArgumentOutOfRangeException(nameof(amount)); if(Current<=0)return 0; var healed=Math.Min(amount,Maximum-Current);Current+=healed;return healed; }
+
         internal void ApplyDamage(int damage)
         {
             if (damage <= 0) throw new ArgumentOutOfRangeException(nameof(damage));

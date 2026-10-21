@@ -1,0 +1,78 @@
+{
+  "state": "completed",
+  "failed": 4,
+  "rows": [
+    {
+      "name": "full health refuses without cost",
+      "ok": true,
+      "count": 1,
+      "uses": 0,
+      "hpA": 100,
+      "hpB": 100
+    },
+    {
+      "name": "one Y heals both living once",
+      "ok": true,
+      "count": 0,
+      "uses": 1,
+      "hpA": 100,
+      "hpB": 100
+    },
+    {
+      "name": "healing does not reset posture",
+      "ok": true,
+      "count": 0,
+      "uses": 1,
+      "hpA": 100,
+      "hpB": 100
+    },
+    {
+      "name": "held transfer never reuses bottle",
+      "ok": true,
+      "count": 0,
+      "uses": 1,
+      "hpA": 100,
+      "hpB": 100
+    },
+    {
+      "name": "near out of combat first refill",
+      "ok": false,
+      "count": 0,
+      "uses": 1,
+      "hpA": 100,
+      "hpB": 100
+    },
+    {
+      "name": "Y heals survivor without resurrection",
+      "ok": false,
+      "count": 0,
+      "uses": 1,
+      "hpA": 40,
+      "hpB": 0
+    },
+    {
+      "name": "repeat campfire no farming",
+      "ok": false,
+      "count": 1,
+      "uses": 1,
+      "hpA": 40,
+      "hpB": 0
+    },
+    {
+      "name": "same world respawn no bottle gift",
+      "ok": false,
+      "count": 1,
+      "uses": 1,
+      "hpA": 40,
+      "hpB": 100
+    },
+    {
+      "name": "respawn restores own stamina",
+      "ok": true,
+      "count": 1,
+      "uses": 1,
+      "hpA": 40,
+      "hpB": 100
+    }
+  ]
+}

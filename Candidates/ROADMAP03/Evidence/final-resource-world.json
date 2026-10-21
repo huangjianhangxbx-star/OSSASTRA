@@ -1,0 +1,204 @@
+{
+  "state": "completed",
+  "failed": 0,
+  "rows": [
+    {
+      "name": "Shift one accepted cost22",
+      "ok": true,
+      "a": 78.0,
+      "b": 100.0,
+      "dodge": true,
+      "evade": false,
+      "pos": "(0.26, 0.02, 0.00)",
+      "last": "Idle",
+      "hit": "未释放"
+    },
+    {
+      "name": "inside actual dodge window",
+      "ok": true,
+      "a": 78.0,
+      "b": 100.0,
+      "dodge": true,
+      "evade": true,
+      "pos": "(0.70, 0.02, 0.00)",
+      "last": "Idle",
+      "hit": "未释放"
+    },
+    {
+      "name": "actual sphere evaded HP/posture",
+      "ok": true,
+      "a": 78.0,
+      "b": 100.0,
+      "dodge": true,
+      "evade": true,
+      "pos": "(0.70, 0.02, 0.00)",
+      "last": "Idle",
+      "hit": "enemy-stationary-01 → temporary-a 100→100 Evaded #668642ea69ad4d58951eea31a4a6f067"
+    },
+    {
+      "name": "real movement and ended",
+      "ok": true,
+      "a": 82.0002280054614,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(1.64, 0.02, 0.00)",
+      "last": "Idle",
+      "hit": "enemy-stationary-01 → temporary-a 100→100 Evaded #668642ea69ad4d58951eea31a4a6f067"
+    },
+    {
+      "name": "held no repeat token",
+      "ok": true,
+      "a": 82.0002280054614,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(1.64, 0.02, 0.00)",
+      "last": "Idle",
+      "hit": "enemy-stationary-01 → temporary-a 100→100 Evaded #668642ea69ad4d58951eea31a4a6f067"
+    },
+    {
+      "name": "outside window real HP",
+      "ok": true,
+      "a": 82.0002280054614,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(1.64, 0.02, 0.00)",
+      "last": "Idle",
+      "hit": "enemy-stationary-01 → temporary-a 100→90 Applied #ba8b37ac010a485a9f76818370b614b2"
+    },
+    {
+      "name": "main accepted own cost10",
+      "ok": true,
+      "a": 90.0,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(1.64, 0.02, 0.00)",
+      "last": "Accepted @0.000 9121f078",
+      "hit": "enemy-stationary-01 → temporary-a 100→90 Applied #ba8b37ac010a485a9f76818370b614b2"
+    },
+    {
+      "name": "empty rejects no motion",
+      "ok": true,
+      "a": 0.0,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(1.64, 0.02, 0.00)",
+      "last": "Cancelled @0.351 9121f078 boundary",
+      "hit": "enemy-stationary-01 → temporary-a 100→90 Applied #ba8b37ac010a485a9f76818370b614b2"
+    },
+    {
+      "name": "new physical press accepted",
+      "ok": true,
+      "a": 78.0,
+      "b": 100.0,
+      "dodge": true,
+      "evade": false,
+      "pos": "(1.64, 0.02, 0.00)",
+      "last": "Cancelled @0.351 9121f078 boundary",
+      "hit": "enemy-stationary-01 → temporary-a 100→90 Applied #ba8b37ac010a485a9f76818370b614b2"
+    },
+    {
+      "name": "Tab held not transferred",
+      "ok": true,
+      "a": 78.0,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(1.64, 0.02, 0.00)",
+      "last": "Cancelled @0.351 9121f078 boundary",
+      "hit": "enemy-stationary-01 → temporary-a 100→90 Applied #ba8b37ac010a485a9f76818370b614b2"
+    },
+    {
+      "name": "held remains no B dodge",
+      "ok": true,
+      "a": 80.0392179954797,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(1.64, 0.02, 0.00)",
+      "last": "Cancelled @0.351 9121f078 boundary",
+      "hit": "enemy-stationary-01 → temporary-a 100→90 Applied #ba8b37ac010a485a9f76818370b614b2"
+    },
+    {
+      "name": "paused both resources frozen",
+      "ok": true,
+      "a": 86.02745601162314,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(1.64, 0.02, 0.00)",
+      "last": "Cancelled @0.351 9121f078 boundary",
+      "hit": "enemy-stationary-01 → temporary-a 100→90 Applied #ba8b37ac010a485a9f76818370b614b2"
+    },
+    {
+      "name": "dodge actual wall stops",
+      "ok": true,
+      "a": 80.01490001752973,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.46, 0.02, -2.00)",
+      "last": "Cancelled @0.351 9121f078 boundary",
+      "hit": "enemy-stationary-01 → temporary-a 100→90 Applied #ba8b37ac010a485a9f76818370b614b2"
+    },
+    {
+      "name": "real AI stage1 pays own stamina",
+      "ok": true,
+      "a": 94.01610997971147,
+      "b": 93.96039998158813,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.80, 0.02, -2.00)",
+      "last": "Finished @1.100 f4e959ca",
+      "hit": "enemy-stationary-01 → temporary-a 100→90 Applied #ba8b37ac010a485a9f76818370b614b2"
+    },
+    {
+      "name": "AI does not charge Current",
+      "ok": true,
+      "a": 94.01610997971147,
+      "b": 93.96039998158813,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.80, 0.02, -2.00)",
+      "last": "Finished @1.100 f4e959ca",
+      "hit": "enemy-stationary-01 → temporary-a 100→90 Applied #ba8b37ac010a485a9f76818370b614b2"
+    },
+    {
+      "name": "death hands off Current",
+      "ok": true,
+      "a": 0.0,
+      "b": 97.96749596018344,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.80, 0.02, -2.00)",
+      "last": "Finished @1.100 f4e959ca",
+      "hit": "enemy-stationary-01 → temporary-a 100→90 Applied #ba8b37ac010a485a9f76818370b614b2"
+    },
+    {
+      "name": "legal respawn fills same stamina",
+      "ok": true,
+      "a": 100.0,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(-1.80, 0.02, -2.99)",
+      "last": "Finished @1.100 f4e959ca",
+      "hit": "enemy-stationary-01 → temporary-a 100→90 Applied #ba8b37ac010a485a9f76818370b614b2"
+    },
+    {
+      "name": "respawn no Current steal",
+      "ok": true,
+      "a": 100.0,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(-1.80, 0.02, -2.99)",
+      "last": "Finished @1.100 f4e959ca",
+      "hit": "enemy-stationary-01 → temporary-a 100→90 Applied #ba8b37ac010a485a9f76818370b614b2"
+    }
+  ]
+}
