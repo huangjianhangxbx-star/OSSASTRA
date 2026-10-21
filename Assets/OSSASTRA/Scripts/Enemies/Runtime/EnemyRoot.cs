@@ -21,6 +21,14 @@ namespace Ossastra.Enemies
         [SerializeField] private bool attacksEnabled=true;
         private CombatVitals vitals;
         private ICombatHitResolver melee;
+        private CombatMeleeHit hitShape;
+        private readonly Ossastra.EnemyCore.AttackWarningState warning = new Ossastra.EnemyCore.AttackWarningState();
+        public Guid ActionId => runtime == null ? Guid.Empty : runtime.ActionId;
+        public bool WarningVisible => isActiveAndEnabled && focused && !applicationPaused && !paused && warning.Tracking && vitals!=null && vitals.IsAvailable && target!=null && target.IsAvailable;
+        public bool AttackReleased => warning.Released;
+        public Vector3 AttackDirection { get { var d=target==null?Vector3.forward:target.WorldPosition-transform.position; d.y=0; return d.normalized; } }
+        public Vector3 WarningCenter => transform.position+AttackDirection*(hitShape==null?0:hitShape.Reach);
+        public float WarningRadius => hitShape==null?0:hitShape.Radius;
         private IEnemyBrain brain;
         private IEnemyMovement movement;
         private BasicActionRuntime runtime;
@@ -39,7 +47,7 @@ namespace Ossastra.Enemies
         public bool AttacksEnabled { get => attacksEnabled; set { attacksEnabled=value; if(!value) Cancel("development-attacks-disabled"); } }
         private void Awake()
         {
-            vitals=GetComponent<CombatVitals>(); melee=GetComponent<CombatMeleeHit>();
+            vitals=GetComponent<CombatVitals>(); melee=GetComponent<CombatMeleeHit>(); hitShape=GetComponent<CombatMeleeHit>();
             var chase=GetComponent<ChaseEnemyBrain>();
             brain=chase!=null&&chase.enabled?(IEnemyBrain)chase:GetComponent<StationaryEnemyBrain>();
             movement=GetComponent<EnemyMovement>();
@@ -74,6 +82,7 @@ namespace Ossastra.Enemies
                 {
                     target=selected; targetHealth=selected.Health; brain.OnAccepted(Time.time);
                     LastFact="Accepted #"+request.Fact.ActionId.ToString("N");
+                    warning.Accept(request.Fact.ActionId);
                     ActionObserved?.Invoke(request.Fact);
                 }
             }
@@ -81,6 +90,8 @@ namespace Ossastra.Enemies
             foreach(var fact in runtime.Advance(Time.deltaTime,false))
             {
                 LastFact=fact.Kind+" #"+fact.ActionId.ToString("N");
+                if(fact.Kind==ActionFactKind.Released)warning.Release(fact.ActionId);
+                if(fact.Kind==ActionFactKind.Finished || fact.Kind==ActionFactKind.Cancelled)warning.Clear(fact.ActionId);
                 ActionObserved?.Invoke(fact);
                 if(fact.Release!=null)
                 {
@@ -94,7 +105,8 @@ namespace Ossastra.Enemies
         public void Cancel(string reason)
         {
             var fact=runtime==null?null:runtime.Cancel(reason);
-            if(fact!=null) ActionObserved?.Invoke(fact);
+            if(fact!=null) { warning.Clear(fact.ActionId);
+                ActionObserved?.Invoke(fact); }
             if(fact!=null) LastFact="Cancelled "+reason+" #"+fact.ActionId.ToString("N");
             target=null; targetHealth=null;
             movement?.Stop();
@@ -122,4 +134,3 @@ namespace Ossastra.Enemies
         { Cancel("development-reset"); vitals.RestoreForDevelopment(); if(posture!=null) posture.ResetState(); brain.ResetDecision(Time.time); }
     }
 }
-

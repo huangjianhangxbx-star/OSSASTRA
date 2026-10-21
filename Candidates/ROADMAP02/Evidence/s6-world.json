@@ -1,0 +1,114 @@
+{
+  "state": "completed",
+  "failed": 0,
+  "records": [
+    {
+      "label": "accepted-tracking-0",
+      "pass": true,
+      "hp": 100,
+      "warning": true,
+      "visible": false,
+      "last": "Accepted #40f1c1d126be41a5847b61ce6cfe6266",
+      "hit": "未释放"
+    },
+    {
+      "label": "visible-real-warning",
+      "pass": true,
+      "hp": 80,
+      "warning": false,
+      "visible": false,
+      "last": "Finished #40f1c1d126be41a5847b61ce6cfe6266",
+      "hit": "enemy-stationary-01 → temporary-a 100→80 Applied #40f1c1d126be41a5847b61ce6cfe6266"
+    },
+    {
+      "label": "one-release-real-hit",
+      "pass": true,
+      "hp": 80,
+      "warning": false,
+      "visible": false,
+      "last": "Finished #40f1c1d126be41a5847b61ce6cfe6266",
+      "hit": "enemy-stationary-01 → temporary-a 100→80 Applied #40f1c1d126be41a5847b61ce6cfe6266"
+    },
+    {
+      "label": "accepted-tracking-1",
+      "pass": true,
+      "hp": 100,
+      "warning": true,
+      "visible": false,
+      "last": "Accepted #71d4361934f046ec85081e03504946eb",
+      "hit": "enemy-stationary-01 → temporary-a 100→80 Applied #40f1c1d126be41a5847b61ce6cfe6266"
+    },
+    {
+      "label": "visual-off-same-damage",
+      "pass": true,
+      "hp": 80,
+      "warning": false,
+      "visible": false,
+      "last": "Finished #71d4361934f046ec85081e03504946eb",
+      "hit": "enemy-stationary-01 → temporary-a 100→80 Applied #71d4361934f046ec85081e03504946eb"
+    },
+    {
+      "label": "accepted-tracking-2",
+      "pass": true,
+      "hp": 100,
+      "warning": true,
+      "visible": false,
+      "last": "Accepted #02277b9532104cc4beef7f36afafec7a",
+      "hit": "enemy-stationary-01 → temporary-a 100→80 Applied #71d4361934f046ec85081e03504946eb"
+    },
+    {
+      "label": "wall-cancel-no-hit",
+      "pass": true,
+      "hp": 100,
+      "warning": false,
+      "visible": false,
+      "last": "Cancelled target-dead-out-of-range-or-occluded-or-stale #02277b9532104cc4beef7f36afafec7a",
+      "hit": "enemy-stationary-01 → temporary-a 100→80 Applied #71d4361934f046ec85081e03504946eb"
+    },
+    {
+      "label": "accepted-tracking-3",
+      "pass": true,
+      "hp": 100,
+      "warning": true,
+      "visible": false,
+      "last": "Accepted #710fed57333d417fa23541d6fb26256e",
+      "hit": "enemy-stationary-01 → temporary-a 100→80 Applied #71d4361934f046ec85081e03504946eb"
+    },
+    {
+      "label": "pause-clears-snapshot",
+      "pass": true,
+      "hp": 100,
+      "warning": false,
+      "visible": true,
+      "last": "Cancelled enemy-paused #710fed57333d417fa23541d6fb26256e",
+      "hit": "enemy-stationary-01 → temporary-a 100→80 Applied #71d4361934f046ec85081e03504946eb"
+    },
+    {
+      "label": "pause-clears-renderer",
+      "pass": true,
+      "hp": 100,
+      "warning": false,
+      "visible": false,
+      "last": "Cancelled enemy-paused #710fed57333d417fa23541d6fb26256e",
+      "hit": "enemy-stationary-01 → temporary-a 100→80 Applied #71d4361934f046ec85081e03504946eb"
+    },
+    {
+      "label": "disable-clears",
+      "pass": true,
+      "hp": 100,
+      "warning": false,
+      "visible": false,
+      "last": "Cancelled enemy-paused #710fed57333d417fa23541d6fb26256e",
+      "hit": "enemy-stationary-01 → temporary-a 100→80 Applied #71d4361934f046ec85081e03504946eb"
+    },
+    {
+      "label": "reused-two-lines",
+      "pass": true,
+      "hp": 100,
+      "warning": false,
+      "visible": false,
+      "last": "Cancelled enemy-paused #710fed57333d417fa23541d6fb26256e",
+      "hit": "enemy-stationary-01 → temporary-a 100→80 Applied #71d4361934f046ec85081e03504946eb"
+    }
+  ]
+}

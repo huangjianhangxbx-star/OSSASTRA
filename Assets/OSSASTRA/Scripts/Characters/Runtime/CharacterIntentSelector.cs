@@ -71,4 +71,3 @@ namespace Ossastra.Characters
         private static bool Alive(object value) => value != null && (!(value is Object unityObject) || unityObject != null);
     }
 }
-
