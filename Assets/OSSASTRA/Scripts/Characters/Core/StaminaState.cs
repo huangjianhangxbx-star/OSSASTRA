@@ -32,5 +32,11 @@ namespace Ossastra.CharacterCore
             time=now;
         }
         public void Restore(){Current=Maximum;recoverAt=time+delay;}
+        /// <summary>连续举盾消耗不制造每帧动作token；余额耗尽立即返回false且不变负数。</summary>
+        public bool Drain(double amount,double now)
+        {
+            if(!BasicAttackDefinition.Finite(amount)||amount<0||!BasicAttackDefinition.Finite(now)||now<time)throw new ArgumentOutOfRangeException(nameof(amount));
+            Current=Math.Max(0,Current-amount);if(amount>0)recoverAt=now+delay;return Current>0;
+        }
     }
 }

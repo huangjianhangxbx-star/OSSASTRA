@@ -6828,6 +6828,10 @@ PrefabInstance:
       value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
+      propertyPath: offhandAction.m_SingletonActionBindings.Array.size
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
       propertyPath: dodgeAction.m_SingletonActionBindings.Array.data[0].m_Id
       value: 55e3c4f7-61bf-4fb1-a776-f5733d82566a
       objectReference: {fileID: 0}
@@ -6836,8 +6840,20 @@ PrefabInstance:
       value: <Keyboard>/leftShift
       objectReference: {fileID: 0}
     - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
+      propertyPath: offhandAction.m_SingletonActionBindings.Array.data[0].m_Id
+      value: 83dd57eb-1f42-47a9-b19b-8a41b7fbbc7e
+      objectReference: {fileID: 0}
+    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
       propertyPath: dodgeAction.m_SingletonActionBindings.Array.data[0].m_Action
       value: Dodge
+      objectReference: {fileID: 0}
+    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
+      propertyPath: offhandAction.m_SingletonActionBindings.Array.data[0].m_Path
+      value: <Mouse>/rightButton
+      objectReference: {fileID: 0}
+    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
+      propertyPath: offhandAction.m_SingletonActionBindings.Array.data[0].m_Action
+      value: Offhand
       objectReference: {fileID: 0}
     - target: {fileID: 8381968161879027868, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
       propertyPath: m_LocalPosition.x
@@ -6901,6 +6917,12 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 6821041145637747292, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1139401552}
+    - targetCorrespondingSourceObject: {fileID: 6821041145637747292, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1139401556}
+    - targetCorrespondingSourceObject: {fileID: 6821041145637747292, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1139401555}
   m_SourcePrefab: {fileID: 100100000, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
 --- !u!114 &721048150 stripped
 MonoBehaviour:
@@ -10128,6 +10150,36 @@ MonoBehaviour:
   recoveryDelay: 0.5
   recoveryRate: 20
   attackCost: 10
+--- !u!114 &1139401555
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1139401540}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d46815c1cf917cc469f0277c9bc3768f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  startCost: 8
+  holdCostPerSecond: 6
+  frontAngle: 120
+  postureScale: 0.5
+--- !u!114 &1139401556
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1139401540}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 60399d13707ff8a449f28ccaac243a36, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  initialOffhand: 1
+  initialDurability: 100
 --- !u!1 &1146589729
 GameObject:
   m_ObjectHideFlags: 0
@@ -16826,6 +16878,10 @@ PrefabInstance:
       value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
+      propertyPath: offhandAction.m_SingletonActionBindings.Array.size
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
       propertyPath: dodgeAction.m_SingletonActionBindings.Array.data[0].m_Id
       value: 0b1d6e75-755b-4914-8284-4f157c6f2fc0
       objectReference: {fileID: 0}
@@ -16834,8 +16890,20 @@ PrefabInstance:
       value: <Keyboard>/leftShift
       objectReference: {fileID: 0}
     - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
+      propertyPath: offhandAction.m_SingletonActionBindings.Array.data[0].m_Id
+      value: b1117bd1-1161-46b2-84fa-9392604ba747
+      objectReference: {fileID: 0}
+    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
       propertyPath: dodgeAction.m_SingletonActionBindings.Array.data[0].m_Action
       value: Dodge
+      objectReference: {fileID: 0}
+    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
+      propertyPath: offhandAction.m_SingletonActionBindings.Array.data[0].m_Path
+      value: <Mouse>/rightButton
+      objectReference: {fileID: 0}
+    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
+      propertyPath: offhandAction.m_SingletonActionBindings.Array.data[0].m_Action
+      value: Offhand
       objectReference: {fileID: 0}
     - target: {fileID: 8381968161879027868, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
       propertyPath: m_LocalPosition.x
@@ -16899,6 +16967,12 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 6821041145637747292, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
       insertIndex: -1
       addedObject: {fileID: 2593720448214277164}
+    - targetCorrespondingSourceObject: {fileID: 6821041145637747292, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 2593720448214277168}
+    - targetCorrespondingSourceObject: {fileID: 6821041145637747292, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 2593720448214277167}
   m_SourcePrefab: {fileID: 100100000, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
 --- !u!114 &2593720448214277151 stripped
 MonoBehaviour:
@@ -17029,6 +17103,36 @@ MonoBehaviour:
   recoveryDelay: 0.5
   recoveryRate: 20
   attackCost: 10
+--- !u!114 &2593720448214277167
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1414902145}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d46815c1cf917cc469f0277c9bc3768f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  startCost: 8
+  holdCostPerSecond: 6
+  frontAngle: 120
+  postureScale: 0.5
+--- !u!114 &2593720448214277168
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1414902145}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 60399d13707ff8a449f28ccaac243a36, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  initialOffhand: 1
+  initialDurability: 100
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

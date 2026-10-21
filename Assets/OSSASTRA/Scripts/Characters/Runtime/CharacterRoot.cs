@@ -31,6 +31,8 @@ namespace Ossastra.Characters
         private CompanionCombatBrain combatBrain;
         private CharacterStamina stamina;
         private CharacterDodge dodge;
+        private CharacterEquipment equipment;
+        private ShieldGuard guard;
         private CombatVitals autonomousTarget;
         private bool autonomousAction;
         public event Action<ActionFact> ActionObserved;
@@ -148,6 +150,8 @@ namespace Ossastra.Characters
             DataBus = new CharacterDataBus(actorId, inputSource, mover, orienter, runtime, authority);
             stamina=GetComponent<CharacterStamina>();if(stamina!=null)stamina.Initialize();
             dodge=GetComponent<CharacterDodge>();if(dodge!=null)dodge.Initialize(this,stamina);
+            equipment=GetComponent<CharacterEquipment>();if(equipment!=null)equipment.Initialize(this);
+            guard=GetComponent<ShieldGuard>();if(guard!=null)guard.Initialize(this,stamina,equipment);
             DataBus.BindResources(stamina,dodge);
             ready = InitializeSubsystems(DataBus, mover, presentation);
             if (!ready) { Debug.LogError("Character subsystem initialization failed", this); enabled = false; }
@@ -196,6 +200,7 @@ namespace Ossastra.Characters
                 if(frame.dodgePressed)dodge.Request(frame.move,input.HasPlayerInput);
             }
             // 4. 观察按键边沿，再由Runtime的暂停/权限/Ready资格决定是否接受动作。
+            guard?.Tick(frame.offhandHeld,input.HasPlayerInput,IsSimulationSuspended?0:Time.deltaTime);
             if (intent.Observe(frame.attackHeld) && focused && !frame.attackPointerBlocked)
             {
                 var stage=chain==null?1:chain.Request(runtime.SimulationTime,runtime.AttackReady,
@@ -233,7 +238,7 @@ namespace Ossastra.Characters
             dodge?.Tick(runtime.SimulationTime);
             canMove = focused && !IsPaused && DataBus.AllowsMovement && DataBus.MoveReady;
             mover.Tick(canMove, IsPaused || !focused ? 0 : Time.deltaTime);
-            stamina?.Tick(runtime.SimulationTime,!runtime.IsActive&&(dodge==null||!dodge.IsActive)&&CanSimulateIntent);
+            stamina?.Tick(runtime.SimulationTime,!runtime.IsActive&&(dodge==null||!dodge.IsActive)&&(guard==null||!guard.IsGuarding)&&CanSimulateIntent);
             // 7. 最后提交表现，Run读取已完成的实际位移。
             // 当前没有本体IK/骨骼后处理，故不虚设LateUpdate；Spine内部播放仍由插件驱动。
             CommitPresentation();
@@ -289,6 +294,7 @@ namespace Ossastra.Characters
         public void CancelAction(string reason)
         {
             dodge?.Cancel();
+            guard?.Cancel();
             animationGeneration++; autonomousAction=false; autonomousTarget=null; combatBrain?.ResetCandidate();
             chain?.Clear();
             // 取消必须具名；抑制仍按住的输入，不能把下一帧误判为新请求。
@@ -319,7 +325,7 @@ namespace Ossastra.Characters
             Died?.Invoke(this);
         }
 
-        public void SetPaused(bool value) { paused = value; if(value)dodge?.Cancel(); chain?.Clear(); intent.SuppressUntilRelease(); if (follow != null) follow.ResetIntent(); }
+        public void SetPaused(bool value) { paused = value; if(value){dodge?.Cancel();guard?.Cancel();} chain?.Clear(); intent.SuppressUntilRelease(); if (follow != null) follow.ResetIntent(); }
         public void SetAttackRestriction(object owner, bool restricted, string reason = "attack-restricted")
         {
             if (restricted) { authority.Block(owner, ControlChannel.Attack); CancelAction(reason); }

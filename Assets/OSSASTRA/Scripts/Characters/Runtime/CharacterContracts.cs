@@ -11,6 +11,8 @@ using System.Collections.Generic;
 
 namespace Ossastra.Characters
 {
+    /// <summary>副手未释放前的空闲资格；在途派生不占据主手动作时钟。</summary>
+    public interface ICharacterOffhandStatus { bool IsAccepting {get;} }
     /// <summary>本体体力只读视图；付款仅经本体资源模块，不在DataBus复制余额。</summary>
     public interface ICharacterStamina
     {

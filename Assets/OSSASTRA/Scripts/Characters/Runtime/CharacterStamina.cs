@@ -24,5 +24,6 @@ namespace Ossastra.Characters
         {var ok=isActiveAndEnabled&&state!=null&&state.TrySpend(token,amount,time);LastPayment=source+" #"+token.ToString("N")+(ok?" 已支付 ":" 拒绝 ")+amount;return ok;}
         public void Tick(double time,bool idle){state?.Tick(time,idle&&isActiveAndEnabled);}
         public void Restore(){state?.Restore();}
+        public bool Drain(double amount,double time)=>isActiveAndEnabled&&state!=null&&state.Drain(amount,time);
     }
 }

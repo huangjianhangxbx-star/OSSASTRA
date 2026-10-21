@@ -21,3 +21,6 @@
 - 新场新增能力均已保存。当前回归旧场Edit clean，测试虚拟设备与临时InputSettings已由夹具清理。资源/方向缺口不伪装通过。
 
 2026-10-21用户重启后恢复：prepare_editor操作d2d83875befd4617b392e8ff2f9b0a0b ready/Edit，journal_error=null。119保护项保持；真实输入设置与设备恢复。S10验证已收口，TECH_VERIFIED，允许按原计划接S11。
+
+## S11 gate（2026-10-21）
+独立左右手实例、空闲换装、方向盾防已实现。纯逻辑11项通过；真实RMB输入10项通过，含正面零HP/半架势、背面正常受伤、批次去重耐久、耗尽松键重武装、切人清理。证据 Candidates/ROADMAP03/Evidence/S11-world.json。仅新场装配RMB与装备，旧场未改。S12炸弹仍待实现，当前Bomb仅为装备占位。
