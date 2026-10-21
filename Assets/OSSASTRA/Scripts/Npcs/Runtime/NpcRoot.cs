@@ -13,11 +13,14 @@ namespace Ossastra.Npcs
         [SerializeField] private string npcId="npc-structure-sample";
         [SerializeField, Min(.1f)] private float interactionRange=2f;
         private NpcInteraction interaction;
+        private Ossastra.AnimationPresentation.IEntityPresentation presentation;
+        private void LateUpdate() { presentation?.Present(); }
         public string NpcId => npcId;
         public int InteractionCount => interaction==null?0:interaction.Count;
         public event Action<NpcReply> Replied;
         private void Awake()
         {
+            presentation=GetComponent<NpcSpineView>();
             try { interaction=new NpcInteraction(npcId,interactionRange); interaction.Replied+=OnReplied; }
             catch(ArgumentException error) { Debug.LogError("NPC configuration: "+error.Message,this); enabled=false; }
         }

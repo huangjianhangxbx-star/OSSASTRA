@@ -45,8 +45,13 @@ namespace Ossastra.Enemies
         public string LastHit => melee==null?"未初始化":melee.LastResult;
         public bool ActionActive => runtime!=null && runtime.IsActive;
         public bool AttacksEnabled { get => attacksEnabled; set { attacksEnabled=value; if(!value) Cancel("development-attacks-disabled"); } }
+        public int PresentationGeneration { get; private set; }
+        public bool IsSimulationSuspended => !focused || applicationPaused || paused;
+        private Ossastra.AnimationPresentation.IEntityPresentation presentation;
+        private void LateUpdate() { presentation?.Present(); }
         private void Awake()
         {
+            presentation=GetComponent<EnemySpineView>();
             vitals=GetComponent<CombatVitals>(); melee=GetComponent<CombatMeleeHit>(); hitShape=GetComponent<CombatMeleeHit>();
             var chase=GetComponent<ChaseEnemyBrain>();
             brain=chase!=null&&chase.enabled?(IEnemyBrain)chase:GetComponent<StationaryEnemyBrain>();
@@ -105,7 +110,7 @@ namespace Ossastra.Enemies
         public void Cancel(string reason)
         {
             var fact=runtime==null?null:runtime.Cancel(reason);
-            if(fact!=null) { warning.Clear(fact.ActionId);
+            if(fact!=null) { PresentationGeneration++; warning.Clear(fact.ActionId);
                 ActionObserved?.Invoke(fact); }
             if(fact!=null) LastFact="Cancelled "+reason+" #"+fact.ActionId.ToString("N");
             target=null; targetHealth=null;
@@ -131,6 +136,6 @@ namespace Ossastra.Enemies
             Cancel("destroyed");
         }
         public void RestoreForDevelopment()
-        { Cancel("development-reset"); vitals.RestoreForDevelopment(); if(posture!=null) posture.ResetState(); brain.ResetDecision(Time.time); }
+        { PresentationGeneration++; Cancel("development-reset"); vitals.RestoreForDevelopment(); if(posture!=null) posture.ResetState(); brain.ResetDecision(Time.time); }
     }
 }

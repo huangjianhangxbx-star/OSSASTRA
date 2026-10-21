@@ -13,3 +13,7 @@ S5受影响旧ROADMAP01两段真实场14/14通过；新场保存回开；保护7
 
 ## S6
 纯语义结构RED后8/8通过；真实世界12/12：Accepted可视、关闭视图同伤害20、墙取消、暂停/禁用清除、两个LineRenderer复用。只读根快照，不增加时钟。
+
+## S7
+纯播放身份/回退10/10；真实Spine世界11/11，Idle去重、攻击/受击/硬直/死亡映射、死亡不反复重播、恢复、NPC真实交互、碰撞保留及胶囊隐藏。首次夹具NpcReply.Accepted大小写错误，修正为实际accepted后运行。技术PASS；正式敌美术ASSET_BLOCKED，见assets。
+新场玩家两段真实InputSystem/Root/Physics14/14，第二段实际atk2无fallback；保存回开通过。

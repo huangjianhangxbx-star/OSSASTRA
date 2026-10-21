@@ -1,0 +1,94 @@
+{
+  "state": "completed",
+  "failed": 0,
+  "records": [
+    {
+      "label": "real-spine-idle",
+      "pass": true,
+      "semantic": "Idle",
+      "clip": "idle1_1",
+      "commits": 110,
+      "fallback": ""
+    },
+    {
+      "label": "npc-independent-spine",
+      "pass": true,
+      "semantic": "Idle",
+      "clip": "idle1_1",
+      "commits": 110,
+      "fallback": ""
+    },
+    {
+      "label": "capsule-hidden-physics-retained",
+      "pass": true,
+      "semantic": "Idle",
+      "clip": "idle1_1",
+      "commits": 110,
+      "fallback": ""
+    },
+    {
+      "label": "idle-no-repeated-commit",
+      "pass": true,
+      "semantic": "Idle",
+      "clip": "idle1_1",
+      "commits": 110,
+      "fallback": ""
+    },
+    {
+      "label": "attack-mapped-real",
+      "pass": true,
+      "semantic": "BasicAttack",
+      "clip": "atk1",
+      "commits": 113,
+      "fallback": ""
+    },
+    {
+      "label": "hit-mapped",
+      "pass": true,
+      "semantic": "HitReaction",
+      "clip": "upper_hitted",
+      "commits": 115,
+      "fallback": ""
+    },
+    {
+      "label": "break-mapped",
+      "pass": true,
+      "semantic": "PostureBroken",
+      "clip": "dizzy_loop",
+      "commits": 117,
+      "fallback": ""
+    },
+    {
+      "label": "death-mapped-and-hidden",
+      "pass": true,
+      "semantic": "Death",
+      "clip": "death",
+      "commits": 118,
+      "fallback": ""
+    },
+    {
+      "label": "death-no-replay-loop",
+      "pass": true,
+      "semantic": "Death",
+      "clip": "death",
+      "commits": 118,
+      "fallback": ""
+    },
+    {
+      "label": "restore-new-generation-idle",
+      "pass": true,
+      "semantic": "Idle",
+      "clip": "idle1_1",
+      "commits": 119,
+      "fallback": ""
+    },
+    {
+      "label": "npc-real-interaction",
+      "pass": true,
+      "semantic": "Idle",
+      "clip": "idle1_1",
+      "commits": 119,
+      "fallback": ""
+    }
+  ]
+}
