@@ -11,6 +11,27 @@ using System.Collections.Generic;
 
 namespace Ossastra.Characters
 {
+    public enum CharacterActionKind { Main, Dodge, Guard, Offhand }
+    public enum CharacterActionSource { Player, Companion, UserInterface }
+    /// <summary>请求携带角色/生命/控制代际和请求身份；动作身份由原执行端接受时产生。</summary>
+    public readonly struct CharacterActionRequest
+    {
+        public readonly string ActorId,SourceLabel;
+        public readonly int LifeGeneration,ControlRevision;
+        public readonly CharacterActionKind Kind;
+        public readonly CharacterActionSource Source;
+        public readonly System.Guid RequestId;
+        public CharacterActionRequest(string actorId,int lifeGeneration,int controlRevision,CharacterActionKind kind,CharacterActionSource source,System.Guid requestId,string sourceLabel=null)
+        {ActorId=actorId;LifeGeneration=lifeGeneration;ControlRevision=controlRevision;Kind=kind;Source=source;RequestId=requestId;SourceLabel=sourceLabel;}
+    }
+    /// <summary>本体统一接受入口：先完整校验，再调用执行端口并按真实动作身份付款。</summary>
+    public interface ICharacterActionCoordinator
+    {
+        string LastResult {get;}
+        CharacterActionRequest CreateRequest(CharacterActionKind kind,CharacterActionSource source,string sourceLabel=null);
+        bool CanAccept(CharacterActionRequest request,float cost,out string reason);
+        bool TryCommit(CharacterActionRequest request,float cost,System.Func<System.Guid> accept,out string reason);
+    }
     /// <summary>副手未释放前的空闲资格；在途派生不占据主手动作时钟。</summary>
     public interface ICharacterOffhandStatus { bool IsAccepting {get;} }
     /// <summary>本体体力只读视图；付款仅经本体资源模块，不在DataBus复制余额。</summary>

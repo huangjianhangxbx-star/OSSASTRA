@@ -1,0 +1,33 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": [
+      {
+        "kind": "actor",
+        "ok": true,
+        "reason": "stale-life/actor"
+      },
+      {
+        "kind": "life",
+        "ok": true,
+        "reason": "stale-life/actor"
+      },
+      {
+        "kind": "control",
+        "ok": true,
+        "reason": "stale-control"
+      },
+      {
+        "kind": "source",
+        "ok": true,
+        "reason": "source-authority"
+      }
+    ]
+  }
+}

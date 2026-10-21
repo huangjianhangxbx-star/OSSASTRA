@@ -35,8 +35,9 @@ namespace Ossastra.Characters
             if(guarding)
             {if(!stamina.Drain(holdCostPerSecond*delta,owner.SimulationTime)){Cancel();LastResult="体力耗尽，需松键";}return;}
             if(!armed)return;armed=false;
-            if(stamina.Spend(Guid.NewGuid(),startCost,owner.SimulationTime,"guard-start")){guarding=true;LastResult="举盾 SAMPLE";}
-            else LastResult="体力不足";
+            var request=owner.Actions.CreateRequest(CharacterActionKind.Guard,CharacterActionSource.Player);
+            if(owner.Actions.TryCommit(request,startCost,()=>{guarding=true;return request.RequestId;},out var reason))LastResult="举盾 SAMPLE";
+            else LastResult="拒绝："+reason;
         }
         public void OnGuarded(HitOutcome outcome)
         {if(IsGuarding&&outcome.TargetId==owner.ActorId&&equipment.State.Wear(outcome.ActionId)){LastResult="Guarded #"+outcome.ActionId.ToString("N");if(equipment.State.Durability==0)Cancel();}}

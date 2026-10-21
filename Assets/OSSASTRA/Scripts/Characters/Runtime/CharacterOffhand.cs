@@ -48,8 +48,9 @@ namespace Ossastra.Characters
             p=floor[0].point;
             if(!ClearPath(owner.transform.position,p))return Reject("落点被墙遮挡");
             if(stamina==null||!stamina.CanSpend(20))return Reject("体力不足");
-            var id=Guid.NewGuid();if(!state.TryAccept(id,gear.State.LeftInstanceId,owner.LifeGeneration))return Reject("副手拒绝请求");
-            if(!stamina.Spend(id,20,owner.SimulationTime,"offhand-bomb")){state.CancelPending();throw new InvalidOperationException("Accepted offhand payment failed");}
+            var request=owner.Actions.CreateRequest(CharacterActionKind.Offhand,CharacterActionSource.Player);
+            var id=request.RequestId;
+            if(!owner.Actions.TryCommit(request,20,()=>state.TryAccept(id,gear.State.LeftInstanceId,owner.LifeGeneration)?id:Guid.Empty,out var reason))return Reject(reason);
             origin=owner.transform.position;landing=p;FrozenEquipmentId=state.EquipmentId;LastActionId=id;AcceptedCount++;LastResult="Accepted 炸弹 SAMPLE";return true;
         }
         private bool Reject(string reason){LastResult="拒绝："+reason;return false;}

@@ -22,6 +22,7 @@ namespace Ossastra.Characters
 
         public CharacterIntentSelector(CharacterRoot character, ICharacterInputSource player)
         { this.character=character; this.player=player; }
+        public int ControlRevision => Alive(session)?session.ControlRevision:0;
         public bool IsConfigured => player != null && player.IsConfigured;
         private bool ValidSample => sampledFrame == Time.frameCount && character != null && character.IsAlive && character.isActiveAndEnabled &&
             (!managed || (Alive(session) && session.IsIntentSamplingAllowed && session.ControlRevision == sampledRevision)) &&

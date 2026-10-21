@@ -1,0 +1,86 @@
+{
+  "state": "completed",
+  "failed": 0,
+  "rows": [
+    {
+      "name": "RMB raises shield and pays",
+      "ok": true,
+      "guard": true,
+      "stamina": 90.20467999903485,
+      "hp": 100,
+      "durability": 100
+    },
+    {
+      "name": "front guard zero HP",
+      "ok": true,
+      "guard": true,
+      "stamina": 90.20467999903485,
+      "hp": 100,
+      "durability": 99
+    },
+    {
+      "name": "half posture and one durability",
+      "ok": true,
+      "guard": true,
+      "stamina": 90.20467999903485,
+      "hp": 100,
+      "durability": 99
+    },
+    {
+      "name": "release cannot repeat",
+      "ok": true,
+      "guard": true,
+      "stamina": 90.20467999903485,
+      "hp": 100,
+      "durability": 99
+    },
+    {
+      "name": "back bypasses shield",
+      "ok": true,
+      "guard": true,
+      "stamina": 90.20467999903485,
+      "hp": 90,
+      "durability": 99
+    },
+    {
+      "name": "exhaust lowers shield",
+      "ok": true,
+      "guard": false,
+      "stamina": 0.0,
+      "hp": 90,
+      "durability": 99
+    },
+    {
+      "name": "held cannot restart",
+      "ok": true,
+      "guard": false,
+      "stamina": 100.0,
+      "hp": 90,
+      "durability": 99
+    },
+    {
+      "name": "release repress rearms",
+      "ok": true,
+      "guard": true,
+      "stamina": 90.8121589999646,
+      "hp": 90,
+      "durability": 99
+    },
+    {
+      "name": "switch clears old guard",
+      "ok": true,
+      "guard": false,
+      "stamina": 90.8121589999646,
+      "hp": 90,
+      "durability": 99
+    },
+    {
+      "name": "held not inherited",
+      "ok": true,
+      "guard": false,
+      "stamina": 90.8121589999646,
+      "hp": 90,
+      "durability": 99
+    }
+  ]
+}

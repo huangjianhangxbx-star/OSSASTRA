@@ -1,6 +1,6 @@
 /*
  * 脚本：CharacterRoot
- * 功能：组织单角色的接口接线、输入、动作事实、运动和表现。
+ * 功能：组织单角色接口接线和显式推进；动作接受/费用由本体协调器统一。
  * 边界：持有本角色运行时；只读生命资格，不实现HP写入、设备绑定或开发GUI。
  * 协作：初始化可选本体Follow/Posture；显式按输入、架势、朝向、动作、运动、表现推进。
  */
@@ -69,6 +69,9 @@ namespace Ossastra.Characters
         public int LifeGeneration => lifeGeneration;
         public bool IsSimulationSuspended => !focused || IsPaused;
         public CharacterDataBus DataBus { get; private set; }
+        public ICharacterActionCoordinator Actions {get;private set;}
+        public int ActionControlRevision=>intentSelector==null?0:intentSelector.ControlRevision;
+        public bool HasPlayerInput=>input!=null&&input.HasPlayerInput;
         public string ActorId => actorId;
         public string LastFact => lastFact;
         public string LastActionSource { get; private set; } = "none";
@@ -155,6 +158,7 @@ namespace Ossastra.Characters
             guard=GetComponent<ShieldGuard>();if(guard!=null)guard.Initialize(this,stamina,equipment);
             DataBus.BindResources(stamina,dodge);
             offhand=GetComponent<CharacterOffhand>(); offhand?.Initialize(this,equipment,stamina);
+            Actions=new CharacterActionCoordinator(this,stamina,dodge,offhand);
             ready = InitializeSubsystems(DataBus, mover, presentation);
             if (!ready) { Debug.LogError("Character subsystem initialization failed", this); enabled = false; }
             // 可选能力只接受本角色初始化；无组件/无assignment的旧场保持普通玩家行为。
@@ -282,16 +286,18 @@ namespace Ossastra.Characters
         }
         private void RequestStage(int stage, CombatVitals aiTarget = null)
         {
-            if((dodge!=null&&dodge.IsActive)||(stamina!=null&&!stamina.CanSpend(stamina.AttackCost)))
-            {lastFact="Rejected: dodge-active/stamina";return;}
             var selected=stage==2?secondDefinition:definition;
-            var request=runtime.Request(selected,aiTarget==null?"player-input:Stage"+stage:"companion:Stage1",authority,IsPaused);
-            if(request.PreviousTerminal!=null) Observe(request.PreviousTerminal);
+            var signature=Actions.CreateRequest(CharacterActionKind.Main,aiTarget==null?CharacterActionSource.Player:CharacterActionSource.Companion,aiTarget==null?"player-input:Stage"+stage:"companion:Stage1");
+            ActionRequestResult request=null;
+            var accepted=Actions.TryCommit(signature,stamina==null?0:stamina.AttackCost,()=>
+            {
+                request=runtime.Request(selected,aiTarget==null?"player-input:Stage"+stage:"companion:Stage1",authority,IsPaused);
+                return request.Accepted?request.Fact.ActionId:Guid.Empty;
+            },out var rejection);
+            if(!accepted){lastFact="Rejected: "+rejection;return;}
+            if(request.PreviousTerminal!=null)Observe(request.PreviousTerminal);
             if(request.Accepted)
             {
-                // 同步核准后才能付款；Request没有外部回调，余额不会在检查和此处之间被异步改写。
-                if(stamina!=null&&!stamina.Spend(request.Fact.ActionId,stamina.AttackCost,runtime.SimulationTime,request.Fact.Source))
-                {runtime.Cancel("stamina-acceptance-conflict");throw new InvalidOperationException("Accepted attack payment failed");}
                 AttackStage=stage; autonomousAction=aiTarget!=null; autonomousTarget=aiTarget;
                 if(autonomousAction) { chain?.Clear(); combatBrain.OnAccepted(); orienter.OrientTowards(aiTarget.transform.position); }
                 else chain?.Accepted(stage,request.Fact.ActionId,runtime.SimulationTime,selected.AttackReadyAt);

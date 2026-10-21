@@ -22,3 +22,8 @@
 - Spine实际资源Assets/随便尝试/rozeul_SkeletonData.asset，目录已从运行库读取；尚未把名称等同实播用途。
 - ChatGPT链接登录墙，不可读取新增正文。
 - Skill：writing-plans、brainstorming、diagnosing-bugs、TDD、项目记忆和Funplay MCP已读；UGUI用于后续界面迁移。未安装的superpowers子技能不冒称使用，采用本任务G门顺序执行。
+
+## G1 当前已验证增量
+CharacterActionCoordinator成为普攻/闪避/盾起手/投弹的最终接受与付款入口，Root组织初始化，窄接口集中CharacterContracts。每请求有Actor/生命/控制代际、来源、请求身份；原执行端保留动作身份/状态/CD。维护Trace SourceLabel以便区分玩家Stage与伙伴来源。
+接受账本纯4；实际错误Actor/生命/控制/来源4项拒绝无副作用；持续移动后Shift18、盾10、主副手投弹13、资源与伙伴收费/返场18通过。恢复移动主轨修复纯4/真实3通过。拒绝不调用提交端口、不付款、不清现有动作。没有把虚拟输入通过写成真人键盘已验收。
+本阶段仍有配置化连段/技能加入后的再验证；G2—G6尚未完成。临时能力的重复早期依赖检查保留为防御，但接受/付款最终均走同一端口；无新Update/Move/Health权威。

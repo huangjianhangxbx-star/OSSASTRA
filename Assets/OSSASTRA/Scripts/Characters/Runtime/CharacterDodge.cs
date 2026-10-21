@@ -30,10 +30,12 @@ namespace Ossastra.Characters
             {LastResult="拒绝：控制/动作/体力资格";return false;}
             direction=move.sqrMagnitude>.0001f?new Vector3(move.x,0,move.y).normalized:owner.DataBus.AttackDirection;
             direction.y=0;if(direction.sqrMagnitude<.0001f){LastResult="无可靠方向";return false;}
-            direction.Normalize();var token=Guid.NewGuid();
-            if(!stamina.Spend(token,cost,owner.SimulationTime,"dodge"))return false;
-            if(!state.TryStart(owner.SimulationTime))throw new InvalidOperationException("Validated dodge acceptance failed");
-            ActionId=token;LastResult="Accepted SAMPLE，未配置专用动画";return true;
+            direction.Normalize();
+            var request=owner.Actions.CreateRequest(CharacterActionKind.Dodge,CharacterActionSource.Player);
+            if(!owner.Actions.TryCommit(request,cost,()=>state.TryStart(owner.SimulationTime)?request.RequestId:Guid.Empty,out var reason))
+            {LastResult="拒绝："+reason;return false;}
+            ActionId=request.RequestId;
+            LastResult="Accepted SAMPLE，未配置专用动画";return true;
         }
         public void Tick(double time){state?.Tick(time);}
         public void Cancel(){state?.Cancel();}
