@@ -66,6 +66,7 @@ namespace Ossastra.Characters
         public CharacterDataBus DataBus { get; private set; }
         public string ActorId => actorId;
         public string LastFact => lastFact;
+        public string LastActionSource { get; private set; } = "none";
         public bool IsPaused => paused || applicationPaused;
         public bool ActionActive => DataBus != null && DataBus.ActionActive;
         public bool IsAlive => lifeState==null || lifeState.IsAlive;
@@ -167,7 +168,7 @@ namespace Ossastra.Characters
             // 本体显式调度入口：以下阶段在一次Update中按书写顺序执行。
             // DefaultExecutionOrder只约束跨组件先后，不能替代这里的模块调用顺序。
             // 1. 采唯一意图源并处理暂停/取消；不由各子模块另开输入Update。
-            // 选择器只采一个源；伙伴只能提供移动，切人屏障为空帧，动作时钟仍继续。
+            // 选择器只采一个移动源；战斗能力另交窄动作候选，切人屏障为空帧，动作时钟仍继续。
             combatBrain?.Sample(runtime.SimulationTime, Time.deltaTime);
             inputSource.Read();
             var frame = DataBus.Input;
@@ -243,6 +244,7 @@ namespace Ossastra.Characters
 
         private void Observe(ActionFact fact)
         {
+            LastActionSource=fact.Source;
             lastFact = fact.Kind + " @" + fact.At.ToString("F3") + " " + fact.ActionId.ToString("N").Substring(0, 8);
             if (fact.Reason != null) lastFact += " " + fact.Reason;
             if (verboseTrace) Debug.Log("Character " + lastFact, this);

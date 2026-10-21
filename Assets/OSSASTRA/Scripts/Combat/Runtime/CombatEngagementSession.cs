@@ -26,6 +26,9 @@ namespace Ossastra.Combat
         private void OnEnable()
         {
             if (coordinator == null) return;
+            // 同一控制会话只能有一个资格观察者；重复配置显式拒绝，不争夺Current。
+            if (FindObjectsOfType<CombatEngagementSession>().Any(other => other != this && other.isActiveAndEnabled && other.coordinator == coordinator))
+            { enabled=false; return; }
             foreach (var c in coordinator.Characters) if(c != null) c.ActionObserved += OnFact;
             foreach (var e in enemies) if(e != null) e.ActionObserved += OnFact;
         }
@@ -50,4 +53,3 @@ namespace Ossastra.Combat
         }
     }
 }
-

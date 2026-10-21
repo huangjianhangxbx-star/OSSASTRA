@@ -1,0 +1,17 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [
+      {
+        "Level": "info",
+        "Message": "{\r\n  \"scene\": \"Assets/OSSASTRA/M02A/SC_M02A_DualControl.unity\",\r\n  \"failed\": 0,\r\n  \"records\": [\r\n    {\r\n      \"label\": \"original-root-input-and-neutral-hit-wiring\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"label\": \"actor-temporary-a-real-physical-hit-and-once\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"label\": \"actor-temporary-b-real-physical-hit-and-once\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"label\": \"original-session-switch-owner-and-clear\",\r\n      \"pass\": true\r\n    },\r\n    {\r\n      \"label\": \"missing-scripts-zero\",\r\n      \"pass\": true\r\n    }\r\n  ]\r\n}"
+      }
+    ],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": null
+  }
+}

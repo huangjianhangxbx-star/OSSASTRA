@@ -11,6 +11,6 @@ namespace Ossastra.Npcs
         [SerializeField] private EntitySpinePresenter presenter;
         private NpcRoot root;
         private void Awake(){root=GetComponent<NpcRoot>();}
-        public void Present(){if(root!=null&&presenter!=null)presenter.Present(new Ossastra.AnimationCore.AnimationIntent(root.NpcId,AnimationSemantic.Idle,"npc-idle",Guid.Empty,0),1,false);}
+        public void Present(){if(isActiveAndEnabled&&root!=null&&presenter!=null)presenter.Present(new Ossastra.AnimationCore.AnimationIntent(root.NpcId,AnimationSemantic.Idle,"npc-idle",Guid.Empty,0),1,false);}
     }
 }

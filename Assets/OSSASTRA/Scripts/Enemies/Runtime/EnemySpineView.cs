@@ -16,7 +16,7 @@ namespace Ossastra.Enemies
         private void Awake(){root=GetComponent<EnemyRoot>();movement=GetComponent<EnemyMovement>();posture=GetComponent<CombatPosture>();}
         public void Present()
         {
-            if(root==null||root.Vitals==null||presenter==null)return;
+            if(!isActiveAndEnabled||root==null||root.Vitals==null||presenter==null)return;
             var velocity=movement==null?Vector3.zero:movement.Velocity;
             var direction=root.ActionActive?root.AttackDirection:velocity;
             if(Mathf.Abs(direction.x)>.01f)facing=Mathf.Sign(direction.x);

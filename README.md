@@ -1,13 +1,14 @@
 # OSSASTRA
 
-最新候选：**ROADMAP01：场景内返场、动画路由、两段手动普攻、有限敌人追击**。技术Gate通过，等待用户集中代码/架构和手感审查。
+最新候选：**ROADMAP02：双人自主交战、敌方前摇预警、独立二维适配与综合战斗场**。
 
-入口：[集中审查](docs/ossastra/ROADMAP01-review.md)、[全部变化源码](docs/ossastra/ROADMAP01-source-review.md)、[真实验证](docs/ossastra/ROADMAP01-verification.md)、[发布记录](docs/ossastra/ROADMAP01-publication.md)。
+入口：[集中审查](docs/ossastra/ROADMAP02-review.md)、[15份完整变化源码](docs/ossastra/ROADMAP02-source-review.md)、[验证](docs/ossastra/ROADMAP02-verification.md)、[发布](docs/ossastra/ROADMAP02-publication.md)。
 
-本机打开 `Assets/OSSASTRA/ROADMAP01/SC_ROADMAP01_CombatLoop.unity` 后 Play。WASD移动、Tab切人、左键独立请求每段普攻；第一段命中后，在合法接续窗口再按可出第二段，长按不自动续段。非实控仅跟随。死亡退场并按场内SAMPLE计时安全返场。红胶囊敌人可感知、追击、停距攻击、受阻和归位。开发面板读取生命/姿态/返场时刻/段数/动画/敌动，不代表正式游戏UI。
+本机打开 `Assets/OSSASTRA/ROADMAP02/SC_ROADMAP02_TeamCombat.unity` 后 Play。WASD移动、Tab切人、左键每段普攻。非实控角色在真实攻击Accepted建立交战后有限接敌并自动Stage1；玩家接管即停止AI新请求。敌人红色地面线圈是当前追踪方向的预计范围，不是锁定落点。原生命/架势/死亡交接与计时返场继续生效。
 
-正式2D敌人、专用第二段/受击动画、完整死亡世界规则、正式多职业技能与复杂AI均未迁移。仓库不是可直接运行的完整商用依赖包，见下方克隆限制。只GitHub，不同步Gitee。
+S5/S6/S8技术PASS；S7技术PASS，**正式敌美术ASSET_BLOCKED**。新场玩家实际映射atk2/受击/硬直；敌和NPC使用已有本地Spine测试替身，不是正式职业或敌人素材迁移。开发UI不是正式HUD。人工手感和架构仍待审查；媒体/商业依赖不公开，干净克隆不保证直接运行。只GitHub，不同步Gitee。
 
+ROADMAP01旧场与交接仍可用于回归：[记录](docs/ossastra/ROADMAP01-review.md)。
 ## 历史阶段（供回归）
 最新候选：**M02-B2 共享架势、破势与硬直**。技术定向验证通过，等待用户集中代码/架构及手感审查。
 
@@ -38,3 +39,8 @@
 ## 克隆限制
 
 仓库发布自有源码、测试和场景引用快照，不是完整本机工程备份。未发布商用Spine运行库、用户Spine媒体、target 1模型、Packages清单及全局渲染设置，干净克隆不能保证直接运行。依赖见[DEPENDENCIES](DEPENDENCIES.md)，中文规范见[代码规范](docs/ossastra/代码规范.md)。仅同步GitHub，不同步Gitee。
+
+## ROADMAP02 最新技术候选
+独立试玩场：`Assets/OSSASTRA/ROADMAP02/SC_ROADMAP02_TeamCombat.unity`。
+伙伴有限Stage1自主普攻、敌方追踪预警、独立二维呈现、原两段攻击/死亡切控/安全返场。S5/S6/S8技术PASS；S7技术PASS，正式敌美术ASSET_BLOCKED（本地现有Spine替身）。
+阅读 [审查](docs/ossastra/ROADMAP02-review.md)、[验证](docs/ossastra/ROADMAP02-verification.md)、[发布](docs/ossastra/ROADMAP02-publication.md)。媒体/插件不公开，干净克隆不保证直接运行；手感与架构待用户审查。

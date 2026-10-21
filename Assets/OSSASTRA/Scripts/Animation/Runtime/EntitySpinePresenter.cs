@@ -25,7 +25,7 @@ namespace Ossastra.AnimationPresentation
         public int CommitCount {get;private set;}
         public void Present(SemanticIntent intent,float facing,bool paused)
         {
-            if(skeleton==null || skeleton.skeletonDataAsset==null)return;
+            if(!isActiveAndEnabled || skeleton==null || skeleton.skeletonDataAsset==null)return;
             if(!initialized)
             {
                 skeleton.Initialize(false);if(skeleton.Skeleton==null)return;
