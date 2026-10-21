@@ -488,6 +488,8 @@ T7A3独立RendererFeature/密度场/最多2个AtmosphereLight/8-16步积分/Dept
 
 ## 2026-10-21 ROADMAP01 收口
 四阶段实现已推送：cc07189 / 6adef5d / a70973d / e824e3d；集中入口docs/ossastra/ROADMAP01-review.md。保存的综合场Assets/OSSASTRA/ROADMAP01/SC_ROADMAP01_CombatLoop.unity包含场景返场、可选两段、语义动画、独立有限敌动及NPC。各阶段技术Gate通过；旧场/Prefab保护74项无变化，旧asmdef/meta删除保持用户现场。Unity Edit clean；全租约释放。用户集中审查未进行，正式媒体/完整旧系统未迁移，不追加下一阶段。
+> 2026-10-22装备约束：副手能力/短按长按由SO与映射决定；投掷来源和投递方式分离；正式装备为独立Spine模型+SO骨骼/插槽跟随+语义动画联动。当前盾防/炸弹/Sprite为过渡，未完成通用化；见OSSASTRA_RULES R29-R32及tasks/2026-10-22-equipment-boundaries.md。
+
 
 ## ROADMAP02 收口
 2026-10-21 ROADMAP02 CANDIDATE_PUBLISHED/complete/read-only：S5 35b9a5a / S6 1f53cc8 / S7技术03bee68 / S8 bf0ff977d3df65bd1131c65207fab8fcb3405422均GitHub main远端核对。新场SC_ROADMAP02_TeamCombat Edit ready/clean；Missing0/Probe0/测试设备0/原InputSettings/预警材质0，76保护SHA不变。S5纯10世界11边界8；S6纯8世界12；S7纯10世界11新场连段14；S8自然12保存回开再12、边界2；旧B2 22/R1 19/M01定向3/M02A定向5/核心29。15份源码行号SHA公开。S7正式敌美术ASSET_BLOCKED，本地Spine测试替身；人工手感和架构待审，未迁完整职业/技能/敌人。旧禁编两删除保留不提交；无Gitee/商业媒体。全部Unity/源码/文档/发布租约释放，停止ROADMAP02。

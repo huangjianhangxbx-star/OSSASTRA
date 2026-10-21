@@ -923,3 +923,5 @@ active/unity-writer；用户明确要求一轮修整：共享脚本去M01标签�
 2026-10-22 VC01-HUD-view complete/released：确认QHD在1×预览裁切，缩放0.532×显示完整；场景/角色不修改。
 
 2026-10-22 VC01-FIX02 complete/released：空挥20纯契约+9实际输入、命中9回归、敌方HP12通过；Unity写入结束，dirty现场保留，GitHub定向发布。
+
+2026-10-22 equipment-boundaries complete/released：仅用户装备能力/Spine表现约束与源码核查，详见任务；不操作Unity/玩法。
