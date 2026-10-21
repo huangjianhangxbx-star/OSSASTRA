@@ -5,11 +5,24 @@
  * 协作：Inspector仍保存具体组件；Root运行时按接口连接，只有必要模块接受Bus初始化。
  */
 using Ossastra.CharacterCore;
+using Ossastra.Combat;
 using UnityEngine;
 using System.Collections.Generic;
 
 namespace Ossastra.Characters
 {
+    /// <summary>伙伴战斗策略提供移动候选；选择器与Root保留有效输入及实际运动执行权。</summary>
+    public interface ICompanionMoveCandidate
+    {
+        bool TryGetCombatMove(out Vector2 move);
+    }
+    /// <summary>伙伴战斗策略提供攻击目标候选；Root决定是否受理并执行动作。</summary>
+    public interface ICompanionActionCandidate
+    {
+        bool TryGetAttackTarget(out CombatVitals target);
+        /// <summary>Root受理当前候选后通知策略开始冷却；候选本身不启动动作。</summary>
+        void OnAccepted();
+    }
     /// <summary>队伍只分配合法目标；角色能力自行计算移动，不从此契约取得方向或策略状态。</summary>
     public interface ICharacterFollowTargetSource
     {

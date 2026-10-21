@@ -1,6 +1,7 @@
 /* 本体可选伙伴战斗能力：Root每帧显式Sample，输出有限移动和一次Stage1候选。
  * 不读InputAction、不Advance动作、不扣HP、不移动Transform；切控代际屏障撤销旧候选。
  * 冷却仅在Accepted后开始；受阻退回Follow。只使用明确场景成员，拒绝重复身份。
+ * 协作契约集中声明于CharacterContracts，本文件仅实现候选生成与受理反馈。
  */
 using System.Linq;
 using Ossastra.CharacterCore;
@@ -8,8 +9,6 @@ using Ossastra.Combat;
 using UnityEngine;
 namespace Ossastra.Characters
 {
-    public interface ICompanionMoveCandidate { bool TryGetCombatMove(out Vector2 move); }
-    public interface ICompanionActionCandidate { bool TryGetAttackTarget(out CombatVitals target); void OnAccepted(); }
     [DisallowMultipleComponent]
     public sealed class CompanionCombatBrain : MonoBehaviour, ICompanionMoveCandidate, ICompanionActionCandidate
     {
