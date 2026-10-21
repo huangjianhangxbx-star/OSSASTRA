@@ -48,3 +48,4 @@ CombatFeedbackView只消费ActionObserved释放、Melee命中收据、盾挡收�
 6. UI/CharacterHudContracts → Adapter → View/HudSkinSO：固定身份快照、正式命令、原型素材布局；CombatFeedbackView只读事实。
 
 停止在VC01候选集中试玩与架构审查，不自动开始VC02背包/商人、VC03旅行或完整职业库。审美、物理键鼠手感、扬声器听感和用户架构接受不由自动测试代签。
+2026-10-22修正：普通普攻默认允许空挥接段（SO可选命中要求）；敌方HP视图按冻结原型66×8像素头顶条呈现，只读敌方原Vitals，详情见verification的FIX02。

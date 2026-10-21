@@ -44,3 +44,9 @@
 - V21/26/27/28：三档原位素材，E1独立EnemyRoot，119项保护检查，定向旧入口与源码阅读地图。审美、听感、架构接受留给用户。
 
 本轮未做：干净克隆运行/Player构建、完整背包/商人/旅行/成长、全职业库或全部动画的使用、跨平台字体适配。当前Windows动态字体与本机商业媒体依赖见DEPENDENCIES及local-media-manifest。GitHub只发布自有代码/配置/meta/新生成盾图与文字证据；其余媒体本地保留，不同步Gitee。用户原有两项旧禁编asmdef删除不纳入提交。
+## 2026-10-22 FIX02 试玩修正
+- 普攻接段：角色SO新增requireHitForContinuation，默认false，窗口内空挥可主动接完四段；仍需新的按键边沿、合法动作权限、体力与原AttackReady，不自动连打、不跳过后摇权限。旧BasicChainProfile的默认命中接段规则不变。
+- 原型敌方HP：对照冻结c21的enemy-health-bars.ts与core/enemy-health.ts，补齐66×8屏幕像素、1px米色边/黑底/红色HP的只读头顶血条。存活且屏幕内显示，死亡/根禁用/屏幕外隐藏，无GraphicRaycaster、无raycastTarget。当前没有迷雾系统，只实现相机可见性；HUD初始化注入本场敌人，动态刷怪注册留给对应系统。
+- 回归：empty-chain-contracts.txt 20项，原ROADMAP01纯链14项；empty-swing-final.json实际键盘/鼠标9项，含四段空挥映射/释放/无伤害/各自费用及方向闪避；enemy-hp-final.json 12项覆盖真实结算后填充、真实死亡、同身份恢复和屏幕外/根禁用。
+- enemy-hp-fixture-red.json为夹具错误：误统计整个玩家HUD射线组件、将CharacterController直接移至场外再传回造成物理命中前提失效。改为只检查独立EnemyHealthCanvas、移动相机测试裁切后12项通过，未更改玩法结算迎合探针。
+- 本轮保留Unity编辑场景的已有dirty状态，不保存/重开该场景，不修改场景文件；新视图由HUD运行时组合。截图仅本机work保存。

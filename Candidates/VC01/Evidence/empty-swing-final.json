@@ -1,0 +1,105 @@
+{
+  "state": "completed",
+  "failed": 0,
+  "rows": [
+    {
+      "name": "configured stage 1 accepted and mapped",
+      "ok": true,
+      "a": 90.0,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.00, 0.02, -2.00)",
+      "last": "Released @0.083 4fee70bd",
+      "hit": "enemy-stationary-01 → temporary-b 20→0 Applied #68281cd370ad4d8ea9a16214e1c12990"
+    },
+    {
+      "name": "configured stage 2 accepted and mapped",
+      "ok": true,
+      "a": 80.0,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.00, 0.02, -2.00)",
+      "last": "Released @0.100 4bd85751",
+      "hit": "enemy-stationary-01 → temporary-b 20→0 Applied #68281cd370ad4d8ea9a16214e1c12990"
+    },
+    {
+      "name": "configured stage 3 accepted and mapped",
+      "ok": true,
+      "a": 70.0,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.00, 0.02, -2.00)",
+      "last": "Accepted @0.000 1fe7fadb",
+      "hit": "enemy-stationary-01 → temporary-b 20→0 Applied #68281cd370ad4d8ea9a16214e1c12990"
+    },
+    {
+      "name": "configured stage 4 accepted and mapped",
+      "ok": true,
+      "a": 60.0,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.00, 0.02, -2.00)",
+      "last": "Released @0.067 3c638611",
+      "hit": "enemy-stationary-01 → temporary-b 20→0 Applied #68281cd370ad4d8ea9a16214e1c12990"
+    },
+    {
+      "name": "four unique empty releases preserve enemy HP",
+      "ok": true,
+      "a": 60.0,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.00, 0.02, -2.00)",
+      "last": "Released @0.067 3c638611",
+      "hit": "enemy-stationary-01 → temporary-b 20→0 Applied #68281cd370ad4d8ea9a16214e1c12990"
+    },
+    {
+      "name": "per actor four costs",
+      "ok": true,
+      "a": 60.0,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.00, 0.02, -2.00)",
+      "last": "Released @0.067 3c638611",
+      "hit": "enemy-stationary-01 → temporary-b 20→0 Applied #68281cd370ad4d8ea9a16214e1c12990"
+    },
+    {
+      "name": "held movement dodge uses actual mapped clip",
+      "ok": true,
+      "a": 49.69858006061986,
+      "b": 100.0,
+      "dodge": true,
+      "evade": false,
+      "pos": "(1.45, 0.02, -2.00)",
+      "last": "Finished @1.467 3c638611",
+      "hit": "enemy-stationary-01 → temporary-b 20→0 Applied #68281cd370ad4d8ea9a16214e1c12990"
+    },
+    {
+      "name": "configured dodge readable velocity",
+      "ok": true,
+      "a": 49.69858006061986,
+      "b": 100.0,
+      "dodge": true,
+      "evade": false,
+      "pos": "(1.45, 0.02, -2.00)",
+      "last": "Finished @1.467 3c638611",
+      "hit": "enemy-stationary-01 → temporary-b 20→0 Applied #68281cd370ad4d8ea9a16214e1c12990"
+    },
+    {
+      "name": "dodge ends without held repeat",
+      "ok": true,
+      "a": 50.64284010278061,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(3.62, 0.02, -2.00)",
+      "last": "Finished @1.467 3c638611",
+      "hit": "enemy-stationary-01 → temporary-b 20→0 Applied #68281cd370ad4d8ea9a16214e1c12990"
+    }
+  ]
+}

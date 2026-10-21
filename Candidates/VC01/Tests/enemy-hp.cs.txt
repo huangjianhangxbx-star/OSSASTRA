@@ -1,0 +1,27 @@
+using System;using System.Linq;using System.Collections.Generic;using UnityEngine;using UnityEngine.UI;using UnityEditor;using Ossastra.Characters;using Ossastra.Combat;using Ossastra.CharacterCore;using Funplay.Editor.Tools.Scripting;
+public class EnemyHpProbe:IFunplayCommand
+{
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+ {
+  if(!Application.isPlaying)throw new Exception("Play required");
+  var e=UnityEngine.Object.FindObjectOfType<Ossastra.Enemies.EnemyRoot>();var c=UnityEngine.Object.FindObjectOfType<CharacterControlCoordinator>();var a=c.Current;
+  var view=UnityEngine.Object.FindObjectOfType<Ossastra.UserInterface.EnemyHealthBarsView>();if(e==null||a==null)throw new Exception("Missing fixture actors");
+  var rows=new List<object>();int failed=0;void Check(string name,bool ok){rows.Add(new{name,ok});if(!ok)failed++;}
+  void Flush(string state){SessionState.SetString("VC01_ENEMY_HP_FINAL",Newtonsoft.Json.JsonConvert.SerializeObject(new{state,failed,rows}));}
+  Check("production HP view exists",view!=null);if(view==null){Flush("completed");return;}
+  var cameraPosition=Camera.main.transform.position;var hpCanvas=view.transform.Find("EnemyHealthCanvas");var bar=view.GetComponentsInChildren<RectTransform>(true).Single(x=>x.name=="EnemyHealth0");var fill=bar.Find("Background/Fill") as RectTransform;
+  e.AttacksEnabled=false;foreach(var r in c.Characters){r.GetComponent<CompanionCombatBrain>().enabled=false;r.CancelAction("hp-test");}
+  var chase=e.GetComponent<Ossastra.Enemies.ChaseEnemyBrain>();if(chase!=null)chase.enabled=false;
+  e.RestoreForDevelopment();e.transform.position=new Vector3(1,.03f,-2);a.GetComponent<CharacterMovement>().Teleport(new Vector3(0,.03f,-2));Physics.SyncTransforms();
+  void Damage(int amount){var runtime=new BasicActionRuntime(a.ActorId);runtime.Request(new BasicAttackDefinition(0,0,0,.1,amount,0),"hp-probe",new ControlAuthority());a.GetComponent<CombatMeleeHit>().Resolve(runtime.Advance(0,false).Single(f=>f.Release!=null).Release,Vector3.right);}
+  int next=0;var start=EditorApplication.timeSinceStartup;var steps=new List<(double,Action)>();
+  steps.Add((.2,()=>{Check("alive enemy bar visible",bar.gameObject.activeSelf);Check("prototype fixed 66x8 pixels",bar.sizeDelta==new Vector2(66,8));Check("full HP uses 64x6 inner area",fill.sizeDelta==new Vector2(64,6));Check("no UI input blocker",hpCanvas.GetComponentsInChildren<Graphic>(true).All(g=>!g.raycastTarget)&&hpCanvas.GetComponentsInChildren<GraphicRaycaster>(true).Length==0);var p=Camera.main.WorldToScreenPoint(e.transform.position+Vector3.up*1.8f);Check("tracks body anchor",Vector2.Distance(bar.anchoredPosition,new Vector2(p.x,p.y))<1);Damage(100);}));
+  steps.Add((.5,()=>{Check("real combat gateway reduces HP",e.Vitals.Health.Current==500);Check("HP fill reads unique health",Math.Abs(fill.sizeDelta.x-64f*500/600)<.01);Camera.main.transform.position=cameraPosition+Vector3.right*1000;}));
+  steps.Add((.8,()=>{Check("offscreen hidden",!bar.gameObject.activeSelf);Camera.main.transform.position=cameraPosition;Physics.SyncTransforms();Damage(600);}));
+  steps.Add((1.1,()=>{Check("real death hides bar",!e.Vitals.IsAlive&&!bar.gameObject.activeSelf);e.RestoreForDevelopment();}));
+  steps.Add((1.4,()=>{Check("same identity restoration shows full HP",bar.gameObject.activeSelf&&fill.sizeDelta.x==64);e.enabled=false;}));
+  steps.Add((1.7,()=>{Check("disabled root hidden",!bar.gameObject.activeSelf);e.enabled=true;}));
+  EditorApplication.CallbackFunction tick=null;int last=-1;tick=()=>{if(Time.frameCount==last)return;last=Time.frameCount;try{if(next<steps.Count&&EditorApplication.timeSinceStartup-start>=steps[next].Item1)steps[next++].Item2();if(next==steps.Count){EditorApplication.update-=tick;Flush("completed");}}catch(Exception ex){EditorApplication.update-=tick;failed++;rows.Add(new{error=ex.ToString()});Flush("failed");}};
+  EditorApplication.update+=tick;Flush("running");
+ }
+}

@@ -46,6 +46,9 @@ namespace Ossastra.UserInterface
             hero=BuildCard(Cluster("HeroCluster",34,41,529,163,new Vector2(0,1)),false);
             companion=BuildCard(Cluster("CompanionCluster",3,0,377,220,Vector2.zero),true);
             BuildWorld();BuildSkills();BuildQuickSlots();BuildVitality();
+            // 场景级HUD组合一次性收集敌人；头顶HP视图独立于玩家卡片，读取敌方原生命所有者。
+            var enemyHealth=gameObject.AddComponent<EnemyHealthBarsView>();
+            enemyHealth.Initialize(FindObjectsOfType<Ossastra.Enemies.EnemyRoot>(),Camera.main);
             notice=Label(surface,"Notice",new Rect(0,0,550,36),"",13,gold);var nr=notice.rectTransform;nr.anchorMin=nr.anchorMax=new Vector2(.5f,0);nr.pivot=new Vector2(.5f,0);nr.anchoredPosition=new Vector2(0,128);
         }
         private RectTransform Cluster(string name,float x,float y,float w,float h,Vector2 anchor)

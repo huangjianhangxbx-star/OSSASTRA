@@ -1,0 +1,54 @@
+{
+  "state": "completed",
+  "failed": 2,
+  "rows": [
+    {
+      "name": "production HP view exists",
+      "ok": true
+    },
+    {
+      "name": "alive enemy bar visible",
+      "ok": true
+    },
+    {
+      "name": "prototype fixed 66x8 pixels",
+      "ok": true
+    },
+    {
+      "name": "full HP uses 64x6 inner area",
+      "ok": true
+    },
+    {
+      "name": "no UI input blocker",
+      "ok": false
+    },
+    {
+      "name": "tracks body anchor",
+      "ok": true
+    },
+    {
+      "name": "real combat gateway reduces HP",
+      "ok": true
+    },
+    {
+      "name": "HP fill reads unique health",
+      "ok": true
+    },
+    {
+      "name": "offscreen hidden",
+      "ok": true
+    },
+    {
+      "name": "real death hides bar",
+      "ok": false
+    },
+    {
+      "name": "same identity restoration shows full HP",
+      "ok": true
+    },
+    {
+      "name": "disabled root hidden",
+      "ok": true
+    }
+  ]
+}

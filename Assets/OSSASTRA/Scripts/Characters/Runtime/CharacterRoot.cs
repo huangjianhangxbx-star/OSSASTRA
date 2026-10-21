@@ -159,7 +159,8 @@ namespace Ossastra.Characters
                 {
                     if(ActionLibrary.Length==0)throw new ArgumentException("Character basic attacks required");
                     configuredAttacks=System.Array.ConvertAll(ActionLibrary,a=>a.Freeze());
-                    definition=configuredAttacks[0];chain=new BasicChainState(characterDefinition.preInput,characterDefinition.bufferLifetime,characterDefinition.continuationWindow,configuredAttacks.Length);
+                    // 接段属于动作/输入规则；命中事实仅在定义明确要求时限制连段，不让空挥强制退回第一段。
+                    definition=configuredAttacks[0];chain=new BasicChainState(characterDefinition.preInput,characterDefinition.bufferLifetime,characterDefinition.continuationWindow,configuredAttacks.Length,characterDefinition.requireHitForContinuation);
                     hitReceipts=melee;hitReceipts.Resolved+=OnHitReceipt;
                 }
                 else if(chainProfile!=null && chainProfile.enabled)

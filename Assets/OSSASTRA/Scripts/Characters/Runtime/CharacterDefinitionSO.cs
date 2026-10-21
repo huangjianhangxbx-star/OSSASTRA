@@ -15,5 +15,7 @@ namespace Ossastra.Characters
         [Min(.01f)] public float dodgeDuration=.45f,dodgeDistance=2.4f;
         [Min(0)] public float dodgeCost=22,invulnerableFrom=.12f,invulnerableTo=.32f;
         [Min(0)] public float preInput=.12f,bufferLifetime=.17f,continuationWindow=.45f;
+        [Tooltip("普通连段默认允许空挥接段；仅特殊设计开启命中接续要求。")]
+        public bool requireHitForContinuation;
     }
 }

@@ -921,3 +921,5 @@ active/unity-writer；用户明确要求一轮修整：共享脚本去M01标签�
 
 2026-10-21 VC01 completed/released（技术候选，待用户审查）：用户批准一期v1.0，独占范围见tasks/2026-10-21-VC01.md；Unity写入已结束，G0-G6技术候选完成，保留旧场/共享Prefab/旧禁编删除/媒体；GitHub main定向发布，不Gitee/VC02。
 2026-10-22 VC01-HUD-view complete/released：确认QHD在1×预览裁切，缩放0.532×显示完整；场景/角色不修改。
+
+2026-10-22 VC01-FIX02 complete/released：空挥20纯契约+9实际输入、命中9回归、敌方HP12通过；Unity写入结束，dirty现场保留，GitHub定向发布。
