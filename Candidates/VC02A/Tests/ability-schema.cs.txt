@@ -1,0 +1,12 @@
+using System;using System.Linq;using System.Collections.Generic;using UnityEngine;using UnityEditor;using Ossastra.Characters;using Funplay.Editor.Tools.Scripting;
+public class AbilitySchemaProbe:IFunplayCommand
+{
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+ {
+  var path="Assets/OSSASTRA/Configs/Abilities/ShieldB_PressAttack.asset";var original=AssetDatabase.LoadAssetAtPath<AbilityDefinitionSO>(path);if(original==null)throw new Exception("Missing "+path);var rows=new List<object>();int failed=0;
+  void Check(string name,Action<AbilityDefinitionSO> mutate,bool valid=false){var d=UnityEngine.Object.Instantiate(original);mutate(d);bool ok=false;string reason="";try{d.Compile();ok=valid;}catch(ArgumentException e){ok=!valid;reason=e.Message;}finally{UnityEngine.Object.DestroyImmediate(d);}if(!ok)failed++;rows.Add(new{name,ok,reason});}
+  Check("valid body config",d=>{},true);Check("missing stable id",d=>d.definitionId="");Check("missing strategy",d=>d.executor=null);Check("nonfinite accept fee",d=>d.acceptCost=float.NaN);Check("invalid geometry",d=>d.delivery.radius=-1);Check("unknown delivery",d=>d.delivery.mode=(Ossastra.Combat.DeliveryMode)999);Check("invalid emission time",d=>d.releases[0].at=float.PositiveInfinity);Check("inconsistent body stage rejected",d=>d.finishAt+=.1f);
+  var freeze=UnityEngine.Object.Instantiate(original);var compiled=freeze.Compile();freeze.delivery.range=999;freeze.releases[0].damage=999;bool copied=compiled.delivery.range!=999&&compiled.plan.Emissions[0].Damage!=999;rows.Add(new{name="geometry and release nodes frozen",ok=copied});if(!copied)failed++;UnityEngine.Object.DestroyImmediate(freeze);
+  ctx.ReturnValue=new{state="completed",failed,rows};
+ }
+}

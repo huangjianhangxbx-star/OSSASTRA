@@ -1,0 +1,83 @@
+{
+  "state": "completed",
+  "failed": 0,
+  "rows": [
+    {
+      "name": "same compiled delivery accepts inventory source",
+      "ok": true,
+      "last": "接受 Throw_Equipment",
+      "count": 2,
+      "reserved": true
+    },
+    {
+      "name": "accept reserves without consuming item",
+      "ok": true,
+      "last": "接受 Throw_Equipment",
+      "count": 2,
+      "reserved": true
+    },
+    {
+      "name": "reservation denies a duplicate request",
+      "ok": true,
+      "last": "拒绝：offhand-occupied",
+      "count": 2,
+      "reserved": true
+    },
+    {
+      "name": "release consumes exactly one item",
+      "ok": true,
+      "last": "接触 1 #f86da5b3c705451599173af72713471c",
+      "count": 1,
+      "reserved": false
+    },
+    {
+      "name": "same delivery resolves actual damage",
+      "ok": true,
+      "last": "接触 1 #f86da5b3c705451599173af72713471c",
+      "count": 1,
+      "reserved": false
+    },
+    {
+      "name": "item source never wears equipped shield",
+      "ok": true,
+      "last": "接触 1 #f86da5b3c705451599173af72713471c",
+      "count": 1,
+      "reserved": false
+    },
+    {
+      "name": "foreign source rejected without payment",
+      "ok": true,
+      "last": "拒绝：来源/控制身份无效",
+      "count": 1,
+      "reserved": false
+    },
+    {
+      "name": "new request accepted",
+      "ok": true,
+      "last": "接受 Throw_Equipment",
+      "count": 1,
+      "reserved": true
+    },
+    {
+      "name": "cancel frees reservation without consuming",
+      "ok": true,
+      "last": "接受 Throw_Equipment",
+      "count": 1,
+      "reserved": false
+    },
+    {
+      "name": "cancelled pending never emits late",
+      "ok": true,
+      "last": "接受 Throw_Equipment",
+      "count": 1,
+      "reserved": false
+    },
+    {
+      "name": "released effects cleaned",
+      "ok": true,
+      "last": "接受 Throw_Equipment",
+      "count": 1,
+      "reserved": false
+    }
+  ]
+}

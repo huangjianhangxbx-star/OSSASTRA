@@ -1,0 +1,50 @@
+{
+  "state": "completed",
+  "failed": 0,
+  "rows": [
+    {
+      "name": "valid body config",
+      "ok": true,
+      "reason": ""
+    },
+    {
+      "name": "missing stable id",
+      "ok": true,
+      "reason": "ShieldB_PressAttack(Clone) (): identity/executor/cost/releases invalid"
+    },
+    {
+      "name": "missing strategy",
+      "ok": true,
+      "reason": "ShieldB_PressAttack(Clone) (vc02.shield-hit): identity/executor/cost/releases invalid"
+    },
+    {
+      "name": "nonfinite accept fee",
+      "ok": true,
+      "reason": "ShieldB_PressAttack(Clone) (vc02.shield-hit): identity/executor/cost/releases invalid"
+    },
+    {
+      "name": "invalid geometry",
+      "ok": true,
+      "reason": "ShieldB_PressAttack(Clone) (vc02.shield-hit): delivery range/radius/arc/speed/time invalid"
+    },
+    {
+      "name": "unknown delivery",
+      "ok": true,
+      "reason": "ShieldB_PressAttack(Clone) (vc02.shield-hit): delivery range/radius/arc/speed/time invalid"
+    },
+    {
+      "name": "invalid emission time",
+      "ok": true,
+      "reason": "ShieldB_PressAttack(Clone) (vc02.shield-hit): action stage times differ from ability plan"
+    },
+    {
+      "name": "inconsistent body stage rejected",
+      "ok": true,
+      "reason": "ShieldB_PressAttack(Clone) (vc02.shield-hit): action stage times differ from ability plan"
+    },
+    {
+      "name": "geometry and release nodes frozen",
+      "ok": true
+    }
+  ]
+}

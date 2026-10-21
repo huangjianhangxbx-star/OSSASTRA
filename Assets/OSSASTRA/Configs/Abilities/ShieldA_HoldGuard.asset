@@ -1,0 +1,41 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 10864447e0a8f6046b2d3ff2b0036e31, type: 3}
+  m_Name: ShieldA_HoldGuard
+  m_EditorClassIdentifier: 
+  definitionId: vc02.guard
+  displayName: ShieldA_HoldGuard
+  cooldownIdentity: 
+  executor: {fileID: 11400000, guid: df1745cf6ceaaf64aab7509f313e7b2f, type: 2}
+  action: {fileID: 0}
+  occupancy: 4
+  acceptCost: 8
+  cooldown: 0
+  holdCostPerSecond: 6
+  releaseCost: 0
+  wearOnRelease: 1
+  finishAt: 0.1
+  moveReadyAt: 0
+  attackReadyAt: 0
+  delivery:
+    mode: 0
+    range: 4.5
+    radius: 1.25
+    arc: 100
+    speed: 10
+    flightTime: 0.45
+    collisionRadius: 0.08
+    arcHeight: 1
+    collisionLayers:
+      serializedVersion: 2
+      m_Bits: 4294967295
+  releases: []

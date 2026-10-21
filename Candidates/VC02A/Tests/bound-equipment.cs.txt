@@ -1,0 +1,32 @@
+using System;using System.Linq;using System.Collections.Generic;using UnityEngine;using UnityEngine.InputSystem;using UnityEngine.InputSystem.LowLevel;using UnityEditor;using Ossastra.Characters;using Ossastra.CharacterCore;using Ossastra.Combat;using Funplay.Editor.Tools.Scripting;
+public class BoundEquipmentProbe:IFunplayCommand
+{
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+ {
+  if(!Application.isPlaying)throw new Exception("Play required");var c=UnityEngine.Object.FindObjectOfType<CharacterControlCoordinator>();var a=c.Current;var b=c.Characters.First(r=>r!=a);var e=UnityEngine.Object.FindObjectOfType<Ossastra.Enemies.EnemyRoot>();
+  var module=a.GetComponent<CharacterAbilities>();var gear=a.GetComponent<CharacterEquipment>();var stamina=a.GetComponent<CharacterStamina>();
+  var original=InputSystem.settings;var settings=UnityEngine.Object.Instantiate(original);settings.backgroundBehavior=InputSettings.BackgroundBehavior.IgnoreFocus;settings.editorInputBehaviorInPlayMode=InputSettings.EditorInputBehaviorInPlayMode.AllDeviceInputAlwaysGoesToGameView;InputSystem.settings=settings;
+  var mouse=InputSystem.AddDevice<Mouse>("VC02EquipmentMouse");var overrides=new Dictionary<InputAction,string>();
+  foreach(var input in c.Characters.Select(r=>r.GetComponent<CharacterInputHandler>()))foreach(var action in new[]{input.mouseAction,input.offhandAction}){overrides[action]=action.SaveBindingOverridesAsJson();for(int i=0;i<action.bindings.Count;i++){var p=action.bindings[i].path;if(p!=null&&p.Contains("<Mouse>"))action.ApplyBindingOverride(i,p.Replace("<Mouse>",mouse.path));}}
+  EditorWindow.GetWindow(typeof(Editor).Assembly.GetType("UnityEditor.GameView")).Focus();foreach(var r in c.Characters){r.SendMessage("OnApplicationFocus",true);r.GetComponent<CompanionCombatBrain>().enabled=false;r.CancelAction("binding-probe");r.GetComponent<CharacterStamina>().Restore();}c.SendMessage("OnApplicationFocus",true);
+  var engagement=UnityEngine.Object.FindObjectOfType<CombatEngagementSession>();if(engagement!=null)engagement.enabled=false;e.AttacksEnabled=false;var brain=e.GetComponent<Ossastra.Enemies.ChaseEnemyBrain>();if(brain!=null)brain.enabled=false;e.RestoreForDevelopment();
+  a.GetComponent<CharacterMovement>().Teleport(new Vector3(0,.03f,-2));b.GetComponent<CharacterMovement>().Teleport(new Vector3(-4,.03f,-2));var body=e.GetComponent<CharacterController>();body.enabled=false;e.transform.position=new Vector3(1.1f,.03f,-2);body.enabled=true;Physics.SyncTransforms();
+  var rows=new List<object>();int failed=0,next=0,lastFrame=-1;double start=EditorApplication.timeSinceStartup;var steps=new List<(double,Action)>();var shieldA=gear.State.LeftInstanceId;var hp=a.Vitals.Health.Current;var enemyHp=e.Vitals.Health.Current;
+  void Flush(string state){SessionState.SetString("VC02_BOUND_EQUIPMENT",Newtonsoft.Json.JsonConvert.SerializeObject(new{state,failed,rows}));}
+  void Check(string name,bool ok){if(!ok)failed++;rows.Add(new{name,ok,last=module.LastResult,stamina=stamina.Current,enemyHp=e.Vitals.Health.Current,wear=gear.State.Durability});Flush("running");}
+  void Mouse(bool down){var p=Camera.main.WorldToScreenPoint(e.transform.position);InputSystem.QueueStateEvent(mouse,new MouseState{position=new Vector2(p.x,p.y),buttons=(ushort)(down?2:0)});}
+  void Equip(string id){Check("equip "+id,gear.TryEquip(gear.OwnedOffhands.Single(d=>d.definitionId==id)));}
+  void Hit(){var runtime=new BasicActionRuntime(e.ActorId);runtime.Request(new BasicAttackDefinition(0,0,0,.1,10,0),"probe-contact",new ControlAuthority());e.GetComponent<CombatMeleeHit>().Resolve(runtime.Advance(0,false).Single(f=>f.Release!=null).Release,Vector3.left);}
+  Mouse(false);
+  steps.Add((.2,()=>Mouse(true)));
+  steps.Add((.4,()=>{Check("hold starts immediately via configured capability",module.IsGuarding&&module.AcceptedCount==1);Check("accept charged once plus sustain",stamina.Current>88&&stamina.Current<92);Hit();Check("real guard keeps HP and wears its source",a.Vitals.Health.Current==hp&&gear.State.Durability==99);Mouse(false);}));
+  steps.Add((.6,()=>{Check("release ends guard",!module.IsGuarding);Equip("vc02.shield-b");Check("same category distinct identity",gear.State.LeftInstanceId!=shieldA&&gear.State.LeftKind==OffhandKind.Shield);}));
+  steps.Add((.8,()=>Mouse(true)));steps.Add((1.05,()=>{Mouse(false);Check("shield B attacks instead of guarding",!module.IsGuarding&&module.AcceptedCount==2&&e.Vitals.Health.Current==enemyHp-20);}));
+  steps.Add((2.4,()=>Equip("vc02.shooter")));steps.Add((2.6,()=>Mouse(true)));steps.Add((2.75,()=>Mouse(false)));
+  steps.Add((3.3,()=>{Check("same operation shoots a colliding projectile",module.AcceptedCount==3&&e.Vitals.Health.Current==enemyHp-35);Check("shooter wears once",gear.State.Durability==99);Equip("vc02.throw-equipment");}));
+  steps.Add((3.6,()=>Mouse(true)));steps.Add((3.75,()=>Mouse(false)));
+  steps.Add((4.3,()=>{Check("same operation uses configured arc delivery",module.AcceptedCount==4&&e.Vitals.Health.Current==enemyHp-80);Check("released projectile cleaned",module.InFlightCount==0&&gear.State.Durability==99);Equip("vc02.shield-a");Check("return keeps original shield instance and wear",gear.State.LeftInstanceId==shieldA&&gear.State.Durability==99);}));
+  EditorApplication.CallbackFunction tick=null;void Cleanup(){EditorApplication.update-=tick;foreach(var kv in overrides)kv.Key.LoadBindingOverridesFromJson(kv.Value);InputSystem.RemoveDevice(mouse);InputSystem.settings=original;UnityEngine.Object.DestroyImmediate(settings);}
+  tick=()=>{if(Time.frameCount==lastFrame)return;lastFrame=Time.frameCount;try{if(next<steps.Count&&EditorApplication.timeSinceStartup-start>=steps[next].Item1){var late=EditorApplication.timeSinceStartup-start-steps[next].Item1;if(late>.02)start+=late;steps[next++].Item2();}if(next==steps.Count){Cleanup();Flush("completed");}}catch(Exception ex){failed++;rows.Add(new{error=ex.ToString()});Cleanup();Flush("failed");}};EditorApplication.update+=tick;Flush("running");
+ }
+}

@@ -1,0 +1,49 @@
+using System;using UnityEngine.InputSystem;using System.Linq;using UnityEngine;using UnityEditor;using UnityEditor.SceneManagement;using Ossastra.Characters;using Ossastra.CharacterCore;using Ossastra.CharacterCore.Abilities;using Ossastra.Combat;using Funplay.Editor.Tools.Scripting;
+public class ConfigureVC02A:IFunplayCommand
+{
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+ {
+  const string source="Assets/OSSASTRA/Scenes/SC_CharacterVerticalSlice.unity",target="Assets/OSSASTRA/Scenes/SC_VC02A_CombatMigration.unity",folder="Assets/OSSASTRA/Configs/Abilities";
+  if(Application.isPlaying)throw new Exception("Edit required");var current=EditorSceneManager.GetActiveScene();
+  if(current.path!=source&&current.path!=target)throw new Exception("Unexpected source scene");
+  if(current.isDirty){var backup="E:/WORLDCREATOR/XingHaiHuiLang/work/OSSASTRA/VC02-20261022/editor-recovery.unity";if(!EditorSceneManager.SaveScene(current,backup,true))throw new Exception("Cannot preserve dirty scene");}
+  if(AssetDatabase.LoadAssetAtPath<SceneAsset>(target)!=null)throw new Exception("Candidate exists: inspect before replay");
+  if(!AssetDatabase.CopyAsset(source,target))throw new Exception("Cannot copy saved candidate");EditorSceneManager.OpenScene(target);
+  if(!AssetDatabase.IsValidFolder(folder))AssetDatabase.CreateFolder("Assets/OSSASTRA/Configs","Abilities");
+  T Save<T>(T asset,string name)where T:UnityEngine.Object{asset.name=name;ctx.RegisterObjectCreation(asset);AssetDatabase.CreateAsset(asset,folder+"/"+name+".asset");return asset;}
+  var body=Save(ScriptableObject.CreateInstance<TimelineAbilitySO>(),"Timeline_Body");var free=Save(ScriptableObject.CreateInstance<TimelineAbilitySO>(),"Timeline_Offhand");
+  var so=new SerializedObject(free);so.FindProperty("usesBodyAction").boolValue=false;so.ApplyModifiedPropertiesWithoutUndo();AssetDatabase.SaveAssetIfDirty(free);
+  var guardExecutor=Save(ScriptableObject.CreateInstance<DirectionalGuardAbilitySO>(),"DirectionalGuard");
+  var sourceAction=AssetDatabase.LoadAssetAtPath<ActionDefinitionSO>("Assets/OSSASTRA/Configs/Skills/HunterBreak_Adapted_Action.asset");if(sourceAction==null)throw new Exception("Missing action template");
+  var hitAction=Save(UnityEngine.Object.Instantiate(sourceAction),"ShieldAttack_Action");hitAction.definitionId="vc02-probe.shield-attack.action";AssetDatabase.SaveAssetIfDirty(hitAction);
+  AbilityDefinitionSO Ability(string id,string name,AbilityExecutorSO executor,ActionDefinitionSO action,int damage,float cost,float cd,DeliveryMode mode)
+  {
+   var d=ScriptableObject.CreateInstance<AbilityDefinitionSO>();d.definitionId=id;d.displayName=name;d.executor=executor;d.action=action;d.acceptCost=cost;d.cooldown=cd;
+   d.occupancy=AbilityOccupancy.OffHand|(executor.UsesBodyAction?AbilityOccupancy.Body:AbilityOccupancy.None);
+   if(action!=null){var p=action.Freeze();d.finishAt=(float)p.FinishAt;d.moveReadyAt=(float)p.MoveReadyAt;d.attackReadyAt=(float)p.AttackReadyAt;d.releases=new[]{new AbilityReleaseNode{at=(float)p.ReleaseAt,damage=damage,postureImpact=25}};}
+   else {d.finishAt=.1f;d.moveReadyAt=0;d.attackReadyAt=0;d.releases=damage>0?new[]{new AbilityReleaseNode{at=.05f,damage=damage,postureImpact=25}}:Array.Empty<AbilityReleaseNode>();}
+   d.delivery.mode=mode;d.delivery.range=4.5f;d.delivery.radius=1.25f;d.delivery.arc=100;d.wearOnRelease=true;d.Compile();return Save(d,name);
+  }
+  var guard=Ability("vc02.guard","ShieldA_HoldGuard",guardExecutor,null,0,8,0,DeliveryMode.Sector);guard.holdCostPerSecond=6;EditorUtility.SetDirty(guard);AssetDatabase.SaveAssetIfDirty(guard);
+  var shieldHit=Ability("vc02.shield-hit","ShieldB_PressAttack",body,hitAction,20,18,.5f,DeliveryMode.Sector);
+  var shot=Ability("vc02.shot-probe","Shooter_Probe",free,null,15,5,.3f,DeliveryMode.Projectile);shot.delivery.range=8;shot.delivery.speed=10;EditorUtility.SetDirty(shot);AssetDatabase.SaveAssetIfDirty(shot);
+  var toss=Ability("vc02.throw","Throw_Equipment",free,null,45,20,5,DeliveryMode.RayLandingArc);
+  var shieldTemplate=AssetDatabase.LoadAssetAtPath<EquipmentDefinitionSO>("Assets/OSSASTRA/Configs/Equipment/Rozeul_Shield.asset");var bombTemplate=AssetDatabase.LoadAssetAtPath<EquipmentDefinitionSO>("Assets/OSSASTRA/Configs/Equipment/Rozeul_Bomb.asset");if(shieldTemplate==null||bombTemplate==null)throw new Exception("Missing equipment templates");
+  EquipmentDefinitionSO Equip(string id,string name,EquipmentDefinitionSO template,OffhandKind kind,AbilityDefinitionSO ability,GestureMode gesture)
+  {var d=UnityEngine.Object.Instantiate(template);d.definitionId=id;d.displayName=name;d.offhandKind=kind;d.abilityBindings=new[]{new AbilityBinding{operation=AbilityOperation.Secondary,gesture=gesture,ability=ability}};return Save(d,name);}
+  var a=Equip("vc02.shield-a","验证盾A_按住防御",shieldTemplate,OffhandKind.Shield,guard,GestureMode.Hold);
+  var b=Equip("vc02.shield-b","验证盾B_按下攻击",shieldTemplate,OffhandKind.Shield,shieldHit,GestureMode.Press);
+  var gun=Equip("vc02.shooter","验证射击器",bombTemplate,OffhandKind.Other,shot,GestureMode.Press);
+  var grenade=Equip("vc02.throw-equipment","投掷装备",bombTemplate,OffhandKind.Bomb,toss,GestureMode.Press);
+  foreach(var root in UnityEngine.Object.FindObjectsOfType<Ossastra.Characters.CharacterRoot>())
+  {
+   ctx.RegisterObjectModification(root);var equipment=root.GetComponent<CharacterEquipment>();if(equipment==null)throw new Exception("Missing gear "+root.name);
+   so=new SerializedObject(equipment);var list=so.FindProperty("ownedOffhands");list.arraySize=4;var defs=new[]{a,b,gun,grenade};for(int i=0;i<4;i++)list.GetArrayElementAtIndex(i).objectReferenceValue=defs[i];so.ApplyModifiedProperties();
+   foreach(var legacy in new MonoBehaviour[]{root.GetComponent<ShieldGuard>(),root.GetComponent<CharacterOffhand>(),root.GetComponent<CharacterSkills>()})if(legacy!=null){ctx.RegisterObjectModification(legacy);legacy.enabled=false;}
+   if(root.GetComponent<CharacterAbilities>()==null)Undo.AddComponent<CharacterAbilities>(root.gameObject);
+   var input=root.GetComponent<CharacterInputHandler>();ctx.RegisterObjectModification(input);input.skillThreeAction.AddBinding("<Keyboard>/r");
+  }
+  EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene());
+  ctx.ReturnValue=new{scene=target,gear=new[]{a.definitionId,b.definitionId,gun.definitionId,grenade.definitionId},allCompile=new[]{guard,shieldHit,shot,toss}.All(d=>d.Compile()!=null)};
+ }
+}

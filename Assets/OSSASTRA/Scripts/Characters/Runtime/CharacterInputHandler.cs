@@ -16,7 +16,7 @@ namespace Ossastra.Characters
         public Vector2 move, pointer, aimDirection;
         public bool attackHeld, dodgePressed, offhandHeld, offhandPressed, cancel, pause, hasPointer, hasDirectionalAim, attackPointerBlocked;
         public int debugCommand;
-        public bool skillOnePressed,skillTwoPressed;
+        public bool skillOnePressed,skillTwoPressed,skillThreePressed,skillOneHeld,skillTwoHeld,skillThreeHeld;
     }
 
     // Each character owns its serialized actions. Input does not accept attacks or write gameplay state.
@@ -36,6 +36,7 @@ namespace Ossastra.Characters
         public InputAction offhandAction = new InputAction("Offhand", InputActionType.Button);
         public InputAction skillOneAction = new InputAction("SkillOne",InputActionType.Button);
         public InputAction skillTwoAction = new InputAction("SkillTwo",InputActionType.Button);
+        public InputAction skillThreeAction = new InputAction("SkillThree",InputActionType.Button);
         [Header("取消与暂停")]
         public InputAction cancelAction = new InputAction("Cancel", InputActionType.Button);
         public InputAction pauseAction = new InputAction("Pause", InputActionType.Button);
@@ -101,7 +102,7 @@ namespace Ossastra.Characters
             yield return attackAction;
             yield return dodgeAction;
             yield return offhandAction;
-            yield return skillOneAction; yield return skillTwoAction;
+            yield return skillOneAction; yield return skillTwoAction; yield return skillThreeAction;
             yield return cancelAction;
             yield return pauseAction;
             yield return debugValidAction;
@@ -154,6 +155,10 @@ namespace Ossastra.Characters
             if (attackAction != null && attackAction.activeControl != null && attackAction.activeControl.device is Pointer &&
                 !frame.hasPointer) frame.attackPointerBlocked = true;
             frame.skillOnePressed=Pressed(skillOneAction); frame.skillTwoPressed=Pressed(skillTwoAction);
+            frame.skillThreePressed=Pressed(skillThreeAction);
+            frame.skillOneHeld=skillOneAction!=null&&skillOneAction.enabled&&skillOneAction.IsPressed();
+            frame.skillTwoHeld=skillTwoAction!=null&&skillTwoAction.enabled&&skillTwoAction.IsPressed();
+            frame.skillThreeHeld=skillThreeAction!=null&&skillThreeAction.enabled&&skillThreeAction.IsPressed();
             frame.cancel = Pressed(cancelAction);
             frame.pause = Pressed(pauseAction);
             frame.debugCommand = Pressed(debugValidAction) ? 1 : Pressed(debugBlockedAction) ? 2 :

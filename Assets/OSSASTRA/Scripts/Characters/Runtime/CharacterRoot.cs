@@ -2,7 +2,8 @@
  * 脚本：CharacterRoot
  * 功能：组织单角色接口接线和显式推进；动作接受/费用由本体协调器统一。
  * 边界：持有本角色运行时；只读生命资格，不实现HP写入、设备绑定或开发GUI。
- * 协作：初始化可选本体Follow/Posture；显式按输入、架势、朝向、动作、运动、表现推进。
+ * 协作：初始化可选Follow/Posture与定义驱动能力；显式按输入、架势、朝向、原动作事实、投递、运动、表现推进。
+ * 兼容：没有能力控制端口的历史场继续旧Skills/Guard/Offhand路径，新候选与旧路径互斥。
  */
 using System;
 using Ossastra.CharacterCore;
@@ -40,6 +41,7 @@ namespace Ossastra.Characters
         private CharacterOffhand offhand;
         private CharacterEquipmentView equipmentView;
         private ICharacterSkills skills;
+        private ICharacterAbilityController abilities;
         private CombatVitals autonomousTarget;
         private bool autonomousAction;
         public event Action<ActionFact> ActionObserved;
@@ -76,6 +78,7 @@ namespace Ossastra.Characters
         public bool IsSimulationSuspended => !focused || IsPaused;
         public CharacterDataBus DataBus { get; private set; }
         public ICharacterActionCoordinator Actions {get;private set;}
+        public ICharacterAbilityController Abilities=>abilities;
         public int ActionControlRevision=>intentSelector==null?0:intentSelector.ControlRevision;
         public bool HasPlayerInput=>input!=null&&input.HasPlayerInput;
         public string ActorId => actorId;
@@ -181,6 +184,8 @@ namespace Ossastra.Characters
             equipmentView=GetComponent<CharacterEquipmentView>();equipmentView?.Initialize(this);
             Actions=new CharacterActionCoordinator(this,stamina,dodge,offhand);
             skills=GetComponent<CharacterSkills>();skills?.Initialize(this);
+            var abilityComponent=GetComponent<CharacterAbilities>();
+            if(abilityComponent!=null&&abilityComponent.enabled){abilities=abilityComponent;abilities.Initialize(this);}
             ready = InitializeSubsystems(DataBus, mover, presentation);
             if (!ready) { Debug.LogError("Character subsystem initialization failed", this); enabled = false; }
             // 可选能力只接受本角色初始化；无组件/无assignment的旧场保持普通玩家行为。
@@ -202,7 +207,7 @@ namespace Ossastra.Characters
         private void Update()
         {
             if (!ready) return;
-            if (!IsAlive) { offhand?.CancelAll(); CommitPresentation(); return; }
+            if (!IsAlive) { offhand?.CancelAll(); abilities?.CancelPending("death"); abilities?.TickEffects(0); CommitPresentation(); return; }
             // 本体显式调度入口：以下阶段在一次Update中按书写顺序执行。
             // DefaultExecutionOrder只约束跨组件先后，不能替代这里的模块调用顺序。
             // 1. 采唯一意图源并处理暂停/取消；不由各子模块另开输入Update。
@@ -227,9 +232,9 @@ namespace Ossastra.Characters
                 dodge.Tick(runtime.SimulationTime);
                 if(frame.dodgePressed)dodge.Request(frame.move,input.HasPlayerInput);
             }
-            skills?.TickInput(frame);
+            if(abilities!=null)abilities.TickInput(frame);else skills?.TickInput(frame);
             // 4. 观察按键边沿，再由Runtime的暂停/权限/Ready资格决定是否接受动作。
-            guard?.Tick(frame.offhandHeld,input.HasPlayerInput,IsSimulationSuspended?0:Time.deltaTime);
+            if(abilities==null)guard?.Tick(frame.offhandHeld,input.HasPlayerInput,IsSimulationSuspended?0:Time.deltaTime);
             if (intent.Observe(frame.attackHeld) && focused && !frame.attackPointerBlocked)
             {
                 var stage=chain==null?1:chain.Request(runtime.SimulationTime,runtime.AttackReady,
@@ -237,9 +242,9 @@ namespace Ossastra.Characters
                 if(stage>0) RequestStage(stage);
             }
             // 4a. 副手独立请求/时钟；同帧主手已按自身资格处理，二者不共享动作身份。
-            if(frame.offhandPressed && equipment!=null && equipment.State.LeftKind==OffhandKind.Bomb)offhand?.Request(PointerGroundPoint(frame),input.HasPlayerInput);
+            if(abilities==null&&frame.offhandPressed && equipment!=null && equipment.State.LeftKind==OffhandKind.Bomb)offhand?.Request(PointerGroundPoint(frame),input.HasPlayerInput);
             // 模态只捕获设备输入，不等于切走角色；已接受副手与实控CD仍继续。
-            offhand?.Tick(Time.deltaTime,input.HasPlayerControl);
+            if(abilities==null)offhand?.Tick(Time.deltaTime,input.HasPlayerControl);
             // 4b. 窄自治请求与玩家边沿互斥；仅Stage1，不通过输入帧注入攻击/暂停。
             if(!input.HasPlayerInput && CanSimulateIntent && combatBrain!=null &&
                 ((ICompanionActionCandidate)combatBrain).TryGetAttackTarget(out var aiTarget))
@@ -259,10 +264,11 @@ namespace Ossastra.Characters
                     // 在释放当帧按值采样方向；不是接受动作时锁定，前摇中仍可重新瞄准。
                     var releaseDirection = orienter.AttackDirection;
                     orienter.FaceAttackDirection();
+                    if(abilities!=null&&abilities.OwnsRelease(fact.ActionId))continue;
                     if(skills==null||!skills.TryHandleRelease(fact.Release,releaseDirection))hitResolver.Resolve(fact.Release, releaseDirection);
                 }
             }
-            skills?.TickEffects(Time.deltaTime);
+            if(abilities!=null)abilities.TickEffects(Time.deltaTime);else skills?.TickEffects(Time.deltaTime);
             if(chain!=null && input.HasPlayerInput && !IsPaused && focused && authority.Allows(ControlChannel.Attack))
             {
                 var bufferedStage=chain.Poll(runtime.SimulationTime,runtime.AttackReady);
@@ -293,6 +299,7 @@ namespace Ossastra.Characters
             if(!frame.hasPointer)return null; var plane=new Plane(Vector3.up,transform.position);
             var ray=viewCamera.ScreenPointToRay(frame.pointer); return plane.Raycast(ray,out var distance)?ray.GetPoint(distance):(Vector3?)null;
         }
+        internal Vector3? AbilityAimPoint(CharacterInputFrame frame)=>PointerGroundPoint(frame);
         private Vector3? PointerDirection(CharacterInputFrame frame)
         {
             if (!frame.hasPointer) return null;
@@ -310,6 +317,7 @@ namespace Ossastra.Characters
             lastFact = fact.Kind + " @" + fact.At.ToString("F3") + " " + fact.ActionId.ToString("N").Substring(0, 8);
             if (fact.Reason != null) lastFact += " " + fact.Reason;
             if (verboseTrace) Debug.Log("Character " + lastFact, this);
+            abilities?.ObserveFact(fact);
             ActionObserved?.Invoke(fact);
         }
         private bool TryResolveConfiguredAction(ActionDefinitionSO config,out BasicAttackDefinition frozen,out string reason)
@@ -320,13 +328,21 @@ namespace Ossastra.Characters
             return target.CanCaptureAction(config,out reason);
         }        /// <summary>主动技能使用同一主动作接受端口、Runtime和费用事务；不借用副手通道。</summary>
         public bool TryConfiguredAction(ActionDefinitionSO config,CharacterActionSource source,string label,out Guid actionId)
+            =>TryAbilityBodyAction(config,source,label,config==null?0:config.staminaCost,out actionId);
+        /// <summary>定义驱动身体能力复用原Runtime与接受账本；费用来自已冻结能力，不再由片段定义另付一次。</summary>
+        internal bool TryAbilityBodyAction(ActionDefinitionSO config,CharacterActionSource source,string label,float cost,out Guid actionId,Func<bool> prepareSource=null,Action rollbackSource=null)
         {
             actionId=Guid.Empty;if(config==null||!ready)return false;
             if(!TryResolveConfiguredAction(config,out var frozen,out var configurationError)){lastFact="Rejected: "+configurationError;return false;}
             var signature=Actions.CreateRequest(CharacterActionKind.Main,source,label);
             ActionRequestResult result=null;
-            if(!Actions.TryCommit(signature,config.staminaCost,()=>
-            {result=runtime.Request(frozen,label,authority,IsPaused);return result.Accepted?result.Fact.ActionId:Guid.Empty;},out var rejection))
+            if(!Actions.TryCommit(signature,cost,()=>
+            {
+                if(prepareSource!=null&&!prepareSource())return Guid.Empty;
+                result=runtime.Request(frozen,label,authority,IsPaused);
+                if(!result.Accepted)rollbackSource?.Invoke();
+                return result.Accepted?result.Fact.ActionId:Guid.Empty;
+            },out var rejection))
             {lastFact="Rejected: "+rejection;return false;}
             if(result.PreviousTerminal!=null)Observe(result.PreviousTerminal);
             chain?.Clear();autonomousAction=false;autonomousTarget=null;AttackStage=0;
@@ -370,6 +386,7 @@ namespace Ossastra.Characters
 
         public void CancelAction(string reason)
         {
+            abilities?.CancelPending(reason);
             dodge?.Cancel();
             guard?.Cancel();
             offhand?.CancelPending();

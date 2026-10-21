@@ -1,6 +1,6 @@
 /*
  * 脚本：AttackRelease
- * 功能：结算一次动作释放的目标批次，并返回命中结果。
+ * 功能：结算一次动作释放的目标批次，并返回命中结果；派生释放保留父执行与节点索引。
  * 边界：新旧入口共享一次性批次；按目标身份去重；HP只经Health写入，零伤防御不调用扣血。
  * 协作：世界适配器先做空间筛选，再调用Resolve；空挥关闭批次。防御快照决定HP及架势倍率，同批回执供世界适配器消费。
  */
@@ -54,6 +54,8 @@ namespace Ossastra.CharacterCore
         public string ActorId => actorId;
         public Guid ActionId => actionId;
         public double PostureImpact { get; }
+        public Guid ParentExecutionId {get;private set;}
+        public int EmissionIndex {get;private set;}
 
         internal AttackRelease(Guid actionId, string actorId, int damage, double postureImpact = 0)
         {
@@ -61,6 +63,14 @@ namespace Ossastra.CharacterCore
             this.actorId = actorId;
             this.damage = damage;
             PostureImpact = postureImpact;
+            ParentExecutionId=actionId;
+        }
+        /// <summary>已接受执行的多次释放各有一次性批次；保留共同父身份供整次预算/条件去重。</summary>
+        public static AttackRelease ForEmission(Guid parent,int index,string actorId,int damage,double postureImpact)
+        {
+            if(parent==Guid.Empty||index<0||string.IsNullOrWhiteSpace(actorId)||damage<=0||!BasicAttackDefinition.Finite(postureImpact)||postureImpact<0)
+                throw new ArgumentException("Invalid derived release identity/payload");
+            return new AttackRelease(Guid.NewGuid(),actorId,damage,postureImpact){ParentExecutionId=parent,EmissionIndex=index};
         }
 
         // 调用方必须先完成实际空间/阵营过滤；本方法不谎称已做物理检测。

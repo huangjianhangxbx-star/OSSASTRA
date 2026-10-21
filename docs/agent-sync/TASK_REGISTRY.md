@@ -925,3 +925,5 @@ active/unity-writer；用户明确要求一轮修整：共享脚本去M01标签�
 2026-10-22 VC01-FIX02 complete/released：空挥20纯契约+9实际输入、命中9回归、敌方HP12通过；Unity写入结束，dirty现场保留，GitHub定向发布。
 
 2026-10-22 equipment-boundaries complete/released：仅用户装备能力/Spine表现约束与源码核查，详见任务；不操作Unity/玩法。
+
+2026-10-22 VC02A active/unity-writer：唯一Unity writer，路径/用户现场/范围见tasks/2026-10-22-VC02A.md；A0-A8，不执行B。

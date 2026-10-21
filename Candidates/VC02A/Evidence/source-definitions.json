@@ -1,0 +1,562 @@
+{
+  "commit": "c21d4fc755db4fabb0227c690b4e55ebbec19829",
+  "results": [
+    {
+      "file": "game/src/core/right-hand-skills.ts",
+      "sha256": "442464243d91f3a3617cd95820bfb4117bc41ac5d4d4107efdc1a726f250325b",
+      "values": {
+        "RIGHT_ABILITIES": {
+          "hunter-break": {
+            "id": "hunter-break",
+            "name": "实验·破势斩",
+            "profession": "hunter",
+            "cooldown": 6,
+            "stamina": 18,
+            "damage": 20,
+            "posture": 25,
+            "range": 2.1,
+            "arc": 1.6,
+            "release": 0.12,
+            "finish": 0.4,
+            "color": "#9dcad1"
+          },
+          "hunter-sweep": {
+            "id": "hunter-sweep",
+            "name": "实验·横扫",
+            "profession": "hunter",
+            "cooldown": 10,
+            "stamina": 24,
+            "damage": 18,
+            "posture": 30,
+            "range": 2.2,
+            "arc": 4.71238898038469,
+            "release": 0.18,
+            "finish": 0.5,
+            "color": "#9dcad1"
+          },
+          "al-stab": {
+            "id": "al-stab",
+            "name": "实验·快刺",
+            "profession": "ranger",
+            "cooldown": 6,
+            "stamina": 18,
+            "damage": 20,
+            "posture": 20,
+            "range": 2.1,
+            "arc": 1.6,
+            "release": 0.12,
+            "finish": 0.4,
+            "color": "#d7b86f"
+          },
+          "al-spin": {
+            "id": "al-spin",
+            "name": "实验·回旋击",
+            "profession": "ranger",
+            "cooldown": 10,
+            "stamina": 24,
+            "damage": 18,
+            "posture": 30,
+            "range": 2.2,
+            "arc": 4.71238898038469,
+            "release": 0.18,
+            "finish": 0.5,
+            "color": "#d7b86f"
+          },
+          "hunter-native-E": {
+            "id": "hunter-native-E",
+            "name": "盾冲",
+            "profession": "hunter",
+            "native": true,
+            "cooldown": 8,
+            "stamina": 28,
+            "damage": 75,
+            "posture": 0,
+            "range": 0,
+            "arc": 0,
+            "release": 0,
+            "finish": 0,
+            "color": "#9dcad1"
+          },
+          "al-native-E": {
+            "id": "al-native-E",
+            "name": "火箭弹射",
+            "profession": "ranger",
+            "native": true,
+            "cooldown": 6,
+            "stamina": 28,
+            "damage": 85,
+            "posture": 0,
+            "range": 0,
+            "arc": 0,
+            "release": 0,
+            "finish": 0,
+            "color": "#d7b86f"
+          }
+        }
+      }
+    },
+    {
+      "file": "game/src/core/trial-progression.ts",
+      "sha256": "c2292554b1b442df1df3507c8b003c37af074e0ab202424c7625efbf4e14e73a",
+      "values": {
+        "TRIAL_ROOTS": {
+          "rush": {
+            "name": "破阵猛冲",
+            "profession": "blue"
+          },
+          "rocket": {
+            "name": "火箭弹射",
+            "profession": "yellow"
+          },
+          "precision": {
+            "name": "精准装填",
+            "profession": "yellow"
+          }
+        },
+        "EXECUTABLE_BRANCHES": {
+          "破阵猛冲1": {
+            "root": "rush",
+            "tier": 1,
+            "source": "rush-frost"
+          },
+          "破阵猛冲2": {
+            "root": "rush",
+            "tier": 1,
+            "source": "rush-force"
+          },
+          "破阵猛冲3": {
+            "root": "rush",
+            "tier": 2,
+            "source": "rush-frost-power"
+          },
+          "破阵猛冲4": {
+            "root": "rush",
+            "tier": 2,
+            "source": "rush-cooldown"
+          },
+          "破阵猛冲5": {
+            "root": "rush",
+            "tier": 3,
+            "source": "rush-ice"
+          },
+          "破阵猛冲6": {
+            "root": "rush",
+            "tier": 3,
+            "source": "rush-through"
+          },
+          "火箭弹射5": {
+            "root": "rocket",
+            "tier": 3,
+            "source": "rocket-reset"
+          },
+          "火箭弹射6": {
+            "root": "rocket",
+            "tier": 3,
+            "source": "rocket-speed"
+          },
+          "火箭弹射1": {
+            "root": "rocket",
+            "tier": 1,
+            "source": "rocket-stun"
+          },
+          "火箭弹射2": {
+            "root": "rocket",
+            "tier": 1,
+            "source": "rocket-power"
+          },
+          "精准装填6": {
+            "root": "precision",
+            "tier": 3,
+            "source": "precision-critical"
+          },
+          "精准装填2": {
+            "root": "precision",
+            "tier": 1,
+            "source": "precision-speed"
+          },
+          "精准装填4": {
+            "root": "precision",
+            "tier": 2,
+            "source": "precision-damage"
+          },
+          "精准装填1": {
+            "root": "precision",
+            "tier": 1,
+            "source": "precision-cooldown"
+          },
+          "精准装填3": {
+            "root": "precision",
+            "tier": 2,
+            "source": "precision-instant"
+          },
+          "精准装填5": {
+            "root": "precision",
+            "tier": 3,
+            "source": "precision-more"
+          },
+          "火箭弹射3": {
+            "root": "rocket",
+            "tier": 2,
+            "source": "rocket-launch"
+          }
+        }
+      }
+    },
+    {
+      "file": "game/src/core/ability-sources.ts",
+      "sha256": "3004e52e0a8837e5b796c3c991faa1fbf4e43fb52b2aa441549f87a21c23fed5",
+      "values": {
+        "SOURCE_DEFINITIONS": {
+          "chisel": {
+            "id": "chisel",
+            "nativeId": "凿冰",
+            "profession": "blue",
+            "effect": "chisel",
+            "origin": "rune",
+            "phase": 0,
+            "damage": 25,
+            "upgradesTo": "chisel-plus"
+          },
+          "chisel-plus": {
+            "id": "chisel-plus",
+            "nativeId": "凿冰+",
+            "profession": "blue",
+            "effect": "chisel",
+            "origin": "rune",
+            "phase": 1,
+            "damage": 40,
+            "upgraded": true
+          },
+          "rush-frost": {
+            "id": "rush-frost",
+            "nativeId": "破阵猛冲1",
+            "profession": "blue",
+            "effect": "rush-frost",
+            "origin": "active-branch",
+            "phase": 0,
+            "requires": "rush"
+          },
+          "rush-force": {
+            "id": "rush-force",
+            "nativeId": "破阵猛冲2",
+            "profession": "blue",
+            "effect": "skill-modifier",
+            "origin": "active-branch",
+            "phase": 0,
+            "requires": "rush",
+            "skillModifier": {
+              "root": "rush",
+              "damageAdd": 30,
+              "knockRatio": 0.8
+            }
+          },
+          "rush-frost-power": {
+            "id": "rush-frost-power",
+            "nativeId": "破阵猛冲3",
+            "profession": "blue",
+            "effect": "skill-modifier",
+            "origin": "active-branch",
+            "phase": 0,
+            "requires": "rush",
+            "skillModifier": {
+              "root": "rush",
+              "damagePerFrost": 15
+            }
+          },
+          "rush-cooldown": {
+            "id": "rush-cooldown",
+            "nativeId": "破阵猛冲4",
+            "profession": "blue",
+            "effect": "skill-modifier",
+            "origin": "active-branch",
+            "phase": 0,
+            "requires": "rush",
+            "skillModifier": {
+              "root": "rush",
+              "cooldownAdd": -2
+            }
+          },
+          "rush-ice": {
+            "id": "rush-ice",
+            "nativeId": "破阵猛冲5",
+            "profession": "blue",
+            "effect": "ice-trail",
+            "origin": "active-branch",
+            "phase": 0,
+            "requires": "rush"
+          },
+          "rush-through": {
+            "id": "rush-through",
+            "nativeId": "破阵猛冲6",
+            "profession": "blue",
+            "effect": "skill-modifier",
+            "origin": "active-branch",
+            "phase": 0,
+            "requires": "rush",
+            "skillModifier": {
+              "root": "rush",
+              "passesTargets": true
+            }
+          },
+          "rocket-reset": {
+            "id": "rocket-reset",
+            "nativeId": "火箭弹射5",
+            "profession": "yellow",
+            "effect": "rocket-reset",
+            "origin": "active-branch",
+            "phase": 0,
+            "requires": "rocket"
+          },
+          "rocket-speed": {
+            "id": "rocket-speed",
+            "nativeId": "火箭弹射6",
+            "profession": "yellow",
+            "effect": "skill-modifier",
+            "origin": "active-branch",
+            "phase": 0,
+            "requires": "rocket",
+            "skillModifier": {
+              "root": "rocket-land",
+              "shotRateBonus": 1,
+              "shotRateDuration": 5
+            }
+          },
+          "rocket-stun": {
+            "id": "rocket-stun",
+            "nativeId": "火箭弹射1",
+            "profession": "yellow",
+            "effect": "skill-modifier",
+            "origin": "active-branch",
+            "phase": 0,
+            "requires": "rocket",
+            "skillModifier": {
+              "root": "rocket-land",
+              "stunSeconds": 1.5,
+              "also": [
+                {
+                  "root": "rocket-launch",
+                  "stunSeconds": 1.5
+                }
+              ]
+            }
+          },
+          "rocket-power": {
+            "id": "rocket-power",
+            "nativeId": "火箭弹射2",
+            "profession": "yellow",
+            "effect": "skill-modifier",
+            "origin": "active-branch",
+            "phase": 0,
+            "requires": "rocket",
+            "skillModifier": {
+              "root": "rocket-land",
+              "damageAdd": 35,
+              "also": [
+                {
+                  "root": "rocket-launch",
+                  "damageAdd": 24
+                }
+              ]
+            }
+          },
+          "rocket-launch": {
+            "id": "rocket-launch",
+            "nativeId": "火箭弹射3",
+            "profession": "yellow",
+            "effect": "rocket-launch",
+            "origin": "active-branch",
+            "phase": 0,
+            "requires": "rocket"
+          },
+          "precision-critical": {
+            "id": "precision-critical",
+            "nativeId": "精准装填6",
+            "profession": "yellow",
+            "effect": "skill-modifier",
+            "origin": "active-branch",
+            "phase": 0,
+            "requires": "precision",
+            "skillModifier": {
+              "root": "precision",
+              "guaranteedCrit": true
+            }
+          },
+          "precision-speed": {
+            "id": "precision-speed",
+            "nativeId": "精准装填2",
+            "profession": "yellow",
+            "effect": "skill-modifier",
+            "origin": "active-branch",
+            "phase": 0,
+            "requires": "precision",
+            "skillModifier": {
+              "root": "precision",
+              "reloadShotRate": 0.4
+            }
+          },
+          "precision-damage": {
+            "id": "precision-damage",
+            "nativeId": "精准装填4",
+            "profession": "yellow",
+            "effect": "skill-modifier",
+            "origin": "active-branch",
+            "phase": 0,
+            "requires": "precision",
+            "skillModifier": {
+              "root": "precision",
+              "reloadShotDamage": 0.35
+            }
+          },
+          "precision-cooldown": {
+            "id": "precision-cooldown",
+            "nativeId": "精准装填1",
+            "profession": "yellow",
+            "effect": "skill-modifier",
+            "origin": "active-branch",
+            "phase": 0,
+            "requires": "precision",
+            "skillModifier": {
+              "root": "precision",
+              "cooldownAdd": -4
+            }
+          },
+          "precision-instant": {
+            "id": "precision-instant",
+            "nativeId": "精准装填3",
+            "profession": "yellow",
+            "effect": "skill-modifier",
+            "origin": "active-branch",
+            "phase": 0,
+            "requires": "precision",
+            "skillModifier": {
+              "root": "precision",
+              "instantReload": true
+            }
+          },
+          "precision-more": {
+            "id": "precision-more",
+            "nativeId": "精准装填5",
+            "profession": "yellow",
+            "effect": "skill-modifier",
+            "origin": "active-branch",
+            "phase": 0,
+            "requires": "precision",
+            "skillModifier": {
+              "root": "precision",
+              "ammoCount": 6
+            }
+          },
+          "last-round": {
+            "id": "last-round",
+            "nativeId": "最后一击",
+            "profession": "yellow",
+            "effect": "skill-modifier",
+            "origin": "rune",
+            "phase": 0,
+            "exclusivePoint": "yellow-last-round",
+            "upgradesTo": "last-round-plus",
+            "skillModifier": {
+              "root": "ranged-shot",
+              "condition": "last-round",
+              "damageRatio": 1.25
+            }
+          },
+          "last-round-plus": {
+            "id": "last-round-plus",
+            "nativeId": "最后一击+",
+            "profession": "yellow",
+            "effect": "skill-modifier",
+            "origin": "rune",
+            "phase": 1,
+            "exclusivePoint": "yellow-last-round",
+            "upgraded": true,
+            "skillModifier": {
+              "root": "ranged-shot",
+              "condition": "last-round",
+              "damageRatio": 1.85
+            }
+          },
+          "rapid-combo": {
+            "id": "rapid-combo",
+            "nativeId": "迅猛连击",
+            "profession": "blue",
+            "effect": "combo-prefix",
+            "origin": "rune",
+            "phase": 0,
+            "exclusivePoint": "blue-prefix",
+            "upgradesTo": "rapid-combo-plus",
+            "comboPrefix": "rapid"
+          },
+          "rapid-combo-plus": {
+            "id": "rapid-combo-plus",
+            "nativeId": "迅猛连击+",
+            "profession": "blue",
+            "effect": "combo-prefix",
+            "origin": "rune",
+            "phase": 1,
+            "exclusivePoint": "blue-prefix",
+            "upgraded": true,
+            "comboPrefix": "rapid-plus"
+          },
+          "frost-haste": {
+            "id": "frost-haste",
+            "nativeId": "凌凌如风",
+            "profession": "blue",
+            "effect": "frost-haste",
+            "origin": "rune",
+            "phase": 0,
+            "requires": "active",
+            "upgradesTo": "frost-haste-plus",
+            "exclusivePoint": "blue-frost-haste",
+            "hastePerFrost": 0.08
+          },
+          "frost-haste-plus": {
+            "id": "frost-haste-plus",
+            "nativeId": "凌凌如风+",
+            "profession": "blue",
+            "effect": "frost-haste",
+            "origin": "rune",
+            "phase": 1,
+            "requires": "active",
+            "upgraded": true,
+            "exclusivePoint": "blue-frost-haste",
+            "hastePerFrost": 0.12
+          },
+          "frost-aftershock": {
+            "id": "frost-aftershock",
+            "nativeId": "冰霜余震",
+            "profession": "blue",
+            "effect": "unresolved",
+            "origin": "rune",
+            "phase": 0,
+            "requires": "active"
+          },
+          "bastion": {
+            "id": "bastion",
+            "nativeId": "壁垒",
+            "profession": "blue",
+            "effect": "frost-capacity",
+            "origin": "rune",
+            "phase": 0,
+            "exclusivePoint": "blue-bastion",
+            "upgradesTo": "bastion-plus",
+            "frostCap": 2,
+            "frostRecovery": 0.33
+          },
+          "bastion-plus": {
+            "id": "bastion-plus",
+            "nativeId": "壁垒+",
+            "profession": "blue",
+            "effect": "frost-capacity",
+            "origin": "rune",
+            "phase": 1,
+            "exclusivePoint": "blue-bastion",
+            "upgraded": true,
+            "frostCap": 3,
+            "frostRecovery": 0.66
+          }
+        }
+      }
+    }
+  ]
+}

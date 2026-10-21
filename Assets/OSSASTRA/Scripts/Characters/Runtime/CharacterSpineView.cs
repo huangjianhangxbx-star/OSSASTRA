@@ -6,6 +6,7 @@
  */
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Ossastra.AnimationCore;
 using Ossastra.CharacterCore;
 using SemanticIntent = Ossastra.AnimationCore.AnimationIntent;
@@ -22,7 +23,7 @@ namespace Ossastra.Characters
         private Guid capturedAction;
         private string capturedClip;
         private float capturedMix,capturedRate=1;
-        private Ossastra.Combat.ICombatGuard guard;
+        private Ossastra.Combat.ICombatGuard[] guards=Array.Empty<Ossastra.Combat.ICombatGuard>();
         [SerializeField] private string idle="idle1_1", move="run", attack="atk1";
         [SerializeField] private AnimationClipMap[] catalog=Array.Empty<AnimationClipMap>();
         private CharacterDataBus dataBus;
@@ -61,7 +62,8 @@ namespace Ossastra.Characters
                     foreach(var action in root.Definition.basicAttacks)
                         if(action==null||profile.FindKey(action.animationKey)==null)return false;
             }
-            if(data.FindAnimation(idle)==null||data.FindAnimation(move)==null||data.FindAnimation(attack)==null)return false;            if(root!=null)guard=root.GetComponent<ShieldGuard>();
+            if(data.FindAnimation(idle)==null||data.FindAnimation(move)==null||data.FindAnimation(attack)==null)return false;
+            if(root!=null)guards=root.GetComponents<MonoBehaviour>().OfType<Ossastra.Combat.ICombatGuard>().ToArray();
             originalScaleX=Mathf.Abs(skeleton.Skeleton.ScaleX);originalTimeScale=skeleton.timeScale;return true;
         }
         public bool CanCaptureAction(ActionDefinitionSO definition,out string reason)
@@ -94,7 +96,7 @@ namespace Ossastra.Characters
             if(ActionPresentationPolicy.RetainMainPose(dataBus.ActionActive,dataBus.MoveReady,dataBus.IsMoving))Add(attackStage==2?AnimationSemantic.BasicAttackSecond:AnimationSemantic.BasicAttack,"action",dataBus.ActionId);
             var motion=dataBus.MotionOverride as ICharacterMotionAnimation;
             if(motion!=null&&motion.IsActive)Add(AnimationSemantic.Dodge,"dodge",motion.ActionId);
-            if(guard!=null&&guard.IsGuarding)Add(AnimationSemantic.Guard,"guard",Guid.Empty);
+            if(guards.Any(g=>g.IsGuarding))Add(AnimationSemantic.Guard,"guard",Guid.Empty);
             if(hitReaction)Add(AnimationSemantic.HitReaction,"vitals",Guid.Empty);
             if(staggered)Add(AnimationSemantic.PostureBroken,"posture",Guid.Empty);
             if(!alive)Add(AnimationSemantic.Death,"life",Guid.Empty);

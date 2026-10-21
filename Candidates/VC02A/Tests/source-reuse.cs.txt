@@ -1,0 +1,29 @@
+using System;using System.Linq;using System.Collections.Generic;using UnityEngine;using UnityEditor;using UnityEngine.InputSystem;using UnityEngine.InputSystem.LowLevel;using Ossastra.Characters;using Ossastra.CharacterCore;using Funplay.Editor.Tools.Scripting;
+public class SourceReuseProbe:IFunplayCommand
+{
+ private sealed class TestInventorySource:IAbilitySource
+ {
+  public string OwnerId{get;}public string InstanceId{get;}public int Count=2;public bool Reserved;
+  private readonly HashSet<Guid> consumed=new HashSet<Guid>();
+  public TestInventorySource(string owner,string id){OwnerId=owner;InstanceId=id;}
+  public bool IsAvailable=>Count>0;
+  public bool TryReserve(Guid id){if(id==Guid.Empty||Reserved||Count<1)return false;Reserved=true;return true;}
+  public bool CommitRelease(Guid id){if(!Reserved||Count<1||!consumed.Add(id))return false;Count--;Reserved=false;return true;}
+  public void CancelReservation(){Reserved=false;}
+ }
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+ {
+  if(!Application.isPlaying)throw new Exception("Play required");var c=UnityEngine.Object.FindObjectOfType<CharacterControlCoordinator>();var a=c.Current;var module=a.GetComponent<CharacterAbilities>();var gear=a.GetComponent<CharacterEquipment>();var e=UnityEngine.Object.FindObjectOfType<Ossastra.Enemies.EnemyRoot>();
+  var definition=UnityEngine.Object.Instantiate(AssetDatabase.LoadAssetAtPath<AbilityDefinitionSO>("Assets/OSSASTRA/Configs/Abilities/Throw_Equipment.asset"));definition.definitionId="vc02-test.inventory-throw";definition.acceptCost=0;definition.cooldown=0;
+  var source=new TestInventorySource(a.ActorId,"test-item:1");var foreign=new TestInventorySource("another-actor","test-item:wrong");var input=a.GetComponent<CharacterInputHandler>();var old=input.mouseAction.SaveBindingOverridesAsJson();var mouse=InputSystem.AddDevice<Mouse>("InventoryThrowMouse");for(int i=0;i<input.mouseAction.bindings.Count;i++)if(input.mouseAction.bindings[i].path.Contains("<Mouse>"))input.mouseAction.ApplyBindingOverride(i,input.mouseAction.bindings[i].path.Replace("<Mouse>",mouse.path));
+  var point=Camera.main.WorldToScreenPoint(e.transform.position);InputSystem.QueueStateEvent(mouse,new MouseState{position=new Vector2(point.x,point.y)});a.SendMessage("OnApplicationFocus",true);EditorWindow.GetWindow(typeof(Editor).Assembly.GetType("UnityEditor.GameView")).Focus();
+  var rows=new List<object>();int failed=0,next=0,last=-1;var start=EditorApplication.timeSinceStartup;var steps=new List<(double,Action)>();int before=e.Vitals.Health.Current,wear=gear.State.Durability,accepted=module.AcceptedCount;
+  void Check(string name,bool ok){if(!ok)failed++;rows.Add(new{name,ok,last=module.LastResult,count=source.Count,reserved=source.Reserved});}
+  void Flush(string state){SessionState.SetString("VC02_SOURCE_REUSE",Newtonsoft.Json.JsonConvert.SerializeObject(new{state,failed,rows}));}
+  steps.Add((.2,()=>{Check("same compiled delivery accepts inventory source",module.TryRequestFromSource(definition,source,AbilityOperation.Secondary,CharacterActionSource.UserInterface));Check("accept reserves without consuming item",source.Count==2&&source.Reserved);Check("reservation denies a duplicate request",!module.TryRequestFromSource(definition,source,AbilityOperation.Secondary,CharacterActionSource.UserInterface));}));
+  steps.Add((.9,()=>{Check("release consumes exactly one item",source.Count==1&&!source.Reserved);Check("same delivery resolves actual damage",e.Vitals.Health.Current==before-45);Check("item source never wears equipped shield",gear.State.Durability==wear);var stamina=a.GetComponent<CharacterStamina>().Current;Check("foreign source rejected without payment",!module.TryRequestFromSource(definition,foreign,AbilityOperation.Secondary,CharacterActionSource.UserInterface)&&a.GetComponent<CharacterStamina>().Current==stamina&&foreign.Count==2);Check("new request accepted",module.TryRequestFromSource(definition,source,AbilityOperation.Secondary,CharacterActionSource.UserInterface));module.CancelPending("test-cancel");Check("cancel frees reservation without consuming",source.Count==1&&!source.Reserved);}));
+  steps.Add((1.6,()=>{Check("cancelled pending never emits late",e.Vitals.Health.Current==before-45&&module.AcceptedCount==accepted+2);Check("released effects cleaned",module.InFlightCount==0);}));
+  EditorApplication.CallbackFunction tick=null;void Cleanup(){EditorApplication.update-=tick;input.mouseAction.LoadBindingOverridesFromJson(old);InputSystem.RemoveDevice(mouse);UnityEngine.Object.DestroyImmediate(definition);}
+  tick=()=>{if(Time.frameCount==last)return;last=Time.frameCount;try{if(next<steps.Count&&EditorApplication.timeSinceStartup-start>=steps[next].Item1)steps[next++].Item2();if(next==steps.Count){Cleanup();Flush("completed");}}catch(Exception ex){failed++;rows.Add(new{error=ex.ToString()});Cleanup();Flush("failed");}};EditorApplication.update+=tick;Flush("running");
+ }
+}

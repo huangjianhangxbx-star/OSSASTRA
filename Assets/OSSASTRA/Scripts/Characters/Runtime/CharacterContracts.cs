@@ -11,6 +11,28 @@ using System.Collections.Generic;
 
 namespace Ossastra.Characters
 {
+    /// <summary>根显式推进的定义驱动能力：输入路由与已释放效果分开，旧样板路径与此端口互斥。</summary>
+    public interface ICharacterAbilityController
+    {
+        void Initialize(CharacterRoot owner);
+        void TickInput(CharacterInputFrame frame);
+        void TickEffects(float delta);
+        bool OwnsRelease(System.Guid actionId);
+        void ObserveFact(ActionFact fact);
+        bool CanAccept(CharacterActionKind kind,out string reason);
+        bool IsBusy {get;}
+        void CancelPending(string reason);
+    }
+    /// <summary>执行器只访问已验证来源；装备耐久与物品数量分别实现，不由投递器持有。</summary>
+    public interface IAbilitySource
+    {
+        string OwnerId {get;}
+        string InstanceId {get;}
+        bool IsAvailable {get;}
+        bool TryReserve(System.Guid transactionId);
+        bool CommitRelease(System.Guid executionId);
+        void CancelReservation();
+    }
     /// <summary>角色技能能力；根调度输入、唯一释放事实和离手效果，UI只提交请求。</summary>
     public interface ICharacterSkills
     {
