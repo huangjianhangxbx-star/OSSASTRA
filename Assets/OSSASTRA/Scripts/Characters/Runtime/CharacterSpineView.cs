@@ -1,12 +1,13 @@
 /*
  * 脚本：CharacterSpineView
- * 功能：Root运动后采集只读语义，经公共仲裁和配置映射，单次提交Spine主轨。
+ * 功能：Root运动后采集只读语义，经公共仲裁和配置映射，单次提交Spine主轨；合法恢复移动后让出攻击姿势。
  * 边界：不定义战斗时钟、不监听Complete扣血；死亡仍由Vitals立即隐藏。
  * 协作：旧idle/move/attack序列化引用保留；可选catalog覆盖，缺片段明确回退。
  */
 using System;
 using System.Collections.Generic;
 using Ossastra.AnimationCore;
+using Ossastra.CharacterCore;
 using SemanticIntent = Ossastra.AnimationCore.AnimationIntent;
 using PlaybackIdentity = Ossastra.AnimationCore.AnimationPlaybackIdentity;
 using Ossastra.AnimationPresentation;
@@ -52,7 +53,8 @@ namespace Ossastra.Characters
             // 每帧重新采集，不保留过期请求；Root本帧事实是唯一资格来源。
             intents.Clear();Add(AnimationSemantic.Idle,"movement",Guid.Empty);
             if(dataBus.IsMoving)Add(AnimationSemantic.Move,"movement",Guid.Empty);
-            if(dataBus.ActionActive)Add(attackStage==2?AnimationSemantic.BasicAttackSecond:AnimationSemantic.BasicAttack,"action",dataBus.ActionId);
+            // 恢复门与呈现占用分离；跑步交接不取消主动作或提前开放AttackReady。
+            if(ActionPresentationPolicy.RetainMainPose(dataBus.ActionActive,dataBus.MoveReady,dataBus.IsMoving))Add(attackStage==2?AnimationSemantic.BasicAttackSecond:AnimationSemantic.BasicAttack,"action",dataBus.ActionId);
             if(hitReaction)Add(AnimationSemantic.HitReaction,"vitals",Guid.Empty);
             if(staggered)Add(AnimationSemantic.PostureBroken,"posture",Guid.Empty);
             if(!alive)Add(AnimationSemantic.Death,"life",Guid.Empty);

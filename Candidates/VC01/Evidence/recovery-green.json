@@ -1,0 +1,34 @@
+{
+  "state": "completed",
+  "failed": 0,
+  "rows": [
+    {
+      "name": "recovery has movement permission",
+      "ok": true,
+      "a": 90.0,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.00, 0.02, -2.45)",
+      "last": "MoveReady @0.500 761d8e38",
+      "hit": "未释放"
+    },
+    {
+      "name": "moving recovery presents Move",
+      "ok": true,
+      "a": 90.0,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.00, 0.02, -2.45)",
+      "last": "MoveReady @0.500 761d8e38",
+      "hit": "未释放"
+    },
+    {
+      "clip": "run",
+      "semantic": "Move",
+      "moveReady": true,
+      "actionActive": true
+    }
+  ]
+}

@@ -44,3 +44,6 @@ ROADMAP01旧场与交接仍可用于回归：[记录](docs/ossastra/ROADMAP01-re
 独立试玩场：`Assets/OSSASTRA/ROADMAP02/SC_ROADMAP02_TeamCombat.unity`。
 伙伴有限Stage1自主普攻、敌方追踪预警、独立二维呈现、原两段攻击/死亡切控/安全返场。S5/S6/S8技术PASS；S7技术PASS，正式敌美术ASSET_BLOCKED（本地现有Spine替身）。
 阅读 [审查](docs/ossastra/ROADMAP02-review.md)、[验证](docs/ossastra/ROADMAP02-verification.md)、[发布](docs/ossastra/ROADMAP02-publication.md)。媒体/插件不公开，干净克隆不保证直接运行；手感与架构待用户审查。
+
+## VC01（当前开发中）
+正式候选场：Assets/OSSASTRA/Scenes/SC_CharacterVerticalSlice.unity。G0基线已建立，G1—G6仍在实施，HUD尚未迁完，不能视为本轮完整试玩交付。集中入口[VC01审查](docs/ossastra/VC01-review.md)、[资源与原型基线](docs/ossastra/VC01-baseline.md)。

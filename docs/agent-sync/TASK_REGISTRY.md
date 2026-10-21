@@ -918,3 +918,5 @@ active/unity-writer；用户明确要求一轮修整：共享脚本去M01标签�
 2026-10-21 ROADMAP03 resumed/active/unity-writer：用户重启Unity后prepare_editor新操作ready且journal_error为空；重新持有原任务路径租约。先收口S10，继续S11-S13。
 
 - 2026-10-21 ROADMAP03：completed；unity-writer与所有本轮路径释放；S13止步，人工审查待用户。
+
+2026-10-21 VC01 active/unity-writer：用户批准一期v1.0，独占范围见tasks/2026-10-21-VC01.md；唯一Unity writer，G0-G6顺序，保留旧场/共享Prefab/旧禁编删除/媒体；GitHub main定向发布，不Gitee/VC02。
