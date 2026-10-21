@@ -10,7 +10,7 @@ using Ossastra.Combat;
 using UnityEngine;
 namespace Ossastra.Enemies
 {
-    [RequireComponent(typeof(CombatVitals),typeof(CombatMeleeHit),typeof(StationaryEnemyBrain))]
+    [RequireComponent(typeof(CombatVitals),typeof(CombatMeleeHit))]
     public sealed class EnemyRoot : MonoBehaviour
     {
         [SerializeField] private string actorId="enemy-stationary-01";
@@ -29,6 +29,8 @@ namespace Ossastra.Enemies
         private ICombatTarget target;
         private Health targetHealth;
         private bool focused=true, applicationPaused, paused;
+        public event Action<ActionFact> ActionObserved;
+        public bool HasCombatTarget => brain is ChaseEnemyBrain chase && chase.TargetId!="none";
         public string ActorId => actorId;
         public CombatVitals Vitals => vitals;
         public string LastFact { get; private set; }="Idle";
@@ -72,12 +74,14 @@ namespace Ossastra.Enemies
                 {
                     target=selected; targetHealth=selected.Health; brain.OnAccepted(Time.time);
                     LastFact="Accepted #"+request.Fact.ActionId.ToString("N");
+                    ActionObserved?.Invoke(request.Fact);
                 }
             }
             // 3. 唯一动作推进/命中阶段；破势回调立即Cancel，不保留冻结的待释放动作。
             foreach(var fact in runtime.Advance(Time.deltaTime,false))
             {
                 LastFact=fact.Kind+" #"+fact.ActionId.ToString("N");
+                ActionObserved?.Invoke(fact);
                 if(fact.Release!=null)
                 {
                     var direction=target.WorldPosition-transform.position; direction.y=0;
@@ -90,6 +94,7 @@ namespace Ossastra.Enemies
         public void Cancel(string reason)
         {
             var fact=runtime==null?null:runtime.Cancel(reason);
+            if(fact!=null) ActionObserved?.Invoke(fact);
             if(fact!=null) LastFact="Cancelled "+reason+" #"+fact.ActionId.ToString("N");
             target=null; targetHealth=null;
             movement?.Stop();
@@ -117,3 +122,4 @@ namespace Ossastra.Enemies
         { Cancel("development-reset"); vitals.RestoreForDevelopment(); if(posture!=null) posture.ResetState(); brain.ResetDecision(Time.time); }
     }
 }
+

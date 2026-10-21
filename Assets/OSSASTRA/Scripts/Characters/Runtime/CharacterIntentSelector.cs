@@ -57,7 +57,8 @@ namespace Ossastra.Characters
             else if (selectedKind == CharacterIntentKind.Companion)
             {
                 // 伙伴即使给了其它字段，也只准传递move；不能借AI帧自动攻击、取消或暂停。
-                var candidate=companion.ReadCompanionIntent(character,Time.deltaTime);
+                var candidate=character.CombatMove != null && character.CombatMove.TryGetCombatMove(out var battleMove)
+                    ? new CharacterInputFrame { move=battleMove } : companion.ReadCompanionIntent(character,Time.deltaTime);
                 frame=new CharacterInputFrame { move=candidate.move };
             }
             // 提供者发现新目标会先撤回旧帧；只有本次读取完成后才发布新来源身份。
@@ -70,3 +71,4 @@ namespace Ossastra.Characters
         private static bool Alive(object value) => value != null && (!(value is Object unityObject) || unityObject != null);
     }
 }
+

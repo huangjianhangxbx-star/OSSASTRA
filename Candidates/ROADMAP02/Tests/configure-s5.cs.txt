@@ -1,0 +1,13 @@
+using System; using System.Linq; using UnityEngine; using UnityEditor; using UnityEditor.SceneManagement; using Funplay.Editor.Tools.Scripting;
+public class ConfigureTeam:IFunplayCommand { public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx){
+var scene=UnityEngine.SceneManagement.SceneManager.GetActiveScene(); if(scene.isDirty || Application.isPlaying)throw new Exception("Clean Edit required");
+if(scene.path!="Assets/OSSASTRA/ROADMAP01/SC_ROADMAP01_CombatLoop.unity")throw new Exception("Unexpected source scene");
+if(!AssetDatabase.IsValidFolder("Assets/OSSASTRA/ROADMAP02"))AssetDatabase.CreateFolder("Assets/OSSASTRA","ROADMAP02");
+if(!EditorSceneManager.SaveScene(scene,"Assets/OSSASTRA/ROADMAP02/SC_ROADMAP02_TeamCombat.unity",true))throw new Exception("Copy failed");
+scene=EditorSceneManager.OpenScene("Assets/OSSASTRA/ROADMAP02/SC_ROADMAP02_TeamCombat.unity");
+var c=UnityEngine.Object.FindObjectOfType<Ossastra.Characters.CharacterControlCoordinator>(); var enemies=UnityEngine.Object.FindObjectsOfType<Ossastra.Enemies.EnemyRoot>();
+if(c==null||enemies.Length!=1)throw new Exception("Missing coordinator/enemy");
+var go=new GameObject("CombatEngagement_SAMPLE");ctx.RegisterObjectCreation(go);var engagement=go.AddComponent<Ossastra.Combat.CombatEngagementSession>();
+var so=new SerializedObject(engagement);so.FindProperty("coordinator").objectReferenceValue=c;var es=so.FindProperty("enemies");es.arraySize=enemies.Length;for(int i=0;i<enemies.Length;i++)es.GetArrayElementAtIndex(i).objectReferenceValue=enemies[i];so.ApplyModifiedPropertiesWithoutUndo();
+foreach(var root in c.Characters){ctx.RegisterObjectModification(root.gameObject);var brain=root.gameObject.AddComponent<Ossastra.Characters.CompanionCombatBrain>();var bs=new SerializedObject(brain);bs.FindProperty("engagement").objectReferenceValue=engagement;bs.ApplyModifiedPropertiesWithoutUndo();}
+EditorSceneManager.MarkSceneDirty(scene);EditorSceneManager.SaveScene(scene);ctx.ReturnValue=new{scene=scene.path,roots=c.Characters.Count,enemies=enemies.Length};}}

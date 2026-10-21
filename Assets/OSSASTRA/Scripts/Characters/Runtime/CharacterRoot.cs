@@ -28,6 +28,12 @@ namespace Ossastra.Characters
         [SerializeField] private CombatVitals vitals;
         [SerializeField] private CombatPosture posture;
         private ICombatLifeState lifeState;
+        private CompanionCombatBrain combatBrain;
+        private CombatVitals autonomousTarget;
+        private bool autonomousAction;
+        public event Action<ActionFact> ActionObserved;
+        public double SimulationTime => runtime == null ? 0 : runtime.SimulationTime;
+        public ICompanionMoveCandidate CombatMove => combatBrain;
         [Header("Prototype timing — not final balance")]
         [SerializeField] private float releaseAt = .3f, moveReadyAt = .5f, attackReadyAt = .8f, finishAt = 1.1f;
         [SerializeField, Min(1)] private int damage = 12;
@@ -114,6 +120,8 @@ namespace Ossastra.Characters
             // 每角色只有这一条有效Frame入口；没有Director绑定时保持原玩家适配器行为。
             intentSelector = new CharacterIntentSelector(this,input);
             inputSource = intentSelector;
+            combatBrain=GetComponent<CompanionCombatBrain>();
+            if(combatBrain!=null) combatBrain.Initialize(this);
             mover = movement;
             orienter = orientation;
             presentation = view;
@@ -160,6 +168,7 @@ namespace Ossastra.Characters
             // DefaultExecutionOrder只约束跨组件先后，不能替代这里的模块调用顺序。
             // 1. 采唯一意图源并处理暂停/取消；不由各子模块另开输入Update。
             // 选择器只采一个源；伙伴只能提供移动，切人屏障为空帧，动作时钟仍继续。
+            combatBrain?.Sample(runtime.SimulationTime, Time.deltaTime);
             inputSource.Read();
             var frame = DataBus.Input;
             if(chain!=null && (!input.HasPlayerInput || IsPaused || !focused || chainProfile==null || !chainProfile.isActiveAndEnabled)) chain.Clear();
@@ -178,6 +187,15 @@ namespace Ossastra.Characters
                 var stage=chain==null?1:chain.Request(runtime.SimulationTime,runtime.AttackReady,
                     input.HasPlayerInput && !IsPaused && authority.Allows(ControlChannel.Attack) && chainProfile!=null && chainProfile.isActiveAndEnabled);
                 if(stage>0) RequestStage(stage);
+            }
+            // 4b. 窄自治请求与玩家边沿互斥；仅Stage1，不通过输入帧注入攻击/暂停。
+            if(!input.HasPlayerInput && CanSimulateIntent && combatBrain!=null &&
+                ((ICompanionActionCandidate)combatBrain).TryGetAttackTarget(out var aiTarget))
+                RequestStage(1,aiTarget);
+            if(autonomousAction && runtime.IsActive)
+            {
+                if(combatBrain==null || !combatBrain.IsAcceptedTargetValid(autonomousTarget)) CancelAction("ai-target-invalid");
+                else orienter.OrientTowards(autonomousTarget.transform.position);
             }
             // 5. 唯一动作时钟推进与Release命中。Accepted不扣血，切人不重发事实。
             foreach (var fact in runtime.Advance(Time.deltaTime, IsPaused || !focused))
@@ -228,24 +246,27 @@ namespace Ossastra.Characters
             lastFact = fact.Kind + " @" + fact.At.ToString("F3") + " " + fact.ActionId.ToString("N").Substring(0, 8);
             if (fact.Reason != null) lastFact += " " + fact.Reason;
             if (verboseTrace) Debug.Log("Character " + lastFact, this);
+            ActionObserved?.Invoke(fact);
         }
-        private void RequestStage(int stage)
+        private void RequestStage(int stage, CombatVitals aiTarget = null)
         {
             var selected=stage==2?secondDefinition:definition;
-            var request=runtime.Request(selected,"player-input:Stage"+stage,authority,IsPaused);
+            var request=runtime.Request(selected,aiTarget==null?"player-input:Stage"+stage:"companion:Stage1",authority,IsPaused);
             if(request.PreviousTerminal!=null) Observe(request.PreviousTerminal);
             if(request.Accepted)
             {
-                AttackStage=stage; chain?.Accepted(stage,request.Fact.ActionId,runtime.SimulationTime,selected.AttackReadyAt);
+                AttackStage=stage; autonomousAction=aiTarget!=null; autonomousTarget=aiTarget;
+                if(autonomousAction) { chain?.Clear(); combatBrain.OnAccepted(); orienter.OrientTowards(aiTarget.transform.position); }
+                else chain?.Accepted(stage,request.Fact.ActionId,runtime.SimulationTime,selected.AttackReadyAt);
                 Observe(request.Fact); orienter.FaceAttackDirection();
             }
             else lastFact="Rejected: "+request.Reason;
         }
-        private void OnHitReceipt(Guid id,bool applied){chain?.Hit(id,applied);}
+        private void OnHitReceipt(Guid id,bool applied){if(!autonomousAction)chain?.Hit(id,applied);}
 
         public void CancelAction(string reason)
         {
-            animationGeneration++;
+            animationGeneration++; autonomousAction=false; autonomousTarget=null; combatBrain?.ResetCandidate();
             chain?.Clear();
             // 取消必须具名；抑制仍按住的输入，不能把下一帧误判为新请求。
             intent.SuppressUntilRelease();
@@ -309,3 +330,4 @@ namespace Ossastra.Characters
         }
     }
 }
+

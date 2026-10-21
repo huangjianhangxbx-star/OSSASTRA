@@ -18,6 +18,9 @@ namespace Ossastra.Combat
         [SerializeField] private LayerMask targetLayers=~0;
         public string LastResult { get; private set; }="未释放";
         public event Action<Guid, bool> Resolved;
+        public float Reach => reach;
+        public float Radius => radius;
+        public float Height => height;
         public void Resolve(AttackRelease release, Vector3 releaseDirection)
         {
             if(release==null) throw new ArgumentNullException(nameof(release));
@@ -52,3 +55,4 @@ namespace Ossastra.Combat
         }
     }
 }
+
