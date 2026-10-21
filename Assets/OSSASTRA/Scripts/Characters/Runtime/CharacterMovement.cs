@@ -35,7 +35,10 @@ namespace Ossastra.Characters
             if (dataBus == null || body == null || !body.enabled || delta <= 0) return;
             var move = allowed ? Vector2.ClampMagnitude(dataBus.Input.move, 1) : Vector2.zero;
             var before = transform.position;
-            body.Move((new Vector3(move.x, 0, move.y) * speed + Vector3.down * groundStick) * delta);
+            // 平时与闪避共同走这一处Move；覆盖速度仍接受本体移动权限和真实墙体碰撞。
+            var velocity=allowed&&dataBus.MotionOverride!=null&&dataBus.MotionOverride.IsActive
+                ?dataBus.MotionOverride.MotionVelocity:new Vector3(move.x,0,move.y)*speed;
+            body.Move((velocity + Vector3.down * groundStick) * delta);
             // 用碰撞处理后的实际位移报告运动，而不是把“按住移动键”当成真的跑动。
             var displacement = transform.position - before;
             displacement.y = 0;

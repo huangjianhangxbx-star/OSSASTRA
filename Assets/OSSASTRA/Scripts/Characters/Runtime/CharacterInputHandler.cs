@@ -14,7 +14,7 @@ namespace Ossastra.Characters
     public struct CharacterInputFrame
     {
         public Vector2 move, pointer, aimDirection;
-        public bool attackHeld, cancel, pause, hasPointer, hasDirectionalAim, attackPointerBlocked;
+        public bool attackHeld, dodgePressed, cancel, pause, hasPointer, hasDirectionalAim, attackPointerBlocked;
         public int debugCommand;
     }
 
@@ -30,6 +30,8 @@ namespace Ossastra.Characters
         public InputAction gamepadAimAction = new InputAction("GamepadAim", InputActionType.Value, expectedControlType: "Vector2");
         [Header("当前普攻 / VELGITA HoundWeaponAttack_Action")]
         public InputAction attackAction = new InputAction("Attack", InputActionType.Button);
+        [Header("可选本体闪避 / 只在新验证场绑定")]
+        public InputAction dodgeAction = new InputAction("Dodge", InputActionType.Button);
         [Header("取消与暂停")]
         public InputAction cancelAction = new InputAction("Cancel", InputActionType.Button);
         public InputAction pauseAction = new InputAction("Pause", InputActionType.Button);
@@ -43,6 +45,7 @@ namespace Ossastra.Characters
         private ICharacterPlayerControlSource playerControl;
         private bool managedPlayerInput, attackArmed = true;
         private bool movementArmed=true;
+        private bool dodgeArmed;
 
         public bool HasPlayerInput => !managedPlayerInput || (ControlSourceAlive && playerControl.IsPlayerInputAllowed(this));
         private bool ControlSourceAlive => playerControl != null &&
@@ -63,7 +66,7 @@ namespace Ossastra.Characters
 
         /// <summary>移交时清掉旧快照；不假装一次松键，必须真正观察释放后才重武装攻击。</summary>
         public void ResetPlayerInput(bool requireMovementRelease=false)
-        { CurrentFrame=default; attackArmed=false; if (requireMovementRelease) movementArmed=false; }
+        { CurrentFrame=default; attackArmed=false; dodgeArmed=false; if (requireMovementRelease) movementArmed=false; }
         public void RegisterPointerRegion(object owner, Rect region) { pointerRegions[owner] = region; }
         public void RemovePointerRegion(object owner) { pointerRegions.Remove(owner); }
 
@@ -89,6 +92,7 @@ namespace Ossastra.Characters
             yield return mouseAction;
             yield return gamepadAimAction;
             yield return attackAction;
+            yield return dodgeAction;
             yield return cancelAction;
             yield return pauseAction;
             yield return debugValidAction;
@@ -128,6 +132,10 @@ namespace Ossastra.Characters
             var held = attackAction != null && attackAction.enabled && attackAction.IsPressed();
             if (!held) attackArmed = true;
             frame.attackHeld = held && attackArmed;
+            var dodgeHeld=dodgeAction!=null&&dodgeAction.enabled&&dodgeAction.IsPressed();
+            if(!dodgeHeld)dodgeArmed=true;
+            frame.dodgePressed=dodgeHeld&&dodgeArmed&&Pressed(dodgeAction);
+            if(frame.dodgePressed)dodgeArmed=false;
             if (attackAction != null && attackAction.activeControl != null && attackAction.activeControl.device is Pointer &&
                 !frame.hasPointer) frame.attackPointerBlocked = true;
             frame.cancel = Pressed(cancelAction);

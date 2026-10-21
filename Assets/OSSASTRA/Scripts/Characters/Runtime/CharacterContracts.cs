@@ -11,6 +11,18 @@ using System.Collections.Generic;
 
 namespace Ossastra.Characters
 {
+    /// <summary>本体体力只读视图；付款仅经本体资源模块，不在DataBus复制余额。</summary>
+    public interface ICharacterStamina
+    {
+        double Current { get; }
+        double Maximum { get; }
+    }
+    /// <summary>原运动执行器读取机动速度；能力不直接调用Move或修改位置。</summary>
+    public interface ICharacterMotionOverride
+    {
+        bool IsActive { get; }
+        Vector3 MotionVelocity { get; }
+    }
     /// <summary>伙伴战斗策略提供移动候选；选择器与Root保留有效输入及实际运动执行权。</summary>
     public interface ICompanionMoveCandidate
     {

@@ -31,6 +31,9 @@ namespace Ossastra.Characters
         public bool AttackReady => actionRuntime.AttackReady;
         public bool AllowsMovement => controlAuthority.Allows(ControlChannel.Move);
         public bool AllowsAttack => controlAuthority.Allows(ControlChannel.Attack);
+        public ICharacterStamina Stamina {get;private set;}
+        public ICharacterMotionOverride MotionOverride {get;private set;}
+        internal void BindResources(ICharacterStamina stamina,ICharacterMotionOverride motion){Stamina=stamina;MotionOverride=motion;}
 
         public CharacterDataBus(string actorId, ICharacterInputSource input, ICharacterMovement movement,
             ICharacterOrientation orientation, BasicActionRuntime actionRuntime, ControlAuthority controlAuthority)

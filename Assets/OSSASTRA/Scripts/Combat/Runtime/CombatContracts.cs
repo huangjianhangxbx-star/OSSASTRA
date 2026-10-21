@@ -8,6 +8,15 @@ using Ossastra.CharacterCore;
 using UnityEngine;
 namespace Ossastra.Combat
 {
+    public interface ICombatEvasion { bool IsEvading { get; } }
+    public interface ICombatGuard
+    {
+        bool IsGuarding { get; }
+        Vector3 GuardDirection { get; }
+        double MinimumDot { get; }
+        double PostureScale { get; }
+        void OnGuarded(HitOutcome outcome);
+    }
     /// <summary>只采样防御资格；回执后才允许更新盾耐久，不直接写生命或架势。</summary>
     public interface ICombatDefense
     {

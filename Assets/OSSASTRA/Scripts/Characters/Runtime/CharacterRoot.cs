@@ -29,6 +29,8 @@ namespace Ossastra.Characters
         [SerializeField] private CombatPosture posture;
         private ICombatLifeState lifeState;
         private CompanionCombatBrain combatBrain;
+        private CharacterStamina stamina;
+        private CharacterDodge dodge;
         private CombatVitals autonomousTarget;
         private bool autonomousAction;
         public event Action<ActionFact> ActionObserved;
@@ -103,6 +105,7 @@ namespace Ossastra.Characters
             movement.Teleport(position);
             if(posture!=null) posture.ResetState();
             if(!vitals.RestoreAfterDeath()) return false;
+            stamina?.Restore();
             lifeGeneration++;
             return true;
         }
@@ -143,6 +146,9 @@ namespace Ossastra.Characters
             catch (ArgumentException error) { Debug.LogError("Character configuration: " + error.Message, this); enabled = false; return; }
             // 每角色独立Bus只读取原所有者；只有确需Bus的运动和表现执行初始化。
             DataBus = new CharacterDataBus(actorId, inputSource, mover, orienter, runtime, authority);
+            stamina=GetComponent<CharacterStamina>();if(stamina!=null)stamina.Initialize();
+            dodge=GetComponent<CharacterDodge>();if(dodge!=null)dodge.Initialize(this,stamina);
+            DataBus.BindResources(stamina,dodge);
             ready = InitializeSubsystems(DataBus, mover, presentation);
             if (!ready) { Debug.LogError("Character subsystem initialization failed", this); enabled = false; }
             // 可选能力只接受本角色初始化；无组件/无assignment的旧场保持普通玩家行为。
@@ -182,6 +188,13 @@ namespace Ossastra.Characters
             var canMove = focused && !IsPaused && DataBus.AllowsMovement && DataBus.MoveReady;
             if (focused && !IsPaused)
                 orienter.ResolveDirections(frame.move, PointerDirection(frame), frame.hasDirectionalAim ? frame.aimDirection : Vector2.zero, canMove);
+            // 3b. 可选本体机动在同一根时钟采样/推进；失控、暂停、破势立即撤销免伤资格。
+            if(dodge!=null)
+            {
+                if(!input.HasPlayerInput||!CanSimulateIntent)dodge.Cancel();
+                dodge.Tick(runtime.SimulationTime);
+                if(frame.dodgePressed)dodge.Request(frame.move,input.HasPlayerInput);
+            }
             // 4. 观察按键边沿，再由Runtime的暂停/权限/Ready资格决定是否接受动作。
             if (intent.Observe(frame.attackHeld) && focused && !frame.attackPointerBlocked)
             {
@@ -217,8 +230,10 @@ namespace Ossastra.Characters
                 if(bufferedStage>0) RequestStage(bufferedStage);
             }
             // 6. 动作/命中可能改变MoveReady或架势权限，重新查询后才执行真实移动。
+            dodge?.Tick(runtime.SimulationTime);
             canMove = focused && !IsPaused && DataBus.AllowsMovement && DataBus.MoveReady;
             mover.Tick(canMove, IsPaused || !focused ? 0 : Time.deltaTime);
+            stamina?.Tick(runtime.SimulationTime,!runtime.IsActive&&(dodge==null||!dodge.IsActive)&&CanSimulateIntent);
             // 7. 最后提交表现，Run读取已完成的实际位移。
             // 当前没有本体IK/骨骼后处理，故不虚设LateUpdate；Spine内部播放仍由插件驱动。
             CommitPresentation();
@@ -252,11 +267,16 @@ namespace Ossastra.Characters
         }
         private void RequestStage(int stage, CombatVitals aiTarget = null)
         {
+            if((dodge!=null&&dodge.IsActive)||(stamina!=null&&!stamina.CanSpend(stamina.AttackCost)))
+            {lastFact="Rejected: dodge-active/stamina";return;}
             var selected=stage==2?secondDefinition:definition;
             var request=runtime.Request(selected,aiTarget==null?"player-input:Stage"+stage:"companion:Stage1",authority,IsPaused);
             if(request.PreviousTerminal!=null) Observe(request.PreviousTerminal);
             if(request.Accepted)
             {
+                // 同步核准后才能付款；Request没有外部回调，余额不会在检查和此处之间被异步改写。
+                if(stamina!=null&&!stamina.Spend(request.Fact.ActionId,stamina.AttackCost,runtime.SimulationTime,request.Fact.Source))
+                {runtime.Cancel("stamina-acceptance-conflict");throw new InvalidOperationException("Accepted attack payment failed");}
                 AttackStage=stage; autonomousAction=aiTarget!=null; autonomousTarget=aiTarget;
                 if(autonomousAction) { chain?.Clear(); combatBrain.OnAccepted(); orienter.OrientTowards(aiTarget.transform.position); }
                 else chain?.Accepted(stage,request.Fact.ActionId,runtime.SimulationTime,selected.AttackReadyAt);
@@ -268,6 +288,7 @@ namespace Ossastra.Characters
 
         public void CancelAction(string reason)
         {
+            dodge?.Cancel();
             animationGeneration++; autonomousAction=false; autonomousTarget=null; combatBrain?.ResetCandidate();
             chain?.Clear();
             // 取消必须具名；抑制仍按住的输入，不能把下一帧误判为新请求。
@@ -298,7 +319,7 @@ namespace Ossastra.Characters
             Died?.Invoke(this);
         }
 
-        public void SetPaused(bool value) { paused = value; chain?.Clear(); intent.SuppressUntilRelease(); if (follow != null) follow.ResetIntent(); }
+        public void SetPaused(bool value) { paused = value; if(value)dodge?.Cancel(); chain?.Clear(); intent.SuppressUntilRelease(); if (follow != null) follow.ResetIntent(); }
         public void SetAttackRestriction(object owner, bool restricted, string reason = "attack-restricted")
         {
             if (restricted) { authority.Block(owner, ControlChannel.Attack); CancelAction(reason); }

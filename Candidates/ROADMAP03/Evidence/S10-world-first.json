@@ -1,0 +1,12 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": "{\"state\":\"completed\",\"failed\":1,\"rows\":[{\"name\":\"Shift one accepted cost22\",\"ok\":true,\"a\":78.0,\"b\":100.0,\"dodge\":true,\"evade\":false,\"pos\":\"(0.27, 0.02, 0.00)\",\"last\":\"Idle\"},{\"name\":\"inside actual dodge window\",\"ok\":true,\"a\":78.0,\"b\":100.0,\"dodge\":true,\"evade\":true,\"pos\":\"(0.70, 0.02, 0.00)\",\"last\":\"Idle\"},{\"name\":\"actual sphere evaded HP/posture\",\"ok\":true,\"a\":78.0,\"b\":100.0,\"dodge\":true,\"evade\":true,\"pos\":\"(0.70, 0.02, 0.00)\",\"last\":\"Idle\"},{\"name\":\"real movement and ended\",\"ok\":true,\"a\":82.001418049447238,\"b\":100.0,\"dodge\":false,\"evade\":false,\"pos\":\"(1.64, 0.02, 0.00)\",\"last\":\"Idle\"},{\"name\":\"held no repeat token\",\"ok\":true,\"a\":82.001418049447238,\"b\":100.0,\"dodge\":false,\"evade\":false,\"pos\":\"(1.64, 0.02, 0.00)\",\"last\":\"Idle\"},{\"name\":\"outside window real HP\",\"ok\":false,\"a\":82.001418049447238,\"b\":100.0,\"dodge\":false,\"evade\":false,\"pos\":\"(1.64, 0.02, 0.00)\",\"last\":\"Idle\"},{\"name\":\"main accepted own cost10\",\"ok\":true,\"a\":90.0,\"b\":100.0,\"dodge\":false,\"evade\":false,\"pos\":\"(1.64, 0.02, 0.00)\",\"last\":\"Accepted @0.000 deaeadee\"},{\"name\":\"empty rejects no motion\",\"ok\":true,\"a\":0.0,\"b\":100.0,\"dodge\":false,\"evade\":false,\"pos\":\"(1.64, 0.02, 0.00)\",\"last\":\"Cancelled @0.350 deaeadee boundary\"},{\"name\":\"new physical press accepted\",\"ok\":true,\"a\":78.0,\"b\":100.0,\"dodge\":true,\"evade\":false,\"pos\":\"(1.64, 0.02, 0.00)\",\"last\":\"Cancelled @0.350 deaeadee boundary\"},{\"name\":\"Tab held not transferred\",\"ok\":true,\"a\":78.0,\"b\":100.0,\"dodge\":false,\"evade\":false,\"pos\":\"(1.64, 0.02, 0.00)\",\"last\":\"Cancelled @0.350 deaeadee boundary\"},{\"name\":\"held remains no B dodge\",\"ok\":true,\"a\":80.001539948396385,\"b\":100.0,\"dodge\":false,\"evade\":false,\"pos\":\"(1.64, 0.02, 0.00)\",\"last\":\"Cancelled @0.350 deaeadee boundary\"},{\"name\":\"paused both resources frozen\",\"ok\":true,\"a\":86.014247948303819,\"b\":100.0,\"dodge\":false,\"evade\":false,\"pos\":\"(1.64, 0.02, 0.00)\",\"last\":\"Cancelled @0.350 deaeadee boundary\"}]}"
+  }
+}
