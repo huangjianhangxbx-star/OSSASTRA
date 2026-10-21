@@ -1,5 +1,7 @@
 # ANKALUTE 共享项目状态
 
+> 2026-10-22装备约束：副手能力/短按长按由SO与映射决定；投掷来源和投递方式分离；正式装备为独立Spine模型+SO骨骼/插槽跟随+语义动画联动。当前盾防/炸弹/Sprite为过渡，未完成通用化；见OSSASTRA_RULES R29-R32及tasks/2026-10-22-equipment-boundaries.md。
+
 > OSSASTRA接手必读：[用户规则](../../OSSASTRA_RULES.md)及[最新角色基础与DataBus](../ossastra/character-foundation.md)。旧代码已按用户要求解除禁编，共享脚本已去M01命名；下方较早迁移记录属于历史。
 
 > 2026-10-08 2D Atmosphere v2.2执行完成，整体Visual PARTIAL/技术当前场核心实测PASS，停本轮不做第三路线/户外/v2.3/2.5D。独立SC_2D_AtmosphereV22_Dungeon与5档Profile；首因原生Surface Lighting Visibility楔形、旧有限遮挡散射放大。24样本SDF软可见性+地面灯光信号局部过滤，保留几何楔形表达；实际实体终点遗漏红→绿，27318固体内GPU暖散射0、门洞空气与有限散射保留。Stable旧v21D4，BestVisual候选新Balanced/用户Pending。9主图、5档/消融、DB/DC滑块、55.007s原生2930帧、时间戳平均53.263fps；编码块状限制不认证细边动态。1440唯一FrameTiming样本、GPU零值剔除，当前整帧中位D4 0.293→Balanced 0.574ms，非单Pass/低端认证。20交错自有2RT/11Mat/52Mask数量稳定、Restore归0；全EditorRT/bytes有短暂波动，原严格false保留，未认证全引擎无泄漏。3304冻结含2879旧文件零变更、59完整TRS/Sprite/order/metadata/原灯参数/相机保持；新/旧保存重开精确，窗口最大1/255差。最终V22 Edit ready/clean/Balanced，Probe/自有RT/Mat0、5Shader和材质错误0，默认Renderer0/15项保持。报告docs/render-research/2D-Atmosphere-v22.md，比较artifacts/xinghai-2d-atmosphere-v22/comparison.html，本地8861。禁区未读取，无PNG/3D/角色/全局管线/提交推送。Unity与全部路径租约释放；用户明确要求完成后关机，交付保存后执行正常关机。
@@ -488,7 +490,6 @@ T7A3独立RendererFeature/密度场/最多2个AtmosphereLight/8-16步积分/Dept
 
 ## 2026-10-21 ROADMAP01 收口
 四阶段实现已推送：cc07189 / 6adef5d / a70973d / e824e3d；集中入口docs/ossastra/ROADMAP01-review.md。保存的综合场Assets/OSSASTRA/ROADMAP01/SC_ROADMAP01_CombatLoop.unity包含场景返场、可选两段、语义动画、独立有限敌动及NPC。各阶段技术Gate通过；旧场/Prefab保护74项无变化，旧asmdef/meta删除保持用户现场。Unity Edit clean；全租约释放。用户集中审查未进行，正式媒体/完整旧系统未迁移，不追加下一阶段。
-> 2026-10-22装备约束：副手能力/短按长按由SO与映射决定；投掷来源和投递方式分离；正式装备为独立Spine模型+SO骨骼/插槽跟随+语义动画联动。当前盾防/炸弹/Sprite为过渡，未完成通用化；见OSSASTRA_RULES R29-R32及tasks/2026-10-22-equipment-boundaries.md。
 
 
 ## ROADMAP02 收口
