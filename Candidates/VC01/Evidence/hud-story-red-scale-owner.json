@@ -1,0 +1,75 @@
+{
+  "state": "failed",
+  "failed": 1,
+  "rows": [
+    {
+      "name": "normal equipment window opens from mouse",
+      "ok": true,
+      "a": 100.0,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.00, 0.02, -2.00)",
+      "last": "Idle",
+      "hit": "未释放"
+    },
+    {
+      "name": "normal UI command equips owned bomb",
+      "ok": true,
+      "a": 100.0,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.00, 0.02, -2.00)",
+      "last": "Idle",
+      "hit": "未释放"
+    },
+    {
+      "name": "UI click does not release attack",
+      "ok": true,
+      "a": 100.0,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.00, 0.02, -2.00)",
+      "last": "Idle",
+      "hit": "未释放"
+    },
+    {
+      "name": "other actor remains independent",
+      "ok": true,
+      "a": 100.0,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.00, 0.02, -2.00)",
+      "last": "Idle",
+      "hit": "未释放"
+    },
+    {
+      "name": "RMB actual bomb release and landing",
+      "ok": true,
+      "a": 88.00865401048213,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.00, 0.02, -2.00)",
+      "last": "Idle",
+      "hit": "未释放"
+    },
+    {
+      "name": "actual landed feedback",
+      "ok": true,
+      "a": 88.00865401048213,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.00, 0.02, -2.00)",
+      "last": "Idle",
+      "hit": "未释放"
+    },
+    {
+      "error": "System.InvalidOperationException: Sequence contains no matching element\r\n  at System.Linq.Enumerable.First[TSource] (System.Collections.Generic.IEnumerable`1[T] source, System.Func`2[T,TResult] predicate) [0x00011] in <3317859cdf8e4d3ea4e1fea2b71da691>:0 \r\n  at ResourceWorld.<Execute>g__FindButton|0_6 (System.String name) [0x00047] in <ec1f3ed705a0457ca976a56c6d935a7e>:0 \r\n  at ResourceWorld+<>c__DisplayClass0_0.<Execute>g__Click|7 (System.String name, System.Boolean down) [0x00001] in <ec1f3ed705a0457ca976a56c6d935a7e>:0 \r\n  at ResourceWorld+<>c__DisplayClass0_0.<Execute>b__22 () [0x00000] in <ec1f3ed705a0457ca976a56c6d935a7e>:0 \r\n  at ResourceWorld+<>c__DisplayClass0_0.<Execute>b__52 () [0x00020] in <ec1f3ed705a0457ca976a56c6d935a7e>:0 "
+    }
+  ]
+}

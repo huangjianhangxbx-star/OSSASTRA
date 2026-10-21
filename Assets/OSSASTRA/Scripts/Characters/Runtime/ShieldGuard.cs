@@ -23,6 +23,7 @@ namespace Ossastra.Characters
         public Vector3 GuardDirection=>owner==null||owner.DataBus==null?Vector3.zero:owner.DataBus.AttackDirection;
         public double MinimumDot=>Mathf.Cos(frontAngle*.5f*Mathf.Deg2Rad);
         public double PostureScale=>postureScale;
+        public event Action<HitOutcome> Guarded;
         public string LastResult {get;private set;}="未举盾";
         public void Initialize(CharacterRoot root,CharacterStamina resource,CharacterEquipment gear){owner=root;stamina=resource;equipment=gear;}
         public void Tick(bool held,bool playerAllowed,float delta)
@@ -40,7 +41,7 @@ namespace Ossastra.Characters
             else LastResult="拒绝："+reason;
         }
         public void OnGuarded(HitOutcome outcome)
-        {if(IsGuarding&&outcome.TargetId==owner.ActorId&&equipment.State.Wear(outcome.ActionId)){LastResult="Guarded #"+outcome.ActionId.ToString("N");if(equipment.State.Durability==0)Cancel();}}
+        {if(IsGuarding&&outcome.TargetId==owner.ActorId&&equipment.State.Wear(outcome.ActionId)){LastResult="Guarded #"+outcome.ActionId.ToString("N");Guarded?.Invoke(outcome);if(equipment.State.Durability==0)Cancel();}}
         public void Cancel(){guarding=false;armed=false;}
         private void OnDisable(){Cancel();}
     }

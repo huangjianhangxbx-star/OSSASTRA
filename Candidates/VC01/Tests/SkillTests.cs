@@ -1,0 +1,3 @@
+using System;
+using Ossastra.CharacterCore;
+class Tests { static void Main(){var a=new SkillCooldownBook();var b=new SkillCooldownBook();var token=Guid.NewGuid();if(!a.Commit("slash",token,1,4)||a.Remaining("slash",2)!=3)throw new Exception("cooldown");if(a.Commit("slash",Guid.NewGuid(),2,4)||a.Commit("slash",token,6,4))throw new Exception("duplicate/payment");if(b.Remaining("slash",2)!=0||!b.Commit("slash",Guid.NewGuid(),2,4))throw new Exception("actor isolation");if(!a.Commit("slash",Guid.NewGuid(),5,4)||a.Remaining("other",5)!=0)throw new Exception("stable definition key");Console.WriteLine("4 skill cooldown contracts passed");}}

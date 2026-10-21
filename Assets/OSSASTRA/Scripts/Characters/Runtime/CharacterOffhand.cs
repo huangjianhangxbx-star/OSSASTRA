@@ -1,7 +1,7 @@
 /* 脚本：CharacterOffhand
  * 功能：本体副手炸弹请求、费用、冻结来源与演示投掷体生命周期。
  * 边界：Root显式推进；主手Runtime完全独立；伤害只进入CombatContactGateway。
- * 协作：Equipment持有实例与耐久，Stamina付款；几何球仅技术演示，非正式美术。
+ * 协作：Equipment持有实例与耐久，Stamina付款；新配置冻结实际炸弹sprite；没有定义的旧场保留几何演示兼容。
  */
 using System;
 using System.Linq;
@@ -20,9 +20,12 @@ namespace Ossastra.Characters
         private Vector3 origin,landing;
         private AttackRelease flight;
         private GameObject visual;
+        private Sprite projectileSprite;
+        private float projectileScale;
         private float flightTime;
         private int flightGeneration;
         public bool IsAccepting=>state!=null&&state.IsAccepting;
+        public Vector3 LastLanding=>landing;
         public double CooldownRemaining=>state==null?0:state.CooldownRemaining;
         public bool InFlight=>flight!=null;
         public int AcceptedCount {get;private set;}
@@ -51,6 +54,7 @@ namespace Ossastra.Characters
             var request=owner.Actions.CreateRequest(CharacterActionKind.Offhand,CharacterActionSource.Player);
             var id=request.RequestId;
             if(!owner.Actions.TryCommit(request,20,()=>state.TryAccept(id,gear.State.LeftInstanceId,owner.LifeGeneration)?id:Guid.Empty,out var reason))return Reject(reason);
+            projectileSprite=gear.LeftDefinition==null?null:gear.LeftDefinition.worldSprite;projectileScale=gear.LeftDefinition==null?.35f:gear.LeftDefinition.worldScale;
             origin=owner.transform.position;landing=p;FrozenEquipmentId=state.EquipmentId;LastActionId=id;AcceptedCount++;LastResult="Accepted 炸弹 SAMPLE";return true;
         }
         private bool Reject(string reason){LastResult="拒绝："+reason;return false;}
@@ -65,8 +69,20 @@ namespace Ossastra.Characters
             {
                 if(gear.State.LeftInstanceId!=state.EquipmentId||owner.LifeGeneration!=state.LifeGeneration){LastResult="释放身份失效";return;}
                 gear.State.Wear(released.ActionId);flight=released;flightGeneration=owner.LifeGeneration;flightTime=0;ReleasedCount++;
-                visual=GameObject.CreatePrimitive(PrimitiveType.Sphere);visual.name="SAMPLE_Bomb_"+released.ActionId.ToString("N");visual.transform.localScale=Vector3.one*.16f;
-                var collider=visual.GetComponent<Collider>();collider.enabled=false;Destroy(collider);visual.transform.position=origin+Vector3.up*.3f;
+                if(projectileSprite!=null)
+                {
+                    visual=new GameObject("OffhandProjectile_"+released.ActionId.ToString("N"));
+                    var sprite=visual.AddComponent<SpriteRenderer>();sprite.sprite=projectileSprite;sprite.sortingOrder=50;
+                    visual.transform.localScale=Vector3.one*projectileScale;
+                    if(Camera.main!=null)visual.transform.rotation=Camera.main.transform.rotation;
+                }
+                else
+                {
+                    // 无新定义的旧验证场保持原演示图形，不修改其资源或玩法参数。
+                    visual=GameObject.CreatePrimitive(PrimitiveType.Sphere);visual.name="SAMPLE_Bomb_"+released.ActionId.ToString("N");visual.transform.localScale=Vector3.one*.16f;
+                    var collider=visual.GetComponent<Collider>();collider.enabled=false;Destroy(collider);
+                }
+                visual.transform.position=origin+Vector3.up*.3f;
                 LastResult="Released #"+released.ActionId.ToString("N");return;
             }
             if(flight==null)return;

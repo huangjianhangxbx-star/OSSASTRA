@@ -39,6 +39,7 @@ namespace Ossastra.Characters
         private ShieldGuard guard;
         private CharacterOffhand offhand;
         private CharacterEquipmentView equipmentView;
+        private ICharacterSkills skills;
         private CombatVitals autonomousTarget;
         private bool autonomousAction;
         public event Action<ActionFact> ActionObserved;
@@ -121,6 +122,12 @@ namespace Ossastra.Characters
             return true;
         }
 
+        // 装备有动作库时优先采用；角色动作库只作为旧资产/未装配主手的兼容默认。
+        private ActionDefinitionSO[] ActionLibrary
+        {
+            get { var gear=equipment!=null?equipment:GetComponent<CharacterEquipment>();var actions=gear?.RightDefinition?.actions;
+                return actions!=null&&actions.Length>0?actions:characterDefinition?.basicAttacks; }
+        }
         private void Awake()
         {
             if (viewCamera == null) viewCamera = Camera.main;
@@ -150,8 +157,8 @@ namespace Ossastra.Characters
                 // Root的早期Awake可能先于Profile.OnEnable；此处读取序列化enabled，运行期再查isActiveAndEnabled。
                 if(characterDefinition!=null)
                 {
-                    if(characterDefinition.basicAttacks.Length==0)throw new ArgumentException("Character basic attacks required");
-                    configuredAttacks=System.Array.ConvertAll(characterDefinition.basicAttacks,a=>a.Freeze());
+                    if(ActionLibrary.Length==0)throw new ArgumentException("Character basic attacks required");
+                    configuredAttacks=System.Array.ConvertAll(ActionLibrary,a=>a.Freeze());
                     definition=configuredAttacks[0];chain=new BasicChainState(characterDefinition.preInput,characterDefinition.bufferLifetime,characterDefinition.continuationWindow,configuredAttacks.Length);
                     hitReceipts=melee;hitReceipts.Resolved+=OnHitReceipt;
                 }
@@ -172,6 +179,7 @@ namespace Ossastra.Characters
             offhand=GetComponent<CharacterOffhand>(); offhand?.Initialize(this,equipment,stamina);
             equipmentView=GetComponent<CharacterEquipmentView>();equipmentView?.Initialize(this);
             Actions=new CharacterActionCoordinator(this,stamina,dodge,offhand);
+            skills=GetComponent<CharacterSkills>();skills?.Initialize(this);
             ready = InitializeSubsystems(DataBus, mover, presentation);
             if (!ready) { Debug.LogError("Character subsystem initialization failed", this); enabled = false; }
             // 可选能力只接受本角色初始化；无组件/无assignment的旧场保持普通玩家行为。
@@ -218,6 +226,7 @@ namespace Ossastra.Characters
                 dodge.Tick(runtime.SimulationTime);
                 if(frame.dodgePressed)dodge.Request(frame.move,input.HasPlayerInput);
             }
+            skills?.TickInput(frame);
             // 4. 观察按键边沿，再由Runtime的暂停/权限/Ready资格决定是否接受动作。
             guard?.Tick(frame.offhandHeld,input.HasPlayerInput,IsSimulationSuspended?0:Time.deltaTime);
             if (intent.Observe(frame.attackHeld) && focused && !frame.attackPointerBlocked)
@@ -227,8 +236,9 @@ namespace Ossastra.Characters
                 if(stage>0) RequestStage(stage);
             }
             // 4a. 副手独立请求/时钟；同帧主手已按自身资格处理，二者不共享动作身份。
-            if(frame.offhandPressed)offhand?.Request(PointerGroundPoint(frame),input.HasPlayerInput);
-            offhand?.Tick(Time.deltaTime,input.HasPlayerInput);
+            if(frame.offhandPressed && equipment!=null && equipment.State.LeftKind==OffhandKind.Bomb)offhand?.Request(PointerGroundPoint(frame),input.HasPlayerInput);
+            // 模态只捕获设备输入，不等于切走角色；已接受副手与实控CD仍继续。
+            offhand?.Tick(Time.deltaTime,input.HasPlayerControl);
             // 4b. 窄自治请求与玩家边沿互斥；仅Stage1，不通过输入帧注入攻击/暂停。
             if(!input.HasPlayerInput && CanSimulateIntent && combatBrain!=null &&
                 ((ICompanionActionCandidate)combatBrain).TryGetAttackTarget(out var aiTarget))
@@ -248,9 +258,10 @@ namespace Ossastra.Characters
                     // 在释放当帧按值采样方向；不是接受动作时锁定，前摇中仍可重新瞄准。
                     var releaseDirection = orienter.AttackDirection;
                     orienter.FaceAttackDirection();
-                    hitResolver.Resolve(fact.Release, releaseDirection);
+                    if(skills==null||!skills.TryHandleRelease(fact.Release,releaseDirection))hitResolver.Resolve(fact.Release, releaseDirection);
                 }
             }
+            skills?.TickEffects(Time.deltaTime);
             if(chain!=null && input.HasPlayerInput && !IsPaused && focused && authority.Allows(ControlChannel.Attack))
             {
                 var bufferedStage=chain.Poll(runtime.SimulationTime,runtime.AttackReady);
@@ -300,11 +311,41 @@ namespace Ossastra.Characters
             if (verboseTrace) Debug.Log("Character " + lastFact, this);
             ActionObserved?.Invoke(fact);
         }
+        private bool TryResolveConfiguredAction(ActionDefinitionSO config,out BasicAttackDefinition frozen,out string reason)
+        {
+            frozen=null;reason=null;
+            try{frozen=config.Freeze();}catch(ArgumentException error){reason="invalid-definition:"+error.Message;return false;}
+            if(!(presentation is ICharacterConfiguredAnimation target)){reason="missing-animation-port";return false;}
+            return target.CanCaptureAction(config,out reason);
+        }        /// <summary>主动技能使用同一主动作接受端口、Runtime和费用事务；不借用副手通道。</summary>
+        public bool TryConfiguredAction(ActionDefinitionSO config,CharacterActionSource source,string label,out Guid actionId)
+        {
+            actionId=Guid.Empty;if(config==null||!ready)return false;
+            if(!TryResolveConfiguredAction(config,out var frozen,out var configurationError)){lastFact="Rejected: "+configurationError;return false;}
+            var signature=Actions.CreateRequest(CharacterActionKind.Main,source,label);
+            ActionRequestResult result=null;
+            if(!Actions.TryCommit(signature,config.staminaCost,()=>
+            {result=runtime.Request(frozen,label,authority,IsPaused);return result.Accepted?result.Fact.ActionId:Guid.Empty;},out var rejection))
+            {lastFact="Rejected: "+rejection;return false;}
+            if(result.PreviousTerminal!=null)Observe(result.PreviousTerminal);
+            chain?.Clear();autonomousAction=false;autonomousTarget=null;AttackStage=0;
+            (presentation as ICharacterConfiguredAnimation)?.CaptureAction(result.Fact.ActionId,config);
+            Observe(result.Fact);orienter.FaceAttackDirection();actionId=result.Fact.ActionId;return true;
+        }
+        /// <summary>能力按已接受身份只撤回自己的主通道；副手、盾和机动不借此被全局取消。</summary>
+        internal bool CancelOwnedMainAction(Guid actionId,string reason)
+        {
+            if(runtime==null||!runtime.IsActive||runtime.ActionId!=actionId)return false;
+            animationGeneration++;autonomousAction=false;autonomousTarget=null;chain?.Clear();
+            var terminal=runtime.Cancel(reason);if(terminal!=null)Observe(terminal);return true;
+        }
+
         private void RequestStage(int stage, CombatVitals aiTarget = null)
         {
             if(configuredAttacks!=null&&(stage<1||stage>configuredAttacks.Length)){lastFact="Rejected: invalid-stage";return;}
-            var actionConfig=characterDefinition==null?null:characterDefinition.basicAttacks[stage-1];
-            var selected=actionConfig!=null?actionConfig.Freeze():stage==2?secondDefinition:definition;
+            var actionConfig=characterDefinition==null?null:ActionLibrary[stage-1];
+            var selected=stage==2?secondDefinition:definition;
+            if(actionConfig!=null&&!TryResolveConfiguredAction(actionConfig,out selected,out var configurationError)){lastFact="Rejected: "+configurationError;return;}
             var signature=Actions.CreateRequest(CharacterActionKind.Main,aiTarget==null?CharacterActionSource.Player:CharacterActionSource.Companion,aiTarget==null?"player-input:Stage"+stage:"companion:Stage1");
             ActionRequestResult request=null;
             var accepted=Actions.TryCommit(signature,stamina==null?0:actionConfig!=null?actionConfig.staminaCost:stamina.AttackCost,()=>
@@ -354,7 +395,7 @@ namespace Ossastra.Characters
 
         private void OnDied(HitOutcome outcome)
         {
-            equipmentView?.Hide();
+            equipmentView?.Hide();skills?.Clear();
             // HP已由结算归零；这里仅终止本体未释放动作/有效帧，再交唯一会话处理实控。
             offhand?.CancelAll();
             CancelAction("death:"+outcome.ActorId+":"+outcome.ActionId.ToString("N"));
@@ -376,7 +417,7 @@ namespace Ossastra.Characters
         private void OnApplicationPause(bool value)
           { applicationPaused = value; if(value)chain?.Clear(); if (follow != null) follow.ResetIntent(); if (value) intent.SuppressUntilRelease(); }
         private void OnEnable() { intent.SuppressUntilRelease(); if (intentSelector != null) intentSelector.Clear(); }
-        private void OnDisable() { equipmentView?.Hide();offhand?.CancelAll(); CancelAction("disabled"); if (posture != null) posture.ResetState(); authority.Release(posture); if (follow != null) follow.ResetIntent(); if (intentSelector != null) intentSelector.Clear(); if (ready && presentation != null) presentation.SetPaused(false); }
+        private void OnDisable() { equipmentView?.Hide();skills?.Clear();offhand?.CancelAll(); CancelAction("disabled"); if (posture != null) posture.ResetState(); authority.Release(posture); if (follow != null) follow.ResetIntent(); if (intentSelector != null) intentSelector.Clear(); if (ready && presentation != null) presentation.SetPaused(false); }
         private void OnDestroy()
         {
             if(hitReceipts!=null) hitReceipts.Resolved-=OnHitReceipt;

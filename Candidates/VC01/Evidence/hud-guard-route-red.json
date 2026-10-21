@@ -1,0 +1,182 @@
+{
+  "state": "completed",
+  "failed": 5,
+  "rows": [
+    {
+      "name": "normal equipment window opens from mouse",
+      "ok": true,
+      "a": 100.0,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.00, 0.02, -2.00)",
+      "last": "Idle",
+      "hit": "未释放"
+    },
+    {
+      "name": "normal UI command equips owned bomb",
+      "ok": true,
+      "a": 100.0,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.00, 0.02, -2.00)",
+      "last": "Idle",
+      "hit": "未释放"
+    },
+    {
+      "name": "open equipment window refreshes actual selection",
+      "ok": true,
+      "a": 100.0,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.00, 0.02, -2.00)",
+      "last": "Idle",
+      "hit": "未释放"
+    },
+    {
+      "name": "UI click does not release attack",
+      "ok": true,
+      "a": 100.0,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.00, 0.02, -2.00)",
+      "last": "Idle",
+      "hit": "未释放"
+    },
+    {
+      "name": "other actor remains independent",
+      "ok": true,
+      "a": 100.0,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.00, 0.02, -2.00)",
+      "last": "Idle",
+      "hit": "未释放"
+    },
+    {
+      "name": "RMB actual bomb release and landing",
+      "ok": true,
+      "a": 88.03326200693846,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.00, 0.02, -2.00)",
+      "last": "Idle",
+      "hit": "未释放"
+    },
+    {
+      "name": "actual landed feedback",
+      "ok": true,
+      "a": 88.03326200693846,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.00, 0.02, -2.00)",
+      "last": "Idle",
+      "hit": "未释放"
+    },
+    {
+      "name": "normal UI returns same shield instance",
+      "ok": true,
+      "a": 100.0,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.00, 0.02, -2.00)",
+      "last": "Idle",
+      "hit": "未释放"
+    },
+    {
+      "name": "shield input does not emit unrelated bomb rejection",
+      "ok": false,
+      "a": 90.80658920225687,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.00, 0.02, -2.00)",
+      "last": "Idle",
+      "hit": "未释放"
+    },
+    {
+      "name": "guard real animation",
+      "ok": true,
+      "a": 90.80658920225687,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.00, 0.02, -2.00)",
+      "last": "Idle",
+      "hit": "未释放"
+    },
+    {
+      "name": "normal skill button uses same configured chain",
+      "ok": true,
+      "a": 71.91331280372106,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.00, 0.02, -2.00)",
+      "last": "Released @0.067 b3f9784a",
+      "hit": "未释放"
+    },
+    {
+      "name": "normal UI busy equip rejected without replacing shield",
+      "ok": true,
+      "a": 71.91331280372106,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.00, 0.02, -2.00)",
+      "last": "AttackReady @0.500 b3f9784a",
+      "hit": "未释放"
+    },
+    {
+      "name": "normal Y button consumes shared bottle",
+      "ok": false,
+      "a": 71.91331280372106,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.00, 0.02, -2.00)",
+      "last": "Cancelled @1.245 b3f9784a focus-lost",
+      "hit": "未释放"
+    },
+    {
+      "name": "healing confirmed feedback",
+      "ok": false,
+      "a": 71.91331280372106,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.00, 0.02, -2.00)",
+      "last": "Cancelled @1.245 b3f9784a focus-lost",
+      "hit": "未释放"
+    },
+    {
+      "name": "held keyboard move then dodge with HUD",
+      "ok": false,
+      "a": 71.91331280372106,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.00, 0.02, -2.00)",
+      "last": "Cancelled @1.245 b3f9784a focus-lost",
+      "hit": "未释放"
+    },
+    {
+      "name": "HUD follows true control switch",
+      "ok": false,
+      "a": 71.91331280372106,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.00, 0.02, -2.00)",
+      "last": "Cancelled @1.245 b3f9784a focus-lost",
+      "hit": "未释放"
+    }
+  ]
+}

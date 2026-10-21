@@ -19,3 +19,8 @@
 
 ## 当前角色候选（2026-10-19）
 角色C#现位于Assets/OSSASTRA/Scripts。新增DataBus与独立Orientation，不新增外部包。公开Prefab/场景仍引用未分发的本机Spine/模型/URP资源，无法仅靠当前仓库保证直接试玩。旧代码本机解禁仅用于配置参考，旧源码不分发，历史隔离配置不属于新控制系统依赖。
+
+## VC01 本地依赖（2026-10-21）
+使用现有Input System、Spine和uGUI，不安装新框架。Windows动态字体取SimSun、Consolas/Microsoft YaHei，不分发字体文件。本机rozeul仍为4.3.26数据；E1僵尸4.1.23 JSON在本机4.3运行库上经正确图集读取、13段姿态求解和实屏播放验证，不宣称跨版本普遍兼容。
+
+Art/HudReferenceLocal、AudioReferenceLocal、EnemyReferenceLocal中的PNG/WAV/TXT为本地媒体接入，不进入公开提交；只提交本轮新导入meta、定义/材质引用及校验清单 Candidates/VC01/local-media-manifest.json。冻结HUD来源为原型c21d4fc，不使用本机Origin祖先86824bd的旧内容；metal系列PNG由该版本SVG按192dpi栅格化。商业插件、rozeul、Bomb.png、地块仍需原本机依赖，干净克隆不保证运行。新生成的RozeulShield_v1.png已获用户授权并随自有内容提交。

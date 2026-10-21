@@ -25,10 +25,11 @@ namespace Ossastra.Characters
         [Min(1)] public int damage=12;
         [Min(0)] public float postureImpact=35,staminaCost=10;
         [TextArea] public string timingEvidence;
-                public BasicAttackDefinition Freeze()
+        public BasicAttackDefinition Freeze()
         {
             float At(ActionFactKind kind,float fallback)
             {
+                if(eventTimeline==null)throw new ArgumentException("Missing event timeline array");
                 if(eventTimeline.Length==0)return fallback;
                 var matches=eventTimeline.Where(e=>e!=null&&e.marker==kind).ToArray();
                 if(matches.Length!=1)throw new ArgumentException("Exactly one timeline marker required: "+kind);

@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5bba4018ccf9dcc4791e5343ec68a44f, type: 3}
+  m_Name: RangerRocket_Adapted_Action
+  m_EditorClassIdentifier: 
+  definitionId: RangerRocket_Adapted.action
+  animationKey: RangerRocket_Adapted
+  eventTimeline: []
+  releaseAt: 1
+  moveReadyAt: 1.8333334
+  attackReadyAt: 1.8333334
+  finishAt: 2.3666666
+  damage: 40
+  postureImpact: 25
+  staminaCost: 28
+  timingEvidence: 'SAMPLE: prototype representative ability adapted to rozeul full
+    animation; events baked into single Runtime'

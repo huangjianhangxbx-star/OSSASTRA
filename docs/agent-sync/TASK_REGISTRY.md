@@ -919,4 +919,4 @@ active/unity-writer；用户明确要求一轮修整：共享脚本去M01标签�
 
 - 2026-10-21 ROADMAP03：completed；unity-writer与所有本轮路径释放；S13止步，人工审查待用户。
 
-2026-10-21 VC01 active/unity-writer：用户批准一期v1.0，独占范围见tasks/2026-10-21-VC01.md；唯一Unity writer，G0-G6顺序，保留旧场/共享Prefab/旧禁编删除/媒体；GitHub main定向发布，不Gitee/VC02。
+2026-10-21 VC01 completed/released（技术候选，待用户审查）：用户批准一期v1.0，独占范围见tasks/2026-10-21-VC01.md；Unity写入已结束，G0-G6技术候选完成，保留旧场/共享Prefab/旧禁编删除/媒体；GitHub main定向发布，不Gitee/VC02。

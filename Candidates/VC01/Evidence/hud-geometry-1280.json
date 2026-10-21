@@ -1,0 +1,44 @@
+{
+  "width": 1280,
+  "height": 720,
+  "scale": 0.6666667,
+  "failed": 0,
+  "rows": [
+    {
+      "name": "HeroCluster",
+      "pass": true,
+      "actual": "(x:22.67, y:27.33, width:352.67, height:108.67)",
+      "expected": "(x:22.67, y:27.33, width:352.67, height:108.67)"
+    },
+    {
+      "name": "CompanionCluster",
+      "pass": true,
+      "actual": "(x:2.00, y:573.33, width:251.33, height:146.67)",
+      "expected": "(x:2.00, y:573.33, width:251.33, height:146.67)"
+    },
+    {
+      "name": "WorldCluster",
+      "pass": true,
+      "actual": "(x:1098.67, y:11.33, width:172.67, height:78.00)",
+      "expected": "(x:1098.67, y:11.33, width:172.67, height:78.00)"
+    },
+    {
+      "name": "SkillCluster",
+      "pass": true,
+      "actual": "(x:1110.00, y:506.67, width:169.33, height:182.00)",
+      "expected": "(x:1110.00, y:506.67, width:169.33, height:182.00)"
+    },
+    {
+      "name": "VitalityCluster",
+      "pass": true,
+      "actual": "(x:1045.33, y:700.00, width:233.33, height:20.00)",
+      "expected": "(x:1045.33, y:700.00, width:233.33, height:20.00)"
+    },
+    {
+      "name": "QuickCluster",
+      "pass": true,
+      "actual": "(x:366.67, y:643.33, width:577.33, height:73.33)",
+      "expected": "(x:366.67, y:643.33, width:577.33, height:73.33)"
+    }
+  ]
+}

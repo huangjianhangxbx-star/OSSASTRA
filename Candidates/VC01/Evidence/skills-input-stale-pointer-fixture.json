@@ -1,0 +1,116 @@
+{
+  "state": "completed",
+  "failed": 1,
+  "rows": [
+    {
+      "name": "Q true input accepts configured heavy",
+      "ok": true,
+      "a": 82.0,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.00, 0.02, -2.00)",
+      "last": "Released @0.067 6de0345f",
+      "hit": "未释放"
+    },
+    {
+      "name": "Q single cost",
+      "ok": true,
+      "a": 82.0,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.00, 0.02, -2.00)",
+      "last": "Released @0.067 6de0345f",
+      "hit": "未释放"
+    },
+    {
+      "name": "Q actual melee damage",
+      "ok": true,
+      "a": 82.0,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.00, 0.02, -2.00)",
+      "last": "Released @0.067 6de0345f",
+      "hit": "未释放"
+    },
+    {
+      "name": "shared definitions independent cooldown",
+      "ok": true,
+      "a": 82.0,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.00, 0.02, -2.00)",
+      "last": "Released @0.067 6de0345f",
+      "hit": "未释放"
+    },
+    {
+      "name": "E configured full xskill",
+      "ok": true,
+      "a": 56.6680100010708,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.00, 0.02, -2.00)",
+      "last": "Accepted @0.000 b3c0f3db",
+      "hit": "未释放"
+    },
+    {
+      "name": "E one payment and frozen main source",
+      "ok": true,
+      "a": 56.6680100010708,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.00, 0.02, -2.00)",
+      "last": "Accepted @0.000 b3c0f3db",
+      "hit": "未释放"
+    },
+    {
+      "name": "delayed effect releases once",
+      "ok": true,
+      "a": 56.6680100010708,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.00, 0.02, -2.00)",
+      "last": "Released @1.000 b3c0f3db",
+      "hit": "未释放"
+    },
+    {
+      "name": "released effect survives control switch",
+      "ok": false,
+      "a": 56.6680100010708,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.00, 0.02, -2.00)",
+      "last": "Released @1.000 b3c0f3db",
+      "hit": "未释放"
+    },
+    {
+      "name": "other actor remains uncharged",
+      "ok": true,
+      "a": 56.6680100010708,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.00, 0.02, -2.00)",
+      "last": "Released @1.000 b3c0f3db",
+      "hit": "未释放"
+    },
+    {
+      "name": "cooldown prevents repeated same skill",
+      "ok": true,
+      "a": 56.6680100010708,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.00, 0.02, -2.00)",
+      "last": "Released @1.000 b3c0f3db",
+      "hit": "未释放"
+    }
+  ]
+}

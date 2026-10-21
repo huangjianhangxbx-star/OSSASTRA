@@ -1,0 +1,22 @@
+{
+  "state": "completed",
+  "failed": 3,
+  "rows": [
+    {
+      "name": "modal gates independent consumable input",
+      "ok": false
+    },
+    {
+      "name": "modal rejection does not consume or heal",
+      "ok": false
+    },
+    {
+      "name": "modal gates manual switching",
+      "ok": true
+    },
+    {
+      "name": "release restores normal shared service",
+      "ok": false
+    }
+  ]
+}

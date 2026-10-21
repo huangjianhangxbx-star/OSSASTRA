@@ -20,6 +20,7 @@ namespace Ossastra.Characters
         [SerializeField, Min(0)] private int initialIndex;
         [Header("切换实控角色 / 可在Inspector修改")]
         public InputAction switchAction = new InputAction("SwitchCharacter", InputActionType.Button);
+        private readonly HashSet<object> inputCaptures=new HashSet<object>();
         private readonly AttackIntent switchIntent = new AttackIntent();
         private CharacterInputHandler[] inputs;
         private bool configured, bindingsOwned, focused = true, applicationPaused;
@@ -31,6 +32,13 @@ namespace Ossastra.Characters
         public bool IsIntentSamplingAllowed => configured && isActiveAndEnabled && focused && !applicationPaused &&
             Current != null && Current.IsAlive && Current.isActiveAndEnabled && Current.DataBus != null && Time.frameCount > handoverFrame;
 
+        /// <summary>UI临时捕获物理输入，不暂停世界或换Current；同一owner只能持有一份。</summary>
+        public void SetInputCapture(object owner,bool captured)
+        {
+            if(owner==null)return;var changed=captured?inputCaptures.Add(owner):inputCaptures.Remove(owner);if(!changed)return;
+            ControlRevision++;switchIntent.SuppressUntilRelease();
+            if(bindingsOwned)foreach(var input in inputs)if(input!=null)input.ResetPlayerInput(true);
+        }
         private void Awake()
         {
             if (characters == null) characters = Array.Empty<CharacterRoot>();
@@ -76,7 +84,8 @@ namespace Ossastra.Characters
         }
 
         /// <summary>只有Current对应的输入源可消费玩家输入；切换当帧新源禁止采样。</summary>
-        public bool IsPlayerInputAllowed(ICharacterInputSource source)
+        public bool IsPlayerInputAllowed(ICharacterInputSource source) => inputCaptures.Count==0&&IsPlayerControlOwner(source);
+        public bool IsPlayerControlOwner(ICharacterInputSource source)
         {
             if (!IsIntentSamplingAllowed) return false;
             for (var i = 0; i < characters.Length; i++)
@@ -87,7 +96,7 @@ namespace Ossastra.Characters
         /// <summary>场景级切人入口；不会取消、复制或重建任一角色的已接受动作。</summary>
         public bool SwitchNext()
         {
-            if (!configured || !isActiveAndEnabled || !focused || applicationPaused) return false;
+            if (!configured || !isActiveAndEnabled || !focused || applicationPaused || inputCaptures.Count>0) return false;
             var index = Array.IndexOf(characters, Current);
             for (var step = 1; step <= characters.Length; step++)
             {

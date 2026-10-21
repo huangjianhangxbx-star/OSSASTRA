@@ -16,6 +16,7 @@ namespace Ossastra.Characters
         public Vector2 move, pointer, aimDirection;
         public bool attackHeld, dodgePressed, offhandHeld, offhandPressed, cancel, pause, hasPointer, hasDirectionalAim, attackPointerBlocked;
         public int debugCommand;
+        public bool skillOnePressed,skillTwoPressed;
     }
 
     // Each character owns its serialized actions. Input does not accept attacks or write gameplay state.
@@ -33,6 +34,8 @@ namespace Ossastra.Characters
         [Header("可选本体闪避 / 只在新验证场绑定")]
         public InputAction dodgeAction = new InputAction("Dodge", InputActionType.Button);
         public InputAction offhandAction = new InputAction("Offhand", InputActionType.Button);
+        public InputAction skillOneAction = new InputAction("SkillOne",InputActionType.Button);
+        public InputAction skillTwoAction = new InputAction("SkillTwo",InputActionType.Button);
         [Header("取消与暂停")]
         public InputAction cancelAction = new InputAction("Cancel", InputActionType.Button);
         public InputAction pauseAction = new InputAction("Pause", InputActionType.Button);
@@ -49,6 +52,8 @@ namespace Ossastra.Characters
         private bool dodgeArmed;
         private bool offhandArmed;
 
+        // 控制身份与设备采样许可分开：UI捕获不能暂停本体已接受副手/CD。
+        public bool HasPlayerControl => !managedPlayerInput || (ControlSourceAlive && playerControl.IsPlayerControlOwner(this));
         public bool HasPlayerInput => !managedPlayerInput || (ControlSourceAlive && playerControl.IsPlayerInputAllowed(this));
         private bool ControlSourceAlive => playerControl != null &&
             (!(playerControl is Object unityObject) || unityObject != null);
@@ -96,6 +101,7 @@ namespace Ossastra.Characters
             yield return attackAction;
             yield return dodgeAction;
             yield return offhandAction;
+            yield return skillOneAction; yield return skillTwoAction;
             yield return cancelAction;
             yield return pauseAction;
             yield return debugValidAction;
@@ -147,6 +153,7 @@ namespace Ossastra.Characters
             {frame.offhandHeld=false;frame.offhandPressed=false;}
             if (attackAction != null && attackAction.activeControl != null && attackAction.activeControl.device is Pointer &&
                 !frame.hasPointer) frame.attackPointerBlocked = true;
+            frame.skillOnePressed=Pressed(skillOneAction); frame.skillTwoPressed=Pressed(skillTwoAction);
             frame.cancel = Pressed(cancelAction);
             frame.pause = Pressed(pauseAction);
             frame.debugCommand = Pressed(debugValidAction) ? 1 : Pressed(debugBlockedAction) ? 2 :

@@ -1,0 +1,12 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": "System.Runtime.Serialization.SerializationException: Error reading JSON skeleton data, version: 4.1.23 ---> System.Exception: Error reading attachment: 前腿, skin: default ---> System.ArgumentException: Region not found in atlas: 前腿 (attachment: 前腿)\r\n  at Spine.AtlasAttachmentLoader.FindRegion (System.String name, System.String path) [0x00041] in E:\\WORLDCREATOR\\new\\Project_ANKALUTE\\Assets\\Spine\\Runtime\\spine-csharp\\Attachments\\AtlasAttachmentLoader.cs:73 \r\n  at Spine.AtlasAttachmentLoader.FindRegions (System.String name, System.String basePath, Spine.Sequence sequence) [0x0000f] in E:\\WORLDCREATOR\\new\\Project_ANKALUTE\\Assets\\Spine\\Runtime\\spine-csharp\\Attachments\\AtlasAttachmentLoader.cs:59 \r\n  at Spine.AtlasAttachmentLoader.NewMeshAttachment (Spine.Skin skin, System.String placeholder, System.String name, System.String path, Spine.Sequence sequence) [0x00000] in E:\\WORLDCREATOR\\new\\Project_ANKALUTE\\Assets\\Spine\\Runtime\\spine-csharp\\Attachments\\AtlasAttachmentLoader.cs:82 \r\n  at Spine.SkeletonJson.ReadAttachment (System.Collections.Generic.Dictionary`2[TKey,TValue] map, Spine.Skin skin, System.Int32 slotIndex, System.String placeholder, Spine.SkeletonData skeletonData) [0x001da] in E:\\WORLDCREATOR\\new\\Project_ANKALUTE\\Assets\\Spine\\Runtime\\spine-csharp\\SkeletonJson.cs:639 \r\n  at Spine.SkeletonJson.ReadSkeletonData (System.IO.TextReader reader) [0x015c7] in E:\\WORLDCREATOR\\new\\Project_ANKALUTE\\Assets\\Spine\\Runtime\\spine-csharp\\SkeletonJson.cs:482 \r\n   --- End of inner exception stack trace ---\r\n  at Spine.SkeletonJson.ReadSkeletonData (System.IO.TextReader reader) [0x01601] in E:\\WORLDCREATOR\\new\\Project_ANKALUTE\\Assets\\Spine\\Runtime\\spine-csharp\\SkeletonJson.cs:485 \r\n   --- End of inner exception stack trace ---\r\n  at Spine.SkeletonJson.ReadSkeletonData (System.IO.TextReader reader) [0x01ab4] in E:\\WORLDCREATOR\\new\\Project_ANKALUTE\\Assets\\Spine\\Runtime\\spine-csharp\\SkeletonJson.cs:570 \r\n  at EnemyCompatibilityDetails.Execute (Funplay.Editor.Tools.Scripting.ExecutionContext ctx) [0x00023] in <800bc85468c44984b47f582b180255cb>:0 "
+  }
+}

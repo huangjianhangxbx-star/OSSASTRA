@@ -1,0 +1,26 @@
+{
+  "state": "completed",
+  "failed": 0,
+  "rows": [
+    {
+      "name": "valid same-kind configuration",
+      "ok": true
+    },
+    {
+      "name": "missing stable ID rejected",
+      "ok": true
+    },
+    {
+      "name": "nonfinite cooldown rejected before transaction",
+      "ok": true
+    },
+    {
+      "name": "invalid effect geometry rejected",
+      "ok": true
+    },
+    {
+      "name": "invalid effect delay rejected",
+      "ok": true
+    }
+  ]
+}

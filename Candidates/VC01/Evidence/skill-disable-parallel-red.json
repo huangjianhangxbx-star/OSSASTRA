@@ -1,0 +1,26 @@
+{
+  "state": "completed",
+  "failed": 1,
+  "rows": [
+    {
+      "name": "new same-kind configuration accepted without Root changes",
+      "ok": true
+    },
+    {
+      "name": "new definition receives actor-owned cooldown",
+      "ok": true
+    },
+    {
+      "name": "disabling own skill cancels unreleased action",
+      "ok": true
+    },
+    {
+      "name": "disabling main skill preserves pending independent offhand",
+      "ok": false
+    },
+    {
+      "name": "accepted cost is not refunded",
+      "ok": true
+    }
+  ]
+}

@@ -11,11 +11,11 @@ namespace Ossastra.CharacterCore
         public int Count {get;private set;}=1;
         public int UseCount {get;private set;}
         public bool Refilled {get;private set;}
-        public bool TryUse(IEnumerable<Health> members)
+        public bool TryUse(IEnumerable<Health> members,int healAmount=100)
         {
             var living=members.Where(h=>h!=null&&h.Current>0).Distinct().ToArray();
-            if(Count<=0||!living.Any(h=>h.Current<h.Maximum))return false;
-            Count--;UseCount++;foreach(var health in living)health.Heal(100);return true;
+            if(healAmount<=0||Count<=0||!living.Any(h=>h.Current<h.Maximum))return false;
+            Count--;UseCount++;foreach(var health in living)health.Heal(healAmount);return true;
         }
         public bool TryRefill(){if(Refilled||Count>=1)return false;Count=1;Refilled=true;return true;}
     }

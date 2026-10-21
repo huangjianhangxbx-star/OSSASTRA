@@ -11,9 +11,20 @@ using System.Collections.Generic;
 
 namespace Ossastra.Characters
 {
+    /// <summary>角色技能能力；根调度输入、唯一释放事实和离手效果，UI只提交请求。</summary>
+    public interface ICharacterSkills
+    {
+        void Initialize(CharacterRoot owner);
+        void TickInput(CharacterInputFrame frame);
+        bool TryRequest(int slot,CharacterActionSource source);
+        bool TryHandleRelease(AttackRelease release,Vector3 direction);
+        void TickEffects(float delta);
+        void Clear();
+    }
     /// <summary>动作接受后冻结播放配置；表现端不反向接受动作或写伤害。</summary>
     public interface ICharacterConfiguredAnimation
     {
+        bool CanCaptureAction(ActionDefinitionSO definition,out string reason);
         void CaptureAction(System.Guid actionId,ActionDefinitionSO definition);
     }
     /// <summary>位移能力的只读表现身份；仍由唯一Movement执行速度。</summary>
@@ -95,9 +106,10 @@ namespace Ossastra.Characters
     {
         bool HasPlayerInput { get; }
     }
-    /// <summary>由场景实控权威回答谁可以采样玩家输入；输入源不保存第二份选中状态。</summary>
+    /// <summary>场景权威分别回答有效实控归属和设备采样许可；输入源不保存第二份Current。</summary>
     public interface ICharacterPlayerControlSource
     {
+        bool IsPlayerControlOwner(ICharacterInputSource source);
         bool IsPlayerInputAllowed(ICharacterInputSource source);
     }
     /// <summary>仅为确需角色Bus的模块提供显式初始化；失败阻止角色启动。</summary>

@@ -1,0 +1,22 @@
+{
+  "state": "completed",
+  "failed": 0,
+  "equipped": true,
+  "accepted": true,
+  "before": 5.0,
+  "after": 4.497231199638918,
+  "rows": [
+    {
+      "name": "capture keeps role ownership and blocks physical input",
+      "ok": true
+    },
+    {
+      "name": "accepted independent offhand continues through modal",
+      "ok": true
+    },
+    {
+      "name": "owned offhand cooldown continues without world pause",
+      "ok": true
+    }
+  ]
+}

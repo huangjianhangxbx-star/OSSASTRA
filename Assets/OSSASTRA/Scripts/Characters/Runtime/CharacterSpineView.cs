@@ -64,7 +64,13 @@ namespace Ossastra.Characters
             if(data.FindAnimation(idle)==null||data.FindAnimation(move)==null||data.FindAnimation(attack)==null)return false;            if(root!=null)guard=root.GetComponent<ShieldGuard>();
             originalScaleX=Mathf.Abs(skeleton.Skeleton.ScaleX);originalTimeScale=skeleton.timeScale;return true;
         }
-        /// <summary>接受时冻结片段/速率；SO后续变化不改写本次正在执行的播放方案。</summary>
+        public bool CanCaptureAction(ActionDefinitionSO definition,out string reason)
+        {
+            var binding=profile==null||definition==null?null:profile.FindKey(definition.animationKey);
+            reason=binding==null||skeleton==null||skeleton.Skeleton?.Data.FindAnimation(binding.clip)==null?"missing-animation-mapping":
+                float.IsNaN(binding.sourceDuration)||float.IsInfinity(binding.sourceDuration)||binding.sourceDuration<=0?"invalid-animation-duration":null;
+            return reason==null;
+        }        /// <summary>接受时冻结片段/速率；SO后续变化不改写本次正在执行的播放方案。</summary>
         public void CaptureAction(Guid actionId,ActionDefinitionSO definition)
         {
             if(profile==null||definition==null)return;

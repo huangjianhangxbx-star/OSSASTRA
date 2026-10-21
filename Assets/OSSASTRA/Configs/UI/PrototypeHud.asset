@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 39ee0f743ec7388479e248b7c6a400ad, type: 3}
+  m_Name: PrototypeHud
+  m_EditorClassIdentifier: 
+  barBase: {fileID: 21300000, guid: 26fa780e55709ae41b41e6811bef29c5, type: 3}
+  barFrame: {fileID: 21300000, guid: 45a90ee4e1e2f2945ae19bdde9dbf0ec, type: 3}
+  barFill: {fileID: 21300000, guid: f0c9acbe7c862064184ac1a87e545001, type: 3}
+  square: {fileID: 21300000, guid: 4e30041b94559ce41beb15b0aefa0f99, type: 3}
+  metalSquare: {fileID: 21300000, guid: 094ab9db543494243b9d78bf3ed56252, type: 3}
+  skillFrame: {fileID: 21300000, guid: 53f187d6d7c6cf949a9c4cae3d0a3cb2, type: 3}
+  portraitBase: {fileID: 21300000, guid: cbd0d6e2f10e57c4db8ca2096852b02f, type: 3}
+  portraitFrame: {fileID: 21300000, guid: 33ef0079c16f17946a8a9a00682e06ca, type: 3}
+  portrait: {fileID: 21300000, guid: 843bd585a0f47cb4b80f4746904dd5ff, type: 3}
+  slash: {fileID: 21300000, guid: 91e9094f3330eaa4881a0b5cac9c4895, type: 3}
+  rocket: {fileID: 21300000, guid: 2b183f768449f004d875fc76fbf48282, type: 3}
+  shield: {fileID: 21300000, guid: 7e2a27bbccc3b8242bfcc28ece6a7ba1, type: 3}
+  empty: {fileID: 21300000, guid: 63ef9f114d28e5c40a3d5d8a5a9d6b15, type: 3}

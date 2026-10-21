@@ -1,6 +1,12 @@
 # OSSASTRA
 
-最新候选：**ROADMAP02：双人自主交战、敌方前摇预警、独立二维适配与综合战斗场**。
+最新候选：**VC01 角色纵向闭环一期，供集中试玩与架构审查**。
+
+入口：`Assets/OSSASTRA/Scenes/SC_CharacterVerticalSlice.unity`。四段普攻、移动中闪避、盾/炸弹手持与UI换装、两种SO技能、共享Y瓶、原型六区HUD、事实音画及原型近战敌人已接入。WASD移动，LMB普攻，RMB副手，Shift闪避，Z切人，Q/E技能，Y共享瓶；Tab背包及G/B/V相关业务仍未接入。
+
+[审查入口](docs/ossastra/VC01-review.md) · [内容/键位/源码地图](docs/ossastra/VC01-content-hud.md) · [验证及限制](docs/ossastra/VC01-verification.md)。手感、听感与最终架构接受待用户审查；停VC01，不自动进入VC02。
+
+以下为历史候选记录。
 
 入口：[集中审查](docs/ossastra/ROADMAP02-review.md)、[15份完整变化源码](docs/ossastra/ROADMAP02-source-review.md)、[验证](docs/ossastra/ROADMAP02-verification.md)、[发布](docs/ossastra/ROADMAP02-publication.md)。
 
@@ -45,5 +51,5 @@ ROADMAP01旧场与交接仍可用于回归：[记录](docs/ossastra/ROADMAP01-re
 伙伴有限Stage1自主普攻、敌方追踪预警、独立二维呈现、原两段攻击/死亡切控/安全返场。S5/S6/S8技术PASS；S7技术PASS，正式敌美术ASSET_BLOCKED（本地现有Spine替身）。
 阅读 [审查](docs/ossastra/ROADMAP02-review.md)、[验证](docs/ossastra/ROADMAP02-verification.md)、[发布](docs/ossastra/ROADMAP02-publication.md)。媒体/插件不公开，干净克隆不保证直接运行；手感与架构待用户审查。
 
-## VC01（当前开发中）
-正式候选场：Assets/OSSASTRA/Scenes/SC_CharacterVerticalSlice.unity。G0基线已建立，G1—G6仍在实施，HUD尚未迁完，不能视为本轮完整试玩交付。集中入口[VC01审查](docs/ossastra/VC01-review.md)、[资源与原型基线](docs/ossastra/VC01-baseline.md)。
+## VC01 接续记录
+正式候选场：Assets/OSSASTRA/Scenes/SC_CharacterVerticalSlice.unity。本轮已形成集中审查候选，技术证据与边界见本页顶部入口。集中入口[VC01审查](docs/ossastra/VC01-review.md)、[资源与原型基线](docs/ossastra/VC01-baseline.md)。

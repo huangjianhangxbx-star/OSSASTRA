@@ -1,0 +1,182 @@
+{
+  "state": "completed",
+  "failed": 0,
+  "rows": [
+    {
+      "name": "normal equipment window opens from mouse",
+      "ok": true,
+      "a": 100.0,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.00, 0.02, -2.00)",
+      "last": "Idle",
+      "hit": "未释放"
+    },
+    {
+      "name": "normal UI command equips owned bomb",
+      "ok": true,
+      "a": 100.0,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.00, 0.02, -2.00)",
+      "last": "Idle",
+      "hit": "未释放"
+    },
+    {
+      "name": "open equipment window refreshes actual selection",
+      "ok": true,
+      "a": 100.0,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.00, 0.02, -2.00)",
+      "last": "Idle",
+      "hit": "未释放"
+    },
+    {
+      "name": "UI click does not release attack",
+      "ok": true,
+      "a": 100.0,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.00, 0.02, -2.00)",
+      "last": "Idle",
+      "hit": "未释放"
+    },
+    {
+      "name": "other actor remains independent",
+      "ok": true,
+      "a": 100.0,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.00, 0.02, -2.00)",
+      "last": "Idle",
+      "hit": "未释放"
+    },
+    {
+      "name": "RMB actual bomb release and landing",
+      "ok": true,
+      "a": 88.02077993517742,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.00, 0.02, -2.00)",
+      "last": "Idle",
+      "hit": "未释放"
+    },
+    {
+      "name": "actual landed feedback",
+      "ok": true,
+      "a": 88.02077993517742,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.00, 0.02, -2.00)",
+      "last": "Idle",
+      "hit": "未释放"
+    },
+    {
+      "name": "normal UI returns same shield instance",
+      "ok": true,
+      "a": 100.0,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.00, 0.02, -2.00)",
+      "last": "Idle",
+      "hit": "未释放"
+    },
+    {
+      "name": "shield input does not emit unrelated bomb rejection",
+      "ok": true,
+      "a": 90.81641600234434,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.00, 0.02, -2.00)",
+      "last": "Idle",
+      "hit": "未释放"
+    },
+    {
+      "name": "guard real animation",
+      "ok": true,
+      "a": 90.81641600234434,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.00, 0.02, -2.00)",
+      "last": "Idle",
+      "hit": "未释放"
+    },
+    {
+      "name": "normal skill button uses same configured chain",
+      "ok": true,
+      "a": 71.91579080163501,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.00, 0.02, -2.00)",
+      "last": "Released @0.067 984bc8d2",
+      "hit": "未释放"
+    },
+    {
+      "name": "normal UI busy equip rejected without replacing shield",
+      "ok": true,
+      "a": 71.91579080163501,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.00, 0.02, -2.00)",
+      "last": "AttackReady @0.500 984bc8d2",
+      "hit": "未释放"
+    },
+    {
+      "name": "normal Y button consumes shared bottle",
+      "ok": true,
+      "a": 84.56935682310723,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.00, 0.02, -2.00)",
+      "last": "Finished @1.367 984bc8d2",
+      "hit": "未释放"
+    },
+    {
+      "name": "healing confirmed feedback",
+      "ok": true,
+      "a": 84.56935682310723,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.00, 0.02, -2.00)",
+      "last": "Finished @1.367 984bc8d2",
+      "hit": "未释放"
+    },
+    {
+      "name": "held keyboard move then dodge with HUD",
+      "ok": true,
+      "a": 72.58302086195908,
+      "b": 100.0,
+      "dodge": true,
+      "evade": false,
+      "pos": "(0.53, 0.02, -2.00)",
+      "last": "Finished @1.367 984bc8d2",
+      "hit": "未释放"
+    },
+    {
+      "name": "HUD follows true control switch",
+      "ok": true,
+      "a": 82.20554483286105,
+      "b": 100.0,
+      "dodge": false,
+      "evade": false,
+      "pos": "(0.53, 0.02, -2.00)",
+      "last": "Finished @1.367 984bc8d2",
+      "hit": "未释放"
+    }
+  ]
+}
