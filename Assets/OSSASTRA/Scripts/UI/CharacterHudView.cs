@@ -16,7 +16,7 @@ namespace Ossastra.UserInterface
         private sealed class Card
         {
             public Text name,control,values,stamina,right,left,condition,bottle;
-            public Image hp,posture,staminaFill;
+            public Image hp,gray,posture,staminaFill;
             public Button leftButton,rightButton;
             public CharacterHudSnapshot snapshot;
         }
@@ -85,6 +85,9 @@ namespace Ossastra.UserInterface
         {
             var c=new Card();var width=group.rect.width;
             c.hp=Bar(group,"Health",new Rect(0,0,width,23),new Color32(175,96,103,255));
+            c.gray=Picture(c.hp.transform.parent,"RecoverableHealth",new Rect(0,0,width,23),skin.barFill,new Color32(146,147,138,255));
+            c.gray.type=Image.Type.Filled;c.gray.fillMethod=Image.FillMethod.Horizontal;c.gray.fillOrigin=0;
+            c.gray.transform.SetSiblingIndex(c.hp.transform.GetSiblingIndex());c.gray.enabled=false;
             c.name=Label(group,"Name",new Rect(12,3,width*.46f,16),"",14,new Color32(239,236,224,255),TextAnchor.MiddleLeft);
             c.control=Label(group,"Control",new Rect(50,3,96,16),"",10,edge,TextAnchor.MiddleLeft);
             c.values=Label(group,"Values",new Rect(width*.43f,isCompanion?25:4,width*.55f,15),"",isCompanion?7:9,Color.white,TextAnchor.MiddleRight,true);
@@ -131,8 +134,7 @@ namespace Ossastra.UserInterface
             var positions=new[]{new Vector2(128,0),new Vector2(8,80),new Vector2(128,147)};
             for(int i=0;i<3;i++)
             {
-                var index=i;var pos=positions[i];var button=Button(g,"Skill"+i,new Rect(pos.x,pos.y,126,126),skin.skillFrame,()=>{if(index<2)port.UseSkill(index);});
-                if(i==2)button.interactable=false;
+                var index=i;var pos=positions[i];var button=Button(g,"Skill"+i,new Rect(pos.x,pos.y,126,126),skin.skillFrame,()=>port.UseSkill(index));
                 skillImages[i]=Picture(button.transform,"Emblem",new Rect(38,29,50,50),i==0?skin.slash:i==1?skin.rocket:skin.empty);
                 Label(button.transform,"Key",new Rect(0,10,126,20),new[]{"Q","E","R"}[i],14,Color.white);
                 skillLabels[i]=Label(button.transform,"Definition",new Rect(18,80,90,18),"",11,Color.white,TextAnchor.MiddleCenter,true);
@@ -158,9 +160,10 @@ namespace Ossastra.UserInterface
             var s=port.Read(isCompanion);card.snapshot=s;
             card.name.text=s.name??"无角色";card.control.text=s.controlled?"◆ 主控":"◇ 同行";
             card.control.rectTransform.anchoredPosition=new Vector2(22+card.name.preferredWidth,-3);card.control.color=s.controlled?new Color32(255,235,187,255):edge;
-            card.values.text=$"生命 {Mathf.CeilToInt(s.hp)}/{s.maxHp:0} · 虚血 — · 架势 {s.posture:0}/{s.maxPosture:0}";
+            card.values.text=$"生命 {Mathf.CeilToInt(s.hp)}/{s.maxHp:0} · 虚血 {Mathf.CeilToInt(s.grayHp)} · 架势 {s.posture:0}/{s.maxPosture:0}";
             // 原型fill_full含2.15%两端留白，按原CSS端点映射，避免低血量刻度偏短。
             card.hp.fillAmount=.0215f+.957f*(s.maxHp<=0?0:Mathf.Clamp01(s.hp/s.maxHp));card.posture.fillAmount=.0215f+.957f*(s.maxPosture<=0?0:Mathf.Clamp01(s.posture/s.maxPosture));
+            card.gray.enabled=s.grayHp>0;card.gray.fillAmount=.0215f+.957f*(s.maxHp<=0?0:Mathf.Clamp01((s.hp+s.grayHp)/s.maxHp));
             card.staminaFill.rectTransform.sizeDelta=new Vector2(((RectTransform)card.staminaFill.transform.parent).rect.width*.5f-2,11)*new Vector2(s.maxStamina<=0?0:Mathf.Clamp01(s.stamina/s.maxStamina),1);
             card.stamina.text=$"体力 {Mathf.CeilToInt(s.stamina)}/{s.maxStamina:0}";
             card.left.text=s.leftHand=="空"?"—":s.leftHand.Contains("盾")?"盾":"弹";card.condition.text=s.condition;
@@ -175,7 +178,7 @@ namespace Ossastra.UserInterface
             foreach(var metric in typography)if(metric.text!=null)metric.text.fontSize=Mathf.CeilToInt(Mathf.Max(metric.size,metric.minimum/canvas.scaleFactor));
             Refresh(hero,false);Refresh(companion,true);var s=port.ReadCurrent();
             skillOwner.text=(s.name??"无角色")+"  当前主控";
-            for(int i=0;i<3;i++){skillLabels[i].text=i<2&&s.skillNames!=null?s.skillNames[i]:"未接入";var cd=i<2&&s.skillCooldowns!=null?s.skillCooldowns[i]:0;skillStates[i].text=i==2||s.skillStates==null?"未接入":s.skillStates[i];skillImages[i].color=cd>0?Color.gray:Color.white;}
+            for(int i=0;i<3;i++){skillLabels[i].text=s.skillNames!=null&&i<s.skillNames.Length?s.skillNames[i]:"未接入";var cd=s.skillCooldowns!=null&&i<s.skillCooldowns.Length?s.skillCooldowns[i]:0;skillStates[i].text=s.skillStates==null||i>=s.skillStates.Length?"未接入":s.skillStates[i];skillImages[i].color=cd>0?Color.gray:Color.white;}
             if(popup!=null)RefreshEquipmentWindow();
             clock.text="时间未接入";clock.color=edge;notice.text=port.Notice;
         }
@@ -190,7 +193,22 @@ namespace Ossastra.UserInterface
             Label(popup,"Title",new Rect(24,18,620,35),(card.snapshot.name??"")+" · "+(right?"右手装备":"左手装备"),20,Color.white,TextAnchor.MiddleLeft);
             var close=Button(popup,"Close",new Rect(660,20,36,32),skin.square,()=>CloseEquipment());Label(close.transform,"Glyph",new Rect(0,0,36,32),"×",20,edge);
             popupNote=Label(popup,"OwnedNote",new Rect(24,58,672,25),"仅展示本体持有装备 · 当前左手："+card.snapshot.leftHand+" · 耐久 "+card.snapshot.durability,12,edge,TextAnchor.MiddleLeft);
-            if(right){Label(popup,"MainDefinition",new Rect(24,110,672,120),card.snapshot.rightHand+"\n模型内刀附件 · 四段动作库\n当前只有一件主手装备",17,edge);return;}
+            if(right)
+            {
+                var skillChoices=port.SkillChoices(card.snapshot.actorId);var id=card.snapshot.actorId;
+                Label(popup,"MainDefinition",new Rect(24,96,672,35),card.snapshot.rightHand+" · E 固定 · 脱战空闲时配置 Q/R",14,edge);
+                for(int column=0;column<2;column++)
+                {
+                    var slot=column==0?0:2;Label(popup,"SlotTitle"+slot,new Rect(24+column*344,138,328,28),slot==0?"Q 技能":"R 技能",16,edge);
+                    for(int j=0;j<=skillChoices.Length;j++)
+                    {
+                        var choice=j<skillChoices.Length?skillChoices[j]:(id:"",name:"清空槽位");
+                        var button=Button(popup,"Configure"+slot+"_"+j,new Rect(24+column*344,174+j*52,328,44),skin.square,()=>port.ConfigureSkill(id,slot,choice.id));
+                        Label(button.transform,"Choice",new Rect(8,2,312,40),choice.name,14,edge);
+                    }
+                }
+                return;
+            }
             popupIdentity=Label(popup,"EquipmentInstance",new Rect(24,320,672,40),"实例："+card.snapshot.leftInstanceId,11,edge,TextAnchor.MiddleLeft,true);
             var choices=port.EquipmentChoices(card.snapshot.actorId);var actorId=card.snapshot.actorId;
             for(int i=0;i<choices.Length;i++)

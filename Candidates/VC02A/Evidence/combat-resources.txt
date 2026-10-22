@@ -1,0 +1,22 @@
+PASS actual loss creates gray HP
+PASS skill gain uses existing health
+PASS second pulse shares parent budget
+PASS four second hold then ten percent decay
+PASS ordinary healing clamps gray
+PASS dead actor cannot reclaim
+PASS death reset clears gray
+PASS initial frost
+PASS frost commit
+PASS frost recovery delay
+PASS frost recovery crosses delay correctly
+PASS capacity source adds exact delta
+PASS source removal clamps capacity
+PASS four actual bullets
+PASS release only consumes once
+PASS precision reserves reload
+PASS reload not free before due
+PASS reload commits special sequence
+PASS no duplicate refill
+PASS cancel preserves prior magazine without refill
+PASS instant reload and delayed path exclusive
+21 combat resource contracts passed

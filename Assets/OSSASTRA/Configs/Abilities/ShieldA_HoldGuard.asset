@@ -12,6 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 10864447e0a8f6046b2d3ff2b0036e31, type: 3}
   m_Name: ShieldA_HoldGuard
   m_EditorClassIdentifier: 
+  schemaVersion: 1
   definitionId: vc02.guard
   displayName: ShieldA_HoldGuard
   cooldownIdentity: 
@@ -23,6 +24,8 @@ MonoBehaviour:
   holdCostPerSecond: 6
   releaseCost: 0
   wearOnRelease: 1
+  reclaimBudget: 0.05
+  reclaimRate: 0.5
   finishAt: 0.1
   moveReadyAt: 0
   attackReadyAt: 0

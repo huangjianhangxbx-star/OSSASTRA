@@ -18,5 +18,6 @@ namespace Ossastra.Characters
         [Min(.01f)] public float worldScale=.7f;
         public ActionDefinitionSO[] actions;
         public AbilityBinding[] abilityBindings=System.Array.Empty<AbilityBinding>();
+        public AbilityLoadoutSO skillLoadout;
     }
 }

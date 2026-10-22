@@ -4,6 +4,7 @@ public class SourceReuseProbe:IFunplayCommand
  private sealed class TestInventorySource:IAbilitySource
  {
   public string OwnerId{get;}public string InstanceId{get;}public int Count=2;public bool Reserved;
+  public Ossastra.CharacterCore.Abilities.EquipmentAbilityState RuntimeState {get;}=new Ossastra.CharacterCore.Abilities.EquipmentAbilityState();
   private readonly HashSet<Guid> consumed=new HashSet<Guid>();
   public TestInventorySource(string owner,string id){OwnerId=owner;InstanceId=id;}
   public bool IsAvailable=>Count>0;

@@ -1,8 +1,8 @@
 /*
  * 脚本：CombatVitals
- * 功能：持有本体唯一Health/阵营，接收正式结算反馈并单次通知死亡、关闭自身表现和碰撞。
+ * 功能：持有本体唯一Health/阵营，接收正式结算并通知可选虚血模块，单次死亡时关闭表现和碰撞。
  * 边界：IsAlive只读Health；不另存isDead，不选Current、不计算攻击、不自动复活。
- * 协作：Root/敌人显式Initialize；Melee反馈已Applied结果；生产返场与开发回放分别进入同一本体恢复。
+ * 协作：Root/敌人显式Initialize；Melee反馈已Applied结果；根推进可选资源，返场仍恢复同一本体。
  */
 using System;
 using Ossastra.CharacterCore;
@@ -22,6 +22,8 @@ namespace Ossastra.Combat
         private MaterialPropertyBlock[] originalBlocks;
         private MaterialPropertyBlock flashBlock;
         private bool deathNotified, flashing;
+        private CombatRecovery recovery;
+        public CombatRecovery Recovery=>recovery;
         private float flashUntil;
         public Health Health { get; private set; }
         public bool IsAlive => Health != null && Health.Current>0;
@@ -39,6 +41,7 @@ namespace Ossastra.Combat
             if (Health != null) return Health.Id==actorId;
             if (string.IsNullOrWhiteSpace(actorId) || maximumHp<=0) return false;
             Health=new Health(actorId,maximumHp);
+            recovery=GetComponent<CombatRecovery>();recovery?.Initialize(this);
             // Unity原生对象必须在显式主线程初始化中创建，不能依赖MonoBehaviour字段构造时机。
             flashBlock=new MaterialPropertyBlock();
             renderers=GetComponentsInChildren<Renderer>(true);
@@ -55,9 +58,11 @@ namespace Ossastra.Combat
         {
             if (Health==null || outcome==null || outcome.TargetId!=Health.Id || outcome.Reason!=HitReason.Applied) return;
             LastResult=outcome.ActorId+" → "+outcome.TargetId+" "+outcome.HpBefore+"→"+outcome.HpAfter+" #"+outcome.ActionId.ToString("N");
+            recovery?.RecordLoss(outcome);
             if (IsAlive) { ShowHit(); return; }
             if (deathNotified) return;
             deathNotified=true; DeathCount++; flashing=false;
+            recovery?.ResetState();
             // 只退本体表现/碰撞，保留Root/身份/Health供会话与调试读取；死亡不靠禁用全组Root。
             foreach (var r in renderers) if (r!=null) r.enabled=false;
             foreach (var c in colliders) if (c!=null) c.enabled=false;
@@ -86,6 +91,7 @@ namespace Ossastra.Combat
             if (Health==null) return;
             Health.RestoreForDevelopment(); RestoreBody("Development重置");
         }
+        public void TickResources(double delta)=>recovery?.Tick(delta);
         internal bool RestoreAfterDeath()
         {
             if(Health==null || !isActiveAndEnabled || !Health.RestoreAfterDeath()) return false;
@@ -94,6 +100,7 @@ namespace Ossastra.Combat
         private void RestoreBody(string reason)
         {
             deathNotified=false; flashing=false; LastResult=reason;
+            recovery?.ResetState();
             for (var i=0;i<renderers.Length;i++) if (renderers[i]!=null) renderers[i].enabled=rendererEnabled[i];
             for (var i=0;i<colliders.Length;i++) if (colliders[i]!=null) colliders[i].enabled=colliderEnabled[i];
             RestoreBlocks();

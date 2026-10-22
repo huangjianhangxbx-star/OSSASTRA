@@ -1,7 +1,7 @@
 /* 脚本：CombatContactGateway
  * 功能：把空间候选收敛为一个身份合法、防御已采样的Release批次，再分发同批回执。
  * 边界：HP只经AttackRelease；多碰撞体合并、冒名整组拒绝；不拥有动作时钟。
- * 协作：近战/范围适配器先查空间与LOS；网关复核来源和目标，HP反馈后处理存活者架势。
+ * 协作：适配器先查空间与LOS；网关复核来源和目标，HP实际结果交可选夺回模块，再处理存活者架势。
  */
 using System;
 using System.Collections.Generic;
@@ -27,7 +27,10 @@ namespace Ossastra.Combat
             {
                 var target=targets.First(t=>t.Health.Id==outcome.TargetId);
                 if(outcome.Reason==HitReason.Applied)
-                {if(target is ICombatTarget combat)combat.OnHitResolved(outcome);else target.ShowHit();}
+                {
+                    if(target is ICombatTarget combat)combat.OnHitResolved(outcome);else target.ShowHit();
+                    source?.Recovery?.OnApplied(release,outcome);
+                }
                 if(outcome.Reason==HitReason.Guarded||outcome.Reason==HitReason.Evaded)defenses[target]?.OnDefenseResolved(outcome);
                 if(outcome.HpAfter>0 && outcome.PostureScale>0 && target is MonoBehaviour component && component!=null)
                     foreach(var receiver in component.GetComponents<MonoBehaviour>().OfType<ICombatPostureReceiver>())

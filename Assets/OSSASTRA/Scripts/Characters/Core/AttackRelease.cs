@@ -51,11 +51,14 @@ namespace Ossastra.CharacterCore
         private readonly string actorId;
         private readonly int damage;
         private bool resolved;
+        private HashSet<string> windowTargets;
         public string ActorId => actorId;
         public Guid ActionId => actionId;
         public double PostureImpact { get; }
         public Guid ParentExecutionId {get;private set;}
         public int EmissionIndex {get;private set;}
+        public double ReclaimRate {get;private set;}=.5;
+        public double ReclaimBudgetFraction {get;private set;}=.05;
 
         internal AttackRelease(Guid actionId, string actorId, int damage, double postureImpact = 0)
         {
@@ -66,11 +69,18 @@ namespace Ossastra.CharacterCore
             ParentExecutionId=actionId;
         }
         /// <summary>已接受执行的多次释放各有一次性批次；保留共同父身份供整次预算/条件去重。</summary>
-        public static AttackRelease ForEmission(Guid parent,int index,string actorId,int damage,double postureImpact)
+        public static AttackRelease ForEmission(Guid parent,int index,string actorId,int damage,double postureImpact,double reclaimBudget=.05,double reclaimRate=.5)
         {
-            if(parent==Guid.Empty||index<0||string.IsNullOrWhiteSpace(actorId)||damage<=0||!BasicAttackDefinition.Finite(postureImpact)||postureImpact<0)
+            if(parent==Guid.Empty||index<0||string.IsNullOrWhiteSpace(actorId)||damage<=0||!BasicAttackDefinition.Finite(postureImpact)||postureImpact<0||
+                !BasicAttackDefinition.Finite(reclaimBudget)||reclaimBudget<0||reclaimBudget>1||!BasicAttackDefinition.Finite(reclaimRate)||reclaimRate<0||reclaimRate>1)
                 throw new ArgumentException("Invalid derived release identity/payload");
-            return new AttackRelease(Guid.NewGuid(),actorId,damage,postureImpact){ParentExecutionId=parent,EmissionIndex=index};
+            return new AttackRelease(Guid.NewGuid(),actorId,damage,postureImpact){ParentExecutionId=parent,EmissionIndex=index,ReclaimBudgetFraction=reclaimBudget,ReclaimRate=reclaimRate};
+        }
+        /// <summary>有限持续窗口显式选择此入口；各批次共享波次身份和已接触目标集，不放宽普通瞬时释放。</summary>
+        public static AttackRelease ForContactWindow(Guid parent,int index,string actorId,int damage,double postureImpact,double reclaimBudget=.05,double reclaimRate=.5)
+        {
+            var release=ForEmission(parent,index,actorId,damage,postureImpact,reclaimBudget,reclaimRate);
+            release.windowTargets=new HashSet<string>(StringComparer.Ordinal);return release;
         }
 
         // 调用方必须先完成实际空间/阵营过滤；本方法不谎称已做物理检测。
@@ -83,12 +93,12 @@ namespace Ossastra.CharacterCore
         /// <summary>与旧Resolve共享一次性水位；盾挡零伤不调用ApplyDamage，闪避不消费架势。</summary>
         public IReadOnlyList<HitOutcome> ResolveContacts(IEnumerable<AttackContact> contacts)
         {
-            if (resolved) throw new InvalidOperationException("Attack release already resolved");
+            if (resolved&&windowTargets==null) throw new InvalidOperationException("Attack release already resolved");
             if (contacts == null) throw new ArgumentNullException(nameof(contacts));
             var batch = contacts.ToArray();
             if (batch.Any(t => t.Health == null)) throw new ArgumentException("Null candidate target", nameof(contacts));
             resolved = true;
-            var seen = new HashSet<string>(StringComparer.Ordinal);
+            var seen = windowTargets??new HashSet<string>(StringComparer.Ordinal);
             var outcomes = new List<HitOutcome>();
             foreach (var contact in batch)
             {

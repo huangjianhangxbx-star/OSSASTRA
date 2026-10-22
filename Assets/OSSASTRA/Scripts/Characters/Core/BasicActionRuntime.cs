@@ -10,7 +10,7 @@ using System.Linq;
 
 namespace Ossastra.CharacterCore
 {
-    public enum ActionFactKind { Accepted, Released, MoveReady, AttackReady, Finished, Cancelled }
+    public enum ActionFactKind { Accepted, Released, MoveReady, AttackReady, Finished, Cancelled, PhaseChanged }
 
     // 事实是结果，不是任意广播；调用者按返回顺序处理。
     public sealed class ActionFact
@@ -90,6 +90,22 @@ namespace Ossastra.CharacterCore
             definition = attack;
             source = requestSource;
             actionId = Guid.NewGuid();
+            SetPhase(attack);
+            return new ActionRequestResult(null, Fact(ActionFactKind.Accepted, 0), previousTerminal);
+        }
+
+        /// <summary>只切换当前动作的阶段；保留受理身份与总时钟，不重复受理或支付。</summary>
+        public ActionFact Rephase(Guid expectedActionId, BasicAttackDefinition phase)
+        {
+            if (phase == null) throw new ArgumentNullException(nameof(phase));
+            if (!IsActive || expectedActionId != actionId) return null;
+            SetPhase(phase);
+            return Fact(ActionFactKind.PhaseChanged, 0);
+        }
+
+        private void SetPhase(BasicAttackDefinition attack)
+        {
+            definition = attack;
             elapsed = 0;
             timeCorrection = 0;
             nextNode = 0;
@@ -102,7 +118,6 @@ namespace Ossastra.CharacterCore
                 (attack.AttackReadyAt, ActionFactKind.AttackReady),
                 (attack.FinishAt, ActionFactKind.Finished)
             }.OrderBy(n => n.Item1).ThenBy(n => n.Item2).ToArray();
-            return new ActionRequestResult(null, Fact(ActionFactKind.Accepted, 0), previousTerminal);
         }
 
         public IReadOnlyList<ActionFact> Advance(double delta, bool paused)

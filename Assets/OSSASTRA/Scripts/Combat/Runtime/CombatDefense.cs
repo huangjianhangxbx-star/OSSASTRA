@@ -10,16 +10,16 @@ namespace Ossastra.Combat
     [DisallowMultipleComponent]
     public sealed class CombatDefense:MonoBehaviour,ICombatDefense
     {
-        private ICombatEvasion evasion;
+        private ICombatEvasion[] evasions;
         private ICombatGuard[] guards;
         private ICombatGuard Guard=>guards?.FirstOrDefault(g=>g.IsGuarding);
-        private void Awake(){evasion=GetComponents<MonoBehaviour>().OfType<ICombatEvasion>().FirstOrDefault();guards=GetComponents<MonoBehaviour>().OfType<ICombatGuard>().ToArray();}
+        private void Awake(){evasions=GetComponents<MonoBehaviour>().OfType<ICombatEvasion>().ToArray();guards=GetComponents<MonoBehaviour>().OfType<ICombatGuard>().ToArray();}
         public DefenseSnapshot CaptureDefense(Vector3 incomingOrigin)
         {
             var d=incomingOrigin-transform.position;d.y=0;
             var guard=Guard;
             var dot=d.sqrMagnitude>.0001f&&guard!=null?Vector3.Dot(guard.GuardDirection.normalized,d.normalized):-1;
-            return new DefenseSnapshot(evasion!=null&&evasion.IsEvading,guard!=null&&guard.IsGuarding,dot,guard?.MinimumDot??1,guard?.PostureScale??1);
+            return new DefenseSnapshot(evasions.Any(e=>e.IsEvading),guard!=null&&guard.IsGuarding,dot,guard?.MinimumDot??1,guard?.PostureScale??1);
         }
         public void OnDefenseResolved(HitOutcome outcome){if(outcome.Reason==HitReason.Guarded)Guard?.OnGuarded(outcome);}
     }

@@ -1,0 +1,42 @@
+/* 脚本：MagazineState
+ * 功能：同一装备实例的实际弹序列与普通/特殊装填提交；释放弹药与完成装填各自去重。
+ * 边界：不发弹/扣体力/播放动画；取消不生成弹药，挪槽/换装不重建本对象。
+ * 协作：执行器在释放消费当前首弹；装填使用本体模拟到期时间，立即提交与延时提交互斥。
+ */
+using System;
+using System.Collections.Generic;
+namespace Ossastra.CharacterCore.Abilities
+{
+    public enum AmmoKind { Normal, Mortar }
+    public sealed class MagazineState
+    {
+        private readonly Queue<AmmoKind> rounds=new Queue<AmmoKind>();
+        private readonly HashSet<Guid> shots=new HashSet<Guid>(),reloads=new HashSet<Guid>();
+        private Guid pending;
+        private AmmoKind pendingKind;
+        private int pendingCount;
+        private double due;
+        public int Count=>rounds.Count;
+        public AmmoKind? Next=>rounds.Count==0?(AmmoKind?)null:rounds.Peek();
+        public bool IsReloading=>pending!=Guid.Empty;
+        public MagazineState(){Refill(AmmoKind.Normal,4);}
+        public bool Consume(Guid emission)
+        {if(emission==Guid.Empty||Count==0||!shots.Add(emission))return false;rounds.Dequeue();return true;}
+        public bool BeginReload(Guid id,AmmoKind kind,int count,bool instant,double now,double duration)
+        {
+            if(id==Guid.Empty||IsReloading||reloads.Contains(id)||!Enum.IsDefined(typeof(AmmoKind),kind)||count<1||count>64||!BasicAttackDefinition.Finite(now)||!BasicAttackDefinition.Finite(duration)||duration<0)return false;
+            pending=id;pendingKind=kind;pendingCount=count;due=now+duration;
+            if(instant)CompleteReload(due);return true;
+        }
+        public bool CompleteReload(double now)
+            =>CompleteReload(pending,now);
+        public bool CompleteReload(Guid expected,double now)
+        {
+            if(!IsReloading||pending!=expected||now<due)return false;
+            reloads.Add(pending);Refill(pendingKind,pendingCount);pending=Guid.Empty;return true;
+        }
+        public void CancelReload(){pending=Guid.Empty;}
+        public void CancelReload(Guid expected){if(pending==expected)CancelReload();}
+        private void Refill(AmmoKind kind,int count){rounds.Clear();for(int i=0;i<count;i++)rounds.Enqueue(kind);}
+    }
+}

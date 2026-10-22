@@ -1,0 +1,38 @@
+using System;using System.Linq;using System.Collections.Generic;using UnityEngine;using UnityEngine.InputSystem;using UnityEngine.InputSystem.LowLevel;using UnityEditor;using Ossastra.Characters;using Ossastra.CharacterCore;using Ossastra.Combat;using Funplay.Editor.Tools.Scripting;
+public class RushTraceProbe:IFunplayCommand
+{
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+ {
+  if(!Application.isPlaying)throw new Exception("Play required");
+  var coordinator=UnityEngine.Object.FindObjectOfType<CharacterControlCoordinator>();var enemy=UnityEngine.Object.FindObjectOfType<Ossastra.Enemies.EnemyRoot>();
+  var settingsBefore=InputSystem.settings;var settings=UnityEngine.Object.Instantiate(settingsBefore);settings.backgroundBehavior=InputSettings.BackgroundBehavior.IgnoreFocus;settings.editorInputBehaviorInPlayMode=InputSettings.EditorInputBehaviorInPlayMode.AllDeviceInputAlwaysGoesToGameView;InputSystem.settings=settings;
+  var keyboard=InputSystem.AddDevice<Keyboard>("VC02SkillsKeyboard");var mouse=InputSystem.AddDevice<Mouse>("VC02SkillsMouse");var overrides=new Dictionary<InputAction,string>();
+  foreach(var input in coordinator.Characters.Select(r=>r.GetComponent<CharacterInputHandler>()))foreach(var action in new[]{input.skillOneAction,input.skillTwoAction,input.skillThreeAction,input.mouseAction})
+  {overrides[action]=action.SaveBindingOverridesAsJson();for(int i=0;i<action.bindings.Count;i++){var p=action.bindings[i].path;action.ApplyBindingOverride(i,p.Replace("<Keyboard>",keyboard.path).Replace("<Mouse>",mouse.path));}}
+  EditorWindow.GetWindow(typeof(Editor).Assembly.GetType("UnityEditor.GameView")).Focus();coordinator.SendMessage("OnApplicationFocus",true);
+  foreach(var root in coordinator.Characters){root.SendMessage("OnApplicationFocus",true);root.GetComponent<CompanionCombatBrain>().enabled=false;root.CancelAction("six-skills-probe");root.Vitals.RestoreForDevelopment();}
+  var engagement=UnityEngine.Object.FindObjectOfType<CombatEngagementSession>();if(engagement!=null)engagement.enabled=false;enemy.AttacksEnabled=false;var brain=enemy.GetComponent<Ossastra.Enemies.ChaseEnemyBrain>();if(brain!=null)brain.enabled=false;
+  var rows=new List<object>();int failed=0,next=0,lastFrame=-1;double start=EditorApplication.timeSinceStartup;var steps=new List<(double,Action)>();
+  Ossastra.Characters.CharacterRoot actor=null;CharacterAbilities module=null;var facts=new List<ActionFact>();int accepted=0,emitted=0,hp=0;float paid=0;Vector3 position=Vector3.zero;Guid acceptedId=Guid.Empty;
+  void Flush(string state){SessionState.SetString("VC02_RUSH_TRACE",Newtonsoft.Json.JsonConvert.SerializeObject(new{state,failed,rows}));}
+  void Check(string name,bool ok){if(!ok)failed++;rows.Add(new{name,ok,last=module?.LastResult,accepted=module?.AcceptedCount,emitted=module?.EmittedCount,hp=enemy.Vitals.Health.Current,position=actor?.transform.position.ToString(),facts=facts.Select(f=>f.Kind.ToString()).ToArray()});Flush("running");}
+  void SendKey(Key? key){InputSystem.QueueStateEvent(keyboard,key.HasValue?new KeyboardState(key.Value):new KeyboardState());}
+  void Setup(string actorId,float distance)
+  {
+   SendKey(null);actor=coordinator.Characters.Single(r=>r.ActorId==actorId);if(coordinator.Current!=actor)coordinator.SwitchNext();module=actor.GetComponent<CharacterAbilities>();
+   foreach(var r in coordinator.Characters){r.CancelAction("reset-probe");r.GetComponent<CharacterStamina>().Restore();r.GetComponent<CharacterMovement>().Teleport(new Vector3(r==actor?0:-4,.03f,-2));}
+   enemy.RestoreForDevelopment();var controller=enemy.GetComponent<CharacterController>();controller.enabled=false;enemy.transform.position=new Vector3(distance,.03f,-2);controller.enabled=true;Physics.SyncTransforms();
+   var point=Camera.main.WorldToScreenPoint(enemy.transform.position);InputSystem.QueueStateEvent(mouse,new MouseState{position=new Vector2(point.x,point.y)});
+   accepted=module.AcceptedCount;emitted=module.EmittedCount;hp=enemy.Vitals.Health.Current;paid=(float)actor.GetComponent<CharacterStamina>().Current;position=actor.transform.position;facts.Clear();actor.ActionObserved+=facts.Add;
+  }
+  void Finish(string id,int damage)
+  {
+   Check(id+" accepts once through ordinary InputSystem",module.AcceptedCount==accepted+1);
+   Check(id+" actual release and HP receipt",module.EmittedCount==emitted+1&&enemy.Vitals.Health.Current==hp-damage);
+   Check(id+" returns body to ready",!actor.ActionActive&&!module.IsBusy);
+   actor.ActionObserved-=facts.Add;
+  }
+  steps.Add((.2,()=>Setup("temporary-a",1.1f)));steps.Add((.5,()=>SendKey(Key.E)));steps.Add((.8,()=>SendKey(null)));steps.Add((1.8,()=>Check("rush progressed",actor.transform.position.x>.5f)));  EditorApplication.CallbackFunction tick=null;void Cleanup(){EditorApplication.update-=tick;SendKey(null);foreach(var kv in overrides)kv.Key.LoadBindingOverridesFromJson(kv.Value);InputSystem.RemoveDevice(keyboard);InputSystem.RemoveDevice(mouse);InputSystem.settings=settingsBefore;UnityEngine.Object.DestroyImmediate(settings);}
+  tick=()=>{if(Time.frameCount==lastFrame)return;lastFrame=Time.frameCount;if(actor!=null&&actor.ActionActive)rows.Add(new{trace=true,t=actor.SimulationTime,pos=actor.transform.position.ToString(),motion=module.MotionVelocity.ToString(),active=module.IsActive,allow=actor.DataBus.AllowsMovement,ready=actor.DataBus.MoveReady,busType=actor.DataBus.MotionOverride?.GetType().Name,busVel=actor.DataBus.MotionOverride?.MotionVelocity.ToString(),actual=actor.DataBus.Velocity.ToString(),authored=actor.DataBus.AbilityMotionActive,motorAllowed=actor.GetComponent<CharacterMovement>().LastAllowed,requested=actor.GetComponent<CharacterMovement>().RequestedVelocity.ToString()});try{if(next<steps.Count&&EditorApplication.timeSinceStartup-start>=steps[next].Item1){var late=EditorApplication.timeSinceStartup-start-steps[next].Item1;if(late>.02)start+=late;steps[next++].Item2();}if(next==steps.Count){Cleanup();Flush("completed");}}catch(Exception ex){failed++;rows.Add(new{error=ex.ToString()});Cleanup();Flush("failed");}};EditorApplication.update+=tick;Flush("running");
+ }
+}

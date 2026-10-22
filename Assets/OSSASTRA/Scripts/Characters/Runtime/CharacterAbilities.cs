@@ -13,13 +13,14 @@ using Ossastra.Combat;
 namespace Ossastra.Characters
 {
     [DisallowMultipleComponent]
-    public sealed class CharacterAbilities:MonoBehaviour,ICharacterAbilityController,ICombatGuard,ICharacterOffhandStatus
+    public sealed class CharacterAbilities:MonoBehaviour,ICharacterAbilityController,ICombatGuard,ICharacterOffhandStatus,ICharacterMotionOverride,ICombatEvasion
     {
-        private sealed class EquipmentSource:IAbilitySource
+        private sealed class EquipmentSource:IAbilitySource,IAbilityStateSource
         {
             private readonly CharacterEquipment equipment;
             private readonly bool main,wear;
             public string OwnerId=>equipment?.State?.OwnerId;
+            public EquipmentAbilityState RuntimeState=>equipment.State.RuntimeFor(InstanceId);
             public string InstanceId {get;}
             public EquipmentSource(CharacterEquipment equipment,bool main,bool wear)
             {this.equipment=equipment;this.main=main;this.wear=wear;InstanceId=main?equipment.State.RightInstanceId:equipment.State.LeftInstanceId;}
@@ -37,8 +38,6 @@ namespace Ossastra.Characters
         }
         private readonly List<BoundGesture> bindings=new List<BoundGesture>();
         private readonly List<AbilityRun> runs=new List<AbilityRun>();
-        private readonly HashSet<Guid> released=new HashSet<Guid>();
-        private readonly SkillCooldownBook cooldowns=new SkillCooldownBook();
         private readonly CombatDeliveryQueue deliveries=new CombatDeliveryQueue();
         private CharacterRoot owner;
         private CharacterEquipment equipment;
@@ -54,6 +53,10 @@ namespace Ossastra.Characters
         public int ResolvedCount=>deliveries.ResolvedCount;
         public int InFlightCount=>deliveries.InFlightCount;
         public bool IsBusy=>runs.Any(r=>!r.Ended);
+        private ICharacterMotionOverride ActiveMotion=>runs.Where(r=>!r.Ended).OfType<ICharacterMotionOverride>().FirstOrDefault(r=>r.IsActive);
+        public bool IsActive=>isActiveAndEnabled&&ActiveMotion!=null;
+        public Vector3 MotionVelocity=>ActiveMotion?.MotionVelocity??Vector3.zero;
+        public bool IsEvading=>isActiveAndEnabled&&runs.Where(r=>!r.Ended).OfType<ICombatEvasion>().Any(r=>r.IsEvading);
         public bool IsAccepting=>runs.Any(r=>!r.Ended&&(r.Context.definition.plan.Occupancy&AbilityOccupancy.OffHand)!=0);
         private ICombatGuard ActiveGuard=>runs.OfType<ICombatGuard>().FirstOrDefault(g=>g.IsGuarding);
         public bool IsGuarding=>isActiveAndEnabled&&ActiveGuard!=null;
@@ -64,6 +67,37 @@ namespace Ossastra.Characters
 
         public void Initialize(CharacterRoot root)
         {owner=root;equipment=GetComponent<CharacterEquipment>();stamina=GetComponent<CharacterStamina>();Rebind();}
+        public AbilityDefinitionSO SkillDefinition(int slot)
+        {
+            var profile=equipment?.RightDefinition?.skillLoadout;if(profile==null||slot<0||slot>2)return null;
+            if(slot==1)return profile.nativeAbility;
+            if(equipment.State.RightRuntime.SkillSelections.TryGetValue(slot,out var id))return profile.regularChoices.FirstOrDefault(d=>d!=null&&d.definitionId==id);
+            return slot==0?profile.defaultQ:profile.defaultR;
+        }
+        public AbilityDefinitionSO[] SkillChoices=>equipment?.RightDefinition?.skillLoadout?.regularChoices??Array.Empty<AbilityDefinitionSO>();
+        public bool ConfigureSkill(int slot,string definitionId)
+        {
+            var engagement=FindObjectOfType<CombatEngagementSession>();
+            if(slot!=0&&slot!=2||owner==null||!owner.GetComponent<CharacterInputHandler>().HasPlayerControl||!owner.CanSimulateIntent||owner.ActionActive||IsBusy||
+                equipment?.RightDefinition?.skillLoadout==null||engagement!=null&&engagement.Engaged)return Reject("仅实控角色脱战空闲时可修改Q/R，E固定");
+            if(!string.IsNullOrEmpty(definitionId)&&!SkillChoices.Any(d=>d.definitionId==definitionId))return Reject("不是当前主手职业技能");
+            equipment.State.RightRuntime.SkillSelections[slot]=definitionId??"";Rebind();LastResult="已更新技能配置";return true;
+        }
+        public double SkillCooldown(int slot)
+        {
+            var d=SkillDefinition(slot);if(d==null||equipment?.State==null)return 0;
+            var state=equipment.State.RightRuntime;
+            return state.Cooldowns.Remaining(equipment.State.RightInstanceId+":"+(string.IsNullOrWhiteSpace(d.cooldownIdentity)?d.definitionId:d.cooldownIdentity),state.Clock(d.cooldownPolicy));
+        }
+        public bool RequestSkill(int slot,CharacterActionSource source)
+            =>slot>=0&&slot<3&&TryRequest(SkillDefinition(slot),true,(AbilityOperation)((int)AbilityOperation.SkillOne+slot),source);
+        private IEnumerable<AbilityBinding> MainBindings(EquipmentDefinitionSO definition)
+        {
+            if(definition.skillLoadout==null)return definition.abilityBindings??Array.Empty<AbilityBinding>();
+            definition.skillLoadout.Validate();
+            return (definition.abilityBindings??Array.Empty<AbilityBinding>()).Concat(Enumerable.Range(0,3).Where(i=>SkillDefinition(i)!=null)
+                .Select(i=>new AbilityBinding{operation=(AbilityOperation)((int)AbilityOperation.SkillOne+i),gesture=GestureMode.Press,ability=SkillDefinition(i)}));
+        }
         private void Rebind()
         {
             bindings.Clear();bindingEpoch++;
@@ -72,7 +106,7 @@ namespace Ossastra.Characters
             foreach(var pair in new[]{(definition:equipment.RightDefinition,main:true),(definition:equipment.LeftDefinition,main:false)})
             {
                 if(pair.definition==null)continue;
-                foreach(var binding in pair.definition.abilityBindings??Array.Empty<AbilityBinding>())
+                foreach(var binding in pair.main?MainBindings(pair.definition):pair.definition.abilityBindings??Array.Empty<AbilityBinding>())
                 {
                     if(binding==null||binding.ability==null||!Enum.IsDefined(typeof(AbilityOperation),binding.operation)||
                         !Enum.IsDefined(typeof(GestureMode),binding.gesture)||float.IsNaN(binding.longPressThreshold)||float.IsInfinity(binding.longPressThreshold)||binding.longPressThreshold<=0||!used.Add(binding.operation))
@@ -106,6 +140,8 @@ namespace Ossastra.Characters
         public bool TryRequest(AbilityDefinitionSO definition,bool main,AbilityOperation operation,CharacterActionSource source)
         {
             if(owner==null||!isActiveAndEnabled||!owner.HasPlayerInput||equipment?.State==null||definition==null)return Reject("来源/控制不可用");
+            var directory=main?equipment.RightDefinition?.skillLoadout:null;
+            if(directory!=null&&definition!=directory.nativeAbility&&!directory.regularChoices.Contains(definition))return Reject("能力不属于当前主手职业目录");
             CompiledAbility compiled;
             try{compiled=definition.Compile();}catch(ArgumentException e){return Reject(e.Message);}
             var port=new EquipmentSource(equipment,main,compiled.wearOnRelease);
@@ -122,13 +158,22 @@ namespace Ossastra.Characters
         private bool AcceptCompiled(CompiledAbility compiled,IAbilitySource port,AbilityOperation operation,CharacterActionSource source,Sprite sprite,float scale)
         {
             if(owner==null||!isActiveAndEnabled||!owner.HasPlayerInput||port==null||port.OwnerId!=owner.ActorId||string.IsNullOrWhiteSpace(port.InstanceId)||!Enum.IsDefined(typeof(AbilityOperation),operation))return Reject("来源/控制身份无效");
+            var resources=port.RuntimeState;
+            if(resources==null)return Reject("来源缺少稳定运行payload");
             var key=port.InstanceId+":"+compiled.cooldownIdentity;
-            if(!port.IsAvailable||cooldowns.Remaining(key,owner.SimulationTime)>0)return Reject("来源失效或冷却中");
+            if(!port.IsAvailable||resources.Cooldowns.Remaining(key,resources.Clock(compiled.cooldownPolicy))>0)return Reject("来源失效或冷却中");
             if(runs.Count>=8)return Reject("能力执行预算已满");
-            if(!CanAccept(compiled.executor.UsesBodyAction?CharacterActionKind.Main:CharacterActionKind.Offhand,out var conflict))return Reject(conflict);
+            CompiledAbilityExecutor executor;
+            try{executor=compiled.executor.Prepare(owner);}catch(ArgumentException error){return Reject(error.Message);}
+            if(!CanAccept(executor.ActionKind,out var conflict))return Reject(conflict);
             var direction=owner.DataBus.AttackDirection;
             if(direction.sqrMagnitude<.0001f)return Reject("无效方向");
             var landing=owner.transform.position+direction.normalized*compiled.delivery.range;
+            if(executor.AimRange>0)
+            {
+                var aim=owner.AbilityAimPoint(input);if(!aim.HasValue)return Reject("无合法鼠标落点");
+                var offset=aim.Value-owner.transform.position;offset.y=0;landing=owner.transform.position+Vector3.ClampMagnitude(offset,executor.AimRange);
+            }
             if(compiled.delivery.mode==DeliveryMode.Parabolic||compiled.delivery.mode==DeliveryMode.RayLandingArc)
             {
                 var aim=owner.AbilityAimPoint(input);if(!aim.HasValue)return Reject("无合法鼠标落点");
@@ -147,12 +192,14 @@ namespace Ossastra.Characters
             }
             else
             {
-                var request=owner.Actions.CreateRequest(CharacterActionKind.Offhand,source,"ability:"+compiled.id);id=request.RequestId;
+                var request=owner.Actions.CreateRequest(executor.ActionKind,source,"ability:"+compiled.id);id=request.RequestId;
                 if(!owner.Actions.TryCommit(request,compiled.cost,()=>port.TryReserve(reservation)?request.RequestId:Guid.Empty,out var reason))return Reject(reason);
             }
             var context=new AbilityRunContext(owner,compiled,port,id,direction.normalized,landing,Emit,operation,sprite,scale);
-            runs.Add(compiled.executor.CreateRun(context));
-            if(!cooldowns.Commit(key,id,owner.SimulationTime,compiled.cooldown))throw new InvalidOperationException("Accepted ability cooldown conflict");
+            owner.Vitals?.Recovery?.RetainParent(id);
+            deliveries.RegisterParent(id);
+            runs.Add(executor.CreateRun(context));
+            if(executor.StartsCooldownOnAccept&&!resources.Cooldowns.Commit(key,id,resources.Clock(compiled.cooldownPolicy),compiled.cooldown))throw new InvalidOperationException("Accepted ability cooldown conflict");
             AcceptedCount++;LastResult="接受 "+compiled.displayName;return true;
         }
         public bool CanAccept(CharacterActionKind kind,out string reason)
@@ -179,32 +226,42 @@ namespace Ossastra.Characters
         public void TickEffects(float delta)
         {
             if(owner==null)return;
-            if(!owner.IsAlive||!isActiveAndEnabled){CancelPending("life/disabled");deliveries.Clear();return;}
+            if(!owner.IsAlive||!isActiveAndEnabled){CancelPending("life/disabled");deliveries.Clear();ReleaseEndedRuns();return;}
             if(owner.IsSimulationSuspended)return;
+            var controlled=owner.GetComponent<CharacterInputHandler>().HasPlayerControl;
+            equipment?.State?.RightRuntime.Tick(delta,controlled,!IsGuarding);
+            equipment?.State?.LeftRuntime?.Tick(delta,controlled);
             foreach(var run in runs)
             {
                 if(run.Context.lifeGeneration!=owner.LifeGeneration||!run.Context.source.IsAvailable||!owner.CanSimulateIntent||!owner.GetComponent<CharacterInputHandler>().HasPlayerControl)
                 {run.Cancel();if(run.Context.definition.executor.UsesBodyAction)owner.CancelOwnedMainAction(run.Context.id,"ability-source-invalid");continue;}
                 run.Tick(delta,Held(run.Context.operation));
             }
-            deliveries.Tick(delta);runs.RemoveAll(r=>r.Ended);
+            deliveries.Tick(delta);
+            ReleaseEndedRuns();
+        }
+        private void ReleaseEndedRuns()
+        {
+            foreach(var run in runs.Where(r=>r.Ended))
+            {owner.Vitals?.Recovery?.ReleaseParent(run.Context.id);run.Context.source.CancelReservation();deliveries.CompleteParent(run.Context.id);}
+            runs.RemoveAll(r=>r.Ended);
         }
         private void Emit(AbilityRunContext context,AbilityEmission emission)
         {
             if(!context.source.IsAvailable)return;
-            if(!released.Contains(context.id))
+            if(!context.SourceCommitted)
             {
                 if(context.definition.releaseCost>0&&!stamina.Spend(context.releasePaymentId,context.definition.releaseCost,owner.SimulationTime,"ability-release"))return;
                 if(!context.source.CommitRelease(context.id))return;
-                released.Add(context.id);
+                context.MarkSourceCommitted();
             }
             var emitted=deliveries.Emit(owner.Vitals,context.id,emission.Index,context.definition.delivery,emission.Damage,context.definition.posture[emission.Index],
                 owner.transform.position,context.direction,context.landing,()=>this!=null&&isActiveAndEnabled&&owner!=null&&owner.IsAlive&&owner.LifeGeneration==context.lifeGeneration,
-                receipts=>LastResult="接触 "+receipts.Count+" #"+context.id.ToString("N"),context.projectileSprite,context.projectileScale);
+                receipts=>LastResult="接触 "+receipts.Count+" #"+context.id.ToString("N"),context.projectileSprite,context.projectileScale,context.definition.reclaimBudget,context.definition.reclaimRate);
             if(emitted)EmittedCount++;
         }
         public void CancelPending(string reason){foreach(var run in runs)run.Cancel();}
         private void OnDisable()
-        {if(owner!=null)foreach(var run in runs)if(run.Context.definition.executor.UsesBodyAction)owner.CancelOwnedMainAction(run.Context.id,"ability-disabled");CancelPending("disabled");deliveries.Clear();}
+        {if(owner!=null)foreach(var run in runs)if(run.Context.definition.executor.UsesBodyAction)owner.CancelOwnedMainAction(run.Context.id,"ability-disabled");CancelPending("disabled");deliveries.Clear();if(owner!=null)ReleaseEndedRuns();}
     }
 }

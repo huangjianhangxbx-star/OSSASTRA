@@ -12,6 +12,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 10864447e0a8f6046b2d3ff2b0036e31, type: 3}
   m_Name: Throw_Equipment
   m_EditorClassIdentifier: 
+  schemaVersion: 1
+  cooldownPolicy: 1
   definitionId: vc02.throw
   displayName: Throw_Equipment
   cooldownIdentity: 
@@ -23,6 +25,8 @@ MonoBehaviour:
   holdCostPerSecond: 0
   releaseCost: 0
   wearOnRelease: 1
+  reclaimBudget: 0.05
+  reclaimRate: 0.5
   finishAt: 0.1
   moveReadyAt: 0
   attackReadyAt: 0

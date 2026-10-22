@@ -23,6 +23,8 @@ namespace Ossastra.Characters
         private Guid capturedAction;
         private string capturedClip;
         private float capturedMix,capturedRate=1;
+        private bool capturedLoop;
+        private Guid phaseReplay;
         private Ossastra.Combat.ICombatGuard[] guards=Array.Empty<Ossastra.Combat.ICombatGuard>();
         [SerializeField] private string idle="idle1_1", move="run", attack="atk1";
         [SerializeField] private AnimationClipMap[] catalog=Array.Empty<AnimationClipMap>();
@@ -75,11 +77,20 @@ namespace Ossastra.Characters
         }        /// <summary>接受时冻结片段/速率；SO后续变化不改写本次正在执行的播放方案。</summary>
         public void CaptureAction(Guid actionId,ActionDefinitionSO definition)
         {
-            if(profile==null||definition==null)return;
+            CapturePhase(actionId,FreezeAction(definition));
+        }
+        public ConfiguredActionSnapshot FreezeAction(ActionDefinitionSO definition)
+        {
+            if(!CanCaptureAction(definition,out var reason))throw new ArgumentException(reason);
             var binding=profile.FindKey(definition.animationKey);
-            if(binding==null)throw new InvalidOperationException("Missing action animation key "+definition.animationKey);
-            capturedAction=actionId;capturedClip=binding.clip;capturedMix=binding.mixDuration;
-            capturedRate=binding.sourceDuration/(float)definition.Freeze().FinishAt;
+            var timeline=definition.Freeze();
+            return new ConfiguredActionSnapshot(timeline,binding.clip,binding.mixDuration,binding.sourceDuration/(float)timeline.FinishAt,binding.loop);
+        }
+        public void CapturePhase(Guid actionId,ConfiguredActionSnapshot phase)
+        {
+            capturedAction=actionId;capturedClip=phase.Clip;capturedMix=phase.Mix;capturedRate=phase.Rate;capturedLoop=phase.Loop;
+            // 表现重播身份与战斗支付身份分离；同片段的下一阶段也须真实重播。
+            phaseReplay=Guid.NewGuid();
         }
         public void SetPaused(bool paused){if(skeleton!=null)skeleton.timeScale=paused?0:originalTimeScale;}
         public void CollectFacts(bool alive,bool staggered,bool hitReaction,int generation,int attackStage=1)
@@ -93,7 +104,7 @@ namespace Ossastra.Characters
             intents.Clear();Add(AnimationSemantic.Idle,"movement",Guid.Empty);
             if(dataBus.IsMoving)Add(AnimationSemantic.Move,"movement",Guid.Empty);
             // 恢复门与呈现占用分离；跑步交接不取消主动作或提前开放AttackReady。
-            if(ActionPresentationPolicy.RetainMainPose(dataBus.ActionActive,dataBus.MoveReady,dataBus.IsMoving))Add(attackStage==2?AnimationSemantic.BasicAttackSecond:AnimationSemantic.BasicAttack,"action",dataBus.ActionId);
+            if(ActionPresentationPolicy.RetainMainPose(dataBus.ActionActive,dataBus.MoveReady,dataBus.IsMoving)||dataBus.AbilityMotionActive)Add(attackStage==2?AnimationSemantic.BasicAttackSecond:AnimationSemantic.BasicAttack,"action",dataBus.ActionId);
             var motion=dataBus.MotionOverride as ICharacterMotionAnimation;
             if(motion!=null&&motion.IsActive)Add(AnimationSemantic.Dodge,"dodge",motion.ActionId);
             if(guards.Any(g=>g.IsGuarding))Add(AnimationSemantic.Guard,"guard",Guid.Empty);
@@ -113,7 +124,7 @@ namespace Ossastra.Characters
                 var binding=profile.FindSemantic(intent.Semantic);
                 if(binding!=null){clip=binding.clip;loop=binding.loop;mix=binding.mixDuration;FallbackReason="";}
                 if(intent.Source=="action"&&capturedAction==intent.ReplayId&&capturedClip!=null)
-                {clip=capturedClip;loop=false;mix=capturedMix;rate=capturedRate;FallbackReason="";}
+                {clip=capturedClip;loop=capturedLoop;mix=capturedMix;rate=capturedRate;FallbackReason="";intent=new SemanticIntent(intent.ActorId,intent.Semantic,intent.Source,phaseReplay,generation);}
                 else if(intent.Semantic==AnimationSemantic.Dodge&&binding!=null&&motion!=null)
                     rate=binding.sourceDuration/motion.Duration;
             }            if(string.IsNullOrEmpty(clip)||skeleton.Skeleton.Data.FindAnimation(clip)==null)

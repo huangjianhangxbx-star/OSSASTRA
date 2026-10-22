@@ -28,15 +28,24 @@ namespace Ossastra.UserInterface
             if(root==null)return default;
             var stamina=root.GetComponent<CharacterStamina>();var posture=root.GetComponent<CombatPosture>();
             var equipment=root.GetComponent<CharacterEquipment>();var skills=root.GetComponent<CharacterSkills>();
+            var abilities=root.GetComponent<CharacterAbilities>();var modern=abilities!=null&&abilities.isActiveAndEnabled;
             if(root==coordinator.Current){WatchRejection(root.Actions?.LastResult,ref previousAdmission);WatchRejection(root.GetComponent<CharacterDodge>()?.LastResult,ref previousDodge);WatchRejection(skills?.LastResult,ref previousSkill);WatchRejection(root.GetComponent<CharacterOffhand>()?.LastResult,ref previousOffhand);}
             return new CharacterHudSnapshot{actorId=root.ActorId,name=root.Definition?.displayName??root.ActorId,alive=root.IsAlive,controlled=root==coordinator.Current,
                 hp=root.Vitals?.Health.Current??0,maxHp=root.Vitals?.Health.Maximum??0,stamina=(float)(stamina?.Current??0),maxStamina=(float)(stamina?.Maximum??0),
+                grayHp=(float)(root.Vitals?.Recovery?.Gray??0),
                 posture=(float)(posture?.Current??0),maxPosture=(float)(posture?.Maximum??0),rightHand=equipment?.RightDefinition?.displayName??"未接入",
                 leftHand=equipment?.LeftDefinition?.displayName??"空",rightInstanceId=equipment?.State?.RightInstanceId,leftInstanceId=equipment?.State?.LeftInstanceId,leftDefinitionId=equipment?.LeftDefinition?.definitionId,durability=equipment?.State?.Durability??0,
                 condition=!root.IsAlive?"死亡 · 等待返场":posture!=null&&posture.IsStaggered?"失衡":root!=coordinator.Current?"自主战斗 / 跟随":"",
-                skillNames=Enumerable.Range(0,2).Select(i=>skills?.Definition(i)?.displayName??"未接入").ToArray(),
-                skillStates=Enumerable.Range(0,2).Select(i=>SkillStatus(root,skills,i)).ToArray(),
-                skillCooldowns=Enumerable.Range(0,2).Select(i=>(float)(skills?.Cooldown(i)??0)).ToArray()};
+                skillNames=Enumerable.Range(0,3).Select(i=>modern?abilities.SkillDefinition(i)?.displayName??"空槽":skills?.Definition(i)?.displayName??"未接入").ToArray(),
+                skillStates=Enumerable.Range(0,3).Select(i=>modern?AbilityStatus(root,abilities,i):SkillStatus(root,skills,i)).ToArray(),
+                skillCooldowns=Enumerable.Range(0,3).Select(i=>(float)(modern?abilities.SkillCooldown(i):skills?.Cooldown(i)??0)).ToArray()};
+        }
+        private static string AbilityStatus(Ossastra.Characters.CharacterRoot root,CharacterAbilities abilities,int slot)
+        {
+            var definition=abilities.SkillDefinition(slot);if(definition==null)return "空槽";
+            if(!root.IsAlive)return "死亡";var cd=abilities.SkillCooldown(slot);if(cd>0)return "冷却 "+cd.ToString("0.0")+"s";
+            var request=root.Actions.CreateRequest(CharacterActionKind.Main,CharacterActionSource.UserInterface);
+            return root.Actions.CanAccept(request,definition.acceptCost,out var reason)?"可用":reason=="stamina"?"体力不足":"动作/控制未就绪";
         }
         private static string SkillStatus(Ossastra.Characters.CharacterRoot root,CharacterSkills skills,int slot)
         {
@@ -48,7 +57,14 @@ namespace Ossastra.UserInterface
             return reason=="stamina"?"体力不足":reason=="main-not-ready"?"动作恢复中":reason=="source-authority"?"输入被占用":"暂不可用";
         }        public void UseBottle(){if(bottle==null){Notice="共享瓶未接入";return;}bottle.TryUse();Notice=bottle.LastResult;}
         public void UseSkill(int slot)
-        {var skills=coordinator?.Current?.GetComponent<CharacterSkills>();if(skills==null){Notice="技能未接入";return;}skills.TryRequest(slot,CharacterActionSource.UserInterface);Notice=skills.LastResult;}
+        {
+            var abilities=coordinator?.Current?.GetComponent<CharacterAbilities>();
+            if(abilities!=null&&abilities.isActiveAndEnabled){abilities.RequestSkill(slot,CharacterActionSource.UserInterface);Notice=abilities.LastResult;return;}
+            var skills=coordinator?.Current?.GetComponent<CharacterSkills>();if(skills==null){Notice="技能未接入";return;}skills.TryRequest(slot,CharacterActionSource.UserInterface);Notice=skills.LastResult;
+        }
+        public (string id,string name)[] SkillChoices(string actorId)=>Actor(actorId)?.GetComponent<CharacterAbilities>()?.SkillChoices.Select(d=>(d.definitionId,d.displayName)).ToArray()??Array.Empty<(string,string)>();
+        public void ConfigureSkill(string actorId,int slot,string definitionId)
+        {var abilities=Actor(actorId)?.GetComponent<CharacterAbilities>();if(abilities==null){Notice="技能配置不可用";return;}abilities.ConfigureSkill(slot,definitionId);Notice=abilities.LastResult;}
         public void SwitchCharacter(){Notice=coordinator!=null&&coordinator.SwitchNext()?"已切换实控角色":"当前无法切换";}
         private Ossastra.Characters.CharacterRoot Actor(string id)=>coordinator?.Characters.FirstOrDefault(r=>r!=null&&r.ActorId==id);
         public void Equip(string actorId,string definitionId)

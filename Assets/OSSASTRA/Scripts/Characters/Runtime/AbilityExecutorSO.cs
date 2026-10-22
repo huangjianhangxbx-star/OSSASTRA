@@ -10,6 +10,10 @@ namespace Ossastra.Characters
     public abstract class CompiledAbilityExecutor
     {
         public abstract bool UsesBodyAction {get;}
+        public virtual CharacterActionKind ActionKind=>UsesBodyAction?CharacterActionKind.Main:CharacterActionKind.Offhand;
+        public virtual CompiledAbilityExecutor Prepare(CharacterRoot owner)=>this;
+        public virtual bool StartsCooldownOnAccept=>true;
+        public virtual float AimRange=>0;
         public abstract AbilityRun CreateRun(AbilityRunContext context);
     }
     public abstract class AbilityExecutorSO:ScriptableObject

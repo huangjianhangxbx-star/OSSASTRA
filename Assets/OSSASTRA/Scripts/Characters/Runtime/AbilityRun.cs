@@ -22,6 +22,13 @@ namespace Ossastra.Characters
         public readonly AbilityOperation operation;
         public readonly Sprite projectileSprite;
         public readonly float projectileScale;
+        public bool SourceCommitted {get;private set;}
+        internal void MarkSourceCommitted(){SourceCommitted=true;}
+        public bool BeginCooldown()
+        {
+            var state=source.RuntimeState;
+            return state.Cooldowns.Commit(source.InstanceId+":"+definition.cooldownIdentity,id,state.Clock(definition.cooldownPolicy),definition.cooldown);
+        }
         public AbilityRunContext(CharacterRoot owner,CompiledAbility definition,IAbilitySource source,Guid id,Vector3 direction,Vector3 landing,Action<AbilityRunContext,AbilityEmission> emit,AbilityOperation operation,Sprite sprite,float scale)
         {
             this.owner=owner;this.definition=definition;this.source=source;this.id=id;this.direction=direction;this.landing=landing;this.emit=emit;

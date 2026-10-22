@@ -5,6 +5,7 @@
  * 协作：Inspector仍保存具体组件；Root运行时按接口连接，只有必要模块接受Bus初始化。
  */
 using Ossastra.CharacterCore;
+using Ossastra.CharacterCore.Abilities;
 using Ossastra.Combat;
 using UnityEngine;
 using System.Collections.Generic;
@@ -24,7 +25,7 @@ namespace Ossastra.Characters
         void CancelPending(string reason);
     }
     /// <summary>执行器只访问已验证来源；装备耐久与物品数量分别实现，不由投递器持有。</summary>
-    public interface IAbilitySource
+    public interface IAbilitySource:IAbilityStateSource
     {
         string OwnerId {get;}
         string InstanceId {get;}
@@ -33,6 +34,8 @@ namespace Ossastra.Characters
         bool CommitRelease(System.Guid executionId);
         void CancelReservation();
     }
+    /// <summary>可携带能力payload的稳定实例；库存装备也应返回同一对象，不能在换人/换槽时复制CD与弹药。</summary>
+    public interface IAbilityStateSource { EquipmentAbilityState RuntimeState {get;} }
     /// <summary>角色技能能力；根调度输入、唯一释放事实和离手效果，UI只提交请求。</summary>
     public interface ICharacterSkills
     {
@@ -48,6 +51,8 @@ namespace Ossastra.Characters
     {
         bool CanCaptureAction(ActionDefinitionSO definition,out string reason);
         void CaptureAction(System.Guid actionId,ActionDefinitionSO definition);
+        ConfiguredActionSnapshot FreezeAction(ActionDefinitionSO definition);
+        void CapturePhase(System.Guid actionId,ConfiguredActionSnapshot phase);
     }
     /// <summary>位移能力的只读表现身份；仍由唯一Movement执行速度。</summary>
     public interface ICharacterMotionAnimation:ICharacterMotionOverride

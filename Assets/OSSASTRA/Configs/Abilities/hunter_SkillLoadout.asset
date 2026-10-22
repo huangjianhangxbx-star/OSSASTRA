@@ -1,0 +1,21 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e46b1e2aa4f9e3346bcc1cb237f49d9d, type: 3}
+  m_Name: hunter_SkillLoadout
+  m_EditorClassIdentifier: 
+  professionId: hunter
+  regularChoices:
+  - {fileID: 11400000, guid: 47b447c37302f284bb0988416c4ed795, type: 2}
+  - {fileID: 11400000, guid: 087b5aadc8d13b74196bbf27d44b055d, type: 2}
+  nativeAbility: {fileID: 11400000, guid: 7df2fb9e576b248419dc6282b9430520, type: 2}
+  defaultQ: {fileID: 11400000, guid: 47b447c37302f284bb0988416c4ed795, type: 2}
+  defaultR: {fileID: 11400000, guid: 087b5aadc8d13b74196bbf27d44b055d, type: 2}

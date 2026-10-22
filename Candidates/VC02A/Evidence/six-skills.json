@@ -1,0 +1,413 @@
+{
+  "state": "completed",
+  "failed": 0,
+  "rows": [
+    {
+      "name": "hunter-break accepts once through ordinary InputSystem",
+      "ok": true,
+      "last": "接触 1 #97668902fd89409385ac8803114e6e3d",
+      "accepted": 1,
+      "emitted": 1,
+      "hp": 580,
+      "position": "(0.00, 0.02, -2.00)",
+      "facts": [
+        "Accepted",
+        "Released",
+        "MoveReady",
+        "AttackReady",
+        "Finished"
+      ]
+    },
+    {
+      "name": "hunter-break actual release and HP receipt",
+      "ok": true,
+      "last": "接触 1 #97668902fd89409385ac8803114e6e3d",
+      "accepted": 1,
+      "emitted": 1,
+      "hp": 580,
+      "position": "(0.00, 0.02, -2.00)",
+      "facts": [
+        "Accepted",
+        "Released",
+        "MoveReady",
+        "AttackReady",
+        "Finished"
+      ]
+    },
+    {
+      "name": "hunter-break returns body to ready",
+      "ok": true,
+      "last": "接触 1 #97668902fd89409385ac8803114e6e3d",
+      "accepted": 1,
+      "emitted": 1,
+      "hp": 580,
+      "position": "(0.00, 0.02, -2.00)",
+      "facts": [
+        "Accepted",
+        "Released",
+        "MoveReady",
+        "AttackReady",
+        "Finished"
+      ]
+    },
+    {
+      "name": "hunter-sweep accepts once through ordinary InputSystem",
+      "ok": true,
+      "last": "接触 1 #0924fa96d7d340cda53a1cc0d298e337",
+      "accepted": 2,
+      "emitted": 2,
+      "hp": 582,
+      "position": "(0.00, 0.02, -2.00)",
+      "facts": [
+        "Accepted",
+        "Released",
+        "MoveReady",
+        "AttackReady",
+        "Finished"
+      ]
+    },
+    {
+      "name": "hunter-sweep actual release and HP receipt",
+      "ok": true,
+      "last": "接触 1 #0924fa96d7d340cda53a1cc0d298e337",
+      "accepted": 2,
+      "emitted": 2,
+      "hp": 582,
+      "position": "(0.00, 0.02, -2.00)",
+      "facts": [
+        "Accepted",
+        "Released",
+        "MoveReady",
+        "AttackReady",
+        "Finished"
+      ]
+    },
+    {
+      "name": "hunter-sweep returns body to ready",
+      "ok": true,
+      "last": "接触 1 #0924fa96d7d340cda53a1cc0d298e337",
+      "accepted": 2,
+      "emitted": 2,
+      "hp": 582,
+      "position": "(0.00, 0.02, -2.00)",
+      "facts": [
+        "Accepted",
+        "Released",
+        "MoveReady",
+        "AttackReady",
+        "Finished"
+      ]
+    },
+    {
+      "name": "rush retreat is actual movement before release",
+      "ok": true,
+      "last": "接受 盾冲",
+      "accepted": 3,
+      "emitted": 2,
+      "hp": 600,
+      "position": "(-1.70, 0.02, -2.02)",
+      "facts": [
+        "Accepted"
+      ]
+    },
+    {
+      "name": "rush pays only initial28",
+      "ok": true,
+      "last": "接受 盾冲",
+      "accepted": 3,
+      "emitted": 2,
+      "hp": 600,
+      "position": "(-1.70, 0.02, -2.02)",
+      "facts": [
+        "Accepted"
+      ]
+    },
+    {
+      "name": "hunter-native-E accepts once through ordinary InputSystem",
+      "ok": true,
+      "last": "接触 0 #427f6d7438584f398849b2b6ea0019f6",
+      "accepted": 3,
+      "emitted": 3,
+      "hp": 525,
+      "position": "(1.64, 0.02, -1.44)",
+      "facts": [
+        "Accepted",
+        "PhaseChanged",
+        "Released",
+        "PhaseChanged",
+        "Released",
+        "MoveReady",
+        "AttackReady",
+        "Finished"
+      ]
+    },
+    {
+      "name": "hunter-native-E actual release and HP receipt",
+      "ok": true,
+      "last": "接触 0 #427f6d7438584f398849b2b6ea0019f6",
+      "accepted": 3,
+      "emitted": 3,
+      "hp": 525,
+      "position": "(1.64, 0.02, -1.44)",
+      "facts": [
+        "Accepted",
+        "PhaseChanged",
+        "Released",
+        "PhaseChanged",
+        "Released",
+        "MoveReady",
+        "AttackReady",
+        "Finished"
+      ]
+    },
+    {
+      "name": "hunter-native-E returns body to ready",
+      "ok": true,
+      "last": "接触 0 #427f6d7438584f398849b2b6ea0019f6",
+      "accepted": 3,
+      "emitted": 3,
+      "hp": 525,
+      "position": "(1.64, 0.02, -1.44)",
+      "facts": [
+        "Accepted",
+        "PhaseChanged",
+        "Released",
+        "PhaseChanged",
+        "Released",
+        "MoveReady",
+        "AttackReady",
+        "Finished"
+      ]
+    },
+    {
+      "name": "rush phases retain single accepted identity",
+      "ok": true,
+      "last": "接触 0 #427f6d7438584f398849b2b6ea0019f6",
+      "accepted": 3,
+      "emitted": 3,
+      "hp": 525,
+      "position": "(1.64, 0.02, -1.44)",
+      "facts": [
+        "Accepted",
+        "PhaseChanged",
+        "Released",
+        "PhaseChanged",
+        "Released",
+        "MoveReady",
+        "AttackReady",
+        "Finished"
+      ]
+    },
+    {
+      "name": "rush moved forward through collision motor",
+      "ok": true,
+      "last": "接触 0 #427f6d7438584f398849b2b6ea0019f6",
+      "accepted": 3,
+      "emitted": 3,
+      "hp": 525,
+      "position": "(1.64, 0.02, -1.44)",
+      "facts": [
+        "Accepted",
+        "PhaseChanged",
+        "Released",
+        "PhaseChanged",
+        "Released",
+        "MoveReady",
+        "AttackReady",
+        "Finished"
+      ]
+    },
+    {
+      "name": "al-stab accepts once through ordinary InputSystem",
+      "ok": true,
+      "last": "接触 1 #77f1bcbdb3db41e3aa6aac7518561a5d",
+      "accepted": 1,
+      "emitted": 1,
+      "hp": 580,
+      "position": "(0.00, 0.02, -2.00)",
+      "facts": [
+        "Accepted",
+        "Released",
+        "MoveReady",
+        "AttackReady",
+        "Finished"
+      ]
+    },
+    {
+      "name": "al-stab actual release and HP receipt",
+      "ok": true,
+      "last": "接触 1 #77f1bcbdb3db41e3aa6aac7518561a5d",
+      "accepted": 1,
+      "emitted": 1,
+      "hp": 580,
+      "position": "(0.00, 0.02, -2.00)",
+      "facts": [
+        "Accepted",
+        "Released",
+        "MoveReady",
+        "AttackReady",
+        "Finished"
+      ]
+    },
+    {
+      "name": "al-stab returns body to ready",
+      "ok": true,
+      "last": "接触 1 #77f1bcbdb3db41e3aa6aac7518561a5d",
+      "accepted": 1,
+      "emitted": 1,
+      "hp": 580,
+      "position": "(0.00, 0.02, -2.00)",
+      "facts": [
+        "Accepted",
+        "Released",
+        "MoveReady",
+        "AttackReady",
+        "Finished"
+      ]
+    },
+    {
+      "name": "al-spin accepts once through ordinary InputSystem",
+      "ok": true,
+      "last": "接触 1 #9472ac491b204d1e87fbcdfe1e8a9bd6",
+      "accepted": 2,
+      "emitted": 2,
+      "hp": 582,
+      "position": "(0.00, 0.02, -2.00)",
+      "facts": [
+        "Accepted",
+        "Released",
+        "MoveReady",
+        "AttackReady",
+        "Finished"
+      ]
+    },
+    {
+      "name": "al-spin actual release and HP receipt",
+      "ok": true,
+      "last": "接触 1 #9472ac491b204d1e87fbcdfe1e8a9bd6",
+      "accepted": 2,
+      "emitted": 2,
+      "hp": 582,
+      "position": "(0.00, 0.02, -2.00)",
+      "facts": [
+        "Accepted",
+        "Released",
+        "MoveReady",
+        "AttackReady",
+        "Finished"
+      ]
+    },
+    {
+      "name": "al-spin returns body to ready",
+      "ok": true,
+      "last": "接触 1 #9472ac491b204d1e87fbcdfe1e8a9bd6",
+      "accepted": 2,
+      "emitted": 2,
+      "hp": 582,
+      "position": "(0.00, 0.02, -2.00)",
+      "facts": [
+        "Accepted",
+        "Released",
+        "MoveReady",
+        "AttackReady",
+        "Finished"
+      ]
+    },
+    {
+      "name": "al-native-E accepts once through ordinary InputSystem",
+      "ok": true,
+      "last": "接触 1 #94af14aec87e4248a19c4e8fc44788b4",
+      "accepted": 3,
+      "emitted": 3,
+      "hp": 515,
+      "position": "(2.43, 0.02, -1.97)",
+      "facts": [
+        "Accepted",
+        "Released",
+        "MoveReady",
+        "AttackReady",
+        "Finished"
+      ]
+    },
+    {
+      "name": "al-native-E actual release and HP receipt",
+      "ok": true,
+      "last": "接触 1 #94af14aec87e4248a19c4e8fc44788b4",
+      "accepted": 3,
+      "emitted": 3,
+      "hp": 515,
+      "position": "(2.43, 0.02, -1.97)",
+      "facts": [
+        "Accepted",
+        "Released",
+        "MoveReady",
+        "AttackReady",
+        "Finished"
+      ]
+    },
+    {
+      "name": "al-native-E returns body to ready",
+      "ok": true,
+      "last": "接触 1 #94af14aec87e4248a19c4e8fc44788b4",
+      "accepted": 3,
+      "emitted": 3,
+      "hp": 515,
+      "position": "(2.43, 0.02, -1.97)",
+      "facts": [
+        "Accepted",
+        "Released",
+        "MoveReady",
+        "AttackReady",
+        "Finished"
+      ]
+    },
+    {
+      "name": "rocket uses actual movement before landing damage",
+      "ok": true,
+      "last": "接触 1 #94af14aec87e4248a19c4e8fc44788b4",
+      "accepted": 3,
+      "emitted": 3,
+      "hp": 515,
+      "position": "(2.43, 0.02, -1.97)",
+      "facts": [
+        "Accepted",
+        "Released",
+        "MoveReady",
+        "AttackReady",
+        "Finished"
+      ]
+    },
+    {
+      "name": "native E retains canonical cooldown",
+      "ok": true,
+      "last": "接触 1 #94af14aec87e4248a19c4e8fc44788b4",
+      "accepted": 3,
+      "emitted": 3,
+      "hp": 515,
+      "position": "(2.43, 0.02, -1.97)",
+      "facts": [
+        "Accepted",
+        "Released",
+        "MoveReady",
+        "AttackReady",
+        "Finished"
+      ]
+    },
+    {
+      "name": "E cannot be reconfigured",
+      "ok": true,
+      "last": "拒绝：仅实控角色脱战空闲时可修改Q/R，E固定",
+      "accepted": 3,
+      "emitted": 3,
+      "hp": 515,
+      "position": "(2.43, 0.02, -1.97)",
+      "facts": [
+        "Accepted",
+        "Released",
+        "MoveReady",
+        "AttackReady",
+        "Finished"
+      ]
+    }
+  ]
+}

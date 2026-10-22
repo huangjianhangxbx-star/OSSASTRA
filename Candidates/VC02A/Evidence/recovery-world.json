@@ -1,0 +1,111 @@
+{
+  "state": "completed",
+  "failed": 0,
+  "rows": [
+    {
+      "name": "actual HP loss creates equal gray",
+      "ok": true,
+      "hp": 60,
+      "gray": 40.0,
+      "parents": 0
+    },
+    {
+      "name": "pause freezes recovery hold",
+      "ok": true,
+      "hp": 60,
+      "gray": 40.0,
+      "parents": 0
+    },
+    {
+      "name": "HUD projects actual gray HP",
+      "ok": true,
+      "hp": 60,
+      "gray": 40.0,
+      "parents": 0
+    },
+    {
+      "name": "physical first pulse hits",
+      "ok": true,
+      "hp": 65,
+      "gray": 35.0,
+      "parents": 1
+    },
+    {
+      "name": "actual damage reclaims weapon budget",
+      "ok": true,
+      "hp": 65,
+      "gray": 35.0,
+      "parents": 1
+    },
+    {
+      "name": "duplicate emission rejected",
+      "ok": true,
+      "hp": 65,
+      "gray": 35.0,
+      "parents": 1
+    },
+    {
+      "name": "second pulse valid without new recovery budget",
+      "ok": true,
+      "hp": 65,
+      "gray": 35.0,
+      "parents": 1
+    },
+    {
+      "name": "parent budget lifetime released",
+      "ok": true,
+      "hp": 65,
+      "gray": 35.0,
+      "parents": 0
+    },
+    {
+      "name": "shared Y heals through original service",
+      "ok": true,
+      "hp": 100,
+      "gray": 0.0,
+      "parents": 0
+    },
+    {
+      "name": "normal heal clamps gray",
+      "ok": true,
+      "hp": 100,
+      "gray": 0.0,
+      "parents": 0
+    },
+    {
+      "name": "periodic contact can damage without reclaim",
+      "ok": true,
+      "hp": 70,
+      "gray": 30.0,
+      "parents": 1
+    },
+    {
+      "name": "real death clears gray and cannot reclaim",
+      "ok": true,
+      "hp": 0,
+      "gray": 0.0,
+      "parents": 0
+    },
+    {
+      "name": "real death hands control to surviving partner",
+      "ok": true,
+      "hp": 0,
+      "gray": 0.0,
+      "parents": 0
+    },
+    {
+      "name": "dead source cannot emit",
+      "ok": true,
+      "hp": 0,
+      "gray": 0.0,
+      "parents": 0
+    },
+    {
+      "name": "death clears parent records",
+      "ok": true,
+      "hp": 0,
+      "gray": 0.0,
+      "parents": 0
+    }
+  ]
+}

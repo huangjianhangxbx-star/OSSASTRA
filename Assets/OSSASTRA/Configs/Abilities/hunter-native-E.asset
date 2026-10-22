@@ -1,0 +1,50 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 10864447e0a8f6046b2d3ff2b0036e31, type: 3}
+  m_Name: hunter-native-E
+  m_EditorClassIdentifier: 
+  schemaVersion: 1
+  cooldownPolicy: 0
+  definitionId: hunter-native-E
+  displayName: "\u76FE\u51B2"
+  cooldownIdentity: hunter-native-E
+  executor: {fileID: 11400000, guid: 9e6c3f77282953547a6b5ce47455aa49, type: 2}
+  action: {fileID: 11400000, guid: 006aef3c1b2b8bd40ab246589f51bacb, type: 2}
+  occupancy: 11
+  acceptCost: 28
+  cooldown: 8
+  holdCostPerSecond: 0
+  releaseCost: 0
+  wearOnRelease: 0
+  reclaimBudget: 0.05
+  reclaimRate: 0.5
+  finishAt: 2.2
+  moveReadyAt: 2.2
+  attackReadyAt: 2.2
+  delivery:
+    mode: 0
+    range: 1.4
+    radius: 1.4
+    arc: 80.21409
+    speed: 10
+    flightTime: 0.45
+    collisionRadius: 0.08
+    arcHeight: 1
+    activeDuration: 0.24
+    followSource: 1
+    collisionLayers:
+      serializedVersion: 2
+      m_Bits: 4294967295
+  releases:
+  - at: 2.2
+    damage: 75
+    postureImpact: 0

@@ -9,7 +9,7 @@ namespace Ossastra.UserInterface
     {
         public string actorId,name,rightHand,leftHand,condition,rightInstanceId,leftInstanceId,leftDefinitionId;
         public bool alive,controlled;
-        public float hp,maxHp,stamina,maxStamina,posture,maxPosture;
+        public float hp,maxHp,grayHp,stamina,maxStamina,posture,maxPosture;
         public int durability;
         public string[] skillNames,skillStates;
         public float[] skillCooldowns;
@@ -26,5 +26,7 @@ namespace Ossastra.UserInterface
         void SwitchCharacter();
         void Equip(string actorId,string definitionId);
         (string id,string name,Sprite sprite)[] EquipmentChoices(string actorId);
+        (string id,string name)[] SkillChoices(string actorId);
+        void ConfigureSkill(string actorId,int slot,string definitionId);
     }
 }

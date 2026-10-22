@@ -32,6 +32,8 @@ namespace Ossastra.Characters
         public readonly AbilityPlan plan;
         public readonly float cost,cooldown,holdCost,releaseCost;
         public readonly bool wearOnRelease;
+        public readonly float reclaimBudget,reclaimRate;
+        public readonly AbilityCooldownPolicy cooldownPolicy;
         public readonly DeliveryParameters delivery;
         public readonly float[] posture;
         public readonly ActionDefinitionSO animation;
@@ -40,6 +42,8 @@ namespace Ossastra.Characters
         {
             id=definition.definitionId;displayName=definition.displayName;cooldownIdentity=string.IsNullOrWhiteSpace(definition.cooldownIdentity)?id:definition.cooldownIdentity;cost=definition.acceptCost;cooldown=definition.cooldown;
             holdCost=definition.holdCostPerSecond;releaseCost=definition.releaseCost;wearOnRelease=definition.wearOnRelease;
+            reclaimBudget=definition.reclaimBudget;reclaimRate=definition.reclaimRate;
+            cooldownPolicy=definition.cooldownPolicy;
             delivery=definition.delivery.Freeze();animation=definition.action;executor=definition.executor.CompileExecutor();
             // 释放节点、冲击与几何均复制；这里只保留不可变资源对象引用，动画接受时另冻结片段/速率。
             posture=definition.releases.Select(n=>n.postureImpact).ToArray();
@@ -50,12 +54,16 @@ namespace Ossastra.Characters
     [CreateAssetMenu(menuName="OSSASTRA/Abilities/Ability Definition")]
     public sealed class AbilityDefinitionSO:ScriptableObject
     {
+        public const int CurrentSchema=1;
+        public int schemaVersion=CurrentSchema;
+        public AbilityCooldownPolicy cooldownPolicy;
         public string definitionId,displayName,cooldownIdentity;
         public AbilityExecutorSO executor;
         public ActionDefinitionSO action;
         public AbilityOccupancy occupancy=AbilityOccupancy.Body|AbilityOccupancy.MainHand;
         [Min(0)] public float acceptCost=18,cooldown=6,holdCostPerSecond,releaseCost;
         public bool wearOnRelease;
+        [Range(0,1)] public float reclaimBudget=.05f,reclaimRate=.5f;
         [Min(.01f)] public float finishAt=.5f;
         [Min(0)] public float moveReadyAt=.4f,attackReadyAt=.4f;
         public DeliveryParameters delivery=new DeliveryParameters();
@@ -64,8 +72,9 @@ namespace Ossastra.Characters
         {
             try
             {
-                if(string.IsNullOrWhiteSpace(definitionId)||executor==null||delivery==null||releases==null||
+                if(schemaVersion!=CurrentSchema||!Enum.IsDefined(typeof(AbilityCooldownPolicy),cooldownPolicy)||string.IsNullOrWhiteSpace(definitionId)||executor==null||delivery==null||releases==null||
                     !ValidCost(acceptCost)||!ValidCost(cooldown)||!ValidCost(holdCostPerSecond)||!ValidCost(releaseCost)||
+                    !ValidCost(reclaimBudget)||reclaimBudget>1||!ValidCost(reclaimRate)||reclaimRate>1||
                     releases.Any(n=>n==null||!ValidCost(n.postureImpact)))throw new ArgumentException("identity/executor/cost/releases invalid");
                 executor.Validate(this);return new CompiledAbility(this);
             }

@@ -38,6 +38,14 @@ static class AbilityContractsTests
   Check(gear.TryEquipDefinition("shield-b",true)&&gear.LeftInstanceId!=first&&gear.Durability==75,"same category different stable instance");
   gear.TryEquipDefinition("shield-a",true);Check(gear.LeftInstanceId==first&&gear.Durability==99,"switch back preserves identity and durability");
   Check(!gear.TryEquipDefinition("unknown",true)&&gear.LeftInstanceId==first,"unknown source cannot create free item");
+    var runtime=new BasicActionRuntime("actor");var started=runtime.Request(new BasicAttackDefinition(.2,.3,.4,2,10),"phase-test",new ControlAuthority());
+  var phase=runtime.Rephase(started.Fact.ActionId,new BasicAttackDefinition(.1,.2,.3,.4,20));
+  Check(phase!=null&&phase.Kind==ActionFactKind.PhaseChanged&&runtime.ActionId==started.Fact.ActionId,"phase change retains accepted identity");
+  Check(runtime.Rephase(Guid.NewGuid(),new BasicAttackDefinition(.1,.2,.3,.4,20))==null,"foreign phase cannot hijack body");
+  Check(runtime.Advance(.1,false).Single(f=>f.Release!=null).ActionId==started.Fact.ActionId,"phase releases under original action");
+  var wave=AttackRelease.ForContactWindow(Guid.NewGuid(),0,"actor",20,0);var firstTarget=new Health("first-target",100);var lateTarget=new Health("late-target",100);
+  wave.Resolve(new[]{firstTarget});wave.Resolve(new[]{firstTarget,lateTarget});
+  Check(firstTarget.Current==80&&lateTarget.Current==80,"moving contact window hits late target but never repeats first target");
   Console.WriteLine(count+" ability contracts passed");
  }
 }

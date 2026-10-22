@@ -1,0 +1,21 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e46b1e2aa4f9e3346bcc1cb237f49d9d, type: 3}
+  m_Name: ranger_SkillLoadout
+  m_EditorClassIdentifier: 
+  professionId: ranger
+  regularChoices:
+  - {fileID: 11400000, guid: c5b3f023daae0ec49bcced35ef212f69, type: 2}
+  - {fileID: 11400000, guid: 928f0785606b6674a8a7d420a53280a1, type: 2}
+  nativeAbility: {fileID: 11400000, guid: 9753eb8cb8ad9e045a3222389663d6ff, type: 2}
+  defaultQ: {fileID: 11400000, guid: c5b3f023daae0ec49bcced35ef212f69, type: 2}
+  defaultR: {fileID: 11400000, guid: 928f0785606b6674a8a7d420a53280a1, type: 2}

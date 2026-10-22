@@ -185,7 +185,7 @@ namespace Ossastra.Characters
             Actions=new CharacterActionCoordinator(this,stamina,dodge,offhand);
             skills=GetComponent<CharacterSkills>();skills?.Initialize(this);
             var abilityComponent=GetComponent<CharacterAbilities>();
-            if(abilityComponent!=null&&abilityComponent.enabled){abilities=abilityComponent;abilities.Initialize(this);}
+            if(abilityComponent!=null&&abilityComponent.enabled){abilities=abilityComponent;abilities.Initialize(this);DataBus.BindAbilityMotion(abilityComponent);}
             ready = InitializeSubsystems(DataBus, mover, presentation);
             if (!ready) { Debug.LogError("Character subsystem initialization failed", this); enabled = false; }
             // 可选能力只接受本角色初始化；无组件/无assignment的旧场保持普通玩家行为。
@@ -218,6 +218,7 @@ namespace Ossastra.Characters
             if(chain!=null && (!input.HasPlayerInput || IsPaused || !focused || !ChainAvailable)) chain.Clear();
             if (frame.pause) SetPaused(!paused);
             if (frame.cancel) CancelAction("player-cancel");
+            vitals?.TickResources(IsSimulationSuspended?0:Time.deltaTime);
             // 2. 同一根时钟推进架势；主动作暂停自然恢复，暂停/失焦完全停钟。
             // 在Request前解除到期的本owner禁令；不会回滚其他根已释放的命中。
             if (posture != null) posture.Tick(IsPaused || !focused ? 0 : Time.deltaTime, runtime.IsActive);
@@ -276,7 +277,7 @@ namespace Ossastra.Characters
             }
             // 6. 动作/命中可能改变MoveReady或架势权限，重新查询后才执行真实移动。
             dodge?.Tick(runtime.SimulationTime);
-            canMove = focused && !IsPaused && DataBus.AllowsMovement && DataBus.MoveReady;
+            canMove = focused && !IsPaused && DataBus.AllowsMovement && (DataBus.MoveReady||DataBus.AbilityMotionActive);
             mover.Tick(canMove, IsPaused || !focused ? 0 : Time.deltaTime);
             stamina?.Tick(runtime.SimulationTime,!runtime.IsActive&&(dodge==null||!dodge.IsActive)&&(guard==null||!guard.IsGuarding)&&CanSimulateIntent);
             // 7. 最后提交表现，Run读取已完成的实际位移。
@@ -300,6 +301,13 @@ namespace Ossastra.Characters
             var ray=viewCamera.ScreenPointToRay(frame.pointer); return plane.Raycast(ray,out var distance)?ray.GetPoint(distance):(Vector3?)null;
         }
         internal Vector3? AbilityAimPoint(CharacterInputFrame frame)=>PointerGroundPoint(frame);
+        internal ConfiguredActionSnapshot FreezeAbilityPhase(ActionDefinitionSO config)
+            =>((ICharacterConfiguredAnimation)presentation).FreezeAction(config);
+        internal bool ChangeAbilityPhase(Guid id,ConfiguredActionSnapshot phase)
+        {
+            var fact=runtime.Rephase(id,phase.Timeline);if(fact==null)return false;
+            ((ICharacterConfiguredAnimation)presentation).CapturePhase(id,phase);Observe(fact);return true;
+        }
         private Vector3? PointerDirection(CharacterInputFrame frame)
         {
             if (!frame.hasPointer) return null;
@@ -313,12 +321,14 @@ namespace Ossastra.Characters
 
         private void Observe(ActionFact fact)
         {
+            if(fact.Kind==ActionFactKind.Accepted)vitals?.Recovery?.RetainParent(fact.ActionId);
             LastActionSource=fact.Source;
             lastFact = fact.Kind + " @" + fact.At.ToString("F3") + " " + fact.ActionId.ToString("N").Substring(0, 8);
             if (fact.Reason != null) lastFact += " " + fact.Reason;
             if (verboseTrace) Debug.Log("Character " + lastFact, this);
             abilities?.ObserveFact(fact);
             ActionObserved?.Invoke(fact);
+            if(fact.Kind==ActionFactKind.Finished||fact.Kind==ActionFactKind.Cancelled)vitals?.Recovery?.ReleaseParent(fact.ActionId);
         }
         private bool TryResolveConfiguredAction(ActionDefinitionSO config,out BasicAttackDefinition frozen,out string reason)
         {

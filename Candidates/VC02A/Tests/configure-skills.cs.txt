@@ -1,0 +1,49 @@
+using System;using System.Linq;using System.Collections.Generic;using UnityEngine;using UnityEngine.InputSystem;using UnityEditor;using UnityEditor.SceneManagement;using Ossastra.Characters;using Ossastra.CharacterCore;using Ossastra.CharacterCore.Abilities;using Ossastra.Combat;using Spine.Unity;using Funplay.Editor.Tools.Scripting;
+public class ConfigureSkills:IFunplayCommand
+{
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+ {
+  const string scene="Assets/OSSASTRA/Scenes/SC_VC02A_CombatMigration.unity",folder="Assets/OSSASTRA/Configs/Abilities";
+  if(Application.isPlaying)throw new Exception("Edit required");var current=EditorSceneManager.GetActiveScene();
+  if(current.path!=scene)throw new Exception("Own candidate required");
+  if(current.isDirty){if(!EditorSceneManager.SaveScene(current,"E:/WORLDCREATOR/XingHaiHuiLang/work/OSSASTRA/VC02-20261022/pre-skills-recovery-"+Guid.NewGuid().ToString("N")+".unity",true))throw new Exception("Recovery failed");EditorSceneManager.OpenScene(scene);}
+  T Create<T>(string name)where T:ScriptableObject
+  {var p=folder+"/"+name+".asset";var d=AssetDatabase.LoadAssetAtPath<T>(p);if(d==null){d=ScriptableObject.CreateInstance<T>();ctx.RegisterObjectCreation(d);AssetDatabase.CreateAsset(d,p);}else ctx.RegisterObjectModification(d);return d;}
+  void Save(UnityEngine.Object d){EditorUtility.SetDirty(d);AssetDatabase.SaveAssetIfDirty(d);}
+  var body=AssetDatabase.LoadAssetAtPath<TimelineAbilitySO>(folder+"/Timeline_Body.asset");
+  ActionDefinitionSO Action(string id,string key,float release,float move,float ready,float finish,int damage,float posture)
+  {var d=Create<ActionDefinitionSO>(id+"_Action");d.definitionId=id+".action";d.animationKey=key;d.eventTimeline=Array.Empty<ActionTimelineBinding>();d.releaseAt=release;d.moveReadyAt=move;d.attackReadyAt=ready;d.finishAt=finish;d.damage=damage;d.postureImpact=posture;d.timingEvidence="c21d4fc gameplay phases; rozeul semantic adaptation SAMPLE";d.Freeze();Save(d);return d;}
+  AbilityDefinitionSO Ability(string id,string name,AbilityExecutorSO executor,ActionDefinitionSO action,float cost,float cd,int damage,float posture,float range,float arc)
+  {var d=Create<AbilityDefinitionSO>(id);d.definitionId=id;d.displayName=name;d.executor=executor;d.action=action;d.acceptCost=cost;d.cooldown=cd;d.cooldownIdentity=id;var t=action.Freeze();d.finishAt=(float)t.FinishAt;d.moveReadyAt=(float)t.MoveReadyAt;d.attackReadyAt=(float)t.AttackReadyAt;d.occupancy=AbilityOccupancy.Body|AbilityOccupancy.MainHand;d.releases=new[]{new AbilityReleaseNode{at=(float)t.ReleaseAt,damage=damage,postureImpact=posture}};d.delivery=new DeliveryParameters{mode=DeliveryMode.Sector,range=range,radius=range,arc=arc};d.Compile();Save(d);return d;}
+  var hunterQuick=Ability("hunter-break","实验·破势斩",body,Action("hunter-break","basic-3",.12f,.4f,.4f,.4f,20,25),18,6,20,25,2.1f,1.6f*Mathf.Rad2Deg);
+  var hunterWide=Ability("hunter-sweep","实验·横扫",body,Action("hunter-sweep","basic-4",.18f,.5f,.5f,.5f,18,30),24,10,18,30,2.2f,270);
+  var rangerQuick=Ability("al-stab","实验·快刺",body,Action("al-stab","basic-2",.12f,.4f,.4f,.4f,20,20),18,6,20,20,2.1f,1.6f*Mathf.Rad2Deg);
+  var rangerWide=Ability("al-spin","实验·回旋击",body,Action("al-spin","basic-4",.18f,.5f,.5f,.5f,18,30),24,10,18,30,2.2f,270);
+  var rushExecutor=Create<ChargedRushAbilitySO>("ChargedRush");rushExecutor.releasePose=Action("rush-release","rush-release",0,.2f,.2f,.2f,75,0);rushExecutor.chargePose=Action("rush-charge","rush-charge",0,1f/15,.6f,.6f,75,0);Save(rushExecutor);
+  var rush=Ability("hunter-native-E","盾冲",rushExecutor,Action("rush-prepare","rush-prepare",2.2f,2.2f,2.2f,2.2f,75,0),28,8,75,0,1.4f,1.4f*Mathf.Rad2Deg);rush.delivery.activeDuration=.24f;rush.delivery.followSource=true;rush.occupancy|=AbilityOccupancy.Motion;Save(rush);
+  var rocketExecutor=Create<RocketLeapAbilitySO>("RocketLeap");Save(rocketExecutor);
+  var rocket=Ability("al-native-E","火箭弹射",rocketExecutor,Action("rocket-leap","rocket-leap",.1f,.4666667f,.4666667f,.9f,85,0),28,6,85,0,2,360);rocket.occupancy|=AbilityOccupancy.Motion;Save(rocket);
+  AbilityLoadoutSO Profile(string id,AbilityDefinitionSO q,AbilityDefinitionSO e,AbilityDefinitionSO r)
+  {var d=Create<AbilityLoadoutSO>(id+"_SkillLoadout");d.professionId=id;d.regularChoices=new[]{q,r};d.nativeAbility=e;d.defaultQ=q;d.defaultR=r;d.Validate();Save(d);return d;}
+  var hunter=Profile("hunter",hunterQuick,rush,hunterWide);var ranger=Profile("ranger",rangerQuick,rocket,rangerWide);
+  foreach(var root in UnityEngine.Object.FindObjectsOfType<Ossastra.Characters.CharacterRoot>())
+  {
+   var role=root.ActorId=="temporary-a"?hunter:ranger;
+   var original=root.Definition;var definition=Create<CharacterDefinitionSO>(root.ActorId+"_VC02");EditorUtility.CopySerialized(original,definition);
+   var animation=Create<CharacterAnimationProfileSO>(root.ActorId+"_VC02_Animation");EditorUtility.CopySerialized(original.animationProfile,animation);
+   var skeleton=root.GetComponentInChildren<SkeletonAnimation>().skeletonDataAsset.GetSkeletonData(false);
+   var mappings=animation.bindings.Where(b=>!b.key.StartsWith("rush-")&&b.key!="rocket-leap").ToList();
+   void Map(string key,string clip,bool loop){var a=skeleton.FindAnimation(clip);if(a==null)throw new Exception("Missing clip "+clip);mappings.Add(new CharacterAnimationBinding{key=key,clip=clip,loop=loop,sourceDuration=a.Duration,mixDuration=.08f,semantic=Ossastra.AnimationCore.AnimationSemantic.BasicAttack});}
+   Map("rush-prepare","ready_loop",true);Map("rush-release","heavy",false);Map("rush-charge","run",true);Map("rocket-leap","xskill",false);animation.bindings=mappings.ToArray();Save(animation);
+   definition.definitionId=root.ActorId+".vc02";definition.animationProfile=animation;Save(definition);
+   var equipment=root.GetComponent<CharacterEquipment>();var originalWeapon=equipment.RightDefinition;var weapon=Create<EquipmentDefinitionSO>(root.ActorId+"_VC02_Main");EditorUtility.CopySerialized(originalWeapon,weapon);weapon.definitionId=root.ActorId+".vc02.main";weapon.skillLoadout=role;Save(weapon);
+   ctx.RegisterObjectModification(root);var so=new SerializedObject(root);so.FindProperty("characterDefinition").objectReferenceValue=definition;so.ApplyModifiedProperties();
+   ctx.RegisterObjectModification(equipment);so=new SerializedObject(equipment);so.FindProperty("rightDefinition").objectReferenceValue=weapon;so.ApplyModifiedProperties();
+   var view=root.GetComponentInChildren<CharacterSpineView>();ctx.RegisterObjectModification(view);so=new SerializedObject(view);so.FindProperty("profile").objectReferenceValue=animation;so.ApplyModifiedProperties();
+   var input=root.GetComponent<CharacterInputHandler>();ctx.RegisterObjectModification(input);
+   input.skillOneAction=new InputAction("SkillOne",InputActionType.Button,"<Keyboard>/q");input.skillTwoAction=new InputAction("SkillTwo",InputActionType.Button,"<Keyboard>/e");input.skillThreeAction=new InputAction("SkillThree",InputActionType.Button,"<Keyboard>/r");EditorUtility.SetDirty(input);
+  }
+  EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());if(!EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene()))throw new Exception("Save failed");
+  ctx.ReturnValue=new{scene,definitions=new[]{hunterQuick,hunterWide,rangerQuick,rangerWide,rush,rocket}.Select(d=>new{d.definitionId,valid=d.Compile()!=null}).ToArray()};
+ }
+}

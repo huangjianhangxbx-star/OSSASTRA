@@ -27,6 +27,7 @@ namespace Ossastra.Characters
             private readonly float angle,scale;
             public Executor(float angle,float scale){this.angle=angle;this.scale=scale;}
             public override bool UsesBodyAction=>false;
+            public override CharacterActionKind ActionKind=>CharacterActionKind.Guard;
             public override AbilityRun CreateRun(AbilityRunContext context)=>new Run(context,angle,scale);
         }
         private sealed class Run:AbilityRun,ICombatGuard

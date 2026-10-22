@@ -19,6 +19,9 @@ namespace Ossastra.Characters
         private CharacterDataBus dataBus;
         public bool IsMoving { get; private set; }
         public Vector3 Velocity { get; private set; }
+        // 只读诊断：区分未获许可、未请求速度与真实碰撞截断，不参与运动决策。
+        public bool LastAllowed {get;private set;}
+        public Vector3 RequestedVelocity {get;private set;}
 
         public bool Initialize(CharacterDataBus dataBus)
         {
@@ -30,6 +33,7 @@ namespace Ossastra.Characters
 
         public void Tick(bool allowed, float delta)
         {
+            LastAllowed=allowed;RequestedVelocity=Vector3.zero;
             IsMoving = false;
             Velocity = Vector3.zero;
             if (dataBus == null || body == null || !body.enabled || delta <= 0) return;
@@ -38,6 +42,7 @@ namespace Ossastra.Characters
             // 平时与闪避共同走这一处Move；覆盖速度仍接受本体移动权限和真实墙体碰撞。
             var velocity=allowed&&dataBus.MotionOverride!=null&&dataBus.MotionOverride.IsActive
                 ?dataBus.MotionOverride.MotionVelocity:new Vector3(move.x,0,move.y)*speed;
+            RequestedVelocity=velocity;
             body.Move((velocity + Vector3.down * groundStick) * delta);
             // 用碰撞处理后的实际位移报告运动，而不是把“按住移动键”当成真的跑动。
             var displacement = transform.position - before;

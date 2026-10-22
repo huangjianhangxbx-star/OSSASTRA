@@ -19,10 +19,12 @@ namespace Ossastra.Combat
         [Range(0,360)] public float arc=90;
         [Min(.01f)] public float speed=10,flightTime=.45f,collisionRadius=.08f;
         [Min(0)] public float arcHeight=1;
+        [Min(0)] public float activeDuration;
+        public bool followSource;
         public LayerMask collisionLayers=~0;
         public DeliveryParameters Freeze()
         {
-            if(!Enum.IsDefined(typeof(DeliveryMode),mode)||!Positive(range)||!Positive(radius)||!Positive(speed)||!Positive(flightTime)||!Positive(collisionRadius)||!Finite(arc)||arc<0||arc>360||!Finite(arcHeight)||arcHeight<0)
+            if(!Enum.IsDefined(typeof(DeliveryMode),mode)||!Positive(range)||!Positive(radius)||!Positive(speed)||!Positive(flightTime)||!Positive(collisionRadius)||!Finite(arc)||arc<0||arc>360||!Finite(arcHeight)||arcHeight<0||!Finite(activeDuration)||activeDuration<0)
                 throw new ArgumentException("delivery range/radius/arc/speed/time invalid");
             return (DeliveryParameters)MemberwiseClone();
         }
@@ -41,16 +43,28 @@ namespace Ossastra.Combat
             public Func<bool> valid;
             public Action<IReadOnlyList<HitOutcome>> resolved;
             public GameObject visual;
+            public Guid parent;
         }
         private readonly List<Flight> flights=new List<Flight>();
         private readonly HashSet<(Guid,int)> emitted=new HashSet<(Guid,int)>();
+        private readonly HashSet<Guid> activeParents=new HashSet<Guid>();
+        public void RegisterParent(Guid parent){if(parent!=Guid.Empty)activeParents.Add(parent);}
+        public void CompleteParent(Guid parent){activeParents.Remove(parent);ForgetCompleted(parent);}
+        private void ForgetCompleted(Guid parent)
+        {if(!activeParents.Contains(parent)&&!flights.Any(f=>f.parent==parent))emitted.RemoveWhere(key=>key.Item1==parent);}
         public int InFlightCount=>flights.Count;
         public int ResolvedCount {get;private set;}
-        public bool Emit(CombatVitals source,Guid parent,int index,DeliveryParameters config,int damage,float posture,Vector3 origin,Vector3 direction,Vector3 landing,Func<bool> valid,Action<IReadOnlyList<HitOutcome>> resolved,Sprite sprite=null,float scale=.25f)
+        public bool Emit(CombatVitals source,Guid parent,int index,DeliveryParameters config,int damage,float posture,Vector3 origin,Vector3 direction,Vector3 landing,Func<bool> valid,Action<IReadOnlyList<HitOutcome>> resolved,Sprite sprite=null,float scale=.25f,double reclaimBudget=.05,double reclaimRate=.5)
         {
-            if(source==null||!source.IsAvailable||parent==Guid.Empty||index<0||damage<=0||config==null||valid==null||!valid()||!emitted.Add((parent,index)))return false;
-            var flight=new Flight{source=source,config=config.Freeze(),release=AttackRelease.ForEmission(parent,index,source.Health.Id,damage,posture),origin=origin,landing=landing,direction=direction.normalized,position=origin+Vector3.up*.8f,valid=valid,resolved=resolved};
-            if(config.mode==DeliveryMode.Sector){Resolve(flight,origin,Nearby(flight,origin,config.range,true));return true;}
+            if(source==null||!source.IsAvailable||parent==Guid.Empty||!activeParents.Contains(parent)||index<0||damage<=0||config==null||valid==null||!valid()||!emitted.Add((parent,index)))return false;
+            var flight=new Flight{source=source,parent=parent,config=config.Freeze(),release=config.mode==DeliveryMode.Sector&&config.activeDuration>0?
+                AttackRelease.ForContactWindow(parent,index,source.Health.Id,damage,posture,reclaimBudget,reclaimRate):AttackRelease.ForEmission(parent,index,source.Health.Id,damage,posture,reclaimBudget,reclaimRate),origin=origin,landing=landing,direction=direction.normalized,position=origin+Vector3.up*.8f,valid=valid,resolved=resolved};
+            if(config.mode==DeliveryMode.Sector)
+            {
+                Resolve(flight,origin,Nearby(flight,origin,config.range,true));
+                if(config.activeDuration>0){flights.Add(flight);source.Recovery?.RetainParent(parent);}
+                return true;
+            }
             if(config.mode==DeliveryMode.Ray)
             {
                 var hit=FirstContact(flight,flight.position,flight.position+flight.direction*config.range);
@@ -63,14 +77,22 @@ namespace Ossastra.Combat
                 flight.visual.transform.localScale=Vector3.one*scale;if(Camera.main!=null)flight.visual.transform.rotation=Camera.main.transform.rotation;
                 flight.visual.transform.position=flight.position;
             }
-            flights.Add(flight);return true;
+            source.Recovery?.RetainParent(parent);flights.Add(flight);return true;
         }
         public void Tick(float delta)
         {
             for(int i=flights.Count-1;i>=0;i--)
             {
                 var f=flights[i];if(f.source==null||!f.valid()){Remove(i);continue;}
-                f.elapsed+=delta;var t=Mathf.Clamp01(f.elapsed/f.config.flightTime);
+                f.elapsed+=delta;
+                if(f.config.mode==DeliveryMode.Sector)
+                {
+                    var origin=f.config.followSource?f.source.transform.position:f.origin;
+                    Resolve(f,origin,Nearby(f,origin,f.config.range,true));
+                    if(f.elapsed>=f.config.activeDuration)Remove(i);
+                    continue;
+                }
+                var t=Mathf.Clamp01(f.elapsed/f.config.flightTime);
                 var next=f.config.mode==DeliveryMode.Projectile?f.position+f.direction*f.config.speed*delta:
                     Vector3.Lerp(f.origin+Vector3.up*.8f,f.landing,t)+Vector3.up*(Mathf.Sin(t*Mathf.PI)*f.config.arcHeight);
                 // RayLandingArc明确沿源组合合同：先验直线落点，弧线仅表现；Parabolic才逐段实际碰撞。
@@ -113,7 +135,8 @@ namespace Ossastra.Combat
         }
         private void Resolve(Flight f,Vector3 point,IHitTarget[] targets)
         {var receipts=CombatContactGateway.Resolve(f.release,f.source,targets,point);ResolvedCount++;f.resolved?.Invoke(receipts);}
-        private void Remove(int i){if(flights[i].visual!=null)UnityEngine.Object.Destroy(flights[i].visual);flights.RemoveAt(i);}
-        public void Clear(){for(int i=flights.Count-1;i>=0;i--)Remove(i);emitted.Clear();}
+        private void Remove(int i)
+        {var parent=flights[i].parent;if(flights[i].visual!=null)UnityEngine.Object.Destroy(flights[i].visual);flights[i].source?.Recovery?.ReleaseParent(parent);flights.RemoveAt(i);ForgetCompleted(parent);}
+        public void Clear(){for(int i=flights.Count-1;i>=0;i--)Remove(i);emitted.Clear();activeParents.Clear();}
     }
 }

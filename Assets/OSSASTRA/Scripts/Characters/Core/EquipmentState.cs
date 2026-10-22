@@ -5,6 +5,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Ossastra.CharacterCore.Abilities;
 namespace Ossastra.CharacterCore
 {
     public enum OffhandKind { None, Shield, Bomb, Other }
@@ -16,15 +17,20 @@ namespace Ossastra.CharacterCore
             public OffhandKind kind;
             public int durability;
             public readonly HashSet<Guid> wear=new HashSet<Guid>();
+            public readonly EquipmentAbilityState runtime=new EquipmentAbilityState();
         }
         private readonly Dictionary<string,Item> items=new Dictionary<string,Item>(StringComparer.Ordinal);
         public string OwnerId {get;}
         public string RightInstanceId {get;}
+        public EquipmentAbilityState RightRuntime {get;}=new EquipmentAbilityState();
         public string LeftDefinitionId {get;private set;}
         private Item Current=>LeftDefinitionId!=null?items[LeftDefinitionId]:null;
         public OffhandKind LeftKind=>Current==null?OffhandKind.None:Current.kind;
         public string LeftInstanceId=>Current==null?"none":OwnerId+":left:"+Current.id;
         public int Durability=>Current==null?0:Current.durability;
+        public EquipmentAbilityState LeftRuntime=>Current?.runtime;
+        public EquipmentAbilityState RuntimeFor(string instanceId)
+        {return instanceId==RightInstanceId?RightRuntime:items.Values.FirstOrDefault(i=>OwnerId+":left:"+i.id==instanceId)?.runtime;}
         public EquipmentState(string actorId,int durability)
         {
             if(string.IsNullOrWhiteSpace(actorId)||durability<=0)throw new ArgumentException("Invalid equipment owner/durability");
