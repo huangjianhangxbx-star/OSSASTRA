@@ -31,6 +31,8 @@ namespace Ossastra.UserInterface
         private readonly List<(Text text,int size,int minimum)> typography=new List<(Text,int,int)>();
         private Card hero,companion;
         private Text clock,notice,skillOwner,popupNote,popupIdentity;
+        private Text inputHints;
+        private Ossastra.Characters.PlayerInputLayoutInstaller inputLayoutInstaller;
         private string popupActorId;
         private bool popupRight;
         private readonly List<(string id,Image image)> mainActionChoices=new List<(string,Image)>();
@@ -48,7 +50,9 @@ namespace Ossastra.UserInterface
             canvas.scaleFactor=Mathf.Min(Screen.width/1920f,Screen.height/1080f);
             hero=BuildCard(Cluster("HeroCluster",34,41,529,163,new Vector2(0,1)),false);
             companion=BuildCard(Cluster("CompanionCluster",3,0,377,220,Vector2.zero),true);
+            inputLayoutInstaller=FindObjectOfType<Ossastra.Characters.PlayerInputLayoutInstaller>();
             BuildWorld();BuildSkills();BuildQuickSlots();BuildVitality();
+            if(inputHints!=null&&inputLayoutInstaller!=null){var c=inputLayoutInstaller.control.Current;var i=c==null?null:c.GetComponent<Ossastra.Characters.CharacterInputHandler>();if(i!=null)inputHints.text=DisplayBinding(i.rightHandAction)+" 右手 · "+DisplayBinding(i.leftHandAction)+" 左手\n"+DisplayBinding(i.dodgeAction)+" 闪避 · "+DisplayBinding(inputLayoutInstaller.control.switchAction)+" 换人\n"+DisplayBinding(inputLayoutInstaller.menuAction)+" 菜单 · "+DisplayBinding(inputLayoutInstaller.inventory.toggleAction)+" 背包";}
             // 场景级HUD组合一次性收集敌人；头顶HP视图独立于玩家卡片，读取敌方原生命所有者。
             var enemyHealth=gameObject.AddComponent<EnemyHealthBarsView>();
             enemyHealth.Initialize(FindObjectsOfType<Ossastra.Enemies.EnemyRoot>(),Camera.main);
@@ -123,6 +127,8 @@ namespace Ossastra.UserInterface
             c.condition=Label(group,"Condition",new Rect(0,isCompanion?-24:166,width,23),"",11,gold,TextAnchor.MiddleLeft);
             return c;
         }
+        private static string DisplayBinding(InputAction action)
+        {if(action==null)return "未绑定";var values=new List<string>();for(int n=0;n<action.bindings.Count;n++)if(!action.bindings[n].isPartOfComposite)values.Add(action.GetBindingDisplayString(n));return string.Join("/",values);}
         private void BuildWorld()
         {
             var g=Cluster("WorldCluster",13,17,259,117,new Vector2(1,1));
@@ -143,7 +149,7 @@ namespace Ossastra.UserInterface
                 skillLabels[i]=Label(button.transform,"Definition",new Rect(18,80,90,18),"",11,Color.white,TextAnchor.MiddleCenter,true);
                 skillStates[i]=Label(button.transform,"State",new Rect(22,98,82,15),"",8,edge,TextAnchor.MiddleCenter,true);
             }
-            Label(g,"InputHints",new Rect(-51,-120,305,72),"LMB 普攻  ·  RMB 副手\nShift 闪避  ·  Z 切换角色\n点击左手装备切换盾 / 炸弹",10,edge,TextAnchor.MiddleRight);
+            inputHints=Label(g,"InputHints",new Rect(-51,-120,305,72),"LMB 普攻  ·  RMB 副手\nShift 闪避  ·  Z 切换角色\n点击左手装备切换盾 / 炸弹",10,edge,TextAnchor.MiddleRight);
         }
         private void BuildQuickSlots()
         {
@@ -270,3 +276,5 @@ namespace Ossastra.UserInterface
         private void OnDestroy(){closeAction.Dispose();CloseEquipment();if(canvas!=null)Destroy(canvas.gameObject);if(font!=null)Destroy(font);if(mono!=null)Destroy(mono);}
     }
 }
+
+

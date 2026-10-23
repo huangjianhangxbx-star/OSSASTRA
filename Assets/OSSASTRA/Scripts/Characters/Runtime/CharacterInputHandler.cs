@@ -5,6 +5,7 @@
  * 协作：选择器经接口读取；死亡交接额外等待移动中立，普通Tab仍保留原移动语义。
  */
 using UnityEngine.EventSystems;
+using UnityEngine.Serialization;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
@@ -15,7 +16,7 @@ namespace Ossastra.Characters
     public struct CharacterInputFrame
     {
         public Vector2 move, pointer, aimDirection;
-        public bool attackHeld, dodgePressed, offhandHeld, offhandPressed, hasPointer, hasDirectionalAim, attackPointerBlocked;
+        public bool weaponModePressed,attackHeld, dodgePressed, offhandHeld, offhandPressed, hasPointer, hasDirectionalAim, attackPointerBlocked;
         public int debugCommand;
         public bool skillOnePressed,skillTwoPressed,skillThreePressed,skillOneHeld,skillTwoHeld,skillThreeHeld;
     }
@@ -31,11 +32,19 @@ namespace Ossastra.Characters
         [Header("手柄瞄准方向 / VELGITA gamePad_MouseAction")]
         public InputAction gamepadAimAction = new InputAction("GamepadAim", InputActionType.Value, expectedControlType: "Vector2");
         [Header("当前普攻 / VELGITA HoundWeaponAttack_Action")]
-        public InputAction attackAction = new InputAction("Attack", InputActionType.Button);
+        [FormerlySerializedAs("attackAction")] public InputAction rightHandAction = new InputAction("RightHandAction", InputActionType.Button);
+        public InputAction attackAction { get=>rightHandAction; set=>rightHandAction=value; }
         [Header("可选本体闪避 / 只在新验证场绑定")]
         public InputAction dodgeAction = new InputAction("Dodge", InputActionType.Button);
-        [Tooltip("副手操作输入；具体按下/持续/长按行为由当前副手装备SO绑定决定，例如盾防、盾击、射击或投掷。")]
-        public InputAction offhandAction = new InputAction("Offhand", InputActionType.Button);
+        [Header("副手操作输入；具体按下/持续/长按行为由当前副手装备SO绑定决定，例如盾防、盾击、射击或投掷。")]
+        [FormerlySerializedAs("offhandAction")] public InputAction leftHandAction = new InputAction("LeftHandAction", InputActionType.Button);
+        public InputAction offhandAction { get=>leftHandAction; set=>leftHandAction=value; }
+        [Tooltip("非空时以共享SO为绑定来源；每次进入游戏克隆，修改下方本地Action不会覆盖SO。")] public PlayerInputLayoutSO inputLayout;
+        [Min(0),Tooltip("双扳机组合识别宽限秒数，避免先按下的一侧立即施放。0为无等待。")] public float triggerChordGraceSeconds=.08f;
+        private double triggerStarted=-1;
+        private bool triggerChordLatched;
+        public InputAction weaponModeAction=new InputAction("WeaponMode",InputActionType.Button);
+        private void Awake(){if(inputLayout!=null)inputLayout.Apply(this);}
         public InputAction skillOneAction = new InputAction("SkillOne",InputActionType.Button);
         public InputAction skillTwoAction = new InputAction("SkillTwo",InputActionType.Button);
         public InputAction skillThreeAction = new InputAction("SkillThree",InputActionType.Button);
@@ -82,7 +91,7 @@ namespace Ossastra.Characters
 
         /// <summary>移交时清掉旧快照；不假装一次松键，必须真正观察释放后才重武装攻击。</summary>
         public void ResetPlayerInput(bool requireMovementRelease=false)
-        { CurrentFrame=default; attackArmed=false; dodgeArmed=false; offhandArmed=false; if (requireMovementRelease) movementArmed=false; }
+        { CurrentFrame=default; triggerStarted=-1; triggerChordLatched=false; attackArmed=false; dodgeArmed=false; offhandArmed=false; if (requireMovementRelease) movementArmed=false; }
         public void RegisterPointerRegion(object owner, Rect region) { pointerRegions[owner] = region; }
         public void RemovePointerRegion(object owner) { pointerRegions.Remove(owner); }
 
@@ -108,7 +117,7 @@ namespace Ossastra.Characters
             yield return mouseAction;
             yield return gamepadAimAction;
             yield return attackAction;
-            yield return dodgeAction;
+            yield return dodgeAction; yield return weaponModeAction;
             yield return offhandAction;
             yield return skillOneAction; yield return skillTwoAction; yield return skillThreeAction;
             yield return debugValidAction;
@@ -155,7 +164,7 @@ namespace Ossastra.Characters
             frame.attackHeld = held && attackArmed;
             var dodgeHeld=dodgeAction!=null&&dodgeAction.enabled&&dodgeAction.IsPressed();
             if(!dodgeHeld)dodgeArmed=true;
-            frame.dodgePressed=dodgeHeld&&dodgeArmed&&Pressed(dodgeAction);
+            frame.dodgePressed=dodgeHeld&&dodgeArmed&&Pressed(dodgeAction)&&!GamepadInputPolicy.Modified(dodgeAction);
             if(frame.dodgePressed)dodgeArmed=false;
             var offhandHeld=offhandAction!=null&&offhandAction.enabled&&offhandAction.IsPressed();
             if(!offhandHeld)offhandArmed=true;
@@ -170,8 +179,19 @@ namespace Ossastra.Characters
             frame.skillOneHeld=skillOneAction!=null&&skillOneAction.enabled&&skillOneAction.IsPressed();
             frame.skillTwoHeld=skillTwoAction!=null&&skillTwoAction.enabled&&skillTwoAction.IsPressed();
             frame.skillThreeHeld=skillThreeAction!=null&&skillThreeAction.enabled&&skillThreeAction.IsPressed();
+            frame.weaponModePressed=Pressed(weaponModeAction);
             frame.debugCommand = Pressed(debugValidAction) ? 1 : Pressed(debugBlockedAction) ? 2 :
                 Pressed(debugResetAction) ? 3 : Pressed(debugInspectAction) ? 4 : 0;
+            var triggerPad=rightHandAction.activeControl?.device as Gamepad??leftHandAction.activeControl?.device as Gamepad;
+            if(triggerPad!=null)
+            {
+                bool any=triggerPad.leftTrigger.isPressed||triggerPad.rightTrigger.isPressed;
+                if(!any){triggerStarted=-1;triggerChordLatched=false;}
+                else if(triggerStarted<0)triggerStarted=Time.realtimeSinceStartupAsDouble;
+                if(GamepadInputPolicy.WeaponChord(rightHandAction)||GamepadInputPolicy.WeaponChord(leftHandAction))triggerChordLatched=true;
+                if(triggerChordLatched||any&&Time.realtimeSinceStartupAsDouble-triggerStarted<triggerChordGraceSeconds){frame.attackHeld=false;frame.offhandHeld=false;frame.offhandPressed=false;}
+                else if(frame.offhandHeld)frame.offhandPressed=offhandAction.WasPressedThisFrame()||(!CurrentFrame.offhandHeld);
+            }
             CurrentFrame = frame;
             return frame;
         }
@@ -179,4 +199,7 @@ namespace Ossastra.Characters
         private static bool Pressed(InputAction action) => action != null && action.enabled && action.WasPressedThisFrame();
     }
 }
+
+
+
 

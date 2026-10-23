@@ -27,13 +27,14 @@ namespace Ossastra.Inventory
         {
             if(session==null||!session.Ready||view==null)return;
             var actor=session.Coordinator.Current;
-            if(actor==null||!actor.CanSimulateIntent||!focused||EventSystem.current?.currentSelectedGameObject?.GetComponent<InputField>()?.isFocused==true){armed=false;Prompt="";return;}
+            if(actor==null||!actor.GetComponent<CharacterInputHandler>().HasPlayerInput||!actor.CanSimulateIntent||!focused||EventSystem.current?.currentSelectedGameObject?.GetComponent<InputField>()?.isFocused==true){armed=false;Prompt="";return;}
             var nearest=session.AccessibleExternal.OrderBy(id=>Vector3.SqrMagnitude((session.ContainerPosition(id)??actor.transform.position)-actor.transform.position)).ToArray();
             var manual=nearest.FirstOrDefault(id=>id.StartsWith("drop:manual:"));
             var fireAvailable=campfire!=null&&campfire.CanRefill(healing);
             var useFire=fireAvailable&&(nearest.Length==0||Vector3.SqrMagnitude(campfire.transform.position-actor.transform.position)<Vector3.SqrMagnitude(session.ContainerPosition(nearest[0]).Value-actor.transform.position));
             Prompt=manual!=null?"F 拾取":useFire?"F 篝火补给":nearest.Length>0?"F 打开容器":"";
             if(!interactAction.IsPressed()){armed=true;return;}
+            if(GamepadInputPolicy.Modified(interactAction)){armed=false;return;}
             if(!armed||!interactAction.WasPressedThisFrame())return;armed=false;
             // 优先散落条目；容器/篝火分支互斥，绝不对同一次F继续向后派发。
             if(manual!=null)
@@ -49,3 +50,5 @@ namespace Ossastra.Inventory
         private void OnDestroy(){if(campfire!=null)campfire.SetContextOwner(null);interactAction.Dispose();}
     }
 }
+
+

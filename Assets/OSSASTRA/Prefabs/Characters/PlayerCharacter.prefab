@@ -288,9 +288,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   skeleton: {fileID: 1753654980807569728}
+  profile: {fileID: 0}
   idle: idle1_1
   move: run
   attack: atk1
+  catalog: []
 --- !u!1 &6821041145637747292
 GameObject:
   m_ObjectHideFlags: 0
@@ -406,6 +408,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0c02401eda528c847a2a9eb6df165df1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  characterDefinition: {fileID: 0}
   actorId: player
   movement: {fileID: 7560466238603185261}
   orientation: {fileID: 62508862999485397}
@@ -415,11 +418,13 @@ MonoBehaviour:
   viewCamera: {fileID: 0}
   follow: {fileID: 907842511012513439}
   vitals: {fileID: 3988120755724444854}
+  posture: {fileID: 0}
   releaseAt: 0.3
   moveReadyAt: 0.5
   attackReadyAt: 0.8
   finishAt: 1.1
   damage: 12
+  postureImpact: 0
   verboseTrace: 0
 --- !u!114 &6855529470788851489
 MonoBehaviour:
@@ -556,7 +561,7 @@ MonoBehaviour:
       m_Action: Game Pad_Mouse
       m_Flags: 0
     m_Flags: 0
-  attackAction:
+  rightHandAction:
     m_Name: Hound Weapon Attack_Action
     m_Type: 0
     m_ExpectedControlType: 
@@ -581,46 +586,124 @@ MonoBehaviour:
       m_Action: Hound Weapon Attack_Action
       m_Flags: 0
     m_Flags: 0
-  cancelAction:
-    m_Name: Cancel
+  dodgeAction:
+    m_Name: Dodge
     m_Type: 1
     m_ExpectedControlType: 
-    m_Id: 8887f986-ede3-4ba9-af0d-f4d01f4f72c2
+    m_Id: 9004e6b5-efd7-4bb8-b63a-25f49573787c
     m_Processors: 
     m_Interactions: 
     m_SingletonActionBindings:
     - m_Name: 
-      m_Id: b37e6652-839a-469a-b4ae-4e7511e0cd22
-      m_Path: <Keyboard>/x
+      m_Id: 7c5027d1-a70b-4237-bdc5-55e2e08cf44a
+      m_Path: <Keyboard>/space
       m_Interactions: 
       m_Processors: 
       m_Groups: 
-      m_Action: Cancel
+      m_Action: Dodge
+      m_Flags: 0
+    - m_Name: 
+      m_Id: a4f1ddb5-d8dd-4fa7-9b15-80e15c1ad3f0
+      m_Path: <Gamepad>/buttonEast
+      m_Interactions: 
+      m_Processors: 
+      m_Groups: 
+      m_Action: Dodge
       m_Flags: 0
     m_Flags: 0
-  pauseAction:
-    m_Name: Pause
+  leftHandAction:
+    m_Name: Offhand
     m_Type: 1
     m_ExpectedControlType: 
-    m_Id: 8285fb99-e72d-419f-9ef1-a1769ec3e69e
+    m_Id: 34fa837d-e21a-4841-9afe-b5f6463c596c
     m_Processors: 
     m_Interactions: 
     m_SingletonActionBindings:
     - m_Name: 
-      m_Id: 79b86b8d-834c-48cc-be48-326d5e6444cf
-      m_Path: <Keyboard>/p
+      m_Id: b2c8d6d1-ed3a-4a0a-93d8-4695e34bd80d
+      m_Path: <Mouse>/leftButton
       m_Interactions: 
       m_Processors: 
       m_Groups: 
-      m_Action: Pause
+      m_Action: Offhand
       m_Flags: 0
     - m_Name: 
-      m_Id: a654cb15-a384-45ab-be62-05d58facd08b
-      m_Path: <Gamepad>/start
+      m_Id: 216617e6-c97f-4755-a6be-cc30b9675e55
+      m_Path: <Gamepad>/leftTrigger
       m_Interactions: 
       m_Processors: 
       m_Groups: 
-      m_Action: Pause
+      m_Action: Offhand
+      m_Flags: 0
+    m_Flags: 0
+  inputLayout: {fileID: 11400000, guid: 849af425a31cc804f91004454e79a084, type: 2}
+  triggerChordGraceSeconds: 0.08
+  weaponModeAction:
+    m_Name: WeaponMode
+    m_Type: 1
+    m_ExpectedControlType: 
+    m_Id: 26d7f381-19df-4ac0-83fe-82af30b1bcc4
+    m_Processors: 
+    m_Interactions: 
+    m_SingletonActionBindings: []
+    m_Flags: 0
+  skillOneAction:
+    m_Name: SkillOne
+    m_Type: 1
+    m_ExpectedControlType: 
+    m_Id: b8a1d2c8-66f1-4970-91bd-48be7f85e596
+    m_Processors: 
+    m_Interactions: 
+    m_SingletonActionBindings:
+    - m_Name: 
+      m_Id: adc89158-3a7b-4a90-a919-530c1f5b0cdc
+      m_Path: <Keyboard>/q
+      m_Interactions: 
+      m_Processors: 
+      m_Groups: 
+      m_Action: SkillOne
+      m_Flags: 0
+    - m_Name: 
+      m_Id: 43650874-c07c-4f42-9b41-092c49b21fbc
+      m_Path: 
+      m_Interactions: 
+      m_Processors: 
+      m_Groups: 
+      m_Action: SkillOne
+      m_Flags: 0
+    m_Flags: 0
+  skillTwoAction:
+    m_Name: SkillTwo
+    m_Type: 1
+    m_ExpectedControlType: 
+    m_Id: f4b9cf95-1a4f-44b9-817e-135ce0c788f3
+    m_Processors: 
+    m_Interactions: 
+    m_SingletonActionBindings:
+    - m_Name: 
+      m_Id: ba0f82d9-4b95-49be-bc21-4812baf8e278
+      m_Path: <Keyboard>/e
+      m_Interactions: 
+      m_Processors: 
+      m_Groups: 
+      m_Action: SkillTwo
+      m_Flags: 0
+    m_Flags: 0
+  skillThreeAction:
+    m_Name: SkillThree
+    m_Type: 1
+    m_ExpectedControlType: 
+    m_Id: 64bcbe09-fc9b-4dd2-95d2-57115a2adcc4
+    m_Processors: 
+    m_Interactions: 
+    m_SingletonActionBindings:
+    - m_Name: 
+      m_Id: 97b909ca-b46f-4c6e-af7e-e8b3e3948afe
+      m_Path: <Keyboard>/r
+      m_Interactions: 
+      m_Processors: 
+      m_Groups: 
+      m_Action: SkillThree
       m_Flags: 0
     m_Flags: 0
   debugValidAction:

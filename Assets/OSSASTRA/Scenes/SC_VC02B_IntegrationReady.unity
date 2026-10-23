@@ -7595,101 +7595,9 @@ PrefabInstance:
       value: "\u4E34\u65F6\u9A8C\u8BC1\u89D2\u8272_B"
       objectReference: {fileID: 0}
     - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
-      propertyPath: dodgeAction.m_Id
-      value: 86a3e8db-7e8f-42a8-80d9-19414e9743fa
-      objectReference: {fileID: 0}
-    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
-      propertyPath: skillOneAction.m_Id
-      value: 289c9917-3f85-4bec-bc0f-fbccaedfb459
-      objectReference: {fileID: 0}
-    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
-      propertyPath: skillTwoAction.m_Id
-      value: 67d0ba19-05ff-4b95-b0d6-f00b6483e150
-      objectReference: {fileID: 0}
-    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
-      propertyPath: skillThreeAction.m_Id
-      value: f8577802-2e8c-4e1d-8bb4-b403f15d4cb5
-      objectReference: {fileID: 0}
-    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
-      propertyPath: dodgeAction.m_SingletonActionBindings.Array.size
-      value: 2
-      objectReference: {fileID: 0}
-    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
-      propertyPath: offhandAction.m_SingletonActionBindings.Array.size
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
-      propertyPath: skillOneAction.m_SingletonActionBindings.Array.size
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
-      propertyPath: skillTwoAction.m_SingletonActionBindings.Array.size
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
-      propertyPath: skillThreeAction.m_SingletonActionBindings.Array.size
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
-      propertyPath: dodgeAction.m_SingletonActionBindings.Array.data[0].m_Id
-      value: 7c5027d1-a70b-4237-bdc5-55e2e08cf44a
-      objectReference: {fileID: 0}
-    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
-      propertyPath: dodgeAction.m_SingletonActionBindings.Array.data[0].m_Path
-      value: <Keyboard>/space
-      objectReference: {fileID: 0}
-    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
-      propertyPath: offhandAction.m_SingletonActionBindings.Array.data[0].m_Id
-      value: 83dd57eb-1f42-47a9-b19b-8a41b7fbbc7e
-      objectReference: {fileID: 0}
-    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
-      propertyPath: skillOneAction.m_SingletonActionBindings.Array.data[0].m_Id
-      value: d2b41ebe-1887-428e-9a79-6647915e0a0a
-      objectReference: {fileID: 0}
-    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
-      propertyPath: skillTwoAction.m_SingletonActionBindings.Array.data[0].m_Id
-      value: 2cdad384-f7ad-47c8-9a4e-47d7c45e1b2e
-      objectReference: {fileID: 0}
-    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
-      propertyPath: dodgeAction.m_SingletonActionBindings.Array.data[0].m_Action
-      value: Dodge
-      objectReference: {fileID: 0}
-    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
-      propertyPath: offhandAction.m_SingletonActionBindings.Array.data[0].m_Path
-      value: <Mouse>/rightButton
-      objectReference: {fileID: 0}
-    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
-      propertyPath: skillOneAction.m_SingletonActionBindings.Array.data[0].m_Path
-      value: <Keyboard>/q
-      objectReference: {fileID: 0}
-    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
-      propertyPath: skillThreeAction.m_SingletonActionBindings.Array.data[0].m_Id
-      value: 8f8fe94e-c817-419e-b38c-2b387bf828bb
-      objectReference: {fileID: 0}
-    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
-      propertyPath: skillTwoAction.m_SingletonActionBindings.Array.data[0].m_Path
-      value: <Keyboard>/e
-      objectReference: {fileID: 0}
-    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
-      propertyPath: offhandAction.m_SingletonActionBindings.Array.data[0].m_Action
-      value: Offhand
-      objectReference: {fileID: 0}
-    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
-      propertyPath: skillOneAction.m_SingletonActionBindings.Array.data[0].m_Action
-      value: SkillOne
-      objectReference: {fileID: 0}
-    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
-      propertyPath: skillThreeAction.m_SingletonActionBindings.Array.data[0].m_Path
-      value: <Keyboard>/r
-      objectReference: {fileID: 0}
-    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
-      propertyPath: skillTwoAction.m_SingletonActionBindings.Array.data[0].m_Action
-      value: SkillTwo
-      objectReference: {fileID: 0}
-    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
-      propertyPath: skillThreeAction.m_SingletonActionBindings.Array.data[0].m_Action
-      value: SkillThree
-      objectReference: {fileID: 0}
+      propertyPath: inputLayout
+      value: 
+      objectReference: {fileID: 11400000, guid: 849af425a31cc804f91004454e79a084, type: 2}
     - target: {fileID: 8381968161879027868, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
       propertyPath: m_LocalPosition.x
       value: -3.6000001
@@ -12194,6 +12102,7 @@ GameObject:
   - component: {fileID: 1316270596}
   - component: {fileID: 1316270595}
   - component: {fileID: 1316270594}
+  - component: {fileID: 1316270597}
   m_Layer: 0
   m_HasEditorInfo: 1
   m_Name: InventorySession_VC02B
@@ -12603,6 +12512,32 @@ MonoBehaviour:
       m_Groups: 
       m_Action: InventoryInteract
       m_Flags: 0
+    m_Flags: 0
+--- !u!114 &1316270597
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1316270589}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a33198e9b09794949b25de3bc075147e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  layout: {fileID: 11400000, guid: 849af425a31cc804f91004454e79a084, type: 2}
+  control: {fileID: 1838523628}
+  consumables: {fileID: 261866320}
+  interaction: {fileID: 1316270596}
+  inventory: {fileID: 1316270592}
+  menuAction:
+    m_Name: Menu
+    m_Type: 1
+    m_ExpectedControlType: 
+    m_Id: 389d80db-ee78-40e4-96d8-05ebf071f5af
+    m_Processors: 
+    m_Interactions: 
+    m_SingletonActionBindings: []
     m_Flags: 0
 --- !u!1001 &1316846418
 PrefabInstance:
@@ -18776,101 +18711,9 @@ PrefabInstance:
       value: "\u4E34\u65F6\u9A8C\u8BC1\u89D2\u8272_A"
       objectReference: {fileID: 0}
     - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
-      propertyPath: dodgeAction.m_Id
-      value: d07d8d0d-e52d-4044-a785-a523a7d1f764
-      objectReference: {fileID: 0}
-    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
-      propertyPath: skillOneAction.m_Id
-      value: fc7e09ac-aab6-43e6-b492-e31751a47846
-      objectReference: {fileID: 0}
-    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
-      propertyPath: skillTwoAction.m_Id
-      value: 60c1504b-940d-4d46-aa2f-2e8241bfa330
-      objectReference: {fileID: 0}
-    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
-      propertyPath: skillThreeAction.m_Id
-      value: 8ca474da-1753-4418-a333-9d6f59358125
-      objectReference: {fileID: 0}
-    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
-      propertyPath: dodgeAction.m_SingletonActionBindings.Array.size
-      value: 2
-      objectReference: {fileID: 0}
-    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
-      propertyPath: offhandAction.m_SingletonActionBindings.Array.size
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
-      propertyPath: skillOneAction.m_SingletonActionBindings.Array.size
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
-      propertyPath: skillTwoAction.m_SingletonActionBindings.Array.size
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
-      propertyPath: skillThreeAction.m_SingletonActionBindings.Array.size
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
-      propertyPath: dodgeAction.m_SingletonActionBindings.Array.data[0].m_Id
-      value: 7c5027d1-a70b-4237-bdc5-55e2e08cf44a
-      objectReference: {fileID: 0}
-    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
-      propertyPath: dodgeAction.m_SingletonActionBindings.Array.data[0].m_Path
-      value: <Keyboard>/space
-      objectReference: {fileID: 0}
-    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
-      propertyPath: offhandAction.m_SingletonActionBindings.Array.data[0].m_Id
-      value: b1117bd1-1161-46b2-84fa-9392604ba747
-      objectReference: {fileID: 0}
-    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
-      propertyPath: skillOneAction.m_SingletonActionBindings.Array.data[0].m_Id
-      value: 59b22ce7-cc51-4ec3-ab31-5a5ecea8d7de
-      objectReference: {fileID: 0}
-    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
-      propertyPath: skillTwoAction.m_SingletonActionBindings.Array.data[0].m_Id
-      value: 0d19d8f2-8e32-4c75-a26a-62365b884f2b
-      objectReference: {fileID: 0}
-    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
-      propertyPath: dodgeAction.m_SingletonActionBindings.Array.data[0].m_Action
-      value: Dodge
-      objectReference: {fileID: 0}
-    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
-      propertyPath: offhandAction.m_SingletonActionBindings.Array.data[0].m_Path
-      value: <Mouse>/rightButton
-      objectReference: {fileID: 0}
-    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
-      propertyPath: skillOneAction.m_SingletonActionBindings.Array.data[0].m_Path
-      value: <Keyboard>/q
-      objectReference: {fileID: 0}
-    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
-      propertyPath: skillThreeAction.m_SingletonActionBindings.Array.data[0].m_Id
-      value: fb7a24d6-a735-4d50-bc15-22ac4e2087e2
-      objectReference: {fileID: 0}
-    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
-      propertyPath: skillTwoAction.m_SingletonActionBindings.Array.data[0].m_Path
-      value: <Keyboard>/e
-      objectReference: {fileID: 0}
-    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
-      propertyPath: offhandAction.m_SingletonActionBindings.Array.data[0].m_Action
-      value: Offhand
-      objectReference: {fileID: 0}
-    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
-      propertyPath: skillOneAction.m_SingletonActionBindings.Array.data[0].m_Action
-      value: SkillOne
-      objectReference: {fileID: 0}
-    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
-      propertyPath: skillThreeAction.m_SingletonActionBindings.Array.data[0].m_Path
-      value: <Keyboard>/r
-      objectReference: {fileID: 0}
-    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
-      propertyPath: skillTwoAction.m_SingletonActionBindings.Array.data[0].m_Action
-      value: SkillTwo
-      objectReference: {fileID: 0}
-    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
-      propertyPath: skillThreeAction.m_SingletonActionBindings.Array.data[0].m_Action
-      value: SkillThree
-      objectReference: {fileID: 0}
+      propertyPath: inputLayout
+      value: 
+      objectReference: {fileID: 11400000, guid: 849af425a31cc804f91004454e79a084, type: 2}
     - target: {fileID: 8381968161879027868, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
       propertyPath: m_LocalPosition.x
       value: -1.2

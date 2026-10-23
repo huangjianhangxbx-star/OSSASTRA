@@ -934,3 +934,5 @@ active/unity-writer；用户明确要求一轮修整：共享脚本去M01标签�
 2026-10-23 feature-review-checklist complete/read-only：24模块/72待审验收项、5复验链及决定卡已生成；文档链接/编号检查通过。未改代码/Unity，全部租约释放。
 
 
+2026-10-23 input-layout complete/read-only：共享输入SO与键鼠/手柄布局、26输入/8实际场景通过，全部租约释放。详见本任务及input-layout-20261023说明。
+

@@ -513,3 +513,6 @@ T7A3独立RendererFeature/密度场/最多2个AtmosphereLight/8-16步积分/Dept
 
 2026-10-23 功能审查工作台：docs/ossastra/OSSASTRA_功能模块审查与落实清单.md 已建立24模块、72待审验收项和5跨模块复验链。候选功能实现与架构审查状态分离，正式审查均未代用户勾选；建议从M01-M04根/数据/输入/仲裁开始。仅文档，不是下一轮代码调整授权。
 
+
+2026-10-23 input-layout：共享PlayerInputLayoutSO成为B角色与场景输入源；左右手字段RightHandAction/LeftHandAction具旧字段迁移兼容；Space/B闪避、QER/LB面键、Y/LB+A、Z/LB+RB、Tab/Start、Select非暂停菜单、LT+RT动作组切换、RB四格引用。默认扳机组合宽限0.08s可配，仍沿原模式切换资格；投掷瞄准快捷使用明确延期。26输入合同/8实际场景通过，真实硬件长测未做；旧输入override清理，全部writer释放。
+

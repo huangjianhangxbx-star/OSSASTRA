@@ -1,0 +1,120 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "failed": 0,
+      "rows": [
+        {
+          "name": "B East dodges",
+          "pass": true
+        },
+        {
+          "name": "LB B skill3",
+          "pass": true
+        },
+        {
+          "name": "LB B does not dodge",
+          "pass": true
+        },
+        {
+          "name": "LB X skill1",
+          "pass": true
+        },
+        {
+          "name": "LB Y skill2",
+          "pass": true
+        },
+        {
+          "name": "LB A heal",
+          "pass": true
+        },
+        {
+          "name": "LB A interaction suppressed",
+          "pass": true
+        },
+        {
+          "name": "LB RB switch",
+          "pass": true
+        },
+        {
+          "name": "LT right hand",
+          "pass": true
+        },
+        {
+          "name": "RT left hand",
+          "pass": true
+        },
+        {
+          "name": "LT RT mode",
+          "pass": true
+        },
+        {
+          "name": "LT RT no hand request",
+          "pass": true
+        },
+        {
+          "name": "chord release one side cannot fire remaining hand",
+          "pass": true
+        },
+        {
+          "name": "Start inventory",
+          "pass": true
+        },
+        {
+          "name": "Select menu",
+          "pass": true
+        },
+        {
+          "name": "RB reference 1",
+          "pass": true
+        },
+        {
+          "name": "RB reference not dodge 1",
+          "pass": true
+        },
+        {
+          "name": "RB reference 2",
+          "pass": true
+        },
+        {
+          "name": "RB reference not dodge 2",
+          "pass": true
+        },
+        {
+          "name": "RB reference 3",
+          "pass": true
+        },
+        {
+          "name": "RB reference not dodge 3",
+          "pass": true
+        },
+        {
+          "name": "RB reference 4",
+          "pass": true
+        },
+        {
+          "name": "RB reference not dodge 4",
+          "pass": true
+        },
+        {
+          "name": "Space dodge",
+          "pass": true
+        },
+        {
+          "name": "per consumer clone",
+          "pass": true
+        },
+        {
+          "name": "serialized hand names",
+          "pass": true
+        }
+      ]
+    }
+  }
+}

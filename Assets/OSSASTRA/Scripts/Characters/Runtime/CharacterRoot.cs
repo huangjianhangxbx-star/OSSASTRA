@@ -228,6 +228,7 @@ namespace Ossastra.Characters
             combatBrain?.Sample(runtime.SimulationTime, Time.deltaTime);
             inputSource.Read();
             var frame = DataBus.Input;
+            if(frame.weaponModePressed&&mainAction!=null){var choices=mainAction.Choices;var index=System.Array.FindIndex(choices,p=>p!=null&&p.definitionId==mainAction.SelectedId);if(choices.Length>0)mainAction.Configure(choices[(index+1)%choices.Length].definitionId);}
             if(chain!=null && (!input.HasPlayerInput || IsPaused || !focused || !ChainAvailable)) chain.Clear();
 
 
@@ -525,5 +526,6 @@ namespace Ossastra.Characters
         }
     }
 }
+
 
 
