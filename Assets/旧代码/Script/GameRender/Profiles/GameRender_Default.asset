@@ -1,0 +1,30 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b182c2edfe6403e409533a3ccb506797, type: 3}
+  m_Name: GameRender_Default
+  m_EditorClassIdentifier: 
+  enableWorldStyle: 1
+  inkStrength: 0.16
+  darknessThreshold: 0.13
+  darkSpread: 0.13
+  outerLineStrength: 0.22
+  innerLineStrength: 0.045
+  highlightLift: 0.035
+  roughEdgeStrength: 0
+  enableGrain: 1
+  grainStrength: 0.006
+  grainPixelSize: 1.25
+  grainFramesPerSecond: 1.5
+  debugClassification: 0
+  characterInkStrength: 0.18
+  characterOutlineStrength: 0.25
+  characterHighlightLift: 0.04

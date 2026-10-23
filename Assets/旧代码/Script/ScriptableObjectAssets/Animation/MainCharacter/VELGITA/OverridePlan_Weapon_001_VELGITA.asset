@@ -1,0 +1,40 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2f591bbf29389d9418cca84425134b5f, type: 3}
+  m_Name: OverridePlan_Weapon_001_VELGITA
+  m_EditorClassIdentifier: 
+  skeletonDataAsset: {fileID: 11400000, guid: 3d671d9b83ee5f7459ecec58d3c03e82, type: 2}
+  rulesMelee:
+  - targetID: 11
+    replacementPlan:
+      clips:
+      - animaName: Weapon/ElectricProd/0_Idle2
+        track: 0
+        loop: 0
+        mixDuration: 0
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: 3d671d9b83ee5f7459ecec58d3c03e82, type: 2}
+        characterRoot: {fileID: 0}
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+    condition: 0
+    dataBusFieldName: 
+    threshold: 0
+    compareString: 
+  rulesMovement: []
+  rulesFirearm: []
+  rulesJump: []
+  rulesTransition: []
+  rulesSkill: []
+  rulesOther: []
+  rules: []

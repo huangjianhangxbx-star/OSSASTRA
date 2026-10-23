@@ -1,0 +1,25 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 16307a66953fb51428542831f97bda9f, type: 3}
+  m_Name: VELGITA
+  m_EditorClassIdentifier: 
+  characterIcon: {fileID: 21300000, guid: 7db9e6a977080bc48a9e0fe0a0810022, type: 3}
+  characterStatProfileSO: {fileID: 11400000, guid: e0f32fd94f84dd04d96070a08f031b37, type: 2}
+  chracterModel: {fileID: 11400000, guid: 3d671d9b83ee5f7459ecec58d3c03e82, type: 2}
+  basicAnimationPlanMapping: {fileID: 11400000, guid: 85642a1e1ed2b6644abe0e489a484eab, type: 2}
+  animationPlanOverrideRuleSet:
+  - {fileID: 11400000, guid: 7c2762dc0d721294c903c4a860843b86, type: 2}
+  characterName: VELGITA
+  battleCamp: 0
+  assetDefaultFacing: 1
+  maxHp: 100
+  maxRemainHp: 10

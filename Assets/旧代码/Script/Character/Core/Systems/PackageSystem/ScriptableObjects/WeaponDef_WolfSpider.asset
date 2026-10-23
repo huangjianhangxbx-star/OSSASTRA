@@ -1,0 +1,21 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3a65b34926c5f314f9757df5cdee4b41, type: 3}
+  m_Name: WeaponDef_WolfSpider
+  m_EditorClassIdentifier: 
+  itemId: weapon_wolf_spider
+  displayName: "\u72FC\u86DB1"
+  category: 0
+  inventoryIcon: {fileID: 21300000, guid: 7b8e341ff950bb94bba43b9d0fc8f145, type: 3}
+  stackable: 0
+  maxStack: 1
+  weaponConfig: {fileID: 11400000, guid: f5bb53655aeb5614a9e8135c3a7b91c8, type: 2}

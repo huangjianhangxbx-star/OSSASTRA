@@ -1,0 +1,118 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2f591bbf29389d9418cca84425134b5f, type: 3}
+  m_Name: TOverrideRuleSetSO
+  m_EditorClassIdentifier: 
+  skeletonDataAsset: {fileID: 11400000, guid: 3d671d9b83ee5f7459ecec58d3c03e82, type: 2}
+  rules:
+  - targetID: 501
+    dataBusFieldName: 
+    condition: 0
+    threshold: 0
+    compareString: 
+    replacementPlan:
+      clips:
+      - animaName: Weapon/1_AimToGundown
+        track: 1
+        loop: 0
+        mixDuration: 0
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: 3d671d9b83ee5f7459ecec58d3c03e82, type: 2}
+        characterRoot: {fileID: 0}
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - targetID: 502
+    dataBusFieldName: 
+    condition: 0
+    threshold: 0
+    compareString: 
+    replacementPlan:
+      clips:
+      - animaName: Weapon/1_GundownToAim
+        track: 1
+        loop: 0
+        mixDuration: 0
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: 3d671d9b83ee5f7459ecec58d3c03e82, type: 2}
+        characterRoot: {fileID: 0}
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - targetID: 505
+    dataBusFieldName: 
+    condition: 0
+    threshold: 0
+    compareString: 
+    replacementPlan:
+      clips:
+      - animaName: Movement/Gap/0_IdleToJogFast
+        track: 0
+        loop: 0
+        mixDuration: 0
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: 3d671d9b83ee5f7459ecec58d3c03e82, type: 2}
+        characterRoot: {fileID: 0}
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - targetID: 508
+    dataBusFieldName: 
+    condition: 0
+    threshold: 0
+    compareString: 
+    replacementPlan:
+      clips:
+      - animaName: Movement/Gap/0_JogFastToIdle
+        track: 0
+        loop: 0
+        mixDuration: 0
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: 3d671d9b83ee5f7459ecec58d3c03e82, type: 2}
+        characterRoot: {fileID: 0}
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - targetID: 509
+    dataBusFieldName: 
+    condition: 0
+    threshold: 0
+    compareString: 
+    replacementPlan:
+      clips:
+      - animaName: Movement/Gap/0_JogSlowToIdle
+        track: 0
+        loop: 0
+        mixDuration: 0.2
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: 3d671d9b83ee5f7459ecec58d3c03e82, type: 2}
+        characterRoot: {fileID: 0}
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - targetID: 45
+    dataBusFieldName: 
+    condition: 0
+    threshold: 0
+    compareString: 
+    replacementPlan:
+      clips:
+      - animaName: Movement/Gap/0_TurnAround
+        track: 0
+        loop: 0
+        mixDuration: 0
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: 3d671d9b83ee5f7459ecec58d3c03e82, type: 2}
+        characterRoot: {fileID: 0}
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}

@@ -1,0 +1,30 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fd6a1d6cd67368b459e01d70ef24cb23, type: 3}
+  m_Name: MCA_WolfSpider_Kick
+  m_EditorClassIdentifier: 
+  actionId: WolfSpider_Kick
+  steps:
+  - semantic: 20
+    fallbackDuration: 0.5
+    allowInputBuffer: 0
+    fallbackComboWindowDuration: 0.35
+    hitOpenEvent: HitOpen
+    hitCloseEvent: HitClose
+    comboOpenEvent: ComboOpen
+    comboCloseEvent: ComboClose
+    cancelOpenEvent: CancelOpen
+    cancelCloseEvent: CancelClose
+    actionEndEvent: ActionEnd
+    hitWindows: []
+    swingAudio: {fileID: 0}
+    hitStopDuration: 0

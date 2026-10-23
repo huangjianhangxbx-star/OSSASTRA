@@ -1,0 +1,42 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 217e82d22c67d7749b90fa03560c8a05, type: 3}
+  m_Name: GalSequence_Test
+  m_EditorClassIdentifier: 
+  sequenceId: gal_test_vertical_slice
+  defaultPresentationMode: 0
+  defaultBackground: {fileID: 0}
+  lines:
+  - actor: {fileID: 11400000, guid: 6585aa6dac9ad854d80617101f1f5b2a, type: 2}
+    portraitVariantKey: 
+    portraitOverride: {fileID: 0}
+    speakerNameOverride: 
+    text: The radio is finally quiet. We should move before the storm returns.
+    portraitSlot: 0
+    backgroundOverride: {fileID: 0}
+    autoAdvanceSecondsOverride: 0
+  - actor: {fileID: 11400000, guid: 6585aa6dac9ad854d80617101f1f5b2a, type: 2}
+    portraitVariantKey: 
+    portraitOverride: {fileID: 0}
+    speakerNameOverride: 
+    text: This portrait and dialogue are temporary assets for the Gal system test.
+    portraitSlot: 0
+    backgroundOverride: {fileID: 0}
+    autoAdvanceSecondsOverride: 0
+  - actor: {fileID: 11400000, guid: 6585aa6dac9ad854d80617101f1f5b2a, type: 2}
+    portraitVariantKey: 
+    portraitOverride: {fileID: 0}
+    speakerNameOverride: 
+    text: Press NEXT once more to close the dialogue and resume Gameplay.
+    portraitSlot: 0
+    backgroundOverride: {fileID: 0}
+    autoAdvanceSecondsOverride: 0

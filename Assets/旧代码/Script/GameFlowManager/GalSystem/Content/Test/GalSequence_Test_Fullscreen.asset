@@ -1,0 +1,42 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 217e82d22c67d7749b90fa03560c8a05, type: 3}
+  m_Name: GalSequence_Test_Fullscreen
+  m_EditorClassIdentifier: 
+  sequenceId: gal_test_fullscreen
+  defaultPresentationMode: 1
+  defaultBackground: {fileID: 21300000, guid: e8f4e8c5cc5cd814eadd459031601682, type: 3}
+  lines:
+  - actor: {fileID: 11400000, guid: 6585aa6dac9ad854d80617101f1f5b2a, type: 2}
+    portraitVariantKey: 
+    portraitOverride: {fileID: 0}
+    speakerNameOverride: 
+    text: This is not where we were a moment ago.
+    portraitSlot: 0
+    backgroundOverride: {fileID: 0}
+    autoAdvanceSecondsOverride: 0
+  - actor: {fileID: 11400000, guid: 6585aa6dac9ad854d80617101f1f5b2a, type: 2}
+    portraitVariantKey: 
+    portraitOverride: {fileID: 0}
+    speakerNameOverride: 
+    text: The fullscreen backdrop has taken over while Gameplay remains safely paused.
+    portraitSlot: 1
+    backgroundOverride: {fileID: 0}
+    autoAdvanceSecondsOverride: 0
+  - actor: {fileID: 11400000, guid: 6585aa6dac9ad854d80617101f1f5b2a, type: 2}
+    portraitVariantKey: 
+    portraitOverride: {fileID: 0}
+    speakerNameOverride: 
+    text: One more confirmation, and we return to the game.
+    portraitSlot: 2
+    backgroundOverride: {fileID: 0}
+    autoAdvanceSecondsOverride: 0

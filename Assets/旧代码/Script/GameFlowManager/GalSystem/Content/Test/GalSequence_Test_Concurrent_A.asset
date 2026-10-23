@@ -1,0 +1,34 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 217e82d22c67d7749b90fa03560c8a05, type: 3}
+  m_Name: GalSequence_Test_Concurrent_A
+  m_EditorClassIdentifier: 
+  sequenceId: gal_test_concurrent_a
+  defaultPresentationMode: 2
+  defaultBackground: {fileID: 0}
+  lines:
+  - actor: {fileID: 11400000, guid: 6585aa6dac9ad854d80617101f1f5b2a, type: 2}
+    portraitVariantKey: 
+    portraitOverride: {fileID: 0}
+    speakerNameOverride: 
+    text: "\u524D\u65B9\u533A\u57DF\u4FE1\u53F7\u6709\u70B9\u5947\u602A\uFF0C\u5C0F\u5FC3\u4E00\u70B9\u3002"
+    portraitSlot: 0
+    backgroundOverride: {fileID: 0}
+    autoAdvanceSecondsOverride: 0
+  - actor: {fileID: 11400000, guid: 6585aa6dac9ad854d80617101f1f5b2a, type: 2}
+    portraitVariantKey: 
+    portraitOverride: {fileID: 0}
+    speakerNameOverride: 
+    text: "\u6211\u4F1A\u7EE7\u7EED\u76D1\u63A7\uFF0C\u6709\u53D8\u5316\u9A6C\u4E0A\u544A\u8BC9\u4F60\u3002"
+    portraitSlot: 0
+    backgroundOverride: {fileID: 0}
+    autoAdvanceSecondsOverride: 0

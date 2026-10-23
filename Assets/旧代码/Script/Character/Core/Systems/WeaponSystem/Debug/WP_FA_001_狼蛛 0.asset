@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f38eb6be7210b0c489e2d96f3690baef, type: 3}
+  m_Name: "WP_FA_001_\u72FC\u86DB 0"
+  m_EditorClassIdentifier: 
+  weaponName: "\u72FC\u86DB1"
+  weaponType: 0
+  defaultFacing: 1
+  stats: {fileID: 11400000, guid: fc89183ffa9ad9c4487fb51c312bdb14, type: 2}
+  weaponActionProfile: {fileID: 11400000, guid: 3a18b9fe5e889464dacaf826840d5c9d, type: 2}
+  audioProfile: {fileID: 11400000, guid: 4bfd888f21420024882a89606daa22a9, type: 2}
+  animationOverride: {fileID: 11400000, guid: 7c2762dc0d721294c903c4a860843b86, type: 2}
+  weaponPrefab: {fileID: 9135011844070217942, guid: 162359163038e94479b426402a9eb0e9, type: 3}
