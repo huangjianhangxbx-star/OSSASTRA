@@ -1,5 +1,5 @@
 # AM01–AM03 连续实施
-- 日期：2026-10-24；状态technical-complete；Unity/源码租约释放，仅文档发布租约。
+- 日期：2026-10-24；状态complete；全部Unity/源码/文档/发布租约释放。
 - 规格：E:/迅雷下载/OSSASTRA_仲裁器与动画系统迁移计划_AM01-AM03_v1.0.md，用户明确顺序连续授权三轮，各轮验证后独立GitHub提交并报告。
 - 基线19625fc；当前B综合场Edit clean，用户VELGITA Prefab stage clean，均不擅自保存用户现场。
 - 保护：旧场资源移动/删除、CharacterVerticalSlice、CharacterEquipmentView、CharacterInputHandler用户删除宽限、CharacterDebugControls、PlayerInputLayout.asset现有修改、新Action SO。相关输入后续AM03仅在当前用户版本上增量修改并区分提交，不恢复删除。
@@ -41,3 +41,9 @@
 - 开包误终止举盾真实RED后修复：分离GestureGeneration与背包访问ControlRevision，补充实际举盾开关包13/13 GREEN。真正换控/失焦/模态仍Reset并释放保护；不删库存访问校验。
 - 最后作者工具发现隐藏旧animationProfile仍被验证器强制要求，正式Map无验证；三个作者合同RED→GREEN，去旧Profile要求、正式Map检查、导出typed逻辑ID/schema2。本轮仅工具校验补漏，无新玩法。
 - 夹具失败保留：F打开实际容器导致后续战斗被合法捕获；目标初版落在边界且要求穿入敌胶囊。改夹具用途/合法位置，不改产品碰撞或伤害。实体手柄未测，旧Player第三方构建阻塞未扩修。
+
+## 最终发布
+- AM01 ed74ae1af1698306cd44f5fdb7a871dbc1bbf3b7；AM02 67efa5c1f1046f1335dc95469ceb4afc469f962a；AM03 faf2938e8434993d1a9a4dd1c542d988e464b65b，均已推送GitHub OSSASTRA/main并精确核对远端SHA。
+- 技术计划已完成，人工架构/手感审查仍待用户。旧Player第三方构建问题、实体操控未测与探针美术等边界见交接，不扩展本轮。
+- 最终B Edit clean、用户VELGITA stage clean、Missing0、测试虚拟设备0，原InputSettings及既有XInput设备保留。受保护用户dirty保留未打包。
+- 用户最新明确要求：完成后关机；下一步安排延迟正常关机，不使用强制关闭参数。
