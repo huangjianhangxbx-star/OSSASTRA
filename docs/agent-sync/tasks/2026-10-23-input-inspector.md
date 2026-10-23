@@ -6,3 +6,6 @@
 - 共享SO原生回读：右手Mouse leftButton+Gamepad rightTrigger；左手Mouse rightButton+Gamepad leftTrigger。实际CustomEditor类型命中，19 Action公开字段可绘制；Unity重载编译ready。
 - 现有用户修改已移除handler中的triggerChordGraceSeconds/宽限逻辑；只清理SO无效字段和引用使本机编译，不恢复用户删除，不提交用户handler改动。旧26项输入合同是上一产品证据，不作为当前本地逻辑的重测声明。
 - 场景清理继续暂停；不改旧场移动/删除、用户角色控制编辑、HUD等其他现场。
+
+- Header跟进：用户批准将说明迁至实际SO。19个InputAction拆为独立声明，各有中文Header；关键用途补Tooltip。反射19/19 Header，现有资产19动作均有绑定，Unity编译ready；字段名称/类型/绑定保持。
+
