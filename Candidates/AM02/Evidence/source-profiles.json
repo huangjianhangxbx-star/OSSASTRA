@@ -1,0 +1,417 @@
+[
+  {
+    "path": "Assets/OSSASTRA/Configs/Abilities/temporary-a_VC02_Animation.asset",
+    "bindings": [
+      {
+        "key": "idle",
+        "clip": "idle1_1",
+        "semantic": 0,
+        "loop": true,
+        "mixDuration": 0.08,
+        "sourceDuration": 4.0
+      },
+      {
+        "key": "move",
+        "clip": "run",
+        "semantic": 1,
+        "loop": true,
+        "mixDuration": 0.08,
+        "sourceDuration": 0.8
+      },
+      {
+        "key": "dodge",
+        "clip": "dodge_front",
+        "semantic": 7,
+        "loop": false,
+        "mixDuration": 0.08,
+        "sourceDuration": 0.6333333
+      },
+      {
+        "key": "guard",
+        "clip": "ready_loop",
+        "semantic": 8,
+        "loop": true,
+        "mixDuration": 0.08,
+        "sourceDuration": 1.0
+      },
+      {
+        "key": "hurt",
+        "clip": "upper_hitted_all",
+        "semantic": 3,
+        "loop": false,
+        "mixDuration": 0.08,
+        "sourceDuration": 0.5
+      },
+      {
+        "key": "broken",
+        "clip": "dizzy_loop",
+        "semantic": 4,
+        "loop": true,
+        "mixDuration": 0.08,
+        "sourceDuration": 1.16666663
+      },
+      {
+        "key": "death",
+        "clip": "death",
+        "semantic": 5,
+        "loop": false,
+        "mixDuration": 0.08,
+        "sourceDuration": 1.11666667
+      },
+      {
+        "key": "basic-1",
+        "clip": "atk1",
+        "semantic": 2,
+        "loop": false,
+        "mixDuration": 0.08,
+        "sourceDuration": 1.1
+      },
+      {
+        "key": "basic-2",
+        "clip": "atk2",
+        "semantic": 6,
+        "loop": false,
+        "mixDuration": 0.08,
+        "sourceDuration": 1.26666665
+      },
+      {
+        "key": "basic-3",
+        "clip": "atk3",
+        "semantic": 2,
+        "loop": false,
+        "mixDuration": 0.08,
+        "sourceDuration": 1.3
+      },
+      {
+        "key": "basic-4",
+        "clip": "atk4",
+        "semantic": 2,
+        "loop": false,
+        "mixDuration": 0.08,
+        "sourceDuration": 1.4666667
+      },
+      {
+        "key": "HunterBreak_Adapted",
+        "clip": "heavy",
+        "semantic": 2,
+        "loop": false,
+        "mixDuration": 0.06,
+        "sourceDuration": 1.36666667
+      },
+      {
+        "key": "RangerRocket_Adapted",
+        "clip": "xskill",
+        "semantic": 2,
+        "loop": false,
+        "mixDuration": 0.06,
+        "sourceDuration": 2.36666656
+      },
+      {
+        "key": "rush-prepare",
+        "clip": "ready_loop",
+        "semantic": 2,
+        "loop": true,
+        "mixDuration": 0.08,
+        "sourceDuration": 1.0
+      },
+      {
+        "key": "rush-release",
+        "clip": "heavy",
+        "semantic": 2,
+        "loop": false,
+        "mixDuration": 0.08,
+        "sourceDuration": 1.36666667
+      },
+      {
+        "key": "rush-charge",
+        "clip": "run",
+        "semantic": 2,
+        "loop": true,
+        "mixDuration": 0.08,
+        "sourceDuration": 0.8
+      },
+      {
+        "key": "rocket-leap",
+        "clip": "xskill",
+        "semantic": 2,
+        "loop": false,
+        "mixDuration": 0.08,
+        "sourceDuration": 2.36666656
+      },
+      {
+        "key": "magazine-shot",
+        "clip": "atk1",
+        "semantic": 2,
+        "loop": false,
+        "mixDuration": 0.06,
+        "sourceDuration": 1.1
+      }
+    ]
+  },
+  {
+    "path": "Assets/OSSASTRA/Configs/Abilities/temporary-b_VC02_Animation.asset",
+    "bindings": [
+      {
+        "key": "idle",
+        "clip": "idle1_1",
+        "semantic": 0,
+        "loop": true,
+        "mixDuration": 0.08,
+        "sourceDuration": 4.0
+      },
+      {
+        "key": "move",
+        "clip": "run",
+        "semantic": 1,
+        "loop": true,
+        "mixDuration": 0.08,
+        "sourceDuration": 0.8
+      },
+      {
+        "key": "dodge",
+        "clip": "dodge_front",
+        "semantic": 7,
+        "loop": false,
+        "mixDuration": 0.08,
+        "sourceDuration": 0.6333333
+      },
+      {
+        "key": "guard",
+        "clip": "ready_loop",
+        "semantic": 8,
+        "loop": true,
+        "mixDuration": 0.08,
+        "sourceDuration": 1.0
+      },
+      {
+        "key": "hurt",
+        "clip": "upper_hitted_all",
+        "semantic": 3,
+        "loop": false,
+        "mixDuration": 0.08,
+        "sourceDuration": 0.5
+      },
+      {
+        "key": "broken",
+        "clip": "dizzy_loop",
+        "semantic": 4,
+        "loop": true,
+        "mixDuration": 0.08,
+        "sourceDuration": 1.16666663
+      },
+      {
+        "key": "death",
+        "clip": "death",
+        "semantic": 5,
+        "loop": false,
+        "mixDuration": 0.08,
+        "sourceDuration": 1.11666667
+      },
+      {
+        "key": "basic-1",
+        "clip": "atk1",
+        "semantic": 2,
+        "loop": false,
+        "mixDuration": 0.08,
+        "sourceDuration": 1.1
+      },
+      {
+        "key": "basic-2",
+        "clip": "atk2",
+        "semantic": 6,
+        "loop": false,
+        "mixDuration": 0.08,
+        "sourceDuration": 1.26666665
+      },
+      {
+        "key": "basic-3",
+        "clip": "atk3",
+        "semantic": 2,
+        "loop": false,
+        "mixDuration": 0.08,
+        "sourceDuration": 1.3
+      },
+      {
+        "key": "basic-4",
+        "clip": "atk4",
+        "semantic": 2,
+        "loop": false,
+        "mixDuration": 0.08,
+        "sourceDuration": 1.4666667
+      },
+      {
+        "key": "HunterBreak_Adapted",
+        "clip": "heavy",
+        "semantic": 2,
+        "loop": false,
+        "mixDuration": 0.06,
+        "sourceDuration": 1.36666667
+      },
+      {
+        "key": "RangerRocket_Adapted",
+        "clip": "xskill",
+        "semantic": 2,
+        "loop": false,
+        "mixDuration": 0.06,
+        "sourceDuration": 2.36666656
+      },
+      {
+        "key": "rush-prepare",
+        "clip": "ready_loop",
+        "semantic": 2,
+        "loop": true,
+        "mixDuration": 0.08,
+        "sourceDuration": 1.0
+      },
+      {
+        "key": "rush-release",
+        "clip": "heavy",
+        "semantic": 2,
+        "loop": false,
+        "mixDuration": 0.08,
+        "sourceDuration": 1.36666667
+      },
+      {
+        "key": "rush-charge",
+        "clip": "run",
+        "semantic": 2,
+        "loop": true,
+        "mixDuration": 0.08,
+        "sourceDuration": 0.8
+      },
+      {
+        "key": "rocket-leap",
+        "clip": "xskill",
+        "semantic": 2,
+        "loop": false,
+        "mixDuration": 0.08,
+        "sourceDuration": 2.36666656
+      },
+      {
+        "key": "precision-reload",
+        "clip": "ready_loop",
+        "semantic": 2,
+        "loop": true,
+        "mixDuration": 0.08,
+        "sourceDuration": 1.0
+      },
+      {
+        "key": "magazine-shot",
+        "clip": "atk1",
+        "semantic": 2,
+        "loop": false,
+        "mixDuration": 0.06,
+        "sourceDuration": 1.1
+      }
+    ]
+  },
+  {
+    "path": "Assets/OSSASTRA/Configs/Characters/Rozeul_Animation.asset",
+    "bindings": [
+      {
+        "key": "idle",
+        "clip": "idle1_1",
+        "semantic": 0,
+        "loop": true,
+        "mixDuration": 0.08,
+        "sourceDuration": 4.0
+      },
+      {
+        "key": "move",
+        "clip": "run",
+        "semantic": 1,
+        "loop": true,
+        "mixDuration": 0.08,
+        "sourceDuration": 0.8
+      },
+      {
+        "key": "dodge",
+        "clip": "dodge_front",
+        "semantic": 7,
+        "loop": false,
+        "mixDuration": 0.08,
+        "sourceDuration": 0.6333333
+      },
+      {
+        "key": "guard",
+        "clip": "ready_loop",
+        "semantic": 8,
+        "loop": true,
+        "mixDuration": 0.08,
+        "sourceDuration": 1.0
+      },
+      {
+        "key": "hurt",
+        "clip": "upper_hitted_all",
+        "semantic": 3,
+        "loop": false,
+        "mixDuration": 0.08,
+        "sourceDuration": 0.5
+      },
+      {
+        "key": "broken",
+        "clip": "dizzy_loop",
+        "semantic": 4,
+        "loop": true,
+        "mixDuration": 0.08,
+        "sourceDuration": 1.16666663
+      },
+      {
+        "key": "death",
+        "clip": "death",
+        "semantic": 5,
+        "loop": false,
+        "mixDuration": 0.08,
+        "sourceDuration": 1.11666667
+      },
+      {
+        "key": "basic-1",
+        "clip": "atk1",
+        "semantic": 2,
+        "loop": false,
+        "mixDuration": 0.08,
+        "sourceDuration": 1.1
+      },
+      {
+        "key": "basic-2",
+        "clip": "atk2",
+        "semantic": 6,
+        "loop": false,
+        "mixDuration": 0.08,
+        "sourceDuration": 1.26666665
+      },
+      {
+        "key": "basic-3",
+        "clip": "atk3",
+        "semantic": 2,
+        "loop": false,
+        "mixDuration": 0.08,
+        "sourceDuration": 1.3
+      },
+      {
+        "key": "basic-4",
+        "clip": "atk4",
+        "semantic": 2,
+        "loop": false,
+        "mixDuration": 0.08,
+        "sourceDuration": 1.4666667
+      },
+      {
+        "key": "HunterBreak_Adapted",
+        "clip": "heavy",
+        "semantic": 2,
+        "loop": false,
+        "mixDuration": 0.06,
+        "sourceDuration": 1.36666667
+      },
+      {
+        "key": "RangerRocket_Adapted",
+        "clip": "xskill",
+        "semantic": 2,
+        "loop": false,
+        "mixDuration": 0.06,
+        "sourceDuration": 2.36666656
+      }
+    ]
+  }
+]

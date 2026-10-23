@@ -516,3 +516,5 @@ T7A3独立RendererFeature/密度场/最多2个AtmosphereLight/8-16步积分/Dept
 
 2026-10-23 input-layout：共享PlayerInputLayoutSO成为B角色与场景输入源；左右手字段RightHandAction/LeftHandAction具旧字段迁移兼容；Space/B闪避、QER/LB面键、Y/LB+A、Z/LB+RB、Tab/Start、Select非暂停菜单、LT+RT动作组切换、RB四格引用。默认扳机组合宽限0.08s可配，仍沿原模式切换资格；投掷瞄准快捷使用明确延期。26输入合同/8实际场景通过，真实硬件长测未做；旧输入override清理，全部writer释放。
 
+
+2026-10-24 AM01 complete/AM02 active：ed74ae1af1698306cd44f5fdb7a871dbc1bbf3b7已GitHub main核对。正式StateArbitrator登记五状态，Combat实际拥有唯一Runtime/连段/事务受理转发/事实分派，运动和并行能力保持原时序；B与候选Prefab接线，旧参考不变。自然17/并行5/生命周期13/纯68/背包47通过，InventoryView销毁回归RED→GREEN；原动画链尚未迁入，继续AM02/03。用户已有dirty仍保留，唯一Unity writer由本任务持有。

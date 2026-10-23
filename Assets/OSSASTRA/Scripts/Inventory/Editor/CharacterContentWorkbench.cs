@@ -64,8 +64,8 @@ namespace Ossastra.Authoring
         private void DrawSockets(SceneView scene)
         {
             if(!showSockets||preview==null||!Application.isPlaying)return;
-            var body=preview.GetComponentInChildren<CharacterSpineView>();
-            var skeleton=body==null?null:body.GetComponent<SkeletonAnimation>();var rig=preview.Definition?.rigProfile;
+            var body=System.Linq.Enumerable.FirstOrDefault(System.Linq.Enumerable.OfType<ICharacterAnimationStateView>(preview.GetComponentsInChildren<MonoBehaviour>()));
+            var skeleton=body==null?null:body.Skeleton;var rig=preview.Definition?.rigProfile;
             if(skeleton?.Skeleton==null||rig==null)return;
             foreach(var binding in rig.sockets)
             {

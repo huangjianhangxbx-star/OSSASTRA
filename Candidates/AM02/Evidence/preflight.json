@@ -1,0 +1,272 @@
+{
+  "scene": "Assets/OSSASTRA/Scenes/SC_VC02B_IntegrationReady.unity",
+  "dirty": true,
+  "keys": [
+    {
+      "path": "Assets/OSSASTRA/Configs/Abilities/al-spin_Action.asset",
+      "key": "basic-4"
+    },
+    {
+      "path": "Assets/OSSASTRA/Configs/Abilities/al-stab_Action.asset",
+      "key": "basic-2"
+    },
+    {
+      "path": "Assets/OSSASTRA/Configs/Abilities/hunter-break_Action.asset",
+      "key": "basic-3"
+    },
+    {
+      "path": "Assets/OSSASTRA/Configs/Abilities/hunter-sweep_Action.asset",
+      "key": "basic-4"
+    },
+    {
+      "path": "Assets/OSSASTRA/Configs/Abilities/MainProfiles/hunter_A1.asset",
+      "key": "basic-1"
+    },
+    {
+      "path": "Assets/OSSASTRA/Configs/Abilities/MainProfiles/hunter_A2.asset",
+      "key": "basic-2"
+    },
+    {
+      "path": "Assets/OSSASTRA/Configs/Abilities/MainProfiles/hunter_A3.asset",
+      "key": "basic-3"
+    },
+    {
+      "path": "Assets/OSSASTRA/Configs/Abilities/MainProfiles/hunter_A4.asset",
+      "key": "basic-4"
+    },
+    {
+      "path": "Assets/OSSASTRA/Configs/Abilities/MainProfiles/hunter_Chisel.asset",
+      "key": "basic-4"
+    },
+    {
+      "path": "Assets/OSSASTRA/Configs/Abilities/MainProfiles/hunter_II_A3.asset",
+      "key": "basic-3"
+    },
+    {
+      "path": "Assets/OSSASTRA/Configs/Abilities/MainProfiles/hunter_II_A4.asset",
+      "key": "basic-4"
+    },
+    {
+      "path": "Assets/OSSASTRA/Configs/Abilities/MainProfiles/hunter_Rapid1.asset",
+      "key": "basic-1"
+    },
+    {
+      "path": "Assets/OSSASTRA/Configs/Abilities/MainProfiles/hunter_Rapid2.asset",
+      "key": "basic-2"
+    },
+    {
+      "path": "Assets/OSSASTRA/Configs/Abilities/MainProfiles/hunter_Rapid3.asset",
+      "key": "basic-3"
+    },
+    {
+      "path": "Assets/OSSASTRA/Configs/Abilities/MainProfiles/hunter_RapidPlus1.asset",
+      "key": "basic-1"
+    },
+    {
+      "path": "Assets/OSSASTRA/Configs/Abilities/MainProfiles/hunter_RapidPlus2.asset",
+      "key": "basic-2"
+    },
+    {
+      "path": "Assets/OSSASTRA/Configs/Abilities/MainProfiles/hunter_RapidPlus3.asset",
+      "key": "basic-3"
+    },
+    {
+      "path": "Assets/OSSASTRA/Configs/Abilities/MainProfiles/hunter_RapidPlus4.asset",
+      "key": "basic-2"
+    },
+    {
+      "path": "Assets/OSSASTRA/Configs/Abilities/MainProfiles/ranger_A1.asset",
+      "key": "basic-1"
+    },
+    {
+      "path": "Assets/OSSASTRA/Configs/Abilities/MainProfiles/ranger_A2.asset",
+      "key": "basic-2"
+    },
+    {
+      "path": "Assets/OSSASTRA/Configs/Abilities/MainProfiles/ranger_A3.asset",
+      "key": "basic-3"
+    },
+    {
+      "path": "Assets/OSSASTRA/Configs/Abilities/MainProfiles/ranger_II_A2.asset",
+      "key": "basic-2"
+    },
+    {
+      "path": "Assets/OSSASTRA/Configs/Abilities/MainProfiles/ranger_II_A3.asset",
+      "key": "basic-3"
+    },
+    {
+      "path": "Assets/OSSASTRA/Configs/Abilities/mortar_Action.asset",
+      "key": "magazine-shot"
+    },
+    {
+      "path": "Assets/OSSASTRA/Configs/Abilities/precision_Action.asset",
+      "key": "precision-reload"
+    },
+    {
+      "path": "Assets/OSSASTRA/Configs/Abilities/rocket-leap_Action.asset",
+      "key": "rocket-leap"
+    },
+    {
+      "path": "Assets/OSSASTRA/Configs/Abilities/rush-charge_Action.asset",
+      "key": "rush-charge"
+    },
+    {
+      "path": "Assets/OSSASTRA/Configs/Abilities/rush-prepare_Action.asset",
+      "key": "rush-prepare"
+    },
+    {
+      "path": "Assets/OSSASTRA/Configs/Abilities/rush-release_Action.asset",
+      "key": "rush-release"
+    },
+    {
+      "path": "Assets/OSSASTRA/Configs/Abilities/ShieldAttack_Action.asset",
+      "key": "HunterBreak_Adapted"
+    },
+    {
+      "path": "Assets/OSSASTRA/Configs/Abilities/shot_Action.asset",
+      "key": "magazine-shot"
+    },
+    {
+      "path": "Assets/OSSASTRA/Configs/Actions/Rozeul_Basic1.asset",
+      "key": "basic-1"
+    },
+    {
+      "path": "Assets/OSSASTRA/Configs/Actions/Rozeul_Basic2.asset",
+      "key": "basic-2"
+    },
+    {
+      "path": "Assets/OSSASTRA/Configs/Actions/Rozeul_Basic3.asset",
+      "key": "basic-3"
+    },
+    {
+      "path": "Assets/OSSASTRA/Configs/Actions/Rozeul_Basic4.asset",
+      "key": "basic-4"
+    },
+    {
+      "path": "Assets/OSSASTRA/Configs/Skills/HunterBreak_Adapted_Action.asset",
+      "key": "HunterBreak_Adapted"
+    },
+    {
+      "path": "Assets/OSSASTRA/Configs/Skills/RangerRocket_Adapted_Action.asset",
+      "key": "RangerRocket_Adapted"
+    }
+  ],
+  "clips": [
+    "atk1",
+    "atk1_move",
+    "atk2",
+    "atk2_move",
+    "atk3",
+    "atk3_loop",
+    "atk3_move",
+    "atk4",
+    "atk4_move",
+    "atk_branch",
+    "atk_branch_move",
+    "death",
+    "dizzy_end",
+    "dizzy_loop",
+    "dizzy_start",
+    "dodge_back",
+    "dodge_counter",
+    "dodge_counter_move",
+    "dodge_front",
+    "execution",
+    "execution_move",
+    "fly_fall",
+    "fly_trans",
+    "fly_turn",
+    "fly_turn2",
+    "fly_up",
+    "ground",
+    "ground_death",
+    "ground_hitted",
+    "heavy",
+    "heavy_ex",
+    "heavy_ex_move",
+    "heavy_move",
+    "idle1_1",
+    "idle1_2",
+    "idle2",
+    "idle3",
+    "jump_atk_all_move",
+    "jump_atk_end",
+    "jump_atk_loop",
+    "jump_atk_start",
+    "jump_atk_start_move",
+    "leg_hitted",
+    "leg_hitted2idle",
+    "leg_hitted_all",
+    "qte1",
+    "qte1_end",
+    "qte1_end_move",
+    "qte1_loop",
+    "qte1_move",
+    "qte1_start",
+    "qte1_start_move",
+    "ready_end",
+    "ready_loop",
+    "ready_start",
+    "run",
+    "stand_up",
+    "start",
+    "upper_hitted",
+    "upper_hitted2idle",
+    "upper_hitted_all",
+    "win_start",
+    "xskill",
+    "xskill_move",
+    "base/celebration",
+    "base/drag",
+    "base/drag_end",
+    "base/drag_end4",
+    "base/draw_loop",
+    "base/draw_start",
+    "base/touch",
+    "base/walk",
+    "city/fall_loop",
+    "city/jump_all",
+    "city/jump_end",
+    "city/jump_loop",
+    "city/jump_start",
+    "city/jump_trans",
+    "city/sit_all",
+    "city/sit_loop",
+    "common/give_end",
+    "common/give_loop",
+    "common/give_start",
+    "common/no",
+    "common/objection_end",
+    "common/objection_loop",
+    "common/objection_start",
+    "common/ready2_all",
+    "common/ready2_end",
+    "common/ready2_loop",
+    "common/ready2_start",
+    "common/ready2_start2",
+    "common/squat_check_end",
+    "common/squat_check_loop",
+    "common/squat_check_start",
+    "common/squat_end",
+    "common/squat_loop",
+    "common/squat_start",
+    "common/take_check",
+    "common/take_end",
+    "common/take_loop",
+    "common/take_start",
+    "common/talk1",
+    "common/talk2",
+    "common/think_end",
+    "common/think_loop",
+    "common/think_start",
+    "common/walk",
+    "common/walk_back",
+    "common/yes"
+  ],
+  "gear": [
+    "Assets/OSSASTRA/Configs/Abilities/EquipmentSpineProbe/验证盾A_按住防御_Spine.asset",
+    "Assets/OSSASTRA/Configs/Abilities/EquipmentSpineProbe/验证盾B_按下攻击_Spine.asset",
+    "Assets/OSSASTRA/VC02B/EquipmentSpine_Left_PROBE.asset",
+    "Assets/OSSASTRA/VC02B/EquipmentSpine_Right_PROBE.asset"
+  ]
+}

@@ -22,6 +22,8 @@ namespace Ossastra.Characters
     public sealed class EquipmentSpinePresentationSO:ScriptableObject
     {
         public SkeletonDataAsset skeletonData;
+        [Tooltip("正式原式装备动画映射；旧animations只供未迁移资产读取。")]
+        public Ossastra.CharacterAnimation.AnimationPlanMappingSO animationMap;
         [Min(1)] public int contentVersion=1;
         [Tooltip("非空时从角色RigProfile解析，旧bodyBone字段仅保留历史场兼容。")] public string semanticSocketId;
         [Tooltip("角色的真实骨骼；不使用寻找第一个骨骼的隐式兜底。")] public string bodyBone;
@@ -33,6 +35,7 @@ namespace Ossastra.Characters
         public float rotationOffset;
         public int sortingOrderOffset=3;
         [TextArea] public string presentationEvidence;
+        [Sirenix.OdinInspector.HideIf("@animationMap != null")]
         public EquipmentSpineAnimationBinding[] animations=Array.Empty<EquipmentSpineAnimationBinding>();
         public EquipmentAnimationCatalog Freeze(Spine.SkeletonData body,CharacterRigProfileSO rig=null)
         {
@@ -47,7 +50,23 @@ namespace Ossastra.Characters
             if(!Finite(localScale)||localScale<=0||!Finite(localOffset.x)||!Finite(localOffset.y)||!Finite(localOffset.z)||!Finite(rotationOffset))
                 throw new ArgumentException(name+".mount transform invalid");
             var bindings=new List<EquipmentAnimationClip>();
-            foreach(var entry in animations??Array.Empty<EquipmentSpineAnimationBinding>())
+            if(animationMap!=null)
+            {
+                foreach(AnimationSemantic semantic in Enum.GetValues(typeof(AnimationSemantic)))
+                {
+                    var logic=semantic==AnimationSemantic.Idle?Ossastra.CharacterAnimation.EAnimationLogicState.Idle:
+                        semantic==AnimationSemantic.Move?Ossastra.CharacterAnimation.EAnimationLogicState.Jog:
+                        semantic==AnimationSemantic.Guard?Ossastra.CharacterAnimation.EAnimationLogicState.Guard:
+                        semantic==AnimationSemantic.Dodge?Ossastra.CharacterAnimation.EAnimationLogicState.Dodge:
+                        semantic==AnimationSemantic.HitReaction?Ossastra.CharacterAnimation.EAnimationLogicState.HitReact:
+                        semantic==AnimationSemantic.PostureBroken?Ossastra.CharacterAnimation.EAnimationLogicState.Stagger:
+                        semantic==AnimationSemantic.Death?Ossastra.CharacterAnimation.EAnimationLogicState.Death:Ossastra.CharacterAnimation.EAnimationLogicState.Ability;
+                    var plan=animationMap.GetDefault(logic);var clip=plan?.clips.Find(c=>c!=null&&c.track==0);
+                    if(clip==null||data.FindAnimation(clip.animaName)==null)throw new ArgumentException(name+".animationMap missing semantic/clip: "+semantic);
+                    bindings.Add(new EquipmentAnimationClip(semantic,clip.animaName,clip.loop,clip.mixDuration,clip.playbackRate));
+                }
+            }
+            else foreach(var entry in animations??Array.Empty<EquipmentSpineAnimationBinding>())
             {
                 if(entry==null||data.FindAnimation(entry.clip)==null)throw new ArgumentException(name+".animations missing clip: "+entry?.clip);
                 bindings.Add(new EquipmentAnimationClip(entry.semantic,entry.clip,entry.loop,entry.mixDuration,entry.playbackRate));

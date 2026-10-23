@@ -14,6 +14,8 @@ namespace Ossastra.Characters
         public OffhandKind offhandKind;
         public Sprite worldSprite;
         public EquipmentSpinePresentationSO spinePresentation;
+        [Tooltip("本装备作为身体意图来源时的原式动画覆盖；不覆盖另一只手的来源。")]
+        public Ossastra.CharacterAnimation.AnimationPlanOverrideRuleSetSO bodyAnimationOverride;
         public string boneName;
         public Vector3 offset;
         [Min(.01f)] public float worldScale=.7f;

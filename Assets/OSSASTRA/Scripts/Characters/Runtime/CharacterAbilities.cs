@@ -72,6 +72,15 @@ namespace Ossastra.Characters
         public int ResolvedCount=>deliveries.ResolvedCount;
         public int InFlightCount=>deliveries.InFlightCount;
         public bool IsBusy=>runs.Any(r=>!r.Ended);
+        /// <summary>装备表现只读本槽已接受Run；不借另一手或身体Replay伪造执行身份。</summary>
+        public bool TryGetHandPresentation(bool main,out Guid execution,out bool guarding,out bool usesBody)
+        {
+            execution=Guid.Empty;guarding=false;usesBody=false;
+            var run=runs.LastOrDefault(r=>!r.Ended&&r.Context.presentationMainHand==main&&r.Context.source.IsAvailable);
+            if(run==null)return false;
+            execution=run.Context.id;guarding=run is ICombatGuard guard&&guard.IsGuarding;usesBody=run.Context.definition.executor.UsesBodyAction;
+            return true;
+        }
         public float LocomotionScale=>runs.Where(r=>!r.Ended).OfType<ICharacterLocomotionScale>().Select(r=>r.LocomotionScale).DefaultIfEmpty(1).Min();
         private ICharacterMotionOverride ActiveMotion=>runs.Where(r=>!r.Ended).OfType<ICharacterMotionOverride>().FirstOrDefault(r=>r.IsActive);
         public bool IsActive=>isActiveAndEnabled&&ActiveMotion!=null;
@@ -288,7 +297,7 @@ namespace Ossastra.Characters
             var mainPayload=binding!=null&&binding.resourceOwner==AbilityResourceOwner.MainEquipment;
             var port=new EquipmentSource(equipment,main||mainPayload,compiled.wearOnRelease,mainPayload?equipment.State.LeftInstanceId:null);
             var visualDefinition=main?equipment.RightDefinition:equipment.LeftDefinition;
-            return AcceptCompiled(compiled,port,operation,source,visualDefinition?.worldSprite,visualDefinition?.worldScale??.25f);
+            return AcceptCompiled(compiled,port,operation,source,visualDefinition?.worldSprite,visualDefinition?.worldScale??.25f,main);
         }
         /// <summary>库存/固有能力适配器也进入相同事务；来源必须属于本体，释放消费由来源实现，投递器不认识库存。</summary>
         public bool TryRequestFromSource(AbilityDefinitionSO definition,IAbilitySource port,AbilityOperation operation,CharacterActionSource source,Sprite sprite=null,float scale=.25f)
@@ -297,7 +306,7 @@ namespace Ossastra.Characters
             try{return AcceptCompiled(definition.Compile(),port,operation,source,sprite,scale);}
             catch(ArgumentException e){return Reject(e.Message);}
         }
-        private bool AcceptCompiled(CompiledAbility compiled,IAbilitySource port,AbilityOperation operation,CharacterActionSource source,Sprite sprite,float scale)
+        private bool AcceptCompiled(CompiledAbility compiled,IAbilitySource port,AbilityOperation operation,CharacterActionSource source,Sprite sprite,float scale,bool? presentationMainHand=null)
         {
             var companion=source==CharacterActionSource.Companion;
             if(owner==null||!isActiveAndEnabled||port==null||port.OwnerId!=owner.ActorId||string.IsNullOrWhiteSpace(port.InstanceId)||!Enum.IsDefined(typeof(AbilityOperation),operation)||
@@ -349,7 +358,7 @@ namespace Ossastra.Characters
                 var request=owner.Actions.CreateRequest(executor.ActionKind,source,"ability:"+compiled.id);id=request.RequestId;
                 if(!owner.Actions.TryCommit(request,compiled.cost,()=>port.TryReserve(reservation)?request.RequestId:Guid.Empty,out var reason))return RejectReserved(reason);
             }
-            var context=new AbilityRunContext(owner,compiled,port,id,direction.normalized,landing,Emit,operation,sprite,scale,frozenEffects,releasePayment,source);
+            var context=new AbilityRunContext(owner,compiled,port,id,direction.normalized,landing,Emit,operation,sprite,scale,frozenEffects,releasePayment,source,presentationMainHand);
             context.commitSource=CommitSource;
             context.deliveryPort=EmitDelivery;
             context.feedback=(execution,kind,position)=>Feedback?.Invoke(execution,kind,position);

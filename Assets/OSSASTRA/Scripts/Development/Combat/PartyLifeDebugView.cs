@@ -36,7 +36,7 @@ namespace Ossastra.Development
                 GUILayout.Label(root.ActorId+" Alive="+root.IsAlive+" Gen="+root.LifeGeneration+" Current="+(session.Current==root));
                 GUILayout.Label("HP="+root.Vitals.Health.Current+" Posture="+root.GetComponent<Ossastra.Combat.CombatPosture>().Current+" Died="+respawn.DiedAt(i).ToString("F2")+" Due="+respawn.DueAt(i).ToString("F2"));
                 GUILayout.Label("Stage="+root.AttackStage+" Buffer="+(root.HasBufferedAttack?1:0)+" Window="+root.ComboWindowUntil.ToString("F2")+" Releases="+root.ReleaseCount+" Source="+root.EffectiveIntentKind);
-                var animation=root.GetComponentInChildren<CharacterSpineView>();
+                var animation=System.Linq.Enumerable.FirstOrDefault(System.Linq.Enumerable.OfType<ICharacterAnimationStateView>(root.GetComponentsInChildren<MonoBehaviour>()));
                 if(animation!=null)
                 {
                     GUILayout.Label(animation.CurrentSemantic+" → "+animation.CurrentClip+" / "+animation.CurrentSource+" #"+animation.CurrentReplayId.ToString("N").Substring(0,8));

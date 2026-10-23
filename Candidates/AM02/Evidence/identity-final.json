@@ -1,0 +1,872 @@
+{
+  "scripts": [
+    {
+      "path": "Assets/OSSASTRA/Scripts/Animation/Character/AnimationArbitrator.cs",
+      "guid": "79572383c97d0124db3381754f934943",
+      "type": "Ossastra.CharacterAnimation.AnimationArbitrator"
+    },
+    {
+      "path": "Assets/OSSASTRA/Scripts/Animation/Character/AnimationComposeContext.cs",
+      "guid": "1c1bc2e7814d2de469336e066c4244e7",
+      "type": "Ossastra.CharacterAnimation.AnimationComposeContext"
+    },
+    {
+      "path": "Assets/OSSASTRA/Scripts/Animation/Character/AnimationContracts.cs",
+      "guid": "94c1ef58792cb8047b12b195862b936b",
+      "type": null
+    },
+    {
+      "path": "Assets/OSSASTRA/Scripts/Animation/Character/AnimationHandleSystem.cs",
+      "guid": "6e6c60493f4e27d4581ebaa2b28797f1",
+      "type": "Ossastra.CharacterAnimation.AnimationHandleSystem"
+    },
+    {
+      "path": "Assets/OSSASTRA/Scripts/Animation/Character/AnimationIntent.cs",
+      "guid": "399e67896ca17694e8b8e942d2328be4",
+      "type": "Ossastra.CharacterAnimation.AnimationIntent"
+    },
+    {
+      "path": "Assets/OSSASTRA/Scripts/Animation/Character/AnimationLogicRouterSO.cs",
+      "guid": "40e2559f497b2494a8779e423caaa6e6",
+      "type": "Ossastra.CharacterAnimation.AnimationLogicRouterSO"
+    },
+    {
+      "path": "Assets/OSSASTRA/Scripts/Animation/Character/AnimationPlanMappingSO.cs",
+      "guid": "38950824afabfbb4c9a9ccd980cc5045",
+      "type": "Ossastra.CharacterAnimation.AnimationPlanMappingSO"
+    },
+    {
+      "path": "Assets/OSSASTRA/Scripts/Animation/Character/AnimationPlanOverrideRuleSetSO.cs",
+      "guid": "3b990bd7509f1294c9779f38925ce00a",
+      "type": "Ossastra.CharacterAnimation.AnimationPlanOverrideRuleSetSO"
+    },
+    {
+      "path": "Assets/OSSASTRA/Scripts/Animation/Character/AnimationSemanticTranslation.cs",
+      "guid": "32b98ec1dd85d144f8c5c6bad6d6f128",
+      "type": "Ossastra.CharacterAnimation.AnimationSemanticTranslation"
+    },
+    {
+      "path": "Assets/OSSASTRA/Scripts/Animation/Character/AnimationTransitionRouter.cs",
+      "guid": "15da0e24e4f53064d8dbbf40d0269155",
+      "type": "Ossastra.CharacterAnimation.AnimationTransitionRouter"
+    },
+    {
+      "path": "Assets/OSSASTRA/Scripts/Animation/Character/CharacterAnimationClip.cs",
+      "guid": "dd8277a0fe76a754ba248357bce1f3ee",
+      "type": "Ossastra.CharacterAnimation.CharacterAnimationClip"
+    },
+    {
+      "path": "Assets/OSSASTRA/Scripts/Animation/Character/CharacterAnimationComposer.cs",
+      "guid": "19036d8a9babc7d42b0e4ff2afa40bc2",
+      "type": "Ossastra.CharacterAnimation.CharacterAnimationComposer"
+    },
+    {
+      "path": "Assets/OSSASTRA/Scripts/Animation/Character/CharacterAnimationConfigManager.cs",
+      "guid": "364b5fb742a3e494dab3b51e3469fd08",
+      "type": "Ossastra.CharacterAnimation.CharacterAnimationConfigManager"
+    },
+    {
+      "path": "Assets/OSSASTRA/Scripts/Animation/Character/CharacterAnimationController.cs",
+      "guid": "da2dd7046fecc6e46acda05ec4e4fc3d",
+      "type": "Ossastra.CharacterAnimation.CharacterAnimationController"
+    },
+    {
+      "path": "Assets/OSSASTRA/Scripts/Animation/Character/CharacterAnimationPlan.cs",
+      "guid": "07385156f8caf7a4aa0dad33d8aa85f4",
+      "type": "Ossastra.CharacterAnimation.CharacterAnimationPlan"
+    },
+    {
+      "path": "Assets/OSSASTRA/Scripts/Animation/Character/CharacterAnimationQueuedClip.cs",
+      "guid": "21fa327d84440e745b3fe67566f5a31e",
+      "type": "Ossastra.CharacterAnimation.CharacterAnimationQueuedClip"
+    },
+    {
+      "path": "Assets/OSSASTRA/Scripts/Animation/Character/CharacterSpineEventSystem.cs",
+      "guid": "f6dcae075d2868a47ba4260a6fec4ff3",
+      "type": "Ossastra.CharacterAnimation.CharacterSpineEventSystem"
+    },
+    {
+      "path": "Assets/OSSASTRA/Scripts/Animation/Character/Editor/AnimationConfigEditors.cs",
+      "guid": "98ae693d6c0cea54d89c21b2172ddfda",
+      "type": "Ossastra.CharacterAnimation.Editor.AnimationPlanMappingEditor"
+    },
+    {
+      "path": "Assets/OSSASTRA/Scripts/Animation/Character/ICharacterAnimationStateView.cs",
+      "guid": "b8787d5b422ec9344b7503e0d0b927ec",
+      "type": "Ossastra.Characters.ICharacterAnimationStateView"
+    },
+    {
+      "path": "Assets/旧代码/Script/Character/Core/Systems/AnimationSystem/AnimationArbitrator.cs",
+      "guid": "ab2951ff99da01d45b08be516359b356",
+      "type": "AnimationArbitrator"
+    },
+    {
+      "path": "Assets/旧代码/Script/Character/Core/Systems/AnimationSystem/AnimationComposeContext.cs",
+      "guid": "22a3bab0265044c42b1fc568cef52020",
+      "type": "AnimationComposeContext"
+    },
+    {
+      "path": "Assets/旧代码/Script/Character/Core/Systems/AnimationSystem/AnimationHandleSystem.cs",
+      "guid": "9557db6e9ac6aca4f8358bc83683d898",
+      "type": "AnimationHandleSystem"
+    },
+    {
+      "path": "Assets/旧代码/Script/Character/Core/Systems/AnimationSystem/AnimationIntent.cs",
+      "guid": "9761921066b3b2048a93316f3563dc94",
+      "type": "AnimationIntent"
+    },
+    {
+      "path": "Assets/旧代码/Script/Character/Core/Systems/AnimationSystem/AnimationLogicRouterSO.cs",
+      "guid": "b9ebef9c2c700e94b8bec5b316b71e6f",
+      "type": "AnimationLogicRouterSO"
+    },
+    {
+      "path": "Assets/旧代码/Script/Character/Core/Systems/AnimationSystem/AnimationPlanMappingSO.cs",
+      "guid": "870a3bb0b1de27c4aa895bdb9d0c27cf",
+      "type": "AnimationPlanMappingSO"
+    },
+    {
+      "path": "Assets/旧代码/Script/Character/Core/Systems/AnimationSystem/AnimationPlanOverrideRuleSetSO.cs",
+      "guid": "2f591bbf29389d9418cca84425134b5f",
+      "type": "AnimationPlanOverrideRuleSetSO"
+    },
+    {
+      "path": "Assets/旧代码/Script/Character/Core/Systems/AnimationSystem/AnimationTransitionRouter.cs",
+      "guid": "302bdfcb303fc324caf23416fc263b96",
+      "type": "AnimationTransitionRouter"
+    },
+    {
+      "path": "Assets/旧代码/Script/Character/Core/Systems/AnimationSystem/CharacterAnimationClip.cs",
+      "guid": "a64af1c7d6863fe43977a6a654063763",
+      "type": "CharacterAnimationClip"
+    },
+    {
+      "path": "Assets/旧代码/Script/Character/Core/Systems/AnimationSystem/CharacterAnimationComposer.cs",
+      "guid": "34571df804e8a0d4eb351723cf5a2ef9",
+      "type": "CharacterAnimationComposer"
+    },
+    {
+      "path": "Assets/旧代码/Script/Character/Core/Systems/AnimationSystem/CharacterAnimationConfigManager.cs",
+      "guid": "ea6e4db3530b59d49a750a9e2fd1b304",
+      "type": "CharacterAnimationConfigManager"
+    },
+    {
+      "path": "Assets/旧代码/Script/Character/Core/Systems/AnimationSystem/CharacterAnimationPlan.cs",
+      "guid": "0679ed0608f6afb4db2c4dc43fa096b9",
+      "type": "CharacterAnimationPlan"
+    },
+    {
+      "path": "Assets/旧代码/Script/Character/Core/Systems/AnimationSystem/CharacterAnimationQueuedClip.cs",
+      "guid": "4f5eda76c7c6f684db562884ba63a2f1",
+      "type": "CharacterAnimationQueuedClip"
+    },
+    {
+      "path": "Assets/旧代码/Script/Character/Core/Systems/AnimationSystem/CharacterSpineEventSystem.cs",
+      "guid": "65ae770e32e634640a3a972ef0a80e37",
+      "type": "CharacterSpineEventSystem"
+    },
+    {
+      "path": "Assets/旧代码/Script/Character/Core/Systems/AnimationSystem/IAnimationProvider.cs",
+      "guid": "07c10754ef000714e9cea664c1a8d896",
+      "type": "IAnimationProvider"
+    }
+  ],
+  "maps": [
+    {
+      "path": "Assets/OSSASTRA/Configs/Animation/EquipmentSpine_Left_PROBE_Mapping.asset",
+      "guid": "0cd27de3c02bd5f43ae28fa1286efa72",
+      "type": "Ossastra.CharacterAnimation.AnimationPlanMappingSO",
+      "skeleton": "Assets/OSSASTRA/Configs/Abilities/EquipmentSpineProbe/ProbeSkeleton.asset",
+      "editor": "Ossastra.CharacterAnimation.Editor.AnimationPlanMappingEditor",
+      "json": "{\"MonoBehaviour\":{\"m_Enabled\":true,\"m_EditorHideFlags\":0,\"m_Name\":\"EquipmentSpine_Left_PROBE_Mapping\",\"m_EditorClassIdentifier\":\"\",\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"0a3c88a74a4793f4ea4aabd574ce9879\",\"type\":2},\"plansMelee\":[],\"plansMovement\":[{\"logicID\":27,\"plan\":{\"clips\":[{\"animaName\":\"rest\",\"track\":0,\"loop\":true,\"mixDuration\":0.05999999865889549,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"0a3c88a74a4793f4ea4aabd574ce9879\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":0.0}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":23,\"plan\":{\"clips\":[{\"animaName\":\"carry\",\"track\":0,\"loop\":true,\"mixDuration\":0.05999999865889549,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"0a3c88a74a4793f4ea4aabd574ce9879\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":0.0}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}}],\"plansFirearm\":[],\"plansJump\":[],\"plansTransition\":[],\"plansSkill\":[],\"plansOther\":[{\"logicID\":1007,\"plan\":{\"clips\":[{\"animaName\":\"strike\",\"track\":0,\"loop\":false,\"mixDuration\":0.05999999865889549,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"0a3c88a74a4793f4ea4aabd574ce9879\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":0.0}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1004,\"plan\":{\"clips\":[{\"animaName\":\"recoil\",\"track\":0,\"loop\":false,\"mixDuration\":0.05999999865889549,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"0a3c88a74a4793f4ea4aabd574ce9879\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":0.0}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1005,\"plan\":{\"clips\":[{\"animaName\":\"break\",\"track\":0,\"loop\":false,\"mixDuration\":0.05999999865889549,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"0a3c88a74a4793f4ea4aabd574ce9879\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":0.0}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1006,\"plan\":{\"clips\":[{\"animaName\":\"vanish\",\"track\":0,\"loop\":false,\"mixDuration\":0.05999999865889549,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"0a3c88a74a4793f4ea4aabd574ce9879\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":0.0}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1002,\"plan\":{\"clips\":[{\"animaName\":\"evade\",\"track\":0,\"loop\":false,\"mixDuration\":0.05999999865889549,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"0a3c88a74a4793f4ea4aabd574ce9879\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":0.0}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1003,\"plan\":{\"clips\":[{\"animaName\":\"brace\",\"track\":0,\"loop\":true,\"mixDuration\":0.05999999865889549,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"0a3c88a74a4793f4ea4aabd574ce9879\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":0.0}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}}],\"defaultPlans\":[]}}"
+    },
+    {
+      "path": "Assets/OSSASTRA/Configs/Animation/EquipmentSpine_Right_PROBE_Mapping.asset",
+      "guid": "e9a444b5417a26e49963b6c6e41cb9e3",
+      "type": "Ossastra.CharacterAnimation.AnimationPlanMappingSO",
+      "skeleton": "Assets/OSSASTRA/Configs/Abilities/EquipmentSpineProbe/ProbeSkeleton.asset",
+      "editor": "Ossastra.CharacterAnimation.Editor.AnimationPlanMappingEditor",
+      "json": "{\"MonoBehaviour\":{\"m_Enabled\":true,\"m_EditorHideFlags\":0,\"m_Name\":\"EquipmentSpine_Right_PROBE_Mapping\",\"m_EditorClassIdentifier\":\"\",\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"0a3c88a74a4793f4ea4aabd574ce9879\",\"type\":2},\"plansMelee\":[],\"plansMovement\":[{\"logicID\":27,\"plan\":{\"clips\":[{\"animaName\":\"rest\",\"track\":0,\"loop\":true,\"mixDuration\":0.05999999865889549,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"0a3c88a74a4793f4ea4aabd574ce9879\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":0.0}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":23,\"plan\":{\"clips\":[{\"animaName\":\"carry\",\"track\":0,\"loop\":true,\"mixDuration\":0.05999999865889549,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"0a3c88a74a4793f4ea4aabd574ce9879\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":0.0}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}}],\"plansFirearm\":[],\"plansJump\":[],\"plansTransition\":[],\"plansSkill\":[],\"plansOther\":[{\"logicID\":1007,\"plan\":{\"clips\":[{\"animaName\":\"strike\",\"track\":0,\"loop\":false,\"mixDuration\":0.05999999865889549,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"0a3c88a74a4793f4ea4aabd574ce9879\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":0.0}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1004,\"plan\":{\"clips\":[{\"animaName\":\"recoil\",\"track\":0,\"loop\":false,\"mixDuration\":0.05999999865889549,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"0a3c88a74a4793f4ea4aabd574ce9879\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":0.0}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1005,\"plan\":{\"clips\":[{\"animaName\":\"break\",\"track\":0,\"loop\":false,\"mixDuration\":0.05999999865889549,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"0a3c88a74a4793f4ea4aabd574ce9879\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":0.0}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1006,\"plan\":{\"clips\":[{\"animaName\":\"vanish\",\"track\":0,\"loop\":false,\"mixDuration\":0.05999999865889549,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"0a3c88a74a4793f4ea4aabd574ce9879\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":0.0}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1002,\"plan\":{\"clips\":[{\"animaName\":\"evade\",\"track\":0,\"loop\":false,\"mixDuration\":0.05999999865889549,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"0a3c88a74a4793f4ea4aabd574ce9879\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":0.0}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1003,\"plan\":{\"clips\":[{\"animaName\":\"brace\",\"track\":0,\"loop\":true,\"mixDuration\":0.05999999865889549,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"0a3c88a74a4793f4ea4aabd574ce9879\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":0.0}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}}],\"defaultPlans\":[]}}"
+    },
+    {
+      "path": "Assets/OSSASTRA/Configs/Animation/Rozeul_Animation_Mapping.asset",
+      "guid": "be395d0be34859e47afc83c24de25c41",
+      "type": "Ossastra.CharacterAnimation.AnimationPlanMappingSO",
+      "skeleton": "Assets/随便尝试/rozeul_SkeletonData.asset",
+      "editor": "Ossastra.CharacterAnimation.Editor.AnimationPlanMappingEditor",
+      "json": "{\"MonoBehaviour\":{\"m_Enabled\":true,\"m_EditorHideFlags\":0,\"m_Name\":\"Rozeul_Animation_Mapping\",\"m_EditorClassIdentifier\":\"\",\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"plansMelee\":[{\"logicID\":11,\"plan\":{\"clips\":[{\"animaName\":\"atk1\",\"track\":0,\"loop\":false,\"mixDuration\":0.07999999821186066,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":true,\"sourceDuration\":1.100000023841858}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":12,\"plan\":{\"clips\":[{\"animaName\":\"atk2\",\"track\":0,\"loop\":false,\"mixDuration\":0.07999999821186066,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":true,\"sourceDuration\":1.2666666507720948}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":13,\"plan\":{\"clips\":[{\"animaName\":\"atk3\",\"track\":0,\"loop\":false,\"mixDuration\":0.07999999821186066,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":true,\"sourceDuration\":1.2999999523162842}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1001,\"plan\":{\"clips\":[{\"animaName\":\"atk4\",\"track\":0,\"loop\":false,\"mixDuration\":0.07999999821186066,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":true,\"sourceDuration\":1.4666666984558106}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}}],\"plansMovement\":[{\"logicID\":27,\"plan\":{\"clips\":[{\"animaName\":\"idle1_1\",\"track\":0,\"loop\":true,\"mixDuration\":0.07999999821186066,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":4.0}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":23,\"plan\":{\"clips\":[{\"animaName\":\"run\",\"track\":0,\"loop\":true,\"mixDuration\":0.07999999821186066,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":0.800000011920929}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}}],\"plansFirearm\":[],\"plansJump\":[],\"plansTransition\":[{\"logicID\":1110,\"plan\":{\"clips\":[{\"animaName\":\"ready_start\",\"track\":0,\"loop\":false,\"mixDuration\":0.07999999821186066,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":0.0}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1111,\"plan\":{\"clips\":[{\"animaName\":\"ready_end\",\"track\":0,\"loop\":false,\"mixDuration\":0.07999999821186066,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":0.0}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}}],\"plansSkill\":[],\"plansOther\":[{\"logicID\":1002,\"plan\":{\"clips\":[{\"animaName\":\"dodge_front\",\"track\":0,\"loop\":false,\"mixDuration\":0.07999999821186066,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":0.6333333253860474}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1003,\"plan\":{\"clips\":[{\"animaName\":\"ready_loop\",\"track\":0,\"loop\":true,\"mixDuration\":0.07999999821186066,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":1.0}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1004,\"plan\":{\"clips\":[{\"animaName\":\"upper_hitted_all\",\"track\":0,\"loop\":false,\"mixDuration\":0.07999999821186066,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":0.5}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1005,\"plan\":{\"clips\":[{\"animaName\":\"dizzy_loop\",\"track\":0,\"loop\":true,\"mixDuration\":0.07999999821186066,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":1.1666666269302369}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1006,\"plan\":{\"clips\":[{\"animaName\":\"death\",\"track\":0,\"loop\":false,\"mixDuration\":0.07999999821186066,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":1.1166666746139527}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1101,\"plan\":{\"clips\":[{\"animaName\":\"heavy\",\"track\":0,\"loop\":false,\"mixDuration\":0.05999999865889549,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":true,\"sourceDuration\":1.3666666746139527}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1102,\"plan\":{\"clips\":[{\"animaName\":\"xskill\",\"track\":0,\"loop\":false,\"mixDuration\":0.05999999865889549,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":true,\"sourceDuration\":2.366666555404663}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1103,\"plan\":{\"clips\":[{\"animaName\":\"ready_loop\",\"track\":0,\"loop\":true,\"mixDuration\":0.07999999821186066,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":true,\"sourceDuration\":1.0}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1104,\"plan\":{\"clips\":[{\"animaName\":\"heavy\",\"track\":0,\"loop\":false,\"mixDuration\":0.07999999821186066,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":true,\"sourceDuration\":1.3666666746139527}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1105,\"plan\":{\"clips\":[{\"animaName\":\"run\",\"track\":0,\"loop\":true,\"mixDuration\":0.07999999821186066,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":true,\"sourceDuration\":0.800000011920929}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1106,\"plan\":{\"clips\":[{\"animaName\":\"xskill\",\"track\":0,\"loop\":false,\"mixDuration\":0.07999999821186066,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":true,\"sourceDuration\":2.366666555404663}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1108,\"plan\":{\"clips\":[{\"animaName\":\"atk1\",\"track\":0,\"loop\":false,\"mixDuration\":0.05999999865889549,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":true,\"sourceDuration\":1.100000023841858}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1107,\"plan\":{\"clips\":[{\"animaName\":\"ready_loop\",\"track\":0,\"loop\":true,\"mixDuration\":0.07999999821186066,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":true,\"sourceDuration\":1.0}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}}],\"defaultPlans\":[]}}"
+    },
+    {
+      "path": "Assets/OSSASTRA/Configs/Animation/temporary-a_VC02_Animation_Mapping.asset",
+      "guid": "357b1c0d9000e19479b83ae04bc5a8f5",
+      "type": "Ossastra.CharacterAnimation.AnimationPlanMappingSO",
+      "skeleton": "Assets/随便尝试/rozeul_SkeletonData.asset",
+      "editor": "Ossastra.CharacterAnimation.Editor.AnimationPlanMappingEditor",
+      "json": "{\"MonoBehaviour\":{\"m_Enabled\":true,\"m_EditorHideFlags\":0,\"m_Name\":\"temporary-a_VC02_Animation_Mapping\",\"m_EditorClassIdentifier\":\"\",\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"plansMelee\":[{\"logicID\":11,\"plan\":{\"clips\":[{\"animaName\":\"atk1\",\"track\":0,\"loop\":false,\"mixDuration\":0.07999999821186066,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":true,\"sourceDuration\":1.100000023841858}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":12,\"plan\":{\"clips\":[{\"animaName\":\"atk2\",\"track\":0,\"loop\":false,\"mixDuration\":0.07999999821186066,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":true,\"sourceDuration\":1.2666666507720948}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":13,\"plan\":{\"clips\":[{\"animaName\":\"atk3\",\"track\":0,\"loop\":false,\"mixDuration\":0.07999999821186066,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":true,\"sourceDuration\":1.2999999523162842}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1001,\"plan\":{\"clips\":[{\"animaName\":\"atk4\",\"track\":0,\"loop\":false,\"mixDuration\":0.07999999821186066,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":true,\"sourceDuration\":1.4666666984558106}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}}],\"plansMovement\":[{\"logicID\":27,\"plan\":{\"clips\":[{\"animaName\":\"idle1_1\",\"track\":0,\"loop\":true,\"mixDuration\":0.07999999821186066,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":4.0}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":23,\"plan\":{\"clips\":[{\"animaName\":\"run\",\"track\":0,\"loop\":true,\"mixDuration\":0.07999999821186066,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":0.800000011920929}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}}],\"plansFirearm\":[],\"plansJump\":[],\"plansTransition\":[{\"logicID\":1110,\"plan\":{\"clips\":[{\"animaName\":\"ready_start\",\"track\":0,\"loop\":false,\"mixDuration\":0.07999999821186066,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":0.0}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1111,\"plan\":{\"clips\":[{\"animaName\":\"ready_end\",\"track\":0,\"loop\":false,\"mixDuration\":0.07999999821186066,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":0.0}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}}],\"plansSkill\":[],\"plansOther\":[{\"logicID\":1002,\"plan\":{\"clips\":[{\"animaName\":\"dodge_front\",\"track\":0,\"loop\":false,\"mixDuration\":0.07999999821186066,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":0.6333333253860474}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1003,\"plan\":{\"clips\":[{\"animaName\":\"ready_loop\",\"track\":0,\"loop\":true,\"mixDuration\":0.07999999821186066,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":1.0}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1004,\"plan\":{\"clips\":[{\"animaName\":\"upper_hitted_all\",\"track\":0,\"loop\":false,\"mixDuration\":0.07999999821186066,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":0.5}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1005,\"plan\":{\"clips\":[{\"animaName\":\"dizzy_loop\",\"track\":0,\"loop\":true,\"mixDuration\":0.07999999821186066,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":1.1666666269302369}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1006,\"plan\":{\"clips\":[{\"animaName\":\"death\",\"track\":0,\"loop\":false,\"mixDuration\":0.07999999821186066,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":1.1166666746139527}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1101,\"plan\":{\"clips\":[{\"animaName\":\"heavy\",\"track\":0,\"loop\":false,\"mixDuration\":0.05999999865889549,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":true,\"sourceDuration\":1.3666666746139527}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1102,\"plan\":{\"clips\":[{\"animaName\":\"xskill\",\"track\":0,\"loop\":false,\"mixDuration\":0.05999999865889549,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":true,\"sourceDuration\":2.366666555404663}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1103,\"plan\":{\"clips\":[{\"animaName\":\"ready_loop\",\"track\":0,\"loop\":true,\"mixDuration\":0.07999999821186066,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":true,\"sourceDuration\":1.0}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1104,\"plan\":{\"clips\":[{\"animaName\":\"heavy\",\"track\":0,\"loop\":false,\"mixDuration\":0.07999999821186066,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":true,\"sourceDuration\":1.3666666746139527}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1105,\"plan\":{\"clips\":[{\"animaName\":\"run\",\"track\":0,\"loop\":true,\"mixDuration\":0.07999999821186066,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":true,\"sourceDuration\":0.800000011920929}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1106,\"plan\":{\"clips\":[{\"animaName\":\"xskill\",\"track\":0,\"loop\":false,\"mixDuration\":0.07999999821186066,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":true,\"sourceDuration\":2.366666555404663}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1108,\"plan\":{\"clips\":[{\"animaName\":\"atk1\",\"track\":0,\"loop\":false,\"mixDuration\":0.05999999865889549,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":true,\"sourceDuration\":1.100000023841858}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}}],\"defaultPlans\":[]}}"
+    },
+    {
+      "path": "Assets/OSSASTRA/Configs/Animation/temporary-b_VC02_Animation_Mapping.asset",
+      "guid": "fedefdfbc468f444ba4e898608f62d5c",
+      "type": "Ossastra.CharacterAnimation.AnimationPlanMappingSO",
+      "skeleton": "Assets/随便尝试/rozeul_SkeletonData.asset",
+      "editor": "Ossastra.CharacterAnimation.Editor.AnimationPlanMappingEditor",
+      "json": "{\"MonoBehaviour\":{\"m_Enabled\":true,\"m_EditorHideFlags\":0,\"m_Name\":\"temporary-b_VC02_Animation_Mapping\",\"m_EditorClassIdentifier\":\"\",\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"plansMelee\":[{\"logicID\":11,\"plan\":{\"clips\":[{\"animaName\":\"atk1\",\"track\":0,\"loop\":false,\"mixDuration\":0.07999999821186066,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":true,\"sourceDuration\":1.100000023841858}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":12,\"plan\":{\"clips\":[{\"animaName\":\"atk2\",\"track\":0,\"loop\":false,\"mixDuration\":0.07999999821186066,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":true,\"sourceDuration\":1.2666666507720948}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":13,\"plan\":{\"clips\":[{\"animaName\":\"atk3\",\"track\":0,\"loop\":false,\"mixDuration\":0.07999999821186066,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":true,\"sourceDuration\":1.2999999523162842}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1001,\"plan\":{\"clips\":[{\"animaName\":\"atk4\",\"track\":0,\"loop\":false,\"mixDuration\":0.07999999821186066,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":true,\"sourceDuration\":1.4666666984558106}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}}],\"plansMovement\":[{\"logicID\":27,\"plan\":{\"clips\":[{\"animaName\":\"idle1_1\",\"track\":0,\"loop\":true,\"mixDuration\":0.07999999821186066,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":4.0}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":23,\"plan\":{\"clips\":[{\"animaName\":\"run\",\"track\":0,\"loop\":true,\"mixDuration\":0.07999999821186066,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":0.800000011920929}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}}],\"plansFirearm\":[],\"plansJump\":[],\"plansTransition\":[{\"logicID\":1110,\"plan\":{\"clips\":[{\"animaName\":\"ready_start\",\"track\":0,\"loop\":false,\"mixDuration\":0.07999999821186066,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":0.0}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1111,\"plan\":{\"clips\":[{\"animaName\":\"ready_end\",\"track\":0,\"loop\":false,\"mixDuration\":0.07999999821186066,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":0.0}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}}],\"plansSkill\":[],\"plansOther\":[{\"logicID\":1002,\"plan\":{\"clips\":[{\"animaName\":\"dodge_front\",\"track\":0,\"loop\":false,\"mixDuration\":0.07999999821186066,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":0.6333333253860474}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1003,\"plan\":{\"clips\":[{\"animaName\":\"ready_loop\",\"track\":0,\"loop\":true,\"mixDuration\":0.07999999821186066,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":1.0}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1004,\"plan\":{\"clips\":[{\"animaName\":\"upper_hitted_all\",\"track\":0,\"loop\":false,\"mixDuration\":0.07999999821186066,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":0.5}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1005,\"plan\":{\"clips\":[{\"animaName\":\"dizzy_loop\",\"track\":0,\"loop\":true,\"mixDuration\":0.07999999821186066,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":1.1666666269302369}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1006,\"plan\":{\"clips\":[{\"animaName\":\"death\",\"track\":0,\"loop\":false,\"mixDuration\":0.07999999821186066,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":1.1166666746139527}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1101,\"plan\":{\"clips\":[{\"animaName\":\"heavy\",\"track\":0,\"loop\":false,\"mixDuration\":0.05999999865889549,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":true,\"sourceDuration\":1.3666666746139527}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1102,\"plan\":{\"clips\":[{\"animaName\":\"xskill\",\"track\":0,\"loop\":false,\"mixDuration\":0.05999999865889549,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":true,\"sourceDuration\":2.366666555404663}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1103,\"plan\":{\"clips\":[{\"animaName\":\"ready_loop\",\"track\":0,\"loop\":true,\"mixDuration\":0.07999999821186066,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":true,\"sourceDuration\":1.0}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1104,\"plan\":{\"clips\":[{\"animaName\":\"heavy\",\"track\":0,\"loop\":false,\"mixDuration\":0.07999999821186066,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":true,\"sourceDuration\":1.3666666746139527}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1105,\"plan\":{\"clips\":[{\"animaName\":\"run\",\"track\":0,\"loop\":true,\"mixDuration\":0.07999999821186066,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":true,\"sourceDuration\":0.800000011920929}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1106,\"plan\":{\"clips\":[{\"animaName\":\"xskill\",\"track\":0,\"loop\":false,\"mixDuration\":0.07999999821186066,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":true,\"sourceDuration\":2.366666555404663}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1107,\"plan\":{\"clips\":[{\"animaName\":\"ready_loop\",\"track\":0,\"loop\":true,\"mixDuration\":0.07999999821186066,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":true,\"sourceDuration\":1.0}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1108,\"plan\":{\"clips\":[{\"animaName\":\"atk1\",\"track\":0,\"loop\":false,\"mixDuration\":0.05999999865889549,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"8de59581980c83e4e91f8a7e5bc92f46\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":true,\"sourceDuration\":1.100000023841858}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}}],\"defaultPlans\":[]}}"
+    },
+    {
+      "path": "Assets/OSSASTRA/Configs/Animation/验证盾A_按住防御_Spine_Mapping.asset",
+      "guid": "6b9936ee83d07884ab4a5dfe0b70cfd1",
+      "type": "Ossastra.CharacterAnimation.AnimationPlanMappingSO",
+      "skeleton": "Assets/OSSASTRA/Configs/Abilities/EquipmentSpineProbe/ProbeSkeleton.asset",
+      "editor": "Ossastra.CharacterAnimation.Editor.AnimationPlanMappingEditor",
+      "json": "{\"MonoBehaviour\":{\"m_Enabled\":true,\"m_EditorHideFlags\":0,\"m_Name\":\"验证盾A_按住防御_Spine_Mapping\",\"m_EditorClassIdentifier\":\"\",\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"0a3c88a74a4793f4ea4aabd574ce9879\",\"type\":2},\"plansMelee\":[],\"plansMovement\":[{\"logicID\":27,\"plan\":{\"clips\":[{\"animaName\":\"rest\",\"track\":0,\"loop\":true,\"mixDuration\":0.05999999865889549,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"0a3c88a74a4793f4ea4aabd574ce9879\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":0.0}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":23,\"plan\":{\"clips\":[{\"animaName\":\"carry\",\"track\":0,\"loop\":true,\"mixDuration\":0.05999999865889549,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"0a3c88a74a4793f4ea4aabd574ce9879\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":0.0}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}}],\"plansFirearm\":[],\"plansJump\":[],\"plansTransition\":[],\"plansSkill\":[],\"plansOther\":[{\"logicID\":1007,\"plan\":{\"clips\":[{\"animaName\":\"strike\",\"track\":0,\"loop\":false,\"mixDuration\":0.05999999865889549,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"0a3c88a74a4793f4ea4aabd574ce9879\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":0.0}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1004,\"plan\":{\"clips\":[{\"animaName\":\"recoil\",\"track\":0,\"loop\":false,\"mixDuration\":0.05999999865889549,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"0a3c88a74a4793f4ea4aabd574ce9879\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":0.0}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1005,\"plan\":{\"clips\":[{\"animaName\":\"break\",\"track\":0,\"loop\":false,\"mixDuration\":0.05999999865889549,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"0a3c88a74a4793f4ea4aabd574ce9879\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":0.0}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1006,\"plan\":{\"clips\":[{\"animaName\":\"vanish\",\"track\":0,\"loop\":false,\"mixDuration\":0.05999999865889549,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"0a3c88a74a4793f4ea4aabd574ce9879\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":0.0}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1002,\"plan\":{\"clips\":[{\"animaName\":\"evade\",\"track\":0,\"loop\":false,\"mixDuration\":0.05999999865889549,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"0a3c88a74a4793f4ea4aabd574ce9879\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":0.0}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1003,\"plan\":{\"clips\":[{\"animaName\":\"brace\",\"track\":0,\"loop\":true,\"mixDuration\":0.05999999865889549,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"0a3c88a74a4793f4ea4aabd574ce9879\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":0.0}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}}],\"defaultPlans\":[]}}"
+    },
+    {
+      "path": "Assets/OSSASTRA/Configs/Animation/验证盾B_按下攻击_Spine_Mapping.asset",
+      "guid": "5d8555363d8407142b48c049b90f38f5",
+      "type": "Ossastra.CharacterAnimation.AnimationPlanMappingSO",
+      "skeleton": "Assets/OSSASTRA/Configs/Abilities/EquipmentSpineProbe/ProbeSkeleton.asset",
+      "editor": "Ossastra.CharacterAnimation.Editor.AnimationPlanMappingEditor",
+      "json": "{\"MonoBehaviour\":{\"m_Enabled\":true,\"m_EditorHideFlags\":0,\"m_Name\":\"验证盾B_按下攻击_Spine_Mapping\",\"m_EditorClassIdentifier\":\"\",\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"0a3c88a74a4793f4ea4aabd574ce9879\",\"type\":2},\"plansMelee\":[],\"plansMovement\":[{\"logicID\":27,\"plan\":{\"clips\":[{\"animaName\":\"rest\",\"track\":0,\"loop\":true,\"mixDuration\":0.05999999865889549,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"0a3c88a74a4793f4ea4aabd574ce9879\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":0.0}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":23,\"plan\":{\"clips\":[{\"animaName\":\"carry\",\"track\":0,\"loop\":true,\"mixDuration\":0.05999999865889549,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"0a3c88a74a4793f4ea4aabd574ce9879\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":0.0}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}}],\"plansFirearm\":[],\"plansJump\":[],\"plansTransition\":[],\"plansSkill\":[],\"plansOther\":[{\"logicID\":1007,\"plan\":{\"clips\":[{\"animaName\":\"strike\",\"track\":0,\"loop\":false,\"mixDuration\":0.05999999865889549,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"0a3c88a74a4793f4ea4aabd574ce9879\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":0.0}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1004,\"plan\":{\"clips\":[{\"animaName\":\"recoil\",\"track\":0,\"loop\":false,\"mixDuration\":0.05999999865889549,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"0a3c88a74a4793f4ea4aabd574ce9879\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":0.0}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1005,\"plan\":{\"clips\":[{\"animaName\":\"break\",\"track\":0,\"loop\":false,\"mixDuration\":0.05999999865889549,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"0a3c88a74a4793f4ea4aabd574ce9879\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":0.0}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1006,\"plan\":{\"clips\":[{\"animaName\":\"vanish\",\"track\":0,\"loop\":false,\"mixDuration\":0.05999999865889549,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"0a3c88a74a4793f4ea4aabd574ce9879\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":0.0}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1002,\"plan\":{\"clips\":[{\"animaName\":\"evade\",\"track\":0,\"loop\":false,\"mixDuration\":0.05999999865889549,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"0a3c88a74a4793f4ea4aabd574ce9879\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":0.0}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}},{\"logicID\":1003,\"plan\":{\"clips\":[{\"animaName\":\"brace\",\"track\":0,\"loop\":true,\"mixDuration\":0.05999999865889549,\"isAdditive\":false,\"skeletonDataAsset\":{\"fileID\":11400000,\"guid\":\"0a3c88a74a4793f4ea4aabd574ce9879\",\"type\":2},\"characterRoot\":{\"instanceID\":0},\"playbackRate\":1.0,\"scalesWithAction\":false,\"sourceDuration\":0.0}],\"queuedClips\":[],\"clearTracks\":[],\"characterRoot\":{\"instanceID\":0}}}],\"defaultPlans\":[]}}"
+    }
+  ],
+  "enums": [
+    {
+      "type": "AnimationLayer",
+      "name": "BaseFullBody",
+      "value": 0
+    },
+    {
+      "type": "AnimationLayer",
+      "name": "LowerBody",
+      "value": 10
+    },
+    {
+      "type": "AnimationLayer",
+      "name": "UpperBody",
+      "value": 20
+    },
+    {
+      "type": "AnimationLayer",
+      "name": "FullBodyAction",
+      "value": 30
+    },
+    {
+      "type": "AnimationLayer",
+      "name": "Additive",
+      "value": 40
+    },
+    {
+      "type": "AnimationIntentSourceStateMachine",
+      "name": "None",
+      "value": 0
+    },
+    {
+      "type": "AnimationIntentSourceStateMachine",
+      "name": "Movement",
+      "value": 10
+    },
+    {
+      "type": "AnimationIntentSourceStateMachine",
+      "name": "HoundAttack",
+      "value": 15
+    },
+    {
+      "type": "AnimationIntentSourceStateMachine",
+      "name": "HoundWeaponPose",
+      "value": 16
+    },
+    {
+      "type": "AnimationIntentSourceStateMachine",
+      "name": "HoundWeaponAction",
+      "value": 17
+    },
+    {
+      "type": "AnimationIntentSourceStateMachine",
+      "name": "Jump",
+      "value": 25
+    },
+    {
+      "type": "AnimationIntentSourceStateMachine",
+      "name": "Skill",
+      "value": 40
+    },
+    {
+      "type": "AnimationIntentSourceStateMachine",
+      "name": "Hurt",
+      "value": 50
+    },
+    {
+      "type": "AnimationIntentSourceStateMachine",
+      "name": "Status",
+      "value": 60
+    },
+    {
+      "type": "AnimationIntentSourceStateMachine",
+      "name": "Debug",
+      "value": 90
+    },
+    {
+      "type": "AnimationIntentSourceStateMachine",
+      "name": "WeaponEquip",
+      "value": 91
+    },
+    {
+      "type": "AnimationIntentSourceStateMachine",
+      "name": "WeaponPosture",
+      "value": 92
+    },
+    {
+      "type": "AnimationIntentSourceStateMachine",
+      "name": "MainHand",
+      "value": 100
+    },
+    {
+      "type": "AnimationIntentSourceStateMachine",
+      "name": "OffHand",
+      "value": 110
+    },
+    {
+      "type": "AnimationIntentSourceStateMachine",
+      "name": "Dodge",
+      "value": 120
+    },
+    {
+      "type": "EAnimSemantic",
+      "name": "None",
+      "value": 0
+    },
+    {
+      "type": "EAnimSemantic",
+      "name": "Idle",
+      "value": 1
+    },
+    {
+      "type": "EAnimSemantic",
+      "name": "Walk",
+      "value": 2
+    },
+    {
+      "type": "EAnimSemantic",
+      "name": "Jog",
+      "value": 3
+    },
+    {
+      "type": "EAnimSemantic",
+      "name": "JogFast",
+      "value": 4
+    },
+    {
+      "type": "EAnimSemantic",
+      "name": "Dash",
+      "value": 5
+    },
+    {
+      "type": "EAnimSemantic",
+      "name": "Walk_Back",
+      "value": 6
+    },
+    {
+      "type": "EAnimSemantic",
+      "name": "Jog_Back",
+      "value": 7
+    },
+    {
+      "type": "EAnimSemantic",
+      "name": "TurnAround",
+      "value": 8
+    },
+    {
+      "type": "EAnimSemantic",
+      "name": "MoveStart",
+      "value": 9
+    },
+    {
+      "type": "EAnimSemantic",
+      "name": "MoveStop",
+      "value": 10
+    },
+    {
+      "type": "EAnimSemantic",
+      "name": "AimEnter",
+      "value": 11
+    },
+    {
+      "type": "EAnimSemantic",
+      "name": "AimExit",
+      "value": 12
+    },
+    {
+      "type": "EAnimSemantic",
+      "name": "Jump_Start",
+      "value": 13
+    },
+    {
+      "type": "EAnimSemantic",
+      "name": "Jump_Rising",
+      "value": 14
+    },
+    {
+      "type": "EAnimSemantic",
+      "name": "Jump_Falling",
+      "value": 15
+    },
+    {
+      "type": "EAnimSemantic",
+      "name": "Jump_Landing",
+      "value": 16
+    },
+    {
+      "type": "EAnimSemantic",
+      "name": "Gun_AimPose",
+      "value": 17
+    },
+    {
+      "type": "EAnimSemantic",
+      "name": "Gun_HipFirePose",
+      "value": 18
+    },
+    {
+      "type": "EAnimSemantic",
+      "name": "Gun_Fire",
+      "value": 19
+    },
+    {
+      "type": "EAnimSemantic",
+      "name": "Gun_Reload",
+      "value": 20
+    },
+    {
+      "type": "EAnimSemantic",
+      "name": "Weapon_LowReady",
+      "value": 21
+    },
+    {
+      "type": "EAnimSemantic",
+      "name": "Weapon_Equip",
+      "value": 22
+    },
+    {
+      "type": "EAnimSemantic",
+      "name": "Weapon_Cancel",
+      "value": 23
+    },
+    {
+      "type": "EAnimSemantic",
+      "name": "Attack_Normal_1",
+      "value": 24
+    },
+    {
+      "type": "EAnimSemantic",
+      "name": "Attack_Normal_2",
+      "value": 25
+    },
+    {
+      "type": "EAnimSemantic",
+      "name": "Attack_Normal_3",
+      "value": 26
+    },
+    {
+      "type": "EAnimSemantic",
+      "name": "Attack_Normal_4",
+      "value": 1001
+    },
+    {
+      "type": "EAnimSemantic",
+      "name": "Dodge",
+      "value": 1002
+    },
+    {
+      "type": "EAnimSemantic",
+      "name": "Guard",
+      "value": 1003
+    },
+    {
+      "type": "EAnimSemantic",
+      "name": "HitReact",
+      "value": 1004
+    },
+    {
+      "type": "EAnimSemantic",
+      "name": "Stagger",
+      "value": 1005
+    },
+    {
+      "type": "EAnimSemantic",
+      "name": "Death",
+      "value": 1006
+    },
+    {
+      "type": "EAnimSemantic",
+      "name": "Ability",
+      "value": 1007
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "Attack_Normal_1",
+      "value": 11
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "Attack_Normal_2",
+      "value": 12
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "Attack_Normal_3",
+      "value": 13
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "Walk",
+      "value": 21
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "WalkBack",
+      "value": 22
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "Jog",
+      "value": 23
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "JogBack",
+      "value": 24
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "JogFast",
+      "value": 25
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "Dash",
+      "value": 26
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "Idle",
+      "value": 27
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "Crouch",
+      "value": 28
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "Aim",
+      "value": 31
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "Fire",
+      "value": 32
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "Reload",
+      "value": 33
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "Weapon_LowReady",
+      "value": 34
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "NotAimShootReady",
+      "value": 35
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "Avoid_Full",
+      "value": 36
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "Jump_PreStart_Full",
+      "value": 37
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "Jump_Start_Full",
+      "value": 38
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "Jump_Rising_Full",
+      "value": 39
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "Jump_Peak_Full",
+      "value": 40
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "JumpSecond__Air_Full",
+      "value": 41
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "Jump_Fall_Full",
+      "value": 42
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "Jump_Land_Full",
+      "value": 43
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "Jog_End_Full",
+      "value": 44
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "TurnAround",
+      "value": 45
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "AimToGundown",
+      "value": 501
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "GundownToAim",
+      "value": 502
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "GundownToNotAimShoot",
+      "value": 503
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "NotAimShootToGundown",
+      "value": 504
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "IdleToJogFast",
+      "value": 505
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "IdleToJogSlow",
+      "value": 506
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "IdleToWalk",
+      "value": 507
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "JogFastToIdle",
+      "value": 508
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "JogSlowToIdle",
+      "value": 509
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "WalkToIdle",
+      "value": 510
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "CombatIdle",
+      "value": 511
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "SkillNotice",
+      "value": 512
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "SkillReady",
+      "value": 513
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "Skill_1",
+      "value": 514
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "Skill_2",
+      "value": 515
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "Skill_3",
+      "value": 516
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "Skill_4",
+      "value": 517
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "Skill_5",
+      "value": 518
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "Skill_6",
+      "value": 519
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "Skill_7",
+      "value": 520
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "Skill_8",
+      "value": 521
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "Skill_9",
+      "value": 522
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "Skill_10",
+      "value": 523
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "Skill_11",
+      "value": 524
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "Skill_12",
+      "value": 525
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "Skill_13",
+      "value": 526
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "Skill_14",
+      "value": 527
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "Skill_15",
+      "value": 528
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "Skill_16",
+      "value": 529
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "None",
+      "value": 530
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "Attack_Normal_4",
+      "value": 1001
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "Dodge",
+      "value": 1002
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "Guard",
+      "value": 1003
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "HitReact",
+      "value": 1004
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "Stagger",
+      "value": 1005
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "Death",
+      "value": 1006
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "Ability",
+      "value": 1007
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "HeavyAttack",
+      "value": 1101
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "RocketAttack",
+      "value": 1102
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "RushPrepare",
+      "value": 1103
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "RushRelease",
+      "value": 1104
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "RushCharge",
+      "value": 1105
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "RocketLeap",
+      "value": 1106
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "PrecisionReload",
+      "value": 1107
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "MagazineShot",
+      "value": 1108
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "GuardEnter",
+      "value": 1110
+    },
+    {
+      "type": "EAnimationLogicState",
+      "name": "GuardExit",
+      "value": 1111
+    }
+  ],
+  "scene": "Assets/OSSASTRA/Scenes/SC_VC02B_IntegrationReady.unity",
+  "prefabStage": "Assets/GameResources/Prefab/Character/MainCharacter/VELGITA/VELGITA.prefab",
+  "userStageDirty": false
+}

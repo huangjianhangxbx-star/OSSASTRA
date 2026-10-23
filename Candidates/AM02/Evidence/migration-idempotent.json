@@ -1,0 +1,60 @@
+{
+  "records": [
+    {
+      "kind": "body-map",
+      "source": "Assets/OSSASTRA/Configs/Abilities/temporary-a_VC02_Animation.asset",
+      "destination": "Assets/OSSASTRA/Configs/Animation/temporary-a_VC02_Animation_Mapping.asset",
+      "guid": "357b1c0d9000e19479b83ae04bc5a8f5"
+    },
+    {
+      "kind": "body-map",
+      "source": "Assets/OSSASTRA/Configs/Abilities/temporary-b_VC02_Animation.asset",
+      "destination": "Assets/OSSASTRA/Configs/Animation/temporary-b_VC02_Animation_Mapping.asset",
+      "guid": "fedefdfbc468f444ba4e898608f62d5c"
+    },
+    {
+      "kind": "body-map",
+      "source": "Assets/OSSASTRA/Configs/Characters/Rozeul_Animation.asset",
+      "destination": "Assets/OSSASTRA/Configs/Animation/Rozeul_Animation_Mapping.asset",
+      "guid": "be395d0be34859e47afc83c24de25c41"
+    },
+    {
+      "kind": "equipment-map",
+      "source": "Assets/OSSASTRA/Configs/Abilities/EquipmentSpineProbe/验证盾A_按住防御_Spine.asset",
+      "destination": "Assets/OSSASTRA/Configs/Animation/验证盾A_按住防御_Spine_Mapping.asset",
+      "guid": "6b9936ee83d07884ab4a5dfe0b70cfd1"
+    },
+    {
+      "kind": "equipment-map",
+      "source": "Assets/OSSASTRA/Configs/Abilities/EquipmentSpineProbe/验证盾B_按下攻击_Spine.asset",
+      "destination": "Assets/OSSASTRA/Configs/Animation/验证盾B_按下攻击_Spine_Mapping.asset",
+      "guid": "5d8555363d8407142b48c049b90f38f5"
+    },
+    {
+      "kind": "equipment-map",
+      "source": "Assets/OSSASTRA/VC02B/EquipmentSpine_Left_PROBE.asset",
+      "destination": "Assets/OSSASTRA/Configs/Animation/EquipmentSpine_Left_PROBE_Mapping.asset",
+      "guid": "0cd27de3c02bd5f43ae28fa1286efa72"
+    },
+    {
+      "kind": "equipment-map",
+      "source": "Assets/OSSASTRA/VC02B/EquipmentSpine_Right_PROBE.asset",
+      "destination": "Assets/OSSASTRA/Configs/Animation/EquipmentSpine_Right_PROBE_Mapping.asset",
+      "guid": "e9a444b5417a26e49963b6c6e41cb9e3"
+    }
+  ],
+  "actors": [
+    {
+      "ActorId": "temporary-a",
+      "controllers": 1,
+      "oldViews": 0
+    },
+    {
+      "ActorId": "temporary-b",
+      "controllers": 1,
+      "oldViews": 0
+    }
+  ],
+  "userStage": "Assets/GameResources/Prefab/Character/MainCharacter/VELGITA/VELGITA.prefab",
+  "userDirty": false
+}

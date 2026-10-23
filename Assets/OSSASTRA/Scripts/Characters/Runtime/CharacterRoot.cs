@@ -23,7 +23,7 @@ namespace Ossastra.Characters
         [SerializeField] private string actorId = "player";
         [FormerlySerializedAs("motor"), SerializeField] private CharacterMovement movement;
         [SerializeField] private CharacterOrientation orientation;
-        [SerializeField] private CharacterSpineView view;
+        [SerializeField] private MonoBehaviour view;
         [SerializeField] private CombatMeleeHit melee;
         [SerializeField] private CharacterInputHandler input;
         [SerializeField] private Camera viewCamera;
@@ -188,7 +188,7 @@ namespace Ossastra.Characters
             foreach(var component in GetComponents<MonoBehaviour>())if(component is ICharacterTransientItemPresentation itemView){transientItems=itemView;itemView.Initialize(this);break;}
             mover = movement;
             orienter = orientation;
-            presentation = view;
+            presentation = view as ICharacterPresentation;
             hitResolver = melee;
             if (!inputSource.IsConfigured) { Debug.LogError("Character actions are not configured", this); enabled = false; return; }
             try
@@ -242,7 +242,7 @@ namespace Ossastra.Characters
 
         // Spine在Update求骨骼；本根LateUpdate消费同帧挂点，Renderer稍后构建网格。
         // 此处仅推进装备表现，不执行第二次Move或结算。
-        private void LateUpdate(){if(ready){equipmentView?.TickPresentation();equipmentSpineView?.TickPresentation();transientItems?.TickPresentation();}}
+        private void LateUpdate(){if(ready){(presentation as Ossastra.CharacterAnimation.CharacterAnimationController)?.FlushSignals();equipmentView?.TickPresentation();equipmentSpineView?.TickPresentation();transientItems?.TickPresentation();}}
         // 7. Animation Intent → One Commit；无子模块Update争抢主轨。
         private void CommitPresentation()
         {

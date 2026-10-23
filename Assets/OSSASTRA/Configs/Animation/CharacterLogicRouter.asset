@@ -1,0 +1,88 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 40e2559f497b2494a8779e423caaa6e6, type: 3}
+  m_Name: CharacterLogicRouter
+  m_EditorClassIdentifier: 
+  rulesMelee: []
+  rulesMovement: []
+  rulesFirearm: []
+  rulesJump: []
+  rulesTransition: []
+  rulesSkill: []
+  rulesOther:
+  - matchSource: 0
+    source: 0
+    inputSemantic: 1
+    outputID: 27
+    priority: 0
+    conditions: []
+  - matchSource: 0
+    source: 0
+    inputSemantic: 3
+    outputID: 23
+    priority: 0
+    conditions: []
+  - matchSource: 0
+    source: 0
+    inputSemantic: 1003
+    outputID: 1003
+    priority: 0
+    conditions: []
+  - matchSource: 0
+    source: 0
+    inputSemantic: 1002
+    outputID: 1002
+    priority: 0
+    conditions: []
+  - matchSource: 0
+    source: 0
+    inputSemantic: 1004
+    outputID: 1004
+    priority: 0
+    conditions: []
+  - matchSource: 0
+    source: 0
+    inputSemantic: 1005
+    outputID: 1005
+    priority: 0
+    conditions: []
+  - matchSource: 0
+    source: 0
+    inputSemantic: 1007
+    outputID: 1007
+    priority: 0
+    conditions: []
+  - matchSource: 0
+    source: 0
+    inputSemantic: 24
+    outputID: 11
+    priority: 0
+    conditions: []
+  - matchSource: 0
+    source: 0
+    inputSemantic: 25
+    outputID: 12
+    priority: 0
+    conditions: []
+  - matchSource: 0
+    source: 0
+    inputSemantic: 26
+    outputID: 13
+    priority: 0
+    conditions: []
+  - matchSource: 0
+    source: 0
+    inputSemantic: 1001
+    outputID: 1001
+    priority: 0
+    conditions: []
+  rules: []

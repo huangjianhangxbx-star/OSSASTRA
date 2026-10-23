@@ -111,7 +111,10 @@ GameObject:
   - component: {fileID: 1328651371680844712}
   - component: {fileID: 3997986899086901469}
   - component: {fileID: 1753654980807569728}
-  - component: {fileID: 553735603128144088}
+  - component: {fileID: 8338163094850606883}
+  - component: {fileID: 6802315374980376052}
+  - component: {fileID: 6649303694927390815}
+  - component: {fileID: 5239112550494130300}
   m_Layer: 0
   m_HasEditorInfo: 1
   m_Name: MainBody
@@ -275,7 +278,7 @@ MonoBehaviour:
   addNormalsDeprecated: 0
   calculateTangentsDeprecated: 0
   maskInteractionDeprecated: 0
---- !u!114 &553735603128144088
+--- !u!114 &8338163094850606883
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -284,15 +287,50 @@ MonoBehaviour:
   m_GameObject: {fileID: 5442708628336011161}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 10e0f17d16384e34db6e3701f878a563, type: 3}
+  m_Script: {fileID: 11500000, guid: 364b5fb742a3e494dab3b51e3469fd08, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  baseMap: {fileID: 11400000, guid: be395d0be34859e47afc83c24de25c41, type: 2}
+  itemOverrides: []
+  statusOverrides: {fileID: 0}
+  logicRouter: {fileID: 11400000, guid: 42dd591e000347444b359d489fd16ea7, type: 2}
+--- !u!114 &6802315374980376052
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5442708628336011161}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 19036d8a9babc7d42b0e4ff2afa40bc2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+--- !u!114 &6649303694927390815
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5442708628336011161}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6e6c60493f4e27d4581ebaa2b28797f1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+--- !u!114 &5239112550494130300
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5442708628336011161}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: da2dd7046fecc6e46acda05ec4e4fc3d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
   skeleton: {fileID: 1753654980807569728}
-  profile: {fileID: 0}
-  idle: idle1_1
-  move: run
-  attack: atk1
-  catalog: []
 --- !u!1 &6821041145637747292
 GameObject:
   m_ObjectHideFlags: 0
@@ -413,7 +451,7 @@ MonoBehaviour:
   actorId: player
   movement: {fileID: 7560466238603185261}
   orientation: {fileID: 62508862999485397}
-  view: {fileID: 553735603128144088}
+  view: {fileID: 5239112550494130300}
   melee: {fileID: 4380353501325685047}
   input: {fileID: 6855529470788851489}
   viewCamera: {fileID: 0}

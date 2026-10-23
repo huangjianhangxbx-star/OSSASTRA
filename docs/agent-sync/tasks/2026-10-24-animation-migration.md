@@ -16,3 +16,14 @@
 - 旧A并行夹具与B库存不同、生命周期墙钟断言失配，两次夹具失败已保存并订正，不掩盖。
 
 - AM01最终：正常背包47/47，销毁回归GREEN，最终退出日志新增范围无MissingReference/Exception；准备独立发布，继续AM02。
+- AM01已发布ed74ae1af1698306cd44f5fdb7a871dbc1bbf3b7，GitHub main精确SHA核对；AM02开始，只读旧参考与原式SO链盘点中。
+- 最新用户明确指令：整轮AM01-AM03完成、验证并推送GitHub后关机；覆盖此前“不关机”。未完成前不得执行关机。
+
+## AM02 当前进展
+- 正式Ossastra.CharacterAnimation原式SO/完整枚举/来源契约已迁入；原参考/GUID不变。配置合同9/9、真实Spine播放16/16通过。
+- B两角色、候选Prefab已由Editor切为CharacterAnimationController→Composer→Handle，身体和左右装备均用Handle；实际旧视图0。当前三角色映射/四装备映射/路由共8个新SO唯一GUID。
+- 实际操作回归17/17，六技能25/25（含原多阶段动作、真实移动/HP/费用/单ActionId）。正在补冻结/左右手独立/幂等资产和生命周期验证，未发布AM02。
+- 材料事实：rozeul有ready_start/loop/end，已接Guard架势进入/退出；无专用run_start/end，不用无关片段伪造跑步起停。共享NPC/Enemy动画模块保留。
+- 首次资产迁移在默认Prefab无角色Definition处明确失败，已读回确认Prefab未改后适配显式Rozeul默认映射并重跑；A/B映射文件按源路径名区分（源SO内部name相同）。生产当前装配已成功，不宣称首次一次通过。
+
+- AM02收口：保存重开A/B独立映射、旧视图0/旧孤立覆盖0；六技能final25/25、生命周期final13/13、真实Spine重建/启停扩展22/22通过。Odin Editor实际类型已核对，身份与94片段映射表已输出。AM02准备定向发布，继续AM03。

@@ -10,7 +10,7 @@ namespace Ossastra.Characters
     public sealed class CharacterDefinitionSO:ScriptableObject
     {
         public string definitionId,displayName;
-        public CharacterAnimationProfileSO animationProfile;
+        [HideInInspector] public CharacterAnimationProfileSO animationProfile; // 历史场/迁移来源；正式动画在ConfigManager原式SO中维护。
         public CharacterRigProfileSO rigProfile;
         public ActionDefinitionSO[] basicAttacks=Array.Empty<ActionDefinitionSO>();
         [Min(.01f)] public float dodgeDuration=.45f,dodgeDistance=2.4f;

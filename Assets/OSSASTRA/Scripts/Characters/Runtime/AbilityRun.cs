@@ -24,6 +24,8 @@ namespace Ossastra.Characters
         public readonly Action<AbilityRunContext,AbilityEmission> emit;
         public readonly AbilityOperation operation;
         public readonly CharacterActionSource requestSource;
+        // 操作/表现所属手别与资源来源分离：副手可消耗主手弹药，仍是副手动作。
+        public readonly bool? presentationMainHand;
         public readonly Sprite projectileSprite;
         public readonly float projectileScale;
         public readonly EffectSnapshot effects;
@@ -45,11 +47,12 @@ namespace Ossastra.Characters
             var state=source.RuntimeState;
             return state.Cooldowns.Commit(source.InstanceId+":"+definition.cooldownIdentity,id,state.Clock(definition.cooldownPolicy),ModifiedCooldown);
         }
-        public AbilityRunContext(CharacterRoot owner,CompiledAbility definition,IAbilitySource source,Guid id,Vector3 direction,Vector3 landing,Action<AbilityRunContext,AbilityEmission> emit,AbilityOperation operation,Sprite sprite,float scale,EffectSnapshot effects=null,Guid releasePaymentId=default,CharacterActionSource requestSource=CharacterActionSource.Player)
+        public AbilityRunContext(CharacterRoot owner,CompiledAbility definition,IAbilitySource source,Guid id,Vector3 direction,Vector3 landing,Action<AbilityRunContext,AbilityEmission> emit,AbilityOperation operation,Sprite sprite,float scale,EffectSnapshot effects=null,Guid releasePaymentId=default,CharacterActionSource requestSource=CharacterActionSource.Player,bool? presentationMainHand=null)
         {
             this.owner=owner;this.definition=definition;this.source=source;this.id=id;this.direction=direction;this.landing=landing;this.emit=emit;
             lifeGeneration=owner.LifeGeneration;acceptedAt=owner.SimulationTime;
             this.operation=operation;this.requestSource=requestSource;
+            this.presentationMainHand=presentationMainHand;
             projectileSprite=sprite;projectileScale=scale;
             this.effects=effects??new EffectSnapshot(0,Array.Empty<EffectSourceRow>(),0,false);
             this.releasePaymentId=releasePaymentId;shot=source.RuntimeState.ShotEnhancements.Snapshot();

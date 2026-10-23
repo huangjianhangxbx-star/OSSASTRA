@@ -16,9 +16,10 @@ using Spine.Unity;
 using UnityEngine;
 namespace Ossastra.Characters
 {
-    public sealed class CharacterSpineView : MonoBehaviour, ICharacterPresentation, ICharacterAnimationFacts, ICharacterConfiguredAnimation
+    public sealed class CharacterSpineView : MonoBehaviour, ICharacterPresentation, ICharacterAnimationFacts, ICharacterConfiguredAnimation, ICharacterAnimationStateView
     {
         [SerializeField] private SkeletonAnimation skeleton;
+        public SkeletonAnimation Skeleton=>skeleton;
         [SerializeField] private CharacterAnimationProfileSO profile;
         private Guid capturedAction;
         private string capturedClip;

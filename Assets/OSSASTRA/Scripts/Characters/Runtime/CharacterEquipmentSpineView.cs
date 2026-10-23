@@ -8,6 +8,9 @@ using Ossastra.AnimationCore;
 using Ossastra.CharacterCore;
 using Spine.Unity;
 using UnityEngine;
+using System.Linq;
+using System.Collections.Generic;
+using A=Ossastra.CharacterAnimation;
 using SemanticIntent=Ossastra.AnimationCore.AnimationIntent;
 using PlaybackIdentity=Ossastra.AnimationCore.AnimationPlaybackIdentity;
 namespace Ossastra.Characters
@@ -17,7 +20,8 @@ namespace Ossastra.Characters
     {
         private CharacterRoot owner;
         private CharacterEquipment equipment;
-        private CharacterSpineView bodyView;
+        private ICharacterAnimationStateView bodyView;
+        private CharacterAbilities abilities;
         private SkeletonAnimation body;
         private SlotView left,right;
         public string LastResult {get;private set;}="未初始化";
@@ -34,18 +38,27 @@ namespace Ossastra.Characters
         public void Initialize(CharacterRoot root)
         {
             if(owner!=null)owner.ActionObserved-=OnAction;
+            if(abilities!=null)abilities.Feedback-=OnAbilityFeedback;
             DisposeViews();owner=root;equipment=root.GetComponent<CharacterEquipment>();
-            bodyView=root.GetComponentInChildren<CharacterSpineView>();body=bodyView==null?null:bodyView.GetComponent<SkeletonAnimation>();
+            bodyView=root.GetComponentsInChildren<MonoBehaviour>().OfType<ICharacterAnimationStateView>().FirstOrDefault();body=bodyView?.Skeleton;
             if(body==null)body=root.GetComponentInChildren<SkeletonAnimation>();
             if(equipment==null||bodyView==null||body==null){LastResult="缺少身体/装备端口";return;}
-            left=new SlotView("LeftEquipmentSpine");right=new SlotView("RightEquipmentSpine");
+            left=new SlotView("LeftEquipmentSpine",false);right=new SlotView("RightEquipmentSpine",true);
+            abilities=root.GetComponent<CharacterAbilities>();if(abilities!=null)abilities.Feedback+=OnAbilityFeedback;
             owner.ActionObserved+=OnAction;LastResult="就绪";
         }
         private void OnAction(ActionFact fact)
         {
             if(fact.Kind!=ActionFactKind.Accepted)return;
             // 冻结的是这次执行的动画映射。之后修改SO不会追改已接受动作。
-            BindViews();left?.Capture(fact.ActionId);right?.Capture(fact.ActionId);
+            BindViews();right?.Capture(fact.ActionId);
+        }
+        private void OnAbilityFeedback(Guid id,string kind,Vector3 position)
+        {
+            if(kind!="accepted"||abilities==null)return;
+            BindViews();
+            if(abilities.TryGetHandPresentation(false,out var leftId,out _,out _)&&leftId==id)left?.Capture(id);
+            if(abilities.TryGetHandPresentation(true,out var rightId,out _,out _)&&rightId==id)right?.Capture(id);
         }
         private void BindViews()
         {
@@ -63,12 +76,18 @@ namespace Ossastra.Characters
         }
         public void Hide(){left?.Hide();right?.Hide();}
         private void OnDisable(){Hide();}
-        private void OnDestroy(){if(owner!=null)owner.ActionObserved-=OnAction;DisposeViews();}
+        private void OnDestroy(){if(owner!=null)owner.ActionObserved-=OnAction;if(abilities!=null)abilities.Feedback-=OnAbilityFeedback;DisposeViews();}
         private void DisposeViews(){left?.Dispose();right?.Dispose();left=null;right=null;}
 
         private sealed class SlotView
         {
             private readonly string objectName;
+            private readonly bool main;
+            private A.AnimationHandleSystem handle;
+            private A.CharacterAnimationComposer composer;
+            private A.CharacterAnimationConfigManager config;
+            private readonly Dictionary<A.EAnimationLogicState,A.CharacterAnimationPlan> capturedPlans=new Dictionary<A.EAnimationLogicState,A.CharacterAnimationPlan>();
+            private int bindingGeneration;
             private EquipmentDefinitionSO definition;
             private EquipmentSpinePresentationSO profile;
             private EquipmentAnimationCatalog catalog,capturedCatalog;
@@ -94,7 +113,7 @@ namespace Ossastra.Characters
             public Guid ReplayId {get;private set;}
             public float GripError {get;private set;}
             public string Status {get;private set;}="无Spine配置";
-            public SlotView(string name){objectName=name;}
+            public SlotView(string name,bool main){objectName=name;this.main=main;}
             public void Bind(EquipmentDefinitionSO next,SkeletonAnimation nextBody,CharacterRigProfileSO nextRig)
             {
                 var nextProfile=next==null?null:next.spinePresentation;
@@ -110,6 +129,8 @@ namespace Ossastra.Characters
                     SkeletonAnimation.AddToGameObject(child,profile.skeletonData);
                     Animation=child.GetComponent<SkeletonAnimation>();spineRenderer=child.GetComponent<SkeletonRenderer>();
                     Animation.UpdateTiming=UpdateTiming.ManualUpdate;Animation.Initialize(false);Animation.Update(0);
+                    handle=child.AddComponent<A.AnimationHandleSystem>();config=child.AddComponent<A.CharacterAnimationConfigManager>();composer=child.AddComponent<A.CharacterAnimationComposer>();
+                    config.baseMap=profile.animationMap;bindingGeneration++;
                     var boneName=socket?.BoneName??profile.bodyBone;var slotName=socket?.SlotName??profile.bodySlot;
                     bodyBone=body.Skeleton.FindBone(boneName);bodySlot=string.IsNullOrEmpty(slotName)?null:body.Skeleton.FindSlot(slotName);
                     grip=Animation.Skeleton.FindBone(profile.gripBone);meshRenderer=child.GetComponent<MeshRenderer>();bodyRenderer=body.GetComponent<Renderer>();
@@ -124,25 +145,55 @@ namespace Ossastra.Characters
                 if(profile==null||body==null)return;
                 try{capturedCatalog=profile.Freeze(body.Skeleton.Data,rigProfile);capturedExecution=actionId;}
                 catch(Exception e){Status="冻结映射失败："+e.Message;Hide();}
+                capturedPlans.Clear();
+                if(profile.animationMap!=null)foreach(A.EAnimationLogicState logic in Enum.GetValues(typeof(A.EAnimationLogicState)))
+                {var plan=profile.animationMap.GetDefault(logic);if(plan!=null)capturedPlans[logic]=plan;}
             }
-            public void Present(CharacterRoot root,CharacterSpineView view,float delta,bool visible)
+            public void Present(CharacterRoot root,ICharacterAnimationStateView view,float delta,bool visible)
             {
                 if(Animation==null||bodyBone==null||grip==null)return;
                 var slotPose=bodySlot?.AppliedPose;
                 var tint=slotColor&&slotPose!=null?slotPose.GetColor():Color.white;
                 visible=visible&&tint.a>0&&(!slotVisibility||slotPose==null||slotPose.Attachment!=null);
                 meshRenderer.enabled=visible;if(!visible)return;
-                var activeCatalog=root.ActionActive&&root.DataBus.ActionId==capturedExecution?capturedCatalog:catalog;
-                var binding=activeCatalog?.Find(view.CurrentSemantic);
-                if(binding==null){Status="未映射语义："+view.CurrentSemantic;meshRenderer.enabled=false;return;}
-                var intent=new SemanticIntent(root.ActorId,view.CurrentSemantic,"equipment",view.CurrentReplayId,root.LifeGeneration);
-                if(playback.ShouldCommit(binding.Clip,intent))
+                var module=root.GetComponent<CharacterAbilities>();
+                bool own=module!=null&&module.TryGetHandPresentation(main,out _,out _,out _);
+                Guid execution=Guid.Empty;bool guarding=false,usesBody=false;
+                if(own)module.TryGetHandPresentation(main,out execution,out guarding,out usesBody);
+                if(own&&usesBody&&!ActionPresentationPolicy.RetainMainPose(root.ActionActive,root.DataBus.MoveReady,root.DataBus.IsMoving)&&!root.DataBus.AbilityMotionActive)own=false;
+                bool mainPose=main&&root.ActionActive&&view.CurrentSource=="action";
+                var semantic=own?(guarding?AnimationSemantic.Guard:AnimationSemantic.BasicAttack):mainPose?view.CurrentSemantic:
+                    view.CurrentSemantic==AnimationSemantic.BasicAttack||view.CurrentSemantic==AnimationSemantic.BasicAttackSecond?(root.DataBus.IsMoving?AnimationSemantic.Move:AnimationSemantic.Idle):view.CurrentSemantic;
+                ExecutionId=own?execution:mainPose?root.DataBus.ActionId:Guid.Empty;
+                var bodyController=view as A.CharacterAnimationController;
+                ReplayId=ExecutionId!=Guid.Empty&&bodyController!=null&&bodyController.CapturedActionId==ExecutionId?bodyController.CapturedPhaseId:ExecutionId;
+                if(semantic==AnimationSemantic.Dodge&&ExecutionId==Guid.Empty)ReplayId=view.CurrentReplayId;
+                var logic=own&&!guarding?A.EAnimationLogicState.Ability:Logic(semantic);
+                var source=main?A.AnimationIntentSourceStateMachine.MainHand:A.AnimationIntentSourceStateMachine.OffHand;
+                if(profile.animationMap!=null)
                 {
-                    var track=Animation.AnimationState.SetAnimation(0,binding.Clip,binding.Loop);
-                    track.MixDuration=binding.Mix;track.TimeScale=binding.Rate;CommitCount++;
+                    if(!handle.Bind(root,Animation,objectName))return;
+                    config.Initialize(root);composer.Initialize(root,config,handle,objectName,_=>definition);
+                    A.CharacterAnimationPlan frozen=null;
+                    if(ExecutionId!=Guid.Empty&&capturedExecution==ExecutionId)capturedPlans.TryGetValue(logic,out frozen);
+                    composer.SubmitIntent(new A.AnimationIntent{root=root,actorId=root.ActorId,target=objectName,intentSourceStateMatine=source,
+                        semantic=own&&!guarding?A.EAnimSemantic.Ability:A.AnimationSemanticTranslation.FromShared(semantic),logicId=logic,priority=10,
+                        lifeGeneration=root.LifeGeneration,presentationGeneration=bindingGeneration,actionId=ExecutionId,phaseId=ReplayId,
+                        configurationVersion=config.ConfigurationVersion,oneShot=ExecutionId!=Guid.Empty,frozenPlan=frozen});
+                    composer.Commit(bindingGeneration);CommitCount=handle.CommitCount;
                 }
-                ExecutionId=view.CurrentSource=="action"?root.DataBus.ActionId:Guid.Empty;ReplayId=view.CurrentReplayId;
+                else
+                {
+                    // 历史未迁移资产的只读适配也交同一Handle，装备不再直接SetAnimation。
+                    var activeCatalog=ExecutionId!=Guid.Empty&&capturedExecution==ExecutionId?capturedCatalog:catalog;
+                    var binding=activeCatalog?.Find(semantic);if(binding==null){Status="未映射语义："+semantic;meshRenderer.enabled=false;return;}
+                    handle.Bind(root,Animation,objectName);
+                    var plan=new A.CharacterAnimationPlan();plan.clips.Add(new A.CharacterAnimationClip{animaName=binding.Clip,loop=binding.Loop,mixDuration=binding.Mix,playbackRate=binding.Rate,
+                        runtimeActor=root.ActorId,runtimeTarget=objectName,runtimeSourceStateMachine=source,runtimeActionId=ExecutionId,runtimePhaseId=ReplayId,runtimeGeneration=bindingGeneration,runtimeLifeGeneration=root.LifeGeneration});
+                    handle.ApplyPlan(plan,bindingGeneration);CommitCount=handle.CommitCount;
+                }
                 Animation.Skeleton.SetColor(tint*body.Skeleton.GetColor());Animation.Update(delta);
+                handle.FlushSignals();
                 var pose=bodyBone.AppliedPose;
                 // 骨骼矩阵的X轴承载朝向；负行列式单独放在Y轴，避免左右镜像被旋转重复应用。
                 var determinant=pose.A*pose.D-pose.B*pose.C;
@@ -158,9 +209,16 @@ namespace Ossastra.Characters
                 visual.localPosition=anchor-localRotation*Vector3.Scale(localScale,gripPosition);
                 GripError=Vector3.Distance(visual.TransformPoint(gripPosition),body.transform.TransformPoint(anchor));
                 if(bodyRenderer!=null){meshRenderer.sortingLayerID=bodyRenderer.sortingLayerID;meshRenderer.sortingOrder=bodyRenderer.sortingOrder+sortingOffset;}
-                Status="独立Spine / "+binding.Clip;
+                Status="独立Spine / "+Animation.AnimationState.GetTrack(0)?.Animation?.Name;
             }
-            public void Hide(){if(meshRenderer!=null)meshRenderer.enabled=false;}
+            private static A.EAnimationLogicState Logic(AnimationSemantic semantic)
+            {
+                switch(semantic){case AnimationSemantic.Move:return A.EAnimationLogicState.Jog;case AnimationSemantic.Guard:return A.EAnimationLogicState.Guard;
+                    case AnimationSemantic.Dodge:return A.EAnimationLogicState.Dodge;case AnimationSemantic.HitReaction:return A.EAnimationLogicState.HitReact;
+                    case AnimationSemantic.PostureBroken:return A.EAnimationLogicState.Stagger;case AnimationSemantic.Death:return A.EAnimationLogicState.Death;
+                    case AnimationSemantic.BasicAttack:case AnimationSemantic.BasicAttackSecond:return A.EAnimationLogicState.Ability;default:return A.EAnimationLogicState.Idle;}
+            }
+            public void Hide(){if(meshRenderer!=null)meshRenderer.enabled=false;composer?.ClearAllIntents();handle?.ClearAll();}
             public void Dispose()
             {
                 if(Animation!=null){Animation.gameObject.SetActive(false);UnityEngine.Object.Destroy(Animation.gameObject);}

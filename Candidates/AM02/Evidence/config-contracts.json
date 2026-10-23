@@ -1,0 +1,41 @@
+{
+  "failed": 0,
+  "rows": [
+    {
+      "name": "old enum exact values include nonzero None",
+      "ok": true
+    },
+    {
+      "name": "resolved lists and clips are private",
+      "ok": true
+    },
+    {
+      "name": "empty mapping does not shadow legacy valid plan",
+      "ok": true
+    },
+    {
+      "name": "clear-only and queue-only retain operations",
+      "ok": true
+    },
+    {
+      "name": "route highest priority and stable first tie",
+      "ok": true
+    },
+    {
+      "name": "all AND conditions enforced",
+      "ok": true
+    },
+    {
+      "name": "source-specific equipped context routes",
+      "ok": true
+    },
+    {
+      "name": "unknown fact does not invent false",
+      "ok": true
+    },
+    {
+      "name": "override first matching rule and private clone",
+      "ok": true
+    }
+  ]
+}

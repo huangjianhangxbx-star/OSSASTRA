@@ -199,6 +199,7 @@ namespace Ossastra.Characters
                     owner.StateMainAction.Accept(request.Fact.ActionId,prepared,aiTarget==null?owner.StateOrienter.AttackDirection:aiTarget.transform.position-owner.transform.position);
                 }
                 else if(actionConfig!=null)(owner.StatePresentation as ICharacterConfiguredAnimation)?.CaptureAction(request.Fact.ActionId,actionConfig);
+                else (owner.StatePresentation as ICharacterDefaultActionAnimation)?.CaptureDefaultAction(request.Fact.ActionId,selected,stage);
                 AttackStage=stage; autonomousAction=aiTarget!=null; autonomousTarget=aiTarget;
                 if(autonomousAction) { chain?.Clear(); owner.StateCombatBrain.OnAccepted(); owner.StateOrienter.OrientTowards(aiTarget.transform.position); }
                 else chain?.Accepted(stage,request.Fact.ActionId,runtime.SimulationTime,selected.AttackReadyAt);

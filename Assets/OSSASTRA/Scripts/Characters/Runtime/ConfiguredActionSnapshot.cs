@@ -12,7 +12,9 @@ namespace Ossastra.Characters
         public float Mix {get;}
         public float Rate {get;}
         public bool Loop {get;}
-        public ConfiguredActionSnapshot(BasicAttackDefinition timeline,string clip,float mix,float rate,bool loop)
-        {Timeline=timeline;Clip=clip;Mix=mix;Rate=rate;Loop=loop;}
+        private readonly System.Func<object> copyPresentationPlan;
+        public object CopyPresentationPlan()=>copyPresentationPlan?.Invoke();
+        public ConfiguredActionSnapshot(BasicAttackDefinition timeline,string clip,float mix,float rate,bool loop,System.Func<object> copyPresentationPlan=null)
+        {Timeline=timeline;Clip=clip;Mix=mix;Rate=rate;Loop=loop;this.copyPresentationPlan=copyPresentationPlan;}
     }
 }

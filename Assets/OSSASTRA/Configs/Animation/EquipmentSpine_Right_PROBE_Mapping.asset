@@ -1,0 +1,151 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 38950824afabfbb4c9a9ccd980cc5045, type: 3}
+  m_Name: EquipmentSpine_Right_PROBE_Mapping
+  m_EditorClassIdentifier: 
+  skeletonDataAsset: {fileID: 11400000, guid: 0a3c88a74a4793f4ea4aabd574ce9879, type: 2}
+  plansMelee: []
+  plansMovement:
+  - logicID: 27
+    plan:
+      clips:
+      - animaName: rest
+        track: 0
+        loop: 1
+        mixDuration: 0.06
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: 0a3c88a74a4793f4ea4aabd574ce9879, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 23
+    plan:
+      clips:
+      - animaName: carry
+        track: 0
+        loop: 1
+        mixDuration: 0.06
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: 0a3c88a74a4793f4ea4aabd574ce9879, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  plansFirearm: []
+  plansJump: []
+  plansTransition: []
+  plansSkill: []
+  plansOther:
+  - logicID: 1007
+    plan:
+      clips:
+      - animaName: strike
+        track: 0
+        loop: 0
+        mixDuration: 0.06
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: 0a3c88a74a4793f4ea4aabd574ce9879, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 1004
+    plan:
+      clips:
+      - animaName: recoil
+        track: 0
+        loop: 0
+        mixDuration: 0.06
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: 0a3c88a74a4793f4ea4aabd574ce9879, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 1005
+    plan:
+      clips:
+      - animaName: break
+        track: 0
+        loop: 0
+        mixDuration: 0.06
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: 0a3c88a74a4793f4ea4aabd574ce9879, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 1006
+    plan:
+      clips:
+      - animaName: vanish
+        track: 0
+        loop: 0
+        mixDuration: 0.06
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: 0a3c88a74a4793f4ea4aabd574ce9879, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 1002
+    plan:
+      clips:
+      - animaName: evade
+        track: 0
+        loop: 0
+        mixDuration: 0.06
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: 0a3c88a74a4793f4ea4aabd574ce9879, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 1003
+    plan:
+      clips:
+      - animaName: brace
+        track: 0
+        loop: 1
+        mixDuration: 0.06
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: 0a3c88a74a4793f4ea4aabd574ce9879, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  defaultPlans: []

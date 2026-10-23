@@ -18,7 +18,10 @@ namespace Ossastra.Characters
     [CreateAssetMenu(menuName="OSSASTRA/Actions/Action Definition")]
     public sealed class ActionDefinitionSO:ScriptableObject
     {
-        public string definitionId,animationKey;
+        public string definitionId;
+        [HideInInspector] public string animationKey; // 历史资产读取兼容；正式作者只维护animationLogicId。
+        [Tooltip("正式动画逻辑ID；animationKey仅保留未迁移旧资产的读取兼容。")]
+        public Ossastra.CharacterAnimation.EAnimationLogicState animationLogicId = Ossastra.CharacterAnimation.EAnimationLogicState.None;
         public ActionTimelineBinding[] eventTimeline=Array.Empty<ActionTimelineBinding>();
         [Min(0)] public float releaseAt,moveReadyAt,attackReadyAt;
         [Min(.01f)] public float finishAt=1;
