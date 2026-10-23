@@ -31,9 +31,7 @@ namespace Ossastra.Characters
             else if(request.Kind!=CharacterActionKind.Main&&request.Kind!=CharacterActionKind.Support&&request.Source==CharacterActionSource.Companion)reason="companion-capability";
             else if(request.Source!=CharacterActionSource.Companion&&request.Source!=CharacterActionSource.Inventory&&owner.GetComponent<CharacterInputHandler>()?.InventoryCaptured==true)reason="inventory-input-capture";
             else if(owner.Abilities!=null&&!owner.Abilities.CanAccept(request.Kind,out var abilityReason))reason=abilityReason;
-            else if(request.Kind==CharacterActionKind.Main&&(!owner.DataBus.AllowsAttack||!owner.DataBus.AttackReady||dodge!=null&&dodge.IsActive))reason="main-not-ready";
-            else if(request.Kind==CharacterActionKind.Dodge&&(!owner.DataBus.AllowsMovement||!owner.DataBus.MoveReady||dodge!=null&&dodge.IsActive))reason="motion-not-ready";
-            else if(request.Kind==CharacterActionKind.Guard&&dodge!=null&&dodge.IsActive)reason="dodge-active";
+            else if(owner.StateArbitrator!=null&&!owner.StateArbitrator.AllowsRequest(request.Kind,out var stateReason))reason=stateReason;
             else if(request.Kind==CharacterActionKind.Offhand&&offhand!=null&&(offhand.IsAccepting||offhand.InFlight||offhand.CooldownRemaining>0))reason="offhand-not-ready";
             else if(float.IsNaN(cost)||float.IsInfinity(cost)||cost<0)reason="invalid-cost";
             else if(stamina!=null&&!stamina.CanSpend(cost))reason="stamina";

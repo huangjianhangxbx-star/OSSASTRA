@@ -34,8 +34,8 @@ namespace Ossastra.UserInterface
             bool open=!menuPanel.gameObject.activeSelf;
             if(open){SetOpen(false);windows.gameObject.SetActive(true);player.gameObject.SetActive(false);safe.gameObject.SetActive(false);detail.gameObject.SetActive(false);external.gameObject.SetActive(false);}else{player.gameObject.SetActive(true);safe.gameObject.SetActive(true);windows.gameObject.SetActive(IsOpen);}
             menuPanel.gameObject.SetActive(open);
-            foreach(var root in session.Coordinator.Characters)root.GetComponent<Ossastra.Characters.CharacterInputHandler>().SetInventoryCapture(menuPanel,open,true);
-            session.Coordinator.SetInputCapture(menuPanel,open);
+            SetCharacterCapture(menuPanel,open,true);
+            if(session.Coordinator!=null)session.Coordinator.SetInputCapture(menuPanel,open);
             if(open&&EventSystem.current!=null)EventSystem.current.SetSelectedGameObject(menuPanel.Find("Continue").gameObject);
         }
         private Canvas canvas;
@@ -153,10 +153,22 @@ namespace Ossastra.UserInterface
         }
         public void SetOpen(bool value)
         {
-            if(windows==null||value&&(!session.Ready||session.Coordinator.Current==null||!session.Coordinator.Current.CanSimulateIntent))return;
-            CancelDrag();IsOpen=value;windows.gameObject.SetActive(value);session.Coordinator.SetInventoryCapture(this,value);
-            foreach(var root in session.Coordinator.Characters)root.GetComponent<Ossastra.Characters.CharacterInputHandler>().SetInventoryCapture(this,value);
+            if(value&&(windows==null||session==null||session.Coordinator==null||!session.Ready||session.Coordinator.Current==null||!session.Coordinator.Current.CanSimulateIntent))return;
+            CancelDrag();IsOpen=value;if(windows!=null)windows.gameObject.SetActive(value);
+            if(session!=null&&session.Coordinator!=null)session.Coordinator.SetInventoryCapture(this,value);
+            SetCharacterCapture(this,value);
             if(!value){selected=null;openedExternal=null;}dirty=true;
+        }
+        private void SetCharacterCapture(object captureOwner,bool captured,bool movement=false)
+        {
+            // 场景卸载时角色、会话和UI的销毁顺序不固定；只释放仍存活的输入端口。
+            if(session==null||session.Coordinator==null)return;
+            foreach(var root in session.Coordinator.Characters)
+            {
+                if(root==null)continue;
+                var input=root.GetComponent<Ossastra.Characters.CharacterInputHandler>();
+                if(input!=null)input.SetInventoryCapture(captureOwner,captured,movement);
+            }
         }
         public void OpenExternal(string id)
         {if(id!=null&&!session.CanAccessContainer(id)){Feedback("靠近同层容器后打开");return;}if(id!=null&&!IsOpen)SetOpen(true);CancelDrag();openedExternal=id;selected=null;dirty=true;}
@@ -238,7 +250,7 @@ namespace Ossastra.UserInterface
             if(IsOpen&&(session.Coordinator.Current==null||!session.Coordinator.Current.IsAlive)){SetOpen(false);return;}
             if(IsOpen)
             {
-                var editing=quantity.isFocused;foreach(var root in session.Coordinator.Characters)root.GetComponent<Ossastra.Characters.CharacterInputHandler>().SetInventoryCapture(this,true,editing);
+                var editing=quantity.isFocused;SetCharacterCapture(this,true,editing);
                 if(openedExternal!=null&&!session.CanAccessContainer(openedExternal)){OpenExternal(null);Feedback("已离开容器访问范围");}
                 if(selected!=null&&(session.Ledger.Find(selected)==null||!session.CanAccessContainer(session.Ledger.Find(selected).Location.ContainerId))){Select(null);CancelDrag();}
                 if(drag!=null&&drag.generation!=session.Ledger.AccessGeneration)CancelDrag();

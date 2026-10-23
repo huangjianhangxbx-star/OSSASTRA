@@ -1,0 +1,71 @@
+{
+  "state": "completed",
+  "failed": 2,
+  "rows": [
+    {
+      "name": "configured action accepts once",
+      "ok": true,
+      "fact": "Accepted @0.000 02936002"
+    },
+    {
+      "name": "early interrupt rejected without cancellation or charge",
+      "ok": true,
+      "fact": "Rejected: main-not-ready"
+    },
+    {
+      "name": "OS pause freezes existing clock and clears buffer",
+      "ok": true,
+      "fact": "Rejected: main-not-ready"
+    },
+    {
+      "name": "phase changes without second acceptance",
+      "ok": true,
+      "fact": "PhaseChanged @0.000 02936002"
+    },
+    {
+      "name": "foreign cancel cannot remove accepted action",
+      "ok": true,
+      "fact": "PhaseChanged @0.000 02936002"
+    },
+    {
+      "name": "same identity release consumed once after resume",
+      "ok": false,
+      "fact": "AttackReady @0.367 02936002"
+    },
+    {
+      "name": "next action starts after ready",
+      "ok": true,
+      "fact": "Accepted @0.000 c64623aa"
+    },
+    {
+      "name": "focus loss cancels instead of pausing",
+      "ok": false,
+      "fact": "Cancelled @0.000 c64623aa focus-lost"
+    },
+    {
+      "name": "reenable does not reinitialize machines",
+      "ok": true,
+      "fact": "Cancelled @0.000 c64623aa focus-lost"
+    },
+    {
+      "name": "disable enable retains unique runtime",
+      "ok": true,
+      "fact": "Cancelled @0.000 c64623aa focus-lost"
+    },
+    {
+      "name": "explicit repeated arbitration binding is idempotent",
+      "ok": true,
+      "fact": "Cancelled @0.000 c64623aa focus-lost"
+    },
+    {
+      "name": "death terminates state and hands current to living actor",
+      "ok": true,
+      "fact": "Cancelled @0.000 c64623aa focus-lost"
+    },
+    {
+      "name": "inactive combat exit occurs only once per entry",
+      "ok": true,
+      "fact": "Cancelled @0.000 c64623aa focus-lost"
+    }
+  ]
+}

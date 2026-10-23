@@ -1,0 +1,31 @@
+using System;using System.Linq;using System.Collections.Generic;using UnityEngine;using UnityEditor;using UnityEngine.InputSystem;using UnityEngine.InputSystem.LowLevel;using Ossastra.Characters;using Ossastra.CharacterCore;using Funplay.Editor.Tools.Scripting;
+public class AM01InputStory:IFunplayCommand {
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx){
+ if(!Application.isPlaying)throw new Exception("Play required");var c=UnityEngine.Object.FindObjectOfType<CharacterControlCoordinator>();if(c==null||c.Current==null)throw new Exception("Missing current");var actor=c.Current;var original=InputSystem.settings;var settings=UnityEngine.Object.Instantiate(original);settings.backgroundBehavior=InputSettings.BackgroundBehavior.IgnoreFocus;settings.editorInputBehaviorInPlayMode=InputSettings.EditorInputBehaviorInPlayMode.AllDeviceInputAlwaysGoesToGameView;InputSystem.settings=settings;
+ var keyboard=InputSystem.AddDevice<Keyboard>("AM01Keyboard");var mouse=InputSystem.AddDevice<Mouse>("AM01Mouse");var overrides=new Dictionary<InputAction,string>();foreach(var action in c.Characters.SelectMany(r=>{var i=r.GetComponent<CharacterInputHandler>();return new[]{i.movementAction,i.mouseAction,i.attackAction,i.dodgeAction,i.offhandAction,i.skillOneAction,i.skillTwoAction,i.skillThreeAction};}).Concat(new[]{c.switchAction}).Where(a=>a!=null).Distinct()){overrides[action]=action.SaveBindingOverridesAsJson();for(int n=0;n<action.bindings.Count;n++){var p=action.bindings[n].path;if(action.bindings[n].isComposite||p==null)continue;action.ApplyBindingOverride(n,p.Replace("<Keyboard>",keyboard.path).Replace("<Mouse>",mouse.path));}}
+ foreach(var r in c.Characters)r.SendMessage("OnApplicationFocus",true);c.SendMessage("OnApplicationFocus",true);EditorWindow.GetWindow(typeof(Editor).Assembly.GetType("UnityEditor.GameView")).Focus();
+ var rows=new List<object>();var phases=new List<(string,Action,Func<bool>,double)>();int index=0,failed=0;bool entered=false;double since=0,clock=0,gameClock=0;Vector3 position=actor.transform.position;int releases=actor.ReleaseCount;Guid actionId=Guid.Empty;int accepted=0;var ability=actor.GetComponent<CharacterAbilities>();
+ void Keys(params Key[] keys)=>InputSystem.QueueStateEvent(keyboard,new KeyboardState(keys));void Mouse(ushort b)=>InputSystem.QueueStateEvent(mouse,new MouseState{position=new Vector2(Screen.width*.6f,Screen.height*.35f),buttons=b});double Elapsed()=>EditorApplication.timeSinceStartup-since;
+ void Add(string label,Action entry,Func<bool> check,double timeout=5)=>phases.Add((label,entry,check,timeout));void Delay(string label,Action entry,double duration)=>Add(label,entry,()=>Elapsed()>=duration,duration+3);
+ Delay("neutral",()=>{Keys();Mouse(0);clock=actor.SimulationTime;gameClock=Time.timeAsDouble;},.4);
+ Add("idle clock advances exactly once",()=>{},()=>Math.Abs((actor.SimulationTime-clock)-(Time.timeAsDouble-gameClock))<.08&&actor.SimulationTime-clock>.25);
+ Add("all registrations initialized once",()=>{},()=>c.Characters.All(r=>r.StateArbitrator.Snapshots.Count==5&&r.StateArbitrator.Snapshots.All(s=>s.initialized==1)));
+ Add("no idle repeated exits",()=>{},()=>actor.StateArbitrator.Snapshots.Where(s=>s.machine!="MovementStateMachine").All(s=>s.enters==0&&s.exits==0));
+ Delay("ordinary movement held",()=>{position=actor.transform.position;Keys(Key.D);},.2);
+ Add("real movement",()=>Keys(),()=>Vector3.Distance(position,actor.transform.position)>.1f);
+ Add("attack accepts same input edge",()=>Mouse(1),()=>{if(!actor.ActionActive)return false;actionId=actor.DataBus.ActionId;return true;});
+ Add("release allows movement before action finishes",()=>{Mouse(0);Keys(Key.A);},()=>actor.DataBus.MoveReady&&actor.DataBus.IsMoving&&actor.ReleaseCount>releases);
+ Add("recovery dodge retains main identity",()=>Keys(Key.A,Key.Space),()=>actor.GetComponent<CharacterDodge>().IsActive&&actor.DataBus.ActionId==actionId);
+ Delay("neutral after dodge",()=>{Keys();Mouse(0);},1.2);
+ Add("normal finish leaves balanced combat edge",()=>{},()=>!actor.ActionActive&&actor.StateArbitrator.Combat.EnterCount==actor.StateArbitrator.Combat.ExitCount);
+ Delay("skill key",()=>{accepted=ability.AcceptedCount;Keys(Key.Q);},.12);
+ Add("skill accepted through original input",()=>Keys(),()=>ability.AcceptedCount==accepted+1);
+ Add("skill world release",()=>{},()=>ability.EmittedCount>0&&!ability.IsBusy,5);
+ Delay("switch key",()=>Keys(Key.Z),.12);
+ Add("control switched without replacing actor runtime",()=>Keys(),()=>c.Current!=actor&&actor.StateArbitrator.Combat.Runtime!=null);
+ Add("state rules reject stale control before mutation",()=>{},()=>{var stale=new CharacterActionRequest(actor.ActorId,actor.LifeGeneration,actor.ActionControlRevision-1,CharacterActionKind.Main,CharacterActionSource.Player,Guid.NewGuid(),"stale-test");var before=actor.GetComponent<CharacterStamina>().Current;var id=actor.DataBus.ActionId;bool ran=false;var ok=actor.Actions.TryCommit(stale,1,()=>{ran=true;return Guid.NewGuid();},out var reason);return !ok&&!ran&&reason=="stale-control"&&actor.GetComponent<CharacterStamina>().Current==before&&actor.DataBus.ActionId==id;});
+ void Flush(string state)=>SessionState.SetString("AM01_INPUT_STORY",Newtonsoft.Json.JsonConvert.SerializeObject(new{state,failed,rows}));
+ void Cleanup(){Keys();Mouse(0);foreach(var pair in overrides)pair.Key.LoadBindingOverridesFromJson(pair.Value);InputSystem.RemoveDevice(keyboard);InputSystem.RemoveDevice(mouse);InputSystem.settings=original;UnityEngine.Object.DestroyImmediate(settings);}
+ EditorApplication.CallbackFunction tick=null;tick=()=>{try{if(!Application.isPlaying)throw new Exception("Play ended");if(index==phases.Count){EditorApplication.update-=tick;Cleanup();Flush("completed");return;}var p=phases[index];if(!entered){entered=true;since=EditorApplication.timeSinceStartup;p.Item2();}if(p.Item3()){rows.Add(new{name=p.Item1,ok=true,time=actor.SimulationTime,fact=actor.LastFact});index++;entered=false;Flush("running");}else if(Elapsed()>p.Item4)throw new Exception("Timeout: "+p.Item1+" / "+actor.LastFact+" / "+ability.LastResult);}catch(Exception e){failed++;rows.Add(new{error=e.ToString()});EditorApplication.update-=tick;Cleanup();Flush("failed");}};EditorApplication.update+=tick;Flush("running");ctx.ReturnValue="AM01 ordinary input story scheduled";
+ }
+}

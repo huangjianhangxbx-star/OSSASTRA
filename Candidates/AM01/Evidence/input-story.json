@@ -1,0 +1,108 @@
+{
+  "state": "completed",
+  "failed": 0,
+  "rows": [
+    {
+      "name": "neutral",
+      "ok": true,
+      "time": 1.4279593359678984,
+      "fact": "Idle"
+    },
+    {
+      "name": "idle clock advances exactly once",
+      "ok": true,
+      "time": 1.4324907357804477,
+      "fact": "Idle"
+    },
+    {
+      "name": "all registrations initialized once",
+      "ok": true,
+      "time": 1.4356112356763333,
+      "fact": "Idle"
+    },
+    {
+      "name": "no idle repeated exits",
+      "ok": true,
+      "time": 1.4392419357318431,
+      "fact": "Idle"
+    },
+    {
+      "name": "ordinary movement held",
+      "ok": true,
+      "time": 1.6441165348514915,
+      "fact": "Idle"
+    },
+    {
+      "name": "real movement",
+      "ok": true,
+      "time": 1.6471465348731726,
+      "fact": "Idle"
+    },
+    {
+      "name": "attack accepts same input edge",
+      "ok": true,
+      "time": 1.653085134923458,
+      "fact": "Accepted @0.000 cd456119"
+    },
+    {
+      "name": "release allows movement before action finishes",
+      "ok": true,
+      "time": 2.018287935294211,
+      "fact": "AttackReady @0.367 cd456119"
+    },
+    {
+      "name": "recovery dodge retains main identity",
+      "ok": true,
+      "time": 2.0313764354214072,
+      "fact": "AttackReady @0.367 cd456119"
+    },
+    {
+      "name": "neutral after dodge",
+      "ok": true,
+      "time": 3.2403825351502746,
+      "fact": "Finished @1.100 cd456119"
+    },
+    {
+      "name": "normal finish leaves balanced combat edge",
+      "ok": true,
+      "time": 3.2437098352238536,
+      "fact": "Finished @1.100 cd456119"
+    },
+    {
+      "name": "skill key",
+      "ok": true,
+      "time": 3.368532734690234,
+      "fact": "Released @0.120 3cc03b46"
+    },
+    {
+      "name": "skill accepted through original input",
+      "ok": true,
+      "time": 3.375700634671375,
+      "fact": "Released @0.120 3cc03b46"
+    },
+    {
+      "name": "skill world release",
+      "ok": true,
+      "time": 3.649621434509754,
+      "fact": "Finished @0.400 3cc03b46"
+    },
+    {
+      "name": "switch key",
+      "ok": true,
+      "time": 3.7781992335803807,
+      "fact": "Finished @0.400 3cc03b46"
+    },
+    {
+      "name": "control switched without replacing actor runtime",
+      "ok": true,
+      "time": 3.781988433562219,
+      "fact": "Finished @0.400 3cc03b46"
+    },
+    {
+      "name": "state rules reject stale control before mutation",
+      "ok": true,
+      "time": 3.7853116334881634,
+      "fact": "Finished @0.400 3cc03b46"
+    }
+  ]
+}

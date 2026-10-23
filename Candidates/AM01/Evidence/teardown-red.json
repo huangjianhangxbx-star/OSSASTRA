@@ -1,0 +1,5 @@
+{
+  "pass": false,
+  "error": "UnityEngine.MissingReferenceException: The object of type 'CharacterRoot' has been destroyed but you are still trying to access it.\nYour script should either check if it is null or you should not destroy the object.\r\n  at (wrapper managed-to-native) UnityEngine.Component.GetComponentFastPath(UnityEngine.Component,System.Type,intptr)\r\n  at UnityEngine.Component.GetComponent[T] () [0x00021] in <4c8dc2a6301d4274b0475df4e7edee1d>:0 \r\n  at Ossastra.UserInterface.InventoryView.SetOpen (System.Boolean value) [0x0009c] in E:\\WORLDCREATOR\\new\\Project_ANKALUTE\\Assets\\OSSASTRA\\Scripts\\UI\\InventoryView.cs:158 \r\n  at InventoryTeardownRegression.Execute (Funplay.Editor.Tools.Scripting.ExecutionContext ctx) [0x0006b] in <da989a65638c42fba83d134c6aeeded3>:0 ",
+  "scenario": "Character destroyed before InventoryView releases capture"
+}

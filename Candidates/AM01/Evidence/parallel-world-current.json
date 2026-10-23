@@ -1,0 +1,71 @@
+{
+  "state": "completed",
+  "failed": 0,
+  "rows": [
+    {
+      "name": "equip independent free-hand shooter",
+      "ok": true,
+      "last": "能力未初始化",
+      "accepted": 0,
+      "emitted": 0,
+      "hp": 600,
+      "position": "(0.00, 0.03, -2.00)",
+      "facts": []
+    },
+    {
+      "name": "main and free offhand both accepted",
+      "ok": true,
+      "last": "接触 0 #b0439c0d44a54d1b87e4cc6a1d721c75",
+      "accepted": 2,
+      "emitted": 2,
+      "hp": 600,
+      "position": "(0.00, 0.02, -2.00)",
+      "facts": [
+        "Accepted",
+        "Released"
+      ]
+    },
+    {
+      "name": "main cancellation keeps independent released projectile",
+      "ok": true,
+      "last": "接触 1 #e83812c0d00944dcbc8c7be5ab89893a",
+      "accepted": 2,
+      "emitted": 2,
+      "hp": 585,
+      "position": "(0.00, 0.02, -2.00)",
+      "facts": [
+        "Accepted",
+        "Released",
+        "Cancelled"
+      ]
+    },
+    {
+      "name": "only genuine two emissions",
+      "ok": true,
+      "last": "接触 1 #e83812c0d00944dcbc8c7be5ab89893a",
+      "accepted": 2,
+      "emitted": 2,
+      "hp": 585,
+      "position": "(0.00, 0.02, -2.00)",
+      "facts": [
+        "Accepted",
+        "Released",
+        "Cancelled"
+      ]
+    },
+    {
+      "name": "independent effects end cleanly",
+      "ok": true,
+      "last": "接触 1 #e83812c0d00944dcbc8c7be5ab89893a",
+      "accepted": 2,
+      "emitted": 2,
+      "hp": 585,
+      "position": "(0.00, 0.02, -2.00)",
+      "facts": [
+        "Accepted",
+        "Released",
+        "Cancelled"
+      ]
+    }
+  ]
+}

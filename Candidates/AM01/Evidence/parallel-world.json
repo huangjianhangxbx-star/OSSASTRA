@@ -1,0 +1,9 @@
+{
+  "state": "failed",
+  "failed": 1,
+  "rows": [
+    {
+      "error": "System.InvalidOperationException: Sequence contains no matching element\r\n  at System.Linq.Enumerable.Single[TSource] (System.Collections.Generic.IEnumerable`1[T] source, System.Func`2[T,TResult] predicate) [0x00070] in <3317859cdf8e4d3ea4e1fea2b71da691>:0 \r\n  at SixSkillsProbe+<>c__DisplayClass0_0.<Execute>b__5 () [0x00033] in <80af8dfa248f4137bb95142f152c78ff>:0 \r\n  at SixSkillsProbe+<>c__DisplayClass0_0.<Execute>b__10 () [0x000c6] in <80af8dfa248f4137bb95142f152c78ff>:0 "
+    }
+  ]
+}

@@ -938,3 +938,4 @@ active/unity-writer；用户明确要求一轮修整：共享脚本去M01标签�
 
 2026-10-23 input-inspector complete/read-only：角色Inspector内联19共享Action，组合键操作提示及RT右手/LT左手；编译/绑定/Editor类型核验；用户handler改动保留，全部租约释放。
 2026-10-24 legacy-publish complete/read-only：用户授权旧代码完整GitHub发布，2502文件/1028 C#，目录SHA清单LegacyReference/files.tsv；无Unity运行更改，全部租约释放。
+2026-10-24 animation-migration active/unity-writer：用户授权AM01-AM03顺序连续；正式状态/动画/混合输入+B必要接线，唯一Unity writer，详见本任务。
