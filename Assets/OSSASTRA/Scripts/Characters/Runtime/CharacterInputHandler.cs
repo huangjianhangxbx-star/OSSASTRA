@@ -15,7 +15,7 @@ namespace Ossastra.Characters
     public struct CharacterInputFrame
     {
         public Vector2 move, pointer, aimDirection;
-        public bool attackHeld, dodgePressed, offhandHeld, offhandPressed, cancel, pause, hasPointer, hasDirectionalAim, attackPointerBlocked;
+        public bool attackHeld, dodgePressed, offhandHeld, offhandPressed, hasPointer, hasDirectionalAim, attackPointerBlocked;
         public int debugCommand;
         public bool skillOnePressed,skillTwoPressed,skillThreePressed,skillOneHeld,skillTwoHeld,skillThreeHeld;
     }
@@ -34,13 +34,11 @@ namespace Ossastra.Characters
         public InputAction attackAction = new InputAction("Attack", InputActionType.Button);
         [Header("可选本体闪避 / 只在新验证场绑定")]
         public InputAction dodgeAction = new InputAction("Dodge", InputActionType.Button);
+        [Tooltip("副手操作输入；具体按下/持续/长按行为由当前副手装备SO绑定决定，例如盾防、盾击、射击或投掷。")]
         public InputAction offhandAction = new InputAction("Offhand", InputActionType.Button);
         public InputAction skillOneAction = new InputAction("SkillOne",InputActionType.Button);
         public InputAction skillTwoAction = new InputAction("SkillTwo",InputActionType.Button);
         public InputAction skillThreeAction = new InputAction("SkillThree",InputActionType.Button);
-        [Header("取消与暂停")]
-        public InputAction cancelAction = new InputAction("Cancel", InputActionType.Button);
-        public InputAction pauseAction = new InputAction("Pause", InputActionType.Button);
         [Header("开发检查入口")]
         public InputAction debugValidAction = new InputAction("DebugValid", InputActionType.Button);
         public InputAction debugBlockedAction = new InputAction("DebugBlocked", InputActionType.Button);
@@ -113,8 +111,6 @@ namespace Ossastra.Characters
             yield return dodgeAction;
             yield return offhandAction;
             yield return skillOneAction; yield return skillTwoAction; yield return skillThreeAction;
-            yield return cancelAction;
-            yield return pauseAction;
             yield return debugValidAction;
             yield return debugBlockedAction;
             yield return debugResetAction;
@@ -141,7 +137,7 @@ namespace Ossastra.Characters
             if(InventoryCaptured)
             {
                 if(inventoryCaptures.Values.Any(value=>value))frame.move=Vector2.zero;
-                frame.pause=Pressed(pauseAction);CurrentFrame=frame;return frame;
+                CurrentFrame=frame;return frame;
             }
             if (mouseAction != null && mouseAction.enabled)
             {
@@ -174,8 +170,6 @@ namespace Ossastra.Characters
             frame.skillOneHeld=skillOneAction!=null&&skillOneAction.enabled&&skillOneAction.IsPressed();
             frame.skillTwoHeld=skillTwoAction!=null&&skillTwoAction.enabled&&skillTwoAction.IsPressed();
             frame.skillThreeHeld=skillThreeAction!=null&&skillThreeAction.enabled&&skillThreeAction.IsPressed();
-            frame.cancel = Pressed(cancelAction);
-            frame.pause = Pressed(pauseAction);
             frame.debugCommand = Pressed(debugValidAction) ? 1 : Pressed(debugBlockedAction) ? 2 :
                 Pressed(debugResetAction) ? 3 : Pressed(debugInspectAction) ? 4 : 0;
             CurrentFrame = frame;
@@ -185,3 +179,4 @@ namespace Ossastra.Characters
         private static bool Pressed(InputAction action) => action != null && action.enabled && action.WasPressedThisFrame();
     }
 }
+

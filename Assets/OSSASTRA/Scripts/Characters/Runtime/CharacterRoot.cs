@@ -75,7 +75,7 @@ namespace Ossastra.Characters
         public int ReleaseCount { get; private set; }
         public bool HasBufferedAttack => chain!=null && chain.HasBuffer;
         public double ComboWindowUntil => chain==null?-1:chain.WindowUntil;
-        private bool ready, focused = true, paused, applicationPaused;
+        private bool ready, focused = true, applicationPaused;
         private string lastFact = "Idle";
         private object respawnOwner;
         private int lifeGeneration, animationGeneration;
@@ -89,7 +89,7 @@ namespace Ossastra.Characters
         public string ActorId => actorId;
         public string LastFact => lastFact;
         public string LastActionSource { get; private set; } = "none";
-        public bool IsPaused => paused || applicationPaused;
+        public bool IsPaused => applicationPaused;
         public bool ActionActive => DataBus != null && DataBus.ActionActive;
         public bool IsAlive => lifeState==null || lifeState.IsAlive;
         public bool CanSimulateIntent => ready && IsAlive && isActiveAndEnabled && focused && !IsPaused && (posture == null || !posture.IsStaggered) && (statusEffects==null||!statusEffects.BlocksIntent);
@@ -229,8 +229,8 @@ namespace Ossastra.Characters
             inputSource.Read();
             var frame = DataBus.Input;
             if(chain!=null && (!input.HasPlayerInput || IsPaused || !focused || !ChainAvailable)) chain.Clear();
-            if (frame.pause) SetPaused(!paused);
-            if (frame.cancel) CancelAction("player-cancel");
+
+
             statusEffects?.Tick(IsSimulationSuspended?0:Time.deltaTime);
             vitals?.TickResources(IsSimulationSuspended?0:Time.deltaTime);
             // 2. 同一根时钟推进架势；主动作暂停自然恢复，暂停/失焦完全停钟。
@@ -489,8 +489,7 @@ namespace Ossastra.Characters
             Died?.Invoke(this);
         }
 
-        public void SetPaused(bool value) { paused = value; if(value){dodge?.Cancel();guard?.Cancel();
-            offhand?.CancelPending();} chain?.Clear(); intent.SuppressUntilRelease(); if (follow != null) follow.ResetIntent(); }
+
         public void SetAttackRestriction(object owner, bool restricted, string reason = "attack-restricted")
         {
             if (restricted) { authority.Block(owner, ControlChannel.Attack); CancelAction(reason); }
@@ -526,3 +525,5 @@ namespace Ossastra.Characters
         }
     }
 }
+
+

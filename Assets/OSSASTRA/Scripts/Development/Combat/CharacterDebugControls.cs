@@ -57,7 +57,7 @@ namespace Ossastra.Development
             {
                 character.CancelAction("debug-clear");
                 character.SetAttackRestriction(this, false);
-                character.SetPaused(false);
+                
                 blocked = false;
                 if (target != null) target.RestoreHealth();
             }
@@ -79,3 +79,4 @@ namespace Ossastra.Development
         }
     }
 }
+

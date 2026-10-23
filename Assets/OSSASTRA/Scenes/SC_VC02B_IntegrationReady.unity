@@ -7595,6 +7595,10 @@ PrefabInstance:
       value: "\u4E34\u65F6\u9A8C\u8BC1\u89D2\u8272_B"
       objectReference: {fileID: 0}
     - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
+      propertyPath: dodgeAction.m_Id
+      value: 86a3e8db-7e8f-42a8-80d9-19414e9743fa
+      objectReference: {fileID: 0}
+    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
       propertyPath: skillOneAction.m_Id
       value: 289c9917-3f85-4bec-bc0f-fbccaedfb459
       objectReference: {fileID: 0}
@@ -7608,7 +7612,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
       propertyPath: dodgeAction.m_SingletonActionBindings.Array.size
-      value: 1
+      value: 2
       objectReference: {fileID: 0}
     - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
       propertyPath: offhandAction.m_SingletonActionBindings.Array.size
@@ -7628,11 +7632,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
       propertyPath: dodgeAction.m_SingletonActionBindings.Array.data[0].m_Id
-      value: 55e3c4f7-61bf-4fb1-a776-f5733d82566a
+      value: 7c5027d1-a70b-4237-bdc5-55e2e08cf44a
       objectReference: {fileID: 0}
     - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
       propertyPath: dodgeAction.m_SingletonActionBindings.Array.data[0].m_Path
-      value: <Keyboard>/leftShift
+      value: <Keyboard>/space
       objectReference: {fileID: 0}
     - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
       propertyPath: offhandAction.m_SingletonActionBindings.Array.data[0].m_Id
@@ -18772,6 +18776,10 @@ PrefabInstance:
       value: "\u4E34\u65F6\u9A8C\u8BC1\u89D2\u8272_A"
       objectReference: {fileID: 0}
     - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
+      propertyPath: dodgeAction.m_Id
+      value: d07d8d0d-e52d-4044-a785-a523a7d1f764
+      objectReference: {fileID: 0}
+    - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
       propertyPath: skillOneAction.m_Id
       value: fc7e09ac-aab6-43e6-b492-e31751a47846
       objectReference: {fileID: 0}
@@ -18785,7 +18793,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
       propertyPath: dodgeAction.m_SingletonActionBindings.Array.size
-      value: 1
+      value: 2
       objectReference: {fileID: 0}
     - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
       propertyPath: offhandAction.m_SingletonActionBindings.Array.size
@@ -18805,11 +18813,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
       propertyPath: dodgeAction.m_SingletonActionBindings.Array.data[0].m_Id
-      value: 0b1d6e75-755b-4914-8284-4f157c6f2fc0
+      value: 7c5027d1-a70b-4237-bdc5-55e2e08cf44a
       objectReference: {fileID: 0}
     - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
       propertyPath: dodgeAction.m_SingletonActionBindings.Array.data[0].m_Path
-      value: <Keyboard>/leftShift
+      value: <Keyboard>/space
       objectReference: {fileID: 0}
     - target: {fileID: 6855529470788851489, guid: 8079c97cafbb7c24a880ed8e1bab96b3, type: 3}
       propertyPath: offhandAction.m_SingletonActionBindings.Array.data[0].m_Id

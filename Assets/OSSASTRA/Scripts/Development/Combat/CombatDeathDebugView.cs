@@ -44,7 +44,7 @@ namespace Ossastra.Development
             director.enabled=false;
             for (var i=0;i<coordinator.Characters.Count;i++)
             {
-                var c=coordinator.Characters[i]; c.CancelAction("development-reset"); c.SetPaused(false);
+                var c=coordinator.Characters[i]; c.CancelAction("development-reset"); 
                 c.Vitals.RestoreForDevelopment();
                 var posture=c.GetComponent<CombatPosture>();
                 if(posture!=null) posture.ResetState();
@@ -84,3 +84,4 @@ namespace Ossastra.Development
         }
     }
 }
+
