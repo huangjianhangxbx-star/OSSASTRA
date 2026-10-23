@@ -22,8 +22,8 @@
 |瞄准|鼠标位置|右摇杆方向|
 |交互|F|A = Button South|
 |闪避|Space|B = Button East|
-|右手/主手|鼠标左键|LT = Left Trigger|
-|左手/副手|鼠标右键|RT = Right Trigger|
+|右手/主手|鼠标左键|RT = Right Trigger|
+|左手/副手|鼠标右键|LT = Left Trigger|
 |技能1|Q|LB + X（West）|
 |技能2/固定E槽|E|LB + Y（North）|
 |技能3|R|LB + B（East）|
@@ -64,3 +64,8 @@ LB+RB的Modifier为leftShoulder、Button为rightShoulder。LT+RT的Modifier为le
 - 首个编辑态探针17项失败，原因是Editor输入更新与Play动作采样不同；一次不存在Update重载的探针编译错误也保留。改为Play和明确测试输入设置后通过，没有放宽生产接受门禁。
 
 尚未进行实体手柄硬件长时间试玩、连接/拔插、多手柄并发、完整UI手柄无鼠标导航验收；本轮采用虚拟设备经真实InputSystem与实际场景消费者。每次改变绑定后需重新进入Play，当前不提供游戏内重绑保存界面。
+
+## 2026-10-23 Inspector修正
+现在直接选PlayerCharacter的CharacterInputHandler，下面内联展开共享SO的19个输入Action；旧本地动作在共享SO模式下隐藏，避免修改无效配置。换人/血瓶/背包/交互/菜单/四格引用均在同一处编辑。组合绑定在对应Action右上角+选择Button With One Modifier Composite，展开Modifier与Button分别设置即可。右手已修正为鼠标左键/RT，左手为鼠标右键/LT。
+用户本地已移除双扳机宽限逻辑，本次保留该修改并清除SO残留引用；上文宽限说明和26项证据为前一版本历史，不表示当前本地逻辑已完成同样重测。
+

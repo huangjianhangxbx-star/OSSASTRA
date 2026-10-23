@@ -936,3 +936,4 @@ active/unity-writer；用户明确要求一轮修整：共享脚本去M01标签�
 
 2026-10-23 input-layout complete/read-only：共享输入SO与键鼠/手柄布局、26输入/8实际场景通过，全部租约释放。详见本任务及input-layout-20261023说明。
 
+2026-10-23 input-inspector complete/read-only：角色Inspector内联19共享Action，组合键操作提示及RT右手/LT左手；编译/绑定/Editor类型核验；用户handler改动保留，全部租约释放。
