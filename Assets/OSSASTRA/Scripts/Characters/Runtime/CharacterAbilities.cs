@@ -262,9 +262,10 @@ namespace Ossastra.Characters
             if(identity!=bindingIdentity)Rebind();
             if(previouslyAllowed!=owner.HasPlayerInput){bindingEpoch++;previouslyAllowed=owner.HasPlayerInput;}
             if(previouslySuspended!=owner.IsSimulationSuspended){bindingEpoch++;previouslySuspended=owner.IsSimulationSuspended;}
+            var gestureGeneration=owner.GetComponent<CharacterInputHandler>().GestureGeneration;
             foreach(var binding in bindings)
             {
-                var signal=binding.gesture.Sample(Held(binding.binding.operation),owner.SimulationTime,unchecked(bindingEpoch*397^owner.ActionControlRevision));
+                var signal=binding.gesture.Sample(Held(binding.binding.operation),owner.SimulationTime,unchecked(bindingEpoch*397^gestureGeneration));
                 if(signal==GestureSignal.Cancel||signal==GestureSignal.End)
                 {binding.repeatArmed=false;foreach(var run in runs.Where(r=>r.Context.operation==binding.binding.operation&&r.RequiresHeld))run.Cancel();continue;}
                 if(signal==GestureSignal.Trigger||signal==GestureSignal.Begin)binding.repeatArmed=true;
@@ -329,12 +330,12 @@ namespace Ossastra.Characters
             var landing=owner.transform.position+direction.normalized*acceptanceDelivery.range;
             if(executor.AimRange>0)
             {
-                var aim=explicitAim??owner.AbilityAimPoint(input);if(!aim.HasValue)return Reject("无合法鼠标落点");
+                var aim=explicitAim??owner.AbilityAimPoint(input,executor.AimRange);if(!aim.HasValue)return Reject("无合法瞄准落点");
                 var offset=aim.Value-owner.transform.position;offset.y=0;landing=owner.transform.position+Vector3.ClampMagnitude(offset,executor.AimRange);
             }
             if(acceptanceDelivery.mode==DeliveryMode.Parabolic||acceptanceDelivery.mode==DeliveryMode.RayLandingArc)
             {
-                var aim=explicitAim??owner.AbilityAimPoint(input);if(!aim.HasValue)return Reject("无合法鼠标落点");
+                var aim=explicitAim??owner.AbilityAimPoint(input,executor.AimRange>0?executor.AimRange:acceptanceDelivery.range);if(!aim.HasValue)return Reject("无合法瞄准落点");
                 var targetPoint=executor.AimRange>0?landing:aim.Value;
                 var delta=targetPoint-owner.transform.position;delta.y=0;
                 if(delta.magnitude>acceptanceDelivery.range+.0001f||!CombatDeliveryQueue.Clear(owner.transform.position,targetPoint))return Reject("落点超距或遮挡");

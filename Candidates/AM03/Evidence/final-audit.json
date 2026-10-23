@@ -1,0 +1,75 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "scene": "Assets/OSSASTRA/Scenes/SC_VC02B_IntegrationReady.unity",
+      "dirty": false,
+      "userStage": "Assets/GameResources/Prefab/Character/MainCharacter/VELGITA/VELGITA.prefab",
+      "userStageDirty": false,
+      "missingScripts": 0,
+      "actors": [
+        {
+          "ActorId": "temporary-a",
+          "formalView": true,
+          "oldViews": 0,
+          "map": "Assets/OSSASTRA/Configs/Animation/temporary-a_VC02_Animation_Mapping.asset",
+          "threshold": 0.15,
+          "directionChange": 0.25,
+          "layout": "Assets/OSSASTRA/VC02B/PlayerInputLayout.asset"
+        },
+        {
+          "ActorId": "temporary-b",
+          "formalView": true,
+          "oldViews": 0,
+          "map": "Assets/OSSASTRA/Configs/Animation/temporary-b_VC02_Animation_Mapping.asset",
+          "threshold": 0.15,
+          "directionChange": 0.25,
+          "layout": "Assets/OSSASTRA/VC02B/PlayerInputLayout.asset"
+        }
+      ],
+      "devices": [
+        {
+          "name": "Keyboard",
+          "type": "FastKeyboard",
+          "added": true,
+          "enabled": true
+        },
+        {
+          "name": "Mouse",
+          "type": "FastMouse",
+          "added": true,
+          "enabled": true
+        },
+        {
+          "name": "Pen",
+          "type": "Pen",
+          "added": true,
+          "enabled": true
+        },
+        {
+          "name": "XInputControllerWindows",
+          "type": "XInputControllerWindows",
+          "added": true,
+          "enabled": true
+        }
+      ],
+      "inputSettings": "Assets/InputSystem.inputsettings.asset",
+      "npcEnemyRoots": [
+        {
+          "name": "StationaryCombatEnemy",
+          "type": "Ossastra.Enemies.EnemyRoot"
+        },
+        {
+          "name": "ARCH01_NonCombatNpc",
+          "type": "Ossastra.Npcs.NpcRoot"
+        }
+      ]
+    }
+  }
+}

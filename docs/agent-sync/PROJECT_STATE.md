@@ -518,3 +518,5 @@ T7A3独立RendererFeature/密度场/最多2个AtmosphereLight/8-16步积分/Dept
 
 
 2026-10-24 AM01 complete/AM02 active：ed74ae1af1698306cd44f5fdb7a871dbc1bbf3b7已GitHub main核对。正式StateArbitrator登记五状态，Combat实际拥有唯一Runtime/连段/事务受理转发/事实分派，运动和并行能力保持原时序；B与候选Prefab接线，旧参考不变。自然17/并行5/生命周期13/纯68/背包47通过，InventoryView销毁回归RED→GREEN；原动画链尚未迁入，继续AM02/03。用户已有dirty仍保留，唯一Unity writer由本任务持有。
+
+> 2026-10-24 AM01–AM03技术完成：AM01 ed74ae1、AM02 67efa5c已GitHub；AM03会话级移动/瞄准独立、配置Action按设备采样、UI按下归属/真释放保护和实际能力目标接通。来源24、综合36、原生E目标7、双手9、举盾开关包13、生命周期13、背包20+手柄拖拽20通过；作者工具3项RED→GREEN。最终B Edit clean/用户VELGITA Stage clean/Missing0，身体双手与Enemy/NPC真实播放有效；旧代码参考及用户键位dirty保留，实体XInput设备保留但实机操控未测。交接docs/ossastra/AM01-handoff.md、AM02-handoff.md、AM03-handoff.md；AM03定向发布中，不Gitee。用户明确要求整轮验证发布后正常关机。

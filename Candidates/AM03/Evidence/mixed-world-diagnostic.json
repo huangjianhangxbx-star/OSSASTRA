@@ -1,0 +1,166 @@
+{
+  "state": "running",
+  "failed": 0,
+  "rows": [
+    {
+      "name": "neutral config clones armed",
+      "ok": true,
+      "aim": "None",
+      "move": "(0.00, 0.00)",
+      "direction": "(1.00, 0.00, 0.00)",
+      "action": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "name": "initial pointer location alone owns no battle aim",
+      "ok": true,
+      "aim": "None",
+      "move": "(0.00, 0.00)",
+      "direction": "(1.00, 0.00, 0.00)",
+      "action": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "name": "right stick controls actual orientation",
+      "ok": true,
+      "aim": "Gamepad",
+      "move": "(0.00, 0.00)",
+      "direction": "(-1.00, 0.00, 0.00)",
+      "action": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "name": "hover world with mouse while pad owns aim",
+      "ok": true,
+      "aim": "Gamepad",
+      "move": "(0.00, 0.00)",
+      "direction": "(-1.00, 0.00, 0.00)",
+      "action": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "name": "hover does not steal pad orientation",
+      "ok": true,
+      "aim": "Gamepad",
+      "move": "(0.00, 0.00)",
+      "direction": "(-1.00, 0.00, 0.00)",
+      "action": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "name": "first gamepad attack accepts facing left",
+      "ok": true,
+      "aim": "Gamepad",
+      "move": "(0.00, 0.00)",
+      "direction": "(-1.00, 0.00, 0.00)",
+      "action": "e5761d44-4d38-42b7-a835-08f5f30d8145"
+    },
+    {
+      "name": "new source direction does not recreate accepted action",
+      "ok": true,
+      "aim": "Gamepad",
+      "move": "(0.00, 0.00)",
+      "direction": "(1.00, 0.00, 0.00)",
+      "action": "e5761d44-4d38-42b7-a835-08f5f30d8145"
+    },
+    {
+      "name": "finish pad action",
+      "ok": true,
+      "aim": "Gamepad",
+      "move": "(0.00, 0.00)",
+      "direction": "(1.00, 0.00, 0.00)",
+      "action": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "name": "first mouse world attack takes aim before acceptance",
+      "ok": true,
+      "aim": "KeyboardMouse",
+      "move": "(0.00, 0.00)",
+      "direction": "(1.00, 0.00, 0.00)",
+      "action": "377b184a-b2b3-4ef9-abc6-7b30a1807cb7"
+    },
+    {
+      "name": "new pad stick retains accepted mouse action identity",
+      "ok": true,
+      "aim": "Gamepad",
+      "move": "(0.00, 0.00)",
+      "direction": "(-1.00, 0.00, 0.00)",
+      "action": "377b184a-b2b3-4ef9-abc6-7b30a1807cb7"
+    },
+    {
+      "name": "keyboard auxiliary F while pad owns aim",
+      "ok": true,
+      "aim": "Gamepad",
+      "move": "(0.00, 0.00)",
+      "direction": "(-1.00, 0.00, 0.00)",
+      "action": "377b184a-b2b3-4ef9-abc6-7b30a1807cb7"
+    },
+    {
+      "name": "auxiliary keyboard does not take battle aim",
+      "ok": true,
+      "aim": "Gamepad",
+      "move": "(0.00, 0.00)",
+      "direction": "(-1.00, 0.00, 0.00)",
+      "action": "377b184a-b2b3-4ef9-abc6-7b30a1807cb7"
+    },
+    {
+      "name": "pad movement is real and independent",
+      "ok": true,
+      "aim": "Gamepad",
+      "move": "(0.00, 1.00)",
+      "direction": "(-1.00, 0.00, 0.00)",
+      "action": "377b184a-b2b3-4ef9-abc6-7b30a1807cb7"
+    },
+    {
+      "name": "real move uses left stick while aim remains right stick",
+      "ok": true,
+      "aim": "Gamepad",
+      "move": "(0.00, 1.00)",
+      "direction": "(-1.00, 0.00, 0.00)",
+      "action": "377b184a-b2b3-4ef9-abc6-7b30a1807cb7"
+    },
+    {
+      "name": "new keyboard exploration takes movement",
+      "ok": true,
+      "aim": "KeyboardMouse",
+      "move": "(1.00, 0.00)",
+      "direction": "(1.00, 0.00, 0.00)",
+      "action": "377b184a-b2b3-4ef9-abc6-7b30a1807cb7"
+    },
+    {
+      "name": "old pad hold cannot steal every frame",
+      "ok": true,
+      "aim": "KeyboardMouse",
+      "move": "(1.00, 0.00)",
+      "direction": "(1.00, 0.00, 0.00)",
+      "action": "377b184a-b2b3-4ef9-abc6-7b30a1807cb7"
+    },
+    {
+      "name": "held arbitration remains keyboard",
+      "ok": true,
+      "aim": "KeyboardMouse",
+      "move": "(1.00, 0.00)",
+      "direction": "(1.00, 0.00, 0.00)",
+      "action": "377b184a-b2b3-4ef9-abc6-7b30a1807cb7"
+    },
+    {
+      "name": "new pad direction retakes movement",
+      "ok": true,
+      "aim": "KeyboardMouse",
+      "move": "(0.00, -1.00)",
+      "direction": "(0.00, 0.00, -1.00)",
+      "action": "377b184a-b2b3-4ef9-abc6-7b30a1807cb7"
+    },
+    {
+      "name": "neutral pad falls back to held keyboard",
+      "ok": true,
+      "aim": "KeyboardMouse",
+      "move": "(1.00, 0.00)",
+      "direction": "(1.00, 0.00, 0.00)",
+      "action": "377b184a-b2b3-4ef9-abc6-7b30a1807cb7"
+    },
+    {
+      "name": "neutral before real UI",
+      "ok": true,
+      "aim": "KeyboardMouse",
+      "move": "(0.00, 0.00)",
+      "direction": "(1.00, 0.00, 0.00)",
+      "action": "377b184a-b2b3-4ef9-abc6-7b30a1807cb7"
+    }
+  ]
+}

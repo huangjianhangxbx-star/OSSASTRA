@@ -1,6 +1,7 @@
 /* 功能：共享输入定义；每个消费者克隆独立Action，不共享启用状态。绑定只存在配置，不在运行时补键。 */
 using UnityEngine;
 using UnityEngine.InputSystem;
+using System.Collections.Generic;
 namespace Ossastra.Characters
 {
  [CreateAssetMenu(menuName="OSSASTRA/Input/Player Input Layout")]
@@ -52,15 +53,17 @@ namespace Ossastra.Characters
   public InputAction quickSlotThree=new InputAction("QuickSlotThree",InputActionType.Button);
   [Header("道具栏4引用 / 4 / RB + A")]
   public InputAction quickSlotFour=new InputAction("QuickSlotFour",InputActionType.Button);
+  // 只枚举作者配置；用于按设备识别已消费的组合键，不启用这些共享SO Action。
+  public IEnumerable<InputAction> ConfiguredActions()
+  {
+   yield return move; yield return pointer; yield return aim; yield return rightHand; yield return leftHand;
+   yield return dodge; yield return skillOne; yield return skillTwo; yield return skillThree;
+   yield return interact; yield return heal; yield return switchCharacter; yield return inventory;
+   yield return weaponMode; yield return menu; yield return quickSlotOne; yield return quickSlotTwo; yield return quickSlotThree; yield return quickSlotFour;
+  }
   public static void Replace(ref InputAction target,InputAction source){target?.Disable();target?.Dispose();target=source.Clone();}
   public void Apply(CharacterInputHandler target)
   {Replace(ref target.movementAction,move);Replace(ref target.mouseAction,pointer);Replace(ref target.gamepadAimAction,aim);Replace(ref target.rightHandAction,rightHand);Replace(ref target.leftHandAction,leftHand);Replace(ref target.dodgeAction,dodge);Replace(ref target.skillOneAction,skillOne);Replace(ref target.skillTwoAction,skillTwo);Replace(ref target.skillThreeAction,skillThree);Replace(ref target.weaponModeAction,weaponMode);}
- }
- /* 明确的手柄修饰键规则：组合期间基础面键不透传；键鼠不受影响，多手柄取实际Action设备。 */
- public static class GamepadInputPolicy
- {
-  public static bool Modified(InputAction action)=>action?.activeControl?.device is Gamepad pad&&(pad.leftShoulder.isPressed||pad.rightShoulder.isPressed);
-  public static bool WeaponChord(InputAction action)=>action?.activeControl?.device is Gamepad pad&&pad.leftTrigger.isPressed&&pad.rightTrigger.isPressed;
  }
 }
 

@@ -1,0 +1,14 @@
+{
+  "success": false,
+  "code": "COMMAND_RUNTIME_ERROR",
+  "error": "COMMAND_RUNTIME_ERROR",
+  "data": {
+    "message": "Cannot queue state event for device 'Gamepad:/AM03Pad' because device has not been added to system",
+    "stack": "  at UnityEngine.InputSystem.InputSystem.QueueStateEvent[TState] (UnityEngine.InputSystem.InputDevice device, TState state, System.Double time) [0x00108] in .\\Library\\PackageCache\\com.unity.inputsystem@1.14.4-t1\\InputSystem\\InputSystem.cs:2660 \r\n  at AM03SourceContracts+<>c__DisplayClass0_0.<Execute>g__Neutral|4 () [0x0003d] in <7b38d54e45bd4fd4a23ea581340e8c4c>:0 \r\n  at AM03SourceContracts.Execute (Funplay.Editor.Tools.Scripting.ExecutionContext ctx) [0x00923] in <7b38d54e45bd4fd4a23ea581340e8c4c>:0 \r\n  at Funplay.Editor.Tools.Builtins.ScriptExecutionFunctions.ExecuteAsCommand (System.Type commandType, System.String compilerName) [0x00037] in E:\\WORLDCREATOR\\new\\Project_ANKALUTE\\Assets\\unity-mcp\\Editor\\Tools\\Builtins\\ScriptExecutionFunctions.cs:611 ",
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": []
+  }
+}

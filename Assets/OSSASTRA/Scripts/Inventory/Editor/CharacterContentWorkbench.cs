@@ -99,7 +99,7 @@ namespace Ossastra.Authoring
                 {foreach(var binding in rig.sockets)rig.Resolve(binding.semanticSocketId,rig.model==null?null:rig.model.GetSkeletonData(false));}
                 else if(definition is CharacterDefinitionSO character)
                 {
-                    if(character.animationProfile==null)throw new ArgumentException("animationProfile missing");
+                    // 正式动画由场景/Prefab的ConfigManager持有，不要求作者额外维护隐藏的旧Profile。
                     foreach(var basic in character.basicAttacks){if(basic==null)throw new ArgumentException("basicAttacks null");basic.Freeze();}
                     var characterRig=character.rigProfile;if(characterRig!=null)foreach(var binding in characterRig.sockets)characterRig.Resolve(binding.semanticSocketId,characterRig.model.GetSkeletonData(false));
                 }
@@ -113,6 +113,21 @@ namespace Ossastra.Authoring
                     {if(main==null)throw new ArgumentException("mainActionProfiles null");main.Freeze();}
                 }
                 else if(definition is MainActionProfileSO mainProfile)mainProfile.Freeze();
+                else if(definition is Ossastra.CharacterAnimation.AnimationPlanMappingSO mapping)
+                {
+                    if(mapping.skeletonDataAsset==null)throw new ArgumentException("Skeleton Data missing");
+                    var skeleton=mapping.skeletonDataAsset.GetSkeletonData(false);
+                    if(skeleton==null)throw new ArgumentException("Skeleton Data invalid");
+                    foreach(Ossastra.CharacterAnimation.EAnimationLogicState logic in Enum.GetValues(typeof(Ossastra.CharacterAnimation.EAnimationLogicState)))
+                    {
+                        var plan=mapping.GetDefault(logic);if(plan==null)continue;
+                        if(plan.clearTracks.Any(track=>track<0))throw new ArgumentException("negative clear track: "+logic);
+                        foreach(var clip in plan.clips.Concat(plan.queuedClips.Where(q=>q!=null).Select(q=>q.clip)))
+                            if(clip==null||clip.track<0||string.IsNullOrWhiteSpace(clip.animaName)||skeleton.FindAnimation(clip.animaName)==null||
+                                clip.playbackRate<=0||float.IsNaN(clip.playbackRate)||float.IsInfinity(clip.playbackRate)||clip.mixDuration<0||float.IsNaN(clip.mixDuration)||float.IsInfinity(clip.mixDuration))
+                                throw new ArgumentException("invalid mapped clip: "+logic+" / "+clip?.animaName);
+                    }
+                }
                 else if(definition is CharacterAnimationProfileSO animationProfile)
                 {
                     if(animationProfile.bindings==null||animationProfile.bindings.Any(b=>b==null||string.IsNullOrWhiteSpace(b.key)||string.IsNullOrWhiteSpace(b.clip))||animationProfile.bindings.Select(b=>b.key).Distinct().Count()!=animationProfile.bindings.Length)
@@ -196,11 +211,11 @@ namespace Ossastra.Authoring
                 foreach(var fact in data.Events)rows.Add(prefix+"eventDefinition\t"+fact.Name+"\t\t\t原生事件目录");
             }
             File.WriteAllLines(ReportPath+"/model-inventory.tsv",rows);
-            var actions=new List<string>{"asset\tid\tanimationKey\trelease\tmoveReady\tattackReady\tfinish\teventBindings"};
+            var actions=new List<string>{"asset\tid\tanimationLogicId\trelease\tmoveReady\tattackReady\tfinish\teventBindings"};
             foreach(var action in assets.OfType<ActionDefinitionSO>())
-            {action.Freeze();actions.Add(AssetDatabase.GetAssetPath(action)+"\t"+action.definitionId+"\t"+action.animationKey+"\t"+action.releaseAt+"\t"+action.moveReadyAt+"\t"+action.attackReadyAt+"\t"+action.finishAt+"\t"+string.Join(";",action.eventTimeline.Select(e=>e.marker+":"+e.sourceEvent+"@"+e.seconds)));}
+            {action.Freeze();actions.Add(AssetDatabase.GetAssetPath(action)+"\t"+action.definitionId+"\t"+action.animationLogicId+"\t"+action.releaseAt+"\t"+action.moveReadyAt+"\t"+action.attackReadyAt+"\t"+action.finishAt+"\t"+string.Join(";",action.eventTimeline.Select(e=>e.marker+":"+e.sourceEvent+"@"+e.seconds)));}
             File.WriteAllLines(ReportPath+"/action-contracts.tsv",actions);
-            return "导出完成："+assets.Length+" SO / "+models.Length+"实际依赖模型 / "+(rows.Count-1)+"模型条目。\n"+ReportPath+"\nUnity "+Application.unityVersion+"；工具导出schema=1。REJECT项须单独处理，不以导出成功冒充检查通过。";
+            return "导出完成："+assets.Length+" SO / "+models.Length+"实际依赖模型 / "+(rows.Count-1)+"模型条目。\n"+ReportPath+"\nUnity "+Application.unityVersion+"；工具导出schema=2。REJECT项须单独处理，不以导出成功冒充检查通过。";
         }
     }
 }

@@ -255,7 +255,10 @@ namespace Ossastra.Characters
             if(!frame.hasPointer)return null; var plane=new Plane(Vector3.up,transform.position);
             var ray=viewCamera.ScreenPointToRay(frame.pointer); return plane.Raycast(ray,out var distance)?ray.GetPoint(distance):(Vector3?)null;
         }
-        internal Vector3? AbilityAimPoint(CharacterInputFrame frame)=>PointerGroundPoint(frame);
+        /// <summary>鼠标必须有合法世界点；方向输入按当前执行器实际射程生成，绝不统一猜投掷距离。</summary>
+        internal Vector3? AbilityAimPoint(CharacterInputFrame frame,float range)
+            =>frame.aimSource==PlayerInputSource.KeyboardMouse?PointerGroundPoint(frame):
+                frame.hasDirectionalAim&&range>0?transform.position+DataBus.AttackDirection*range:(Vector3?)null;
         internal ConfiguredActionSnapshot FreezeAbilityPhase(ActionDefinitionSO config)
             =>((ICharacterConfiguredAnimation)presentation).FreezeAction(config);
         internal bool ChangeAbilityPhase(Guid id,ConfiguredActionSnapshot phase)=>stateArbitrator.Combat.ChangeAbilityPhase(id,phase);

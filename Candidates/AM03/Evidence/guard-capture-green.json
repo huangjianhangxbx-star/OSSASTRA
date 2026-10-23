@@ -1,0 +1,97 @@
+{
+  "state": "completed",
+  "failed": 0,
+  "rows": [
+    {
+      "name": "neutral",
+      "ok": true,
+      "body": "idle1_1",
+      "left": "00000000-0000-0000-0000-000000000000",
+      "right": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "name": "offhand guard accepts own run",
+      "ok": true,
+      "body": "ready_start",
+      "left": "c39d64cc-f54b-4c68-bc28-cc3e3086bcbf",
+      "right": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "name": "actual guard start then target loop",
+      "ok": true,
+      "body": "ready_loop",
+      "left": "c39d64cc-f54b-4c68-bc28-cc3e3086bcbf",
+      "right": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "name": "open actual inventory during accepted guard",
+      "ok": true,
+      "body": "ready_loop",
+      "left": "c39d64cc-f54b-4c68-bc28-cc3e3086bcbf",
+      "right": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "name": "UI capture preserves original held guard identity",
+      "ok": true,
+      "body": "ready_loop",
+      "left": "c39d64cc-f54b-4c68-bc28-cc3e3086bcbf",
+      "right": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "name": "close actual inventory while same hand held",
+      "ok": true,
+      "body": "ready_loop",
+      "left": "c39d64cc-f54b-4c68-bc28-cc3e3086bcbf",
+      "right": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "name": "closing capture cannot synthesize guard release",
+      "ok": true,
+      "body": "ready_loop",
+      "left": "c39d64cc-f54b-4c68-bc28-cc3e3086bcbf",
+      "right": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "name": "main attack accepted while same guard continues",
+      "ok": true,
+      "body": "atk1",
+      "left": "c39d64cc-f54b-4c68-bc28-cc3e3086bcbf",
+      "right": "3b8af14a-4565-4dbc-b778-2dfcb8ac865e"
+    },
+    {
+      "name": "left animation not restarted by main action replay",
+      "ok": true,
+      "body": "atk1",
+      "left": "c39d64cc-f54b-4c68-bc28-cc3e3086bcbf",
+      "right": "3b8af14a-4565-4dbc-b778-2dfcb8ac865e"
+    },
+    {
+      "name": "both actual Spine grips aligned",
+      "ok": true,
+      "body": "atk1",
+      "left": "c39d64cc-f54b-4c68-bc28-cc3e3086bcbf",
+      "right": "3b8af14a-4565-4dbc-b778-2dfcb8ac865e"
+    },
+    {
+      "name": "only one model instance per slot",
+      "ok": true,
+      "body": "atk1",
+      "left": "c39d64cc-f54b-4c68-bc28-cc3e3086bcbf",
+      "right": "3b8af14a-4565-4dbc-b778-2dfcb8ac865e"
+    },
+    {
+      "name": "release both buttons",
+      "ok": true,
+      "body": "idle1_1",
+      "left": "00000000-0000-0000-0000-000000000000",
+      "right": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "name": "new body path is sole active character writer",
+      "ok": true,
+      "body": "idle1_1",
+      "left": "00000000-0000-0000-0000-000000000000",
+      "right": "00000000-0000-0000-0000-000000000000"
+    }
+  ]
+}

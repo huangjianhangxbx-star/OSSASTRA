@@ -1,0 +1,112 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "failed": 8,
+      "rows": [
+        {
+          "name": "same config composite/interaction/processor/group count preserved",
+          "ok": true
+        },
+        {
+          "name": "device axes are isolated before merged conflict resolution",
+          "ok": false
+        },
+        {
+          "name": "keyboard exploration establishes mouse context",
+          "ok": true
+        },
+        {
+          "name": "new pad movement owns movement without summing",
+          "ok": true
+        },
+        {
+          "name": "old keyboard hold cannot steal movement back",
+          "ok": true
+        },
+        {
+          "name": "ordinary neutral fallback keeps legal keyboard hold",
+          "ok": true
+        },
+        {
+          "name": "new right stick takes battle aim independently",
+          "ok": true
+        },
+        {
+          "name": "right stick neutral preserves source and last direction",
+          "ok": true
+        },
+        {
+          "name": "old keyboard hold and auxiliary-only frame do not take aim",
+          "ok": true
+        },
+        {
+          "name": "world mouse edge takes ownership before action",
+          "ok": true
+        },
+        {
+          "name": "old stick hold cannot retake explicit mouse aim",
+          "ok": true
+        },
+        {
+          "name": "new pad battle edge first strike has pad aim",
+          "ok": true
+        },
+        {
+          "name": "UI classified mouse edge cannot change battle ownership",
+          "ok": true
+        },
+        {
+          "name": "configured LB+B is recognized",
+          "ok": false
+        },
+        {
+          "name": "combo consumes ordinary B on same controller",
+          "ok": false
+        },
+        {
+          "name": "pad modifier does not block keyboard dodge",
+          "ok": false
+        },
+        {
+          "name": "other controller modifier is isolated",
+          "ok": true
+        },
+        {
+          "name": "pointer UI-down is rejected at same InputSystem event",
+          "ok": true
+        },
+        {
+          "name": "UI-down dragged outside remains owned by UI",
+          "ok": true
+        },
+        {
+          "name": "next world-down works without activation click",
+          "ok": false
+        },
+        {
+          "name": "keyboard held before unplug",
+          "ok": false
+        },
+        {
+          "name": "unplug only retires that device and preserves unrelated gesture",
+          "ok": false
+        },
+        {
+          "name": "lifecycle suppression rejects old keyboard held",
+          "ok": true
+        },
+        {
+          "name": "real release then press rearms",
+          "ok": false
+        }
+      ]
+    }
+  }
+}

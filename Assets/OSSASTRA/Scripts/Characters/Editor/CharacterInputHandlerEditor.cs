@@ -19,6 +19,17 @@ namespace Ossastra.Characters.Editor
    EditorGUILayout.HelpBox("组合键：目标Action右上角 + → Button With One Modifier Composite（有些版本显示One Modifier）。展开组合项：Modifier填LB，Button填X，即LB+X。两个普通Binding表示二选一，不表示同时按。X=West、Y=North、B=East、A=South。",MessageType.None);
    if(inspected!=layout.objectReferenceValue){if(layoutEditor!=null)DestroyImmediate(layoutEditor);inspected=layout.objectReferenceValue;layoutEditor=CreateEditor(inspected);}
    using(new EditorGUI.DisabledScope(Application.isPlaying)){layoutEditor.OnInspectorGUI();}
+   EditorGUILayout.Space();EditorGUILayout.LabelField("混合输入意图",EditorStyles.boldLabel);
+   serializedObject.Update();
+   EditorGUILayout.PropertyField(serializedObject.FindProperty("intentThreshold"),new GUIContent("有效轴门槛","在Action已有processor处理之后判断，不再次执行deadzone。"));
+   EditorGUILayout.PropertyField(serializedObject.FindProperty("directionChangeThreshold"),new GUIContent("新方向变化门槛","旧保持值不重复抢来源；积累到此变化量才形成新方向意图。"));
+   serializedObject.ApplyModifiedProperties();
+   if(Application.isPlaying)
+   {
+    var sources=((CharacterInputHandler)target).InputSources;
+    EditorGUILayout.LabelField("移动设备",sources.MoveDeviceId.ToString());
+    EditorGUILayout.LabelField("战斗瞄准",sources.AimSource+" / "+sources.AimDeviceId);
+   }
    EditorGUILayout.Space();EditorGUILayout.LabelField("本角色开发检查输入",EditorStyles.boldLabel);
    serializedObject.Update();foreach(var name in new[]{"debugValidAction","debugBlockedAction","debugResetAction","debugInspectAction"})EditorGUILayout.PropertyField(serializedObject.FindProperty(name),true);serializedObject.ApplyModifiedProperties();
   }

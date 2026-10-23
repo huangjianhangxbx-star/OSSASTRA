@@ -1,0 +1,49 @@
+{
+  "state": "failed",
+  "failed": 1,
+  "rows": [
+    {
+      "name": "neutral target-device actions armed",
+      "ok": true,
+      "landing": "(0.00, 0.00, 0.00)",
+      "position": "(0.00, 0.02, -2.00)",
+      "aim": "None",
+      "hp": 600
+    },
+    {
+      "name": "LB+Y accepts native E once without any mouse ownership",
+      "ok": true,
+      "landing": "(6.00, 0.02, -2.00)",
+      "position": "(0.00, 0.02, -2.00)",
+      "aim": "Gamepad",
+      "hp": 600
+    },
+    {
+      "name": "landing comes from actual executor range six",
+      "ok": true,
+      "landing": "(6.00, 0.02, -2.00)",
+      "position": "(0.00, 0.02, -2.00)",
+      "aim": "Gamepad",
+      "hp": 600
+    },
+    {
+      "name": "keyboard movement can change source without changing accepted target",
+      "ok": true,
+      "landing": "(6.00, 0.02, -2.00)",
+      "position": "(0.00, 0.02, -2.00)",
+      "aim": "KeyboardMouse",
+      "hp": 600
+    },
+    {
+      "name": "release keyboard during actual leap",
+      "ok": true,
+      "landing": "(6.00, 0.02, -2.00)",
+      "position": "(1.39, 0.02, -2.00)",
+      "aim": "KeyboardMouse",
+      "hp": 600
+    },
+    {
+      "error": "System.Exception: Timeout actual skill reaches frozen landing and damages target / 接触 0 #9233fa4aeb7e440c837291fced6ed2ad\r\n  at AM03DirectionalAbilityWorld+<>c__DisplayClass0_0.<Execute>b__19 () [0x0019f] in <8ac1b2d415d1461c96905fd35c256f37>:0 "
+    }
+  ]
+}

@@ -14,7 +14,7 @@ namespace Ossastra.Characters
 {
     [DefaultExecutionOrder(-200)]
     [DisallowMultipleComponent]
-    public sealed class CharacterControlCoordinator : MonoBehaviour, ICharacterPlayerControlSource, ICharacterControlSession
+    public sealed class CharacterControlCoordinator : MonoBehaviour, ICharacterPlayerControlSource, ICharacterControlSession, IPlayerInputSourceSession
     {
         [SerializeField] private CharacterRoot[] characters = Array.Empty<CharacterRoot>();
         [SerializeField, Min(0)] private int initialIndex;
@@ -32,6 +32,8 @@ namespace Ossastra.Characters
         public IReadOnlyList<CharacterRoot> Characters => Array.AsReadOnly(characters);
         public string Status { get; private set; } = "未初始化";
         public int ControlRevision { get; private set; }
+        // 玩家会话共用；切换角色/设备不复制来源记忆，也不因来源变化递增控制代际。
+        public PlayerInputSourceState InputSources { get; } = new PlayerInputSourceState();
         public bool IsIntentSamplingAllowed => configured && isActiveAndEnabled && focused && !applicationPaused &&
             Current != null && Current.IsAlive && Current.isActiveAndEnabled && Current.DataBus != null && Time.frameCount > handoverFrame;
 
@@ -172,14 +174,14 @@ namespace Ossastra.Characters
             focused = value;
             ControlRevision++;
             switchIntent.SuppressUntilRelease();
-            if (bindingsOwned) foreach (var input in inputs) if (input != null) input.ResetPlayerInput();
+            if (bindingsOwned) foreach (var input in inputs) if (input != null) input.ResetPlayerInput(true);
         }
         private void OnApplicationPause(bool value)
         {
             applicationPaused = value;
             ControlRevision++;
             switchIntent.SuppressUntilRelease();
-            if (bindingsOwned) foreach (var input in inputs) if (input != null) input.ResetPlayerInput();
+            if (bindingsOwned) foreach (var input in inputs) if (input != null) input.ResetPlayerInput(true);
         }
         // 输入仍保留“曾受管理”的关系；本对象销毁后查询失败关闭，不能突然恢复多个玩家源。
         private void OnDestroy()

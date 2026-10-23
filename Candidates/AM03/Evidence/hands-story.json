@@ -1,0 +1,69 @@
+{
+  "state": "completed",
+  "failed": 0,
+  "rows": [
+    {
+      "name": "neutral",
+      "ok": true,
+      "body": "idle1_1",
+      "left": "00000000-0000-0000-0000-000000000000",
+      "right": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "name": "offhand guard accepts own run",
+      "ok": true,
+      "body": "ready_start",
+      "left": "c77f849c-f464-488e-b8c9-68e3d772b348",
+      "right": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "name": "actual guard start then target loop",
+      "ok": true,
+      "body": "ready_loop",
+      "left": "c77f849c-f464-488e-b8c9-68e3d772b348",
+      "right": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "name": "main attack accepted while same guard continues",
+      "ok": true,
+      "body": "atk1",
+      "left": "c77f849c-f464-488e-b8c9-68e3d772b348",
+      "right": "74984aec-5356-49fd-90e3-0ce4821ea5c3"
+    },
+    {
+      "name": "left animation not restarted by main action replay",
+      "ok": true,
+      "body": "atk1",
+      "left": "c77f849c-f464-488e-b8c9-68e3d772b348",
+      "right": "74984aec-5356-49fd-90e3-0ce4821ea5c3"
+    },
+    {
+      "name": "both actual Spine grips aligned",
+      "ok": true,
+      "body": "atk1",
+      "left": "c77f849c-f464-488e-b8c9-68e3d772b348",
+      "right": "74984aec-5356-49fd-90e3-0ce4821ea5c3"
+    },
+    {
+      "name": "only one model instance per slot",
+      "ok": true,
+      "body": "atk1",
+      "left": "c77f849c-f464-488e-b8c9-68e3d772b348",
+      "right": "74984aec-5356-49fd-90e3-0ce4821ea5c3"
+    },
+    {
+      "name": "release both buttons",
+      "ok": true,
+      "body": "idle1_1",
+      "left": "00000000-0000-0000-0000-000000000000",
+      "right": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "name": "new body path is sole active character writer",
+      "ok": true,
+      "body": "idle1_1",
+      "left": "00000000-0000-0000-0000-000000000000",
+      "right": "00000000-0000-0000-0000-000000000000"
+    }
+  ]
+}

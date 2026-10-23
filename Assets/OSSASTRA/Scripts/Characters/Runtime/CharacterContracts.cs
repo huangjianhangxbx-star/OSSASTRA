@@ -12,6 +12,11 @@ using System.Collections.Generic;
 
 namespace Ossastra.Characters
 {
+    /// <summary>同一玩家的用途来源记忆；不包含角色状态或设备全局开关。</summary>
+    public interface IPlayerInputSourceSession
+    {
+        PlayerInputSourceState InputSources { get; }
+    }
     /// <summary>真实库存拥有手槽；本体装备门面只消费定义和命令，不缓存另一份位置。</summary>
     public interface ICharacterEquipmentInventory : IEquipmentSlots
     {

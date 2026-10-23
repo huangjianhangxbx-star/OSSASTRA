@@ -1,0 +1,37 @@
+{
+  "state": "failed",
+  "failed": 1,
+  "rows": [
+    {
+      "name": "neutral",
+      "ok": true,
+      "body": "idle1_1",
+      "left": "00000000-0000-0000-0000-000000000000",
+      "right": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "name": "offhand guard accepts own run",
+      "ok": true,
+      "body": "ready_start",
+      "left": "6a222d60-9599-43a3-8915-38587d0c48ac",
+      "right": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "name": "actual guard start then target loop",
+      "ok": true,
+      "body": "ready_loop",
+      "left": "6a222d60-9599-43a3-8915-38587d0c48ac",
+      "right": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "name": "open actual inventory during accepted guard",
+      "ok": true,
+      "body": "ready_end",
+      "left": "00000000-0000-0000-0000-000000000000",
+      "right": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "error": "System.Exception: Timeout UI capture preserves original held guard identity / idle1_1 / 接受 ShieldA_HoldGuard / 左：独立Spine / rest；右：独立Spine / rest\r\n  at AM02HandsStory+<>c__DisplayClass0_0.<Execute>b__29 () [0x00187] in <db5d0da645f34f2fa25d8ac9d28a3702>:0 "
+    }
+  ]
+}

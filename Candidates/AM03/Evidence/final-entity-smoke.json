@@ -1,0 +1,85 @@
+{
+  "state": "completed",
+  "entities": [
+    {
+      "name": "临时验证角色_A",
+      "type": "Ossastra.Characters.CharacterRoot",
+      "spines": [
+        {
+          "name": "MainBody",
+          "initialized": true,
+          "clip": "idle1_1",
+          "renderer": true
+        },
+        {
+          "name": "LeftEquipmentSpine",
+          "initialized": true,
+          "clip": "rest",
+          "renderer": true
+        },
+        {
+          "name": "RightEquipmentSpine",
+          "initialized": true,
+          "clip": "rest",
+          "renderer": true
+        }
+      ],
+      "presenters": []
+    },
+    {
+      "name": "临时验证角色_B",
+      "type": "Ossastra.Characters.CharacterRoot",
+      "spines": [
+        {
+          "name": "MainBody",
+          "initialized": true,
+          "clip": "idle1_1",
+          "renderer": true
+        },
+        {
+          "name": "LeftEquipmentSpine",
+          "initialized": true,
+          "clip": "rest",
+          "renderer": true
+        },
+        {
+          "name": "RightEquipmentSpine",
+          "initialized": true,
+          "clip": "rest",
+          "renderer": true
+        }
+      ],
+      "presenters": []
+    },
+    {
+      "name": "StationaryCombatEnemy",
+      "type": "Ossastra.Enemies.EnemyRoot",
+      "spines": [
+        {
+          "name": "MainBody",
+          "initialized": true,
+          "clip": "_stand",
+          "renderer": true
+        }
+      ],
+      "presenters": [
+        "Ossastra.AnimationPresentation.EntitySpinePresenter"
+      ]
+    },
+    {
+      "name": "ARCH01_NonCombatNpc",
+      "type": "Ossastra.Npcs.NpcRoot",
+      "spines": [
+        {
+          "name": "MainBody",
+          "initialized": true,
+          "clip": "idle1_1",
+          "renderer": true
+        }
+      ],
+      "presenters": [
+        "Ossastra.AnimationPresentation.EntitySpinePresenter"
+      ]
+    }
+  ]
+}
