@@ -13,6 +13,7 @@ namespace Ossastra.Characters
     public sealed class TimelineAbilitySO:AbilityExecutorSO
     {
         [SerializeField] private bool usesBodyAction=true;
+        [SerializeField] private bool supportAction,allowsCompanionUse;
         public override bool UsesBodyAction=>usesBodyAction;
         public override void Validate(AbilityDefinitionSO definition)
         {
@@ -26,12 +27,15 @@ namespace Ossastra.Characters
                     throw new ArgumentException("action stage times differ from ability plan");
             }
         }
-        public override CompiledAbilityExecutor CompileExecutor()=>new Executor(usesBodyAction);
+        public override CompiledAbilityExecutor CompileExecutor()=>new Executor(usesBodyAction,supportAction,allowsCompanionUse);
         private sealed class Executor:CompiledAbilityExecutor
         {
             private readonly bool usesBody;
-            public Executor(bool usesBody){this.usesBody=usesBody;}
+            private readonly bool support,companion;
+            public Executor(bool usesBody,bool support,bool companion){this.usesBody=usesBody;this.support=support;this.companion=companion;}
             public override bool UsesBodyAction=>usesBody;
+            public override CharacterActionKind ActionKind=>support?CharacterActionKind.Support:base.ActionKind;
+            public override bool AllowsCompanionUse=>companion;
             public override AbilityRun CreateRun(AbilityRunContext context)=>new Run(context);
         }
         private sealed class Run:AbilityRun

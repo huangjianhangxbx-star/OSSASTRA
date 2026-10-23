@@ -6,6 +6,7 @@
  */
 using UnityEngine.EventSystems;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -47,6 +48,15 @@ namespace Ossastra.Characters
         public InputAction debugInspectAction = new InputAction("DebugInspect", InputActionType.Button);
 
         private readonly Dictionary<object, Rect> pointerRegions = new Dictionary<object, Rect>();
+        private readonly Dictionary<object,bool> inventoryCaptures=new Dictionary<object,bool>();
+        public bool InventoryCaptured=>inventoryCaptures.Count>0;
+        /// <summary>开包只捕获战斗；数值输入再捕获移动，不撤销Current或暂停已接受动作。</summary>
+        public void SetInventoryCapture(object owner,bool captured,bool captureMovement=false)
+        {
+            if(owner==null)return;
+            var prior=InventoryCaptured;if(captured)inventoryCaptures[owner]=captureMovement;else inventoryCaptures.Remove(owner);
+            if(prior!=InventoryCaptured)ResetPlayerInput();
+        }
         private ICharacterPlayerControlSource playerControl;
         private bool managedPlayerInput, attackArmed = true;
         private bool movementArmed=true;
@@ -127,6 +137,11 @@ namespace Ossastra.Characters
                 // 死亡交接不能把旧WASD/摇杆位移转发给幸存者；必须真实回中才重新采移动。
                 if (frame.move.sqrMagnitude<.0001f) movementArmed=true;
                 frame.move=Vector2.zero;
+            }
+            if(InventoryCaptured)
+            {
+                if(inventoryCaptures.Values.Any(value=>value))frame.move=Vector2.zero;
+                frame.pause=Pressed(pauseAction);CurrentFrame=frame;return frame;
             }
             if (mouseAction != null && mouseAction.enabled)
             {

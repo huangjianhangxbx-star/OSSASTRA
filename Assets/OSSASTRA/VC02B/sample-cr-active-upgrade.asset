@@ -1,0 +1,36 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e8f7838b0d4b14246bc14cb1d63867ed, type: 3}
+  m_Name: sample-cr-active-upgrade
+  m_EditorClassIdentifier: 
+  definitionId: sample-cr-active-upgrade
+  displayName: "\u5B9E\u9A8C\u6280\u80FD\u5347\u9636\u77F3"
+  healAmount: 100
+  description: "\u4EC5\u5E93\u5B58/\u5B9E\u9A8C\u6765\u6E90\u5143\u6570\u636E\uFF1B\u6B63\u5F0F\u6210\u957F\u7ECF\u6D4E\u4E0D\u5728\u672C\u8F6E\u3002"
+  category: material
+  rarity: 0
+  icon: {fileID: 0}
+  inventoryGlyph: "\u5B9E"
+  width: 1
+  height: 1
+  maxStack: 99
+  unitWeightGrams: 0
+  sellValue: -1
+  equipment: {fileID: 0}
+  allowedOwners: []
+  useKind: 0
+  regenerationPerSecond: 0
+  regenerationSeconds: 0
+  ability: {fileID: 0}
+  temporarySocketId: 
+  temporaryVisualScale: 0.35
+  temporaryVisualSeconds: 0.35

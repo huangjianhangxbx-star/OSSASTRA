@@ -1,0 +1,38 @@
+asset	id	animationKey	release	moveReady	attackReady	finish	eventBindings
+Assets/OSSASTRA/Configs/Abilities/MainProfiles/hunter_A1.asset	hunter_A1	basic-1	0.0333	0.2333	0.2	0.7333	
+Assets/OSSASTRA/Configs/Abilities/MainProfiles/hunter_A2.asset	hunter_A2	basic-2	0	0.2333	0.2	0.7333	
+Assets/OSSASTRA/Configs/Abilities/MainProfiles/hunter_A3.asset	hunter_A3	basic-3	0.0333	0.3	0.2667	0.6333	
+Assets/OSSASTRA/Configs/Abilities/MainProfiles/hunter_A4.asset	hunter_A4	basic-4	0.1333	0.5	0.5	0.8333	
+Assets/OSSASTRA/Configs/Abilities/MainProfiles/hunter_Chisel.asset	hunter_Chisel	basic-4	0.1	0.4	0.3333	0.7667	
+Assets/OSSASTRA/Configs/Abilities/MainProfiles/hunter_II_A3.asset	hunter_II_A3	basic-3	0.0333	0.48	0.4467	0.6333	
+Assets/OSSASTRA/Configs/Abilities/MainProfiles/hunter_II_A4.asset	hunter_II_A4	basic-4	0.1333	0.68	0.68	0.8333	
+Assets/OSSASTRA/Configs/Abilities/MainProfiles/hunter_Rapid1.asset	hunter_Rapid1	basic-1	0.0333	0.2	0.1	0.4	
+Assets/OSSASTRA/Configs/Abilities/MainProfiles/hunter_Rapid2.asset	hunter_Rapid2	basic-2	0.1	0.2333	0.1667	0.4	
+Assets/OSSASTRA/Configs/Abilities/MainProfiles/hunter_Rapid3.asset	hunter_Rapid3	basic-3	0.1333	0.3	0.2	0.4667	
+Assets/OSSASTRA/Configs/Abilities/MainProfiles/hunter_RapidPlus1.asset	hunter_RapidPlus1	basic-1	0.0333	0.1667	0.1	0.3667	
+Assets/OSSASTRA/Configs/Abilities/MainProfiles/hunter_RapidPlus2.asset	hunter_RapidPlus2	basic-2	0.0667	0.2	0.1333	0.3667	
+Assets/OSSASTRA/Configs/Abilities/MainProfiles/hunter_RapidPlus3.asset	hunter_RapidPlus3	basic-3	0.0667	0.2333	0.1333	0.4	
+Assets/OSSASTRA/Configs/Abilities/MainProfiles/hunter_RapidPlus4.asset	hunter_RapidPlus4	basic-2	0.0667	0.2	0.1333	0.3667	
+Assets/OSSASTRA/Configs/Abilities/MainProfiles/ranger_A1.asset	ranger_A1	basic-1	0.0333	0.2	0.1333	0.8	
+Assets/OSSASTRA/Configs/Abilities/MainProfiles/ranger_A2.asset	ranger_A2	basic-2	0.0667	0.2667	0.1667	0.8	
+Assets/OSSASTRA/Configs/Abilities/MainProfiles/ranger_A3.asset	ranger_A3	basic-3	0.1667	0.4	0.3	1.2667	
+Assets/OSSASTRA/Configs/Abilities/MainProfiles/ranger_II_A2.asset	ranger_II_A2	basic-2	0.0667	0.4467	0.3467	0.8	
+Assets/OSSASTRA/Configs/Abilities/MainProfiles/ranger_II_A3.asset	ranger_II_A3	basic-3	0.1667	0.58	0.48	1.2667	
+Assets/OSSASTRA/Configs/Abilities/ShieldAttack_Action.asset	HunterBreak_Adapted.action	HunterBreak_Adapted	0.06666667	0.5	0.5	1.366667	
+Assets/OSSASTRA/Configs/Abilities/al-spin_Action.asset	al-spin.action	basic-4	0.18	0.5	0.5	0.5	
+Assets/OSSASTRA/Configs/Abilities/al-stab_Action.asset	al-stab.action	basic-2	0.12	0.4	0.4	0.4	
+Assets/OSSASTRA/Configs/Abilities/hunter-break_Action.asset	hunter-break.action	basic-3	0.12	0.4	0.4	0.4	
+Assets/OSSASTRA/Configs/Abilities/hunter-sweep_Action.asset	hunter-sweep.action	basic-4	0.18	0.5	0.5	0.5	
+Assets/OSSASTRA/Configs/Abilities/mortar_Action.asset	mortar_Action	magazine-shot	0.1	0.5666667	0.5666667	0.9	
+Assets/OSSASTRA/Configs/Abilities/precision_Action.asset	precision.action	precision-reload	0.8	0.8	0.8	0.8	
+Assets/OSSASTRA/Configs/Abilities/rocket-leap_Action.asset	rocket-leap.action	rocket-leap	0.1	0.4666667	0.4666667	0.9	
+Assets/OSSASTRA/Configs/Abilities/rush-charge_Action.asset	rush-charge.action	rush-charge	0	0.06666667	0.6	0.6	
+Assets/OSSASTRA/Configs/Abilities/rush-prepare_Action.asset	rush-prepare.action	rush-prepare	2.2	2.2	2.2	2.2	
+Assets/OSSASTRA/Configs/Abilities/rush-release_Action.asset	rush-release.action	rush-release	0	0.2	0.2	0.2	
+Assets/OSSASTRA/Configs/Abilities/shot_Action.asset	shot_Action	magazine-shot	0.03333334	0.4	0.4	0.5333334	
+Assets/OSSASTRA/Configs/Actions/Rozeul_Basic1.asset	rozeul.basic.1	basic-1	0.08333334	0.3666667	0.3666667	1.1	Released:hit_start@0.08333334;MoveReady:hit_to_idle@0.3666667;AttackReady:hit_to_idle@0.3666667;Finished:clip-duration@1.1
+Assets/OSSASTRA/Configs/Actions/Rozeul_Basic2.asset	rozeul.basic.2	basic-2	0.1	0.5	0.5	1.266667	Released:hit_start@0.1;MoveReady:hit_to_idle@0.5;AttackReady:hit_to_idle@0.5;Finished:clip-duration@1.266667
+Assets/OSSASTRA/Configs/Actions/Rozeul_Basic3.asset	rozeul.basic.3	basic-3	0.2333333	0.6833333	0.6833333	1.3	Released:hit_start@0.2333333;MoveReady:hit_to_idle@0.6833333;AttackReady:hit_to_idle@0.6833333;Finished:clip-duration@1.3
+Assets/OSSASTRA/Configs/Actions/Rozeul_Basic4.asset	rozeul.basic.4	basic-4	0.06666667	0.7666667	0.7666667	1.466667	Released:hit_start@0.06666667;MoveReady:hit_to_idle@0.7666667;AttackReady:hit_to_idle@0.7666667;Finished:clip-duration@1.466667
+Assets/OSSASTRA/Configs/Skills/HunterBreak_Adapted_Action.asset	HunterBreak_Adapted.action	HunterBreak_Adapted	0.06666667	0.5	0.5	1.366667	
+Assets/OSSASTRA/Configs/Skills/RangerRocket_Adapted_Action.asset	RangerRocket_Adapted.action	RangerRocket_Adapted	1	1.833333	1.833333	2.366667	

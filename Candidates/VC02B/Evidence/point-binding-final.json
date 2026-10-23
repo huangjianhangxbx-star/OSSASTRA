@@ -1,0 +1,41 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "failed": 0,
+      "boundaryFixture": true,
+      "rows": [
+        {
+          "name": "point resolves actual slot bone",
+          "ok": true
+        },
+        {
+          "name": "point world position includes bone transform",
+          "ok": true
+        },
+        {
+          "name": "point world rotation includes authored angle",
+          "ok": true
+        },
+        {
+          "name": "resolved point is an immutable attachment copy",
+          "ok": true
+        },
+        {
+          "name": "point follows negative skeleton X without duplicate flip",
+          "ok": true
+        },
+        {
+          "name": "missing actual point gives field error",
+          "ok": true
+        }
+      ]
+    }
+  }
+}

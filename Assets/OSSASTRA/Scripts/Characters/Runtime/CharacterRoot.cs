@@ -34,6 +34,8 @@ namespace Ossastra.Characters
         [SerializeField] private CombatPosture posture;
         private ICombatLifeState lifeState;
         private CompanionCombatBrain combatBrain;
+        private ICharacterInventoryConsumer inventoryConsumer;
+        private ICharacterTransientItemPresentation transientItems;
         private CharacterStamina stamina;
         private CombatStatusEffects statusEffects;
         private CharacterDodge dodge;
@@ -151,6 +153,8 @@ namespace Ossastra.Characters
             inputSource = intentSelector;
             combatBrain=GetComponent<CompanionCombatBrain>();
             if(combatBrain!=null) combatBrain.Initialize(this);
+            foreach(var component in GetComponents<MonoBehaviour>())if(component is ICharacterInventoryConsumer consumer){inventoryConsumer=consumer;consumer.Initialize(this);break;}
+            foreach(var component in GetComponents<MonoBehaviour>())if(component is ICharacterTransientItemPresentation itemView){transientItems=itemView;itemView.Initialize(this);break;}
             mover = movement;
             orienter = orientation;
             presentation = view;
@@ -257,7 +261,9 @@ namespace Ossastra.Characters
             // 模态只捕获设备输入，不等于切走角色；已接受副手与实控CD仍继续。
             if(abilities==null)offhand?.Tick(Time.deltaTime,input.HasPlayerControl);
             // 4b. 窄自治请求与玩家边沿互斥；仅Stage1，不通过输入帧注入攻击/暂停。
-            if(!input.HasPlayerInput && CanSimulateIntent && combatBrain!=null &&
+            // 4b-1. 可选真实后备消费者先提有限支持请求；普通AI攻击不抢同帧新接受的补给。
+            var inventoryAccepted=inventoryConsumer!=null&&inventoryConsumer.TickCandidate();
+            if(!inventoryAccepted&&!input.HasPlayerInput && CanSimulateIntent && combatBrain!=null &&
                 ((ICompanionActionCandidate)combatBrain).TryGetAttackTarget(out var aiTarget))
                 RequestStage(1,aiTarget);
             if(autonomousAction && runtime.IsActive)
@@ -300,7 +306,7 @@ namespace Ossastra.Characters
 
         // Spine在Update求骨骼；本根LateUpdate消费同帧挂点，Renderer稍后构建网格。
         // 此处仅推进装备表现，不执行第二次Move或结算。
-        private void LateUpdate(){if(ready){equipmentView?.TickPresentation();equipmentSpineView?.TickPresentation();}}
+        private void LateUpdate(){if(ready){equipmentView?.TickPresentation();equipmentSpineView?.TickPresentation();transientItems?.TickPresentation();}}
         // 7. Animation Intent → One Commit；无子模块Update争抢主轨。
         private void CommitPresentation()
         {
@@ -496,7 +502,7 @@ namespace Ossastra.Characters
         private void OnApplicationPause(bool value)
           { applicationPaused = value; if(value)chain?.Clear(); if (follow != null) follow.ResetIntent(); if (value) intent.SuppressUntilRelease(); }
         private void OnEnable() { intent.SuppressUntilRelease(); if (intentSelector != null) intentSelector.Clear(); }
-        private void OnDisable() { statusEffects?.Clear();mainAction?.ResetState();equipmentView?.Hide();equipmentSpineView?.Hide();skills?.Clear();offhand?.CancelAll(); CancelAction("disabled"); if (posture != null) posture.ResetState(); authority.Release(posture); if (follow != null) follow.ResetIntent(); if (intentSelector != null) intentSelector.Clear(); if (ready && presentation != null) presentation.SetPaused(false); }
+        private void OnDisable() { transientItems?.Hide();statusEffects?.Clear();mainAction?.ResetState();equipmentView?.Hide();equipmentSpineView?.Hide();skills?.Clear();offhand?.CancelAll(); CancelAction("disabled"); if (posture != null) posture.ResetState(); authority.Release(posture); if (follow != null) follow.ResetIntent(); if (intentSelector != null) intentSelector.Clear(); if (ready && presentation != null) presentation.SetPaused(false); }
         private void OnDestroy()
         {
             if(mainAction!=null)mainAction.Resolved-=OnHitReceipt;

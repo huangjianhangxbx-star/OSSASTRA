@@ -1,0 +1,36 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e8f7838b0d4b14246bc14cb1d63867ed, type: 3}
+  m_Name: food-4
+  m_EditorClassIdentifier: 
+  definitionId: food-4
+  displayName: "\u8D64\u66DC\u76DB\u5BB4"
+  healAmount: 100
+  description: "\u98DF\u7528\u540E\u6BCF\u79D2\u6062\u590D12\u751F\u547D\uFF0C\u6301\u7EED20\u79D2\uFF1B\u6062\u590D\u4E0D\u53E0\u52A0\u3002"
+  category: food
+  rarity: 4
+  icon: {fileID: 21300000, guid: fbd11aa1eb2092f4f9c787f83f858a9e, type: 3}
+  inventoryGlyph: "\u8D64"
+  width: 1
+  height: 1
+  maxStack: 20
+  unitWeightGrams: 600
+  sellValue: 300
+  equipment: {fileID: 0}
+  allowedOwners: []
+  useKind: 1
+  regenerationPerSecond: 12
+  regenerationSeconds: 20
+  ability: {fileID: 11400000, guid: 47becb23e7ddc3346819bca4a1f52536, type: 2}
+  temporarySocketId: item.use
+  temporaryVisualScale: 0.35
+  temporaryVisualSeconds: 0.35

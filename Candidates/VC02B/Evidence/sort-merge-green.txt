@@ -1,0 +1,37 @@
+PASS empty external slots have no phantom equipment
+PASS equipment facade reads inventory payload
+PASS wear one actual item once
+PASS legacy equip cannot bypass bound inventory
+PASS reequip does not reset durability
+PASS grant real equipment
+PASS pack to hand
+PASS equipment stable identity/payload
+PASS hand ground backpack path
+PASS move preserves wear and form
+PASS grant quantity
+PASS stale revision no mutation
+PASS split one into safe
+PASS split gives distinct stack identity
+PASS merge into existing stack
+PASS merge conserves quantity
+PASS reserve real quantity
+PASS reserved stack cannot move
+PASS release consumes one
+PASS duplicate release does not consume
+PASS access generation invalidates drag
+PASS non equipment cannot enter hand
+PASS safe protected slot
+PASS wipe batch transfer
+PASS safe survives wipe original weapon drops
+PASS wipe identity deduplicates
+PASS explicit overflowing merge rejects entire move
+PASS explicit grid swap preserves both items
+PASS stale sort cannot overwrite new quantities
+PASS bounded sort failure preserves manual operation
+PASS finite fixed orientation sorting commits valid layout
+PASS cannot remove occupied container
+PASS empty ground container reclaimed
+PASS three partial stacks fixture
+PASS sorting merges legal stacks while conserving quantities
+PASS global unique placement and valid quantities: 
+TOTAL 36

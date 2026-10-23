@@ -23,6 +23,7 @@ namespace Ossastra.Characters
         public readonly Vector3 direction,landing;
         public readonly Action<AbilityRunContext,AbilityEmission> emit;
         public readonly AbilityOperation operation;
+        public readonly CharacterActionSource requestSource;
         public readonly Sprite projectileSprite;
         public readonly float projectileScale;
         public readonly EffectSnapshot effects;
@@ -30,6 +31,8 @@ namespace Ossastra.Characters
         internal Action<AbilityRunContext,AbilityEmission,DeliveryParameters,string,float> deliveryPort;
         internal Action<int,string,IReadOnlyList<HitOutcome>> onResolved;
         internal Action<Guid,string,Vector3> feedback;
+        internal Func<AbilityRunContext,bool> commitSource;
+        public bool TryCommitSource()=>commitSource!=null&&commitSource(this);
         public void NotifyFeedback(string kind)=>feedback?.Invoke(id,kind,owner.transform.position);
         /// <summary>同一动作可提交不同投递节点；统一来源支付、命中和父预算仍归共享端口。</summary>
         public void Deliver(AbilityEmission emission,DeliveryParameters delivery,string channel,float posture=0)
@@ -42,11 +45,11 @@ namespace Ossastra.Characters
             var state=source.RuntimeState;
             return state.Cooldowns.Commit(source.InstanceId+":"+definition.cooldownIdentity,id,state.Clock(definition.cooldownPolicy),ModifiedCooldown);
         }
-        public AbilityRunContext(CharacterRoot owner,CompiledAbility definition,IAbilitySource source,Guid id,Vector3 direction,Vector3 landing,Action<AbilityRunContext,AbilityEmission> emit,AbilityOperation operation,Sprite sprite,float scale,EffectSnapshot effects=null,Guid releasePaymentId=default)
+        public AbilityRunContext(CharacterRoot owner,CompiledAbility definition,IAbilitySource source,Guid id,Vector3 direction,Vector3 landing,Action<AbilityRunContext,AbilityEmission> emit,AbilityOperation operation,Sprite sprite,float scale,EffectSnapshot effects=null,Guid releasePaymentId=default,CharacterActionSource requestSource=CharacterActionSource.Player)
         {
             this.owner=owner;this.definition=definition;this.source=source;this.id=id;this.direction=direction;this.landing=landing;this.emit=emit;
             lifeGeneration=owner.LifeGeneration;acceptedAt=owner.SimulationTime;
-            this.operation=operation;
+            this.operation=operation;this.requestSource=requestSource;
             projectileSprite=sprite;projectileScale=scale;
             this.effects=effects??new EffectSnapshot(0,Array.Empty<EffectSourceRow>(),0,false);
             this.releasePaymentId=releasePaymentId;shot=source.RuntimeState.ShotEnhancements.Snapshot();

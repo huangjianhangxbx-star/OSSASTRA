@@ -1,0 +1,43 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3d3cec38353073e46836b8c195545eb2, type: 3}
+  m_Name: Rozeul_RigProfile
+  m_EditorClassIdentifier: 
+  schemaVersion: 1
+  contentVersion: 1
+  model: {fileID: 11400000, guid: 8de59581980c83e4e91f8a7e5bc92f46, type: 2}
+  evidence: "B\u5019\u9009\uFF1A\u771F\u5B9Erozeul Rhand/Lhand\u53CA\u5176\u5B9E\u9645slot\uFF1B\u6B63\u80CC\u4E13\u7528\u7F51\u683C\u672A\u9A8C\u8BC1\uFF0C\u4E0D\u5BA3\u79F0\u516B\u65B9\u5411\u6A21\u578B\u3002"
+  sockets:
+  - semanticSocketId: equipment.right
+    kind: 1
+    boneName: 
+    slotName: Z-Rhand1
+    pointAttachmentName: 
+    skinName: 
+    boneLocalOffset: {x: 0, y: 0, z: 0}
+    evidence: "\u5B9E\u9645slot\u5173\u8054Rhand\uFF0C\u4E0D\u6309slot\u540D\u67E5bone"
+  - semanticSocketId: equipment.left
+    kind: 1
+    boneName: 
+    slotName: Z-Z_Lhand1
+    pointAttachmentName: 
+    skinName: 
+    boneLocalOffset: {x: 0, y: 0, z: 0}
+    evidence: "\u5B9E\u9645slot\u5173\u8054Lhand\uFF0C\u7EE7\u627F\u989C\u8272\u653F\u7B56\u72EC\u7ACB"
+  - semanticSocketId: item.use
+    kind: 0
+    boneName: Rhand
+    slotName: 
+    pointAttachmentName: 
+    skinName: 
+    boneLocalOffset: {x: 0, y: 0, z: 0}
+    evidence: "\u4E34\u65F6Sprite\u7269\u54C1\uFF0CRoot LateUpdate\u5B9E\u9645\u9AA8\u67B6\u59FF\u6001"

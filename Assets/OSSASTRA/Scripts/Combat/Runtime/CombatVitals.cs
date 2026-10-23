@@ -23,6 +23,7 @@ namespace Ossastra.Combat
         private MaterialPropertyBlock flashBlock;
         private bool deathNotified, flashing;
         private CombatRecovery recovery;
+        private CombatRegeneration regeneration;
         public CombatRecovery Recovery=>recovery;
         private float flashUntil;
         public Health Health { get; private set; }
@@ -42,6 +43,7 @@ namespace Ossastra.Combat
             if (string.IsNullOrWhiteSpace(actorId) || maximumHp<=0) return false;
             Health=new Health(actorId,maximumHp);
             recovery=GetComponent<CombatRecovery>();recovery?.Initialize(this);
+            regeneration=GetComponent<CombatRegeneration>();regeneration?.Initialize(this);
             // Unity原生对象必须在显式主线程初始化中创建，不能依赖MonoBehaviour字段构造时机。
             flashBlock=new MaterialPropertyBlock();
             renderers=GetComponentsInChildren<Renderer>(true);
@@ -63,6 +65,7 @@ namespace Ossastra.Combat
             if (deathNotified) return;
             deathNotified=true; DeathCount++; flashing=false;
             recovery?.ResetState();
+            regeneration?.Clear();
             // 只退本体表现/碰撞，保留Root/身份/Health供会话与调试读取；死亡不靠禁用全组Root。
             foreach (var r in renderers) if (r!=null) r.enabled=false;
             foreach (var c in colliders) if (c!=null) c.enabled=false;
@@ -91,7 +94,7 @@ namespace Ossastra.Combat
             if (Health==null) return;
             Health.RestoreForDevelopment(); RestoreBody("Development重置");
         }
-        public void TickResources(double delta)=>recovery?.Tick(delta);
+        public void TickResources(double delta){recovery?.Tick(delta);regeneration?.Tick(delta);}
         internal bool RestoreAfterDeath()
         {
             if(Health==null || !isActiveAndEnabled || !Health.RestoreAfterDeath()) return false;

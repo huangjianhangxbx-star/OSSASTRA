@@ -1,0 +1,52 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 10864447e0a8f6046b2d3ff2b0036e31, type: 3}
+  m_Name: food-2_Use
+  m_EditorClassIdentifier: 
+  schemaVersion: 1
+  cooldownPolicy: 0
+  definitionId: food-2.use
+  displayName: "\u6696\u7089\u7096\u8089"
+  cooldownIdentity: 
+  effectRoot: 
+  damageChannel: 
+  executor: {fileID: 11400000, guid: 8748dc1e01880214d92c56b21c3d49f3, type: 2}
+  action: {fileID: 0}
+  occupancy: 0
+  acceptCost: 0
+  cooldown: 0
+  holdCostPerSecond: 0
+  releaseCost: 0
+  wearOnRelease: 0
+  reclaimBudget: 0.05
+  reclaimRate: 0.5
+  finishAt: 0.1
+  moveReadyAt: 0
+  attackReadyAt: 0
+  delivery:
+    mode: 0
+    range: 2
+    radius: 0.6
+    arc: 90
+    speed: 10
+    flightTime: 0.45
+    collisionRadius: 0.08
+    arcHeight: 1
+    activeDuration: 0
+    followSource: 0
+    collisionLayers:
+      serializedVersion: 2
+      m_Bits: 4294967295
+  releases:
+  - at: 0.05
+    damage: 0
+    postureImpact: 0

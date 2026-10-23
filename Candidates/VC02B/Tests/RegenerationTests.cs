@@ -1,0 +1,6 @@
+using System;using Ossastra.CharacterCore;using Ossastra.Inventory;
+static class RegenerationTests
+{
+ static int count;static void Check(bool ok,string label){if(!ok)throw new Exception(label);Console.WriteLine("PASS "+label);count++;}
+ static void Main(){var hp=new Health("actor",100);var r=new RegenerationState(hp);Check(!r.TryBegin(Guid.NewGuid(),4,5),"full HP rejects regeneration");hp.ApplyDamage(60);var execution=Guid.NewGuid();Check(r.TryBegin(execution,4,5)&&hp.Current==40,"accept does not heal instantly");Check(!r.TryBegin(Guid.NewGuid(),12,20),"existing recovery rejects food stacking");r.Tick(.5,false);Check(hp.Current==42,"actual slow recovery half second");r.Tick(2,true);Check(hp.Current==42&&r.Remaining==4.5,"pause freezes recovery");r.Tick(10,false);Check(hp.Current==60&&!r.Active,"large step clamps to authored five seconds");Check(!r.TryBegin(execution,4,5),"same execution cannot restart recovery");Check(r.TryBegin(Guid.NewGuid(),3,10),"subsequent independent recovery");hp.ApplyDamage(99);r.Tick(1,false);Check(hp.Current==0&&!r.Active,"death clears without resurrection");hp.RestoreAfterDeath();Check(!r.TryBegin(Guid.NewGuid(),float.NaN,5),"invalid effect rejected");Console.WriteLine("TOTAL "+count);}
+}

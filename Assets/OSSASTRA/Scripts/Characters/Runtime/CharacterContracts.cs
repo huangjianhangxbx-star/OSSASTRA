@@ -12,6 +12,14 @@ using System.Collections.Generic;
 
 namespace Ossastra.Characters
 {
+    /// <summary>真实库存拥有手槽；本体装备门面只消费定义和命令，不缓存另一份位置。</summary>
+    public interface ICharacterEquipmentInventory : IEquipmentSlots
+    {
+        EquipmentDefinitionSO RightDefinition {get;}
+        EquipmentDefinitionSO LeftDefinition {get;}
+        EquipmentDefinitionSO[] AvailableOffhands {get;}
+        bool TryEquip(EquipmentDefinitionSO definition);
+    }
     /// <summary>根显式推进的定义驱动能力：输入路由与已释放效果分开，旧样板路径与此端口互斥。</summary>
     public interface ICharacterAbilityController
     {
@@ -36,6 +44,25 @@ namespace Ossastra.Characters
     }
     /// <summary>可携带能力payload的稳定实例；库存装备也应返回同一对象，不能在换人/换槽时复制CD与弹药。</summary>
     public interface IAbilityStateSource { EquipmentAbilityState RuntimeState {get;} }
+    /// <summary>目标由合法库存/伙伴请求冻结；执行器仍复核距离、视线与目标生命，不读取另一套设备输入。</summary>
+    public interface IAbilityTargetSource
+    {
+        Ossastra.Combat.CombatVitals Target {get;}
+        UnityEngine.Vector3? AimPoint {get;}
+    }
+    /// <summary>可选本体补给消费者；根在自治普攻前依序采样，不由场景服务另开角色Update。</summary>
+    public interface ICharacterInventoryConsumer
+    {
+        void Initialize(CharacterRoot owner);
+        bool TickCandidate();
+    }
+    /// <summary>消耗品短暂挂点表现；根在身体骨架求姿态后推进，不反向影响消费结果。</summary>
+    public interface ICharacterTransientItemPresentation
+    {
+        void Initialize(CharacterRoot owner);
+        void TickPresentation();
+        void Hide();
+    }
     /// <summary>角色技能能力；根调度输入、唯一释放事实和离手效果，UI只提交请求。</summary>
     public interface ICharacterSkills
     {
@@ -60,8 +87,8 @@ namespace Ossastra.Characters
         System.Guid ActionId {get;}
         float Duration {get;}
     }
-    public enum CharacterActionKind { Main, Dodge, Guard, Offhand }
-    public enum CharacterActionSource { Player, Companion, UserInterface }
+    public enum CharacterActionKind { Main, Dodge, Guard, Offhand, Support }
+    public enum CharacterActionSource { Player, Companion, UserInterface, Inventory }
     /// <summary>请求携带角色/生命/控制代际和请求身份；动作身份由原执行端接受时产生。</summary>
     public readonly struct CharacterActionRequest
     {

@@ -1,0 +1,77 @@
+{
+  "success": true,
+  "message": "Inspect operation.status; this envelope only acknowledges the query.",
+  "data": {
+    "operation": {
+      "operation_id": "b9e0973b136c4c6e85639965b205b35b",
+      "request_key": "roadmap-refresh-e56ee386965b4c439a651397b0f6c251",
+      "editor_session": "611e2a174f1e4d139ee82adc66edbe7e",
+      "target": "edit",
+      "status": "failed",
+      "phase": "failed",
+      "created_at": "2026-10-23T12:55:25.452+08:00",
+      "updated_at": "2026-10-23T12:55:30.757+08:00",
+      "finished_at": "2026-10-23T12:55:30.757+08:00",
+      "error_code": "COMPILATION_FAILED",
+      "message": "Resolve compiler errors before preparing the editor again.",
+      "refresh_assets": true,
+      "timeout_seconds": 120,
+      "step": 2,
+      "created_seconds": 1792731325.452,
+      "deadline_seconds": 1792731445.452,
+      "settle_since": 0.0,
+      "compilation_errors": [
+        "Assets\\OSSASTRA\\Scripts\\UI\\InventoryView.cs(144,64): Assets\\OSSASTRA\\Scripts\\UI\\InventoryView.cs(144,64): error CS0136: A local or parameter named 'item' cannot be declared in this scope because that name is used in an enclosing local scope to define a local or parameter"
+      ],
+      "history": [
+        {
+          "timestamp": "2026-10-23T12:55:25.452+08:00",
+          "phase": "queued",
+          "message": "Preparation accepted; not yet ready."
+        },
+        {
+          "timestamp": "2026-10-23T12:55:25.752+08:00",
+          "phase": "importing",
+          "message": null
+        },
+        {
+          "timestamp": "2026-10-23T12:55:26.827+08:00",
+          "phase": "compiling",
+          "message": null
+        },
+        {
+          "timestamp": "2026-10-23T12:55:30.757+08:00",
+          "phase": "failed",
+          "message": "Resolve compiler errors before preparing the editor again."
+        }
+      ]
+    },
+    "current_editor": {
+      "is_compiling": false,
+      "is_updating": false,
+      "is_playing": false,
+      "is_changing_play_mode": false,
+      "compilation_failed": true,
+      "refresh_pending": false,
+      "refresh_error": null,
+      "ready": false
+    },
+    "journal_path": "E:\\WORLDCREATOR\\new\\Project_ANKALUTE\\Library/FunplayMcp/Operations/editor-operations.json",
+    "poll_after_ms": 0,
+    "journal_error": null,
+    "task": {
+      "task_id": "editor:b9e0973b136c4c6e85639965b205b35b",
+      "kind": "editor",
+      "id": "b9e0973b136c4c6e85639965b205b35b",
+      "status": "failed",
+      "phase": "failed",
+      "revision": "d0f77b75384f901d347da239e0ac82e62b7c6f8594f7570b63ee16483506eb5a",
+      "changed": true,
+      "wait_complete": true,
+      "poll_after_ms": 0,
+      "wait_reason": "completed",
+      "waited_ms": 3425,
+      "snapshot_at": "2026-10-23T04:55:30.9611786Z"
+    }
+  }
+}

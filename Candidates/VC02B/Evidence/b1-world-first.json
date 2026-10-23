@@ -1,0 +1,14 @@
+{
+  "success": false,
+  "code": "COMMAND_RUNTIME_ERROR",
+  "error": "COMMAND_RUNTIME_ERROR",
+  "data": {
+    "message": "normal scene initializes actual inventory",
+    "stack": "  at B1World.<Execute>g__Check|0_0 (System.Boolean ok, System.String name, B1World+<>c__DisplayClass0_0& ) [0x0001c] in <b4c8982b8ffd4c37af869ac722a7cb63>:0 \r\n  at B1World.Execute (Funplay.Editor.Tools.Scripting.ExecutionContext ctx) [0x00025] in <b4c8982b8ffd4c37af869ac722a7cb63>:0 \r\n  at Funplay.Editor.Tools.Builtins.ScriptExecutionFunctions.ExecuteAsCommand (System.Type commandType, System.String compilerName) [0x00037] in E:\\WORLDCREATOR\\new\\Project_ANKALUTE\\Assets\\unity-mcp\\Editor\\Tools\\Builtins\\ScriptExecutionFunctions.cs:611 ",
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": []
+  }
+}

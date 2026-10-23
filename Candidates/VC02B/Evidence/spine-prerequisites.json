@@ -1,0 +1,724 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "pointMethods": [
+        "Single get_X()",
+        "Void set_X(Single)",
+        "Single get_Y()",
+        "Void set_Y(Single)",
+        "Single get_Rotation()",
+        "Void set_Rotation(Single)",
+        "Void ComputeWorldPosition(Spine.BonePose, Single ByRef, Single ByRef)",
+        "Single ComputeWorldRotation(Spine.BonePose)",
+        "Spine.Attachment Copy()"
+      ],
+      "pointProperties": [
+        "X",
+        "Y",
+        "Rotation",
+        "Name",
+        "TimelineAttachment",
+        "TimelineSlots"
+      ],
+      "profiles": [
+        {
+          "path": "Assets/OSSASTRA/Configs/Abilities/EquipmentSpineProbe/验证盾A_按住防御_Spine.asset",
+          "bodyBone": "Lhand",
+          "bodySlot": "Z-Z_Lhand1",
+          "gripBone": "grip"
+        },
+        {
+          "path": "Assets/OSSASTRA/Configs/Abilities/EquipmentSpineProbe/验证盾B_按下攻击_Spine.asset",
+          "bodyBone": "Lhand",
+          "bodySlot": "Z-Z_Lhand1",
+          "gripBone": "grip"
+        }
+      ],
+      "bones": [
+        {
+          "Name": "root",
+          "parent": null
+        },
+        {
+          "Name": "hips",
+          "parent": "root"
+        },
+        {
+          "Name": "hips_up",
+          "parent": "hips"
+        },
+        {
+          "Name": "[#E3E64CFF]rotate",
+          "parent": "hips_up"
+        },
+        {
+          "Name": "flip",
+          "parent": "[#E3E64CFF]rotate"
+        },
+        {
+          "Name": "centroid",
+          "parent": "flip"
+        },
+        {
+          "Name": "[GREEN]zhixin_up",
+          "parent": "centroid"
+        },
+        {
+          "Name": "body",
+          "parent": "[GREEN]zhixin_up"
+        },
+        {
+          "Name": "chest",
+          "parent": "body"
+        },
+        {
+          "Name": "[GREEN]head",
+          "parent": "chest"
+        },
+        {
+          "Name": "face",
+          "parent": "[GREEN]head"
+        },
+        {
+          "Name": "c_face",
+          "parent": "face"
+        },
+        {
+          "Name": "ey",
+          "parent": "c_face"
+        },
+        {
+          "Name": "mouth",
+          "parent": "ey"
+        },
+        {
+          "Name": "eyebrow",
+          "parent": "ey"
+        },
+        {
+          "Name": "eyebrow2_",
+          "parent": "eyebrow"
+        },
+        {
+          "Name": "eyebrow2",
+          "parent": "eyebrow2_"
+        },
+        {
+          "Name": "eyebrow2.1",
+          "parent": "eyebrow2_"
+        },
+        {
+          "Name": "eyebrow1_",
+          "parent": "eyebrow"
+        },
+        {
+          "Name": "eyebrow1",
+          "parent": "eyebrow1_"
+        },
+        {
+          "Name": "eyebrow1.1",
+          "parent": "eyebrow1_"
+        },
+        {
+          "Name": "ey1",
+          "parent": "ey"
+        },
+        {
+          "Name": "normal_eye_you",
+          "parent": "ey1"
+        },
+        {
+          "Name": "normal_4",
+          "parent": "ey1"
+        },
+        {
+          "Name": "ey2",
+          "parent": "ey"
+        },
+        {
+          "Name": "normal_eye_zuo",
+          "parent": "ey2"
+        },
+        {
+          "Name": "normal_5",
+          "parent": "ey2"
+        },
+        {
+          "Name": "head3d1",
+          "parent": "[GREEN]head"
+        },
+        {
+          "Name": "head3d2",
+          "parent": "[GREEN]head"
+        },
+        {
+          "Name": "head3d3",
+          "parent": "[GREEN]head"
+        },
+        {
+          "Name": "line",
+          "parent": "[GREEN]head"
+        },
+        {
+          "Name": "c_head3d",
+          "parent": "[GREEN]head"
+        },
+        {
+          "Name": "c_head3d2",
+          "parent": "[GREEN]head"
+        },
+        {
+          "Name": "body3d1",
+          "parent": "chest"
+        },
+        {
+          "Name": "body3d2",
+          "parent": "chest"
+        },
+        {
+          "Name": "body3d3",
+          "parent": "body"
+        },
+        {
+          "Name": "name",
+          "parent": "hips_up"
+        },
+        {
+          "Name": "hair1",
+          "parent": "face"
+        },
+        {
+          "Name": "hair2",
+          "parent": "face"
+        },
+        {
+          "Name": "Lear",
+          "parent": "hair2"
+        },
+        {
+          "Name": "face12",
+          "parent": "Lear"
+        },
+        {
+          "Name": "hair3",
+          "parent": "face"
+        },
+        {
+          "Name": "Z/Reardrop",
+          "parent": "face"
+        },
+        {
+          "Name": "Z/Leardrop",
+          "parent": "face"
+        },
+        {
+          "Name": "Z/Reardrop2",
+          "parent": "Z/Reardrop"
+        },
+        {
+          "Name": "Z/Leardrop2",
+          "parent": "Z/Leardrop"
+        },
+        {
+          "Name": "Z/hair1",
+          "parent": "hair1"
+        },
+        {
+          "Name": "Z/hair2",
+          "parent": "Z/hair1"
+        },
+        {
+          "Name": "Z/hair3",
+          "parent": "Z/hair2"
+        },
+        {
+          "Name": "face8",
+          "parent": "hair1"
+        },
+        {
+          "Name": "face4",
+          "parent": "face8"
+        },
+        {
+          "Name": "face5",
+          "parent": "face4"
+        },
+        {
+          "Name": "face6",
+          "parent": "face5"
+        },
+        {
+          "Name": "face7",
+          "parent": "face6"
+        },
+        {
+          "Name": "Z/hair7",
+          "parent": "hair1"
+        },
+        {
+          "Name": "Z/hair8",
+          "parent": "Z/hair7"
+        },
+        {
+          "Name": "Z/hair9",
+          "parent": "Z/hair8"
+        },
+        {
+          "Name": "Z/hair4",
+          "parent": "hair1"
+        },
+        {
+          "Name": "Z/hair5",
+          "parent": "Z/hair4"
+        },
+        {
+          "Name": "Z/hair6",
+          "parent": "Z/hair5"
+        },
+        {
+          "Name": "Z/hair11",
+          "parent": "Z/hair6"
+        },
+        {
+          "Name": "Z/hair12",
+          "parent": "hair1"
+        },
+        {
+          "Name": "Z/hair13",
+          "parent": "Z/hair12"
+        },
+        {
+          "Name": "Z/hair14",
+          "parent": "Z/hair13"
+        },
+        {
+          "Name": "Z/hair15",
+          "parent": "hair1"
+        },
+        {
+          "Name": "Z/hair16",
+          "parent": "Z/hair15"
+        },
+        {
+          "Name": "Z/hair17",
+          "parent": "Z/hair16"
+        },
+        {
+          "Name": "Rear",
+          "parent": "hair2"
+        },
+        {
+          "Name": "face9",
+          "parent": "Rear"
+        },
+        {
+          "Name": "face10",
+          "parent": "face9"
+        },
+        {
+          "Name": "face11",
+          "parent": "face10"
+        },
+        {
+          "Name": "face13",
+          "parent": "face12"
+        },
+        {
+          "Name": "face14",
+          "parent": "face13"
+        },
+        {
+          "Name": "Rear3d1",
+          "parent": "Rear"
+        },
+        {
+          "Name": "Rear3d2",
+          "parent": "Rear"
+        },
+        {
+          "Name": "Lear3d1",
+          "parent": "Lear"
+        },
+        {
+          "Name": "Lear3d2",
+          "parent": "Lear"
+        },
+        {
+          "Name": "Z/hair19",
+          "parent": "hair3"
+        },
+        {
+          "Name": "Z/hair20",
+          "parent": "Z/hair19"
+        },
+        {
+          "Name": "Z/hair21",
+          "parent": "Z/hair20"
+        },
+        {
+          "Name": "Z/hair22",
+          "parent": "hair3"
+        },
+        {
+          "Name": "Z/hair23",
+          "parent": "Z/hair22"
+        },
+        {
+          "Name": "Z/hair24",
+          "parent": "Z/hair23"
+        },
+        {
+          "Name": "Z/hair25",
+          "parent": "Z/hair24"
+        },
+        {
+          "Name": "Z/hair26",
+          "parent": "hair3"
+        },
+        {
+          "Name": "Z/hair27",
+          "parent": "Z/hair26"
+        },
+        {
+          "Name": "Z/hair28",
+          "parent": "Z/hair27"
+        },
+        {
+          "Name": "Z/hair29",
+          "parent": "hair3"
+        },
+        {
+          "Name": "Z/hair30",
+          "parent": "Z/hair29"
+        },
+        {
+          "Name": "Z/hair31",
+          "parent": "Z/hair30"
+        },
+        {
+          "Name": "[#4E9FE8]chest_2",
+          "parent": "chest"
+        },
+        {
+          "Name": "Rarm",
+          "parent": "[#4E9FE8]chest_2"
+        },
+        {
+          "Name": "Rarm1",
+          "parent": "Rarm"
+        },
+        {
+          "Name": "Rarm2",
+          "parent": "Rarm1"
+        },
+        {
+          "Name": "Rhand",
+          "parent": "Rarm2"
+        },
+        {
+          "Name": "Z/Z_Larm1",
+          "parent": "chest"
+        },
+        {
+          "Name": "Larm",
+          "parent": "Z/Z_Larm1"
+        },
+        {
+          "Name": "Larm1",
+          "parent": "Larm"
+        },
+        {
+          "Name": "Larm2",
+          "parent": "Larm1"
+        },
+        {
+          "Name": "Lhand",
+          "parent": "Larm2"
+        },
+        {
+          "Name": "[#4E9FE8]chest_4",
+          "parent": "Rarm"
+        },
+        {
+          "Name": "[#4E9FE8]chest_5",
+          "parent": "chest"
+        },
+        {
+          "Name": "Z/rope1",
+          "parent": "[#4E9FE8]chest_4"
+        },
+        {
+          "Name": "Z/rope1b",
+          "parent": "Z/rope1"
+        },
+        {
+          "Name": "Z/rope1c",
+          "parent": "Z/rope1b"
+        },
+        {
+          "Name": "Z/fur1",
+          "parent": "[#4E9FE8]chest_5"
+        },
+        {
+          "Name": "Z/fur2",
+          "parent": "Z/fur1"
+        },
+        {
+          "Name": "Z/fur4",
+          "parent": "[#4E9FE8]chest_5"
+        },
+        {
+          "Name": "Z/fur5",
+          "parent": "[#4E9FE8]chest_5"
+        },
+        {
+          "Name": "[#4E9FE8]chest_6",
+          "parent": "[#4E9FE8]chest_5"
+        },
+        {
+          "Name": "[#4E9FE8]chest_7",
+          "parent": "[#4E9FE8]chest_5"
+        },
+        {
+          "Name": "Z/fur_rope",
+          "parent": "[#4E9FE8]chest_7"
+        },
+        {
+          "Name": "Z/fur_rope2",
+          "parent": "Z/fur_rope"
+        },
+        {
+          "Name": "Z/jacket4",
+          "parent": "Larm1"
+        },
+        {
+          "Name": "Z/jacket4b",
+          "parent": "Z/jacket4"
+        },
+        {
+          "Name": "Z/jacket4c",
+          "parent": "Z/jacket4b"
+        },
+        {
+          "Name": "Z/jacket6",
+          "parent": "Larm"
+        },
+        {
+          "Name": "Z/jacket6b",
+          "parent": "Z/jacket6"
+        },
+        {
+          "Name": "Z/jacket6c",
+          "parent": "Z/jacket6b"
+        },
+        {
+          "Name": "Z/jacket6d",
+          "parent": "Z/jacket6c"
+        },
+        {
+          "Name": "Z/jacket7",
+          "parent": "Rarm"
+        },
+        {
+          "Name": "Z/jacket8",
+          "parent": "Z/jacket7"
+        },
+        {
+          "Name": "Z/jacket8b",
+          "parent": "Z/jacket8"
+        },
+        {
+          "Name": "Z/jacket8c",
+          "parent": "Z/jacket8b"
+        },
+        {
+          "Name": "centroid_up",
+          "parent": "[GREEN]zhixin_up"
+        },
+        {
+          "Name": "Rleg",
+          "parent": "centroid_up"
+        },
+        {
+          "Name": "Rleg1",
+          "parent": "Rleg"
+        },
+        {
+          "Name": "Rleg2",
+          "parent": "Rleg1"
+        },
+        {
+          "Name": "Rfoot",
+          "parent": "Rleg2"
+        },
+        {
+          "Name": "Lleg",
+          "parent": "centroid_up"
+        },
+        {
+          "Name": "Lleg1",
+          "parent": "Lleg"
+        },
+        {
+          "Name": "Lleg2",
+          "parent": "Lleg1"
+        },
+        {
+          "Name": "Lfoot",
+          "parent": "Lleg2"
+        },
+        {
+          "Name": "Z/jacket5",
+          "parent": "Rarm"
+        },
+        {
+          "Name": "Z/jacket9",
+          "parent": "Z/jacket5"
+        },
+        {
+          "Name": "Z/jacket10",
+          "parent": "Z/jacket9"
+        },
+        {
+          "Name": "Z/tail",
+          "parent": "centroid_up"
+        },
+        {
+          "Name": "Z/tail4",
+          "parent": "Z/tail"
+        },
+        {
+          "Name": "Z/tail5",
+          "parent": "Z/tail4"
+        },
+        {
+          "Name": "Z/tail6",
+          "parent": "Z/tail5"
+        },
+        {
+          "Name": "Z/tail2",
+          "parent": "Z/tail6"
+        },
+        {
+          "Name": "Z/tail3",
+          "parent": "Z/tail2"
+        },
+        {
+          "Name": "RlegIK_hips",
+          "parent": "flip"
+        },
+        {
+          "Name": "LlegIK_hips",
+          "parent": "flip"
+        },
+        {
+          "Name": "Z/Rbandage",
+          "parent": "flip"
+        },
+        {
+          "Name": "Z/Rknife3",
+          "parent": "Z/Rbandage"
+        },
+        {
+          "Name": "Z/Rknife1",
+          "parent": "Z/Rbandage"
+        },
+        {
+          "Name": "Z/Rknife2",
+          "parent": "Z/Rbandage"
+        },
+        {
+          "Name": "[#4E9FE8]body2",
+          "parent": "body"
+        },
+        {
+          "Name": "Knife",
+          "parent": "hips_up"
+        },
+        {
+          "Name": "kua_3d",
+          "parent": "centroid_up"
+        },
+        {
+          "Name": "kua_3D",
+          "parent": "centroid_up"
+        },
+        {
+          "Name": "kua",
+          "parent": "centroid_up"
+        },
+        {
+          "Name": "Knife2",
+          "parent": "hips_up"
+        },
+        {
+          "Name": "Knife2_2",
+          "parent": "Knife2"
+        },
+        {
+          "Name": "Knife1_2",
+          "parent": "Knife"
+        },
+        {
+          "Name": "Z/fur_rope3",
+          "parent": "Z/fur4"
+        },
+        {
+          "Name": "Z/fur_rope4",
+          "parent": "Z/fur_rope3"
+        },
+        {
+          "Name": "Z/fur_rope5",
+          "parent": "Z/fur5"
+        },
+        {
+          "Name": "Z/fur_rope6",
+          "parent": "Z/fur_rope5"
+        },
+        {
+          "Name": "Z/Rknife4",
+          "parent": "Z/tail6"
+        },
+        {
+          "Name": "eff2",
+          "parent": "flip"
+        },
+        {
+          "Name": "coin",
+          "parent": "hips_up"
+        },
+        {
+          "Name": "coin_3",
+          "parent": "coin"
+        },
+        {
+          "Name": "coin_2",
+          "parent": "coin_3"
+        },
+        {
+          "Name": "coin_4",
+          "parent": "coin_2"
+        },
+        {
+          "Name": "eff3",
+          "parent": "Knife"
+        },
+        {
+          "Name": "eff",
+          "parent": "coin"
+        },
+        {
+          "Name": "effcoin2",
+          "parent": "eff"
+        }
+      ]
+    }
+  }
+}

@@ -270,7 +270,7 @@ namespace Ossastra.Characters
 
         public bool TryRequest(AbilityDefinitionSO definition,bool main,AbilityOperation operation,CharacterActionSource source)
         {
-            if(owner==null||!isActiveAndEnabled||!owner.HasPlayerInput||equipment?.State==null||definition==null)return Reject("来源/控制不可用");
+            if(owner==null||!isActiveAndEnabled||!owner.HasPlayerInput||equipment?.State==null||definition==null||owner.GetComponent<CharacterInputHandler>().InventoryCaptured)return Reject("来源/控制不可用");
             var handDefinition=main?equipment.RightDefinition:equipment.LeftDefinition;
             if(handDefinition==null)return Reject("请求手别未装备来源");
             try
@@ -299,7 +299,9 @@ namespace Ossastra.Characters
         }
         private bool AcceptCompiled(CompiledAbility compiled,IAbilitySource port,AbilityOperation operation,CharacterActionSource source,Sprite sprite,float scale)
         {
-            if(owner==null||!isActiveAndEnabled||!owner.HasPlayerInput||port==null||port.OwnerId!=owner.ActorId||string.IsNullOrWhiteSpace(port.InstanceId)||!Enum.IsDefined(typeof(AbilityOperation),operation))return Reject("来源/控制身份无效");
+            var companion=source==CharacterActionSource.Companion;
+            if(owner==null||!isActiveAndEnabled||port==null||port.OwnerId!=owner.ActorId||string.IsNullOrWhiteSpace(port.InstanceId)||!Enum.IsDefined(typeof(AbilityOperation),operation)||
+                (companion?owner.GetComponent<CharacterInputHandler>().HasPlayerControl||!compiled.executor.AllowsCompanionUse:!owner.HasPlayerInput))return Reject("来源/控制身份无效");
             var resources=port.RuntimeState;
             if(equipment!=null&&!equipment.ValidatePresentations(out var presentationError))return Reject(presentationError);
             if(resources==null)return Reject("来源缺少稳定运行payload");
@@ -311,17 +313,19 @@ namespace Ossastra.Characters
             if(!executor.CanUseSource(port))return Reject("来源资源不允许当前能力");
             if(!CanAccept(executor.ActionKind,out var conflict))return Reject(conflict);
             var direction=owner.DataBus.AttackDirection;
+            var explicitAim=(port as IAbilityTargetSource)?.AimPoint;
+            if(explicitAim.HasValue){direction=explicitAim.Value-owner.transform.position;direction.y=0;}
             if(direction.sqrMagnitude<.0001f)return Reject("无效方向");
             var acceptanceDelivery=executor.AcceptanceDelivery??compiled.delivery;
             var landing=owner.transform.position+direction.normalized*acceptanceDelivery.range;
             if(executor.AimRange>0)
             {
-                var aim=owner.AbilityAimPoint(input);if(!aim.HasValue)return Reject("无合法鼠标落点");
+                var aim=explicitAim??owner.AbilityAimPoint(input);if(!aim.HasValue)return Reject("无合法鼠标落点");
                 var offset=aim.Value-owner.transform.position;offset.y=0;landing=owner.transform.position+Vector3.ClampMagnitude(offset,executor.AimRange);
             }
             if(acceptanceDelivery.mode==DeliveryMode.Parabolic||acceptanceDelivery.mode==DeliveryMode.RayLandingArc)
             {
-                var aim=owner.AbilityAimPoint(input);if(!aim.HasValue)return Reject("无合法鼠标落点");
+                var aim=explicitAim??owner.AbilityAimPoint(input);if(!aim.HasValue)return Reject("无合法鼠标落点");
                 var targetPoint=executor.AimRange>0?landing:aim.Value;
                 var delta=targetPoint-owner.transform.position;delta.y=0;
                 if(delta.magnitude>acceptanceDelivery.range+.0001f||!CombatDeliveryQueue.Clear(owner.transform.position,targetPoint))return Reject("落点超距或遮挡");
@@ -345,7 +349,8 @@ namespace Ossastra.Characters
                 var request=owner.Actions.CreateRequest(executor.ActionKind,source,"ability:"+compiled.id);id=request.RequestId;
                 if(!owner.Actions.TryCommit(request,compiled.cost,()=>port.TryReserve(reservation)?request.RequestId:Guid.Empty,out var reason))return RejectReserved(reason);
             }
-            var context=new AbilityRunContext(owner,compiled,port,id,direction.normalized,landing,Emit,operation,sprite,scale,frozenEffects,releasePayment);
+            var context=new AbilityRunContext(owner,compiled,port,id,direction.normalized,landing,Emit,operation,sprite,scale,frozenEffects,releasePayment,source);
+            context.commitSource=CommitSource;
             context.deliveryPort=EmitDelivery;
             context.feedback=(execution,kind,position)=>Feedback?.Invoke(execution,kind,position);
             owner.Vitals?.Recovery?.RetainParent(id);
@@ -361,7 +366,7 @@ namespace Ossastra.Characters
             foreach(var run in runs.Where(r=>!r.Ended))
             {
                 var mask=run.Context.definition.plan.Occupancy;
-                if((kind==CharacterActionKind.Offhand||kind==CharacterActionKind.Guard)&&(mask&AbilityOccupancy.OffHand)!=0)
+                if((kind==CharacterActionKind.Offhand||kind==CharacterActionKind.Guard||kind==CharacterActionKind.Support)&&(mask&AbilityOccupancy.OffHand)!=0)
                 {reason="offhand-occupied";return false;}
             }
             return true;
@@ -389,7 +394,8 @@ namespace Ossastra.Characters
             equipment?.State?.LeftRuntime?.Tick(delta,controlled);
             foreach(var run in runs)
             {
-                if(run.Context.lifeGeneration!=owner.LifeGeneration||!run.Context.source.IsAvailable||!owner.CanSimulateIntent||!owner.GetComponent<CharacterInputHandler>().HasPlayerControl)
+                var controlValid=run.Context.requestSource==CharacterActionSource.Companion?!owner.GetComponent<CharacterInputHandler>().HasPlayerControl:owner.GetComponent<CharacterInputHandler>().HasPlayerControl;
+                if(run.Context.lifeGeneration!=owner.LifeGeneration||!run.Context.source.IsAvailable||!owner.CanSimulateIntent||!controlValid)
                 {run.Cancel();if(run.Context.definition.executor.UsesBodyAction)owner.CancelOwnedMainAction(run.Context.id,"ability-source-invalid");continue;}
                 run.Tick(delta,Held(run.Context.operation));
             }
@@ -412,14 +418,7 @@ namespace Ossastra.Characters
             =>EmitDelivery(context,emission,context.definition.delivery,context.definition.damageChannel,context.definition.posture[emission.Index]);
         private void EmitDelivery(AbilityRunContext context,AbilityEmission emission,DeliveryParameters delivery,string channel,float posture)
         {
-            if(!context.source.IsAvailable)return;
-            if(!context.SourceCommitted)
-            {
-                if(context.definition.releaseCost>0)
-                {if(!stamina.CommitReserved(context.releasePaymentId,owner.SimulationTime,()=>context.source.CommitRelease(context.id),"ability-release"))return;}
-                else if(!context.source.CommitRelease(context.id))return;
-                context.MarkSourceCommitted();
-            }
+            if(!CommitSource(context))return;
             var power=context.effects.Damage(channel,emission.Damage);
             if(channel=="ranged-shot")
             {
@@ -431,6 +430,18 @@ namespace Ossastra.Characters
                 owner.transform.position,context.direction,context.landing,()=>this!=null&&isActiveAndEnabled&&owner!=null&&owner.IsAlive&&owner.LifeGeneration==context.lifeGeneration,
                 receipts=>{LastResult="接触 "+receipts.Count+" #"+context.id.ToString("N");context.onResolved?.Invoke(emission.Index,channel,receipts);Feedback?.Invoke(context.id,receipts.Any(r=>r.Reason==HitReason.Applied)?"hit":"miss",context.landing);},context.projectileSprite,context.projectileScale,context.definition.reclaimBudget,context.definition.reclaimRate);
             if(emitted){EmittedCount++;Feedback?.Invoke(context.id,"release",owner.transform.position);}
+        }
+        private bool CommitSource(AbilityRunContext context)
+        {
+            if(!context.source.IsAvailable)return false;
+            if(!context.SourceCommitted)
+            {
+                if(context.definition.releaseCost>0)
+                {if(!stamina.CommitReserved(context.releasePaymentId,owner.SimulationTime,()=>context.source.CommitRelease(context.id),"ability-release"))return false;}
+                else if(!context.source.CommitRelease(context.id))return false;
+                context.MarkSourceCommitted();
+            }
+            return true;
         }
         public void CancelPending(string reason){foreach(var run in runs){if(!run.Ended)run.Context.NotifyFeedback("cancel");run.Cancel();stamina?.CancelReservation(run.Context.releasePaymentId);}foreach(var binding in bindings)binding.executor?.StopSource(binding.source);}
         private void OnDisable()

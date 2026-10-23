@@ -1,0 +1,36 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e8f7838b0d4b14246bc14cb1d63867ed, type: 3}
+  m_Name: sample-al-bomb
+  m_EditorClassIdentifier: 
+  definitionId: sample-al-bomb
+  displayName: "\u5B9E\u9A8C\u6D88\u8017\u578B\u70B8\u5F39"
+  healAmount: 100
+  description: "\u51BB\u7ED3\u539F\u578BSAMPLE\uFF1B\u5916\u56F4\u4E1A\u52A1\u4E0D\u5728\u672C\u8F6E\u8303\u56F4\u3002"
+  category: usable
+  rarity: 0
+  icon: {fileID: 0}
+  inventoryGlyph: "\u5F39"
+  width: 1
+  height: 1
+  maxStack: 99
+  unitWeightGrams: 100
+  sellValue: -1
+  equipment: {fileID: 0}
+  allowedOwners: []
+  useKind: 2
+  regenerationPerSecond: 0
+  regenerationSeconds: 0
+  ability: {fileID: 11400000, guid: 7f21d370ba4e13045a4a2d048774dc4a, type: 2}
+  temporarySocketId: item.use
+  temporaryVisualScale: 0.35
+  temporaryVisualSeconds: 0.35

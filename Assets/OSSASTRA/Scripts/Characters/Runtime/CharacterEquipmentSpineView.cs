@@ -28,6 +28,9 @@ namespace Ossastra.Characters
         public Guid LeftExecutionId=>left?.ExecutionId??Guid.Empty;
         public Guid LeftReplayId=>left?.ReplayId??Guid.Empty;
         public float LeftGripError=>left?.GripError??0;
+        public Guid RightExecutionId=>right?.ExecutionId??Guid.Empty;
+        public Guid RightReplayId=>right?.ReplayId??Guid.Empty;
+        public float RightGripError=>right?.GripError??0;
         public void Initialize(CharacterRoot root)
         {
             if(owner!=null)owner.ActionObserved-=OnAction;
@@ -47,7 +50,7 @@ namespace Ossastra.Characters
         private void BindViews()
         {
             if(body?.Skeleton==null||equipment==null)return;
-            left?.Bind(equipment.LeftDefinition,body);right?.Bind(equipment.RightDefinition,body);
+            left?.Bind(equipment.LeftDefinition,body,owner.Definition?.rigProfile);right?.Bind(equipment.RightDefinition,body,owner.Definition?.rigProfile);
         }
         public void TickPresentation()
         {
@@ -76,6 +79,9 @@ namespace Ossastra.Characters
             private Renderer bodyRenderer;
             private Spine.Bone bodyBone,grip;
             private Spine.Slot bodySlot;
+            private CharacterRigProfileSO rigProfile;
+            private ResolvedRigSocket socket;
+            private int profileVersion,rigVersion;
             private PlaybackIdentity playback=new PlaybackIdentity();
             private Guid capturedExecution;
             private Vector3 offset;
@@ -89,21 +95,23 @@ namespace Ossastra.Characters
             public float GripError {get;private set;}
             public string Status {get;private set;}="无Spine配置";
             public SlotView(string name){objectName=name;}
-            public void Bind(EquipmentDefinitionSO next,SkeletonAnimation nextBody)
+            public void Bind(EquipmentDefinitionSO next,SkeletonAnimation nextBody,CharacterRigProfileSO nextRig)
             {
                 var nextProfile=next==null?null:next.spinePresentation;
-                if(definition==next&&profile==nextProfile&&ReferenceEquals(boundBody,nextBody.Skeleton))return;
-                Dispose();definition=next;profile=nextProfile;body=nextBody;boundBody=nextBody.Skeleton;
+                if(definition==next&&profile==nextProfile&&rigProfile==nextRig&&profileVersion==(nextProfile?.contentVersion??0)&&rigVersion==(nextRig?.contentVersion??0)&&ReferenceEquals(boundBody,nextBody.Skeleton))return;
+                Dispose();definition=next;profile=nextProfile;body=nextBody;boundBody=nextBody.Skeleton;rigProfile=nextRig;profileVersion=profile?.contentVersion??0;rigVersion=nextRig?.contentVersion??0;
                 capturedCatalog=null;capturedExecution=Guid.Empty;playback=new PlaybackIdentity();
                 if(profile==null){Status="无Spine配置（旧表现路径）";return;}
                 try
                 {
-                    catalog=profile.Freeze(body.Skeleton.Data);
+                    catalog=profile.Freeze(body.Skeleton.Data,rigProfile);
+                    socket=string.IsNullOrEmpty(profile.semanticSocketId)?null:rigProfile.Resolve(profile.semanticSocketId,body.Skeleton.Data);
                     var child=new GameObject(objectName);child.transform.SetParent(body.transform,false);
                     SkeletonAnimation.AddToGameObject(child,profile.skeletonData);
                     Animation=child.GetComponent<SkeletonAnimation>();spineRenderer=child.GetComponent<SkeletonRenderer>();
                     Animation.UpdateTiming=UpdateTiming.ManualUpdate;Animation.Initialize(false);Animation.Update(0);
-                    bodyBone=body.Skeleton.FindBone(profile.bodyBone);bodySlot=string.IsNullOrEmpty(profile.bodySlot)?null:body.Skeleton.FindSlot(profile.bodySlot);
+                    var boneName=socket?.BoneName??profile.bodyBone;var slotName=socket?.SlotName??profile.bodySlot;
+                    bodyBone=body.Skeleton.FindBone(boneName);bodySlot=string.IsNullOrEmpty(slotName)?null:body.Skeleton.FindSlot(slotName);
                     grip=Animation.Skeleton.FindBone(profile.gripBone);meshRenderer=child.GetComponent<MeshRenderer>();bodyRenderer=body.GetComponent<Renderer>();
                     offset=profile.localOffset;scale=profile.localScale;rotation=profile.rotationOffset;sortingOffset=profile.sortingOrderOffset;
                     followRotation=profile.followBoneRotation;slotColor=profile.followSlotColor;slotVisibility=profile.followSlotAttachmentVisibility;
@@ -114,7 +122,7 @@ namespace Ossastra.Characters
             public void Capture(Guid actionId)
             {
                 if(profile==null||body==null)return;
-                try{capturedCatalog=profile.Freeze(body.Skeleton.Data);capturedExecution=actionId;}
+                try{capturedCatalog=profile.Freeze(body.Skeleton.Data,rigProfile);capturedExecution=actionId;}
                 catch(Exception e){Status="冻结映射失败："+e.Message;Hide();}
             }
             public void Present(CharacterRoot root,CharacterSpineView view,float delta,bool visible)
@@ -138,13 +146,13 @@ namespace Ossastra.Characters
                 var pose=bodyBone.AppliedPose;
                 // 骨骼矩阵的X轴承载朝向；负行列式单独放在Y轴，避免左右镜像被旋转重复应用。
                 var determinant=pose.A*pose.D-pose.B*pose.C;
-                var angle=followRotation?Mathf.Atan2(pose.C,pose.A)*Mathf.Rad2Deg:0;
+                var angle=followRotation?(socket?.Rotation(pose)??Mathf.Atan2(pose.C,pose.A)*Mathf.Rad2Deg):0;
                 var localScale=followRotation?new Vector3(scale,(determinant<0?-1:1)*scale,1):
                     new Vector3(Mathf.Sign(body.Skeleton.ScaleX)*scale,Mathf.Sign(body.Skeleton.ScaleY)*scale,1);
                 // 内部握持骨骼也可带旋转：先逆掉装备握持角，再施加角色挂点及作者偏移。
                 var gripAngle=Mathf.Atan2(grip.AppliedPose.C,grip.AppliedPose.A)*Mathf.Rad2Deg;
                 var localRotation=Quaternion.Euler(0,0,angle+rotation-Mathf.Sign(localScale.x*localScale.y)*gripAngle);
-                var anchor=new Vector3(pose.WorldX,pose.WorldY,0)+new Vector3(offset.x*Mathf.Sign(body.Skeleton.ScaleX),offset.y,offset.z);
+                var anchor=(socket?.Position(pose)??new Vector3(pose.WorldX,pose.WorldY,0))+new Vector3(offset.x*Mathf.Sign(body.Skeleton.ScaleX),offset.y,offset.z);
                 var gripPosition=new Vector3(grip.AppliedPose.WorldX,grip.AppliedPose.WorldY,0);
                 var visual=Animation.transform;visual.localRotation=localRotation;visual.localScale=localScale;
                 visual.localPosition=anchor-localRotation*Vector3.Scale(localScale,gripPosition);
@@ -156,7 +164,7 @@ namespace Ossastra.Characters
             public void Dispose()
             {
                 if(Animation!=null){Animation.gameObject.SetActive(false);UnityEngine.Object.Destroy(Animation.gameObject);}
-                Animation=null;spineRenderer=null;meshRenderer=null;bodyBone=null;grip=null;bodySlot=null;
+                Animation=null;spineRenderer=null;meshRenderer=null;bodyBone=null;grip=null;bodySlot=null;socket=null;
             }
         }
     }

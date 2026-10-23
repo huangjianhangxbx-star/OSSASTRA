@@ -22,6 +22,8 @@ namespace Ossastra.Characters
     public sealed class EquipmentSpinePresentationSO:ScriptableObject
     {
         public SkeletonDataAsset skeletonData;
+        [Min(1)] public int contentVersion=1;
+        [Tooltip("非空时从角色RigProfile解析，旧bodyBone字段仅保留历史场兼容。")] public string semanticSocketId;
         [Tooltip("角色的真实骨骼；不使用寻找第一个骨骼的隐式兜底。")] public string bodyBone;
         [Tooltip("可选；提供颜色/显隐依据，空表示显式不跟随插槽。")] public string bodySlot;
         [Tooltip("装备模型自身握持骨骼；动画后将此点对齐身体挂点。")] public string gripBone="grip";
@@ -32,14 +34,16 @@ namespace Ossastra.Characters
         public int sortingOrderOffset=3;
         [TextArea] public string presentationEvidence;
         public EquipmentSpineAnimationBinding[] animations=Array.Empty<EquipmentSpineAnimationBinding>();
-        public EquipmentAnimationCatalog Freeze(Spine.SkeletonData body)
+        public EquipmentAnimationCatalog Freeze(Spine.SkeletonData body,CharacterRigProfileSO rig=null)
         {
             if(skeletonData==null)throw new ArgumentException(name+".skeletonData missing");
             var data=skeletonData.GetSkeletonData(false);
-            if(data==null||body==null||string.IsNullOrEmpty(bodyBone)||body.FindBone(bodyBone)==null)
-                throw new ArgumentException(name+".bodyBone missing: "+bodyBone);
+            var resolved=string.IsNullOrEmpty(semanticSocketId)?null:rig!=null?rig.Resolve(semanticSocketId,body):throw new ArgumentException(name+".semanticSocketId requires CharacterRigProfileSO: "+semanticSocketId);
+            var boneName=resolved?.BoneName??bodyBone;var slotName=resolved?.SlotName??bodySlot;
+            if(data==null||body==null||string.IsNullOrEmpty(boneName)||body.FindBone(boneName)==null)
+                throw new ArgumentException(name+".bodyBone missing: "+boneName);
             if(string.IsNullOrEmpty(gripBone)||data.FindBone(gripBone)==null)throw new ArgumentException(name+".gripBone missing: "+gripBone);
-            if(!string.IsNullOrEmpty(bodySlot)&&body.FindSlot(bodySlot)==null)throw new ArgumentException(name+".bodySlot missing: "+bodySlot);
+            if(!string.IsNullOrEmpty(slotName)&&body.FindSlot(slotName)==null)throw new ArgumentException(name+".bodySlot missing: "+slotName);
             if(!Finite(localScale)||localScale<=0||!Finite(localOffset.x)||!Finite(localOffset.y)||!Finite(localOffset.z)||!Finite(rotationOffset))
                 throw new ArgumentException(name+".mount transform invalid");
             var bindings=new List<EquipmentAnimationClip>();

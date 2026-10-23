@@ -1,0 +1,36 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e8f7838b0d4b14246bc14cb1d63867ed, type: 3}
+  m_Name: sample-al-regen
+  m_EditorClassIdentifier: 
+  definitionId: sample-al-regen
+  displayName: "\u5B9E\u9A8C\u7F13\u56DE\u836F"
+  healAmount: 100
+  description: "\u5B9E\u9A8C\u7F13\u56DE\u836F\uFF1A4HP/\u79D2\uFF0C\u6301\u7EED5\u79D2\uFF1B\u4E0D\u53EF\u4E0E\u6709\u6548\u6062\u590D\u53E0\u52A0\u3002"
+  category: usable
+  rarity: 0
+  icon: {fileID: 0}
+  inventoryGlyph: "\u836F"
+  width: 1
+  height: 1
+  maxStack: 99
+  unitWeightGrams: 100
+  sellValue: -1
+  equipment: {fileID: 0}
+  allowedOwners: []
+  useKind: 1
+  regenerationPerSecond: 4
+  regenerationSeconds: 5
+  ability: {fileID: 11400000, guid: 601dd6baee0a7ab4e841c6f7471b3390, type: 2}
+  temporarySocketId: item.use
+  temporaryVisualScale: 0.35
+  temporaryVisualSeconds: 0.35

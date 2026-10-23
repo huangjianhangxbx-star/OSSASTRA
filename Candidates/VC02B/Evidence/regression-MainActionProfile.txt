@@ -1,0 +1,11 @@
+PASS Frozen stage array cannot be rewritten by author list
+PASS No active rune leaves all four stages and resource metadata intact
+PASS Chisel replaces stage three and carries delayed source identity
+PASS Upgraded chisel changes frozen damage without changing template
+PASS Rapid prefix replaces two stages with three
+PASS Rapid plus and chisel compose in original order
+PASS Accepted sequence survives subsequent registry withdrawal
+PASS Invalid dash bounds rejected
+PASS Low frame crossing entire dash preserves authored distance
+PASS Partitioned dash movement equals one large frame
+RESULT passed=10 failed=0

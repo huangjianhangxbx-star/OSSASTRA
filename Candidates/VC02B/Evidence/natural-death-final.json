@@ -1,0 +1,322 @@
+{
+  "state": "completed",
+  "failed": 0,
+  "naturalInputOnly": true,
+  "rows": [
+    {
+      "name": "neutral real input",
+      "ok": true,
+      "current": "temporary-a",
+      "hpA": 100,
+      "hpB": 100,
+      "enemyHp": 600,
+      "bag": null
+    },
+    {
+      "name": "ordinary walk to active enemy",
+      "ok": true,
+      "current": "temporary-a",
+      "hpA": 100,
+      "hpB": 100,
+      "enemyHp": 600,
+      "bag": null
+    },
+    {
+      "name": "actual enemy attacks cause one full-party death batch",
+      "ok": true,
+      "current": null,
+      "hpA": 0,
+      "hpB": 0,
+      "enemyHp": 600,
+      "bag": "drop:wipe:c57a91b560ed4668a237a2cc08127738"
+    },
+    {
+      "name": "single death seen before full wipe and original IDs dropped",
+      "ok": true,
+      "current": null,
+      "hpA": 0,
+      "hpB": 0,
+      "enemyHp": 600,
+      "bag": "drop:wipe:c57a91b560ed4668a237a2cc08127738"
+    },
+    {
+      "name": "original life service respawns both without equipment copies",
+      "ok": true,
+      "current": "temporary-a",
+      "hpA": 100,
+      "hpB": 100,
+      "enemyHp": 600,
+      "bag": "drop:wipe:c57a91b560ed4668a237a2cc08127738"
+    },
+    {
+      "name": "ordinary walk reaches original death bag",
+      "ok": true,
+      "current": "temporary-a",
+      "hpA": 100,
+      "hpB": 100,
+      "enemyHp": 600,
+      "bag": "drop:wipe:c57a91b560ed4668a237a2cc08127738"
+    },
+    {
+      "name": "F opens original drop container",
+      "ok": true,
+      "current": "temporary-a",
+      "hpA": 100,
+      "hpB": 100,
+      "enemyHp": 600,
+      "bag": "drop:wipe:c57a91b560ed4668a237a2cc08127738"
+    },
+    {
+      "name": "actual drop bag window",
+      "ok": true,
+      "current": "temporary-a",
+      "hpA": 100,
+      "hpB": 100,
+      "enemyHp": 600,
+      "bag": "drop:wipe:c57a91b560ed4668a237a2cc08127738"
+    },
+    {
+      "name": "scroll original main item into visible external viewport",
+      "ok": true,
+      "current": "temporary-a",
+      "hpA": 100,
+      "hpB": 100,
+      "enemyHp": 600,
+      "bag": "drop:wipe:c57a91b560ed4668a237a2cc08127738"
+    },
+    {
+      "name": "Ctrl pickup original weapon press",
+      "ok": true,
+      "current": "temporary-a",
+      "hpA": 100,
+      "hpB": 100,
+      "enemyHp": 600,
+      "bag": "drop:wipe:c57a91b560ed4668a237a2cc08127738"
+    },
+    {
+      "name": "release weapon pickup",
+      "ok": true,
+      "current": "temporary-a",
+      "hpA": 100,
+      "hpB": 100,
+      "enemyHp": 600,
+      "bag": "drop:wipe:c57a91b560ed4668a237a2cc08127738"
+    },
+    {
+      "name": "same original main is now carried",
+      "ok": true,
+      "current": "temporary-a",
+      "hpA": 100,
+      "hpB": 100,
+      "enemyHp": 600,
+      "bag": "drop:wipe:c57a91b560ed4668a237a2cc08127738"
+    },
+    {
+      "name": "close bag before escape",
+      "ok": true,
+      "current": "temporary-a",
+      "hpA": 100,
+      "hpB": 100,
+      "enemyHp": 600,
+      "bag": "drop:wipe:c57a91b560ed4668a237a2cc08127738"
+    },
+    {
+      "name": "bag closes",
+      "ok": true,
+      "current": "temporary-a",
+      "hpA": 100,
+      "hpB": 100,
+      "enemyHp": 600,
+      "bag": "drop:wipe:c57a91b560ed4668a237a2cc08127738"
+    },
+    {
+      "name": "walk south around living partner after respawn",
+      "ok": true,
+      "current": "temporary-a",
+      "hpA": 100,
+      "hpB": 100,
+      "enemyHp": 600,
+      "bag": "drop:wipe:c57a91b560ed4668a237a2cc08127738"
+    },
+    {
+      "name": "walk back to actual threat for shared Y",
+      "ok": true,
+      "current": "temporary-a",
+      "hpA": 100,
+      "hpB": 100,
+      "enemyHp": 600,
+      "bag": "drop:wipe:c57a91b560ed4668a237a2cc08127738"
+    },
+    {
+      "name": "actual injury for shared Y after respawn",
+      "ok": true,
+      "current": "temporary-a",
+      "hpA": 80,
+      "hpB": 100,
+      "enemyHp": 600,
+      "bag": "drop:wipe:c57a91b560ed4668a237a2cc08127738"
+    },
+    {
+      "name": "Y still original shared service",
+      "ok": true,
+      "current": "temporary-a",
+      "hpA": 100,
+      "hpB": 100,
+      "enemyHp": 600,
+      "bag": "drop:wipe:c57a91b560ed4668a237a2cc08127738"
+    },
+    {
+      "name": "Y consumed exactly once",
+      "ok": true,
+      "current": "temporary-a",
+      "hpA": 100,
+      "hpB": 100,
+      "enemyHp": 600,
+      "bag": "drop:wipe:c57a91b560ed4668a237a2cc08127738"
+    },
+    {
+      "name": "walk south around existing LOS obstacle",
+      "ok": true,
+      "current": "temporary-a",
+      "hpA": 100,
+      "hpB": 100,
+      "enemyHp": 600,
+      "bag": "drop:wipe:c57a91b560ed4668a237a2cc08127738"
+    },
+    {
+      "name": "ordinary held west escape to actual campfire",
+      "ok": true,
+      "current": "temporary-a",
+      "hpA": 100,
+      "hpB": 100,
+      "enemyHp": 600,
+      "bag": "drop:wipe:c57a91b560ed4668a237a2cc08127738"
+    },
+    {
+      "name": "wait actual peaceful equipment qualification",
+      "ok": true,
+      "current": "temporary-a",
+      "hpA": 100,
+      "hpB": 0,
+      "enemyHp": 600,
+      "bag": "drop:wipe:c57a91b560ed4668a237a2cc08127738"
+    },
+    {
+      "name": "open pack to reequip",
+      "ok": true,
+      "current": "temporary-a",
+      "hpA": 100,
+      "hpB": 0,
+      "enemyHp": 600,
+      "bag": "drop:wipe:c57a91b560ed4668a237a2cc08127738"
+    },
+    {
+      "name": "pack open after escape",
+      "ok": true,
+      "current": "temporary-a",
+      "hpA": 100,
+      "hpB": 0,
+      "enemyHp": 600,
+      "bag": "drop:wipe:c57a91b560ed4668a237a2cc08127738"
+    },
+    {
+      "name": "drag original weapon press",
+      "ok": true,
+      "current": "temporary-a",
+      "hpA": 100,
+      "hpB": 0,
+      "enemyHp": 600,
+      "bag": "drop:wipe:c57a91b560ed4668a237a2cc08127738"
+    },
+    {
+      "name": "drag original weapon over hand",
+      "ok": true,
+      "current": "temporary-a",
+      "hpA": 100,
+      "hpB": 0,
+      "enemyHp": 600,
+      "bag": "drop:wipe:c57a91b560ed4668a237a2cc08127738"
+    },
+    {
+      "name": "release original hand equip",
+      "ok": true,
+      "current": "temporary-a",
+      "hpA": 100,
+      "hpB": 0,
+      "enemyHp": 600,
+      "bag": "drop:wipe:c57a91b560ed4668a237a2cc08127738"
+    },
+    {
+      "name": "same original payload reequip after natural wipe",
+      "ok": true,
+      "current": "temporary-a",
+      "hpA": 100,
+      "hpB": 0,
+      "enemyHp": 600,
+      "bag": "drop:wipe:c57a91b560ed4668a237a2cc08127738"
+    },
+    {
+      "name": "close reequipped pack",
+      "ok": true,
+      "current": "temporary-a",
+      "hpA": 100,
+      "hpB": 0,
+      "enemyHp": 600,
+      "bag": "drop:wipe:c57a91b560ed4668a237a2cc08127738"
+    },
+    {
+      "name": "close and release",
+      "ok": true,
+      "current": "temporary-a",
+      "hpA": 100,
+      "hpB": 0,
+      "enemyHp": 600,
+      "bag": "drop:wipe:c57a91b560ed4668a237a2cc08127738"
+    },
+    {
+      "name": "F at campfire after leaving other containers",
+      "ok": true,
+      "current": "temporary-a",
+      "hpA": 100,
+      "hpB": 0,
+      "enemyHp": 600,
+      "bag": "drop:wipe:c57a91b560ed4668a237a2cc08127738"
+    },
+    {
+      "name": "original campfire grants its sole refill",
+      "ok": true,
+      "current": "temporary-a",
+      "hpA": 100,
+      "hpB": 0,
+      "enemyHp": 600,
+      "bag": "drop:wipe:c57a91b560ed4668a237a2cc08127738"
+    },
+    {
+      "name": "current is A for original main test",
+      "ok": true,
+      "current": "temporary-a",
+      "hpA": 100,
+      "hpB": 0,
+      "enemyHp": 600,
+      "bag": "drop:wipe:c57a91b560ed4668a237a2cc08127738"
+    },
+    {
+      "name": "ordinary same weapon attack after pickup",
+      "ok": true,
+      "current": "temporary-a",
+      "hpA": 100,
+      "hpB": 0,
+      "enemyHp": 600,
+      "bag": "drop:wipe:c57a91b560ed4668a237a2cc08127738"
+    },
+    {
+      "name": "same original weapon still releases once",
+      "ok": true,
+      "current": "temporary-a",
+      "hpA": 100,
+      "hpB": 0,
+      "enemyHp": 600,
+      "bag": "drop:wipe:c57a91b560ed4668a237a2cc08127738"
+    }
+  ]
+}

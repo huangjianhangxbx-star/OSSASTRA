@@ -1,0 +1,33 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6409dc8cf62acac4883dffecbfced925, type: 3}
+  m_Name: Equipment_vc02.throw-equipment
+  m_EditorClassIdentifier: 
+  definitionId: vc02.throw-equipment
+  displayName: "\u6295\u63B7\u88C5\u5907"
+  mainHand: 0
+  offhandKind: 2
+  worldSprite: {fileID: 21300000, guid: 3d01d863a5b1ab24c804115fccf42b0e, type: 3}
+  spinePresentation: {fileID: 11400000, guid: 766057dd7472e89468813de8c5a20ce5, type: 2}
+  boneName: Lhand
+  offset: {x: 0, y: 0, z: -0.015}
+  worldScale: 0.35
+  actions: []
+  mainActionProfiles: []
+  abilityBindings:
+  - operation: 0
+    gesture: 0
+    resourceOwner: 0
+    longPressThreshold: 0.3
+    ability: {fileID: 11400000, guid: ab02bb5d5fdfe37419074a97c3c4f1f1, type: 2}
+    longPressAbility: {fileID: 0}
+  skillLoadout: {fileID: 0}

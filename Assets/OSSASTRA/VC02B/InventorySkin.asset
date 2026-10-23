@@ -1,0 +1,18 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2569f23fe07e5ac41894865211f2d1a7, type: 3}
+  m_Name: InventorySkin
+  m_EditorClassIdentifier: 
+  frame: {fileID: 21300000, guid: d51ea472adfecf546b4a9c8a7bb4f0be, type: 3}
+  slotFill: {fileID: 21300000, guid: 1c5b6044d09c1a94aba381a4f606a99d, type: 3}
+  slotEdge: {fileID: 21300000, guid: 7de835b228e37c541b2ff7823e94a57e, type: 3}
+  fontName: Microsoft YaHei

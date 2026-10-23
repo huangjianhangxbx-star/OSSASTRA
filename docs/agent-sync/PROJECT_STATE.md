@@ -502,3 +502,8 @@ T7A3独立RendererFeature/密度场/最多2个AtmosphereLight/8-16步积分/Dept
 - 2026-10-21 ROADMAP03 收口：S9-S13完成技术Gate，角色资源/盾/独立炸弹与场景共享Y/一次性G篝火只装配新ROADMAP03场。最终Edit clean；用户旧禁编asmdef删除保持。详见任务与ROADMAP03-verification，人工体验待审。writer释放，不开启ROADMAP04。
 
 2026-10-23 VC02A complete/released：产品 a5f2df8b6c5cc0c532c0b921447bbc432c321abc 已GitHub main核对，角色动作组/六技能/三根17分支10符文/独立装备Spine/正常HUD链路完成技术验收。127纯合同、56自然阶段、旧场15；保存重开/域重载9、定义无污染、writer释放。正式美术/人工审定未完成，ART_ENTRY_READY=false，停A不执行B。用户既有dirty保留；用户取消关机，不执行。详见docs/ossastra/VC02A-handoff.md。
+
+2026-10-23 VC02B active：用户明确连续执行B0-B8。新独立SC_VC02B_IntegrationReady，库存36纯/初始化9/开包移动拖放真实输入20/药与五食物实际30通过；B4/B5新接线待验，B6-B8未完成。唯一unity-writer仍归本任务，四既有dirty保持；不Gitee/不关机。详见tasks/2026-10-23-VC02B.md。
+
+2026-10-23 VC02B 技术完成/发布准备：B0-B8包内Editor闭环完成。库存唯一实例/后备消费者/地面全灭/独立Spine/Rig及作者工具，31目录与31有限初始实例；自然47/60/35、UI57、A纯127/A自然56/旧场15、域重载13通过。A213原生资产SHA不变。实际追加Player构建被旧Unity-Favorites-Tool Editor类型误入Player阻塞，未修改第三方。ART_ENTRY_READY=true仅Editor契约审查，正式素材未完、用户规范未冻；详见VC02B-handoff/readiness/verification。四既有dirty保持，发布完成后释放writer。
+

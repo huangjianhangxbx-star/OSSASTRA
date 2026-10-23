@@ -1,0 +1,34 @@
+PASS actual loss creates gray HP
+PASS skill gain uses existing health
+PASS second pulse shares parent budget
+PASS four second hold then ten percent decay
+PASS ordinary healing clamps gray
+PASS dead actor cannot reclaim
+PASS death reset clears gray
+PASS initial frost
+PASS frost commit
+PASS frost recovery delay
+PASS frost recovery crosses delay correctly
+PASS capacity source adds exact delta
+PASS source removal clamps capacity
+PASS four actual bullets
+PASS release only consumes once
+PASS precision reserves reload
+PASS reload not free before due
+PASS reload commits special sequence
+PASS no duplicate refill
+PASS cancel preserves prior magazine without refill
+PASS instant reload and delayed path exclusive
+PASS invalid clock cannot complete reload
+PASS foreign action cannot commit reload
+PASS foreign cancellation cannot clear reload
+PASS owner action completes preserved reload
+PASS partial magazine waits three idle seconds since shot
+PASS ordinary reload reserves after idle deadline
+PASS ordinary reload never grants before point8
+PASS ordinary reload restores four normal rounds
+PASS empty magazine begins reload immediately when idle
+PASS unequip cancels automatic refill
+PASS six round capacity recognizes one missing round
+PASS ordinary refill resets expanded capacity to four
+33 combat resource contracts passed

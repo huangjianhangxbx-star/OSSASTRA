@@ -16,6 +16,7 @@ namespace Ossastra.Characters
         public virtual ConfiguredActionSnapshot InitialPhase=>null;
         public virtual Ossastra.Combat.DeliveryParameters AcceptanceDelivery=>null;
         public virtual bool RepeatWhileHeld=>false;
+        public virtual bool AllowsCompanionUse=>false;
         public virtual bool UsesMagazine=>false;
         public virtual void TickSource(CharacterRoot owner,IAbilitySource source) { }
         public virtual void StopSource(IAbilitySource source) { }

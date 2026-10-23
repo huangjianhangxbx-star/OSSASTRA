@@ -21,6 +21,9 @@ namespace Ossastra.Characters
         [Header("切换实控角色 / 可在Inspector修改")]
         public InputAction switchAction = new InputAction("SwitchCharacter", InputActionType.Button);
         private readonly HashSet<object> inputCaptures=new HashSet<object>();
+        private readonly HashSet<object> inventoryCaptures=new HashSet<object>();
+        public void SetInventoryCapture(object owner,bool captured)
+        {if(owner==null)return;var changed=captured?inventoryCaptures.Add(owner):inventoryCaptures.Remove(owner);if(changed){ControlRevision++;switchIntent.SuppressUntilRelease();}}
         private readonly AttackIntent switchIntent = new AttackIntent();
         private CharacterInputHandler[] inputs;
         private bool configured, bindingsOwned, focused = true, applicationPaused;
@@ -96,7 +99,7 @@ namespace Ossastra.Characters
         /// <summary>场景级切人入口；不会取消、复制或重建任一角色的已接受动作。</summary>
         public bool SwitchNext()
         {
-            if (!configured || !isActiveAndEnabled || !focused || applicationPaused || inputCaptures.Count>0) return false;
+            if (!configured || !isActiveAndEnabled || !focused || applicationPaused || inputCaptures.Count>0||inventoryCaptures.Count>0) return false;
             var index = Array.IndexOf(characters, Current);
             for (var step = 1; step <= characters.Length; step++)
             {

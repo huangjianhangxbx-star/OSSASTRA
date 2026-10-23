@@ -26,8 +26,10 @@ namespace Ossastra.Characters
             else if(request.ActorId!=owner.ActorId||request.LifeGeneration!=owner.LifeGeneration)reason="stale-life/actor";
             else if(request.ControlRevision!=owner.ActionControlRevision)reason="stale-control";
             else if(!owner.CanSimulateIntent)reason="life/pause/focus/posture";
+            else if(request.Kind==CharacterActionKind.Main&&owner.GetComponent<CharacterEquipment>() is CharacterEquipment gear&&gear.InventoryBound&&gear.RightDefinition==null)reason="main-equipment-missing";
             else if(request.Source==CharacterActionSource.Companion?owner.HasPlayerInput:!owner.HasPlayerInput)reason="source-authority";
-            else if(request.Kind!=CharacterActionKind.Main&&request.Source==CharacterActionSource.Companion)reason="companion-capability";
+            else if(request.Kind!=CharacterActionKind.Main&&request.Kind!=CharacterActionKind.Support&&request.Source==CharacterActionSource.Companion)reason="companion-capability";
+            else if(request.Source!=CharacterActionSource.Companion&&request.Source!=CharacterActionSource.Inventory&&owner.GetComponent<CharacterInputHandler>()?.InventoryCaptured==true)reason="inventory-input-capture";
             else if(owner.Abilities!=null&&!owner.Abilities.CanAccept(request.Kind,out var abilityReason))reason=abilityReason;
             else if(request.Kind==CharacterActionKind.Main&&(!owner.DataBus.AllowsAttack||!owner.DataBus.AttackReady||dodge!=null&&dodge.IsActive))reason="main-not-ready";
             else if(request.Kind==CharacterActionKind.Dodge&&(!owner.DataBus.AllowsMovement||!owner.DataBus.MoveReady||dodge!=null&&dodge.IsActive))reason="motion-not-ready";

@@ -1,0 +1,53 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "checks": [
+        {
+          "ok": true,
+          "name": "normal scene initializes actual inventory"
+        },
+        {
+          "ok": true,
+          "name": "valid world ledger: "
+        },
+        {
+          "ok": true,
+          "name": "team 5x2"
+        },
+        {
+          "ok": true,
+          "name": "safe two entries"
+        },
+        {
+          "ok": true,
+          "name": "partner reserve five"
+        },
+        {
+          "ok": true,
+          "name": "inventory bound temporary-a"
+        },
+        {
+          "ok": true,
+          "name": "sole equipment payload temporary-a"
+        },
+        {
+          "ok": true,
+          "name": "inventory bound temporary-b"
+        },
+        {
+          "ok": true,
+          "name": "sole equipment payload temporary-b"
+        }
+      ],
+      "items": 31,
+      "result": "物品会话已就绪"
+    }
+  }
+}

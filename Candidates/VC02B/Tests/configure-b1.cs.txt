@@ -1,0 +1,32 @@
+using System;using System.Linq;using UnityEngine;using UnityEditor;using UnityEditor.SceneManagement;using Funplay.Editor.Tools.Scripting;
+public class ConfigureVC02B:IFunplayCommand
+{
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+ {
+  const string source="Assets/OSSASTRA/Scenes/SC_VC02A_CombatMigration.unity",target="Assets/OSSASTRA/Scenes/SC_VC02B_IntegrationReady.unity",folder="Assets/OSSASTRA/VC02B";
+  if(Application.isPlaying)throw new Exception("Edit required");var current=EditorSceneManager.GetActiveScene();if(current.path!=source||current.isDirty)throw new Exception("Expected saved A candidate");
+  if(AssetDatabase.LoadAssetAtPath<SceneAsset>(target)!=null)throw new Exception("Candidate exists: inspect before replay");
+  if(!AssetDatabase.CopyAsset(source,target))throw new Exception("Copy candidate failed");EditorSceneManager.OpenScene(target);if(!AssetDatabase.IsValidFolder(folder))AssetDatabase.CreateFolder("Assets/OSSASTRA","VC02B");
+  var defs=new System.Collections.Generic.List<Ossastra.Characters.ItemDefinitionSO>();var supplies=new System.Collections.Generic.List<Ossastra.Inventory.InventoryGrant>();
+  Ossastra.Characters.ItemDefinitionSO Save(Ossastra.Characters.ItemDefinitionSO d){ctx.RegisterObjectCreation(d);d.name=d.definitionId;AssetDatabase.CreateAsset(d,folder+"/"+d.definitionId+".asset");defs.Add(d);return d;}
+  var roots=UnityEngine.Object.FindObjectsOfType<Ossastra.Characters.CharacterRoot>().OrderBy(r=>r.ActorId).ToArray();if(roots.Length!=2)throw new Exception("Expected two roots");
+  var all=AssetDatabase.FindAssets("t:EquipmentDefinitionSO",new[]{"Assets/OSSASTRA/Configs/Abilities"}).Select(g=>AssetDatabase.LoadAssetAtPath<Ossastra.Characters.EquipmentDefinitionSO>(AssetDatabase.GUIDToAssetPath(g))).Where(d=>d!=null).ToArray();
+  foreach(var e in all){var d=ScriptableObject.CreateInstance<Ossastra.Characters.ItemDefinitionSO>();d.definitionId=e.definitionId;d.displayName=e.displayName;d.description="已迁装备 · 固定朝向占格 SAMPLE；同一实例保留耐久、弹仓、技能与冷却。";d.category="weapon";d.equipment=e;d.maxStack=1;d.icon=e.worldSprite;
+   d.width=e.mainHand?(e.definitionId.StartsWith("temporary-a")?2:1):e.offhandKind==Ossastra.CharacterCore.OffhandKind.Shield?2:e.offhandKind==Ossastra.CharacterCore.OffhandKind.Bomb?1:2;d.height=e.mainHand?(d.width==1?2:1):e.offhandKind==Ossastra.CharacterCore.OffhandKind.Shield?2:1;d.unitWeightGrams=e.mainHand?1800:800;
+   d.allowedOwners=e.mainHand?new[]{e.definitionId.StartsWith("temporary-a")?"temporary-a":"temporary-b"}:e.offhandKind==Ossastra.CharacterCore.OffhandKind.Bomb?Array.Empty<string>():e.offhandKind==Ossastra.CharacterCore.OffhandKind.Shield?new[]{"temporary-a"}:new[]{"temporary-b"};
+   Save(d);if(!e.mainHand)supplies.Add(new Ossastra.Inventory.InventoryGrant{definition=d,quantity=1});}
+  string[] foods={"烤麦饼","霜莓果酱","暖炉炖肉","星蜜酥饼","赤曜盛宴"},treasures={"旧银怀表","海蓝晶簇","紫辉香匣","鎏金星盘","赤金王冠"},bottles={"微光魔素瓶","凝蓝魔素瓶","紫晶魔素瓶","辉金魔素瓶","赤曜魔素瓶"};
+  for(int tier=0;tier<5;tier++)foreach(var kind in new[]{"food","treasure","magic"}){var d=ScriptableObject.CreateInstance<Ossastra.Characters.ItemDefinitionSO>();d.definitionId=kind+"-"+tier;d.displayName=kind=="food"?foods[tier]:kind=="treasure"?treasures[tier]:bottles[tier];d.category=kind;d.rarity=(Ossastra.Characters.ItemRarity)tier;d.maxStack=20;d.unitWeightGrams=kind=="food"?new[]{150,200,400,250,600}[tier]:kind=="treasure"?new[]{200,300,350,500,700}[tier]:250;
+   if(kind=="food"){d.useKind=Ossastra.Characters.InventoryUseKind.Regeneration;d.regenerationPerSecond=new[]{2,3,5,8,12}[tier];d.regenerationSeconds=new[]{8,10,12,15,20}[tier];d.description="食用后每秒恢复"+d.regenerationPerSecond+"生命，持续"+d.regenerationSeconds+"秒；恢复不叠加。";}else d.description=kind=="treasure"?"贵重收藏；当前仅数据与展示，商人不在本轮范围。":"魔素容器占位；不改变魔素。";
+   Save(d);supplies.Add(new Ossastra.Inventory.InventoryGrant{definition=d,quantity=1});}
+  var team=new System.Collections.Generic.List<Ossastra.Inventory.InventoryGrant>();
+  foreach(var id in new[]{"sample-field-lamp","sample-al-regen","sample-al-bomb","sample-seed","sample-tool","sample-crop","trade-coin"}){var d=ScriptableObject.CreateInstance<Ossastra.Characters.ItemDefinitionSO>();d.definitionId=id;d.displayName=id=="sample-field-lamp"?"实验便携灯":id=="sample-al-regen"?"实验缓回药":id=="sample-al-bomb"?"实验消耗型炸弹":id=="sample-seed"?"实验种子":id=="sample-tool"?"实验农具":id=="sample-crop"?"实验收成":"钱币";d.category=id=="sample-al-regen"||id=="sample-al-bomb"?"usable":id=="trade-coin"?"currency":"display";d.maxStack=id=="sample-tool"?1:id=="trade-coin"?999999:99;d.unitWeightGrams=id=="sample-tool"?1500:id=="trade-coin"?0:100;d.description="冻结原型SAMPLE；外围业务不在本轮范围。";
+   if(id=="sample-al-regen"){d.useKind=Ossastra.Characters.InventoryUseKind.Regeneration;d.regenerationPerSecond=4;d.regenerationSeconds=5;d.description="实验缓回药：4HP/秒，持续5秒；不可与有效恢复叠加。";}Save(d);
+   if(id!="sample-crop"&&id!="trade-coin")team.Add(new Ossastra.Inventory.InventoryGrant{definition=d,quantity=id=="sample-seed"?5:id=="sample-tool"?1:2});else supplies.Add(new Ossastra.Inventory.InventoryGrant{definition=d,quantity=id=="sample-crop"?3:20});}
+  var actor=roots[0];var box=new GameObject("VC02B_TestChest");ctx.RegisterObjectCreation(box);box.transform.position=actor.transform.position+Vector3.right*1.5f;
+  var host=new GameObject("InventorySession_VC02B");ctx.RegisterObjectCreation(host);var session=host.AddComponent<Ossastra.Inventory.InventorySession>();var so=new SerializedObject(session);so.FindProperty("coordinator").objectReferenceValue=UnityEngine.Object.FindObjectOfType<Ossastra.Characters.CharacterControlCoordinator>();so.FindProperty("chest").objectReferenceValue=box.transform;
+  var list=so.FindProperty("catalog");list.arraySize=defs.Count;for(int n=0;n<defs.Count;n++)list.GetArrayElementAtIndex(n).objectReferenceValue=defs[n];
+  void Grants(string field,System.Collections.Generic.List<Ossastra.Inventory.InventoryGrant> grants){var a=so.FindProperty(field);a.arraySize=grants.Count;for(int n=0;n<grants.Count;n++){var row=a.GetArrayElementAtIndex(n);row.FindPropertyRelative("definition").objectReferenceValue=grants[n].definition;row.FindPropertyRelative("quantity").intValue=grants[n].quantity;}}
+  Grants("initialTeam",team);Grants("initialChest",supplies);so.ApplyModifiedPropertiesWithoutUndo();EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene());ctx.ReturnValue=new{scene=target,definitions=defs.Count,chest=supplies.Count,team=team.Count};
+ }
+}

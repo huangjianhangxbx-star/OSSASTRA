@@ -1,0 +1,13 @@
+using System;using UnityEditor;using UnityEditor.Build.Reporting;using Funplay.Editor.Tools.Scripting;
+public class BuildBPlayer:IFunplayCommand{public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx){
+ if(EditorApplication.isPlaying)throw new Exception("Edit required");
+ string report="VC02B_PLAYER_BUILD";
+ SessionState.SetString(report,"{\"state\":\"scheduled\"}");
+ EditorApplication.delayCall+=()=>{try{
+ var output="E:/WORLDCREATOR/XingHaiHuiLang/work/OSSASTRA/VC02-20261022/PlayerSmoke/OSSASTRA.exe";
+ var result=BuildPipeline.BuildPlayer(new BuildPlayerOptions{scenes=new[]{"Assets/OSSASTRA/Scenes/SC_VC02B_IntegrationReady.unity"},locationPathName=output,target=BuildTarget.StandaloneWindows64,options=BuildOptions.Development});
+ SessionState.SetString(report,Newtonsoft.Json.JsonConvert.SerializeObject(new{state="completed",result=result.summary.result.ToString(),errors=result.summary.totalErrors,warnings=result.summary.totalWarnings,seconds=result.summary.totalTime.TotalSeconds,path=output},Newtonsoft.Json.Formatting.Indented));
+ }catch(Exception error){SessionState.SetString(report,Newtonsoft.Json.JsonConvert.SerializeObject(new{state="failed",error=error.ToString()}));}};
+ ctx.ReturnValue="One-scene development build scheduled; no BuildSettings or source asset edits";
+}}
+

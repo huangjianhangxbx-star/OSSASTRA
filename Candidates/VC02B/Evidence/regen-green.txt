@@ -1,0 +1,11 @@
+PASS full HP rejects regeneration
+PASS accept does not heal instantly
+PASS existing recovery rejects food stacking
+PASS actual slow recovery half second
+PASS pause freezes recovery
+PASS large step clamps to authored five seconds
+PASS same execution cannot restart recovery
+PASS subsequent independent recovery
+PASS death clears without resurrection
+PASS invalid effect rejected
+TOTAL 10

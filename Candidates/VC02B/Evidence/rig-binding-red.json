@@ -1,0 +1,36 @@
+{
+  "success": false,
+  "code": "COMPILATION_FAILED",
+  "error": "COMPILATION_FAILED",
+  "data": {
+    "compiler": "Roslyn",
+    "errors": [
+      {
+        "line": 3,
+        "column": 322,
+        "text": "The type or namespace name 'CharacterRigProfileSO' could not be found (are you missing a using directive or an assembly reference?)",
+        "code": "CS0246"
+      },
+      {
+        "line": 3,
+        "column": 489,
+        "text": "The type or namespace name 'RigSocketBinding' could not be found (are you missing a using directive or an assembly reference?)",
+        "code": "CS0246"
+      },
+      {
+        "line": 3,
+        "column": 540,
+        "text": "The name 'RigSocketKind' does not exist in the current context",
+        "code": "CS0103"
+      }
+    ],
+    "compiler_attempts": [
+      {
+        "compiler": "Roslyn",
+        "status": "CompilationFailed",
+        "message": "Roslyn csc reported compilation errors."
+      }
+    ],
+    "hint": "Roslyn is tried first for modern C# syntax while preserving execute_code's in-memory compilation/execution flow."
+  }
+}

@@ -1,0 +1,756 @@
+model	guid	version	kind	name	parentOrOwner	detail	currentConsumer
+Assets/OSSASTRA/Configs/Abilities/EquipmentSpineProbe/ProbeSkeleton.asset	0a3c88a74a4793f4ea4aabd574ce9879	4.3.26	bone	root		index=0	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/OSSASTRA/Configs/Abilities/EquipmentSpineProbe/ProbeSkeleton.asset	0a3c88a74a4793f4ea4aabd574ce9879	4.3.26	bone	grip	root	index=1	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/OSSASTRA/Configs/Abilities/EquipmentSpineProbe/ProbeSkeleton.asset	0a3c88a74a4793f4ea4aabd574ce9879	4.3.26	bone	face	grip	index=2	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/OSSASTRA/Configs/Abilities/EquipmentSpineProbe/ProbeSkeleton.asset	0a3c88a74a4793f4ea4aabd574ce9879	4.3.26	slot	shield	face	index=0	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/OSSASTRA/Configs/Abilities/EquipmentSpineProbe/ProbeSkeleton.asset	0a3c88a74a4793f4ea4aabd574ce9879	4.3.26	slot	boss	face	index=1	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/OSSASTRA/Configs/Abilities/EquipmentSpineProbe/ProbeSkeleton.asset	0a3c88a74a4793f4ea4aabd574ce9879	4.3.26	skin	default			骨架附件选择；不猜方向语义
+Assets/OSSASTRA/Configs/Abilities/EquipmentSpineProbe/ProbeSkeleton.asset	0a3c88a74a4793f4ea4aabd574ce9879	4.3.26	attachment	shield	default / shield	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/OSSASTRA/Configs/Abilities/EquipmentSpineProbe/ProbeSkeleton.asset	0a3c88a74a4793f4ea4aabd574ce9879	4.3.26	attachment	boss	default / boss	RegionAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/OSSASTRA/Configs/Abilities/EquipmentSpineProbe/ProbeSkeleton.asset	0a3c88a74a4793f4ea4aabd574ce9879	4.3.26	animation	rest		duration=0.46	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/OSSASTRA/Configs/Abilities/EquipmentSpineProbe/ProbeSkeleton.asset	0a3c88a74a4793f4ea4aabd574ce9879	4.3.26	animation	carry		duration=0.46	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/OSSASTRA/Configs/Abilities/EquipmentSpineProbe/ProbeSkeleton.asset	0a3c88a74a4793f4ea4aabd574ce9879	4.3.26	animation	strike		duration=0.46	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/OSSASTRA/Configs/Abilities/EquipmentSpineProbe/ProbeSkeleton.asset	0a3c88a74a4793f4ea4aabd574ce9879	4.3.26	animation	brace		duration=0.46	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/OSSASTRA/Configs/Abilities/EquipmentSpineProbe/ProbeSkeleton.asset	0a3c88a74a4793f4ea4aabd574ce9879	4.3.26	animation	recoil		duration=0.46	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/OSSASTRA/Configs/Abilities/EquipmentSpineProbe/ProbeSkeleton.asset	0a3c88a74a4793f4ea4aabd574ce9879	4.3.26	animation	break		duration=0.46	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/OSSASTRA/Configs/Abilities/EquipmentSpineProbe/ProbeSkeleton.asset	0a3c88a74a4793f4ea4aabd574ce9879	4.3.26	animation	vanish		duration=0.46	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/OSSASTRA/Configs/Abilities/EquipmentSpineProbe/ProbeSkeleton.asset	0a3c88a74a4793f4ea4aabd574ce9879	4.3.26	animation	evade		duration=0.46	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	bone	root		index=0	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	bone	scale	root	index=1	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	bone	bone2	scale	index=2	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	bone	bone3	bone2	index=3	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	bone	bone4	bone3	index=4	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	bone	bone5	bone2	index=5	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	bone	bone6	bone5	index=6	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	bone	bone7	bone2	index=7	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	bone	bone8	bone2	index=8	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	bone	bone9	scale	index=9	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	bone	bone10	scale	index=10	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	bone	bone11	bone2	index=11	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	bone	bone12	bone2	index=12	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	bone	bone13	bone2	index=13	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	bone	bone14	bone2	index=14	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	bone	bone15	bone2	index=15	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	bone	222	bone9	index=16	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	bone	111	bone10	index=17	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	bone	生命值	scale	index=18	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	bone	受击点	scale	index=19	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	bone	攻击点	scale	index=20	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	slot	遮罩	scale	index=0	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	slot	图层 5	root	index=1	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	slot	前腿	root	index=2	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	slot	后腿	root	index=3	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	slot	图层 3	root	index=4	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	slot	图层 6	root	index=5	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	slot	图层 8	bone7	index=6	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	slot	图层 7	bone7	index=7	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	slot	图层 9	bone7	index=8	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	slot	图层 4	bone7	index=9	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	skin	default			骨架附件选择；不猜方向语义
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	attachment	前腿	default / 前腿	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	attachment	后腿	default / 后腿	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	attachment	图层 3	default / 图层 3	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	attachment	图层 5	default / 图层 5	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	attachment	图层 6	default / 图层 6	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	attachment	图层 7	default / 图层 8	RegionAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	attachment	图层 4	default / 图层 9	RegionAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	attachment	遮罩	default / 遮罩	ClippingAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	animation	attack		duration=2	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	animationEvent	Flash	attack	seconds=0	原生事件；动作派生时间线见SO，不重复结算
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	animationEvent	Lock	attack	seconds=0	原生事件；动作派生时间线见SO，不重复结算
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	animationEvent	Dash	attack	seconds=0.5667	原生事件；动作派生时间线见SO，不重复结算
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	animationEvent	Hit	attack	seconds=0.5667	原生事件；动作派生时间线见SO，不重复结算
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	animation	attack1		duration=0.6333	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	animation	attack2		duration=0.6333	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	animation	run		duration=0.8	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	animation	skill_jump		duration=1.4667	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	animationEvent	Lock	skill_jump	seconds=0	原生事件；动作派生时间线见SO，不重复结算
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	animationEvent	Hit	skill_jump	seconds=0.4	原生事件；动作派生时间线见SO，不重复结算
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	animation	_birth		duration=1.9	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	animation	_damaged		duration=0.4667	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	animation	_die		duration=1	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	animation	_die2		duration=1	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	animation	_move		duration=0.6667	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	animation	_stand		duration=0.6667	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	animation	_stun		duration=0.6667	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	animation	方向_左下		duration=0	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	eventDefinition	Dash			原生事件目录
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	eventDefinition	Flash			原生事件目录
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	eventDefinition	Hit			原生事件目录
+Assets/OSSASTRA/Configs/Enemies/ZombieSkeleton.asset	b9c2a0842d215e240a6f1687518b6677	4.1.23	eventDefinition	Lock			原生事件目录
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	root		index=0	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	hips	root	index=1	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	hips_up	hips	index=2	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	[#E3E64CFF]rotate	hips_up	index=3	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	flip	[#E3E64CFF]rotate	index=4	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	centroid	flip	index=5	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	[GREEN]zhixin_up	centroid	index=6	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	body	[GREEN]zhixin_up	index=7	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	chest	body	index=8	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	[GREEN]head	chest	index=9	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	face	[GREEN]head	index=10	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	c_face	face	index=11	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	ey	c_face	index=12	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	mouth	ey	index=13	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	eyebrow	ey	index=14	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	eyebrow2_	eyebrow	index=15	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	eyebrow2	eyebrow2_	index=16	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	eyebrow2.1	eyebrow2_	index=17	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	eyebrow1_	eyebrow	index=18	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	eyebrow1	eyebrow1_	index=19	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	eyebrow1.1	eyebrow1_	index=20	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	ey1	ey	index=21	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	normal_eye_you	ey1	index=22	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	normal_4	ey1	index=23	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	ey2	ey	index=24	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	normal_eye_zuo	ey2	index=25	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	normal_5	ey2	index=26	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	head3d1	[GREEN]head	index=27	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	head3d2	[GREEN]head	index=28	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	head3d3	[GREEN]head	index=29	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	line	[GREEN]head	index=30	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	c_head3d	[GREEN]head	index=31	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	c_head3d2	[GREEN]head	index=32	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	body3d1	chest	index=33	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	body3d2	chest	index=34	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	body3d3	body	index=35	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	name	hips_up	index=36	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	hair1	face	index=37	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	hair2	face	index=38	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Lear	hair2	index=39	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	face12	Lear	index=40	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	hair3	face	index=41	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/Reardrop	face	index=42	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/Leardrop	face	index=43	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/Reardrop2	Z/Reardrop	index=44	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/Leardrop2	Z/Leardrop	index=45	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/hair1	hair1	index=46	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/hair2	Z/hair1	index=47	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/hair3	Z/hair2	index=48	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	face8	hair1	index=49	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	face4	face8	index=50	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	face5	face4	index=51	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	face6	face5	index=52	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	face7	face6	index=53	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/hair7	hair1	index=54	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/hair8	Z/hair7	index=55	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/hair9	Z/hair8	index=56	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/hair4	hair1	index=57	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/hair5	Z/hair4	index=58	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/hair6	Z/hair5	index=59	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/hair11	Z/hair6	index=60	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/hair12	hair1	index=61	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/hair13	Z/hair12	index=62	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/hair14	Z/hair13	index=63	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/hair15	hair1	index=64	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/hair16	Z/hair15	index=65	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/hair17	Z/hair16	index=66	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Rear	hair2	index=67	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	face9	Rear	index=68	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	face10	face9	index=69	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	face11	face10	index=70	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	face13	face12	index=71	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	face14	face13	index=72	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Rear3d1	Rear	index=73	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Rear3d2	Rear	index=74	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Lear3d1	Lear	index=75	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Lear3d2	Lear	index=76	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/hair19	hair3	index=77	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/hair20	Z/hair19	index=78	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/hair21	Z/hair20	index=79	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/hair22	hair3	index=80	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/hair23	Z/hair22	index=81	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/hair24	Z/hair23	index=82	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/hair25	Z/hair24	index=83	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/hair26	hair3	index=84	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/hair27	Z/hair26	index=85	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/hair28	Z/hair27	index=86	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/hair29	hair3	index=87	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/hair30	Z/hair29	index=88	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/hair31	Z/hair30	index=89	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	[#4E9FE8]chest_2	chest	index=90	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Rarm	[#4E9FE8]chest_2	index=91	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Rarm1	Rarm	index=92	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Rarm2	Rarm1	index=93	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Rhand	Rarm2	index=94	equipment.right;item.use
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/Z_Larm1	chest	index=95	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Larm	Z/Z_Larm1	index=96	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Larm1	Larm	index=97	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Larm2	Larm1	index=98	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Lhand	Larm2	index=99	equipment.left
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	[#4E9FE8]chest_4	Rarm	index=100	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	[#4E9FE8]chest_5	chest	index=101	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/rope1	[#4E9FE8]chest_4	index=102	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/rope1b	Z/rope1	index=103	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/rope1c	Z/rope1b	index=104	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/fur1	[#4E9FE8]chest_5	index=105	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/fur2	Z/fur1	index=106	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/fur4	[#4E9FE8]chest_5	index=107	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/fur5	[#4E9FE8]chest_5	index=108	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	[#4E9FE8]chest_6	[#4E9FE8]chest_5	index=109	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	[#4E9FE8]chest_7	[#4E9FE8]chest_5	index=110	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/fur_rope	[#4E9FE8]chest_7	index=111	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/fur_rope2	Z/fur_rope	index=112	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/jacket4	Larm1	index=113	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/jacket4b	Z/jacket4	index=114	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/jacket4c	Z/jacket4b	index=115	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/jacket6	Larm	index=116	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/jacket6b	Z/jacket6	index=117	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/jacket6c	Z/jacket6b	index=118	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/jacket6d	Z/jacket6c	index=119	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/jacket7	Rarm	index=120	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/jacket8	Z/jacket7	index=121	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/jacket8b	Z/jacket8	index=122	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/jacket8c	Z/jacket8b	index=123	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	centroid_up	[GREEN]zhixin_up	index=124	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Rleg	centroid_up	index=125	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Rleg1	Rleg	index=126	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Rleg2	Rleg1	index=127	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Rfoot	Rleg2	index=128	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Lleg	centroid_up	index=129	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Lleg1	Lleg	index=130	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Lleg2	Lleg1	index=131	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Lfoot	Lleg2	index=132	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/jacket5	Rarm	index=133	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/jacket9	Z/jacket5	index=134	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/jacket10	Z/jacket9	index=135	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/tail	centroid_up	index=136	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/tail4	Z/tail	index=137	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/tail5	Z/tail4	index=138	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/tail6	Z/tail5	index=139	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/tail2	Z/tail6	index=140	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/tail3	Z/tail2	index=141	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	RlegIK_hips	flip	index=142	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	LlegIK_hips	flip	index=143	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/Rbandage	flip	index=144	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/Rknife3	Z/Rbandage	index=145	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/Rknife1	Z/Rbandage	index=146	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/Rknife2	Z/Rbandage	index=147	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	[#4E9FE8]body2	body	index=148	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Knife	hips_up	index=149	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	kua_3d	centroid_up	index=150	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	kua_3D	centroid_up	index=151	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	kua	centroid_up	index=152	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Knife2	hips_up	index=153	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Knife2_2	Knife2	index=154	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Knife1_2	Knife	index=155	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/fur_rope3	Z/fur4	index=156	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/fur_rope4	Z/fur_rope3	index=157	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/fur_rope5	Z/fur5	index=158	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/fur_rope6	Z/fur_rope5	index=159	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	Z/Rknife4	Z/tail6	index=160	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	eff2	flip	index=161	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	coin	hips_up	index=162	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	coin_3	coin	index=163	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	coin_2	coin_3	index=164	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	coin_4	coin_2	index=165	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	eff3	Knife	index=166	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	eff	coin	index=167	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	bone	effcoin2	eff	index=168	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-name	name	index=0	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-tail	Z/tail	index=1	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-tail2	Z/tail	index=2	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-tail3	Z/tail	index=3	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-fur_rope	Z/fur_rope	index=4	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-fur_rope2	Z/fur_rope3	index=5	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-fur_rope3	Z/fur_rope5	index=6	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-fur_rope4	Z/rope1	index=7	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-fur3	Z/fur5	index=8	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-jacket5	Z/jacket6	index=9	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-jacket4	Z/jacket7	index=10	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-jacket2	chest	index=11	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-Z_Larm1	Larm1	index=12	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-Rarm	Rarm1	index=13	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-Z_Lhand1	Lhand	index=14	equipment.left
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-Z_Larm2	Larm2	index=15	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-jacket3	Z/jacket4	index=16	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-Lfoot1	Lfoot	index=17	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-Lleg1	Lleg1	index=18	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-Rknife2	Z/Rknife2	index=19	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-fur2	Z/Z_Larm1	index=20	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-body	body	index=21	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-Rfoot1	Rfoot	index=22	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-Rleg1	Rleg1	index=23	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-ShoeDecoration	Rfoot	index=24	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-Rknife1	Z/Rknife1	index=25	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-Rknife6	Z/Rknife4	index=26	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-Rknife3	Z/Rknife3	index=27	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-Rknife4	Knife1_2	index=28	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-Rknife5	Knife2_2	index=29	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-Rknife8	Knife2_2	index=30	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-Rbandage	Z/Rbandage	index=31	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	tun	body	index=32	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-body3	body	index=33	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-chocker	chest	index=34	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-Rhand1	Rhand	index=35	equipment.right
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-Rarm1	Rarm2	index=36	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-jacket1	Z/jacket5	index=37	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-rope2	[#4E9FE8]chest_4	index=38	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-fur1	Z/fur1	index=39	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-rope1	[#4E9FE8]chest_4	index=40	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-hair11	Z/hair26	index=41	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-hair10	Z/hair22	index=42	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-hair9	Z/hair29	index=43	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-hair8	Z/hair19	index=44	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-Lcatear4	Lear	index=45	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-Lcatear3	Lear	index=46	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-Lcatear2	Lear	index=47	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-Lcatear1	Lear	index=48	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-hair_head	hair3	index=49	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-Rcatear4	Rear	index=50	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-Rcatear3	Rear	index=51	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-Rcatear2	Rear	index=52	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-Rcatear5	Rear	index=53	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-Rcatear1	Rear	index=54	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-Leardrop	Z/Leardrop	index=55	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-Reardrop	Z/Reardrop	index=56	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-hair7	Z/hair7	index=57	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-face1_line	c_face	index=58	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-face	c_face	index=59	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-e_normal1_saihong	c_face	index=60	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-e_normal4	ey	index=61	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-e_normal6	normal_5	index=62	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-e_normal5	normal_eye_zuo	index=63	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z_eyebow	eyebrow	index=64	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	C-c_face2	c_face	index=65	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-face_top	c_face	index=66	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-e_normal1_saihong2_top	c_face	index=67	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-m_normal2	mouth	index=68	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-e_normal_top	ey	index=69	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-e_normal2_top	normal_5	index=70	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-e_normal1_top	ey1	index=71	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z_eyebow_top	eyebrow	index=72	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-hair_shadow	hair1	index=73	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-hair6	hair1	index=74	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-hair5	Z/hair15	index=75	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-hair4	Z/hair12	index=76	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-hair3	Z/hair4	index=77	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-hair2	face8	index=78	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-hair1	Z/hair1	index=79	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-accessory	face5	index=80	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	B_face	face	index=81	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	datui	Rleg1	index=82	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-Rknife7	Knife1_2	index=83	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-eff2	eff2	index=84	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-coin_1	coin_2	index=85	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-eff3	eff3	index=86	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	slot	Z-coin_4	eff	index=87	当前无程序挂点消费者；骨架动画/美术用途，语义未冻结
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	skin	default			骨架附件选择；不猜方向语义
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/Rleg2	default / datui	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	B/B_body2	default / tun	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/body2	default / tun	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/accessory	default / Z-accessory	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	B/B_body	default / Z-body	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	C/C_body	default / Z-body	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/body	default / Z-body	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	C/C_sui	default / Z-body3	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/body3	default / Z-body3	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	B/B_mao2	default / Z-chocker	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/chocker	default / Z-chocker	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/coin_1	default / Z-coin_1	RegionAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/coin_2	default / Z-coin_1	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/coin_3	default / Z-coin_1	RegionAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/coin_4	default / Z-coin_4	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/eff2	default / Z-eff2	RegionAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/eff3	default / Z-eff3	RegionAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/e_normal1_saihong	default / Z-e_normal1_saihong	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/e_normal1_sad	default / Z-e_normal1_saihong2_top	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/e_normal1_saihong	default / Z-e_normal1_saihong2_top	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/e_normal1_saihong2	default / Z-e_normal1_saihong2_top	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/e_normal1_close_re	default / Z-e_normal1_top	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/e_normal1_dizzy	default / Z-e_normal1_top	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/e_normal1_eww	default / Z-e_normal1_top	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/e_normal1_hitted_re	default / Z-e_normal1_top	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/e_normal1_hitted_re2	default / Z-e_normal1_top	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/e_normal1_hitted_re3	default / Z-e_normal1_top	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/e_normal1_re	default / Z-e_normal1_top	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/e_normal2_re	default / Z-e_normal2_top	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/e_normal3_re	default / Z-e_normal4	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/e_normal1_close_re	default / Z-e_normal5	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/e_normal1_dizzy	default / Z-e_normal5	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/e_normal1_eww	default / Z-e_normal5	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/e_normal1_hitted_re	default / Z-e_normal5	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/e_normal1_hitted_re2	default / Z-e_normal5	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/e_normal1_hitted_re3	default / Z-e_normal5	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/e_normal1_re	default / Z-e_normal5	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/e_normal2_re	default / Z-e_normal6	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/e_normal3_re	default / Z-e_normal_top	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/face1_re	default / Z-face	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/face1	default / Z-face1_line	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	B/B_face	default / Z-face_top	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	C/c_face_re	default / Z-face_top	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/face1_re	default / Z-face_top	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	B/B_mao1	default / Z-fur1	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/fur1	default / Z-fur1	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/fur2	default / Z-fur2	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	B/B_mao	default / Z-fur3	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/fur3	default / Z-fur3	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/fur_rope	default / Z-fur_rope	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/fur_rope	default / Z-fur_rope2	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/fur_rope	default / Z-fur_rope3	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/fur_rope	default / Z-fur_rope4	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/hair1	default / Z-hair1	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/hair2	default / Z-hair2	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	B/Bhair_cha	default / Z-hair3	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/hair3	default / Z-hair3	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/hair4	default / Z-hair4	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/hair5	default / Z-hair5	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/hair6	default / Z-hair6	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/hair7	default / Z-hair7	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	B/Bhair_M	default / Z-hair8	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/hair8	default / Z-hair8	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/hair9	default / Z-hair9	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	B/Bhair_R	default / Z-hair10	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/hair10	default / Z-hair10	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	B/Bhair_L	default / Z-hair11	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/hair11	default / Z-hair11	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/hair_head	default / Z-hair_head	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/hair_shadow	default / Z-hair_shadow	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/jacket1	default / Z-jacket1	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	B/pifeng	default / Z-jacket2	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/jacket2	default / Z-jacket2	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/jacket3	default / Z-jacket3	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/jacket4	default / Z-jacket4	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/jacket5	default / Z-jacket5	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/Lcatear1	default / Z-Lcatear1	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/Lcatear2	default / Z-Lcatear2	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/Lcatear3	default / Z-Lcatear3	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	B/B_Lear	default / Z-Lcatear4	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/Lcatear4	default / Z-Lcatear4	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/Leardrop	default / Z-Leardrop	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/Lfoot1	default / Z-Lfoot1	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/Rfoot1	default / Z-Lfoot1	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	B/B_Lleg	default / Z-Lleg1	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/Lleg1	default / Z-Lleg1	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/m_eww	default / Z-m_normal2	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/m_happy	default / Z-m_normal2	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/m_happy2	default / Z-m_normal2	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/m_happy3	default / Z-m_normal2	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/m_hitted	default / Z-m_normal2	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/m_hitted_b	default / Z-m_normal2	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/m_normal	default / Z-m_normal2	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/m_normal2	default / Z-m_normal2	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/m_o	default / Z-m_normal2	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/m_o1	default / Z-m_normal2	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/m_o2	default / Z-m_normal2	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/m_sad	default / Z-m_normal2	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/mouth	default / Z-m_normal2	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/mouth1	default / Z-m_normal2	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/mouth1_ts	default / Z-m_normal2	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/mouth_t	default / Z-m_normal2	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/Z_Larm1	default / Z-Rarm	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/Rarm1	default / Z-Rarm1	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	B/B_dai	default / Z-Rbandage	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/Rbandage	default / Z-Rbandage	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/Rcatear1	default / Z-Rcatear1	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/Rcatear2	default / Z-Rcatear2	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/Rcatear3	default / Z-Rcatear3	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	B/B_Rear	default / Z-Rcatear4	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/Rcatear4	default / Z-Rcatear4	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/Rcatear5	default / Z-Rcatear5	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/Reardrop	default / Z-Reardrop	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	C/C_foot	default / Z-Rfoot1	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/Lfoot1	default / Z-Rfoot1	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/Lfoot2	default / Z-Rfoot1	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/Rfoot1	default / Z-Rfoot1	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/Rhand1	default / Z-Rhand1	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/Rhand_objection	default / Z-Rhand1	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/Z_Rhand	default / Z-Rhand1	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/Z_Rhand2	default / Z-Rhand1	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/Z_Rhand3	default / Z-Rhand1	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/Z_Rhand_woquan	default / Z-Rhand1	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/Z_Rhand_woquan3	default / Z-Rhand1	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/Rknife1	default / Z-Rknife1	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/Rknife2	default / Z-Rknife2	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/Rknife3	default / Z-Rknife3	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/Rknife3	default / Z-Rknife4	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/Rknife3	default / Z-Rknife5	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/Rknife4	default / Z-Rknife5	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/Rknife1	default / Z-Rknife6	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/Rknife3	default / Z-Rknife7	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/Rknife3	default / Z-Rknife8	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	B/B_Rleg	default / Z-Rleg1	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	C/C_leg	default / Z-Rleg1	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/Rleg1	default / Z-Rleg1	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	B/B_link2	default / Z-rope1	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/rope1	default / Z-rope1	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	B/B_link1	default / Z-rope2	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/rope1	default / Z-rope2	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	B/ShoeDecoration2	default / Z-ShoeDecoration	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/ShoeDecoration	default / Z-ShoeDecoration	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/tail	default / Z-tail	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/tail	default / Z-tail2	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/tail	default / Z-tail3	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/Z_Larm1	default / Z-Z_Larm1	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/Z_Larm2	default / Z-Z_Larm2	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/Z_Larm2_1	default / Z-Z_Larm2	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/Z_Lhand1	default / Z-Z_Lhand1	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/Z_Lhand2	default / Z-Z_Lhand1	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/Z_Lhand_sz	default / Z-Z_Lhand1	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/Z_Lhand_woquan	default / Z-Z_Lhand1	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/Z_Lhand_woquan2	default / Z-Z_Lhand1	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/Z_Rhand1	default / Z-Z_Lhand1	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/Z_Rhand_woquan2	default / Z-Z_Lhand1	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/Z_Rhand_woquan3	default / Z-Z_Lhand1	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/Z_eyebow	default / Z_eyebow	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	attachment	Z/Z_eyebow	default / Z_eyebow_top	MeshAttachment	骨架美术；挂点用途仅以显式Rig为准
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	constraint	eyebrow1_		TransformConstraintData	Spine动画求解，非玩法权威
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	constraint	eyebrow1		IkConstraintData	Spine动画求解，非玩法权威
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	constraint	eyebrow2_		TransformConstraintData	Spine动画求解，非玩法权威
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	constraint	eyebrow2		IkConstraintData	Spine动画求解，非玩法权威
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	constraint	kua_3d		TransformConstraintData	Spine动画求解，非玩法权威
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	constraint	kua_3d2		TransformConstraintData	Spine动画求解，非玩法权威
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	constraint	kua_3d3		TransformConstraintData	Spine动画求解，非玩法权威
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	constraint	kua_3D4		TransformConstraintData	Spine动画求解，非玩法权威
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	constraint	Rleg_ik		IkConstraintData	Spine动画求解，非玩法权威
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	constraint	Lleg_ik		IkConstraintData	Spine动画求解，非玩法权威
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	constraint	body3d1		TransformConstraintData	Spine动画求解，非玩法权威
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	constraint	c_head3d		TransformConstraintData	Spine动画求解，非玩法权威
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	constraint	ey1		TransformConstraintData	Spine动画求解，非玩法权威
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	constraint	ey2		TransformConstraintData	Spine动画求解，非玩法权威
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	constraint	head3d1		TransformConstraintData	Spine动画求解，非玩法权威
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	constraint	head_line		TransformConstraintData	Spine动画求解，非玩法权威
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	constraint	mouth		TransformConstraintData	Spine动画求解，非玩法权威
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	constraint	Rhand		TransformConstraintData	Spine动画求解，非玩法权威
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	constraint	KnifeR		TransformConstraintData	Spine动画求解，非玩法权威
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	constraint	KnifeL		TransformConstraintData	Spine动画求解，非玩法权威
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	constraint	Rear		TransformConstraintData	Spine动画求解，非玩法权威
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	constraint	Rear3d		TransformConstraintData	Spine动画求解，非玩法权威
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	constraint	Lear		TransformConstraintData	Spine动画求解，非玩法权威
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	constraint	Lear3d		TransformConstraintData	Spine动画求解，非玩法权威
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	constraint	Rleg_foot		TransformConstraintData	Spine动画求解，非玩法权威
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	constraint	Lleg_foot		TransformConstraintData	Spine动画求解，非玩法权威
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	constraint	hair1		TransformConstraintData	Spine动画求解，非玩法权威
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	constraint	eardrop1		TransformConstraintData	Spine动画求解，非玩法权威
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	constraint	eardrop2		TransformConstraintData	Spine动画求解，非玩法权威
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	constraint	hair2		TransformConstraintData	Spine动画求解，非玩法权威
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	constraint	hair3		TransformConstraintData	Spine动画求解，非玩法权威
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	constraint	hair4		TransformConstraintData	Spine动画求解，非玩法权威
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	constraint	hair5		TransformConstraintData	Spine动画求解，非玩法权威
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	constraint	hair6		TransformConstraintData	Spine动画求解，非玩法权威
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	constraint	Rarm		TransformConstraintData	Spine动画求解，非玩法权威
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	constraint	Larn		TransformConstraintData	Spine动画求解，非玩法权威
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	constraint	fur		TransformConstraintData	Spine动画求解，非玩法权威
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	constraint	Rarm_ik		IkConstraintData	Spine动画求解，非玩法权威
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	constraint	dao_Lhand		TransformConstraintData	Spine动画求解，非玩法权威
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	constraint	head3d18		TransformConstraintData	Spine动画求解，非玩法权威
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	constraint	dao_Rhand		TransformConstraintData	Spine动画求解，非玩法权威
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	atk1		duration=1.1	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_start	atk1	seconds=0.08333334	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_end	atk1	seconds=0.2666667	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_to_idle	atk1	seconds=0.3666667	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	atk1_move		duration=1.1	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_start	atk1_move	seconds=0.08333334	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_end	atk1_move	seconds=0.2666667	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_to_idle	atk1_move	seconds=0.3666667	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	atk2		duration=1.266667	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_start	atk2	seconds=0.1	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_end	atk2	seconds=0.3666667	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_to_idle	atk2	seconds=0.5	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	atk2_move		duration=1.266667	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_start	atk2_move	seconds=0.1	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_end	atk2_move	seconds=0.3666667	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_to_idle	atk2_move	seconds=0.5	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	atk3		duration=1.3	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_start	atk3	seconds=0.2333333	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_end	atk3	seconds=0.4166667	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_to_idle	atk3	seconds=0.6833333	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	atk3_loop		duration=0.3333333	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	atk3_move		duration=1.3	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_start	atk3_move	seconds=0.2333333	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_end	atk3_move	seconds=0.4166667	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_to_idle	atk3_move	seconds=0.6833333	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	atk4		duration=1.466667	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_start	atk4	seconds=0.06666667	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_end	atk4	seconds=0.5666667	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_to_idle	atk4	seconds=0.7666667	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	atk4_move		duration=1.466667	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_start	atk4_move	seconds=0.06666667	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_end	atk4_move	seconds=0.5666667	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_to_idle	atk4_move	seconds=0.7666667	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	atk_branch		duration=1.233333	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_start	atk_branch	seconds=0.2666667	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_end	atk_branch	seconds=0.6666667	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_to_idle	atk_branch	seconds=0.7666667	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	atk_branch_move		duration=1.233333	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_start	atk_branch_move	seconds=0.2666667	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_end	atk_branch_move	seconds=0.6666667	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_to_idle	atk_branch_move	seconds=0.7666667	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	death		duration=1.116667	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	dizzy_end		duration=0.3333333	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	dizzy_loop		duration=1.166667	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	dizzy_start		duration=0.25	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	dodge_back		duration=0.6666667	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	dodge_counter		duration=1.033333	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_start	dodge_counter	seconds=0.1166667	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_end	dodge_counter	seconds=0.3666667	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_to_idle	dodge_counter	seconds=0.5166667	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	dodge_counter_move		duration=1.033333	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_start	dodge_counter_move	seconds=0.1166667	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_end	dodge_counter_move	seconds=0.3666667	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_to_idle	dodge_counter_move	seconds=0.5166667	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	dodge_front		duration=0.6333333	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	execution		duration=2.95	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	m_start	execution	seconds=1	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_end	execution	seconds=2	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_to_idle	execution	seconds=2.333333	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	execution_move		duration=2.95	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	m_start	execution_move	seconds=1	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_end	execution_move	seconds=2	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_to_idle	execution_move	seconds=2.333333	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	fly_fall		duration=0.3333333	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	fly_trans		duration=0.3	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	fly_turn		duration=0.3333333	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	fly_turn2		duration=0.2992461	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	fly_up		duration=0.3333333	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	ground		duration=0.5333334	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	ground_death		duration=1.183333	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	ground_hitted		duration=0.25	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	heavy		duration=1.366667	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_start	heavy	seconds=0.06666667	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_end	heavy	seconds=0.3333333	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_to_idle	heavy	seconds=0.5	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	heavy_ex		duration=1.3	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_start	heavy_ex	seconds=0.06666667	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_end	heavy_ex	seconds=0.6333333	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_to_idle	heavy_ex	seconds=0.7333333	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	heavy_ex_move		duration=1.3	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_start	heavy_ex_move	seconds=0.06666667	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_end	heavy_ex_move	seconds=0.6333333	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_to_idle	heavy_ex_move	seconds=0.7333333	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	heavy_move		duration=1.366667	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_start	heavy_move	seconds=0.06666667	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_end	heavy_move	seconds=0.3333333	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_to_idle	heavy_move	seconds=0.5	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	idle1_1		duration=4	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	idle1_2		duration=4	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	idle2		duration=4.5	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	idle3		duration=4.666667	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	jump_atk_all_move		duration=1.366667	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	jump_atk_end		duration=0.9	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_end	jump_atk_end	seconds=0.01666667	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	jump_atk_loop		duration=0.1666667	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	jump_atk_start		duration=0.3	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	jump_atk_start_move		duration=0.3	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	leg_hitted		duration=0.1666667	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	s_start	leg_hitted	seconds=0	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	m_start	leg_hitted	seconds=0.05	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	s_end	leg_hitted	seconds=0.05	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	l_start	leg_hitted	seconds=0.1	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	m_end	leg_hitted	seconds=0.1	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	l_end	leg_hitted	seconds=0.1666667	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	leg_hitted2idle		duration=0.3333333	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	l_end	leg_hitted2idle	seconds=0	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	l_start	leg_hitted2idle	seconds=0	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	m_start	leg_hitted2idle	seconds=0.06666667	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	s_start	leg_hitted2idle	seconds=0.1666667	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	l_end	leg_hitted2idle	seconds=0.3333333	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	m_end	leg_hitted2idle	seconds=0.3333333	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	s_end	leg_hitted2idle	seconds=0.3333333	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	leg_hitted_all		duration=0.5	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	qte1		duration=2.033333	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_start	qte1	seconds=0.3333333	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_end	qte1	seconds=1.133333	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_to_idle	qte1	seconds=1.466667	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	qte1_end		duration=1.166667	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_end	qte1_end	seconds=0.2666667	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_to_idle	qte1_end	seconds=0.6	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	qte1_end_move		duration=1.166667	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_end	qte1_end_move	seconds=0.2666667	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_to_idle	qte1_end_move	seconds=0.6	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	qte1_loop		duration=0.1666667	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_start	qte1_loop	seconds=0	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	qte1_move		duration=2.033333	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_start	qte1_move	seconds=0.3333333	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_end	qte1_move	seconds=1.133333	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_to_idle	qte1_move	seconds=1.466667	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	qte1_start		duration=0.3333333	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_start	qte1_start	seconds=0.3333333	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	qte1_start_move		duration=0.3333333	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_start	qte1_start_move	seconds=0.3333333	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	ready_end		duration=1.066667	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	ready_loop		duration=1	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	ready_start		duration=0.6666667	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	run		duration=0.8	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	stand_up		duration=0.4833333	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_end	stand_up	seconds=0.35	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	start		duration=2.65	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	upper_hitted		duration=0.1666667	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	s_start	upper_hitted	seconds=0	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	m_start	upper_hitted	seconds=0.05	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	s_end	upper_hitted	seconds=0.05	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	l_start	upper_hitted	seconds=0.1	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	m_end	upper_hitted	seconds=0.1	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	l_end	upper_hitted	seconds=0.1666667	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	upper_hitted2idle		duration=0.3333333	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	l_start	upper_hitted2idle	seconds=0	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	m_start	upper_hitted2idle	seconds=0.06666667	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	s_start	upper_hitted2idle	seconds=0.1666667	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	l_end	upper_hitted2idle	seconds=0.3333333	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	m_end	upper_hitted2idle	seconds=0.3333333	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	s_end	upper_hitted2idle	seconds=0.3333333	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	upper_hitted_all		duration=0.5	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	win_start		duration=4.116667	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	xskill		duration=2.366667	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_start	xskill	seconds=1	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_end	xskill	seconds=1.6	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_to_idle	xskill	seconds=1.833333	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	xskill_move		duration=2.366667	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_start	xskill_move	seconds=1	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_end	xskill_move	seconds=1.6	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animationEvent	hit_to_idle	xskill_move	seconds=1.833333	原生事件；动作派生时间线见SO，不重复结算
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	base/celebration		duration=6.666667	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	base/drag		duration=2.333333	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	base/drag_end		duration=0.7833334	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	base/drag_end4		duration=0.6666667	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	base/draw_loop		duration=4	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	base/draw_start		duration=7.316667	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	base/touch		duration=3.6	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	base/walk		duration=1	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	city/fall_loop		duration=0.1666667	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	city/jump_all		duration=0.9	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	city/jump_end		duration=0.75	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	city/jump_loop		duration=0.1666667	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	city/jump_start		duration=0.06666667	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	city/jump_trans		duration=0.3333333	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	city/sit_all		duration=2.666667	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	city/sit_loop		duration=1.666667	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	common/give_end		duration=0.5	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	common/give_loop		duration=1.666667	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	common/give_start		duration=0.6666667	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	common/no		duration=2	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	common/objection_end		duration=0.3333333	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	common/objection_loop		duration=2	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	common/objection_start		duration=0.6666667	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	common/ready2_all		duration=3.666667	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	common/ready2_end		duration=0.4333333	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	common/ready2_loop		duration=1.333333	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	common/ready2_start		duration=1.9	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	common/ready2_start2		duration=1.9	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	common/squat_check_end		duration=0.45	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	common/squat_check_loop		duration=1.666667	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	common/squat_check_start		duration=0.4166667	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	common/squat_end		duration=0.3333333	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	common/squat_loop		duration=2	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	common/squat_start		duration=0.3333333	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	common/take_check		duration=3.333333	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	common/take_end		duration=0.6666667	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	common/take_loop		duration=2	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	common/take_start		duration=0.3333333	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	common/talk1		duration=3	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	common/talk2		duration=3	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	common/think_end		duration=0.5	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	common/think_loop		duration=2	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	common/think_start		duration=0.3333333	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	common/walk		duration=1	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	common/walk_back		duration=1	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	animation	common/yes		duration=2	具体消费见SO-fields动画映射；未映射不猜用途
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	eventDefinition	hit_end			原生事件目录
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	eventDefinition	hit_start			原生事件目录
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	eventDefinition	hit_to_idle			原生事件目录
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	eventDefinition	l_end			原生事件目录
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	eventDefinition	l_start			原生事件目录
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	eventDefinition	m_end			原生事件目录
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	eventDefinition	m_start			原生事件目录
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	eventDefinition	s_end			原生事件目录
+Assets/随便尝试/rozeul_SkeletonData.asset	8de59581980c83e4e91f8a7e5bc92f46	4.3.26	eventDefinition	s_start			原生事件目录

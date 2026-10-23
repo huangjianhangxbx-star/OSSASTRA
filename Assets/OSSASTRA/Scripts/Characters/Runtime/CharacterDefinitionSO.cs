@@ -11,6 +11,7 @@ namespace Ossastra.Characters
     {
         public string definitionId,displayName;
         public CharacterAnimationProfileSO animationProfile;
+        public CharacterRigProfileSO rigProfile;
         public ActionDefinitionSO[] basicAttacks=Array.Empty<ActionDefinitionSO>();
         [Min(.01f)] public float dodgeDuration=.45f,dodgeDistance=2.4f;
         [Min(0)] public float dodgeCost=22,invulnerableFrom=.12f,invulnerableTo=.32f;

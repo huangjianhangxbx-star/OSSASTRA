@@ -16,12 +16,17 @@ namespace Ossastra.Characters
         [SerializeField] private EquipmentDefinitionSO rightDefinition;
         [SerializeField] private EquipmentDefinitionSO[] ownedOffhands=Array.Empty<EquipmentDefinitionSO>();
         private CharacterRoot owner;
-        public EquipmentDefinitionSO RightDefinition=>rightDefinition;
-        public EquipmentDefinitionSO LeftDefinition=>State==null?null:ownedOffhands.FirstOrDefault(d=>d!=null&&d.definitionId==State.LeftDefinitionId)
+        private ICharacterEquipmentInventory inventory;
+        public bool InventoryBound=>inventory!=null;
+        public EquipmentDefinitionSO RightDefinition=>InventoryBound?inventory.RightDefinition:rightDefinition;
+        public EquipmentDefinitionSO LeftDefinition=>InventoryBound?inventory.LeftDefinition:State==null?null:ownedOffhands.FirstOrDefault(d=>d!=null&&d.definitionId==State.LeftDefinitionId)
             ??ownedOffhands.FirstOrDefault(d=>d!=null&&State.LeftDefinitionId!=null&&State.LeftDefinitionId.StartsWith("legacy:")&&d.offhandKind==State.LeftKind);
-        public EquipmentDefinitionSO[] OwnedOffhands=>(EquipmentDefinitionSO[])ownedOffhands.Clone();
+        public EquipmentDefinitionSO[] OwnedOffhands=>InventoryBound?inventory.AvailableOffhands:(EquipmentDefinitionSO[])ownedOffhands.Clone();
+        public bool CanChangeEquipment=>Idle()&&!(GetComponent<CharacterAbilities>()?.IsBusy??false);
+        public void BindInventory(ICharacterEquipmentInventory source)
+        {if(source==null||State==null||inventory!=null&&!ReferenceEquals(inventory,source))throw new InvalidOperationException("Invalid inventory binding");State.BindSlots(source);inventory=source;}
         public bool TryEquip(EquipmentDefinitionSO definition)
-        {if(definition==null||definition.mainHand||!ownedOffhands.Contains(definition)){LastResult="拒绝：非本体持有的副手定义";return false;}return EquipDefinition(definition);}
+        {if(InventoryBound){var ok=inventory.TryEquip(definition);LastResult=ok?"装备已转移":"拒绝：库存/动作/容量资格不符";return ok;}if(definition==null||definition.mainHand||!ownedOffhands.Contains(definition)){LastResult="拒绝：非本体持有的副手定义";return false;}return EquipDefinition(definition);}
         public EquipmentState State {get;private set;}
         public string LastResult {get;private set;}="无";
         public bool ValidatePresentations(out string reason)
@@ -33,7 +38,7 @@ namespace Ossastra.Characters
         {
             if(definition?.spinePresentation==null)return;
             var body=GetComponentInChildren<Spine.Unity.SkeletonAnimation>();
-            definition.spinePresentation.Freeze(body?.Skeleton?.Data);
+            definition.spinePresentation.Freeze(body?.Skeleton?.Data,owner?.Definition?.rigProfile);
         }
         public void Initialize(CharacterRoot root)
         {
@@ -47,6 +52,7 @@ namespace Ossastra.Characters
         }
         public bool TryEquip(OffhandKind kind)
         {
+            if(InventoryBound){var candidate=OwnedOffhands.FirstOrDefault(d=>d.offhandKind==kind);return candidate!=null&&TryEquip(candidate);}
             var definition=ownedOffhands.FirstOrDefault(d=>d!=null&&d.offhandKind==kind);
             return definition!=null?EquipDefinition(definition):EquipLegacy(kind);
         }

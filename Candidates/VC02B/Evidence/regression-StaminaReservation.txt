@@ -1,0 +1,11 @@
+PASS Reserved release cost protects concurrent accepted action
+PASS Failed source transaction does not charge stamina
+PASS Successful source callback and release payment occur once
+PASS Cancelled release cannot invoke source or debit
+PASS Sustained drain cannot consume a reserved release budget
+PASS Life restore invalidates pending reservation without payment
+PASS Invalid or duplicate reservations leave balance unchanged
+PASS Invalid release clock never calls source
+PASS Long hold released after skipped threshold sample stays long
+PASS Short tap and already emitted long press retain single winner
+RESULT passed=10 failed=0

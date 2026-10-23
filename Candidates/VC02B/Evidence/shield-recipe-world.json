@@ -1,0 +1,58 @@
+{
+  "state": "completed",
+  "failed": 0,
+  "boundaryFixture": true,
+  "ordinaryHudAndInput": true,
+  "rows": [
+    {
+      "name": "same-category shield A hold actually guards",
+      "ok": true,
+      "result": "接受 ShieldA_HoldGuard"
+    },
+    {
+      "name": "holding does not repeat acceptance",
+      "ok": true,
+      "result": "接受 ShieldA_HoldGuard"
+    },
+    {
+      "name": "releasing shield A ends guard",
+      "ok": true,
+      "result": "接受 ShieldA_HoldGuard"
+    },
+    {
+      "name": "author fixture conserves item in safe",
+      "ok": true,
+      "result": "接受 ShieldA_HoldGuard"
+    },
+    {
+      "name": "author fixture conserves item in safe",
+      "ok": true,
+      "result": "接受 ShieldA_HoldGuard"
+    },
+    {
+      "name": "actual shield B enters team from finite chest",
+      "ok": true,
+      "result": "接受 ShieldA_HoldGuard"
+    },
+    {
+      "name": "same category different function equips via source transaction",
+      "ok": true,
+      "result": "接受 ShieldA_HoldGuard"
+    },
+    {
+      "name": "shield B press attacks instead of hold guard",
+      "ok": true,
+      "result": "接触 0 #19075b720e1e453f8a044e9ef7d050b8"
+    },
+    {
+      "name": "both actual definitions retain same offhand kind",
+      "ok": true,
+      "result": "接触 0 #19075b720e1e453f8a044e9ef7d050b8"
+    },
+    {
+      "name": "actual inventory after swapping remains valid",
+      "ok": true,
+      "result": "接触 0 #19075b720e1e453f8a044e9ef7d050b8"
+    }
+  ]
+}

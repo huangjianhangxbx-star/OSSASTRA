@@ -1,0 +1,247 @@
+{
+  "state": "completed",
+  "failed": 0,
+  "boundaryFixture": true,
+  "rows": [
+    {
+      "name": "full HP refuses and does not consume",
+      "ok": true,
+      "hp": 100,
+      "quantity": 2,
+      "result": "拒绝：需生命未满且没有正在生效的持续恢复",
+      "ability": "能力未初始化"
+    },
+    {
+      "name": "real inventory medicine accepted",
+      "ok": true,
+      "hp": 60,
+      "quantity": 2,
+      "result": "已接受 实验缓回药",
+      "ability": "接受 实验缓回药"
+    },
+    {
+      "name": "accept reserves before release",
+      "ok": true,
+      "hp": 60,
+      "quantity": 2,
+      "result": "已接受 实验缓回药",
+      "ability": "接受 实验缓回药"
+    },
+    {
+      "name": "same stack second acceptance rejected",
+      "ok": true,
+      "hp": 60,
+      "quantity": 2,
+      "result": "拒绝：duplicate-or-port-rejected",
+      "ability": "拒绝：duplicate-or-port-rejected"
+    },
+    {
+      "name": "release consumes exactly one",
+      "ok": true,
+      "hp": 62,
+      "quantity": 1,
+      "result": "拒绝：duplicate-or-port-rejected",
+      "ability": "拒绝：duplicate-or-port-rejected"
+    },
+    {
+      "name": "medicine slow effect actually heals",
+      "ok": true,
+      "hp": 62,
+      "quantity": 1,
+      "result": "拒绝：duplicate-or-port-rejected",
+      "ability": "拒绝：duplicate-or-port-rejected"
+    },
+    {
+      "name": "explicit pause freezes slow recovery",
+      "ok": true,
+      "hp": 62,
+      "quantity": 1,
+      "result": "拒绝：duplicate-or-port-rejected",
+      "ability": "拒绝：duplicate-or-port-rejected"
+    },
+    {
+      "name": "accept second item then cancel",
+      "ok": true,
+      "hp": 63,
+      "quantity": 1,
+      "result": "已接受 实验缓回药",
+      "ability": "接受 实验缓回药"
+    },
+    {
+      "name": "cancel releases quantity reservation",
+      "ok": true,
+      "hp": 63,
+      "quantity": 1,
+      "result": "已接受 实验缓回药",
+      "ability": "接受 实验缓回药"
+    },
+    {
+      "name": "cancel leaves no recovery",
+      "ok": true,
+      "hp": 63,
+      "quantity": 1,
+      "result": "已接受 实验缓回药",
+      "ability": "接受 实验缓回药"
+    },
+    {
+      "name": "take food 0 from real chest",
+      "ok": true,
+      "hp": 50,
+      "quantity": 1,
+      "result": "已接受 实验缓回药",
+      "ability": "接受 实验缓回药"
+    },
+    {
+      "name": "use configured food 0",
+      "ok": true,
+      "hp": 50,
+      "quantity": 1,
+      "result": "已接受 烤麦饼",
+      "ability": "接受 烤麦饼"
+    },
+    {
+      "name": "food 0 actually heals gradually",
+      "ok": true,
+      "hp": 51,
+      "quantity": 1,
+      "result": "已接受 烤麦饼",
+      "ability": "接受 烤麦饼"
+    },
+    {
+      "name": "food 0 consumed original instance",
+      "ok": true,
+      "hp": 51,
+      "quantity": 1,
+      "result": "已接受 烤麦饼",
+      "ability": "接受 烤麦饼"
+    },
+    {
+      "name": "take food 1 from real chest",
+      "ok": true,
+      "hp": 50,
+      "quantity": 1,
+      "result": "已接受 烤麦饼",
+      "ability": "接受 烤麦饼"
+    },
+    {
+      "name": "use configured food 1",
+      "ok": true,
+      "hp": 50,
+      "quantity": 1,
+      "result": "已接受 霜莓果酱",
+      "ability": "接受 霜莓果酱"
+    },
+    {
+      "name": "food 1 actually heals gradually",
+      "ok": true,
+      "hp": 51,
+      "quantity": 1,
+      "result": "已接受 霜莓果酱",
+      "ability": "接受 霜莓果酱"
+    },
+    {
+      "name": "food 1 consumed original instance",
+      "ok": true,
+      "hp": 51,
+      "quantity": 1,
+      "result": "已接受 霜莓果酱",
+      "ability": "接受 霜莓果酱"
+    },
+    {
+      "name": "take food 2 from real chest",
+      "ok": true,
+      "hp": 50,
+      "quantity": 1,
+      "result": "已接受 霜莓果酱",
+      "ability": "接受 霜莓果酱"
+    },
+    {
+      "name": "use configured food 2",
+      "ok": true,
+      "hp": 50,
+      "quantity": 1,
+      "result": "已接受 暖炉炖肉",
+      "ability": "接受 暖炉炖肉"
+    },
+    {
+      "name": "food 2 actually heals gradually",
+      "ok": true,
+      "hp": 52,
+      "quantity": 1,
+      "result": "已接受 暖炉炖肉",
+      "ability": "接受 暖炉炖肉"
+    },
+    {
+      "name": "food 2 consumed original instance",
+      "ok": true,
+      "hp": 52,
+      "quantity": 1,
+      "result": "已接受 暖炉炖肉",
+      "ability": "接受 暖炉炖肉"
+    },
+    {
+      "name": "take food 3 from real chest",
+      "ok": true,
+      "hp": 50,
+      "quantity": 1,
+      "result": "已接受 暖炉炖肉",
+      "ability": "接受 暖炉炖肉"
+    },
+    {
+      "name": "use configured food 3",
+      "ok": true,
+      "hp": 50,
+      "quantity": 1,
+      "result": "已接受 星蜜酥饼",
+      "ability": "接受 星蜜酥饼"
+    },
+    {
+      "name": "food 3 actually heals gradually",
+      "ok": true,
+      "hp": 54,
+      "quantity": 1,
+      "result": "已接受 星蜜酥饼",
+      "ability": "接受 星蜜酥饼"
+    },
+    {
+      "name": "food 3 consumed original instance",
+      "ok": true,
+      "hp": 54,
+      "quantity": 1,
+      "result": "已接受 星蜜酥饼",
+      "ability": "接受 星蜜酥饼"
+    },
+    {
+      "name": "take food 4 from real chest",
+      "ok": true,
+      "hp": 50,
+      "quantity": 1,
+      "result": "已接受 星蜜酥饼",
+      "ability": "接受 星蜜酥饼"
+    },
+    {
+      "name": "use configured food 4",
+      "ok": true,
+      "hp": 50,
+      "quantity": 1,
+      "result": "已接受 赤曜盛宴",
+      "ability": "接受 赤曜盛宴"
+    },
+    {
+      "name": "food 4 actually heals gradually",
+      "ok": true,
+      "hp": 56,
+      "quantity": 1,
+      "result": "已接受 赤曜盛宴",
+      "ability": "接受 赤曜盛宴"
+    },
+    {
+      "name": "food 4 consumed original instance",
+      "ok": true,
+      "hp": 56,
+      "quantity": 1,
+      "result": "已接受 赤曜盛宴",
+      "ability": "接受 赤曜盛宴"
+    }
+  ]
+}

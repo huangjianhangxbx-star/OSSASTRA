@@ -1,0 +1,52 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 10864447e0a8f6046b2d3ff2b0036e31, type: 3}
+  m_Name: AuthorRecipe_Melee
+  m_EditorClassIdentifier: 
+  schemaVersion: 1
+  cooldownPolicy: 0
+  definitionId: authoring.same-type-melee
+  displayName: "\u4F5C\u8005\u914D\u65B9\xB7\u56DE\u65CB\u65A9"
+  cooldownIdentity: hunter-sweep
+  effectRoot: 
+  damageChannel: 
+  executor: {fileID: 11400000, guid: 877f3f98494153e44a4b3f35d18f3cc4, type: 2}
+  action: {fileID: 11400000, guid: fbd4aa845a6d69b449b98b62f7cfd773, type: 2}
+  occupancy: 3
+  acceptCost: 24
+  cooldown: 10
+  holdCostPerSecond: 0
+  releaseCost: 0
+  wearOnRelease: 0
+  reclaimBudget: 0.05
+  reclaimRate: 0.5
+  finishAt: 0.5
+  moveReadyAt: 0.5
+  attackReadyAt: 0.5
+  delivery:
+    mode: 0
+    range: 2.2
+    radius: 2.2
+    arc: 270
+    speed: 10
+    flightTime: 0.45
+    collisionRadius: 0.08
+    arcHeight: 1
+    activeDuration: 0
+    followSource: 0
+    collisionLayers:
+      serializedVersion: 2
+      m_Bits: 4294967295
+  releases:
+  - at: 0.18
+    damage: 18
+    postureImpact: 30

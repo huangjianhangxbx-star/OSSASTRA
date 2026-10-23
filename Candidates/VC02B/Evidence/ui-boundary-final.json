@@ -1,0 +1,349 @@
+{
+  "state": "completed",
+  "failed": 0,
+  "boundaryFixture": true,
+  "rows": [
+    {
+      "name": "neutral arm",
+      "ok": true,
+      "quantity": "",
+      "notice": ""
+    },
+    {
+      "name": "Tab press",
+      "ok": true,
+      "quantity": "",
+      "notice": ""
+    },
+    {
+      "name": "normal Tab opens inventory",
+      "ok": true,
+      "quantity": "",
+      "notice": ""
+    },
+    {
+      "name": "unselected detail hidden",
+      "ok": true,
+      "quantity": "",
+      "notice": ""
+    },
+    {
+      "name": "WASD while open",
+      "ok": true,
+      "quantity": "",
+      "notice": ""
+    },
+    {
+      "name": "current moves with inventory",
+      "ok": true,
+      "quantity": "",
+      "notice": ""
+    },
+    {
+      "name": "world click blocked",
+      "ok": true,
+      "quantity": "",
+      "notice": ""
+    },
+    {
+      "name": "no combat through inventory",
+      "ok": true,
+      "quantity": "",
+      "notice": ""
+    },
+    {
+      "name": "select seed pointer down",
+      "ok": true,
+      "quantity": "",
+      "notice": ""
+    },
+    {
+      "name": "select seed pointer up",
+      "ok": true,
+      "quantity": "",
+      "notice": ""
+    },
+    {
+      "name": "selected real details",
+      "ok": true,
+      "quantity": "",
+      "notice": ""
+    },
+    {
+      "name": "drag seed start",
+      "ok": true,
+      "quantity": "",
+      "notice": ""
+    },
+    {
+      "name": "drag crosses threshold",
+      "ok": true,
+      "quantity": "",
+      "notice": ""
+    },
+    {
+      "name": "drag enters safe",
+      "ok": true,
+      "quantity": "",
+      "notice": ""
+    },
+    {
+      "name": "drop safe",
+      "ok": true,
+      "quantity": "",
+      "notice": "已转移"
+    },
+    {
+      "name": "actual pointer drag moved whole stack",
+      "ok": true,
+      "quantity": "",
+      "notice": "已转移"
+    },
+    {
+      "name": "close Tab press",
+      "ok": true,
+      "quantity": "",
+      "notice": "已转移"
+    },
+    {
+      "name": "Tab closes and preserves inventory",
+      "ok": true,
+      "quantity": "",
+      "notice": "已转移"
+    },
+    {
+      "name": "reopen Tab press",
+      "ok": true,
+      "quantity": "",
+      "notice": "已转移"
+    },
+    {
+      "name": "reopen real state without new grant",
+      "ok": true,
+      "quantity": "",
+      "notice": "已转移"
+    },
+    {
+      "name": "select source seed for split",
+      "ok": true,
+      "quantity": "",
+      "notice": "已转移"
+    },
+    {
+      "name": "release source seed",
+      "ok": true,
+      "quantity": "",
+      "notice": "已转移"
+    },
+    {
+      "name": "click actual integer input",
+      "ok": true,
+      "quantity": "",
+      "notice": "已转移"
+    },
+    {
+      "name": "release actual integer input",
+      "ok": true,
+      "quantity": "",
+      "notice": "已转移"
+    },
+    {
+      "name": "integer field owns focus",
+      "ok": true,
+      "quantity": "",
+      "notice": "已转移"
+    },
+    {
+      "name": "text edit movement captured",
+      "ok": true,
+      "quantity": "2",
+      "notice": "已转移"
+    },
+    {
+      "name": "typing prevents character movement",
+      "ok": true,
+      "quantity": "2",
+      "notice": "已转移"
+    },
+    {
+      "name": "split safe stack drag press",
+      "ok": true,
+      "quantity": "2",
+      "notice": "已转移"
+    },
+    {
+      "name": "split crosses threshold",
+      "ok": true,
+      "quantity": "2",
+      "notice": "已转移"
+    },
+    {
+      "name": "split enters exact team cell",
+      "ok": true,
+      "quantity": "2",
+      "notice": "已转移"
+    },
+    {
+      "name": "split release",
+      "ok": true,
+      "quantity": "2",
+      "notice": "已转移"
+    },
+    {
+      "name": "actual split respects quantity and conserves source",
+      "ok": true,
+      "quantity": "2",
+      "notice": "已转移"
+    },
+    {
+      "name": "merge split stack pointer press",
+      "ok": true,
+      "quantity": "",
+      "notice": "已转移"
+    },
+    {
+      "name": "merge pointer crosses threshold",
+      "ok": true,
+      "quantity": "",
+      "notice": "已转移"
+    },
+    {
+      "name": "merge over source safe stack",
+      "ok": true,
+      "quantity": "",
+      "notice": "已转移"
+    },
+    {
+      "name": "merge actual release",
+      "ok": true,
+      "quantity": "",
+      "notice": "已转移"
+    },
+    {
+      "name": "actual merge preserves original safe identity and total five",
+      "ok": true,
+      "quantity": "",
+      "notice": "已转移"
+    },
+    {
+      "name": "start actual cancellable drag",
+      "ok": true,
+      "quantity": "",
+      "notice": "已转移"
+    },
+    {
+      "name": "cross actual cancellable threshold",
+      "ok": true,
+      "quantity": "",
+      "notice": "已转移"
+    },
+    {
+      "name": "Escape cancels drag",
+      "ok": true,
+      "quantity": "",
+      "notice": "已转移"
+    },
+    {
+      "name": "release cancelled mouse",
+      "ok": true,
+      "quantity": "",
+      "notice": "已转移"
+    },
+    {
+      "name": "drag cancel keeps inventory open and source unchanged",
+      "ok": true,
+      "quantity": "",
+      "notice": "已转移"
+    },
+    {
+      "name": "ordinary hotbar pointer bind",
+      "ok": true,
+      "quantity": "",
+      "notice": "已转移"
+    },
+    {
+      "name": "release hotbar bind",
+      "ok": true,
+      "quantity": "",
+      "notice": "已转移"
+    },
+    {
+      "name": "hotbar references definition without consuming stock",
+      "ok": true,
+      "quantity": "",
+      "notice": "已转移"
+    },
+    {
+      "name": "right-click clears only hotbar reference",
+      "ok": true,
+      "quantity": "",
+      "notice": "已转移"
+    },
+    {
+      "name": "release clear hotbar",
+      "ok": true,
+      "quantity": "",
+      "notice": "已转移"
+    },
+    {
+      "name": "clear reference preserves physical item",
+      "ok": true,
+      "quantity": "",
+      "notice": "已转移"
+    },
+    {
+      "name": "multi-cell boundary fixture uses real finite items",
+      "ok": true,
+      "quantity": "",
+      "notice": "已转移"
+    },
+    {
+      "name": "grab bottom right cell of actual two by two shield",
+      "ok": true,
+      "quantity": "",
+      "notice": "已转移"
+    },
+    {
+      "name": "multi-cell grab crosses threshold",
+      "ok": true,
+      "quantity": "",
+      "notice": "已转移"
+    },
+    {
+      "name": "multi-cell over intended grabbed cell",
+      "ok": true,
+      "quantity": "",
+      "notice": "已转移"
+    },
+    {
+      "name": "multi-cell actual drop",
+      "ok": true,
+      "quantity": "",
+      "notice": "已转移"
+    },
+    {
+      "name": "two by two original item respects one-cell grab offset",
+      "ok": true,
+      "quantity": "",
+      "notice": "已转移"
+    },
+    {
+      "name": "full-capacity boundary fixture",
+      "ok": true,
+      "quantity": "",
+      "notice": "已转移"
+    },
+    {
+      "name": "F against full backpack",
+      "ok": true,
+      "quantity": "",
+      "notice": "容量不足或目标位置不合法"
+    },
+    {
+      "name": "full backpack F gives actual capacity text and leaves ground item",
+      "ok": true,
+      "quantity": "",
+      "notice": "容量不足或目标位置不合法"
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+using System;using System.Linq;using System.Collections.Generic;using UnityEngine;using UnityEditor;using UnityEngine.InputSystem;using Ossastra.Inventory;using Ossastra.Characters;using Ossastra.Authoring;using Funplay.Editor.Tools.Scripting;
+public class FinalBContracts:IFunplayCommand{
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx){
+ if(!Application.isPlaying)throw new Exception("Fresh saved B Play required");
+ var rows=new List<object>();int failed=0;void C(string name,bool ok){rows.Add(new{name,ok});if(!ok)failed++;}
+ var sessions=UnityEngine.Object.FindObjectsOfType<InventorySession>();C("one inventory authority",sessions.Length==1);var s=sessions.Single();
+ C("new session finite 31 item instances",s.Ready&&s.Ledger.Items.Count()==31);C("ledger invariant",s.Ledger.Validate(out var error));C("new session no old ground containers",s.GroundContainers.Length==0);
+ var roots=s.Coordinator.Characters;C("two unique body IDs",roots.Count()==2&&roots.Select(r=>r.ActorId).Distinct().Count()==2);
+ C("independent weapon payloads",!ReferenceEquals(roots[0].GetComponent<CharacterEquipment>().State.RightRuntime,roots[1].GetComponent<CharacterEquipment>().State.RightRuntime));
+ C("no MissingScript",UnityEngine.Object.FindObjectsOfType<GameObject>().All(g=>g.GetComponents<MonoBehaviour>().All(m=>m!=null)));
+ C("no test input devices",!InputSystem.devices.Any(d=>d.name.Contains("Story")||d.name.Contains("Probe")||d.name.Contains("M02B1")));
+ C("normal simulation time",Time.timeScale==1);
+ var item=ScriptableObject.CreateInstance<Ossastra.Characters.ItemDefinitionSO>();item.definitionId="bad-test";item.useKind=InventoryUseKind.Regeneration;
+ try{C("missing use ability names ability field",CharacterContentWorkbench.Inspect(item).Contains("ability required"));item.useKind=InventoryUseKind.None;item.width=0;C("bad grid definition rejected",CharacterContentWorkbench.Inspect(item).StartsWith("REJECT"));}finally{UnityEngine.Object.DestroyImmediate(item);}
+ var original=roots[0].GetComponent<CharacterEquipment>().RightDefinition.skillLoadout;var loadout=UnityEngine.Object.Instantiate(original);var duplicate=UnityEngine.Object.Instantiate(original.regularChoices[0]);
+ try{loadout.regularChoices=(AbilityDefinitionSO[])original.regularChoices.Clone();duplicate.definitionId=original.nativeAbility.definitionId;loadout.regularChoices[0]=duplicate;C("duplicate ability ID rejected in author tool",CharacterContentWorkbench.Inspect(loadout).StartsWith("REJECT"));}finally{UnityEngine.Object.DestroyImmediate(loadout);UnityEngine.Object.DestroyImmediate(duplicate);}
+ var rig=ScriptableObject.CreateInstance<CharacterRigProfileSO>();try{rig.sockets=new[]{new RigSocketBinding{semanticSocketId="equipment.left"}};C("missing rig model names sockets field",CharacterContentWorkbench.Inspect(rig).Contains("sockets[equipment.left]"));}finally{UnityEngine.Object.DestroyImmediate(rig);}
+ var result=Newtonsoft.Json.JsonConvert.SerializeObject(new{state="completed",failed,rows,ledgerError=error,unity=Application.unityVersion,scene=UnityEngine.SceneManagement.SceneManager.GetActiveScene().path});SessionState.SetString("VC02B_FINAL",result);ctx.ReturnValue=result;
+ }}
+

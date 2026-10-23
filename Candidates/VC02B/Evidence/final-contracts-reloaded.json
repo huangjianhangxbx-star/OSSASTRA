@@ -1,0 +1,61 @@
+{
+  "state": "completed",
+  "failed": 0,
+  "rows": [
+    {
+      "name": "one inventory authority",
+      "ok": true
+    },
+    {
+      "name": "new session finite 31 item instances",
+      "ok": true
+    },
+    {
+      "name": "ledger invariant",
+      "ok": true
+    },
+    {
+      "name": "new session no old ground containers",
+      "ok": true
+    },
+    {
+      "name": "two unique body IDs",
+      "ok": true
+    },
+    {
+      "name": "independent weapon payloads",
+      "ok": true
+    },
+    {
+      "name": "no MissingScript",
+      "ok": true
+    },
+    {
+      "name": "no test input devices",
+      "ok": true
+    },
+    {
+      "name": "normal simulation time",
+      "ok": true
+    },
+    {
+      "name": "missing use ability names ability field",
+      "ok": true
+    },
+    {
+      "name": "bad grid definition rejected",
+      "ok": true
+    },
+    {
+      "name": "duplicate ability ID rejected in author tool",
+      "ok": true
+    },
+    {
+      "name": "missing rig model names sockets field",
+      "ok": true
+    }
+  ],
+  "ledgerError": null,
+  "unity": "2022.3.62t16",
+  "scene": "Assets/OSSASTRA/Scenes/SC_VC02B_IntegrationReady.unity"
+}

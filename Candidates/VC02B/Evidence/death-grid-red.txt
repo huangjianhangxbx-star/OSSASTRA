@@ -1,0 +1,27 @@
+PASS empty external slots have no phantom equipment
+PASS equipment facade reads inventory payload
+PASS wear one actual item once
+PASS legacy equip cannot bypass bound inventory
+PASS reequip does not reset durability
+PASS grant real equipment
+PASS pack to hand
+PASS equipment stable identity/payload
+PASS hand ground backpack path
+PASS move preserves wear and form
+PASS grant quantity
+PASS stale revision no mutation
+PASS split one into safe
+PASS split gives distinct stack identity
+PASS merge into existing stack
+PASS merge conserves quantity
+PASS reserve real quantity
+PASS reserved stack cannot move
+PASS release consumes one
+PASS duplicate release does not consume
+PASS access generation invalidates drag
+PASS non equipment cannot enter hand
+PASS safe protected slot
+PASS wipe batch transfer
+Unhandled exception. System.Exception: FAIL death bag uses source grid geometry
+   at InventoryTests.Check(Boolean value, String name) in E:\WORLDCREATOR\new\Project_ANKALUTE\Candidates\VC02B\Tests\InventoryTests.cs:line 5
+   at InventoryTests.Main() in E:\WORLDCREATOR\new\Project_ANKALUTE\Candidates\VC02B\Tests\InventoryTests.cs:line 20

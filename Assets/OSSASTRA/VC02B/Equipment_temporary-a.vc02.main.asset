@@ -1,0 +1,33 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6409dc8cf62acac4883dffecbfced925, type: 3}
+  m_Name: Equipment_temporary-a.vc02.main
+  m_EditorClassIdentifier: 
+  definitionId: temporary-a.vc02.main
+  displayName: "\u8FD1\u6218\u5200"
+  mainHand: 1
+  offhandKind: 0
+  worldSprite: {fileID: 0}
+  spinePresentation: {fileID: 11400000, guid: 4dcfea653945e2e4e878df10f4acde04, type: 2}
+  boneName: Rhand
+  offset: {x: 0, y: 0, z: -0.015}
+  worldScale: 1
+  actions:
+  - {fileID: 11400000, guid: 0004d4930cc0b7342ae268f2b637c307, type: 2}
+  - {fileID: 11400000, guid: e06c327f549235b418779cbca6436925, type: 2}
+  - {fileID: 11400000, guid: 3389f4d2c09545a4bbdb57b8b305c194, type: 2}
+  - {fileID: 11400000, guid: 76efe516bd536184fa52a91402705d4d, type: 2}
+  mainActionProfiles:
+  - {fileID: 11400000, guid: 7970af2da9218f0439ee633cf6fef1f1, type: 2}
+  - {fileID: 11400000, guid: 71ec82191b60b4b408e4cd949b7131e2, type: 2}
+  abilityBindings: []
+  skillLoadout: {fileID: 11400000, guid: f846a1cea8c69404fba9e508a7a7258f, type: 2}

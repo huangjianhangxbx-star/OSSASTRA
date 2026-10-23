@@ -1,0 +1,32 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 69b810481f9b3074490f0f6860469531, type: 3}
+  m_Name: Character_temporary-a
+  m_EditorClassIdentifier: 
+  definitionId: temporary-a.vc02
+  displayName: "\u730E\u4EBA"
+  animationProfile: {fileID: 11400000, guid: b6b6f401f253d1a4492580676a54a061, type: 2}
+  rigProfile: {fileID: 11400000, guid: 20fce0c717e4814458cdc8c91c74e046, type: 2}
+  basicAttacks:
+  - {fileID: 11400000, guid: 0004d4930cc0b7342ae268f2b637c307, type: 2}
+  - {fileID: 11400000, guid: e06c327f549235b418779cbca6436925, type: 2}
+  - {fileID: 11400000, guid: 3389f4d2c09545a4bbdb57b8b305c194, type: 2}
+  - {fileID: 11400000, guid: 76efe516bd536184fa52a91402705d4d, type: 2}
+  dodgeDuration: 0.45
+  dodgeDistance: 2.4
+  dodgeCost: 22
+  invulnerableFrom: 0.12
+  invulnerableTo: 0.32
+  preInput: 0.12
+  bufferLifetime: 0.17
+  continuationWindow: 0.45
+  requireHitForContinuation: 0
