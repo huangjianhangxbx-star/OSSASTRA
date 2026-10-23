@@ -927,5 +927,6 @@ active/unity-writer；用户明确要求一轮修整：共享脚本去M01标签�
 2026-10-22 equipment-boundaries complete/released：仅用户装备能力/Spine表现约束与源码核查，详见任务；不操作Unity/玩法。
 
 2026-10-23 VC02A complete/released：A0-A8技术闭环，产品；127纯合同、56自然阶段、旧场15；所有writer释放，ART_ENTRY_READY=false，停止A不执行B。详见tasks/2026-10-22-VC02A.md。
-2026-10-23 VC02B active/unity-writer：用户明确连续执行B0-B8；独占范围见tasks/2026-10-23-VC02B.md，唯一Unity writer；保护A交接四项dirty，验证后定向GitHub，禁止Gitee/关机。
+2026-10-23 VC02B complete/read-only：B0-B8 Editor候选完成，产品a2fa0cd9e9efa98eba3f3567c6704f417f6bfb16已GitHub main远端核对；ART_ENTRY_READY=true/正式标准未冻，Player因旧Favorites插件编译阻塞。全部租约释放；四保护dirty保留，不Gitee/不关机。详见tasks/2026-10-23-VC02B.md。
+
 

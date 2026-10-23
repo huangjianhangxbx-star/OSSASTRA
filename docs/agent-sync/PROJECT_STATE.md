@@ -507,3 +507,6 @@ T7A3独立RendererFeature/密度场/最多2个AtmosphereLight/8-16步积分/Dept
 
 2026-10-23 VC02B 技术完成/发布准备：B0-B8包内Editor闭环完成。库存唯一实例/后备消费者/地面全灭/独立Spine/Rig及作者工具，31目录与31有限初始实例；自然47/60/35、UI57、A纯127/A自然56/旧场15、域重载13通过。A213原生资产SHA不变。实际追加Player构建被旧Unity-Favorites-Tool Editor类型误入Player阻塞，未修改第三方。ART_ENTRY_READY=true仅Editor契约审查，正式素材未完、用户规范未冻；详见VC02B-handoff/readiness/verification。四既有dirty保持，发布完成后释放writer。
 
+
+2026-10-23 VC02B complete/released：产品a2fa0cd9e9efa98eba3f3567c6704f417f6bfb16已GitHub main远端核对。347 payload指纹一致，351自有文件；Editor技术准入完成，Player旧第三方构建阻塞单列。最终SC_VC02B_IntegrationReady Edit clean/原输入设备，无MissingScript。四原dirty保持，全部writer与发布租约释放；不自动ART01，不关机。详见VC02B-publication.md。
+
