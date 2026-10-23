@@ -1,0 +1,45 @@
+// 验证独立装备Spine的真实输入重播、握持、翻转、暂停、卸装与实例隔离；不拿表现回调结算伤害。
+using System;using System.Linq;using System.Collections.Generic;using UnityEngine;using UnityEngine.InputSystem;using UnityEngine.InputSystem.LowLevel;using UnityEditor;using Ossastra.Characters;using Ossastra.CharacterCore;using Spine.Unity;using Funplay.Editor.Tools.Scripting;
+public class EquipmentSpineProbe:IFunplayCommand
+{
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+ {
+  if(!Application.isPlaying)throw new Exception("Play required");
+  var coordinator=UnityEngine.Object.FindObjectOfType<CharacterControlCoordinator>();var actor=coordinator.Current;var other=coordinator.Characters.First(r=>r!=actor);
+  var view=actor.GetComponent<CharacterEquipmentSpineView>();var otherView=other.GetComponent<CharacterEquipmentSpineView>();if(view==null||otherView==null)throw new Exception("Missing equipment Spine components");
+  var body=actor.GetComponentInChildren<CharacterSpineView>();var bodySpine=body.GetComponent<SkeletonAnimation>();if(bodySpine==null)bodySpine=actor.GetComponentInChildren<SkeletonAnimation>();
+  foreach(var root in coordinator.Characters){root.CancelAction("spine-probe");root.GetComponent<CompanionCombatBrain>().enabled=false;root.GetComponent<CharacterFollow>().enabled=false;root.SendMessage("OnApplicationFocus",true);root.GetComponent<CharacterStamina>().Restore();}
+  foreach(var enemy in UnityEngine.Object.FindObjectsOfType<Ossastra.Enemies.EnemyRoot>())enemy.AttacksEnabled=false;
+  var engagement=UnityEngine.Object.FindObjectOfType<Ossastra.Combat.CombatEngagementSession>();if(engagement!=null)engagement.enabled=false;
+  var before=InputSystem.settings;var settings=UnityEngine.Object.Instantiate(before);settings.backgroundBehavior=InputSettings.BackgroundBehavior.IgnoreFocus;settings.editorInputBehaviorInPlayMode=InputSettings.EditorInputBehaviorInPlayMode.AllDeviceInputAlwaysGoesToGameView;InputSystem.settings=settings;
+  var keyboard=InputSystem.AddDevice<Keyboard>("VC02SpineKeyboard");var mouse=InputSystem.AddDevice<Mouse>("VC02SpineMouse");var overrides=new Dictionary<InputAction,string>();
+  foreach(var input in coordinator.Characters.Select(r=>r.GetComponent<CharacterInputHandler>()))foreach(var action in new[]{input.attackAction,input.movementAction,input.mouseAction})
+  {overrides[action]=action.SaveBindingOverridesAsJson();for(int i=0;i<action.bindings.Count;i++){var p=action.bindings[i].path;action.ApplyBindingOverride(i,p.Replace("<Keyboard>",keyboard.path).Replace("<Mouse>",mouse.path));}}
+  EditorWindow.GetWindow(typeof(Editor).Assembly.GetType("UnityEditor.GameView")).Focus();coordinator.SendMessage("OnApplicationFocus",true);
+  var rows=new List<object>();int failed=0,next=0,last=-1,commits=0,otherCommits=0;float pausedTrack=0;Guid replay=Guid.Empty,execution=Guid.Empty;SkeletonAnimation previous=null;var equipment=actor.GetComponent<CharacterEquipment>();var original=equipment.LeftDefinition;
+  void Flush(string state){SessionState.SetString("VC02_EQUIPMENT_SPINE",Newtonsoft.Json.JsonConvert.SerializeObject(new{state,failed,rows}));}
+  void Check(string name,bool ok){if(!ok)failed++;rows.Add(new{name,ok,status=view.LastResult,clip=view.LeftSkeleton==null?null:view.LeftSkeleton.AnimationState.GetTrack(0)?.Animation.Name,commits=view.LeftCommitCount,gripError=view.LeftGripError});Flush("running");}
+  void Mouse(bool held){var point=Camera.main.WorldToScreenPoint(actor.transform.position+Vector3.right);InputSystem.QueueStateEvent(mouse,new MouseState{position=new Vector2(point.x,point.y),buttons=(ushort)(held?1:0)});}
+  var steps=new List<(double,Action)>();
+  steps.Add((.3,()=>{
+   Check("two real independent skeleton instances",view.LeftSkeleton!=null&&otherView.LeftSkeleton!=null&&!ReferenceEquals(view.LeftSkeleton.Skeleton,otherView.LeftSkeleton.Skeleton));
+   Check("equipment is small skeleton, not copied character",view.LeftSkeleton.Skeleton.Bones.Count==3&&view.LeftSkeleton.GetComponentsInChildren<Ossastra.Combat.CombatVitals>().Length==0&&view.LeftSkeleton.GetComponentsInChildren<CharacterInputHandler>().Length==0);
+   Check("both grip anchors match body bones",view.LeftGripError<.0001f&&otherView.LeftGripError<.0001f);
+   Check("equipment owns actual mesh",view.LeftSkeleton.GetComponent<MeshFilter>().sharedMesh.vertexCount>0&&view.LeftSkeleton.GetComponent<MeshRenderer>().enabled);
+   commits=view.LeftCommitCount;otherCommits=otherView.LeftCommitCount;Mouse(false);
+  }));
+  steps.Add((.55,()=>{Check("same idle intent does not restart",view.LeftCommitCount==commits);Mouse(true);}));
+  steps.Add((.65,()=>{Mouse(false);replay=view.LeftReplayId;execution=view.LeftExecutionId;Check("ordinary attack accepted",actor.ActionActive&&execution==actor.DataBus.ActionId&&execution!=Guid.Empty);Check("equipment shares body phase replay identity",replay==body.CurrentReplayId&&replay!=Guid.Empty);Check("different clip names are explicitly mapped",view.LeftSkeleton.AnimationState.GetTrack(0).Animation.Name=="strike"&&body.CurrentClip!="strike");Check("other instance does not replay this action",otherView.LeftCommitCount==otherCommits);}));
+  steps.Add((1.5,()=>Mouse(true)));steps.Add((1.6,()=>{Mouse(false);Check("same semantic second action gets new identity",view.LeftReplayId!=replay&&view.LeftExecutionId!=execution&&view.LeftExecutionId!=Guid.Empty);}));
+  steps.Add((2.4,()=>{actor.SetPaused(true);}));steps.Add((2.5,()=>{pausedTrack=view.LeftSkeleton.AnimationState.GetTrack(0).TrackTime;commits=view.LeftCommitCount;}));
+  steps.Add((2.8,()=>{Check("pause freezes independent equipment clock",Math.Abs(view.LeftSkeleton.AnimationState.GetTrack(0).TrackTime-pausedTrack)<.0001f);Check("pause does not repeat animation commit",view.LeftCommitCount==commits);actor.SetPaused(false);InputSystem.QueueStateEvent(keyboard,new KeyboardState(Key.A));}));
+  steps.Add((3.1,()=>{Check("keyboard flip preserves exact grip alignment",bodySpine.Skeleton.ScaleX<0&&view.LeftGripError<.0001f);InputSystem.QueueStateEvent(keyboard,new KeyboardState());}));
+  steps.Add((3.4,()=>{view.enabled=false;Check("disable hides equipment immediately",!view.LeftSkeleton.GetComponent<MeshRenderer>().enabled);view.enabled=true;}));
+  steps.Add((3.6,()=>{Check("resume restores existing independent renderer",view.LeftSkeleton.GetComponent<MeshRenderer>().enabled);previous=view.LeftSkeleton;var alternate=equipment.OwnedOffhands.First(d=>d!=null&&d.spinePresentation==null);Check("normal equipment command accepts alternate",equipment.TryEquip(alternate));}));
+  steps.Add((3.9,()=>{Check("unequip destroys owned skeleton",previous==null&&view.LeftSkeleton==null);Check("re-equip uses ordinary equipment command",equipment.TryEquip(original));}));
+  steps.Add((4.2,()=>{Check("re-equip rebuilds exactly one equipment skeleton",view.LeftSkeleton!=null&&actor.GetComponentsInChildren<SkeletonAnimation>().Count(a=>a.gameObject.name=="LeftEquipmentSpine")==1);Check("rebuild grip alignment and sorted layer",view.LeftGripError<.0001f&&view.LeftSkeleton.GetComponent<Renderer>().sortingOrder==bodySpine.GetComponent<Renderer>().sortingOrder+original.spinePresentation.sortingOrderOffset);}));
+  EditorApplication.CallbackFunction tick=null;double start=EditorApplication.timeSinceStartup;
+  void Cleanup(){EditorApplication.update-=tick;Mouse(false);InputSystem.QueueStateEvent(keyboard,new KeyboardState());foreach(var kv in overrides)kv.Key.LoadBindingOverridesFromJson(kv.Value);InputSystem.RemoveDevice(keyboard);InputSystem.RemoveDevice(mouse);InputSystem.settings=before;UnityEngine.Object.DestroyImmediate(settings);actor.SetPaused(false);}
+  tick=()=>{if(Time.frameCount==last)return;last=Time.frameCount;try{if(next<steps.Count&&EditorApplication.timeSinceStartup-start>=steps[next].Item1){var delay=EditorApplication.timeSinceStartup-start-steps[next].Item1;if(delay>.02)start+=delay;steps[next++].Item2();}if(next==steps.Count){Cleanup();Flush("completed");}}catch(Exception ex){failed++;rows.Add(new{error=ex.ToString()});Cleanup();Flush("failed");}};EditorApplication.update+=tick;Flush("running");
+ }
+}

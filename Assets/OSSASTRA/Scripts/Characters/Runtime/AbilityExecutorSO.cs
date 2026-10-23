@@ -12,6 +12,15 @@ namespace Ossastra.Characters
         public abstract bool UsesBodyAction {get;}
         public virtual CharacterActionKind ActionKind=>UsesBodyAction?CharacterActionKind.Main:CharacterActionKind.Offhand;
         public virtual CompiledAbilityExecutor Prepare(CharacterRoot owner)=>this;
+        public virtual CompiledAbilityExecutor Prepare(CharacterRoot owner,IAbilitySource source)=>Prepare(owner);
+        public virtual ConfiguredActionSnapshot InitialPhase=>null;
+        public virtual Ossastra.Combat.DeliveryParameters AcceptanceDelivery=>null;
+        public virtual bool RepeatWhileHeld=>false;
+        public virtual bool UsesMagazine=>false;
+        public virtual void TickSource(CharacterRoot owner,IAbilitySource source) { }
+        public virtual void StopSource(IAbilitySource source) { }
+        /// <summary>接受事务之前检查实际来源payload；不得在检查阶段扣弹或改变装填。</summary>
+        public virtual bool CanUseSource(IAbilitySource source)=>true;
         public virtual bool StartsCooldownOnAccept=>true;
         public virtual float AimRange=>0;
         public abstract AbilityRun CreateRun(AbilityRunContext context);

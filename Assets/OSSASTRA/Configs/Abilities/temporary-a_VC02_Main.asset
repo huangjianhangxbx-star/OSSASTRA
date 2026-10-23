@@ -17,6 +17,7 @@ MonoBehaviour:
   mainHand: 1
   offhandKind: 0
   worldSprite: {fileID: 0}
+  spinePresentation: {fileID: 0}
   boneName: Rhand
   offset: {x: 0, y: 0, z: -0.015}
   worldScale: 1
@@ -25,5 +26,8 @@ MonoBehaviour:
   - {fileID: 11400000, guid: e06c327f549235b418779cbca6436925, type: 2}
   - {fileID: 11400000, guid: 3389f4d2c09545a4bbdb57b8b305c194, type: 2}
   - {fileID: 11400000, guid: 76efe516bd536184fa52a91402705d4d, type: 2}
+  mainActionProfiles:
+  - {fileID: 11400000, guid: 7970af2da9218f0439ee633cf6fef1f1, type: 2}
+  - {fileID: 11400000, guid: 71ec82191b60b4b408e4cd949b7131e2, type: 2}
   abilityBindings: []
   skillLoadout: {fileID: 11400000, guid: daaf687fc33a1c3469fbe2bb72155f20, type: 2}

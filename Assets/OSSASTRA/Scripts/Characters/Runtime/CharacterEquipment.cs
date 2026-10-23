@@ -24,9 +24,23 @@ namespace Ossastra.Characters
         {if(definition==null||definition.mainHand||!ownedOffhands.Contains(definition)){LastResult="拒绝：非本体持有的副手定义";return false;}return EquipDefinition(definition);}
         public EquipmentState State {get;private set;}
         public string LastResult {get;private set;}="无";
+        public bool ValidatePresentations(out string reason)
+        {
+            try{ValidatePresentation(RightDefinition);ValidatePresentation(LeftDefinition);reason=null;return true;}
+            catch(ArgumentException error){reason=error.Message;return false;}
+        }
+        private void ValidatePresentation(EquipmentDefinitionSO definition)
+        {
+            if(definition?.spinePresentation==null)return;
+            var body=GetComponentInChildren<Spine.Unity.SkeletonAnimation>();
+            definition.spinePresentation.Freeze(body?.Skeleton?.Data);
+        }
         public void Initialize(CharacterRoot root)
         {
-            owner=root;if(State!=null)return;State=new EquipmentState(root.ActorId,initialDurability);
+            owner=root;if(State!=null)return;
+            var definitions=ownedOffhands.Where(d=>d!=null).ToArray();
+            if(definitions.Any(d=>string.IsNullOrWhiteSpace(d.definitionId))||definitions.Select(d=>d.definitionId).Distinct().Count()!=definitions.Length){LastResult="拒绝：副手目录重复或空定义ID";enabled=false;Debug.LogError(LastResult,this);return;}
+            State=new EquipmentState(root.ActorId,initialDurability);
             foreach(var definition in ownedOffhands.Where(d=>d!=null))State.RegisterDefinition(definition.definitionId,definition.offhandKind,initialDurability);
             var initial=ownedOffhands.FirstOrDefault(d=>d!=null&&d.offhandKind==initialOffhand);
             if(initial!=null)State.TryEquipDefinition(initial.definitionId,true);else State.TryEquip(initialOffhand,true);
@@ -46,7 +60,7 @@ namespace Ossastra.Characters
             return idle;
         }
         private bool EquipDefinition(EquipmentDefinitionSO definition)
-        {var ok=State!=null&&State.TryEquipDefinition(definition.definitionId,Idle());LastResult=ok?"装备 "+definition.displayName:"拒绝：非空闲";return ok;}
+        {try{ValidatePresentation(definition);}catch(ArgumentException error){LastResult="拒绝："+error.Message;return false;}var ok=State!=null&&State.TryEquipDefinition(definition.definitionId,Idle());LastResult=ok?"装备 "+definition.displayName:"拒绝：非空闲";return ok;}
         private bool EquipLegacy(OffhandKind kind)
         {var ok=State!=null&&State.TryEquip(kind,Idle());LastResult=ok?"装备 "+kind:"拒绝：非空闲";return ok;}
     }

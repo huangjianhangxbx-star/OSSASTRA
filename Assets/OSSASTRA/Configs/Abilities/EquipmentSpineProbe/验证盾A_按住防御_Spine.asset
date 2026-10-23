@@ -1,0 +1,72 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8cf96f0b365e83a43849c361512955ef, type: 3}
+  m_Name: "\u9A8C\u8BC1\u76FEA_\u6309\u4F4F\u9632\u5FA1_Spine"
+  m_EditorClassIdentifier: 
+  skeletonData: {fileID: 11400000, guid: 0a3c88a74a4793f4ea4aabd574ce9879, type: 2}
+  bodyBone: Lhand
+  bodySlot: Z-Z_Lhand1
+  gripBone: grip
+  followBoneRotation: 1
+  followSlotColor: 1
+  followSlotAttachmentVisibility: 0
+  localOffset: {x: 0, y: 0, z: 0}
+  localScale: 1.2785964
+  rotationOffset: 0
+  sortingOrderOffset: 3
+  presentationEvidence: "\u539F\u521B\u6280\u672FSpine\u76FE\uFF08\u975E\u6B63\u5F0F\u7F8E\u672F\uFF09\uFF1B3\u9AA8\u9ABC+2\u9644\u4EF6\uFF0C\u5B8C\u6574\u8EAB\u4F53\u52A8\u4F5C\u8BED\u4E49\u663E\u5F0F\u590D\u7528\u72EC\u7ACB\u88C5\u5907\u7247\u6BB5\uFF1B\u63D2\u69FD\u53EA\u8DDF\u989C\u8272\uFF0C\u9644\u4EF6\u663E\u9690\u663E\u5F0F\u5173\u95ED\u3002"
+  animations:
+  - semantic: 0
+    clip: rest
+    loop: 1
+    mixDuration: 0.06
+    playbackRate: 1
+  - semantic: 1
+    clip: carry
+    loop: 1
+    mixDuration: 0.06
+    playbackRate: 1
+  - semantic: 2
+    clip: strike
+    loop: 0
+    mixDuration: 0.06
+    playbackRate: 1
+  - semantic: 3
+    clip: recoil
+    loop: 0
+    mixDuration: 0.06
+    playbackRate: 1
+  - semantic: 4
+    clip: break
+    loop: 0
+    mixDuration: 0.06
+    playbackRate: 1
+  - semantic: 5
+    clip: vanish
+    loop: 0
+    mixDuration: 0.06
+    playbackRate: 1
+  - semantic: 6
+    clip: strike
+    loop: 0
+    mixDuration: 0.06
+    playbackRate: 1
+  - semantic: 7
+    clip: evade
+    loop: 0
+    mixDuration: 0.06
+    playbackRate: 1
+  - semantic: 8
+    clip: brace
+    loop: 1
+    mixDuration: 0.06
+    playbackRate: 1

@@ -1,0 +1,73 @@
+// VC02A具名边界夹具：真实E/LMB输入、原Root运动、共享接触、来源正常配置与空闲刷新。
+// 显式摆位、生命/体力恢复、霜寒支付和运行中来源撤回为隔离边界；不直接HP/CD、不冒充A8自然故事。
+using System;using System.Linq;using System.Collections.Generic;using UnityEngine;using UnityEngine.InputSystem;using UnityEngine.InputSystem.LowLevel;using UnityEditor;using Ossastra.Characters;using Ossastra.CharacterCore;using Ossastra.CharacterCore.Abilities;using Ossastra.Combat;using Funplay.Editor.Tools.Scripting;
+public class RushEffectsProbe:IFunplayCommand
+{
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+ {
+  if(!Application.isPlaying)throw new Exception("Fresh Play required");
+  var coordinator=UnityEngine.Object.FindObjectOfType<CharacterControlCoordinator>();var actor=coordinator.Characters.Single(r=>r.ActorId=="temporary-a");if(coordinator.Current!=actor)coordinator.SwitchNext();
+  var module=actor.GetComponent<CharacterAbilities>();var main=actor.GetComponent<CharacterMainAction>();var state=actor.GetComponent<CharacterEquipment>().State.RightRuntime;var input=actor.GetComponent<CharacterInputHandler>();var enemy=UnityEngine.Object.FindObjectOfType<Ossastra.Enemies.EnemyRoot>();
+  if(module==null||main==null||enemy==null)throw new Exception("Required candidate components missing");
+  foreach(var root in coordinator.Characters){root.CancelAction("rush-effects-boundary");root.Vitals.RestoreForDevelopment();root.GetComponent<CompanionCombatBrain>().enabled=false;root.GetComponent<CharacterFollow>().enabled=false;root.SendMessage("OnApplicationFocus",true);}
+  enemy.AttacksEnabled=false;var brain=enemy.GetComponent<Ossastra.Enemies.ChaseEnemyBrain>();if(brain!=null)brain.enabled=false;enemy.SendMessage("OnApplicationFocus",true);
+  var engagement=UnityEngine.Object.FindObjectOfType<CombatEngagementSession>();if(engagement!=null)engagement.enabled=false;
+  var settingsBefore=InputSystem.settings;var settings=UnityEngine.Object.Instantiate(settingsBefore);settings.backgroundBehavior=InputSettings.BackgroundBehavior.IgnoreFocus;settings.editorInputBehaviorInPlayMode=InputSettings.EditorInputBehaviorInPlayMode.AllDeviceInputAlwaysGoesToGameView;InputSystem.settings=settings;
+  var keyboard=InputSystem.AddDevice<Keyboard>("VC02RushKeys");var mouse=InputSystem.AddDevice<Mouse>("VC02RushMouse");var overrides=new Dictionary<InputAction,string>();
+  foreach(var action in new[]{input.skillTwoAction,input.attackAction,input.mouseAction}){overrides[action]=action.SaveBindingOverridesAsJson();for(int i=0;i<action.bindings.Count;i++)action.ApplyBindingOverride(i,action.bindings[i].path.Replace("<Keyboard>",keyboard.path).Replace("<Mouse>",mouse.path));}
+  EditorWindow.GetWindow(typeof(Editor).Assembly.GetType("UnityEditor.GameView")).Focus();coordinator.SendMessage("OnApplicationFocus",true);
+  var rows=new List<object>();var stages=new List<string>();int failed=0,next=0,lastFrame=-1,accepted=0,emitted=0,baseHp=0,iceAtWithdraw=0;double start=EditorApplication.timeSinceStartup,clock=0,equippedTime=0,frostPaidAt=0,frostBefore=0;bool revokeIceWhileRunning=false,iceWithdrawn=false;string iceId=null;var steps=new List<(double,Action)>();
+  void Flush(string phase){SessionState.SetString("VC02_RUSH_EFFECTS",Newtonsoft.Json.JsonConvert.SerializeObject(new{state=phase,failed,rows}));}
+  void Check(string name,bool ok){if(!ok)failed++;rows.Add(new{name,ok,hp=enemy.Vitals.Health.Current,frost=state.Frost.Current,capacity=state.Frost.Capacity,cd=module.SkillCooldown(1),actorX=actor.transform.position.x,targetX=enemy.transform.position.x,stages=stages.ToArray(),patches=module.IceWorld?.PatchCount??0,columns=module.IceWorld?.ColumnCount??0,result=module.LastResult});Flush("running");}
+  void Key(bool down){InputSystem.QueueStateEvent(keyboard,down?new KeyboardState(UnityEngine.InputSystem.Key.E):new KeyboardState());}
+  void Mouse(bool down){var p=Camera.main.WorldToScreenPoint(new Vector3(4,.03f,-2));InputSystem.QueueStateEvent(mouse,new MouseState{position=new Vector2(p.x,p.y),buttons=(ushort)(down?1:0)});}
+  void Setup(float distance)
+  {
+   Key(false);Mouse(false);actor.CancelAction("rush-case-reset");main.ResetState();actor.GetComponent<CharacterStamina>().Restore();
+   foreach(var root in coordinator.Characters)root.GetComponent<CharacterMovement>().Teleport(new Vector3(root==actor?0:-6,.03f,-2));
+   enemy.RestoreForDevelopment();enemy.GetComponent<CombatStatusEffects>()?.Clear();var cc=enemy.GetComponent<CharacterController>();cc.enabled=false;enemy.transform.position=new Vector3(distance,.03f,-2);cc.enabled=true;Physics.SyncTransforms();
+   accepted=module.AcceptedCount;emitted=module.EmittedCount;baseHp=enemy.Vitals.Health.Current;stages.Clear();
+  }
+  void Grant(string id){Check("normal source command "+id,module.ToggleExperimentalSource(id));}
+  bool IsStatus(string id,EffectSourceStatus status)=>module.EvaluateSources().Any(r=>r.Definition.Id==id&&r.Status==status);
+  void SnapshotClock(){clock=state.Clock(AbilityCooldownPolicy.WhileEquipped);equippedTime=state.EquippedTime;}
+  void CheckClock(string label,double expected){var elapsed=state.EquippedTime-equippedTime;Check(label,elapsed>.2&&Math.Abs((state.Clock(AbilityCooldownPolicy.WhileEquipped)-clock)/elapsed-expected)<.025);}
+  void Fact(ActionFact fact){if(fact.Kind==ActionFactKind.Released&&main.AcceptedStageId!=null)stages.Add(main.AcceptedStageId);}
+  actor.ActionObserved+=Fact;
+  void Click(double at){steps.Add((at,()=>Mouse(true)));steps.Add((at+.035,()=>Mouse(false)));}
+  steps.Add((.2,()=>{Setup(1.1f);Check("600HP candidate and native rush available",baseHp==600&&module.SkillDefinition(1)?.effectRoot=="rush");}));
+  steps.Add((.35,()=>{foreach(var id in new[]{"rush-frost","rush-force","rush-frost-power","rush-cooldown","rush-through"})Grant(id);Check("boundary pays2 frost before acceptance",state.Frost.Spend(2,state.EquippedTime)&&state.Frost.Current==1);}));
+  steps.Add((.5,()=>Key(true)));steps.Add((.7,()=>Key(false)));
+  steps.Add((1.65,()=>{Check("E accepts and releases one rush wave",module.AcceptedCount==accepted+1&&module.EmittedCount==emitted+1);Check("force plus frozen one-frost power produces120HP",enemy.Vitals.Health.Current==baseHp-120);Check("first applied contact recovers2 frost once",Math.Abs(state.Frost.Current-3)<.001);Check("force raises real knock distance to4.14",enemy.transform.position.x>4.7f);Check("through preserves forward movement beyond original target",actor.transform.position.x>3.5f);Check("through collision pair restored at end",!Physics.GetIgnoreCollision(actor.GetComponent<CharacterController>(),enemy.GetComponent<CharacterController>()));Check("cooldown branch commits six-second root budget",module.SkillCooldown(1)>4.5&&module.SkillCooldown(1)<6);}));
+  steps.Add((1.9,()=>{Grant("bastion");Grant("frost-haste");}));
+  steps.Add((2.05,()=>{Check("bastion base increases real capacity and current to5",state.Frost.Capacity==5&&state.Frost.Current==5);SnapshotClock();}));
+  steps.Add((2.55,()=>{CheckClock("base haste drives actual cooldown clock1.4",1.4);Check("bastion boundary pays2 from real frost",state.Frost.Spend(2,state.EquippedTime));frostPaidAt=state.EquippedTime;}));
+  steps.Add((4.85,()=>{Check("base bastion recovery actual0.8times1.33 after delay",Math.Abs(state.Frost.Current-(3+Math.Max(0,state.EquippedTime-frostPaidAt-2)*.8*1.33))<.06);Grant("bastion-plus");Grant("frost-haste-plus");}));
+  steps.Add((5.0,()=>{Check("enhanced bastion replaces base capacity with6",state.Frost.Capacity==6&&IsStatus("bastion",EffectSourceStatus.Superseded)&&IsStatus("bastion-plus",EffectSourceStatus.Active));Check("enhanced haste replaces base source",IsStatus("frost-haste",EffectSourceStatus.Superseded)&&IsStatus("frost-haste-plus",EffectSourceStatus.Active));state.Frost.Recover(99);SnapshotClock();}));
+  steps.Add((5.5,()=>{CheckClock("enhanced haste drives actual cooldown clock1.72",1.72);Check("enhanced bastion boundary payment",state.Frost.Spend(2,state.EquippedTime));frostPaidAt=state.EquippedTime;}));
+  steps.Add((7.8,()=>{Check("enhanced bastion recovery actual0.8times1.66 after delay",Math.Abs(state.Frost.Current-(4+Math.Max(0,state.EquippedTime-frostPaidAt-2)*.8*1.66))<.06);Setup(1.1f);Grant("rush-ice");iceId=module.EvaluateSources().Single(r=>r.Definition.Id=="rush-ice").InstanceId;revokeIceWhileRunning=true;}));
+  steps.Add((8.05,()=>Key(true)));steps.Add((8.25,()=>Key(false)));
+  steps.Add((9.3,()=>{Check("rush ice created real patches before boundary withdrawal",iceWithdrawn&&iceAtWithdraw>0);Check("withdraw stops producer but retains already-created ice",module.IceWorld!=null&&module.IceWorld.PatchCount==iceAtWithdraw);Check("rush-ice source actually absent",!state.Sources.Contains(iceId));foreach(var id in new[]{"rush-frost","rush-force","rush-frost-power","rush-cooldown","rush-through","bastion","bastion-plus","frost-haste","frost-haste-plus"})Grant(id);module.IceWorld?.Clear();Setup(20);Check("normal main-profile command chooses Hunter I",main.Configure("hunter.prototype.I"));Grant("rapid-combo");}));
+  steps.Add((9.5,()=>Check("rapid base yields three-prefix plus retained two",main.Sequence?.Count==5&&main.Sequence.Stage(0).Id=="rapid1"&&main.Sequence.Stage(2).Id=="rapid3")));
+  Click(9.65);Click(9.85);Click(10.1);
+  steps.Add((10.45,()=>Check("base rapid prefix really released via LMB",stages.SequenceEqual(new[]{"rapid1","rapid2","rapid3"}))));
+  steps.Add((10.75,()=>{Setup(20);Grant("rapid-combo-plus");}));
+  steps.Add((10.9,()=>Check("enhanced rapid supersedes base and has four-prefix",main.Sequence?.Count==6&&IsStatus("rapid-combo",EffectSourceStatus.Superseded))));
+  Click(11.05);Click(11.25);Click(11.45);Click(11.65);
+  steps.Add((11.95,()=>Check("enhanced rapid four stages really released",stages.SequenceEqual(new[]{"rapidPlus1","rapidPlus2","rapidPlus3","rapidPlus4"}))));
+  steps.Add((12.2,()=>{Setup(1.4f);Grant("rapid-combo-plus");Grant("rapid-combo");Grant("chisel");state.Frost.Recover(99);frostBefore=state.Frost.Current;}));
+  steps.Add((12.35,()=>Check("base chisel replaces original third stage at25",main.Sequence?.Count==4&&main.Sequence.Stage(2).Id=="chisel"&&main.Sequence.Stage(2).Timeline.Damage==25)));
+  Click(12.5);Click(12.76);Click(13.05);
+  steps.Add((13.25,()=>{Check("base chisel third-stage actual damage25 after15plus15",enemy.Vitals.Health.Current==baseHp-55);Check("base chisel release spends one frost",Math.Abs(state.Frost.Current-(frostBefore-1))<.03);}));
+  steps.Add((13.6,()=>Check("base chisel creates real delayed column",module.IceWorld?.ColumnCount==1)));
+  steps.Add((13.95,()=>{module.IceWorld?.Clear();Setup(1.4f);Grant("chisel-plus");state.Frost.Recover(99);frostBefore=state.Frost.Current;}));
+  steps.Add((14.1,()=>Check("enhanced chisel supersedes base and freezes40",main.Sequence?.Stage(2).Timeline.Damage==40&&IsStatus("chisel",EffectSourceStatus.Superseded))));
+  Click(14.25);Click(14.51);Click(14.8);
+  steps.Add((15.0,()=>{Check("enhanced chisel real third-stage damage40",enemy.Vitals.Health.Current==baseHp-70);Check("enhanced chisel still charges exactlyone frost",Math.Abs(state.Frost.Current-(frostBefore-1))<.03);}));
+  steps.Add((15.35,()=>Check("enhanced chisel also produces actual column",module.IceWorld?.ColumnCount==1)));
+  EditorApplication.CallbackFunction tick=null;
+  void Cleanup(){EditorApplication.update-=tick;Key(false);Mouse(false);actor.ActionObserved-=Fact;foreach(var p in overrides)p.Key.LoadBindingOverridesFromJson(p.Value);InputSystem.RemoveDevice(keyboard);InputSystem.RemoveDevice(mouse);InputSystem.settings=settingsBefore;UnityEngine.Object.DestroyImmediate(settings);}
+  tick=()=>{if(Time.frameCount==lastFrame)return;lastFrame=Time.frameCount;try{if(revokeIceWhileRunning&&!iceWithdrawn&&module.IceWorld!=null&&module.IceWorld.PatchCount>0){iceAtWithdraw=module.IceWorld.PatchCount;iceWithdrawn=state.Sources.Remove(iceId);Check("named lifecycle withdrawal during active ice production",iceWithdrawn&&module.IsBusy);}if(next<steps.Count&&EditorApplication.timeSinceStartup-start>=steps[next].Item1){var late=EditorApplication.timeSinceStartup-start-steps[next].Item1;if(late>.02)start+=late;steps[next++].Item2();}if(next==steps.Count){Cleanup();Flush("completed");}}catch(Exception ex){failed++;rows.Add(new{error=ex.ToString()});Cleanup();Flush("failed");}};
+  EditorApplication.update+=tick;Flush("running");
+ }
+}

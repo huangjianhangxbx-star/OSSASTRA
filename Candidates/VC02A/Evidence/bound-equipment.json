@@ -6,7 +6,7 @@
       "name": "hold starts immediately via configured capability",
       "ok": true,
       "last": "接受 ShieldA_HoldGuard",
-      "stamina": 90.8006605990231,
+      "stamina": 90.79876820417121,
       "enemyHp": 600,
       "wear": 100
     },
@@ -14,7 +14,7 @@
       "name": "accept charged once plus sustain",
       "ok": true,
       "last": "接受 ShieldA_HoldGuard",
-      "stamina": 90.8006605990231,
+      "stamina": 90.79876820417121,
       "enemyHp": 600,
       "wear": 100
     },
@@ -22,7 +22,7 @@
       "name": "real guard keeps HP and wears its source",
       "ok": true,
       "last": "接受 ShieldA_HoldGuard",
-      "stamina": 90.8006605990231,
+      "stamina": 90.79876820417121,
       "enemyHp": 600,
       "wear": 99
     },
@@ -30,7 +30,7 @@
       "name": "release ends guard",
       "ok": true,
       "last": "接受 ShieldA_HoldGuard",
-      "stamina": 90.8006605990231,
+      "stamina": 90.79876820417121,
       "enemyHp": 600,
       "wear": 99
     },
@@ -38,7 +38,7 @@
       "name": "equip vc02.shield-b",
       "ok": true,
       "last": "接受 ShieldA_HoldGuard",
-      "stamina": 90.8006605990231,
+      "stamina": 90.79876820417121,
       "enemyHp": 600,
       "wear": 100
     },
@@ -46,79 +46,79 @@
       "name": "same category distinct identity",
       "ok": true,
       "last": "接受 ShieldA_HoldGuard",
-      "stamina": 90.8006605990231,
+      "stamina": 90.79876820417121,
       "enemyHp": 600,
       "wear": 100
     },
     {
       "name": "shield B attacks instead of guarding",
       "ok": true,
-      "last": "接触 1 #54f9f39cf3244c6c8783acbb07d1b744",
-      "stamina": 72.8006605990231,
+      "last": "接触 1 #f2ccaa4184684bfbae5751e3f62928e9",
+      "stamina": 72.79876820417121,
       "enemyHp": 580,
       "wear": 99
     },
     {
       "name": "equip vc02.shooter",
       "ok": true,
-      "last": "接触 1 #54f9f39cf3244c6c8783acbb07d1b744",
-      "stamina": 77.50194659922272,
+      "last": "接触 1 #f2ccaa4184684bfbae5751e3f62928e9",
+      "stamina": 77.48562219692394,
       "enemyHp": 580,
       "wear": 100
     },
     {
       "name": "same operation shoots a colliding projectile",
       "ok": true,
-      "last": "接触 1 #c21dd868907a468e87ec70c6911f9ef7",
-      "stamina": 80.51849060691893,
+      "last": "接触 1 #4eb958b3c0824310a929e44e52836a6c",
+      "stamina": 80.44670416647568,
       "enemyHp": 565,
       "wear": 99
     },
     {
       "name": "shooter wears once",
       "ok": true,
-      "last": "接触 1 #c21dd868907a468e87ec70c6911f9ef7",
-      "stamina": 80.51849060691893,
+      "last": "接触 1 #4eb958b3c0824310a929e44e52836a6c",
+      "stamina": 80.44670416647568,
       "enemyHp": 565,
       "wear": 99
     },
     {
       "name": "equip vc02.throw-equipment",
       "ok": true,
-      "last": "接触 1 #c21dd868907a468e87ec70c6911f9ef7",
-      "stamina": 80.51849060691893,
+      "last": "接触 1 #4eb958b3c0824310a929e44e52836a6c",
+      "stamina": 80.44670416647568,
       "enemyHp": 565,
       "wear": 100
     },
     {
       "name": "same operation uses configured arc delivery",
       "ok": true,
-      "last": "接触 1 #82a8ffdfc98c47288961c8e0809236f7",
-      "stamina": 70.51725659752265,
+      "last": "接触 1 #da3cc3a59db34d0d8342f390baeca38a",
+      "stamina": 70.45852015167475,
       "enemyHp": 520,
       "wear": 99
     },
     {
       "name": "released projectile cleaned",
       "ok": true,
-      "last": "接触 1 #82a8ffdfc98c47288961c8e0809236f7",
-      "stamina": 70.51725659752265,
+      "last": "接触 1 #da3cc3a59db34d0d8342f390baeca38a",
+      "stamina": 70.45852015167475,
       "enemyHp": 520,
       "wear": 99
     },
     {
       "name": "equip vc02.shield-a",
       "ok": true,
-      "last": "接触 1 #82a8ffdfc98c47288961c8e0809236f7",
-      "stamina": 70.51725659752265,
+      "last": "接触 1 #da3cc3a59db34d0d8342f390baeca38a",
+      "stamina": 70.45852015167475,
       "enemyHp": 520,
       "wear": 99
     },
     {
       "name": "return keeps original shield instance and wear",
       "ok": true,
-      "last": "接触 1 #82a8ffdfc98c47288961c8e0809236f7",
-      "stamina": 70.51725659752265,
+      "last": "接触 1 #da3cc3a59db34d0d8342f390baeca38a",
+      "stamina": 70.45852015167475,
       "enemyHp": 520,
       "wear": 99
     }

@@ -1,0 +1,21 @@
+using System;using System.Linq;using UnityEngine;using UnityEditor;using UnityEditor.SceneManagement;using Ossastra.Characters;using Ossastra.CharacterCore;using Ossastra.CharacterCore.Abilities;using Funplay.Editor.Tools.Scripting;
+public class ConfigureMagazine:IFunplayCommand
+{
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+ {
+  if(Application.isPlaying)throw new Exception("Edit required");const string folder="Assets/OSSASTRA/Configs/Abilities/",scene="Assets/OSSASTRA/Scenes/SC_VC02A_CombatMigration.unity";
+  var current=EditorSceneManager.GetActiveScene();if(current.path!=scene)throw new Exception("Own scene required");if(current.isDirty){if(!EditorSceneManager.SaveScene(current,"E:/WORLDCREATOR/XingHaiHuiLang/work/OSSASTRA/VC02-20261022/pre-magazine-"+Guid.NewGuid().ToString("N")+".unity",true))throw new Exception("Backup failed");EditorSceneManager.OpenScene(scene);}
+  T Own<T>(string id)where T:ScriptableObject{var p=folder+id+".asset";var d=AssetDatabase.LoadAssetAtPath<T>(p);if(d==null){d=ScriptableObject.CreateInstance<T>();ctx.RegisterObjectCreation(d);AssetDatabase.CreateAsset(d,p);}else ctx.RegisterObjectModification(d);return d;}
+  void Save(UnityEngine.Object d){EditorUtility.SetDirty(d);AssetDatabase.SaveAssetIfDirty(d);}
+  ActionDefinitionSO Action(string id,float release,float ready,float finish){var a=Own<ActionDefinitionSO>(id);a.definitionId=id;a.animationKey="magazine-shot";a.releaseAt=release;a.moveReadyAt=ready;a.attackReadyAt=ready;a.finishAt=finish;a.damage=1;a.staminaCost=0;a.postureImpact=0;a.timingEvidence="c21d4fc al-combat shot / mortar source timing; temporary semantic pose";a.Freeze();Save(a);return a;}
+  var executor=Own<MagazineShotAbilitySO>("MagazineShot");executor.normalAction=Action("shot_Action",1f/30,.4f,8f/15);executor.mortarAction=Action("mortar_Action",.1f,17f/30,.9f);Save(executor);
+  var d=Own<AbilityDefinitionSO>("magazine-shot");d.definitionId="magazine-shot";d.displayName="弹仓射击";d.executor=executor;d.action=executor.normalAction;d.acceptCost=0;d.cooldown=0;d.effectRoot="shot";d.damageChannel="shot";d.wearOnRelease=false;d.finishAt=8f/15;d.moveReadyAt=.4f;d.attackReadyAt=.4f;d.occupancy=AbilityOccupancy.Body|AbilityOccupancy.MainHand;d.releases=Array.Empty<AbilityReleaseNode>();d.Compile();Save(d);
+  var gun=Own<EquipmentDefinitionSO>("实例弹仓射击器");var template=AssetDatabase.LoadAssetAtPath<EquipmentDefinitionSO>(folder+"验证射击器.asset");if(template==null)throw new Exception("source gun");EditorUtility.CopySerialized(template,gun);gun.definitionId="vc02.magazine-shooter";gun.displayName="弹仓射击器（主手弹仓）";gun.abilityBindings=new[]{new AbilityBinding{operation=AbilityOperation.Secondary,gesture=GestureMode.Press,resourceOwner=AbilityResourceOwner.MainEquipment,ability=d}};Save(gun);
+  foreach(var root in UnityEngine.Object.FindObjectsOfType<Ossastra.Characters.CharacterRoot>())
+  {
+   var equipment=root.GetComponent<CharacterEquipment>();ctx.RegisterObjectModification(equipment);var so=new SerializedObject(equipment);var list=so.FindProperty("ownedOffhands");if(!equipment.OwnedOffhands.Contains(gun)){var i=list.arraySize;list.arraySize++;list.GetArrayElementAtIndex(i).objectReferenceValue=gun;so.ApplyModifiedProperties();}
+   var animation=root.Definition.animationProfile;ctx.RegisterObjectModification(animation);var source=animation.bindings.First(b=>b.key=="basic-1");animation.bindings=animation.bindings.Where(b=>b.key!="magazine-shot").Concat(new[]{new CharacterAnimationBinding{key="magazine-shot",clip=source.clip,sourceDuration=source.sourceDuration,loop=false,mixDuration=.06f,semantic=source.semantic}}).ToArray();Save(animation);
+  }
+  EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());if(!EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene()))throw new Exception("Save failed");ctx.ReturnValue=new{scene,gun=gun.definitionId};
+ }
+}

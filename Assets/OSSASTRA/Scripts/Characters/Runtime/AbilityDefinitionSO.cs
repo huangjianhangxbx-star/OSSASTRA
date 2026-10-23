@@ -11,11 +11,13 @@ using Ossastra.Combat;
 namespace Ossastra.Characters
 {
     public enum AbilityOperation { Secondary, SkillOne, SkillTwo, SkillThree }
+    public enum AbilityResourceOwner { BoundEquipment, MainEquipment }
     [Serializable]
     public sealed class AbilityBinding
     {
         public AbilityOperation operation;
         public GestureMode gesture;
+        public AbilityResourceOwner resourceOwner;
         [Min(.01f)] public float longPressThreshold=.3f;
         public AbilityDefinitionSO ability,longPressAbility;
     }
@@ -29,6 +31,7 @@ namespace Ossastra.Characters
     public sealed class CompiledAbility
     {
         public readonly string id,displayName,cooldownIdentity;
+        public readonly string effectRoot,damageChannel;
         public readonly AbilityPlan plan;
         public readonly float cost,cooldown,holdCost,releaseCost;
         public readonly bool wearOnRelease;
@@ -44,6 +47,7 @@ namespace Ossastra.Characters
             holdCost=definition.holdCostPerSecond;releaseCost=definition.releaseCost;wearOnRelease=definition.wearOnRelease;
             reclaimBudget=definition.reclaimBudget;reclaimRate=definition.reclaimRate;
             cooldownPolicy=definition.cooldownPolicy;
+            effectRoot=definition.effectRoot;damageChannel=string.IsNullOrWhiteSpace(definition.damageChannel)?effectRoot:definition.damageChannel;
             delivery=definition.delivery.Freeze();animation=definition.action;executor=definition.executor.CompileExecutor();
             // 释放节点、冲击与几何均复制；这里只保留不可变资源对象引用，动画接受时另冻结片段/速率。
             posture=definition.releases.Select(n=>n.postureImpact).ToArray();
@@ -58,6 +62,7 @@ namespace Ossastra.Characters
         public int schemaVersion=CurrentSchema;
         public AbilityCooldownPolicy cooldownPolicy;
         public string definitionId,displayName,cooldownIdentity;
+        public string effectRoot,damageChannel;
         public AbilityExecutorSO executor;
         public ActionDefinitionSO action;
         public AbilityOccupancy occupancy=AbilityOccupancy.Body|AbilityOccupancy.MainHand;

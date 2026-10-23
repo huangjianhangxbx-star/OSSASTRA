@@ -16,7 +16,8 @@ MonoBehaviour:
   displayName: "\u9A8C\u8BC1\u76FEB_\u6309\u4E0B\u653B\u51FB"
   mainHand: 0
   offhandKind: 1
-  worldSprite: {fileID: 21300000, guid: 0b8e615ca5a317e41bb17139660a3996, type: 3}
+  worldSprite: {fileID: 0}
+  spinePresentation: {fileID: 11400000, guid: f4273a0f1ef9e134cac4389814916541, type: 2}
   boneName: Lhand
   offset: {x: 0, y: 0, z: -0.015}
   worldScale: 0.55
@@ -24,6 +25,8 @@ MonoBehaviour:
   abilityBindings:
   - operation: 0
     gesture: 0
+    resourceOwner: 0
     longPressThreshold: 0.3
     ability: {fileID: 11400000, guid: d759fb867904a634abf74066b359cca4, type: 2}
     longPressAbility: {fileID: 0}
+  skillLoadout: {fileID: 0}

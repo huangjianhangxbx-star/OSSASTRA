@@ -16,12 +16,34 @@ namespace Ossastra.CharacterCore.Abilities
         private AmmoKind pendingKind;
         private int pendingCount;
         private double due;
+        private Guid automaticReload;
+        private double lastShotAt;
         public int Count=>rounds.Count;
+        public int Capacity {get;private set;}=4;
         public AmmoKind? Next=>rounds.Count==0?(AmmoKind?)null:rounds.Peek();
         public bool IsReloading=>pending!=Guid.Empty;
         public MagazineState(){Refill(AmmoKind.Normal,4);}
         public bool Consume(Guid emission)
         {if(emission==Guid.Empty||Count==0||!shots.Add(emission))return false;rounds.Dequeue();return true;}
+        public bool Consume(Guid emission,double now)
+        {
+            if(!BasicAttackDefinition.Finite(now)||now<0||IsReloading||!Consume(emission))return false;
+            lastShotAt=now;return true;
+        }
+        /// <summary>只推进本弹仓自己发起的普通装填，不抢精确装填的执行ID。</summary>
+        public void TickAutomatic(double now,bool idle,double idleDelay=3,double duration=.8,int capacity=4)
+        {
+            if(!BasicAttackDefinition.Finite(now)||now<0)throw new ArgumentException("Invalid magazine clock");
+            if(!idle){CancelAutomaticReload();return;}
+            if(automaticReload!=Guid.Empty)
+            {
+                if(CompleteReload(automaticReload,now)||!IsReloading)automaticReload=Guid.Empty;
+                return;
+            }
+            if(IsReloading||Count>=Capacity||Count>0&&now-lastShotAt<idleDelay)return;
+            var id=Guid.NewGuid();if(BeginReload(id,AmmoKind.Normal,capacity,false,now,duration))automaticReload=id;
+        }
+        public void CancelAutomaticReload(){if(automaticReload!=Guid.Empty)CancelReload(automaticReload);automaticReload=Guid.Empty;}
         public bool BeginReload(Guid id,AmmoKind kind,int count,bool instant,double now,double duration)
         {
             if(id==Guid.Empty||IsReloading||reloads.Contains(id)||!Enum.IsDefined(typeof(AmmoKind),kind)||count<1||count>64||!BasicAttackDefinition.Finite(now)||!BasicAttackDefinition.Finite(duration)||duration<0)return false;
@@ -32,11 +54,11 @@ namespace Ossastra.CharacterCore.Abilities
             =>CompleteReload(pending,now);
         public bool CompleteReload(Guid expected,double now)
         {
-            if(!IsReloading||pending!=expected||now<due)return false;
+            if(!BasicAttackDefinition.Finite(now)||!IsReloading||pending!=expected||now<due)return false;
             reloads.Add(pending);Refill(pendingKind,pendingCount);pending=Guid.Empty;return true;
         }
         public void CancelReload(){pending=Guid.Empty;}
         public void CancelReload(Guid expected){if(pending==expected)CancelReload();}
-        private void Refill(AmmoKind kind,int count){rounds.Clear();for(int i=0;i<count;i++)rounds.Enqueue(kind);}
+        private void Refill(AmmoKind kind,int count){Capacity=count;rounds.Clear();for(int i=0;i<count;i++)rounds.Enqueue(kind);}
     }
 }

@@ -1,0 +1,76 @@
+using System;using System.Linq;using System.Collections.Generic;using UnityEngine;using UnityEditor;using UnityEditor.SceneManagement;using Ossastra.Characters;using Funplay.Editor.Tools.Scripting;
+public class ConfigureMainProfiles:IFunplayCommand
+{
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+ {
+  if(Application.isPlaying)throw new Exception("Edit required");const string baseFolder="Assets/OSSASTRA/Configs/Abilities",folder=baseFolder+"/MainProfiles";
+  const string scenePath="Assets/OSSASTRA/Scenes/SC_VC02A_CombatMigration.unity";
+  var scene=EditorSceneManager.GetActiveScene();if(scene.path!=scenePath)throw new Exception("Own candidate scene required");
+  if(scene.isDirty){EditorSceneManager.SaveScene(scene,"E:/WORLDCREATOR/XingHaiHuiLang/work/OSSASTRA/VC02-20261022/main-profile-recovery-"+Guid.NewGuid().ToString("N")+".unity",true);EditorSceneManager.OpenScene(scenePath);}
+  if(!AssetDatabase.IsValidFolder(folder))AssetDatabase.CreateFolder(baseFolder,"MainProfiles");
+  T Own<T>(string id)where T:ScriptableObject {var p=folder+"/"+id+".asset";var d=AssetDatabase.LoadAssetAtPath<T>(p);if(d==null){d=ScriptableObject.CreateInstance<T>();ctx.RegisterObjectCreation(d);AssetDatabase.CreateAsset(d,p);}else ctx.RegisterObjectModification(d);return d;}
+  void Save(UnityEngine.Object d){EditorUtility.SetDirty(d);AssetDatabase.SaveAssetIfDirty(d);}
+  const string source="c21d4fc: hunter-combat-profile.ts, basic-definition.ts, main-form-spec.ts, trial-combo.ts, ability-trial.ts. Gameplay values retained; rozeul existing semantic mappings reused as PRESENTATION_PARTIAL. Ranger source declares dash event but has no active translation consumer: distance remains zero.";
+  var created=new List<MainActionProfileSO>();
+  foreach(var role in new[]{"hunter","ranger"})
+  {
+   var actor=role=="hunter"?"temporary-a":"temporary-b";
+   var main=AssetDatabase.LoadAssetAtPath<EquipmentDefinitionSO>(baseFolder+"/"+actor+"_VC02_Main.asset");
+   var character=AssetDatabase.LoadAssetAtPath<CharacterDefinitionSO>(baseFolder+"/"+actor+"_VC02.asset");
+   if(main==null||character==null)throw new Exception("Missing owned role definitions: "+actor);
+   var existing=main.actions!=null&&main.actions.Length>0?main.actions:character.basicAttacks;
+   if(existing==null||existing.Length<4||existing.Any(a=>a==null))throw new Exception("Expected four current candidate actions; refusing to replace them");
+   MainActionStageDefinition Stage(string assetId,string id,int pose,float release,float ready,float move,float finish,int damage,float range,float halfArc,float dashAt,float dashDistance,float dashDuration,bool replace)
+   {
+    var a=Own<ActionDefinitionSO>(assetId);a.definitionId=assetId;a.animationKey=existing[pose].animationKey;a.eventTimeline=Array.Empty<ActionTimelineBinding>();
+    a.releaseAt=release;a.attackReadyAt=ready;a.moveReadyAt=move;a.finishAt=finish;a.damage=damage;a.postureImpact=existing[pose].postureImpact;a.staminaCost=existing[pose].staminaCost;a.timingEvidence=source;a.Freeze();Save(a);
+    return new MainActionStageDefinition{stageId=id,action=a,range=range,arcDegrees=halfArc*2*Mathf.Rad2Deg,dashAt=dashAt,dashDistance=dashDistance,dashDuration=dashDuration,prefixReplaceable=replace};
+   }
+   var stages=role=="hunter"?new[]{
+    Stage("hunter_A1","A1",0,.0333f,.2f,.2333f,.7333f,15,1.7f,1,0,.16f,.1f,true),
+    Stage("hunter_A2","A2",1,0,.2f,.2333f,.7333f,15,1.7f,1,0,.25f,.1f,true),
+    Stage("hunter_A3","A3",2,.0333f,.2667f,.3f,.6333f,20,1.8f,1,.0333f,.8f,.18f,false),
+    Stage("hunter_A4","A4",3,.1333f,.5f,.5f,.8333f,35,2.2f,.48f,.1f,1.25f,.14f,false)
+   }:new[]{
+    Stage("ranger_A1","A1",0,.0333f,.1333f,.2f,.8f,15,1.8f,1,.0119f,0,0,true),
+    Stage("ranger_A2","A2",1,.0667f,.1667f,.2667f,.8f,20,1.8f,1,.0333f,0,0,true),
+    Stage("ranger_A3","A3",2,.1667f,.3f,.4f,1.2667f,30,1.8f,1,.1667f,0,0,false)
+   };
+   var one=Own<MainActionProfileSO>(role+"_I");one.definitionId=role+".prototype.I";one.displayName=role=="hunter"?"原型Ⅰ · 四段":"原型Ⅰ · 三段";one.professionId=role;one.sourceEvidence=source;
+   one.formLabel="I";one.stages=stages;one.bufferSeconds=.25f;one.continuationSeconds=role=="hunter"?.625f:.5f;one.fullComboRecovery=.25f;one.postureScale=1;one.contactDuration=role=="hunter"?.1f:.15f;
+   one.chisel=null;one.rapidPrefix=Array.Empty<MainActionStageDefinition>();one.rapidPlusPrefix=Array.Empty<MainActionStageDefinition>();
+   if(role=="hunter")
+   {
+    one.chisel=Stage("hunter_Chisel","chisel",3,.1f,.3333f,.4f,.7667f,25,1.8f,1,0,.6f,.14f,false);
+    one.rapidPrefix=new[]{
+     Stage("hunter_Rapid1","rapid1",0,.0333f,.1f,.2f,.4f,18,1.7f,1,0,.1f,.1f,false),
+     Stage("hunter_Rapid2","rapid2",1,.1f,.1667f,.2333f,.4f,18,1.7f,1,.0667f,.1f,.1f,false),
+     Stage("hunter_Rapid3","rapid3",2,.1333f,.2f,.3f,.4667f,18,1.7f,1,.1f,.4f,.1f,false)};
+    one.rapidPlusPrefix=new[]{
+     Stage("hunter_RapidPlus1","rapidPlus1",0,.0333f,.1f,.1667f,.3667f,18,1.7f,1,0,.1f,.1f,false),
+     Stage("hunter_RapidPlus2","rapidPlus2",1,.0667f,.1333f,.2f,.3667f,18,1.7f,1,.0333f,.1f,.1f,false),
+     Stage("hunter_RapidPlus3","rapidPlus3",2,.0667f,.1333f,.2333f,.4f,18,1.7f,1,.0333f,.4f,.1f,false),
+     Stage("hunter_RapidPlus4","rapidPlus4",1,.0667f,.1333f,.2f,.3667f,18,1.7f,1,.0333f,.1f,.1f,false)};
+   }
+   one.Freeze();Save(one);created.Add(one);
+   var two=Own<MainActionProfileSO>(role+"_II");two.definitionId=role+".prototype.II";two.displayName="原型Ⅱ · 两段重击 SAMPLE";two.professionId=role;two.sourceEvidence=source+" Form II is the source SAMPLE alternate group; trial-rune topology uses profile I explicitly.";
+   var indices=role=="hunter"?new[]{2,3}:new[]{1,2};
+   two.stages=indices.Select(index=>
+   {
+    var s=stages[index];var a=s.action;
+    return Stage(role+"_II_"+s.stageId,s.stageId,index,a.releaseAt,a.attackReadyAt+.18f,a.moveReadyAt+.18f,a.finishAt,a.damage,s.range+(role=="hunter"?.25f:.2f),s.arcDegrees/(2*Mathf.Rad2Deg),s.dashAt,s.dashDistance,s.dashDuration,false);
+   }).ToArray();
+   two.formLabel="II";two.bufferSeconds=one.bufferSeconds;two.continuationSeconds=one.continuationSeconds;two.fullComboRecovery=.4f;two.postureScale=1.35f;two.contactDuration=one.contactDuration;two.chisel=null;two.rapidPrefix=Array.Empty<MainActionStageDefinition>();two.rapidPlusPrefix=Array.Empty<MainActionStageDefinition>();two.Freeze();Save(two);created.Add(two);
+   // Parent integration may add the optional catalog field later; this snippet never changes active selection/default actions.
+   var mainSo=new SerializedObject(main);var catalog=mainSo.FindProperty("mainActionProfiles");
+   if(catalog!=null){ctx.RegisterObjectModification(main);catalog.arraySize=2;catalog.GetArrayElementAtIndex(0).objectReferenceValue=one;catalog.GetArrayElementAtIndex(1).objectReferenceValue=two;mainSo.ApplyModifiedProperties();Save(main);}
+  }
+  foreach(var root in UnityEngine.Object.FindObjectsOfType<Ossastra.Characters.CharacterRoot>())
+  {
+   if(root.ActorId!="temporary-a"&&root.ActorId!="temporary-b")continue;
+   if(root.GetComponent<CharacterMainAction>()==null){ctx.RegisterObjectModification(root.gameObject);var component=Undo.AddComponent<CharacterMainAction>(root.gameObject);ctx.RegisterObjectCreation(component);}
+  }
+  EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene());
+  ctx.ReturnValue=Newtonsoft.Json.JsonConvert.SerializeObject(created.Select(p=>new{p.definitionId,path=AssetDatabase.GetAssetPath(p),stages=p.Freeze().Sequence.Count,p.fullComboRecovery,p.postureScale,defaultChanged=false}).ToArray());
+ }
+}

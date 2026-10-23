@@ -13,10 +13,13 @@ namespace Ossastra.Characters
         public bool mainHand;
         public OffhandKind offhandKind;
         public Sprite worldSprite;
+        public EquipmentSpinePresentationSO spinePresentation;
         public string boneName;
         public Vector3 offset;
         [Min(.01f)] public float worldScale=.7f;
         public ActionDefinitionSO[] actions;
+        // 独立可选动作组；实例空选保持上面的角色默认动作，不由表长暗改连段。
+        public MainActionProfileSO[] mainActionProfiles=System.Array.Empty<MainActionProfileSO>();
         public AbilityBinding[] abilityBindings=System.Array.Empty<AbilityBinding>();
         public AbilityLoadoutSO skillLoadout;
     }

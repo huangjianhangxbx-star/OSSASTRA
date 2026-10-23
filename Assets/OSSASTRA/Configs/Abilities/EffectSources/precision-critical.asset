@@ -1,0 +1,43 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4e0c3fe3513ccfc4bb7e69d168e7b555, type: 3}
+  m_Name: precision-critical
+  m_EditorClassIdentifier: 
+  definitionId: precision-critical
+  nativeName: "\u7CBE\u51C6\u88C5\u586B6"
+  profession: yellow
+  effect: skill-modifier
+  requiredRoot: precision
+  exclusivePoint: 
+  comboPrefix: 
+  phase: 0
+  damage: 0
+  hastePerFrost: 0
+  frostCap: 0
+  frostRecovery: 0
+  modifiers:
+  - root: precision
+    condition: 
+    guaranteedCrit: 1
+    passesTargets: 0
+    instantReload: 0
+    ammoCount: 0
+    damageAdd: 0
+    damagePerFrost: 0
+    damageRatio: 0
+    cooldownAdd: 0
+    knockRatio: 0
+    stunSeconds: 0
+    reloadShotRate: 0
+    reloadShotDamage: 0
+    shotRateBonus: 0
+    shotRateDuration: 0

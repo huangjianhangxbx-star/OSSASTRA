@@ -1,0 +1,24 @@
+using System;using System.Linq;using System.Collections.Generic;using UnityEngine;using UnityEditor;using Newtonsoft.Json.Linq;using Ossastra.Characters;using Funplay.Editor.Tools.Scripting;
+public class ConfigureSources:IFunplayCommand
+{
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+ {
+  if(Application.isPlaying)throw new Exception("Edit required");const string folder="Assets/OSSASTRA/Configs/Abilities";const string child="EffectSources";
+  if(!AssetDatabase.IsValidFolder(folder+"/"+child))AssetDatabase.CreateFolder(folder,child);
+  var json=JObject.Parse(System.IO.File.ReadAllText("E:/WORLDCREATOR/new/Project_ANKALUTE/Candidates/VC02A/Evidence/source-definitions.json"));
+  var values=json["results"].Select(r=>r["values"]?["SOURCE_DEFINITIONS"]).First(t=>t!=null).ToObject<JObject>();var definitions=new List<EffectSourceDefinitionSO>();
+  foreach(var property in values.Properties())
+  {
+   var v=(JObject)property.Value;var path=folder+"/"+child+"/"+property.Name+".asset";var d=AssetDatabase.LoadAssetAtPath<EffectSourceDefinitionSO>(path);
+   if(d==null){d=ScriptableObject.CreateInstance<EffectSourceDefinitionSO>();ctx.RegisterObjectCreation(d);AssetDatabase.CreateAsset(d,path);}else ctx.RegisterObjectModification(d);
+   d.definitionId=(string)v["id"];d.nativeName=(string)v["nativeId"];d.profession=(string)v["profession"];d.effect=(string)v["effect"];d.requiredRoot=(string)v["requires"];d.exclusivePoint=(string)v["exclusivePoint"];d.comboPrefix=(string)v["comboPrefix"];d.phase=(int?)v["phase"]??0;d.damage=(int?)v["damage"]??0;d.hastePerFrost=(float?)v["hastePerFrost"]??0;d.frostCap=(float?)v["frostCap"]??0;d.frostRecovery=(float?)v["frostRecovery"]??0;
+   var mods=new List<SourceSkillModifier>();void Modifier(JObject m){if(m==null)return;var flat=(JObject)m.DeepClone();flat.Remove("also");mods.Add(flat.ToObject<SourceSkillModifier>());foreach(var also in m["also"]??new JArray())Modifier((JObject)also);}
+   Modifier((JObject)v["skillModifier"]);d.modifiers=mods.ToArray();d.Freeze();EditorUtility.SetDirty(d);AssetDatabase.SaveAssetIfDirty(d);definitions.Add(d);
+  }
+  foreach(var id in new[]{"hunter","ranger"})
+  {var p=AssetDatabase.LoadAssetAtPath<AbilityLoadoutSO>(folder+"/"+id+"_SkillLoadout.asset");ctx.RegisterObjectModification(p);p.effectProfession=id=="hunter"?"blue":"yellow";p.sourceCatalog=definitions.ToArray();EditorUtility.SetDirty(p);AssetDatabase.SaveAssetIfDirty(p);}
+  foreach(var pair in new[]{("hunter-native-E","rush","rush"),("al-native-E","rocket","rocket-land")})
+  {var d=AssetDatabase.LoadAssetAtPath<AbilityDefinitionSO>(folder+"/"+pair.Item1+".asset");ctx.RegisterObjectModification(d);d.effectRoot=pair.Item2;d.damageChannel=pair.Item3;d.Compile();EditorUtility.SetDirty(d);AssetDatabase.SaveAssetIfDirty(d);}
+  ctx.ReturnValue=new{registered=definitions.Count,unresolved=definitions.Count(d=>d.effect=="unresolved"),nativeRootAliases=new[]{"rush","rocket"}};
+ }
+}

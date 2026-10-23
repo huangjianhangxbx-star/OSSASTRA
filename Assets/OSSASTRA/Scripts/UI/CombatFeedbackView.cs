@@ -41,8 +41,24 @@ namespace Ossastra.UserInterface
             material=new Material(Shader.Find("Sprites/Default"));
             foreach(var root in FindObjectsOfType<Ossastra.Characters.CharacterRoot>())
             {
-                var owner=root;Action<ActionFact> released=f=>{if(!isActiveAndEnabled||f.Kind!=ActionFactKind.Released)return;ReleaseCues++;Play(release);Arc(owner.transform.position,owner.DataBus.AttackDirection,gold,.9f);};
+                var owner=root;var abilities=owner.GetComponent<CharacterAbilities>();Action<ActionFact> released=f=>{if(!isActiveAndEnabled||f.Kind!=ActionFactKind.Released||abilities!=null&&abilities.OwnsRelease(f.ActionId))return;ReleaseCues++;Play(release);Arc(owner.transform.position,owner.DataBus.AttackDirection,gold,.9f);};
                 owner.ActionObserved+=released;unsubscribe.Add(()=>{if(owner!=null)owner.ActionObserved-=released;});
+                if(abilities!=null)
+                {
+                    Action<Guid,string,Vector3> feedback=(id,kind,position)=>
+                    {
+                        if(!isActiveAndEnabled)return;
+                        if(kind=="accepted"){Arc(position,Vector3.right,cyan,.2f,true);}
+                        else if(kind=="cancel"){Arc(position,Vector3.right,Color.gray,.3f,true);}
+                        else if(kind=="end"){Arc(position,Vector3.right,cyan,.12f,true);}
+                        else if(kind=="release"){ReleaseCues++;Play(release);Arc(position,owner.DataBus.AttackDirection,gold,.9f);}
+                        else if(kind=="hit"){HitCues++;Play(hit);Arc(position,Vector3.right,gold,.45f,true);}
+                        else if(kind=="guard"){HitCues++;Play(hit);Arc(position,owner.DataBus.AttackDirection,cyan,.7f);}
+                        else if(kind=="launch"||kind=="land"){MotionCues++;Play(release);Arc(position,Vector3.right,kind=="launch"?cyan:gold,kind=="launch"?.5f:1.25f,true);}
+                        else if(kind=="reload"){MotionCues++;Play(release);Arc(position,Vector3.right,cyan,.35f,true);}
+                    };
+                    abilities.Feedback+=feedback;unsubscribe.Add(()=>{if(abilities!=null)abilities.Feedback-=feedback;});
+                }
                 var guard=owner.GetComponent<ShieldGuard>();if(guard!=null){Action<HitOutcome> blocked=f=>{if(!isActiveAndEnabled)return;HitCues++;Play(hit);Arc(owner.transform.position,owner.DataBus.AttackDirection,cyan,.7f);};guard.Guarded+=blocked;unsubscribe.Add(()=>{if(guard!=null)guard.Guarded-=blocked;});}
                 observations.Add(new Observation{root=root,hp=root.Vitals.Health.Current});
             }

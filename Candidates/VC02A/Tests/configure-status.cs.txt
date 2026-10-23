@@ -1,0 +1,21 @@
+using System;using System.Linq;using UnityEngine;using UnityEditor;using UnityEditor.SceneManagement;using Ossastra.Combat;using Ossastra.Characters;using Funplay.Editor.Tools.Scripting;
+public class ConfigureStatus:IFunplayCommand
+{
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+ {
+  const string path="Assets/OSSASTRA/Scenes/SC_VC02A_CombatMigration.unity";
+  if(Application.isPlaying)throw new Exception("Edit required");
+  var scene=EditorSceneManager.GetActiveScene();if(scene.path!=path)throw new Exception("Own candidate required");
+  if(scene.isDirty){EditorSceneManager.SaveScene(scene,"E:/WORLDCREATOR/XingHaiHuiLang/work/OSSASTRA/VC02-20261022/status-recovery-"+Guid.NewGuid().ToString("N")+".unity",true);EditorSceneManager.OpenScene(path);}
+  int count=0;
+  foreach(var vitals in UnityEngine.Object.FindObjectsOfType<CombatVitals>())
+  {
+   var go=vitals.gameObject;ctx.RegisterObjectModification(go);var status=go.GetComponent<CombatStatusEffects>();
+   if(status==null){status=Undo.AddComponent<CombatStatusEffects>(go);ctx.RegisterObjectCreation(status);}
+   var serialized=new SerializedObject(status);serialized.FindProperty("impactWeight").floatValue=go.GetComponent<Ossastra.Characters.CharacterRoot>()!=null?.75f:1;serialized.ApplyModifiedProperties();count++;
+  }
+  var guard=AssetDatabase.LoadAssetAtPath<DirectionalGuardAbilitySO>("Assets/OSSASTRA/Configs/Abilities/DirectionalGuard.asset");
+  ctx.RegisterObjectModification(guard);guard.startup=.08f;guard.frostPerBlock=1;guard.movementScale=.35f;EditorUtility.SetDirty(guard);AssetDatabase.SaveAssetIfDirty(guard);
+  EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene());ctx.ReturnValue=new{statusTargets=count,guardFrostCost=1,guardStartup=.08};
+ }
+}

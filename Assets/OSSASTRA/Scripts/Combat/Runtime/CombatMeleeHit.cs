@@ -29,7 +29,7 @@ namespace Ossastra.Combat
             { release.Resolve(Array.Empty<Health>()); LastResult="来源失效或释放身份不符"; Resolved?.Invoke(release.ActionId,false); return; }
             var center=transform.position+Vector3.up*height+releaseDirection*reach;
             var candidates=Physics.OverlapSphere(center,radius,targetLayers,QueryTriggerInteraction.Collide)
-                .Select(c=>c.GetComponentsInParent<MonoBehaviour>().OfType<IHitTarget>().FirstOrDefault())
+                .Select(CombatSpatialTarget.Find)
                 .Where(CombatTargetValidity.IsAvailable).Distinct()
                 .Where(t=>t is MonoBehaviour body && CombatSight.IsClear(transform,body.transform,height)).ToArray();
             var outcomes=CombatContactGateway.Resolve(release,source,candidates,transform.position);

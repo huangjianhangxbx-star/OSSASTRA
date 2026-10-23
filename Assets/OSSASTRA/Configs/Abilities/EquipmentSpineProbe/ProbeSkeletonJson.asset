@@ -1,0 +1,10 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!49 &4900000
+TextAsset:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: ProbeSkeletonJson
+  m_Script: '{"skeleton":{"spine":"4.3.26","hash":"original-vc02a-equipment-probe","width":0.56,"height":0.67},"bones":[{"name":"root"},{"name":"grip","parent":"root"},{"name":"face","parent":"grip"}],"slots":[{"name":"shield","bone":"face","attachment":"shield"},{"name":"boss","bone":"face","attachment":"boss"}],"skins":[{"name":"default","attachments":{"shield":{"shield":{"type":"mesh","path":"white","color":"397faaff","uvs":[0.0,0.0,1.0,0.0,1.0,0.8,0.5,1.0,0.0,0.8],"triangles":[0,1,2,0,2,3,0,3,4],"vertices":[-0.28,0.25,0.28,0.25,0.23,-0.2,0.0,-0.42,-0.23,-0.2],"hull":5}},"boss":{"boss":{"type":"region","path":"white","color":"e9c96dff","x":0.0,"y":-0.02,"width":0.1,"height":0.1,"rotation":45}}}}],"animations":{"rest":{"bones":{"face":{"rotate":[{"time":0.0,"value":0.0},{"time":0.12,"value":3.0},{"time":0.46,"value":0.0}]}}},"carry":{"bones":{"face":{"rotate":[{"time":0.0,"value":0.0},{"time":0.12,"value":3.0},{"time":0.46,"value":0.0}]}}},"strike":{"bones":{"face":{"rotate":[{"time":0.0,"value":0.0},{"time":0.12,"value":40.0},{"time":0.46,"value":0.0}]}}},"brace":{"bones":{"face":{"rotate":[{"time":0.0,"value":0.0},{"time":0.12,"value":12.0},{"time":0.46,"value":0.0}]}}},"recoil":{"bones":{"face":{"rotate":[{"time":0.0,"value":0.0},{"time":0.12,"value":-15.0},{"time":0.46,"value":0.0}]}}},"break":{"bones":{"face":{"rotate":[{"time":0.0,"value":0.0},{"time":0.12,"value":3.0},{"time":0.46,"value":0.0}]}}},"vanish":{"bones":{"face":{"rotate":[{"time":0.0,"value":0.0},{"time":0.12,"value":3.0},{"time":0.46,"value":0.0}]}}},"evade":{"bones":{"face":{"rotate":[{"time":0.0,"value":0.0},{"time":0.12,"value":-25.0},{"time":0.46,"value":0.0}]}}}}}'

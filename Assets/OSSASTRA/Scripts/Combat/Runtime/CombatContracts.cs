@@ -30,6 +30,12 @@ namespace Ossastra.Combat
     }
     public interface ICombatLifeState { bool IsAlive { get; } }
     public interface IHitTarget { Health Health { get; } void ShowHit(); }
+    /// <summary>特定场景实体在HP写入前拒绝来源释放，例如冰柱忽略产生自己的凿冰执行。</summary>
+    public interface ICombatContactFilter { bool Accepts(AttackRelease release); }
+    /// <summary>世界实体可拒绝直射弹体接触，仍接受近战区域和落地范围；不改变HP结算规则。</summary>
+    public interface ICombatProjectileContact { bool AllowsDirectProjectile { get; } }
+    /// <summary>场景伤害实体可明确禁止成为虚血夺回来源；未实现者保留普通战斗目标规则。</summary>
+    public interface ICombatReclaimPolicy { bool AllowsReclaim { get; } }
     public interface ICombatTarget : IHitTarget, ICombatLifeState
     {
         bool IsAvailable { get; }

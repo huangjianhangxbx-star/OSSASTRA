@@ -1,0 +1,103 @@
+PROJECT Abilities
+PASS neutral arms
+PASS competing gesture waits
+PASS tap resolves on release
+PASS long wins once
+PASS held cannot repay
+PASS long release not second tap
+PASS guard begins immediately
+PASS epoch invalidates accepted gesture
+PASS old held key blocked after switch
+PASS real release rearms
+PASS caller cannot mutate frozen plan
+PASS first actual node
+PASS same time no duplicate emission
+PASS pause emits nothing
+PASS second pulse distinct index
+PASS cancel prevents late release
+PASS out of range release rejected
+PASS nonfinite config rejected
+PASS duplicate emission identity rejected
+PASS existing sole admission ledger commits
+PASS existing ledger rejects duplicate payment
+PASS definition A equips
+PASS first shield wears once
+PASS same category different stable instance
+PASS switch back preserves identity and durability
+PASS unknown source cannot create free item
+PASS phase change retains accepted identity
+PASS foreign phase cannot hijack body
+PASS phase releases under original action
+PASS moving contact window hits late target but never repeats first target
+PASS upgraded exclusive source wins by phase
+PASS missing root leaves branch dormant
+PASS foreign profession sources do not execute
+PASS accepted source snapshot survives registry removal without changing live ownership
+34 ability contracts passed
+PROJECT CombatResources
+PASS actual loss creates gray HP
+PASS skill gain uses existing health
+PASS second pulse shares parent budget
+PASS four second hold then ten percent decay
+PASS ordinary healing clamps gray
+PASS dead actor cannot reclaim
+PASS death reset clears gray
+PASS initial frost
+PASS frost commit
+PASS frost recovery delay
+PASS frost recovery crosses delay correctly
+PASS capacity source adds exact delta
+PASS source removal clamps capacity
+PASS four actual bullets
+PASS release only consumes once
+PASS precision reserves reload
+PASS reload not free before due
+PASS reload commits special sequence
+PASS no duplicate refill
+PASS cancel preserves prior magazine without refill
+PASS instant reload and delayed path exclusive
+PASS invalid clock cannot complete reload
+PASS foreign action cannot commit reload
+PASS foreign cancellation cannot clear reload
+PASS owner action completes preserved reload
+PASS partial magazine waits three idle seconds since shot
+PASS ordinary reload reserves after idle deadline
+PASS ordinary reload never grants before point8
+PASS ordinary reload restores four normal rounds
+PASS empty magazine begins reload immediately when idle
+PASS unequip cancels automatic refill
+PASS six round capacity recognizes one missing round
+PASS ordinary refill resets expanded capacity to four
+33 combat resource contracts passed
+PROJECT StaminaReservation
+PASS Reserved release cost protects concurrent accepted action
+PASS Failed source transaction does not charge stamina
+PASS Successful source callback and release payment occur once
+PASS Cancelled release cannot invoke source or debit
+PASS Sustained drain cannot consume a reserved release budget
+PASS Life restore invalidates pending reservation without payment
+PASS Invalid or duplicate reservations leave balance unchanged
+PASS Invalid release clock never calls source
+PASS Long hold released after skipped threshold sample stays long
+PASS Short tap and already emitted long press retain single winner
+RESULT passed=10 failed=0
+PROJECT MainActionProfile
+PASS Frozen stage array cannot be rewritten by author list
+PASS No active rune leaves all four stages and resource metadata intact
+PASS Chisel replaces stage three and carries delayed source identity
+PASS Upgraded chisel changes frozen damage without changing template
+PASS Rapid prefix replaces two stages with three
+PASS Rapid plus and chisel compose in original order
+PASS Accepted sequence survives subsequent registry withdrawal
+PASS Invalid dash bounds rejected
+PASS Low frame crossing entire dash preserves authored distance
+PASS Partitioned dash movement equals one large frame
+RESULT passed=10 failed=0
+PROJECT ShotEnhancement
+PASS 12 shot-enhancement contracts
+PROJECT CombatStatus
+PASS 10 combat-status contracts
+PROJECT ice-contract
+PASS 9 ice contracts
+PROJECT spine-animation
+PASS 9 equipment animation contracts

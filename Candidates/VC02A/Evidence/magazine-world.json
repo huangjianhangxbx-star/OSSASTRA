@@ -1,0 +1,134 @@
+{
+  "state": "completed",
+  "failed": 0,
+  "rows": [
+    {
+      "name": "equip own magazine delivery through normal equipment API",
+      "ok": true,
+      "result": "能力未初始化",
+      "ammo": 4,
+      "hp": 600,
+      "accepted": 0
+    },
+    {
+      "name": "precision remains Q configuration",
+      "ok": true,
+      "result": "已更新技能配置",
+      "ammo": 4,
+      "hp": 600,
+      "accepted": 0
+    },
+    {
+      "name": "right mouse ordinary shot accepted once",
+      "ok": true,
+      "result": "接触 1 #e1017c1ff814451891ce17567d36b15f",
+      "ammo": 3,
+      "hp": 568,
+      "accepted": 1
+    },
+    {
+      "name": "shot consumes main payload not left probe magazine",
+      "ok": true,
+      "result": "接触 1 #e1017c1ff814451891ce17567d36b15f",
+      "ammo": 3,
+      "hp": 568,
+      "accepted": 1
+    },
+    {
+      "name": "actual projectile causes source32 damage",
+      "ok": true,
+      "result": "接触 1 #e1017c1ff814451891ce17567d36b15f",
+      "ammo": 3,
+      "hp": 568,
+      "accepted": 1
+    },
+    {
+      "name": "precision fills same consumed magazine with mortar",
+      "ok": true,
+      "result": "接受 实验·精确装填",
+      "ammo": 4,
+      "hp": 568,
+      "accepted": 2
+    },
+    {
+      "name": "mortar consumes only one special round",
+      "ok": true,
+      "result": "接触 1 #77d2cc34d38b4fbb8e040662f44b492b",
+      "ammo": 3,
+      "hp": 520,
+      "accepted": 3
+    },
+    {
+      "name": "mortar actual landing causes80 damage",
+      "ok": true,
+      "result": "接触 1 #77d2cc34d38b4fbb8e040662f44b492b",
+      "ammo": 3,
+      "hp": 520,
+      "accepted": 3
+    },
+    {
+      "name": "same release uses shared queue cleanup",
+      "ok": true,
+      "result": "接触 1 #77d2cc34d38b4fbb8e040662f44b492b",
+      "ammo": 3,
+      "hp": 520,
+      "accepted": 3
+    },
+    {
+      "name": "empty magazine rejects held fire without accepting",
+      "ok": true,
+      "result": "拒绝：来源资源不允许当前能力",
+      "ammo": 0,
+      "hp": 520,
+      "accepted": 3
+    },
+    {
+      "name": "empty magazine automatically finishes ordinary reload",
+      "ok": true,
+      "result": "拒绝：来源资源不允许当前能力",
+      "ammo": 4,
+      "hp": 520,
+      "accepted": 3
+    },
+    {
+      "name": "HUD projects actual shared magazine",
+      "ok": true,
+      "result": "拒绝：来源资源不允许当前能力",
+      "ammo": 4,
+      "hp": 520,
+      "accepted": 3
+    },
+    {
+      "name": "holding right mouse repeats through same action admission",
+      "ok": true,
+      "result": "拒绝：Rejected: main-not-ready",
+      "ammo": 2,
+      "hp": 536,
+      "accepted": 5
+    },
+    {
+      "name": "repeated shots have independent actual damage",
+      "ok": true,
+      "result": "拒绝：Rejected: main-not-ready",
+      "ammo": 2,
+      "hp": 536,
+      "accepted": 5
+    },
+    {
+      "name": "mortar blocked landing rejected before acceptance",
+      "ok": true,
+      "result": "拒绝：落点超距或遮挡",
+      "ammo": 4,
+      "hp": 536,
+      "accepted": 5
+    },
+    {
+      "name": "illegal mortar landing does not consume special round",
+      "ok": true,
+      "result": "拒绝：落点超距或遮挡",
+      "ammo": 4,
+      "hp": 536,
+      "accepted": 5
+    }
+  ]
+}

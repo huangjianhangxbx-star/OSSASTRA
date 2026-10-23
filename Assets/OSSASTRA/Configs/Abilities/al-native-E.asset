@@ -17,6 +17,8 @@ MonoBehaviour:
   definitionId: al-native-E
   displayName: "\u706B\u7BAD\u5F39\u5C04"
   cooldownIdentity: al-native-E
+  effectRoot: rocket
+  damageChannel: rocket-land
   executor: {fileID: 11400000, guid: fdec7306e0593c74ea5912fda36bca6e, type: 2}
   action: {fileID: 11400000, guid: 79521f4e722475645b31f2ecf55b66fb, type: 2}
   occupancy: 11

@@ -1,0 +1,255 @@
+{
+  "state": "completed",
+  "failed": 0,
+  "rows": [
+    {
+      "name": "both existing four-stage defaults preserved",
+      "ok": true,
+      "selection": "",
+      "sequence": null,
+      "stages": [],
+      "last": "无",
+      "root": "Idle"
+    },
+    {
+      "name": "normal HUD selects hunter I with four stages",
+      "ok": true,
+      "selection": "hunter.prototype.I",
+      "sequence": 4,
+      "stages": [],
+      "last": "已选择原型Ⅰ · 四段",
+      "root": "Idle"
+    },
+    {
+      "name": "finite pre-input queues then consumes exactly one next stage",
+      "ok": true,
+      "selection": "hunter.prototype.I",
+      "sequence": 4,
+      "stages": [
+        1,
+        2
+      ],
+      "last": "已释放 A2",
+      "root": "Released @0.000 5cca9bdf"
+    },
+    {
+      "name": "empty swings reach four stages via ordinary InputSystem",
+      "ok": true,
+      "selection": "hunter.prototype.I",
+      "sequence": 4,
+      "stages": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "last": "已释放 A4",
+      "root": "Released @0.133 0fc79055"
+    },
+    {
+      "name": "terminal full-combo recovery rejects early restart",
+      "ok": true,
+      "selection": "hunter.prototype.I",
+      "sequence": 4,
+      "stages": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "last": "已释放 A4",
+      "root": "AttackReady @0.500 0fc79055"
+    },
+    {
+      "name": "authored hunter dash enters real Movement",
+      "ok": true,
+      "selection": "hunter.prototype.I",
+      "sequence": 4,
+      "stages": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "last": "已释放 A4",
+      "root": "Finished @0.833 0fc79055"
+    },
+    {
+      "name": "terminal recovery expires on root clock",
+      "ok": true,
+      "selection": "hunter.prototype.I",
+      "sequence": 4,
+      "stages": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "last": "已释放 A4",
+      "root": "Finished @0.833 0fc79055"
+    },
+    {
+      "name": "normal HUD selects independent two-stage form II",
+      "ok": true,
+      "selection": "hunter.prototype.II",
+      "sequence": 2,
+      "stages": [],
+      "last": "已选择原型Ⅱ · 两段重击 SAMPLE",
+      "root": "Finished @0.833 0fc79055"
+    },
+    {
+      "name": "form II follows own two-stage sequence",
+      "ok": true,
+      "selection": "hunter.prototype.II",
+      "sequence": 2,
+      "stages": [
+        1,
+        2
+      ],
+      "last": "已释放 A4",
+      "root": "Released @0.133 58841750"
+    },
+    {
+      "name": "ranger I independent three-stage profile",
+      "ok": true,
+      "selection": "ranger.prototype.I",
+      "sequence": 3,
+      "stages": [],
+      "last": "已选择原型Ⅰ · 三段",
+      "root": "Idle"
+    },
+    {
+      "name": "ranger ordinary empty swings reach all three stages",
+      "ok": true,
+      "selection": "ranger.prototype.I",
+      "sequence": 3,
+      "stages": [
+        1,
+        2,
+        3
+      ],
+      "last": "已释放 A3",
+      "root": "Released @0.167 4840a1a1"
+    },
+    {
+      "name": "ranger declared dash event has no invented displacement",
+      "ok": true,
+      "selection": "ranger.prototype.I",
+      "sequence": 3,
+      "stages": [
+        1,
+        2,
+        3
+      ],
+      "last": "已释放 A3",
+      "root": "Finished @1.267 4840a1a1"
+    },
+    {
+      "name": "chisel is granted by ordinary source command",
+      "ok": true,
+      "selection": "hunter.prototype.I",
+      "sequence": 2,
+      "stages": [],
+      "last": "已选择原型Ⅰ · 四段",
+      "root": "Finished @0.833 58841750"
+    },
+    {
+      "name": "idle source change composes chisel stage three",
+      "ok": true,
+      "selection": "hunter.prototype.I",
+      "sequence": 4,
+      "stages": [],
+      "last": "已选择原型Ⅰ · 四段",
+      "root": "Finished @0.833 58841750"
+    },
+    {
+      "name": "accepted chisel stores source identity",
+      "ok": true,
+      "selection": "hunter.prototype.I",
+      "sequence": 4,
+      "stages": [
+        1,
+        2,
+        3
+      ],
+      "last": "已释放 A2",
+      "root": "Accepted @0.000 4ccd4421"
+    },
+    {
+      "name": "accepted snapshot survives source removal",
+      "ok": true,
+      "selection": "hunter.prototype.I",
+      "sequence": 4,
+      "stages": [
+        1,
+        2,
+        3
+      ],
+      "last": "已释放 chisel",
+      "root": "Released @0.100 4ccd4421"
+    },
+    {
+      "name": "chisel release pays exactly one original frost balance",
+      "ok": true,
+      "selection": "hunter.prototype.I",
+      "sequence": 4,
+      "stages": [
+        1,
+        2,
+        3
+      ],
+      "last": "已释放 chisel",
+      "root": "Released @0.100 4ccd4421"
+    },
+    {
+      "name": "next idle snapshot no longer contains withdrawn chisel",
+      "ok": true,
+      "selection": "hunter.prototype.I",
+      "sequence": 4,
+      "stages": [
+        1,
+        2,
+        3
+      ],
+      "last": "已释放 chisel",
+      "root": "Finished @0.767 4ccd4421"
+    },
+    {
+      "name": "normal HUD restores unchanged four-stage candidate",
+      "ok": true,
+      "selection": "",
+      "sequence": null,
+      "stages": [
+        1,
+        2,
+        3
+      ],
+      "last": "已选择角色默认四段",
+      "root": "Finished @0.767 4ccd4421"
+    },
+    {
+      "name": "other weapon selection persists across control handoff",
+      "ok": true,
+      "selection": "",
+      "sequence": null,
+      "stages": [
+        1,
+        2,
+        3
+      ],
+      "last": "已选择角色默认四段",
+      "root": "Finished @0.767 4ccd4421"
+    },
+    {
+      "name": "profile sector actual contact is resolved once by Combat gateway",
+      "ok": true,
+      "selection": "hunter.prototype.I",
+      "sequence": 4,
+      "stages": [
+        1
+      ],
+      "last": "已释放 A1",
+      "root": "MoveReady @0.233 e8ca5d9a"
+    }
+  ]
+}

@@ -1,0 +1,127 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 04f3b86e3e0ab014c99ee29d4ee0bf6a, type: 3}
+  m_Name: hunter_I
+  m_EditorClassIdentifier: 
+  definitionId: hunter.prototype.I
+  displayName: "\u539F\u578B\u2160 \xB7 \u56DB\u6BB5"
+  professionId: hunter
+  formLabel: I
+  sourceEvidence: 'c21d4fc: hunter-combat-profile.ts, basic-definition.ts, main-form-spec.ts,
+    trial-combo.ts, ability-trial.ts. Gameplay values retained; rozeul existing semantic
+    mappings reused as PRESENTATION_PARTIAL. Ranger source declares dash event but
+    has no active translation consumer: distance remains zero.'
+  bufferSeconds: 0.25
+  continuationSeconds: 0.625
+  fullComboRecovery: 0.25
+  postureScale: 1
+  contactDuration: 0.1
+  stages:
+  - stageId: A1
+    action: {fileID: 11400000, guid: 2d5c07e2e85878b45ad8f9bd611bdec1, type: 2}
+    range: 1.7
+    arcDegrees: 114.59156
+    dashAt: 0
+    dashDistance: 0.16
+    dashDuration: 0.1
+    prefixReplaceable: 1
+  - stageId: A2
+    action: {fileID: 11400000, guid: 7b2c3f19da5f6614184a8a44fac6bde7, type: 2}
+    range: 1.7
+    arcDegrees: 114.59156
+    dashAt: 0
+    dashDistance: 0.25
+    dashDuration: 0.1
+    prefixReplaceable: 1
+  - stageId: A3
+    action: {fileID: 11400000, guid: 06ee159f33790114c86b8c46a9f5d080, type: 2}
+    range: 1.8
+    arcDegrees: 114.59156
+    dashAt: 0.0333
+    dashDistance: 0.8
+    dashDuration: 0.18
+    prefixReplaceable: 0
+  - stageId: A4
+    action: {fileID: 11400000, guid: 793369c35451a814f8f252f6a4e60e31, type: 2}
+    range: 2.2
+    arcDegrees: 55.00395
+    dashAt: 0.1
+    dashDistance: 1.25
+    dashDuration: 0.14
+    prefixReplaceable: 0
+  chisel:
+    stageId: chisel
+    action: {fileID: 11400000, guid: d5b5d43f3856e3745bae5a89ae9f0881, type: 2}
+    range: 1.8
+    arcDegrees: 114.59156
+    dashAt: 0
+    dashDistance: 0.6
+    dashDuration: 0.14
+    prefixReplaceable: 0
+  rapidPrefix:
+  - stageId: rapid1
+    action: {fileID: 11400000, guid: 9feb74bd0b6f2234184ec95b35319cec, type: 2}
+    range: 1.7
+    arcDegrees: 114.59156
+    dashAt: 0
+    dashDistance: 0.1
+    dashDuration: 0.1
+    prefixReplaceable: 0
+  - stageId: rapid2
+    action: {fileID: 11400000, guid: 7d24d59ff271a624687d4679c16e646b, type: 2}
+    range: 1.7
+    arcDegrees: 114.59156
+    dashAt: 0.0667
+    dashDistance: 0.1
+    dashDuration: 0.1
+    prefixReplaceable: 0
+  - stageId: rapid3
+    action: {fileID: 11400000, guid: 9c686e889b639884f8120a834016ac39, type: 2}
+    range: 1.7
+    arcDegrees: 114.59156
+    dashAt: 0.1
+    dashDistance: 0.4
+    dashDuration: 0.1
+    prefixReplaceable: 0
+  rapidPlusPrefix:
+  - stageId: rapidPlus1
+    action: {fileID: 11400000, guid: 2dcf7b953d922304cad8e2e73c25ed39, type: 2}
+    range: 1.7
+    arcDegrees: 114.59156
+    dashAt: 0
+    dashDistance: 0.1
+    dashDuration: 0.1
+    prefixReplaceable: 0
+  - stageId: rapidPlus2
+    action: {fileID: 11400000, guid: 9b71609e013ae7142a2e4b420745b338, type: 2}
+    range: 1.7
+    arcDegrees: 114.59156
+    dashAt: 0.0333
+    dashDistance: 0.1
+    dashDuration: 0.1
+    prefixReplaceable: 0
+  - stageId: rapidPlus3
+    action: {fileID: 11400000, guid: 28cdf54240f6b4b42a8baff68d6f33fc, type: 2}
+    range: 1.7
+    arcDegrees: 114.59156
+    dashAt: 0.0333
+    dashDistance: 0.4
+    dashDuration: 0.1
+    prefixReplaceable: 0
+  - stageId: rapidPlus4
+    action: {fileID: 11400000, guid: 64b1c27db5d23fa4696520ef601e6ab9, type: 2}
+    range: 1.7
+    arcDegrees: 114.59156
+    dashAt: 0.0333
+    dashDistance: 0.1
+    dashDuration: 0.1
+    prefixReplaceable: 0

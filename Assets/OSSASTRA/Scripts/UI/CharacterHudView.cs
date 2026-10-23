@@ -32,7 +32,10 @@ namespace Ossastra.UserInterface
         private Card hero,companion;
         private Text clock,notice,skillOwner,popupNote,popupIdentity;
         private string popupActorId;
+        private bool popupRight;
+        private readonly List<(string id,Image image)> mainActionChoices=new List<(string,Image)>();
         private readonly List<(string id,Image image,Text status)> popupChoices=new List<(string,Image,Text)>();
+        private readonly List<(string id,Text text)> sourcePopupChoices=new List<(string,Text)>();
         private readonly Text[] skillLabels=new Text[3],skillStates=new Text[3];
         private readonly Image[] skillImages=new Image[3];
         private static readonly Color ink=new Color32(9,11,13,240),edge=new Color32(140,169,163,255),gold=new Color32(201,177,107,255);
@@ -166,7 +169,8 @@ namespace Ossastra.UserInterface
             card.gray.enabled=s.grayHp>0;card.gray.fillAmount=.0215f+.957f*(s.maxHp<=0?0:Mathf.Clamp01((s.hp+s.grayHp)/s.maxHp));
             card.staminaFill.rectTransform.sizeDelta=new Vector2(((RectTransform)card.staminaFill.transform.parent).rect.width*.5f-2,11)*new Vector2(s.maxStamina<=0?0:Mathf.Clamp01(s.stamina/s.maxStamina),1);
             card.stamina.text=$"体力 {Mathf.CeilToInt(s.stamina)}/{s.maxStamina:0}";
-            card.left.text=s.leftHand=="空"?"—":s.leftHand.Contains("盾")?"盾":"弹";card.condition.text=s.condition;
+            card.left.text=s.leftHand=="空"?"—":s.leftHand.Contains("盾")?"盾":"弹";card.condition.text=string.IsNullOrEmpty(s.condition)?s.abilityResources:s.condition;
+            card.right.text=s.mainHandForm??"I";
             card.rightButton.interactable=s.alive;card.leftButton.interactable=s.alive;
             if(card.bottle!=null)card.bottle.text="Y\n<size=14>"+port.BottleCount+"/1</size>";
         }
@@ -185,44 +189,83 @@ namespace Ossastra.UserInterface
         private void OpenEquipment(Card card,bool right)
         {
             if(popup!=null)CloseEquipment();
-            port.SetModalCapture(this,true);popupActorId=card.snapshot.actorId;popupChoices.Clear();
+            port.SetModalCapture(this,true);popupActorId=card.snapshot.actorId;popupRight=right;popupChoices.Clear();
             modal=Node(surface,"EquipmentModal",new Rect(0,0,surface.rect.width,surface.rect.height));modal.anchorMin=Vector2.zero;modal.anchorMax=Vector2.one;modal.offsetMin=modal.offsetMax=Vector2.zero;
             Picture(modal,"ModalInputCapture",new Rect(0,0,surface.rect.width,surface.rect.height),null,new Color(0,0,0,.35f),true);
-            popup=Node(modal,"EquipmentPanel",new Rect(0,0,720,380));popup.anchorMin=popup.anchorMax=popup.pivot=new Vector2(.5f,.5f);popup.anchoredPosition=Vector2.zero;
-            Picture(popup,"Background",new Rect(0,0,720,380),null,new Color32(9,13,16,255),true);
+            popup=Node(modal,"EquipmentPanel",new Rect(0,0,720,600));popup.anchorMin=popup.anchorMax=popup.pivot=new Vector2(.5f,.5f);popup.anchoredPosition=Vector2.zero;
+            Picture(popup,"Background",new Rect(0,0,720,600),null,new Color32(9,13,16,255),true);
             Label(popup,"Title",new Rect(24,18,620,35),(card.snapshot.name??"")+" · "+(right?"右手装备":"左手装备"),20,Color.white,TextAnchor.MiddleLeft);
             var close=Button(popup,"Close",new Rect(660,20,36,32),skin.square,()=>CloseEquipment());Label(close.transform,"Glyph",new Rect(0,0,36,32),"×",20,edge);
             popupNote=Label(popup,"OwnedNote",new Rect(24,58,672,25),"仅展示本体持有装备 · 当前左手："+card.snapshot.leftHand+" · 耐久 "+card.snapshot.durability,12,edge,TextAnchor.MiddleLeft);
             if(right)
             {
                 var skillChoices=port.SkillChoices(card.snapshot.actorId);var id=card.snapshot.actorId;
-                Label(popup,"MainDefinition",new Rect(24,96,672,35),card.snapshot.rightHand+" · E 固定 · 脱战空闲时配置 Q/R",14,edge);
+                Label(popup,"MainDefinition",new Rect(24,90,672,30),card.snapshot.rightHand+" · 主手动作组 · 脱战空闲时配置",14,edge);
+                var profiles=port.MainActionChoices(id);var width=672f/(profiles.Length+1);
+                for(int j=0;j<=profiles.Length;j++)
+                {
+                    var choice=j==0?(id:"",name:"角色默认 · 四段"):profiles[j-1];
+                    var button=Button(popup,"MainProfile"+j,new Rect(24+j*width,126,width-8,42),skin.square,()=>port.ConfigureMainAction(id,choice.id));
+                    Label(button.transform,"Choice",new Rect(4,2,width-16,38),choice.name,12,edge);mainActionChoices.Add((choice.id,(Image)button.targetGraphic));
+                }
+                var skillsViewport=Node(popup,"SkillConfigurationViewport",new Rect(24,178,672,354));skillsViewport.gameObject.AddComponent<RectMask2D>();
+                var skillsContent=Node(skillsViewport,"Content",new Rect(0,0,672,Mathf.Max(354,40+(skillChoices.Length+1)*52)));
+                var skillScroll=skillsViewport.gameObject.AddComponent<ScrollRect>();skillScroll.viewport=skillsViewport;skillScroll.content=skillsContent;skillScroll.horizontal=false;skillScroll.vertical=true;skillScroll.scrollSensitivity=35;skillScroll.movementType=ScrollRect.MovementType.Clamped;
                 for(int column=0;column<2;column++)
                 {
-                    var slot=column==0?0:2;Label(popup,"SlotTitle"+slot,new Rect(24+column*344,138,328,28),slot==0?"Q 技能":"R 技能",16,edge);
+                    var slot=column==0?0:2;Label(skillsContent,"SlotTitle"+slot,new Rect(column*344,0,328,28),slot==0?"Q 技能":"R 技能",16,edge);
                     for(int j=0;j<=skillChoices.Length;j++)
                     {
                         var choice=j<skillChoices.Length?skillChoices[j]:(id:"",name:"清空槽位");
-                        var button=Button(popup,"Configure"+slot+"_"+j,new Rect(24+column*344,174+j*52,328,44),skin.square,()=>port.ConfigureSkill(id,slot,choice.id));
+                        var button=Button(skillsContent,"Configure"+slot+"_"+j,new Rect(column*344,36+j*52,328,44),skin.square,()=>port.ConfigureSkill(id,slot,choice.id));
                         Label(button.transform,"Choice",new Rect(8,2,312,40),choice.name,14,edge);
                     }
                 }
+                var experimental=Button(popup,"ExperimentalSources",new Rect(24,550,672,32),skin.square,()=>OpenSources(card));
+                Label(experimental.transform,"Label",new Rect(8,0,656,32),"实验来源配置 · 测试授予/撤回",13,edge);
                 return;
             }
-            popupIdentity=Label(popup,"EquipmentInstance",new Rect(24,320,672,40),"实例："+card.snapshot.leftInstanceId,11,edge,TextAnchor.MiddleLeft,true);
+            popupIdentity=Label(popup,"EquipmentInstance",new Rect(24,550,672,40),"实例："+card.snapshot.leftInstanceId,11,edge,TextAnchor.MiddleLeft,true);
             var choices=port.EquipmentChoices(card.snapshot.actorId);var actorId=card.snapshot.actorId;
+            var viewport=Node(popup,"EquipmentViewport",new Rect(24,102,672,430));viewport.gameObject.AddComponent<RectMask2D>();
+            var content=Node(viewport,"Content",new Rect(0,0,672,Mathf.Max(430,choices.Length*100)));
+            var scroll=viewport.gameObject.AddComponent<ScrollRect>();scroll.viewport=viewport;scroll.content=content;scroll.horizontal=false;scroll.vertical=true;scroll.scrollSensitivity=35;scroll.movementType=ScrollRect.MovementType.Clamped;
             for(int i=0;i<choices.Length;i++)
-            {var choice=choices[i];var button=Button(popup,"OwnedEquipment"+i,new Rect(24,102+i*100,672,88),skin.square,()=>port.Equip(actorId,choice.id));if(choice.sprite!=null)Picture(button.transform,"Icon",new Rect(12,10,68,68),choice.sprite);Label(button.transform,"Definition",new Rect(94,12,560,26),choice.name,18,edge,TextAnchor.MiddleLeft);var status=Label(button.transform,"Instance",new Rect(94,42,560,32),"本体持有 · 空闲时装备 · 保留原实例",12,edge,TextAnchor.MiddleLeft);popupChoices.Add((choice.id,(Image)button.targetGraphic,status));}
+            {var choice=choices[i];var button=Button(content,"OwnedEquipment"+i,new Rect(0,i*100,672,88),skin.square,()=>port.Equip(actorId,choice.id));if(choice.sprite!=null)Picture(button.transform,"Icon",new Rect(12,10,68,68),choice.sprite);Label(button.transform,"Definition",new Rect(94,12,560,26),choice.name,18,edge,TextAnchor.MiddleLeft);var status=Label(button.transform,"Instance",new Rect(94,42,560,32),"本体持有 · 空闲时装备 · 保留原实例",12,edge,TextAnchor.MiddleLeft);popupChoices.Add((choice.id,(Image)button.targetGraphic,status));}
         }
         private void RefreshEquipmentWindow()
         {
             var actor=hero.snapshot.actorId==popupActorId?hero.snapshot:companion.snapshot;
             if(actor.actorId!=popupActorId||!actor.alive){CloseEquipment();return;}
-            if(popupNote!=null)popupNote.text="当前左手："+actor.leftHand+" · 耐久 "+actor.durability+" · 仅展示本体持有装备";
+            if(sourcePopupChoices.Count>0)
+            {
+                var sources=port.SourceChoices(popupActorId);
+                foreach(var item in sourcePopupChoices)
+                {foreach(var source in sources)if(source.id==item.id){item.text.text=source.name+" · "+source.state+"  ["+(source.held?"撤回":"试验授予")+"]";item.text.color=source.state=="生效"?gold:edge;break;}}
+                return;
+            }
+            if(popupNote!=null)popupNote.text=(popupRight?"当前右手："+actor.rightHand:"当前左手："+actor.leftHand+" · 耐久 "+actor.durability)+" · "+actor.abilityResources;
+            if(popupRight){var selected=port.SelectedMainAction(popupActorId);foreach(var choice in mainActionChoices)choice.image.color=choice.id==selected?new Color(.65f,.9f,1):Color.white;}
             if(popupIdentity!=null)popupIdentity.text="实例："+actor.leftInstanceId;
             foreach(var choice in popupChoices){var equipped=choice.id==actor.leftDefinitionId;choice.image.color=equipped?new Color(.65f,.9f,1):Color.white;choice.status.text=equipped?"已装备 · 耐久 "+actor.durability:"本体持有 · 空闲时装备 · 保留原实例";}
         }
-        private void CloseEquipment(){popupChoices.Clear();popupNote=null;popupIdentity=null;if(modal!=null)Destroy(modal.gameObject);modal=null;popup=null;port?.SetModalCapture(this,false);}
+        private void OpenSources(Card card)
+        {
+            CloseEquipment();port.SetModalCapture(this,true);popupActorId=card.snapshot.actorId;
+            modal=Node(surface,"SourceModal",new Rect(0,0,surface.rect.width,surface.rect.height));modal.anchorMin=Vector2.zero;modal.anchorMax=Vector2.one;modal.offsetMin=modal.offsetMax=Vector2.zero;
+            Picture(modal,"InputCapture",new Rect(0,0,surface.rect.width,surface.rect.height),null,new Color(0,0,0,.35f),true);
+            popup=Node(modal,"SourcePanel",new Rect(0,0,720,600));popup.anchorMin=popup.anchorMax=popup.pivot=new Vector2(.5f,.5f);popup.anchoredPosition=Vector2.zero;
+            Picture(popup,"Background",new Rect(0,0,720,600),null,new Color32(9,13,16,255),true);
+            Label(popup,"Title",new Rect(24,18,620,35),card.snapshot.name+" · 实验来源",20,Color.white,TextAnchor.MiddleLeft);
+            var close=Button(popup,"Close",new Rect(660,20,36,32),skin.square,CloseEquipment);Label(close.transform,"Glyph",new Rect(0,0,36,32),"×",20,edge);
+            Label(popup,"Boundary",new Rect(24,58,672,40),"仅测试授予/撤回，不代表已迁移正式成长和掉落。缺少技能根的来源休眠；未实现项不执行。",12,edge);
+            var choices=port.SourceChoices(popupActorId);var viewport=Node(popup,"Viewport",new Rect(24,110,672,460));viewport.gameObject.AddComponent<RectMask2D>();
+            var content=Node(viewport,"Content",new Rect(0,0,672,Mathf.Max(460,choices.Length*54)));
+            var scroll=viewport.gameObject.AddComponent<ScrollRect>();scroll.viewport=viewport;scroll.content=content;scroll.horizontal=false;scroll.vertical=true;scroll.scrollSensitivity=35;scroll.movementType=ScrollRect.MovementType.Clamped;
+            for(int i=0;i<choices.Length;i++)
+            {var choice=choices[i];var button=Button(content,"Source"+i,new Rect(0,i*54,672,48),skin.square,()=>port.ToggleExperimentalSource(popupActorId,choice.id));var text=Label(button.transform,"State",new Rect(12,2,648,44),choice.name+" · "+choice.state,14,edge,TextAnchor.MiddleLeft);sourcePopupChoices.Add((choice.id,text));}
+        }
+        private void CloseEquipment(){sourcePopupChoices.Clear();popupChoices.Clear();mainActionChoices.Clear();popupRight=false;popupNote=null;popupIdentity=null;if(modal!=null)Destroy(modal.gameObject);modal=null;popup=null;port?.SetModalCapture(this,false);}
         private void OnDisable(){closeAction.Disable();CloseEquipment();}
         private void OnDestroy(){closeAction.Dispose();CloseEquipment();if(canvas!=null)Destroy(canvas.gameObject);if(font!=null)Destroy(font);if(mono!=null)Destroy(mono);}
     }

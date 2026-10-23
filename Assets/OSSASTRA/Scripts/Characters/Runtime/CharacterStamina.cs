@@ -15,11 +15,21 @@ namespace Ossastra.Characters
         private StaminaState state;
         public double Current=>state?.Current??0;
         public double Maximum=>state?.Maximum??maximum;
+        public double Reserved=>state?.Reserved??0;
+        public double Spendable=>state?.Spendable??0;
         public float AttackCost=>attackCost;
         public Guid LastToken=>state?.LastToken??Guid.Empty;
         public string LastPayment {get;private set;}="无";
         public void Initialize(){if(state==null)state=new StaminaState(maximum,recoveryDelay,recoveryRate);}
         public bool CanSpend(double amount)=>isActiveAndEnabled&&state!=null&&state.CanSpend(amount);
+        public bool TryReserve(Guid token,double amount)=>isActiveAndEnabled&&state!=null&&state.TryReserve(token,amount);
+        public bool CommitReserved(Guid token,double time,Func<bool> commitSource,string source="ability-release")
+        {
+            var before=Current;var ok=isActiveAndEnabled&&state!=null&&state.CommitReserved(token,time,commitSource);
+            LastPayment=source+" #"+token.ToString("N")+(ok?" 已支付 ":" 拒绝 ")+(before-Current);return ok;
+        }
+        public bool CancelReservation(Guid token)=>state!=null&&state.CancelReservation(token);
+        public void CancelReservations()=>state?.CancelReservations();
         public bool Spend(Guid token,double amount,double time,string source)
         {var ok=isActiveAndEnabled&&state!=null&&state.TrySpend(token,amount,time);LastPayment=source+" #"+token.ToString("N")+(ok?" 已支付 ":" 拒绝 ")+amount;return ok;}
         public void Tick(double time,bool idle){state?.Tick(time,idle&&isActiveAndEnabled);}

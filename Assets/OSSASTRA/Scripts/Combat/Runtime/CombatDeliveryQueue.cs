@@ -40,6 +40,7 @@ namespace Ossastra.Combat
             public AttackRelease release;
             public Vector3 origin,landing,position,direction;
             public float elapsed;
+            public int emittedFrame;
             public Func<bool> valid;
             public Action<IReadOnlyList<HitOutcome>> resolved;
             public GameObject visual;
@@ -58,7 +59,7 @@ namespace Ossastra.Combat
         {
             if(source==null||!source.IsAvailable||parent==Guid.Empty||!activeParents.Contains(parent)||index<0||damage<=0||config==null||valid==null||!valid()||!emitted.Add((parent,index)))return false;
             var flight=new Flight{source=source,parent=parent,config=config.Freeze(),release=config.mode==DeliveryMode.Sector&&config.activeDuration>0?
-                AttackRelease.ForContactWindow(parent,index,source.Health.Id,damage,posture,reclaimBudget,reclaimRate):AttackRelease.ForEmission(parent,index,source.Health.Id,damage,posture,reclaimBudget,reclaimRate),origin=origin,landing=landing,direction=direction.normalized,position=origin+Vector3.up*.8f,valid=valid,resolved=resolved};
+                AttackRelease.ForContactWindow(parent,index,source.Health.Id,damage,posture,reclaimBudget,reclaimRate):AttackRelease.ForEmission(parent,index,source.Health.Id,damage,posture,reclaimBudget,reclaimRate),origin=origin,landing=landing,direction=direction.normalized,position=origin+Vector3.up*.8f,valid=valid,resolved=resolved,emittedFrame=Time.frameCount};
             if(config.mode==DeliveryMode.Sector)
             {
                 Resolve(flight,origin,Nearby(flight,origin,config.range,true));
@@ -84,7 +85,8 @@ namespace Ossastra.Combat
             for(int i=flights.Count-1;i>=0;i--)
             {
                 var f=flights[i];if(f.source==null||!f.valid()){Remove(i);continue;}
-                f.elapsed+=delta;
+                if(f.emittedFrame==Time.frameCount)continue;
+                var previousElapsed=f.elapsed;f.elapsed+=delta;
                 if(f.config.mode==DeliveryMode.Sector)
                 {
                     var origin=f.config.followSource?f.source.transform.position:f.origin;
@@ -93,7 +95,8 @@ namespace Ossastra.Combat
                     continue;
                 }
                 var t=Mathf.Clamp01(f.elapsed/f.config.flightTime);
-                var next=f.config.mode==DeliveryMode.Projectile?f.position+f.direction*f.config.speed*delta:
+                var travel=Mathf.Max(0,Mathf.Min(f.config.range,f.elapsed*f.config.speed)-Mathf.Min(f.config.range,previousElapsed*f.config.speed));
+                var next=f.config.mode==DeliveryMode.Projectile?f.position+f.direction*travel:
                     Vector3.Lerp(f.origin+Vector3.up*.8f,f.landing,t)+Vector3.up*(Mathf.Sin(t*Mathf.PI)*f.config.arcHeight);
                 // RayLandingArc明确沿源组合合同：先验直线落点，弧线仅表现；Parabolic才逐段实际碰撞。
                 var hit=f.config.mode==DeliveryMode.RayLandingArc?(RaycastHit?)null:FirstContact(f,f.position,next);
@@ -110,28 +113,33 @@ namespace Ossastra.Combat
         }
         private static IHitTarget[] Target(Collider collider)
         {
-            var target=collider==null?null:collider.GetComponentInParent<CombatVitals>();
-            return target!=null&&target.IsAvailable?new IHitTarget[]{target}:Array.Empty<IHitTarget>();
+            var target=CombatSpatialTarget.Find(collider);
+            return CombatTargetValidity.IsAvailable(target)?new[]{target}:Array.Empty<IHitTarget>();
         }
         private static RaycastHit? FirstContact(Flight f,Vector3 a,Vector3 b)
         {
             var delta=b-a;if(delta.sqrMagnitude<.000001f)return null;
             foreach(var hit in Physics.SphereCastAll(a,f.config.collisionRadius,delta.normalized,delta.magnitude,f.config.collisionLayers,QueryTriggerInteraction.Ignore).OrderBy(h=>h.distance))
-            {var target=hit.collider.GetComponentInParent<CombatVitals>();if(target==f.source||target!=null&&!target.IsAvailable)continue;return hit;}
+            {
+                var target=CombatSpatialTarget.Find(hit.collider);
+                if(ReferenceEquals(target,f.source)||target!=null&&(!CombatTargetValidity.IsAvailable(target)||target is ICombatTarget combat&&combat.Faction==f.source.Faction))continue;
+                if((f.config.mode==DeliveryMode.Ray||f.config.mode==DeliveryMode.Projectile)&&target is ICombatProjectileContact policy&&!policy.AllowsDirectProjectile)continue;
+                return hit;
+            }
             return null;
         }
         private static IHitTarget[] Nearby(Flight f,Vector3 point,float radius,bool sector)
         {
             return Physics.OverlapSphere(point+Vector3.up*.8f,radius,f.config.collisionLayers,QueryTriggerInteraction.Ignore)
-                .Select(c=>c.GetComponentInParent<CombatVitals>()).Where(v=>v!=null&&v.IsAvailable&&v!=f.source).Distinct()
-                .Where(v=>Clear(point,v.transform.position)&&(!sector||InsideArc(v.transform.position-point,f.direction,f.config.arc))).Cast<IHitTarget>().ToArray();
+                .Select(CombatSpatialTarget.Find).Where(v=>CombatTargetValidity.IsAvailable(v)&&!ReferenceEquals(v,f.source)).Distinct()
+                .Where(v=>Clear(point,CombatSpatialTarget.Position(v))&&(!sector||InsideArc(CombatSpatialTarget.Position(v)-point,f.direction,f.config.arc))).ToArray();
         }
         private static bool InsideArc(Vector3 delta,Vector3 direction,float arc)
         {delta.y=0;direction.y=0;return delta.sqrMagnitude<.0001f||arc>=360||Vector3.Angle(delta,direction)<=arc*.5f;}
         public static bool Clear(Vector3 a,Vector3 b)
         {
             a+=Vector3.up*.8f;b+=Vector3.up*.8f;var d=b-a;if(d.sqrMagnitude<.00001f)return true;
-            return !Physics.RaycastAll(a,d.normalized,d.magnitude,~0,QueryTriggerInteraction.Ignore).Any(h=>h.collider.GetComponentInParent<CombatVitals>()==null);
+            return !Physics.RaycastAll(a,d.normalized,d.magnitude,~0,QueryTriggerInteraction.Ignore).Any(h=>CombatSpatialTarget.Find(h.collider)==null);
         }
         private void Resolve(Flight f,Vector3 point,IHitTarget[] targets)
         {var receipts=CombatContactGateway.Resolve(f.release,f.source,targets,point);ResolvedCount++;f.resolved?.Invoke(receipts);}

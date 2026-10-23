@@ -1,0 +1,66 @@
+// 具名边界夹具：真实E输入、共享投递命中、状态和CD消费者；摆位/复原体力用于独立分支复验，不冒充A8自然故事。
+// 击杀前置伤害只走CombatDeliveryQueue，禁止直接改HP。Fresh Play运行，约13秒；结果VC02_ROCKET_EFFECTS。
+using System;using System.Linq;using System.Collections.Generic;using UnityEngine;using UnityEngine.InputSystem;using UnityEngine.InputSystem.LowLevel;using UnityEditor;using Ossastra.Characters;using Ossastra.CharacterCore;using Ossastra.Combat;using Funplay.Editor.Tools.Scripting;
+public class RocketEffectsProbe:IFunplayCommand
+{
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+ {
+  if(!Application.isPlaying)throw new Exception("Fresh Play required");
+  var coordinator=UnityEngine.Object.FindObjectOfType<CharacterControlCoordinator>();
+  if(coordinator==null)throw new Exception("Control coordinator missing");
+  var actor=coordinator.Characters.Single(r=>r.ActorId=="temporary-b");var module=actor.GetComponent<CharacterAbilities>();var state=actor.GetComponent<CharacterEquipment>().State.RightRuntime;var input=actor.GetComponent<CharacterInputHandler>();
+  var enemy=UnityEngine.Object.FindObjectOfType<Ossastra.Enemies.EnemyRoot>();if(enemy==null||module==null)throw new Exception("Candidate actor/target missing");
+  var status=enemy.GetComponent<CombatStatusEffects>();if(status==null)throw new Exception("Enemy CombatStatusEffects missing");
+  if(coordinator.Current!=actor)coordinator.SwitchNext();
+  foreach(var root in coordinator.Characters){root.CancelAction("rocket-effects-boundary");root.Vitals.RestoreForDevelopment();root.GetComponent<CompanionCombatBrain>().enabled=false;root.GetComponent<CharacterFollow>().enabled=false;root.SendMessage("OnApplicationFocus",true);}
+  enemy.AttacksEnabled=false;var brain=enemy.GetComponent<Ossastra.Enemies.ChaseEnemyBrain>();if(brain!=null)brain.enabled=false;enemy.SendMessage("OnApplicationFocus",true);
+  var engagement=UnityEngine.Object.FindObjectOfType<CombatEngagementSession>();if(engagement!=null)engagement.enabled=false;
+  var settingsBefore=InputSystem.settings;var settings=UnityEngine.Object.Instantiate(settingsBefore);settings.backgroundBehavior=InputSettings.BackgroundBehavior.IgnoreFocus;settings.editorInputBehaviorInPlayMode=InputSettings.EditorInputBehaviorInPlayMode.AllDeviceInputAlwaysGoesToGameView;InputSystem.settings=settings;
+  var keyboard=InputSystem.AddDevice<Keyboard>("VC02RocketKeys");var mouse=InputSystem.AddDevice<Mouse>("VC02RocketMouse");var overrides=new Dictionary<InputAction,string>();
+  foreach(var action in new[]{input.skillTwoAction,input.mouseAction}){overrides[action]=action.SaveBindingOverridesAsJson();for(int i=0;i<action.bindings.Count;i++)action.ApplyBindingOverride(i,action.bindings[i].path.Replace("<Keyboard>",keyboard.path).Replace("<Mouse>",mouse.path));}
+  EditorWindow.GetWindow(typeof(Editor).Assembly.GetType("UnityEditor.GameView")).Focus();coordinator.SendMessage("OnApplicationFocus",true);
+  var queue=new CombatDeliveryQueue();var rows=new List<object>();var facts=new List<ActionFact>();actor.ActionObserved+=facts.Add;
+  int failed=0,next=0,lastFrame=-1,accepted=0,emitted=0,baseHp=0;double start=EditorApplication.timeSinceStartup;var steps=new List<(double,Action)>();
+  void Key(bool held){InputSystem.QueueStateEvent(keyboard,held?new KeyboardState(UnityEngine.InputSystem.Key.E):new KeyboardState());}
+  void Flush(string phase){SessionState.SetString("VC02_ROCKET_EFFECTS",Newtonsoft.Json.JsonConvert.SerializeObject(new{state=phase,failed,rows}));}
+  void Check(string name,bool ok){if(!ok)failed++;rows.Add(new{name,ok,hp=enemy.Vitals.Health.Current,stunned=status.IsStunned,rate=state.ShotEnhancements.Snapshot().Rate,cd=module.SkillCooldown(1),accepted=module.AcceptedCount,emitted=module.EmittedCount,result=module.LastResult});Flush("running");}
+  void Setup(float distance)
+  {
+   Key(false);actor.CancelAction("rocket-case-reset");actor.GetComponent<CharacterStamina>().Restore();
+   foreach(var root in coordinator.Characters)root.GetComponent<CharacterMovement>().Teleport(new Vector3(root==actor?0:-6,.03f,-2));
+   enemy.RestoreForDevelopment();status.Clear();var cc=enemy.GetComponent<CharacterController>();cc.enabled=false;enemy.transform.position=new Vector3(distance,.03f,-2);cc.enabled=true;Physics.SyncTransforms();
+   var screen=Camera.main.WorldToScreenPoint(enemy.transform.position);InputSystem.QueueStateEvent(mouse,new MouseState{position=new Vector2(screen.x,screen.y)});
+   accepted=module.AcceptedCount;emitted=module.EmittedCount;baseHp=enemy.Vitals.Health.Current;facts.Clear();
+  }
+  bool BoundaryHit(int damage)
+  {
+   var id=Guid.NewGuid();queue.RegisterParent(id);bool applied=false;
+   var direction=enemy.transform.position-actor.transform.position;direction.y=0;
+   queue.Emit(actor.Vitals,id,0,new DeliveryParameters{mode=DeliveryMode.Ray,range=5,radius=.1f},damage,0,actor.transform.position,direction.normalized,enemy.transform.position,()=>actor.IsAlive,
+    receipts=>applied=receipts.Any(r=>r.Reason==HitReason.Applied&&r.TargetId==enemy.Vitals.Health.Id));
+   queue.CompleteParent(id);return applied;
+  }
+  steps.Add((.2,()=>{Setup(1.1f);Check("candidate is actual600HP target",baseHp==600);Check("native E uses canonical rocket",module.SkillDefinition(1)?.effectRoot=="rocket");}));
+  steps.Add((.35,()=>{foreach(var id in new[]{"rocket-launch","rocket-power","rocket-stun","rocket-speed","rocket-reset"})Check("normal experimental source grant "+id,module.ToggleExperimentalSource(id));}));
+  steps.Add((.5,()=>Key(true)));steps.Add((.58,()=>Key(false)));
+  steps.Add((.78,()=>{Check("launch through E accepts exactly once",module.AcceptedCount==accepted+1);Check("launch branch and power add24 produce84 actual HP",module.EmittedCount==emitted+1&&enemy.Vitals.Health.Current==baseHp-84);Check("launch branch applies real1.5second stun",status.IsStunned&&status.BlocksIntent);}));
+  steps.Add((1.15,()=>{Check("landing power add35 produces120 separately",module.EmittedCount==emitted+2&&enemy.Vitals.Health.Current==baseHp-204);Check("launch and landing share one accepted execution",facts.Count(f=>f.Kind==ActionFactKind.Accepted)==1);Check("landing has actual collision-limited movement and refreshed stun",actor.transform.position.x>.3f&&status.IsStunned);Check("landing installs five-second100percent shot rate",Math.Abs(state.ShotEnhancements.Snapshot().Rate-2)<.001);Check("nonlethal mark does not immediately refill",module.SkillCooldown(1)>4);}));
+  steps.Add((2.9,()=>Check("real stun expires without direct state reset",!status.IsStunned)));
+  steps.Add((6.15,()=>Check("landing shot rate expires on equipment simulation clock",Math.Abs(state.ShotEnhancements.Snapshot().Rate-1)<.001)));
+  steps.Add((6.8,()=>{Setup(3);Check("direct-kill case pre-damage crosses real gateway",BoundaryHit(baseHp-90)&&enemy.Vitals.Health.Current==90);Check("canonical rocket ready before next cast",module.SkillCooldown(1)==0);}));
+  steps.Add((7.15,()=>Key(true)));steps.Add((7.25,()=>Key(false)));
+  steps.Add((8.15,()=>{Check("landing directly kills90HP target outside launch range",module.AcceptedCount==accepted+1&&!enemy.Vitals.IsAlive);Check("direct kill refills same native-E cooldown",module.SkillCooldown(1)==0);}));
+  steps.Add((8.4,()=>Setup(3)));steps.Add((8.7,()=>Key(true)));steps.Add((8.8,()=>Key(false)));
+  steps.Add((9.28,()=>{Check("mark case lands nonlethally with120 damage",enemy.Vitals.Health.Current==baseHp-120&&module.SkillCooldown(1)>5);Check("kill within mark window is a separate real hit",BoundaryHit(enemy.Vitals.Health.Current)&&!enemy.Vitals.IsAlive);}));
+  steps.Add((9.55,()=>Check("death within one-second mark refills canonical cooldown",module.SkillCooldown(1)==0)));
+  steps.Add((9.8,()=>Setup(3)));steps.Add((10.1,()=>Key(true)));steps.Add((10.2,()=>Key(false)));
+  steps.Add((10.8,()=>Check("expired-marker case starts nonlethal",enemy.Vitals.Health.Current==baseHp-120&&module.SkillCooldown(1)>5)));
+  steps.Add((11.95,()=>Check("post-expiry kill goes through real gateway",BoundaryHit(enemy.Vitals.Health.Current)&&!enemy.Vitals.IsAlive)));
+  steps.Add((12.2,()=>{Check("death after one-second window cannot refill",module.SkillCooldown(1)>3);Check("ordinary revoke removes held rocket-speed source",module.ToggleExperimentalSource("rocket-speed"));}));
+  steps.Add((12.4,()=>Check("withdraw removes current timed rate",Math.Abs(state.ShotEnhancements.Snapshot().Rate-1)<.001)));
+  EditorApplication.CallbackFunction tick=null;
+  void Cleanup(){EditorApplication.update-=tick;Key(false);actor.ActionObserved-=facts.Add;queue.Clear();foreach(var pair in overrides)pair.Key.LoadBindingOverridesFromJson(pair.Value);InputSystem.RemoveDevice(keyboard);InputSystem.RemoveDevice(mouse);InputSystem.settings=settingsBefore;UnityEngine.Object.DestroyImmediate(settings);}
+  tick=()=>{if(Time.frameCount==lastFrame)return;lastFrame=Time.frameCount;try{if(next<steps.Count&&EditorApplication.timeSinceStartup-start>=steps[next].Item1){var late=EditorApplication.timeSinceStartup-start-steps[next].Item1;if(late>.02)start+=late;steps[next++].Item2();}if(next==steps.Count){Cleanup();Flush("completed");}}catch(Exception ex){failed++;rows.Add(new{error=ex.ToString()});Cleanup();Flush("failed");}};
+  EditorApplication.update+=tick;Flush("running");
+ }
+}

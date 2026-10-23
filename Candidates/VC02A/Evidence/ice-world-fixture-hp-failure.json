@@ -1,0 +1,132 @@
+{
+  "state": "completed",
+  "failed": 4,
+  "rows": [
+    {
+      "name": "two overlapping patches accepted",
+      "ok": true,
+      "hp": 600,
+      "speed": 1.0
+    },
+    {
+      "name": "overlap produces only one15HP pulse",
+      "ok": false,
+      "hp": 585,
+      "speed": 0.65
+    },
+    {
+      "name": "ice applies real35percent movement slow",
+      "ok": true,
+      "hp": 585,
+      "speed": 0.65
+    },
+    {
+      "name": "allied owner receives ice membership without hostile slow",
+      "ok": true,
+      "hp": 585,
+      "speed": 0.65
+    },
+    {
+      "name": "no second pulse before halfsecond",
+      "ok": false,
+      "hp": 585,
+      "speed": 0.65
+    },
+    {
+      "name": "shared contact clock repeats at halfsecond",
+      "ok": false,
+      "hp": 570,
+      "speed": 0.65
+    },
+    {
+      "name": "paused simulation produces no damage",
+      "ok": true,
+      "hp": 570,
+      "speed": 0.65
+    },
+    {
+      "name": "leave ice removes only this source slow",
+      "ok": true,
+      "hp": 600,
+      "speed": 1.0
+    },
+    {
+      "name": "ice patches expire",
+      "ok": true,
+      "hp": 600,
+      "speed": 1.0
+    },
+    {
+      "name": "withdraw before due cancels pending column",
+      "ok": true,
+      "hp": 600,
+      "speed": 1.0
+    },
+    {
+      "name": "column scheduled",
+      "ok": true,
+      "hp": 600,
+      "speed": 1.0
+    },
+    {
+      "name": "real column has collider and4HP",
+      "ok": true,
+      "hp": 600,
+      "speed": 1.0
+    },
+    {
+      "name": "originating execution cannot break its column",
+      "ok": true,
+      "hp": 600,
+      "speed": 1.0
+    },
+    {
+      "name": "distinct real attack emission accepted",
+      "ok": true,
+      "hp": 600,
+      "speed": 1.0
+    },
+    {
+      "name": "column shatters on actual accepted contact",
+      "ok": true,
+      "hp": 600,
+      "speed": 1.0
+    },
+    {
+      "name": "burst is deferred outside damage callback",
+      "ok": true,
+      "hp": 600,
+      "speed": 1.0
+    },
+    {
+      "name": "shatter deals80 through shared area contact",
+      "ok": false,
+      "hp": 520,
+      "speed": 1.0
+    },
+    {
+      "name": "repeat emission cannot retrigger burst",
+      "ok": true,
+      "hp": 520,
+      "speed": 1.0
+    },
+    {
+      "name": "seven second expiry does not explode",
+      "ok": true,
+      "hp": 600,
+      "speed": 1.0
+    },
+    {
+      "name": "life invalidation clears owned world effects",
+      "ok": true,
+      "hp": 600,
+      "speed": 1.0
+    },
+    {
+      "name": "column recovery leases released",
+      "ok": true,
+      "hp": 600,
+      "speed": 1.0
+    }
+  ]
+}

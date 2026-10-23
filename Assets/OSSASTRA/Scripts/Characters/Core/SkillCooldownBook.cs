@@ -11,6 +11,9 @@ namespace Ossastra.CharacterCore
         private readonly Dictionary<string,double> deadlines=new Dictionary<string,double>();
         private readonly HashSet<Guid> accepted=new HashSet<Guid>();
         public double Remaining(string id,double time)=>id!=null&&deadlines.TryGetValue(id,out var end)?Math.Max(0,end-time):0;
+        /// <summary>有资格的击杀回充解除当前期限，保留接受去重账本；不能重复提交同一执行。</summary>
+        public bool MakeReady(string id,double time)
+        {if(string.IsNullOrWhiteSpace(id)||double.IsNaN(time)||double.IsInfinity(time)||!deadlines.ContainsKey(id))return false;deadlines[id]=Math.Min(deadlines[id],time);return true;}
         public bool Commit(string id,Guid actionId,double time,double duration)
         {
             if(string.IsNullOrWhiteSpace(id)||actionId==Guid.Empty||double.IsNaN(time)||double.IsInfinity(time)||

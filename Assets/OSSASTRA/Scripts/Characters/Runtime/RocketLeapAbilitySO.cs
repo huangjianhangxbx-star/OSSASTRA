@@ -4,8 +4,11 @@
  * 协作：Root推进唯一模拟钟；Movement处理墙体，释放时与落地时分别产生冻结节点。
  */
 using System;
+using System.Linq;
+using System.Collections.Generic;
 using UnityEngine;
 using Ossastra.Combat;
+using Ossastra.CharacterCore;
 using Ossastra.CharacterCore.Abilities;
 namespace Ossastra.Characters
 {
@@ -36,13 +39,25 @@ namespace Ossastra.Characters
             public bool IsActive=>!Ended&&velocity.sqrMagnitude>0;
             public Vector3 MotionVelocity=>velocity;
             public bool IsEvading=>!Ended&&launched&&Context.owner.SimulationTime<Context.acceptedAt+.4666667;
+            public override void OnResolved(int index,string channel,IReadOnlyList<HitOutcome> receipts)
+            {
+                var stun=Context.effects.Modifiers(channel).Select(m=>m.StunSeconds).DefaultIfEmpty(0).Max();
+                if(stun>0)foreach(var receipt in receipts.Where(r=>r.Reason==HitReason.Applied&&r.HpAfter>0))
+                {
+                    var target=UnityEngine.Object.FindObjectsOfType<CombatVitals>().FirstOrDefault(v=>v.Health?.Id==receipt.TargetId);
+                    target?.GetComponent<CombatStatusEffects>()?.ApplyStun(Context.id,(float)stun);
+                }
+                Context.owner.GetComponent<CharacterAbilities>()?.TrackRocketContacts(Context,receipts);
+            }
             public override void Tick(float delta,bool held)
             {
                 if(Ended)return;var t=Context.owner.SimulationTime-Context.acceptedAt;velocity=Vector3.zero;
                 if(!launched&&t>=.1)
                 {
                     if(!Context.BeginCooldown()){Cancel();Context.owner.CancelOwnedMainAction(Context.id,"rocket-cooldown-conflict");return;}
-                    launched=true;
+                    launched=true;Context.NotifyFeedback("launch");
+                    if(Context.effects.HasEffect("rocket-launch"))
+                        Context.Deliver(new AbilityEmission(.1,60,1),Context.definition.delivery,"rocket-launch");
                 }
                 if(launched&&delta>0)
                 {
@@ -51,7 +66,7 @@ namespace Ossastra.Characters
                 }
                 // 最后一段运动由Movement在本帧执行，下一帧取真实落点；墙体截断也不会隔墙炸预期落点。
                 if(!landed&&t-delta>=.43)
-                {landed=true;Context.emit(Context,new AbilityEmission(.43,Context.definition.plan.Emissions[0].Damage,0));}
+                {landed=true;Context.NotifyFeedback("land");var state=Context.source.RuntimeState;state.ShotEnhancements.RocketLanded(Context.effects,state.EquippedTime,state.Sources);Context.emit(Context,new AbilityEmission(.43,Context.definition.plan.Emissions[0].Damage,0));}
                 if(t>=.9){velocity=Vector3.zero;Ended=true;}
             }
         }

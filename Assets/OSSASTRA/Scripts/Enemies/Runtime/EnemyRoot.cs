@@ -31,6 +31,7 @@ namespace Ossastra.Enemies
         public float WarningRadius => hitShape==null?0:hitShape.Radius;
         private IEnemyBrain brain;
         private IEnemyMovement movement;
+        private CombatStatusEffects statusEffects;
         private BasicActionRuntime runtime;
         private BasicAttackDefinition attack;
         private readonly ControlAuthority authority=new ControlAuthority();
@@ -56,6 +57,7 @@ namespace Ossastra.Enemies
             var chase=GetComponent<ChaseEnemyBrain>();
             brain=chase!=null&&chase.enabled?(IEnemyBrain)chase:GetComponent<StationaryEnemyBrain>();
             movement=GetComponent<EnemyMovement>();
+            statusEffects=GetComponent<CombatStatusEffects>();if(statusEffects!=null)statusEffects.ControlChanged+=OnStatusControlChanged;
             try { attack=new BasicAttackDefinition(releaseAt,moveReadyAt,attackReadyAt,finishAt,damage,postureImpact); runtime=new BasicActionRuntime(actorId); }
             catch(ArgumentException e) { Debug.LogError("Enemy configuration: "+e.Message,this); enabled=false; return; }
             if(!vitals.Initialize(actorId) || brain==null || !brain.Initialize(vitals))
@@ -74,6 +76,9 @@ namespace Ossastra.Enemies
             if(vitals==null || !vitals.IsAvailable) { Cancel("source-unavailable"); return; }
             // 1. 根独占架势时钟，禁用开发攻击不冻结恢复；失焦/暂停停钟。
             if (posture != null) posture.Tick(!focused || applicationPaused || paused ? 0 : Time.deltaTime, runtime.IsActive);
+            statusEffects?.Tick(IsSimulationSuspended?0:Time.deltaTime);
+            if(statusEffects!=null&&statusEffects.BlocksIntent)
+            {movement?.Tick(Vector3.zero,IsSimulationSuspended?0:Time.deltaTime);return;}
             if(!attacksEnabled || !focused || applicationPaused || paused || !authority.Allows(ControlChannel.Attack)) {movement?.Stop();return;}
             // 2. 决策资格先于动作请求；Brain不掌握架势数值或第二时钟。
             if(brain==null || !brain.IsAvailable) { Cancel("brain-disabled"); return; }
@@ -118,18 +123,20 @@ namespace Ossastra.Enemies
             brain?.ResetDecision(Time.time);
         }
         public void SetPaused(bool value) { paused=value; if(value) Cancel("enemy-paused"); }
+        private void OnStatusControlChanged(){if(statusEffects!=null&&statusEffects.BlocksIntent)Cancel("combat-status");}
         private void OnPostureBroken(string cause)
         {
             authority.Block(posture, ControlChannel.Move | ControlChannel.Attack);
             Cancel("posture-broken:" + cause);
         }
         private void OnPostureRecovered() { authority.Release(posture); }
-        private void OnDied(HitOutcome outcome) { Cancel("death:"+outcome.ActorId); }
+        private void OnDied(HitOutcome outcome) { statusEffects?.Clear();Cancel("death:"+outcome.ActorId); }
         private void OnDisable() { Cancel("enemy-disabled"); if (posture != null) posture.ResetState(); authority.Release(posture); }
         private void OnApplicationFocus(bool value) { focused=value; if(!value) Cancel("focus-lost"); }
         private void OnApplicationPause(bool value) { applicationPaused=value; if(value) Cancel("application-paused"); }
         private void OnDestroy()
         {
+            if(statusEffects!=null)statusEffects.ControlChanged-=OnStatusControlChanged;
             if(vitals!=null) vitals.Died-=OnDied;
             if(posture!=null) { posture.Broken-=OnPostureBroken; posture.Recovered-=OnPostureRecovered; }
             authority.Release(posture);

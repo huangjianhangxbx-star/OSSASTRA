@@ -13,6 +13,21 @@ static class CombatResourcesTests
   var reload=Guid.NewGuid();C(magazine.BeginReload(reload,AmmoKind.Mortar,6,false,0,.8),"precision reserves reload");C(!magazine.CompleteReload(.7)&&magazine.Count==3,"reload not free before due");C(magazine.CompleteReload(.8)&&magazine.Count==6&&magazine.Next==AmmoKind.Mortar,"reload commits special sequence");C(!magazine.CompleteReload(1)&&magazine.Count==6,"no duplicate refill");
   magazine.BeginReload(Guid.NewGuid(),AmmoKind.Normal,4,false,2,.8);magazine.CancelReload();C(!magazine.CompleteReload(3)&&magazine.Count==6,"cancel preserves prior magazine without refill");
   C(magazine.BeginReload(Guid.NewGuid(),AmmoKind.Mortar,4,true,3,.8)&&magazine.Count==4&&magazine.Next==AmmoKind.Mortar,"instant reload and delayed path exclusive");
+  var finiteReload=Guid.NewGuid();magazine.BeginReload(finiteReload,AmmoKind.Normal,4,false,4,.8);
+  C(!magazine.CompleteReload(finiteReload,double.NaN)&&magazine.IsReloading,"invalid clock cannot complete reload");
+  C(!magazine.CompleteReload(Guid.NewGuid(),5)&&magazine.IsReloading,"foreign action cannot commit reload");
+  magazine.CancelReload(Guid.NewGuid());C(magazine.IsReloading,"foreign cancellation cannot clear reload");
+  C(magazine.CompleteReload(finiteReload,5),"owner action completes preserved reload");
+  var auto=new MagazineState();auto.Consume(Guid.NewGuid(),1);
+  auto.TickAutomatic(3.9,true);C(!auto.IsReloading,"partial magazine waits three idle seconds since shot");
+  auto.TickAutomatic(4,true);C(auto.IsReloading&&auto.Count==3,"ordinary reload reserves after idle deadline");
+  auto.TickAutomatic(4.7,true);C(auto.Count==3,"ordinary reload never grants before point8");
+  auto.TickAutomatic(4.81,true);C(auto.Count==4&&!auto.IsReloading,"ordinary reload restores four normal rounds");
+  for(var i=0;i<4;i++)auto.Consume(Guid.NewGuid(),5);
+  auto.TickAutomatic(5,true);C(auto.IsReloading,"empty magazine begins reload immediately when idle");
+  auto.CancelAutomaticReload();auto.TickAutomatic(5.9,false);C(auto.Count==0&&!auto.IsReloading,"unequip cancels automatic refill");
+  var expanded=new MagazineState();expanded.BeginReload(Guid.NewGuid(),AmmoKind.Mortar,6,true,0,0);expanded.Consume(Guid.NewGuid(),1);
+  expanded.TickAutomatic(4,true);C(expanded.IsReloading&&expanded.Count==5,"six round capacity recognizes one missing round");expanded.TickAutomatic(4.81,true);C(expanded.Count==4&&expanded.Capacity==4&&expanded.Next==AmmoKind.Normal,"ordinary refill resets expanded capacity to four");
   Console.WriteLine(checks+" combat resource contracts passed");
  }
 }

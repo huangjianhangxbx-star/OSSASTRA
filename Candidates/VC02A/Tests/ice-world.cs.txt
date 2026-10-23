@@ -1,0 +1,51 @@
+// 具名边界夹具：真实Physics、共享网关和状态消费者；显式摆位/恢复只用于验证，不冒充普通操作故事。
+using System;using System.Linq;using System.Collections.Generic;using UnityEngine;using UnityEditor;using Ossastra.Combat;using Ossastra.CharacterCore;using Ossastra.Characters;using Funplay.Editor.Tools.Scripting;
+public class IceWorldProbe:IFunplayCommand
+{
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+ {
+  if(!Application.isPlaying)throw new Exception("Play required");
+  var actor=UnityEngine.Object.FindObjectsOfType<Ossastra.Characters.CharacterRoot>().First(r=>r.ActorId=="temporary-a");var enemy=UnityEngine.Object.FindObjectOfType<Ossastra.Enemies.EnemyRoot>();
+  var status=enemy.GetComponent<CombatStatusEffects>();if(status==null)throw new Exception("Candidate enemy needs CombatStatusEffects");
+  foreach(var root in UnityEngine.Object.FindObjectsOfType<Ossastra.Characters.CharacterRoot>()){root.CancelAction("ice-test");root.GetComponent<CompanionCombatBrain>().enabled=false;root.GetComponent<CharacterFollow>().enabled=false;root.GetComponent<CharacterMovement>().Teleport(new Vector3(root==actor?0:-5,.03f,-2));}
+  enemy.AttacksEnabled=false;var brain=enemy.GetComponent<Ossastra.Enemies.ChaseEnemyBrain>();if(brain!=null)brain.enabled=false;var engage=UnityEngine.Object.FindObjectOfType<CombatEngagementSession>();if(engage!=null)engage.enabled=false;
+  void PlaceEnemy(float x){enemy.RestoreForDevelopment();var controller=enemy.GetComponent<CharacterController>();controller.enabled=false;enemy.transform.position=new Vector3(x,.03f,-2);controller.enabled=true;Physics.SyncTransforms();}
+  var rows=new List<object>();int failed=0;
+  void Check(string name,bool ok){if(!ok)failed++;rows.Add(new{name,ok,hp=enemy.Vitals.Health.Current,speed=status.SpeedScale});}
+  CombatIceWorld world=null;var queue=new CombatDeliveryQueue();bool lifeValid=true;
+  try
+  {
+   PlaceEnemy(.6f);var pristineHp=enemy.Vitals.Health.Current;world=new CombatIceWorld(actor.Vitals,()=>lifeValid);var parent=Guid.NewGuid();
+   Check("two overlapping patches accepted",world.SpawnPatch(parent,actor.transform.position)&&world.SpawnPatch(parent,actor.transform.position+Vector3.right*.1f));
+   world.Tick(.1f);Check("overlap produces only one15HP pulse",enemy.Vitals.Health.Current==pristineHp-15&&world.PulseCount==1);
+   Check("ice applies real35percent movement slow",Mathf.Abs(status.SpeedScale-.65f)<.001f);
+   Check("allied owner receives ice membership without hostile slow",world.IsOnIce(actor.Vitals));
+   world.Tick(.1f);Check("no second pulse before halfsecond",enemy.Vitals.Health.Current==pristineHp-15);
+   world.Tick(.4f);Check("shared contact clock repeats at halfsecond",enemy.Vitals.Health.Current==pristineHp-30&&world.PulseCount==2);
+   var hp=enemy.Vitals.Health.Current;world.Tick(0);Check("paused simulation produces no damage",enemy.Vitals.Health.Current==hp);
+   PlaceEnemy(4);world.Tick(.1f);Check("leave ice removes only this source slow",Mathf.Abs(status.SpeedScale-1)<.001f&&!world.IsOnIce(enemy.Vitals));
+   world.Tick(8);Check("ice patches expire",world.PatchCount==0);world.Dispose();world=new CombatIceWorld(actor.Vitals,()=>lifeValid);
+   bool held=true;var rejected=Guid.NewGuid();world.ScheduleColumn(rejected,actor.transform.position,new Vector3(1,.03f,-2),()=>held);held=false;world.Tick(.2f);Check("withdraw before due cancels pending column",world.PendingCount==0&&world.ColumnCount==0);
+   var columnParent=Guid.NewGuid();PlaceEnemy(2);Check("column scheduled",world.ScheduleColumn(columnParent,actor.transform.position,new Vector3(1,.03f,-2),()=>true));
+   world.Tick(.2f);Physics.SyncTransforms();var column=UnityEngine.Object.FindObjectsOfType<CombatIceColumn>().Single(c=>c.OriginExecution==columnParent);
+   Check("real column has collider and4HP",column.Health.Current==4&&column.GetComponent<Collider>().enabled&&world.ColumnCount==1);
+   var bullet=Guid.NewGuid();queue.RegisterParent(bullet);queue.Emit(actor.Vitals,bullet,0,new DeliveryParameters{mode=DeliveryMode.Ray,range=1.3f},20,0,actor.transform.position,Vector3.right,Vector3.zero,()=>true,null);
+   Check("ordinary direct projectile cannot shatter column",column.IsAvailable&&column.Health.Current==4);
+   var config=new DeliveryParameters{mode=DeliveryMode.Sector,range=1.3f,radius=1.3f,arc=360};
+   queue.RegisterParent(columnParent);queue.Emit(actor.Vitals,columnParent,0,config,20,0,actor.transform.position,Vector3.right,Vector3.zero,()=>true,null);
+   Check("originating execution cannot break its column",column.Health.Current==4&&column.IsAvailable&&world.BurstCount==0);
+   var strike=Guid.NewGuid();queue.RegisterParent(strike);Check("distinct real attack emission accepted",queue.Emit(actor.Vitals,strike,0,config,20,0,actor.transform.position,Vector3.right,Vector3.zero,()=>true,null));
+   Check("column shatters on actual accepted contact",column.Shattered&&column.Health.Current==0);
+   Check("burst is deferred outside damage callback",world.BurstCount==0);world.Tick(.01f);
+   Check("shatter deals80 through shared area contact",world.BurstCount==1&&enemy.Vitals.Health.Current==pristineHp-80);
+   Check("repeat emission cannot retrigger burst",!queue.Emit(actor.Vitals,strike,0,config,20,0,actor.transform.position,Vector3.right,Vector3.zero,()=>true,null));
+   world.Clear();PlaceEnemy(3);var expires=Guid.NewGuid();world.ScheduleColumn(expires,actor.transform.position,new Vector3(1,.03f,-2),()=>true);world.Tick(.2f);var burstBefore=world.BurstCount;world.Tick(7.01f);
+   Check("seven second expiry does not explode",world.ColumnCount==0&&world.BurstCount==burstBefore);
+   world.SpawnPatch(Guid.NewGuid(),actor.transform.position);lifeValid=false;world.Tick(.01f);Check("life invalidation clears owned world effects",world.PatchCount==0&&world.PendingCount==0&&world.ColumnCount==0);
+   Check("column recovery leases released",actor.Vitals.Recovery==null||actor.Vitals.Recovery.ActiveParents==0);
+  }
+  catch(Exception ex){failed++;rows.Add(new{error=ex.ToString()});}
+  finally{world?.Dispose();queue.Clear();status.Clear();}
+  var result=Newtonsoft.Json.JsonConvert.SerializeObject(new{state="completed",failed,rows});SessionState.SetString("VC02_ICE_WORLD",result);ctx.ReturnValue=result;
+ }
+}

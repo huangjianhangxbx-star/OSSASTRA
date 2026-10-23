@@ -26,3 +26,41 @@ A-T01—A-T24尚未全部执行。以上结果对应本轮当前增量，后续�
 - 真实失败与修复：盾冲持续窗口重复提交瞬时AttackRelease，第二次扫描抛出`Attack release already resolved`，使Root在运动前异常退出。诊断追踪见rush-trace.json（红证据）；新增显式ForContactWindow入口持有本波次目标集，普通瞬时Resolve仍严格一次性，纯合同先红后绿；六技能世界测试重跑25/25。Root临时字符串逐帧追踪已移除，保留Movement的无分配只读请求/许可诊断。
 
 仍未完成：原型动作/形态组、弹仓的实际射击与装填消费者、三实验根/17分支/10符文、独立装备Spine、完整资源HUD与配置反馈，以及A8全套复验。禁止以六技能测试通过宣布VC02A完成。
+
+## 本轮最终技术验收（2026-10-23）
+以下状态替代上方历史增量的未完成清单。VC02A技术范围完成；用户手感/架构审定仍PENDING。停止于A，ART_ENTRY_READY=false；没有执行VC02B或接入正式美术。
+
+最终纯合同127项：能力34、资源33、释放体力预留10、动作组10、射击增益12、中立状态10、冰接触9、装备动画9，见pure-final.txt。
+
+|合同组|主要实证（Candidates/VC02A/Evidence）|结果|
+|---|---|---|
+|A-T01 身份/控制代际|final-contracts-reloaded、natural-story|PASS|
+|A-T02 持续方向闪避/重武装|held-axes（18）、natural-story|PASS；虚拟设备进入真实InputSystem，物理键盘人工待验|
+|A-T03 手势一次性|pure-final、bound-equipment|PASS|
+|A-T04 同类不同能力/同操作换装|bound-equipment（15）|PASS|
+|A-T05 独立通道并行/取消|parallel-world（5）|PASS|
+|A-T06 接受/释放/持续费用|pure-final预留10、source-reuse（11）、bound-equipment|PASS|
+|A-T07 多波/父执行预算|ability contracts、recovery-world（15）、six-skills|PASS|
+|A-T08 实际空间投递/遮挡|magazine-world（16）、bound-equipment、ice-world（22）|PASS|
+|A-T09 六常规技能|six-skills（25）|PASS|
+|A-T10 原生冲刺/火箭阶段|six-skills、rush-effects-world、rocket-effects-world|PASS|
+|A-T11 实际弹仓/装填|magazine-world、precision-world（20）、precision-cooldown-world（21）、pure资源33|PASS|
+|A-T12 17分支|rush-effects-world（60）、rocket-effects-world（29）、precision系列、shot-enhancement-world（25）|PASS；计数是断言/故事阶段，不是独立技能数|
+|A-T13 10符文/互斥/撤回|rush-effects-world八蓝符文、shot-enhancement-world两黄符文|PASS|
+|A-T14 真实冰路/冰柱/回充|ice-world、rush-effects-world、rocket-effects-world|PASS|
+|A-T15 虚血/夺回/治疗/死亡|recovery-world、pure资源33|PASS|
+|A-T16 连段/形态/恢复|main-world（21）、natural-story|PASS|
+|A-T17 三槽/固定E/规范CD|six-skills、precision-world、natural-story、final-contracts|PASS|
+|A-T18 身体/装备映射与重播|spine-world（20）、pure装备9、six-skills|PASS|
+|A-T19 独立装备Spine|spine-world、原创ProbeSkeleton/Atlas|PASS；最小技术装备，非正式美术|
+|A-T20 双实例/定义无污染|final-contracts、definition-integrity|PASS|
+|A-T21 原六区/正常反馈|natural-story（56）、main-world、shot-enhancement-world、已有skills-ui-local截图|PASS；正式美术质量未审定|
+|A-T22 暂停/死亡/切人/来源撤回|spine-world、recovery-world、natural-story、rush/shot来源边界|PASS|
+|A-T23 保存/域重载/旧场|final-contracts-reloaded（9）、legacy-chain-final（15）|PASS；旧场为ROADMAP03_DefenseLoadout，未保存改写旧场|
+|A-T24 配置扩展/合法资产|同类两盾、六技能SO、三实验根、四组动作、final-contracts全定义编译|PASS|
+
+正常操作故事56阶段使用真实输入和HUD按钮，不传送、不直接扣HP/补资源；包括持续移动闪避、四段连击、换装投掷/盾挡、Q/E、Y、真实死亡切控/返场。边界探针的摆位、资源准备和运行中撤回单列，不能冒充该自然故事。
+
+修复与失败保留：即时装填不再误发模板近战；来源提交失败不扣释放体力；长手势跨阈值释放不误触短按；弹体首帧/射程限制；绑定必须匹配实际手别与槽，native/常规目录ID不可冲突；最后一击通道统一，伤害比例相加后乘2.25暴击；死亡清装填增益；六发弹仓缺一发也触发闲置补普通四发；Spine纹理名与atlas页名一致。早期冰探针误假定100HP、主手夹具忽略切控屏障、旧回归跑错600HP场等红证据保留，未为迎合夹具放宽玩法。自然故事早期死亡发生于配置时站在敌旁，改为普通键盘退开再配置后通过。
+
+局限：媒体/动画/音效为本机复用或明确技术替身，未发布商业媒体。冰霜余震unresolved、火箭缺失第4分支、正式成长/背包经济/VC02B均不在本轮执行。完整全项目退休系统与干净克隆运行不作为本轮承诺。实际产品文件SHA见VC02A-source-manifest.tsv，Git提交覆盖该清单。

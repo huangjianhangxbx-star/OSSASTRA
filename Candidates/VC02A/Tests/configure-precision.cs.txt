@@ -1,0 +1,23 @@
+using System;using System.Linq;using UnityEngine;using UnityEditor;using Ossastra.Characters;using Ossastra.CharacterCore.Abilities;using Funplay.Editor.Tools.Scripting;
+public class ConfigurePrecision:IFunplayCommand
+{
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+ {
+  if(Application.isPlaying)throw new Exception("Edit required");const string folder="Assets/OSSASTRA/Configs/Abilities/";
+  T Own<T>(string id)where T:ScriptableObject {var p=folder+id+".asset";var d=AssetDatabase.LoadAssetAtPath<T>(p);if(d==null){d=ScriptableObject.CreateInstance<T>();ctx.RegisterObjectCreation(d);AssetDatabase.CreateAsset(d,p);}else ctx.RegisterObjectModification(d);return d;}
+  void Save(UnityEngine.Object d){EditorUtility.SetDirty(d);AssetDatabase.SaveAssetIfDirty(d);}
+  var executor=Own<PrecisionReloadAbilitySO>("PrecisionReload");executor.reloadDuration=.8f;executor.rounds=4;Save(executor);
+  var action=Own<ActionDefinitionSO>("precision_Action");action.definitionId="precision.action";action.animationKey="precision-reload";action.releaseAt=.8f;action.moveReadyAt=.8f;action.attackReadyAt=.8f;action.finishAt=.8f;action.damage=1;action.postureImpact=0;action.staminaCost=0;action.timingEvidence="c21d4fc precision reload .8s; ready_loop is temporary semantic adaptation";action.Freeze();Save(action);
+  var ability=Own<AbilityDefinitionSO>("precision");ability.definitionId="precision";ability.displayName="实验·精确装填";ability.effectRoot="precision";ability.cooldownIdentity="precision";ability.executor=executor;ability.action=action;ability.acceptCost=0;ability.cooldown=12;ability.occupancy=AbilityOccupancy.Body|AbilityOccupancy.MainHand;ability.finishAt=.8f;ability.moveReadyAt=.8f;ability.attackReadyAt=.8f;ability.releases=Array.Empty<AbilityReleaseNode>();ability.Compile();Save(ability);
+  foreach(var tuple in new[]{("hunter","hunter-native-E","rush"),("ranger","al-native-E","rocket")})
+  {
+   var original=AssetDatabase.LoadAssetAtPath<AbilityDefinitionSO>(folder+tuple.Item2+".asset");if(original==null)throw new Exception(tuple.Item2);
+   var alias=Own<AbilityDefinitionSO>(tuple.Item3);EditorUtility.CopySerialized(original,alias);alias.definitionId=tuple.Item3;alias.displayName="实验·"+original.displayName;alias.cooldownIdentity=original.cooldownIdentity;alias.Compile();Save(alias);
+   var profile=AssetDatabase.LoadAssetAtPath<AbilityLoadoutSO>(folder+tuple.Item1+"_SkillLoadout.asset");if(profile==null)throw new Exception(tuple.Item1);ctx.RegisterObjectModification(profile);profile.experimentalChoices=tuple.Item1=="ranger"?new[]{alias,ability}:new[]{alias};profile.Validate();Save(profile);
+  }
+  var animation=AssetDatabase.LoadAssetAtPath<CharacterAnimationProfileSO>(folder+"temporary-b_VC02_Animation.asset");if(animation==null)throw new Exception("animation");ctx.RegisterObjectModification(animation);
+  var prepare=animation.bindings.FirstOrDefault(b=>b.key=="rush-prepare");if(prepare==null)throw new Exception("prepare mapping");
+  animation.bindings=animation.bindings.Where(b=>b.key!="precision-reload").Concat(new[]{new CharacterAnimationBinding{key="precision-reload",clip=prepare.clip,loop=true,sourceDuration=prepare.sourceDuration,mixDuration=.08f,semantic=prepare.semantic}}).ToArray();Save(animation);
+  ctx.ReturnValue=new{precision=ability.Compile().id,aliasUsesCanonicalCooldown=true,changedScene=false};
+ }
+}

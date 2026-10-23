@@ -17,6 +17,8 @@ MonoBehaviour:
   definitionId: hunter-native-E
   displayName: "\u76FE\u51B2"
   cooldownIdentity: hunter-native-E
+  effectRoot: rush
+  damageChannel: rush
   executor: {fileID: 11400000, guid: 9e6c3f77282953547a6b5ce47455aa49, type: 2}
   action: {fileID: 11400000, guid: 006aef3c1b2b8bd40ab246589f51bacb, type: 2}
   occupancy: 11

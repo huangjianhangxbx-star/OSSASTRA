@@ -1,0 +1,49 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 10864447e0a8f6046b2d3ff2b0036e31, type: 3}
+  m_Name: precision
+  m_EditorClassIdentifier: 
+  schemaVersion: 1
+  cooldownPolicy: 0
+  definitionId: precision
+  displayName: "\u5B9E\u9A8C\xB7\u7CBE\u786E\u88C5\u586B"
+  cooldownIdentity: precision
+  effectRoot: precision
+  damageChannel: 
+  executor: {fileID: 11400000, guid: 70f7dca894ddeea4f96af9f8a9c1aa96, type: 2}
+  action: {fileID: 11400000, guid: 81a6a01a3ac9ac649aaaac2875eff186, type: 2}
+  occupancy: 3
+  acceptCost: 0
+  cooldown: 12
+  holdCostPerSecond: 0
+  releaseCost: 0
+  wearOnRelease: 0
+  reclaimBudget: 0.05
+  reclaimRate: 0.5
+  finishAt: 0.8
+  moveReadyAt: 0.8
+  attackReadyAt: 0.8
+  delivery:
+    mode: 0
+    range: 2
+    radius: 0.6
+    arc: 90
+    speed: 10
+    flightTime: 0.45
+    collisionRadius: 0.08
+    arcHeight: 1
+    activeDuration: 0
+    followSource: 0
+    collisionLayers:
+      serializedVersion: 2
+      m_Bits: 4294967295
+  releases: []

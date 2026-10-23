@@ -17,7 +17,8 @@ namespace Ossastra.Combat
         {
             if(release==null)throw new ArgumentNullException(nameof(release));
             if(source!=null && (!source.IsAvailable || source.Health.Id!=release.ActorId))return release.Resolve(Array.Empty<Health>());
-            var targets=candidates.Where(CombatTargetValidity.IsAvailable).Distinct()
+            var targets=candidates.Where(CombatTargetValidity.IsAvailable)
+                .Where(t=>!(t is ICombatContactFilter filter)||filter.Accepts(release)).Distinct()
                 .GroupBy(t=>t.Health.Id,StringComparer.Ordinal).Where(g=>g.Count()==1).Select(g=>g.Single())
                 .Where(t=>CombatTargetPolicy.CanHit(release.ActorId,source==null?CombatFaction.Neutral:source.Faction,
                     source==null||source.IsAlive,t.Health.Id,t is ICombatTarget combat?combat.Faction:CombatFaction.Neutral,true)).ToArray();
@@ -29,7 +30,7 @@ namespace Ossastra.Combat
                 if(outcome.Reason==HitReason.Applied)
                 {
                     if(target is ICombatTarget combat)combat.OnHitResolved(outcome);else target.ShowHit();
-                    source?.Recovery?.OnApplied(release,outcome);
+                    if(!(target is ICombatReclaimPolicy reclaimPolicy)||reclaimPolicy.AllowsReclaim)source?.Recovery?.OnApplied(release,outcome);
                 }
                 if(outcome.Reason==HitReason.Guarded||outcome.Reason==HitReason.Evaded)defenses[target]?.OnDefenseResolved(outcome);
                 if(outcome.HpAfter>0 && outcome.PostureScale>0 && target is MonoBehaviour component && component!=null)

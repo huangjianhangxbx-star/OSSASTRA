@@ -1,0 +1,59 @@
+/* 脚本：EquipmentSpinePresentationSO
+ * 功能：独立装备Spine、身体骨骼/插槽、装备握持点与语义动画的作者配置。
+ * 边界：不含角色输入、生命值或能力；映射在动作受理时冻结，运行中不回写SO。
+ */
+using System;
+using System.Collections.Generic;
+using Ossastra.AnimationCore;
+using Spine.Unity;
+using UnityEngine;
+namespace Ossastra.Characters
+{
+    [Serializable]
+    public sealed class EquipmentSpineAnimationBinding
+    {
+        public AnimationSemantic semantic;
+        public string clip;
+        public bool loop;
+        [Min(0)] public float mixDuration=.08f;
+        [Min(.01f)] public float playbackRate=1;
+    }
+    [CreateAssetMenu(menuName="OSSASTRA/Equipment/Spine Presentation")]
+    public sealed class EquipmentSpinePresentationSO:ScriptableObject
+    {
+        public SkeletonDataAsset skeletonData;
+        [Tooltip("角色的真实骨骼；不使用寻找第一个骨骼的隐式兜底。")] public string bodyBone;
+        [Tooltip("可选；提供颜色/显隐依据，空表示显式不跟随插槽。")] public string bodySlot;
+        [Tooltip("装备模型自身握持骨骼；动画后将此点对齐身体挂点。")] public string gripBone="grip";
+        public bool followBoneRotation=true,followSlotColor=true,followSlotAttachmentVisibility;
+        public Vector3 localOffset;
+        [Min(.001f)] public float localScale=1;
+        public float rotationOffset;
+        public int sortingOrderOffset=3;
+        [TextArea] public string presentationEvidence;
+        public EquipmentSpineAnimationBinding[] animations=Array.Empty<EquipmentSpineAnimationBinding>();
+        public EquipmentAnimationCatalog Freeze(Spine.SkeletonData body)
+        {
+            if(skeletonData==null)throw new ArgumentException(name+".skeletonData missing");
+            var data=skeletonData.GetSkeletonData(false);
+            if(data==null||body==null||string.IsNullOrEmpty(bodyBone)||body.FindBone(bodyBone)==null)
+                throw new ArgumentException(name+".bodyBone missing: "+bodyBone);
+            if(string.IsNullOrEmpty(gripBone)||data.FindBone(gripBone)==null)throw new ArgumentException(name+".gripBone missing: "+gripBone);
+            if(!string.IsNullOrEmpty(bodySlot)&&body.FindSlot(bodySlot)==null)throw new ArgumentException(name+".bodySlot missing: "+bodySlot);
+            if(!Finite(localScale)||localScale<=0||!Finite(localOffset.x)||!Finite(localOffset.y)||!Finite(localOffset.z)||!Finite(rotationOffset))
+                throw new ArgumentException(name+".mount transform invalid");
+            var bindings=new List<EquipmentAnimationClip>();
+            foreach(var entry in animations??Array.Empty<EquipmentSpineAnimationBinding>())
+            {
+                if(entry==null||data.FindAnimation(entry.clip)==null)throw new ArgumentException(name+".animations missing clip: "+entry?.clip);
+                bindings.Add(new EquipmentAnimationClip(entry.semantic,entry.clip,entry.loop,entry.mixDuration,entry.playbackRate));
+            }
+            var frozen=new EquipmentAnimationCatalog(bindings);
+            // 当前候选每种身体语义均要求显式映射。复用可以配置，但不能静默回退idle。
+            foreach(AnimationSemantic semantic in Enum.GetValues(typeof(AnimationSemantic)))
+                if(frozen.Find(semantic)==null)throw new ArgumentException(name+".animations missing semantic: "+semantic);
+            return frozen;
+        }
+        private static bool Finite(float value)=>!float.IsNaN(value)&&!float.IsInfinity(value);
+    }
+}

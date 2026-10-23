@@ -46,6 +46,17 @@ static class AbilityContractsTests
   var wave=AttackRelease.ForContactWindow(Guid.NewGuid(),0,"actor",20,0);var firstTarget=new Health("first-target",100);var lateTarget=new Health("late-target",100);
   wave.Resolve(new[]{firstTarget});wave.Resolve(new[]{firstTarget,lateTarget});
   Check(firstTarget.Current==80&&lateTarget.Current==80,"moving contact window hits late target but never repeats first target");
+  var sourceSet=new EffectSourceSet();var roots=new[]{"rush"};
+  var basicRune=new EffectSourceDefinition("basic","blue","frost-haste",phase:0,exclusivePoint:"haste",hastePerFrost:.08);
+  var upgradedRune=new EffectSourceDefinition("upgraded","blue","frost-haste",phase:1,exclusivePoint:"haste",hastePerFrost:.12);
+  sourceSet.Grant("a",basicRune);sourceSet.Grant("b",upgradedRune);
+  var evaluation=sourceSet.Evaluate("blue",roots);
+  Check(evaluation.Single(r=>r.InstanceId=="b").Status==EffectSourceStatus.Active&&evaluation.Single(r=>r.InstanceId=="a").Status==EffectSourceStatus.Superseded,"upgraded exclusive source wins by phase");
+  sourceSet.Grant("c",new EffectSourceDefinition("branch","blue","rush-frost",requiredRoot:"rush"));
+  Check(sourceSet.Evaluate("blue",Array.Empty<string>()).Single(r=>r.InstanceId=="c").Status==EffectSourceStatus.Dormant,"missing root leaves branch dormant");
+  Check(sourceSet.Evaluate("yellow",roots).All(r=>r.Status==EffectSourceStatus.ImportedUnresolved),"foreign profession sources do not execute");
+  var frozenSources=sourceSet.Snapshot("blue",roots,3,false);sourceSet.Remove("b");
+  Check(Math.Abs(frozenSources.HastePerFrost-.12)<.00001&&frozenSources.ContainsSource("b")&&!sourceSet.Contains("b"),"accepted source snapshot survives registry removal without changing live ownership");
   Console.WriteLine(count+" ability contracts passed");
  }
 }

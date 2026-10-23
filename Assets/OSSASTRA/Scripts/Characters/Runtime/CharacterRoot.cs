@@ -35,13 +35,16 @@ namespace Ossastra.Characters
         private ICombatLifeState lifeState;
         private CompanionCombatBrain combatBrain;
         private CharacterStamina stamina;
+        private CombatStatusEffects statusEffects;
         private CharacterDodge dodge;
         private CharacterEquipment equipment;
         private ShieldGuard guard;
         private CharacterOffhand offhand;
         private CharacterEquipmentView equipmentView;
+        private CharacterEquipmentSpineView equipmentSpineView;
         private ICharacterSkills skills;
         private ICharacterAbilityController abilities;
+        private CharacterMainAction mainAction;
         private CombatVitals autonomousTarget;
         private bool autonomousAction;
         public event Action<ActionFact> ActionObserved;
@@ -87,7 +90,7 @@ namespace Ossastra.Characters
         public bool IsPaused => paused || applicationPaused;
         public bool ActionActive => DataBus != null && DataBus.ActionActive;
         public bool IsAlive => lifeState==null || lifeState.IsAlive;
-        public bool CanSimulateIntent => ready && IsAlive && isActiveAndEnabled && focused && !IsPaused && (posture == null || !posture.IsStaggered);
+        public bool CanSimulateIntent => ready && IsAlive && isActiveAndEnabled && focused && !IsPaused && (posture == null || !posture.IsStaggered) && (statusEffects==null||!statusEffects.BlocksIntent);
         public CombatVitals Vitals => vitals;
         public event Action<CharacterRoot> Died;
         public CharacterFollow Follow => follow;
@@ -113,6 +116,7 @@ namespace Ossastra.Characters
         {
             if(!CanRespawn(owner)) return false;
             CancelAction("scene-respawn");
+            statusEffects?.Clear();mainAction?.ResetState();
             if(follow!=null) follow.ResetIntent();
             if(intentSelector!=null) intentSelector.Clear();
             input.ResetPlayerInput(true);
@@ -175,18 +179,22 @@ namespace Ossastra.Characters
             catch (ArgumentException error) { Debug.LogError("Character configuration: " + error.Message, this); enabled = false; return; }
             // 每角色独立Bus只读取原所有者；只有确需Bus的运动和表现执行初始化。
             DataBus = new CharacterDataBus(actorId, inputSource, mover, orienter, runtime, authority);
+            statusEffects=GetComponent<CombatStatusEffects>();if(statusEffects!=null)statusEffects.ControlChanged+=OnStatusControlChanged;
             stamina=GetComponent<CharacterStamina>();if(stamina!=null)stamina.Initialize();
             dodge=GetComponent<CharacterDodge>();if(dodge!=null)dodge.Initialize(this,stamina);
-            equipment=GetComponent<CharacterEquipment>();if(equipment!=null)equipment.Initialize(this);
+            equipment=GetComponent<CharacterEquipment>();if(equipment!=null){equipment.Initialize(this);if(equipment.State==null){enabled=false;return;}}
             guard=GetComponent<ShieldGuard>();if(guard!=null)guard.Initialize(this,stamina,equipment);
             DataBus.BindResources(stamina,dodge);
             offhand=GetComponent<CharacterOffhand>(); offhand?.Initialize(this,equipment,stamina);
             equipmentView=GetComponent<CharacterEquipmentView>();equipmentView?.Initialize(this);
+            equipmentSpineView=GetComponent<CharacterEquipmentSpineView>();equipmentSpineView?.Initialize(this);
             Actions=new CharacterActionCoordinator(this,stamina,dodge,offhand);
             skills=GetComponent<CharacterSkills>();skills?.Initialize(this);
             var abilityComponent=GetComponent<CharacterAbilities>();
             if(abilityComponent!=null&&abilityComponent.enabled){abilities=abilityComponent;abilities.Initialize(this);DataBus.BindAbilityMotion(abilityComponent);}
             ready = InitializeSubsystems(DataBus, mover, presentation);
+            mainAction=GetComponent<CharacterMainAction>();
+            if(mainAction!=null&&mainAction.enabled){mainAction.Initialize(this);mainAction.Resolved+=OnHitReceipt;DataBus.BindMainMotion(mainAction);RefreshMainProfile();}
             if (!ready) { Debug.LogError("Character subsystem initialization failed", this); enabled = false; }
             // 可选能力只接受本角色初始化；无组件/无assignment的旧场保持普通玩家行为。
             if (follow != null && !follow.Initialize(this)) Debug.LogWarning("Character follow unavailable: configuration or owner invalid", this);
@@ -208,6 +216,7 @@ namespace Ossastra.Characters
         {
             if (!ready) return;
             if (!IsAlive) { offhand?.CancelAll(); abilities?.CancelPending("death"); abilities?.TickEffects(0); CommitPresentation(); return; }
+            RefreshMainProfile();
             // 本体显式调度入口：以下阶段在一次Update中按书写顺序执行。
             // DefaultExecutionOrder只约束跨组件先后，不能替代这里的模块调用顺序。
             // 1. 采唯一意图源并处理暂停/取消；不由各子模块另开输入Update。
@@ -218,6 +227,7 @@ namespace Ossastra.Characters
             if(chain!=null && (!input.HasPlayerInput || IsPaused || !focused || !ChainAvailable)) chain.Clear();
             if (frame.pause) SetPaused(!paused);
             if (frame.cancel) CancelAction("player-cancel");
+            statusEffects?.Tick(IsSimulationSuspended?0:Time.deltaTime);
             vitals?.TickResources(IsSimulationSuspended?0:Time.deltaTime);
             // 2. 同一根时钟推进架势；主动作暂停自然恢复，暂停/失焦完全停钟。
             // 在Request前解除到期的本owner禁令；不会回滚其他根已释放的命中。
@@ -239,7 +249,7 @@ namespace Ossastra.Characters
             if (intent.Observe(frame.attackHeld) && focused && !frame.attackPointerBlocked)
             {
                 var stage=chain==null?1:chain.Request(runtime.SimulationTime,runtime.AttackReady,
-                    input.HasPlayerInput && !IsPaused && authority.Allows(ControlChannel.Attack) && ChainAvailable);
+                    input.HasPlayerInput && !IsPaused && authority.Allows(ControlChannel.Attack) && ChainAvailable && (mainAction==null||mainAction.AllowsBasicRequest));
                 if(stage>0) RequestStage(stage);
             }
             // 4a. 副手独立请求/时钟；同帧主手已按自身资格处理，二者不共享动作身份。
@@ -256,6 +266,7 @@ namespace Ossastra.Characters
                 else orienter.OrientTowards(autonomousTarget.transform.position);
             }
             // 5. 唯一动作时钟推进与Release命中。Accepted不扣血，切人不重发事实。
+            mainAction?.PrepareMotion(runtime.SimulationTime+(IsSimulationSuspended?0:Time.deltaTime),IsSimulationSuspended?0:Time.deltaTime);
             foreach (var fact in runtime.Advance(Time.deltaTime, IsPaused || !focused))
             {
                 Observe(fact);
@@ -266,10 +277,12 @@ namespace Ossastra.Characters
                     var releaseDirection = orienter.AttackDirection;
                     orienter.FaceAttackDirection();
                     if(abilities!=null&&abilities.OwnsRelease(fact.ActionId))continue;
+                    if(mainAction!=null&&mainAction.TryRelease(fact,releaseDirection))continue;
                     if(skills==null||!skills.TryHandleRelease(fact.Release,releaseDirection))hitResolver.Resolve(fact.Release, releaseDirection);
                 }
             }
             if(abilities!=null)abilities.TickEffects(Time.deltaTime);else skills?.TickEffects(Time.deltaTime);
+            mainAction?.TickEffects(IsSimulationSuspended?0:Time.deltaTime);
             if(chain!=null && input.HasPlayerInput && !IsPaused && focused && authority.Allows(ControlChannel.Attack))
             {
                 var bufferedStage=chain.Poll(runtime.SimulationTime,runtime.AttackReady);
@@ -287,7 +300,7 @@ namespace Ossastra.Characters
 
         // Spine在Update求骨骼；本根LateUpdate消费同帧挂点，Renderer稍后构建网格。
         // 此处仅推进装备表现，不执行第二次Move或结算。
-        private void LateUpdate(){if(ready)equipmentView?.TickPresentation();}
+        private void LateUpdate(){if(ready){equipmentView?.TickPresentation();equipmentSpineView?.TickPresentation();}}
         // 7. Animation Intent → One Commit；无子模块Update争抢主轨。
         private void CommitPresentation()
         {
@@ -327,6 +340,7 @@ namespace Ossastra.Characters
             if (fact.Reason != null) lastFact += " " + fact.Reason;
             if (verboseTrace) Debug.Log("Character " + lastFact, this);
             abilities?.ObserveFact(fact);
+            mainAction?.ObserveFact(fact);
             ActionObserved?.Invoke(fact);
             if(fact.Kind==ActionFactKind.Finished||fact.Kind==ActionFactKind.Cancelled)vitals?.Recovery?.ReleaseParent(fact.ActionId);
         }
@@ -340,10 +354,12 @@ namespace Ossastra.Characters
         public bool TryConfiguredAction(ActionDefinitionSO config,CharacterActionSource source,string label,out Guid actionId)
             =>TryAbilityBodyAction(config,source,label,config==null?0:config.staminaCost,out actionId);
         /// <summary>定义驱动身体能力复用原Runtime与接受账本；费用来自已冻结能力，不再由片段定义另付一次。</summary>
-        internal bool TryAbilityBodyAction(ActionDefinitionSO config,CharacterActionSource source,string label,float cost,out Guid actionId,Func<bool> prepareSource=null,Action rollbackSource=null)
+        internal bool TryAbilityBodyAction(ActionDefinitionSO config,CharacterActionSource source,string label,float cost,out Guid actionId,Func<bool> prepareSource=null,Action rollbackSource=null,ConfiguredActionSnapshot phase=null)
         {
             actionId=Guid.Empty;if(config==null||!ready)return false;
-            if(!TryResolveConfiguredAction(config,out var frozen,out var configurationError)){lastFact="Rejected: "+configurationError;return false;}
+            BasicAttackDefinition frozen;
+            if(phase!=null)frozen=phase.Timeline;
+            else if(!TryResolveConfiguredAction(config,out frozen,out var configurationError)){lastFact="Rejected: "+configurationError;return false;}
             var signature=Actions.CreateRequest(CharacterActionKind.Main,source,label);
             ActionRequestResult result=null;
             if(!Actions.TryCommit(signature,cost,()=>
@@ -356,7 +372,8 @@ namespace Ossastra.Characters
             {lastFact="Rejected: "+rejection;return false;}
             if(result.PreviousTerminal!=null)Observe(result.PreviousTerminal);
             chain?.Clear();autonomousAction=false;autonomousTarget=null;AttackStage=0;
-            (presentation as ICharacterConfiguredAnimation)?.CaptureAction(result.Fact.ActionId,config);
+            if(phase!=null)(presentation as ICharacterConfiguredAnimation)?.CapturePhase(result.Fact.ActionId,phase);
+            else (presentation as ICharacterConfiguredAnimation)?.CaptureAction(result.Fact.ActionId,config);
             Observe(result.Fact);orienter.FaceAttackDirection();actionId=result.Fact.ActionId;return true;
         }
         /// <summary>能力按已接受身份只撤回自己的主通道；副手、盾和机动不借此被全局取消。</summary>
@@ -367,15 +384,36 @@ namespace Ossastra.Characters
             var terminal=runtime.Cancel(reason);if(terminal!=null)Observe(terminal);return true;
         }
 
+        // 动作组只更新空闲候选；已受理动作继续用冻结时间线与表现，不因来源切换重新计费。
+        private void RefreshMainProfile()
+        {
+            if(mainAction==null||!mainAction.RefreshWhenIdle())return;
+            var sequence=mainAction.Sequence;
+            if(sequence!=null)
+            {
+                configuredAttacks=new BasicAttackDefinition[sequence.Count];
+                for(int i=0;i<sequence.Count;i++)configuredAttacks[i]=sequence.Stage(i).Timeline;
+                definition=configuredAttacks[0];chain=new BasicChainState(sequence.BufferSeconds,sequence.BufferSeconds,sequence.ContinuationSeconds,sequence.Count,false);
+            }
+            else if(characterDefinition!=null)
+            {
+                configuredAttacks=Array.ConvertAll(ActionLibrary,a=>a.Freeze());definition=configuredAttacks[0];
+                chain=new BasicChainState(characterDefinition.preInput,characterDefinition.bufferLifetime,characterDefinition.continuationWindow,configuredAttacks.Length,characterDefinition.requireHitForContinuation);
+            }
+        }
         private void RequestStage(int stage, CombatVitals aiTarget = null)
         {
+            if(mainAction!=null&&!mainAction.AllowsBasicRequest){lastFact="Rejected: full-combo-recovery";return;}
             if(configuredAttacks!=null&&(stage<1||stage>configuredAttacks.Length)){lastFact="Rejected: invalid-stage";return;}
-            var actionConfig=characterDefinition==null?null:ActionLibrary[stage-1];
+            CharacterMainAction.PreparedStage prepared=null;
+            if(mainAction?.Sequence!=null&&!mainAction.TryPrepare(stage-1,out prepared)){lastFact=mainAction.LastResult;return;}
+            var actionConfig=prepared!=null?prepared.Definition:characterDefinition==null?null:ActionLibrary[stage-1];
             var selected=stage==2?secondDefinition:definition;
-            if(actionConfig!=null&&!TryResolveConfiguredAction(actionConfig,out selected,out var configurationError)){lastFact="Rejected: "+configurationError;return;}
+            if(prepared!=null)selected=prepared.Phase.Timeline;
+            else if(actionConfig!=null&&!TryResolveConfiguredAction(actionConfig,out selected,out var configurationError)){lastFact="Rejected: "+configurationError;return;}
             var signature=Actions.CreateRequest(CharacterActionKind.Main,aiTarget==null?CharacterActionSource.Player:CharacterActionSource.Companion,aiTarget==null?"player-input:Stage"+stage:"companion:Stage1");
             ActionRequestResult request=null;
-            var accepted=Actions.TryCommit(signature,stamina==null?0:actionConfig!=null?actionConfig.staminaCost:stamina.AttackCost,()=>
+            var accepted=Actions.TryCommit(signature,stamina==null?0:prepared!=null?prepared.Cost:actionConfig!=null?actionConfig.staminaCost:stamina.AttackCost,()=>
             {
                 request=runtime.Request(selected,aiTarget==null?"player-input:Stage"+stage:"companion:Stage1",authority,IsPaused);
                 return request.Accepted?request.Fact.ActionId:Guid.Empty;
@@ -384,7 +422,12 @@ namespace Ossastra.Characters
             if(request.PreviousTerminal!=null)Observe(request.PreviousTerminal);
             if(request.Accepted)
             {
-                if(actionConfig!=null)(presentation as ICharacterConfiguredAnimation)?.CaptureAction(request.Fact.ActionId,actionConfig);
+                if(prepared!=null)
+                {
+                    (presentation as ICharacterConfiguredAnimation)?.CapturePhase(request.Fact.ActionId,prepared.Phase);
+                    mainAction.Accept(request.Fact.ActionId,prepared,aiTarget==null?orienter.AttackDirection:aiTarget.transform.position-transform.position);
+                }
+                else if(actionConfig!=null)(presentation as ICharacterConfiguredAnimation)?.CaptureAction(request.Fact.ActionId,actionConfig);
                 AttackStage=stage; autonomousAction=aiTarget!=null; autonomousTarget=aiTarget;
                 if(autonomousAction) { chain?.Clear(); combatBrain.OnAccepted(); orienter.OrientTowards(aiTarget.transform.position); }
                 else chain?.Accepted(stage,request.Fact.ActionId,runtime.SimulationTime,selected.AttackReadyAt);
@@ -414,6 +457,12 @@ namespace Ossastra.Characters
             CancelAction("posture-broken:" + cause);
             if (follow != null) follow.ResetIntent();
         }
+        private void OnStatusControlChanged()
+        {
+            if(statusEffects!=null&&statusEffects.BlocksIntent)
+            {authority.Block(statusEffects,ControlChannel.Move|ControlChannel.Attack);CancelAction("combat-status");dodge?.Cancel();abilities?.CancelPending("combat-status");}
+            else {authority.Release(statusEffects);intent.SuppressUntilRelease();}
+        }
         private void OnPostureRecovered()
         {
             authority.Release(posture);
@@ -423,7 +472,9 @@ namespace Ossastra.Characters
 
         private void OnDied(HitOutcome outcome)
         {
-            equipmentView?.Hide();skills?.Clear();
+            statusEffects?.Clear();
+            mainAction?.ResetState();
+            equipmentView?.Hide();equipmentSpineView?.Hide();skills?.Clear();
             // HP已由结算归零；这里仅终止本体未释放动作/有效帧，再交唯一会话处理实控。
             offhand?.CancelAll();
             CancelAction("death:"+outcome.ActorId+":"+outcome.ActionId.ToString("N"));
@@ -445,9 +496,11 @@ namespace Ossastra.Characters
         private void OnApplicationPause(bool value)
           { applicationPaused = value; if(value)chain?.Clear(); if (follow != null) follow.ResetIntent(); if (value) intent.SuppressUntilRelease(); }
         private void OnEnable() { intent.SuppressUntilRelease(); if (intentSelector != null) intentSelector.Clear(); }
-        private void OnDisable() { equipmentView?.Hide();skills?.Clear();offhand?.CancelAll(); CancelAction("disabled"); if (posture != null) posture.ResetState(); authority.Release(posture); if (follow != null) follow.ResetIntent(); if (intentSelector != null) intentSelector.Clear(); if (ready && presentation != null) presentation.SetPaused(false); }
+        private void OnDisable() { statusEffects?.Clear();mainAction?.ResetState();equipmentView?.Hide();equipmentSpineView?.Hide();skills?.Clear();offhand?.CancelAll(); CancelAction("disabled"); if (posture != null) posture.ResetState(); authority.Release(posture); if (follow != null) follow.ResetIntent(); if (intentSelector != null) intentSelector.Clear(); if (ready && presentation != null) presentation.SetPaused(false); }
         private void OnDestroy()
         {
+            if(mainAction!=null)mainAction.Resolved-=OnHitReceipt;
+            if(statusEffects!=null)statusEffects.ControlChanged-=OnStatusControlChanged;
             if(hitReceipts!=null) hitReceipts.Resolved-=OnHitReceipt;
             if (vitals!=null) vitals.Died-=OnDied;
             if (posture != null) { posture.Broken -= OnPostureBroken; posture.Recovered -= OnPostureRecovered; }

@@ -36,7 +36,9 @@ namespace Ossastra.CharacterCore.Abilities
             {
                 armed=true;if(!down)return GestureSignal.None;
                 down=false;
-                if(mode==GestureMode.TapOrLongPress)return longWon?GestureSignal.End:GestureSignal.Tap;
+                // 低帧率可能直接跨过阈值来到松键帧；按实际持续时间选胜者，不能误发短按。
+                if(mode==GestureMode.TapOrLongPress)return longWon?GestureSignal.End:
+                    now-began>=threshold?GestureSignal.LongPress:GestureSignal.Tap;
                 return mode==GestureMode.Release?GestureSignal.Trigger:GestureSignal.End;
             }
             if(!armed)return GestureSignal.None;

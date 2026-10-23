@@ -1,0 +1,158 @@
+{
+  "state": "failed",
+  "failed": 5,
+  "rows": [
+    {
+      "name": "both existing four-stage defaults preserved",
+      "ok": true,
+      "selection": "",
+      "sequence": null,
+      "stages": [],
+      "last": "无",
+      "root": "Idle"
+    },
+    {
+      "name": "normal HUD selects hunter I with four stages",
+      "ok": true,
+      "selection": "hunter.prototype.I",
+      "sequence": 4,
+      "stages": [],
+      "last": "已选择原型Ⅰ · 四段",
+      "root": "Idle"
+    },
+    {
+      "name": "finite pre-input queues one next stage before Ready",
+      "ok": false,
+      "selection": "hunter.prototype.I",
+      "sequence": 4,
+      "stages": [
+        1,
+        2
+      ],
+      "last": "已释放 A2",
+      "root": "Released @0.000 3a97c423"
+    },
+    {
+      "name": "empty swings reach four stages via ordinary InputSystem",
+      "ok": true,
+      "selection": "hunter.prototype.I",
+      "sequence": 4,
+      "stages": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "last": "已释放 A4",
+      "root": "Released @0.133 0eb5a007"
+    },
+    {
+      "name": "terminal full-combo recovery rejects early restart",
+      "ok": true,
+      "selection": "hunter.prototype.I",
+      "sequence": 4,
+      "stages": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "last": "已释放 A4",
+      "root": "AttackReady @0.500 0eb5a007"
+    },
+    {
+      "name": "authored hunter dash enters real Movement",
+      "ok": true,
+      "selection": "hunter.prototype.I",
+      "sequence": 4,
+      "stages": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "last": "已释放 A4",
+      "root": "Finished @0.833 0eb5a007"
+    },
+    {
+      "name": "terminal recovery expires on root clock",
+      "ok": true,
+      "selection": "hunter.prototype.I",
+      "sequence": 4,
+      "stages": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "last": "已释放 A4",
+      "root": "Finished @0.833 0eb5a007"
+    },
+    {
+      "name": "normal HUD selects independent two-stage form II",
+      "ok": true,
+      "selection": "hunter.prototype.II",
+      "sequence": 2,
+      "stages": [],
+      "last": "已选择原型Ⅱ · 两段重击 SAMPLE",
+      "root": "Finished @0.833 0eb5a007"
+    },
+    {
+      "name": "form II follows own two-stage sequence",
+      "ok": true,
+      "selection": "hunter.prototype.II",
+      "sequence": 2,
+      "stages": [
+        1,
+        2
+      ],
+      "last": "已释放 A4",
+      "root": "Released @0.133 c08d8951"
+    },
+    {
+      "name": "ranger I independent three-stage profile",
+      "ok": false,
+      "selection": "",
+      "sequence": null,
+      "stages": [],
+      "last": "拒绝：仅实控角色脱战空闲时可配置主手动作组",
+      "root": "Idle"
+    },
+    {
+      "name": "ranger ordinary empty swings reach all three stages",
+      "ok": false,
+      "selection": "",
+      "sequence": null,
+      "stages": [
+        1,
+        2
+      ],
+      "last": "拒绝：仅实控角色脱战空闲时可配置主手动作组",
+      "root": "Released @0.100 0fae4227"
+    },
+    {
+      "name": "ranger declared dash event has no invented displacement",
+      "ok": true,
+      "selection": "",
+      "sequence": null,
+      "stages": [
+        1,
+        2
+      ],
+      "last": "拒绝：仅实控角色脱战空闲时可配置主手动作组",
+      "root": "Finished @1.267 0fae4227"
+    },
+    {
+      "name": "chisel is granted by ordinary source command",
+      "ok": false,
+      "selection": "hunter.prototype.II",
+      "sequence": 2,
+      "stages": [],
+      "last": "拒绝：仅实控角色脱战空闲时可配置主手动作组",
+      "root": "Finished @0.833 c08d8951"
+    },
+    {
+      "error": "System.IndexOutOfRangeException: Index was outside the bounds of the array.\r\n  at MainActionWorldProbe+<>c__DisplayClass0_0.<Execute>b__19 () [0x00012] in <24d18e8168b74b628e20878d9f08f40f>:0 \r\n  at MainActionWorldProbe+<>c__DisplayClass0_0.<Execute>b__27 () [0x000c6] in <24d18e8168b74b628e20878d9f08f40f>:0 "
+    }
+  ]
+}

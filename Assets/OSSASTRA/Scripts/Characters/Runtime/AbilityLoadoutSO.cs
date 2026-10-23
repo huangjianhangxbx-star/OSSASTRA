@@ -13,13 +13,21 @@ namespace Ossastra.Characters
         public string professionId;
         public AbilityDefinitionSO[] regularChoices=Array.Empty<AbilityDefinitionSO>();
         public AbilityDefinitionSO nativeAbility,defaultQ,defaultR;
+        public string effectProfession;
+        public EffectSourceDefinitionSO[] sourceCatalog=Array.Empty<EffectSourceDefinitionSO>();
+        public AbilityDefinitionSO[] experimentalChoices=Array.Empty<AbilityDefinitionSO>();
         public void Validate()
         {
             if(string.IsNullOrWhiteSpace(professionId)||nativeAbility==null||regularChoices==null||
                 regularChoices.Any(d=>d==null||d==nativeAbility)||regularChoices.Select(d=>d.definitionId).Distinct().Count()!=regularChoices.Length||
                 defaultQ!=null&&!regularChoices.Contains(defaultQ)||defaultR!=null&&!regularChoices.Contains(defaultR))
                 throw new ArgumentException("invalid main hand skill directory/defaults");
-            foreach(var d in regularChoices)d.Compile();nativeAbility.Compile();
+            if(experimentalChoices==null||experimentalChoices.Any(d=>d==null)||
+                regularChoices.Concat(experimentalChoices).Select(d=>d.definitionId).Distinct().Count()!=regularChoices.Length+experimentalChoices.Length)
+                throw new ArgumentException("invalid experimental directory/duplicate identity");
+            var all=regularChoices.Concat(experimentalChoices).Concat(new[]{nativeAbility}).ToArray();
+            if(all.Select(d=>d.definitionId).Distinct().Count()!=all.Length)throw new ArgumentException("duplicate native/regular/experimental definition identity");
+            foreach(var d in all)d.Compile();
         }
     }
 }

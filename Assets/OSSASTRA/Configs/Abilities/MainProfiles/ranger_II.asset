@@ -1,0 +1,56 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 04f3b86e3e0ab014c99ee29d4ee0bf6a, type: 3}
+  m_Name: ranger_II
+  m_EditorClassIdentifier: 
+  definitionId: ranger.prototype.II
+  displayName: "\u539F\u578B\u2161 \xB7 \u4E24\u6BB5\u91CD\u51FB SAMPLE"
+  professionId: ranger
+  formLabel: II
+  sourceEvidence: 'c21d4fc: hunter-combat-profile.ts, basic-definition.ts, main-form-spec.ts,
+    trial-combo.ts, ability-trial.ts. Gameplay values retained; rozeul existing semantic
+    mappings reused as PRESENTATION_PARTIAL. Ranger source declares dash event but
+    has no active translation consumer: distance remains zero. Form II is the source
+    SAMPLE alternate group; trial-rune topology uses profile I explicitly.'
+  bufferSeconds: 0.25
+  continuationSeconds: 0.5
+  fullComboRecovery: 0.4
+  postureScale: 1.35
+  contactDuration: 0.15
+  stages:
+  - stageId: A2
+    action: {fileID: 11400000, guid: 1586b2e68a9267d49abf662d5f138e2f, type: 2}
+    range: 2
+    arcDegrees: 114.59156
+    dashAt: 0.0333
+    dashDistance: 0
+    dashDuration: 0
+    prefixReplaceable: 0
+  - stageId: A3
+    action: {fileID: 11400000, guid: 827bac18c09f0a24aac3eef642ee96f4, type: 2}
+    range: 2
+    arcDegrees: 114.59156
+    dashAt: 0.1667
+    dashDistance: 0
+    dashDuration: 0
+    prefixReplaceable: 0
+  chisel:
+    stageId: 
+    action: {fileID: 0}
+    range: 1.8
+    arcDegrees: 114.59156
+    dashAt: 0
+    dashDistance: 0
+    dashDuration: 0
+    prefixReplaceable: 0
+  rapidPrefix: []
+  rapidPlusPrefix: []

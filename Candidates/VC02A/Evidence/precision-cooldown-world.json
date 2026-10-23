@@ -1,0 +1,153 @@
+{
+  "state": "completed",
+  "failed": 0,
+  "rows": [
+    {
+      "name": "Q config exposes precision in own profession",
+      "ok": true,
+      "result": "已更新技能配置",
+      "ammo": 4,
+      "reloading": false
+    },
+    {
+      "name": "cooldown source grant",
+      "ok": true,
+      "result": "试验来源已更新（非正式掉落/成长）",
+      "ammo": 3,
+      "reloading": false
+    },
+    {
+      "name": "precondition actual magazine three",
+      "ok": true,
+      "result": "试验来源已更新（非正式掉落/成长）",
+      "ammo": 3,
+      "reloading": false
+    },
+    {
+      "name": "ordinary Q accepted exactly once",
+      "ok": true,
+      "result": "接受 实验·精确装填",
+      "ammo": 3,
+      "reloading": true
+    },
+    {
+      "name": "pending reload preserves existing rounds",
+      "ok": true,
+      "result": "接受 实验·精确装填",
+      "ammo": 3,
+      "reloading": true
+    },
+    {
+      "name": "completion commits four actual mortar rounds",
+      "ok": true,
+      "result": "接受 实验·精确装填",
+      "ammo": 4,
+      "reloading": false
+    },
+    {
+      "name": "body and run return ready",
+      "ok": true,
+      "result": "接受 实验·精确装填",
+      "ammo": 4,
+      "reloading": false
+    },
+    {
+      "name": "canonical precision CD consumes minus4 modifier",
+      "ok": true,
+      "result": "接受 实验·精确装填",
+      "ammo": 4,
+      "reloading": false
+    },
+    {
+      "name": "second request pending",
+      "ok": true,
+      "result": "接受 实验·精确装填",
+      "ammo": 3,
+      "reloading": true
+    },
+    {
+      "name": "interruption clears only pending reload",
+      "ok": true,
+      "result": "接受 实验·精确装填",
+      "ammo": 3,
+      "reloading": false
+    },
+    {
+      "name": "cancel has no late refill",
+      "ok": true,
+      "result": "接受 实验·精确装填",
+      "ammo": 3,
+      "reloading": false
+    },
+    {
+      "name": "more source grants through normal configuration",
+      "ok": true,
+      "result": "试验来源已更新（非正式掉落/成长）",
+      "ammo": 3,
+      "reloading": false
+    },
+    {
+      "name": "instant source grants through normal configuration",
+      "ok": true,
+      "result": "试验来源已更新（非正式掉落/成长）",
+      "ammo": 3,
+      "reloading": false
+    },
+    {
+      "name": "instant branch commits six actual mortar rounds",
+      "ok": true,
+      "result": "接受 实验·精确装填",
+      "ammo": 6,
+      "reloading": false
+    },
+    {
+      "name": "instant has no second delayed refill",
+      "ok": true,
+      "result": "接受 实验·精确装填",
+      "ammo": 6,
+      "reloading": false
+    },
+    {
+      "name": "instant reload body never falls back to template melee",
+      "ok": true,
+      "result": "接受 实验·精确装填",
+      "ammo": 6,
+      "reloading": false
+    },
+    {
+      "name": "sources can be revoked",
+      "ok": true,
+      "result": "试验来源已更新（非正式掉落/成长）",
+      "ammo": 6,
+      "reloading": false
+    },
+    {
+      "name": "revoke does not rewrite committed magazine",
+      "ok": true,
+      "result": "试验来源已更新（非正式掉落/成长）",
+      "ammo": 6,
+      "reloading": false
+    },
+    {
+      "name": "rocket alias available Q",
+      "ok": true,
+      "result": "已更新技能配置",
+      "ammo": 6,
+      "reloading": false
+    },
+    {
+      "name": "alias shares E cooldown identity",
+      "ok": true,
+      "result": "已更新技能配置",
+      "ammo": 6,
+      "reloading": false
+    },
+    {
+      "name": "fixed E cannot be replaced",
+      "ok": true,
+      "result": "拒绝：仅实控角色脱战空闲时可修改Q/R，E固定",
+      "ammo": 6,
+      "reloading": false
+    }
+  ]
+}

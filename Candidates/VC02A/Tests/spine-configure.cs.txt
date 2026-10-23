@@ -1,0 +1,52 @@
+// 原创最小技术Spine盾：几何网格、三骨骼、独立动画，不复制角色或使用Sprite冒充。
+using System;using System.Linq;using System.Collections.Generic;using UnityEngine;using UnityEditor;using UnityEditor.SceneManagement;using Spine.Unity;using Ossastra.Characters;using Ossastra.AnimationCore;using Funplay.Editor.Tools.Scripting;
+public class ConfigureEquipmentSpine:IFunplayCommand
+{
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+ {
+  const string scene="Assets/OSSASTRA/Scenes/SC_VC02A_CombatMigration.unity",folder="Assets/OSSASTRA/Configs/Abilities/EquipmentSpineProbe";
+  if(Application.isPlaying)throw new Exception("Edit required");var active=EditorSceneManager.GetActiveScene();if(active.path!=scene)throw new Exception("Own candidate required");
+  if(active.isDirty){var backup="E:/WORLDCREATOR/XingHaiHuiLang/work/OSSASTRA/VC02-20261022/pre-spine-recovery-"+Guid.NewGuid().ToString("N")+".unity";if(!EditorSceneManager.SaveScene(active,backup,true))throw new Exception("Backup failed");EditorSceneManager.OpenScene(scene);}
+  if(!AssetDatabase.IsValidFolder(folder))AssetDatabase.CreateFolder("Assets/OSSASTRA/Configs/Abilities","EquipmentSpineProbe");
+  T SaveNew<T>(T value,string filename)where T:UnityEngine.Object{var path=folder+"/"+filename;var existing=AssetDatabase.LoadAssetAtPath<T>(path);if(existing!=null){UnityEngine.Object.DestroyImmediate(value);return existing;}ctx.RegisterObjectCreation(value);AssetDatabase.CreateAsset(value,path);return value;}
+  void Save(UnityEngine.Object obj){EditorUtility.SetDirty(obj);AssetDatabase.SaveAssetIfDirty(obj);}
+  var texture=new Texture2D(2,2,TextureFormat.RGBA32,false){name="VC02A_SpineProbeWhite"};texture.SetPixels(new[]{Color.white,Color.white,Color.white,Color.white});texture.Apply();texture=SaveNew(texture,"ProbeWhite.asset");texture.name="VC02A_SpineProbeWhite";Save(texture);
+  var shader=Shader.Find("Spine/Skeleton");if(shader==null)throw new Exception("Installed Spine/Skeleton shader required");
+  var material=SaveNew(new Material(shader){name="VC02A_SpineProbeMaterial",mainTexture=texture},"ProbeMaterial.mat");
+  var atlasText=SaveNew(new TextAsset("VC02A_SpineProbeWhite\nsize: 2,2\nformat: RGBA8888\nfilter: Nearest,Nearest\nrepeat: none\nwhite\n  rotate: false\n  xy: 0, 0\n  size: 2, 2\n  orig: 2, 2\n  offset: 0, 0\n  index: -1\n"){name="ProbeAtlas"},"ProbeAtlasText.asset");
+  var atlas=SaveNew(SpineAtlasAsset.CreateRuntimeInstance(atlasText,new[]{material},true),"ProbeAtlas.asset");
+  var animationNames=new[]{"rest","carry","strike","brace","recoil","break","vanish","evade"};var animations=new Dictionary<string,object>();
+  foreach(var name in animationNames){float angle=name=="strike"?40:name=="brace"?12:name=="evade"?-25:name=="recoil"?-15:3;animations[name]=new{bones=new Dictionary<string,object>{{"face",new{rotate=new[]{new{time=0f,value=0f},new{time=.12f,value=angle},new{time=.46f,value=0f}}}}}};}
+  var mesh=new{type="mesh",path="white",color="397faaff",uvs=new[]{0f,0f,1f,0f,1f,.8f,.5f,1f,0f,.8f},triangles=new[]{0,1,2,0,2,3,0,3,4},vertices=new[]{-.28f,.25f,.28f,.25f,.23f,-.2f,0f,-.42f,-.23f,-.2f},hull=5};
+  var boss=new{type="region",path="white",color="e9c96dff",x=0f,y=-.02f,width=.10f,height=.10f,rotation=45};
+  var data=new{skeleton=new{spine="4.3.26",hash="original-vc02a-equipment-probe",width=.56f,height=.67f},bones=new object[]{new{name="root"},new{name="grip",parent="root"},new{name="face",parent="grip"}},slots=new[]{new{name="shield",bone="face",attachment="shield"},new{name="boss",bone="face",attachment="boss"}},skins=new[]{new{name="default",attachments=new Dictionary<string,object>{{"shield",new Dictionary<string,object>{{"shield",mesh}}},{"boss",new Dictionary<string,object>{{"boss",boss}}}}}},animations};
+  var json=SaveNew(new TextAsset(Newtonsoft.Json.JsonConvert.SerializeObject(data)){name="VC02A_SpineProbe"},"ProbeSkeletonJson.asset");
+  var skeleton=SaveNew(SkeletonDataAsset.CreateRuntimeInstance(json,atlas,true,1),"ProbeSkeleton.asset");if(skeleton.GetSkeletonData(false)==null)throw new Exception("Probe skeleton invalid");
+  var roots=UnityEngine.Object.FindObjectsOfType<Ossastra.Characters.CharacterRoot>();if(roots.Length!=2)throw new Exception("Expected owned two characters");
+  var results=new List<object>();
+  foreach(var root in roots)
+  {
+   var body=root.GetComponentInChildren<SkeletonAnimation>();body.Initialize(false);var equipment=root.GetComponent<CharacterEquipment>();if(equipment==null)throw new Exception("Missing equipment");
+   foreach(var definition in equipment.OwnedOffhands.Where(d=>d!=null&&d.offhandKind==Ossastra.CharacterCore.OffhandKind.Shield))
+   {
+    var path=AssetDatabase.GetAssetPath(definition);if(!path.StartsWith("Assets/OSSASTRA/Configs/Abilities/"))throw new Exception("Refuse original definition "+path);
+    var bone=body.Skeleton.FindBone(definition.boneName);if(bone==null)throw new Exception("Configured body bone missing: "+definition.boneName);
+    var profilePath=folder+"/"+definition.name+"_Spine.asset";var profile=AssetDatabase.LoadAssetAtPath<EquipmentSpinePresentationSO>(profilePath);
+    if(profile==null){profile=ScriptableObject.CreateInstance<EquipmentSpinePresentationSO>();ctx.RegisterObjectCreation(profile);AssetDatabase.CreateAsset(profile,profilePath);}else ctx.RegisterObjectModification(profile);
+    profile.skeletonData=skeleton;profile.bodyBone=definition.boneName;profile.gripBone="grip";
+    var slot=body.Skeleton.Slots.Items.Take(body.Skeleton.Slots.Count).FirstOrDefault(s=>s.Bone==bone);profile.bodySlot=slot==null?"":slot.Data.Name;
+    profile.followSlotColor=true;profile.followSlotAttachmentVisibility=false;profile.followBoneRotation=true;profile.sortingOrderOffset=3;
+    profile.localScale=.4f*body.GetComponent<Renderer>().bounds.size.y/(.67f*Mathf.Abs(body.transform.lossyScale.y));
+    if(profile.localScale<=.001f)throw new Exception("Body bounds needed to configure probe scale");
+    profile.localOffset=Vector3.zero;profile.rotationOffset=0;
+    string Clip(AnimationSemantic semantic)=>semantic==AnimationSemantic.Move?"carry":semantic==AnimationSemantic.Guard?"brace":semantic==AnimationSemantic.Dodge?"evade":semantic==AnimationSemantic.HitReaction?"recoil":semantic==AnimationSemantic.PostureBroken?"break":semantic==AnimationSemantic.Death?"vanish":semantic==AnimationSemantic.BasicAttack||semantic==AnimationSemantic.BasicAttackSecond?"strike":"rest";
+    profile.animations=Enum.GetValues(typeof(AnimationSemantic)).Cast<AnimationSemantic>().Select(s=>new EquipmentSpineAnimationBinding{semantic=s,clip=Clip(s),loop=s==AnimationSemantic.Idle||s==AnimationSemantic.Move||s==AnimationSemantic.Guard,mixDuration=.06f,playbackRate=1}).ToArray();
+    profile.presentationEvidence="原创技术Spine盾（非正式美术）；3骨骼+2附件，完整身体动作语义显式复用独立装备片段；插槽只跟颜色，附件显隐显式关闭。";profile.Freeze(body.Skeleton.Data);Save(profile);
+    ctx.RegisterObjectModification(definition);definition.spinePresentation=profile;definition.worldSprite=null;Save(definition);results.Add(new{definition.definitionId,profile.bodyBone,profile.bodySlot,profile.localScale});
+   }
+   if(root.GetComponent<CharacterEquipmentSpineView>()==null)Undo.AddComponent<CharacterEquipmentSpineView>(root.gameObject);
+  }
+  EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());if(!EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene()))throw new Exception("Save failed");
+  ctx.ReturnValue=Newtonsoft.Json.JsonConvert.SerializeObject(new{scene,equipment=results,probeBones=skeleton.GetSkeletonData(false).Bones.Count,probeAnimations=skeleton.GetSkeletonData(false).Animations.Count});
+ }
+}

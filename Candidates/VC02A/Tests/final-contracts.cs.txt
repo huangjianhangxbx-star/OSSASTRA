@@ -1,0 +1,29 @@
+using System;using System.Linq;using System.Collections.Generic;using UnityEngine;using UnityEditor;using Ossastra.Characters;using Funplay.Editor.Tools.Scripting;
+public class FinalContracts:IFunplayCommand
+{
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+ {
+  if(!Application.isPlaying)throw new Exception("Fresh Play required");
+  var rows=new List<object>();int failed=0;
+  void C(string name,bool ok){if(!ok)failed++;rows.Add(new{name,ok});}
+  var coordinator=UnityEngine.Object.FindObjectOfType<CharacterControlCoordinator>();var root=coordinator.Current;
+  coordinator.SendMessage("OnApplicationFocus",true);foreach(var r in coordinator.Characters)r.SendMessage("OnApplicationFocus",true);
+  var module=root.GetComponent<CharacterAbilities>();var gear=root.GetComponent<CharacterEquipment>();var stamina=root.GetComponent<CharacterStamina>();
+  int accepted=module.AcceptedCount;double balance=stamina.Current;var q=module.SkillDefinition(0);
+  C("foreign hand cannot request main skill",!module.TryRequest(q,false,AbilityOperation.Secondary,CharacterActionSource.UserInterface));
+  C("unmounted operation cannot invoke catalog ability",!module.TryRequest(q,true,AbilityOperation.Secondary,CharacterActionSource.UserInterface));
+  C("rejected bindings preserve payment and admission",stamina.Current==balance&&module.AcceptedCount==accepted);
+  var actual=gear.LeftDefinition.spinePresentation;var bad=UnityEngine.Object.Instantiate(actual);
+  try{bad.bodyBone="not-an-existing-bone";gear.LeftDefinition.spinePresentation=bad;C("mount rejects before action acceptance",!module.RequestSkill(0,CharacterActionSource.UserInterface)&&stamina.Current==balance&&module.AcceptedCount==accepted);}
+  finally{gear.LeftDefinition.spinePresentation=actual;UnityEngine.Object.DestroyImmediate(bad);}
+  var directory=UnityEngine.Object.Instantiate(gear.RightDefinition.skillLoadout);var duplicate=UnityEngine.Object.Instantiate(directory.regularChoices[0]);
+  try{duplicate.definitionId=directory.nativeAbility.definitionId;directory.regularChoices[0]=duplicate;bool rejected=false;try{directory.Validate();}catch(ArgumentException){rejected=true;}C("native identity cannot collide with regular definition",rejected);}
+  finally{UnityEngine.Object.DestroyImmediate(duplicate);UnityEngine.Object.DestroyImmediate(directory);}
+  int definitions=0;foreach(var guid in AssetDatabase.FindAssets("t:AbilityDefinitionSO",new[]{"Assets/OSSASTRA/Configs/Abilities"})){AssetDatabase.LoadAssetAtPath<AbilityDefinitionSO>(AssetDatabase.GUIDToAssetPath(guid)).Compile();definitions++;}
+  C("all candidate ability definitions compile",definitions>=12);
+  int profiles=0;foreach(var guid in AssetDatabase.FindAssets("t:MainActionProfileSO",new[]{"Assets/OSSASTRA/Configs/Abilities"})){AssetDatabase.LoadAssetAtPath<MainActionProfileSO>(AssetDatabase.GUIDToAssetPath(guid)).Freeze();profiles++;}C("four serialized profiles reload including empty optional chisel",profiles==4);
+  C("unique body IDs and distinct resource payload",coordinator.Characters.Select(r=>r.ActorId).Distinct().Count()==2&&!ReferenceEquals(coordinator.Characters[0].GetComponent<CharacterEquipment>().State.RightRuntime,coordinator.Characters[1].GetComponent<CharacterEquipment>().State.RightRuntime));
+  C("no MissingScript in candidate",UnityEngine.Object.FindObjectsOfType<GameObject>().All(g=>g.GetComponents<MonoBehaviour>().All(m=>m!=null)));
+  var result=Newtonsoft.Json.JsonConvert.SerializeObject(new{state="completed",failed,rows,definitions,profiles});SessionState.SetString("VC02_FINAL_CONTRACTS",result);ctx.ReturnValue=result;
+ }
+}

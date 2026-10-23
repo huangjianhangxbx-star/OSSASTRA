@@ -1,0 +1,67 @@
+using System;using System.Linq;using System.Collections.Generic;using UnityEngine;using UnityEngine.UI;using UnityEngine.InputSystem;using UnityEngine.InputSystem.LowLevel;using UnityEditor;using Ossastra.Characters;using Ossastra.CharacterCore;using Ossastra.Combat;using Ossastra.UserInterface;using Funplay.Editor.Tools.Scripting;
+public class MainActionWorldProbe:IFunplayCommand
+{
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+ {
+  if(!Application.isPlaying)throw new Exception("Fresh Play required");
+  var coordinator=UnityEngine.Object.FindObjectOfType<CharacterControlCoordinator>();var hud=UnityEngine.Object.FindObjectOfType<CharacterHudView>();var port=UnityEngine.Object.FindObjectOfType<CharacterHudAdapter>();
+  if(coordinator==null||hud==null||port==null)throw new Exception("Candidate control/HUD missing");
+  var settingsBefore=InputSystem.settings;var settings=UnityEngine.Object.Instantiate(settingsBefore);settings.backgroundBehavior=InputSettings.BackgroundBehavior.IgnoreFocus;settings.editorInputBehaviorInPlayMode=InputSettings.EditorInputBehaviorInPlayMode.AllDeviceInputAlwaysGoesToGameView;InputSystem.settings=settings;
+  var mouse=InputSystem.AddDevice<Mouse>("VC02MainMouse");var overrides=new Dictionary<InputAction,string>();
+  foreach(var input in coordinator.Characters.Select(r=>r.GetComponent<CharacterInputHandler>()))foreach(var action in new[]{input.attackAction,input.mouseAction})
+  {overrides[action]=action.SaveBindingOverridesAsJson();for(int i=0;i<action.bindings.Count;i++)action.ApplyBindingOverride(i,action.bindings[i].path.Replace("<Mouse>",mouse.path));}
+  EditorWindow.GetWindow(typeof(Editor).Assembly.GetType("UnityEditor.GameView")).Focus();coordinator.SendMessage("OnApplicationFocus",true);
+  foreach(var r in coordinator.Characters){r.SendMessage("OnApplicationFocus",true);r.GetComponent<CompanionCombatBrain>().enabled=false;r.CancelAction("main-probe");r.Vitals.RestoreForDevelopment();}
+  var engagement=UnityEngine.Object.FindObjectOfType<CombatEngagementSession>();if(engagement!=null)engagement.enabled=false;
+  foreach(var enemy in UnityEngine.Object.FindObjectsOfType<Ossastra.Enemies.EnemyRoot>())
+  {enemy.AttacksEnabled=false;var brain=enemy.GetComponent<Ossastra.Enemies.ChaseEnemyBrain>();if(brain!=null)brain.enabled=false;var cc=enemy.GetComponent<CharacterController>();if(cc!=null)cc.enabled=false;enemy.transform.position=new Vector3(20,0,20);}
+  var rows=new List<object>();int failed=0,next=0,lastFrame=-1;double start=EditorApplication.timeSinceStartup;var steps=new List<(double,Action)>();
+  Ossastra.Characters.CharacterRoot actor=null;CharacterMainAction module=null;var acceptedStages=new List<int>();var ids=new HashSet<Guid>();Vector3 origin=Vector3.zero;double frost=0;string sourceId=null;int releases=0,hp=0;bool sawBuffer=false;Ossastra.Enemies.EnemyRoot target=null;
+  void Flush(string state){SessionState.SetString("VC02_MAIN_ACTION",Newtonsoft.Json.JsonConvert.SerializeObject(new{state,failed,rows}));}
+  void Check(string name,bool ok){if(!ok)failed++;rows.Add(new{name,ok,selection=module?.SelectedId,sequence=module?.Sequence?.Count,stages=acceptedStages.ToArray(),last=module?.LastResult,root=actor?.LastFact});Flush("running");}
+  void Fact(ActionFact fact){if(fact.Kind==ActionFactKind.Accepted){acceptedStages.Add(actor.AttackStage);ids.Add(fact.ActionId);}if(fact.Kind==ActionFactKind.Released)releases++;}
+  void Mouse(bool down){var point=Camera.main.WorldToScreenPoint(new Vector3(4,.03f,-2));InputSystem.QueueStateEvent(mouse,new MouseState{position=new Vector2(point.x,point.y),buttons=(ushort)(down?1:0)});}
+  void Setup(string actorId)
+  {
+   Mouse(false);if(actor!=null)actor.ActionObserved-=Fact;actor=coordinator.Characters.Single(r=>r.ActorId==actorId);if(coordinator.Current!=actor)coordinator.SwitchNext();module=actor.GetComponent<CharacterMainAction>();
+   foreach(var r in coordinator.Characters){r.CancelAction("main-probe-reset");r.GetComponent<CharacterStamina>().Restore();r.GetComponent<CharacterMainAction>()?.ResetState();r.GetComponent<CharacterMovement>().Teleport(new Vector3(r==actor?0:-4,.03f,-2));}
+   foreach(var source in actor.GetComponent<CharacterAbilities>().EvaluateSources())actor.GetComponent<CharacterEquipment>().State.RightRuntime.Sources.Remove(source.InstanceId);
+   origin=actor.transform.position;acceptedStages.Clear();ids.Clear();releases=0;sawBuffer=false;actor.ActionObserved+=Fact;
+  }
+  void MenuProfile(int buttonIndex)
+  {
+   var cluster=actor.ActorId=="temporary-a"?"HeroCluster":"CompanionCluster";
+   var open=hud.transform.Find("PrototypeHudCanvas/"+cluster+"/Kit/RightHand")?.GetComponent<Button>();if(open==null)throw new Exception("Normal right-hand button missing");open.onClick.Invoke();
+   var panel=hud.transform.Find("PrototypeHudCanvas/EquipmentModal/EquipmentPanel");var choice=panel?.Find("MainProfile"+buttonIndex)?.GetComponent<Button>();if(choice==null)throw new Exception("Normal main profile choice missing");choice.onClick.Invoke();panel.Find("Close").GetComponent<Button>().onClick.Invoke();
+  }
+  void Click(double at){steps.Add((at,()=>Mouse(true)));steps.Add((at+.035,()=>Mouse(false)));}
+  steps.Add((.15,()=>{Setup("temporary-a");Check("both existing four-stage defaults preserved",coordinator.Characters.All(r=>r.Definition.basicAttacks.Length==4&&r.GetComponent<CharacterMainAction>().SelectedId==""));MenuProfile(1);}));
+  steps.Add((.28,()=>Check("normal HUD selects hunter I with four stages",module.SelectedId=="hunter.prototype.I"&&module.Sequence?.Count==4)));
+  Click(.4);Click(.48);steps.Add((.72,()=>Check("finite pre-input queues then consumes exactly one next stage",sawBuffer&&acceptedStages.SequenceEqual(new[]{1,2}))));Click(.94);Click(1.3);
+  steps.Add((1.52,()=>Check("empty swings reach four stages via ordinary InputSystem",acceptedStages.SequenceEqual(new[]{1,2,3,4})&&ids.Count==4&&releases==4)));
+  Click(1.9);
+  steps.Add((2.0,()=>Check("terminal full-combo recovery rejects early restart",acceptedStages.Count==4&&!module.AllowsBasicRequest)));
+  steps.Add((2.45,()=>{Check("authored hunter dash enters real Movement",actor.transform.position.x>origin.x+1.9f);Check("terminal recovery expires on root clock",module.AllowsBasicRequest);Setup("temporary-a");MenuProfile(2);}));
+  steps.Add((2.6,()=>Check("normal HUD selects independent two-stage form II",module.SelectedId=="hunter.prototype.II"&&module.Sequence.Count==2&&Math.Abs(module.Sequence.PostureScale-1.35)<.001)));
+  Click(2.75);Click(3.27);
+  steps.Add((3.58,()=>Check("form II follows own two-stage sequence",acceptedStages.SequenceEqual(new[]{1,2})&&releases==2)));
+  steps.Add((4.6,()=>Setup("temporary-b")));steps.Add((4.72,()=>MenuProfile(1)));
+  steps.Add((4.82,()=>Check("ranger I independent three-stage profile",module.SelectedId=="ranger.prototype.I"&&module.Sequence?.Count==3)));
+  Click(4.9);Click(5.16);Click(5.45);
+  steps.Add((5.75,()=>Check("ranger ordinary empty swings reach all three stages",acceptedStages.SequenceEqual(new[]{1,2,3})&&releases==3)));
+  steps.Add((6.9,()=>{Check("ranger declared dash event has no invented displacement",Vector3.Distance(origin,actor.transform.position)<.1f);Setup("temporary-a");}));
+  steps.Add((7.02,()=>{MenuProfile(1);var a=actor.GetComponent<CharacterAbilities>();var chisel=a.SourceChoices.Where(d=>d.effect=="chisel").OrderBy(d=>d.phase).First();Check("chisel is granted by ordinary source command",a.ToggleExperimentalSource(chisel.definitionId));}));
+  steps.Add((7.12,()=>{if(module.Sequence==null||module.Sequence.Count<3)throw new Exception("Main profile not accepted after handoff: "+module.LastResult);Check("idle source change composes chisel stage three",module.Sequence.Stage(2).SourceId!=null&&module.Sequence.Stage(2).Timeline.Damage==25);frost=actor.GetComponent<CharacterEquipment>().State.RightRuntime.Frost.Current;sourceId=module.Sequence.Stage(2).SourceId;}));
+  Click(7.2);Click(7.46);Click(7.75);
+  steps.Add((7.82,()=>{Check("accepted chisel stores source identity",module.AcceptedStageId=="chisel");actor.GetComponent<CharacterEquipment>().State.RightRuntime.Sources.Remove(sourceId);}));
+  steps.Add((7.99,()=>{Check("accepted snapshot survives source removal",module.AcceptedStageId=="chisel"&&releases==3);Check("chisel release pays exactly one original frost balance",Math.Abs(actor.GetComponent<CharacterEquipment>().State.RightRuntime.Frost.Current-(frost-1))<.02);}));
+  steps.Add((8.7,()=>{Check("next idle snapshot no longer contains withdrawn chisel",module.Sequence.Stage(2).SourceId==null);MenuProfile(0);}));
+  steps.Add((8.85,()=>{Check("normal HUD restores unchanged four-stage candidate",module.SelectedId==""&&module.Sequence==null&&actor.Definition.basicAttacks.Length==4);Check("other weapon selection persists across control handoff",coordinator.Characters.Single(r=>r.ActorId=="temporary-b").GetComponent<CharacterMainAction>().SelectedId=="ranger.prototype.I");}));
+  steps.Add((9.05,()=>{Setup("temporary-a");MenuProfile(1);target=UnityEngine.Object.FindObjectOfType<Ossastra.Enemies.EnemyRoot>();target.RestoreForDevelopment();target.transform.position=new Vector3(1.2f,.03f,-2);var cc=target.GetComponent<CharacterController>();if(cc!=null)cc.enabled=true;Physics.SyncTransforms();hp=target.Vitals.Health.Current;}));
+  Click(9.3);
+  steps.Add((9.65,()=>Check("profile sector actual contact is resolved once by Combat gateway",releases==1&&target.Vitals.Health.Current==hp-15)));
+  EditorApplication.CallbackFunction tick=null;
+  void Cleanup(){EditorApplication.update-=tick;if(actor!=null)actor.ActionObserved-=Fact;Mouse(false);foreach(var kv in overrides)kv.Key.LoadBindingOverridesFromJson(kv.Value);InputSystem.RemoveDevice(mouse);InputSystem.settings=settingsBefore;UnityEngine.Object.DestroyImmediate(settings);}
+  tick=()=>{if(Time.frameCount==lastFrame)return;lastFrame=Time.frameCount;try{if(actor!=null&&actor.HasBufferedAttack)sawBuffer=true;if(next<steps.Count&&EditorApplication.timeSinceStartup-start>=steps[next].Item1){var late=EditorApplication.timeSinceStartup-start-steps[next].Item1;if(late>.02)start+=late;steps[next++].Item2();}if(next==steps.Count){Cleanup();Flush("completed");}}catch(Exception ex){failed++;rows.Add(new{error=ex.ToString()});Cleanup();Flush("failed");}};EditorApplication.update+=tick;Flush("running");
+ }
+}

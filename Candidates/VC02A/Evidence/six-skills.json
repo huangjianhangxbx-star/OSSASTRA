@@ -5,7 +5,7 @@
     {
       "name": "hunter-break accepts once through ordinary InputSystem",
       "ok": true,
-      "last": "接触 1 #97668902fd89409385ac8803114e6e3d",
+      "last": "接触 1 #c34b62d5787841b6a33a2d7edd122b96",
       "accepted": 1,
       "emitted": 1,
       "hp": 580,
@@ -21,7 +21,7 @@
     {
       "name": "hunter-break actual release and HP receipt",
       "ok": true,
-      "last": "接触 1 #97668902fd89409385ac8803114e6e3d",
+      "last": "接触 1 #c34b62d5787841b6a33a2d7edd122b96",
       "accepted": 1,
       "emitted": 1,
       "hp": 580,
@@ -37,7 +37,7 @@
     {
       "name": "hunter-break returns body to ready",
       "ok": true,
-      "last": "接触 1 #97668902fd89409385ac8803114e6e3d",
+      "last": "接触 1 #c34b62d5787841b6a33a2d7edd122b96",
       "accepted": 1,
       "emitted": 1,
       "hp": 580,
@@ -53,7 +53,7 @@
     {
       "name": "hunter-sweep accepts once through ordinary InputSystem",
       "ok": true,
-      "last": "接触 1 #0924fa96d7d340cda53a1cc0d298e337",
+      "last": "接触 1 #a780bf29cbab43039df5300178fa72e2",
       "accepted": 2,
       "emitted": 2,
       "hp": 582,
@@ -69,7 +69,7 @@
     {
       "name": "hunter-sweep actual release and HP receipt",
       "ok": true,
-      "last": "接触 1 #0924fa96d7d340cda53a1cc0d298e337",
+      "last": "接触 1 #a780bf29cbab43039df5300178fa72e2",
       "accepted": 2,
       "emitted": 2,
       "hp": 582,
@@ -85,7 +85,7 @@
     {
       "name": "hunter-sweep returns body to ready",
       "ok": true,
-      "last": "接触 1 #0924fa96d7d340cda53a1cc0d298e337",
+      "last": "接触 1 #a780bf29cbab43039df5300178fa72e2",
       "accepted": 2,
       "emitted": 2,
       "hp": 582,
@@ -125,11 +125,11 @@
     {
       "name": "hunter-native-E accepts once through ordinary InputSystem",
       "ok": true,
-      "last": "接触 0 #427f6d7438584f398849b2b6ea0019f6",
+      "last": "接触 0 #9be8818407d34b26b3420530963eda86",
       "accepted": 3,
       "emitted": 3,
       "hp": 525,
-      "position": "(1.64, 0.02, -1.44)",
+      "position": "(-0.51, 0.02, -2.01)",
       "facts": [
         "Accepted",
         "PhaseChanged",
@@ -144,11 +144,11 @@
     {
       "name": "hunter-native-E actual release and HP receipt",
       "ok": true,
-      "last": "接触 0 #427f6d7438584f398849b2b6ea0019f6",
+      "last": "接触 0 #9be8818407d34b26b3420530963eda86",
       "accepted": 3,
       "emitted": 3,
       "hp": 525,
-      "position": "(1.64, 0.02, -1.44)",
+      "position": "(-0.51, 0.02, -2.01)",
       "facts": [
         "Accepted",
         "PhaseChanged",
@@ -163,11 +163,11 @@
     {
       "name": "hunter-native-E returns body to ready",
       "ok": true,
-      "last": "接触 0 #427f6d7438584f398849b2b6ea0019f6",
+      "last": "接触 0 #9be8818407d34b26b3420530963eda86",
       "accepted": 3,
       "emitted": 3,
       "hp": 525,
-      "position": "(1.64, 0.02, -1.44)",
+      "position": "(-0.51, 0.02, -2.01)",
       "facts": [
         "Accepted",
         "PhaseChanged",
@@ -182,11 +182,11 @@
     {
       "name": "rush phases retain single accepted identity",
       "ok": true,
-      "last": "接触 0 #427f6d7438584f398849b2b6ea0019f6",
+      "last": "接触 0 #9be8818407d34b26b3420530963eda86",
       "accepted": 3,
       "emitted": 3,
       "hp": 525,
-      "position": "(1.64, 0.02, -1.44)",
+      "position": "(-0.51, 0.02, -2.01)",
       "facts": [
         "Accepted",
         "PhaseChanged",
@@ -199,13 +199,13 @@
       ]
     },
     {
-      "name": "rush moved forward through collision motor",
+      "name": "rush ordinary contact stops charge while target is displaced",
       "ok": true,
-      "last": "接触 0 #427f6d7438584f398849b2b6ea0019f6",
+      "last": "接触 0 #9be8818407d34b26b3420530963eda86",
       "accepted": 3,
       "emitted": 3,
       "hp": 525,
-      "position": "(1.64, 0.02, -1.44)",
+      "position": "(-0.51, 0.02, -2.01)",
       "facts": [
         "Accepted",
         "PhaseChanged",
@@ -220,7 +220,7 @@
     {
       "name": "al-stab accepts once through ordinary InputSystem",
       "ok": true,
-      "last": "接触 1 #77f1bcbdb3db41e3aa6aac7518561a5d",
+      "last": "接触 1 #3df27df1f17b47089b3eec46287c5586",
       "accepted": 1,
       "emitted": 1,
       "hp": 580,
@@ -236,7 +236,7 @@
     {
       "name": "al-stab actual release and HP receipt",
       "ok": true,
-      "last": "接触 1 #77f1bcbdb3db41e3aa6aac7518561a5d",
+      "last": "接触 1 #3df27df1f17b47089b3eec46287c5586",
       "accepted": 1,
       "emitted": 1,
       "hp": 580,
@@ -252,7 +252,7 @@
     {
       "name": "al-stab returns body to ready",
       "ok": true,
-      "last": "接触 1 #77f1bcbdb3db41e3aa6aac7518561a5d",
+      "last": "接触 1 #3df27df1f17b47089b3eec46287c5586",
       "accepted": 1,
       "emitted": 1,
       "hp": 580,
@@ -268,7 +268,7 @@
     {
       "name": "al-spin accepts once through ordinary InputSystem",
       "ok": true,
-      "last": "接触 1 #9472ac491b204d1e87fbcdfe1e8a9bd6",
+      "last": "接触 1 #96ce58e98ce5461384fa3bffe4038671",
       "accepted": 2,
       "emitted": 2,
       "hp": 582,
@@ -284,7 +284,7 @@
     {
       "name": "al-spin actual release and HP receipt",
       "ok": true,
-      "last": "接触 1 #9472ac491b204d1e87fbcdfe1e8a9bd6",
+      "last": "接触 1 #96ce58e98ce5461384fa3bffe4038671",
       "accepted": 2,
       "emitted": 2,
       "hp": 582,
@@ -300,7 +300,7 @@
     {
       "name": "al-spin returns body to ready",
       "ok": true,
-      "last": "接触 1 #9472ac491b204d1e87fbcdfe1e8a9bd6",
+      "last": "接触 1 #96ce58e98ce5461384fa3bffe4038671",
       "accepted": 2,
       "emitted": 2,
       "hp": 582,
@@ -316,7 +316,7 @@
     {
       "name": "al-native-E accepts once through ordinary InputSystem",
       "ok": true,
-      "last": "接触 1 #94af14aec87e4248a19c4e8fc44788b4",
+      "last": "接触 1 #7d41dcc9f0b34852b64aa4a4c86f273a",
       "accepted": 3,
       "emitted": 3,
       "hp": 515,
@@ -332,7 +332,7 @@
     {
       "name": "al-native-E actual release and HP receipt",
       "ok": true,
-      "last": "接触 1 #94af14aec87e4248a19c4e8fc44788b4",
+      "last": "接触 1 #7d41dcc9f0b34852b64aa4a4c86f273a",
       "accepted": 3,
       "emitted": 3,
       "hp": 515,
@@ -348,7 +348,7 @@
     {
       "name": "al-native-E returns body to ready",
       "ok": true,
-      "last": "接触 1 #94af14aec87e4248a19c4e8fc44788b4",
+      "last": "接触 1 #7d41dcc9f0b34852b64aa4a4c86f273a",
       "accepted": 3,
       "emitted": 3,
       "hp": 515,
@@ -364,7 +364,7 @@
     {
       "name": "rocket uses actual movement before landing damage",
       "ok": true,
-      "last": "接触 1 #94af14aec87e4248a19c4e8fc44788b4",
+      "last": "接触 1 #7d41dcc9f0b34852b64aa4a4c86f273a",
       "accepted": 3,
       "emitted": 3,
       "hp": 515,
@@ -380,7 +380,7 @@
     {
       "name": "native E retains canonical cooldown",
       "ok": true,
-      "last": "接触 1 #94af14aec87e4248a19c4e8fc44788b4",
+      "last": "接触 1 #7d41dcc9f0b34852b64aa4a4c86f273a",
       "accepted": 3,
       "emitted": 3,
       "hp": 515,

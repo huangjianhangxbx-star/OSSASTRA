@@ -7,7 +7,7 @@ namespace Ossastra.UserInterface
 {
     public struct CharacterHudSnapshot
     {
-        public string actorId,name,rightHand,leftHand,condition,rightInstanceId,leftInstanceId,leftDefinitionId;
+        public string actorId,name,rightHand,leftHand,condition,rightInstanceId,leftInstanceId,leftDefinitionId,abilityResources,mainHandForm;
         public bool alive,controlled;
         public float hp,maxHp,grayHp,stamina,maxStamina,posture,maxPosture;
         public int durability;
@@ -28,5 +28,10 @@ namespace Ossastra.UserInterface
         (string id,string name,Sprite sprite)[] EquipmentChoices(string actorId);
         (string id,string name)[] SkillChoices(string actorId);
         void ConfigureSkill(string actorId,int slot,string definitionId);
+        (string id,string name)[] MainActionChoices(string actorId);
+        string SelectedMainAction(string actorId);
+        void ConfigureMainAction(string actorId,string definitionId);
+        (string id,string name,string state,bool held)[] SourceChoices(string actorId);
+        void ToggleExperimentalSource(string actorId,string definitionId);
     }
 }

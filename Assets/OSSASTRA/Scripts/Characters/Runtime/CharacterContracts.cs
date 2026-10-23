@@ -156,6 +156,8 @@ namespace Ossastra.Characters
         void Tick(bool allowed, float delta);
         void Teleport(Vector3 position);
     }
+    /// <summary>持续能力只修饰自愿移动速度；不接管动作位移、受迫移动或物理写入。</summary>
+    public interface ICharacterLocomotionScale { float LocomotionScale {get;} }
     /// <summary>分别维护攻击方向与可见翻转，由Root显式调度。</summary>
     public interface ICharacterOrientation
     {

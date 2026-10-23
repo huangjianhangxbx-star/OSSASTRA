@@ -1,0 +1,166 @@
+{
+  "state": "completed",
+  "failed": 0,
+  "rows": [
+    {
+      "name": "two real independent skeleton instances",
+      "ok": true,
+      "status": "左：独立Spine / rest；右：无Spine配置（旧表现路径）",
+      "clip": "rest",
+      "commits": 1,
+      "gripError": 0.0
+    },
+    {
+      "name": "equipment is small skeleton, not copied character",
+      "ok": true,
+      "status": "左：独立Spine / rest；右：无Spine配置（旧表现路径）",
+      "clip": "rest",
+      "commits": 1,
+      "gripError": 0.0
+    },
+    {
+      "name": "both grip anchors match body bones",
+      "ok": true,
+      "status": "左：独立Spine / rest；右：无Spine配置（旧表现路径）",
+      "clip": "rest",
+      "commits": 1,
+      "gripError": 0.0
+    },
+    {
+      "name": "equipment owns actual mesh",
+      "ok": true,
+      "status": "左：独立Spine / rest；右：无Spine配置（旧表现路径）",
+      "clip": "rest",
+      "commits": 1,
+      "gripError": 0.0
+    },
+    {
+      "name": "same idle intent does not restart",
+      "ok": true,
+      "status": "左：独立Spine / rest；右：无Spine配置（旧表现路径）",
+      "clip": "rest",
+      "commits": 1,
+      "gripError": 0.0
+    },
+    {
+      "name": "ordinary attack accepted",
+      "ok": true,
+      "status": "左：独立Spine / strike；右：无Spine配置（旧表现路径）",
+      "clip": "strike",
+      "commits": 2,
+      "gripError": 0.0
+    },
+    {
+      "name": "equipment shares body phase replay identity",
+      "ok": true,
+      "status": "左：独立Spine / strike；右：无Spine配置（旧表现路径）",
+      "clip": "strike",
+      "commits": 2,
+      "gripError": 0.0
+    },
+    {
+      "name": "different clip names are explicitly mapped",
+      "ok": true,
+      "status": "左：独立Spine / strike；右：无Spine配置（旧表现路径）",
+      "clip": "strike",
+      "commits": 2,
+      "gripError": 0.0
+    },
+    {
+      "name": "other instance does not replay this action",
+      "ok": true,
+      "status": "左：独立Spine / strike；右：无Spine配置（旧表现路径）",
+      "clip": "strike",
+      "commits": 2,
+      "gripError": 0.0
+    },
+    {
+      "name": "same semantic second action gets new identity",
+      "ok": true,
+      "status": "左：独立Spine / strike；右：无Spine配置（旧表现路径）",
+      "clip": "strike",
+      "commits": 3,
+      "gripError": 0.0
+    },
+    {
+      "name": "pause freezes independent equipment clock",
+      "ok": true,
+      "status": "左：独立Spine / strike；右：无Spine配置（旧表现路径）",
+      "clip": "strike",
+      "commits": 3,
+      "gripError": 0.0
+    },
+    {
+      "name": "pause does not repeat animation commit",
+      "ok": true,
+      "status": "左：独立Spine / strike；右：无Spine配置（旧表现路径）",
+      "clip": "strike",
+      "commits": 3,
+      "gripError": 0.0
+    },
+    {
+      "name": "keyboard flip preserves exact grip alignment",
+      "ok": true,
+      "status": "左：独立Spine / rest；右：无Spine配置（旧表现路径）",
+      "clip": "rest",
+      "commits": 5,
+      "gripError": 0.0
+    },
+    {
+      "name": "disable hides equipment immediately",
+      "ok": true,
+      "status": "左：独立Spine / rest；右：无Spine配置（旧表现路径）",
+      "clip": "rest",
+      "commits": 5,
+      "gripError": 0.0
+    },
+    {
+      "name": "resume restores existing independent renderer",
+      "ok": true,
+      "status": "左：独立Spine / rest；右：无Spine配置（旧表现路径）",
+      "clip": "rest",
+      "commits": 5,
+      "gripError": 0.0
+    },
+    {
+      "name": "normal equipment command accepts alternate",
+      "ok": true,
+      "status": "左：独立Spine / rest；右：无Spine配置（旧表现路径）",
+      "clip": "rest",
+      "commits": 5,
+      "gripError": 0.0
+    },
+    {
+      "name": "unequip destroys owned skeleton",
+      "ok": true,
+      "status": "左：无Spine配置（旧表现路径）；右：无Spine配置（旧表现路径）",
+      "clip": null,
+      "commits": 5,
+      "gripError": 0.0
+    },
+    {
+      "name": "re-equip uses ordinary equipment command",
+      "ok": true,
+      "status": "左：无Spine配置（旧表现路径）；右：无Spine配置（旧表现路径）",
+      "clip": null,
+      "commits": 5,
+      "gripError": 0.0
+    },
+    {
+      "name": "re-equip rebuilds exactly one equipment skeleton",
+      "ok": true,
+      "status": "左：独立Spine / rest；右：无Spine配置（旧表现路径）",
+      "clip": "rest",
+      "commits": 6,
+      "gripError": 0.0
+    },
+    {
+      "name": "rebuild grip alignment and sorted layer",
+      "ok": true,
+      "status": "左：独立Spine / rest；右：无Spine配置（旧表现路径）",
+      "clip": "rest",
+      "commits": 6,
+      "gripError": 0.0
+    }
+  ]
+}

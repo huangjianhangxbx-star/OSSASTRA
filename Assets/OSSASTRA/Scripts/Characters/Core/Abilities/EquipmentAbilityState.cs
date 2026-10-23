@@ -12,15 +12,22 @@ namespace Ossastra.CharacterCore.Abilities
         public SkillCooldownBook Cooldowns {get;}=new SkillCooldownBook();
         public MagazineState Magazine {get;}=new MagazineState();
         public FrostReserveState Frost {get;}=new FrostReserveState();
+        public EffectSourceSet Sources {get;}=new EffectSourceSet();
+        public ShotEnhancementState ShotEnhancements {get;}=new ShotEnhancementState();
+        // 空串保留角色当前四段候选；动作组只改变定义，不复制本实例的资源/CD。
+        public string MainActionProfileId {get;set;}="";
         // 空字符串表示主动清空；缺键才使用定义默认值，换槽不重建选择。
         public System.Collections.Generic.Dictionary<int,string> SkillSelections {get;}=new System.Collections.Generic.Dictionary<int,string>();
         public double EquippedTime {get;private set;}
         public double ControlledTime {get;private set;}
-        public double Clock(AbilityCooldownPolicy policy)=>policy==AbilityCooldownPolicy.WhilePlayerControlled?ControlledTime:EquippedTime;
-        public void Tick(double delta,bool controlled,bool frostRecovering=true)
+        private double cooldownTime,controlledCooldownTime;
+        public double Clock(AbilityCooldownPolicy policy)=>policy==AbilityCooldownPolicy.WhilePlayerControlled?controlledCooldownTime:cooldownTime;
+        public void Tick(double delta,bool controlled,bool frostRecovering=true,double cooldownRate=1)
         {
-            if(!BasicAttackDefinition.Finite(delta)||delta<0)throw new ArgumentException("Invalid equipment simulation delta");
+            if(!BasicAttackDefinition.Finite(delta)||delta<0||!BasicAttackDefinition.Finite(cooldownRate)||cooldownRate<0)throw new ArgumentException("Invalid equipment simulation delta/rate");
+            cooldownTime+=delta*cooldownRate;if(controlled)controlledCooldownTime+=delta*cooldownRate;
             EquippedTime+=delta;if(controlled)ControlledTime+=delta;Frost.Tick(EquippedTime,frostRecovering);
+            ShotEnhancements.Tick(EquippedTime,Sources);
         }
     }
 }
