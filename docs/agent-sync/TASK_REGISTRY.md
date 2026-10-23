@@ -930,3 +930,7 @@ active/unity-writer；用户明确要求一轮修整：共享脚本去M01标签�
 2026-10-23 VC02B complete/read-only：B0-B8 Editor候选完成，产品a2fa0cd9e9efa98eba3f3567c6704f417f6bfb16已GitHub main远端核对；ART_ENTRY_READY=true/正式标准未冻，Player因旧Favorites插件编译阻塞。全部租约释放；四保护dirty保留，不Gitee/不关机。详见tasks/2026-10-23-VC02B.md。
 
 
+
+2026-10-23 feature-review-checklist complete/read-only：24模块/72待审验收项、5复验链及决定卡已生成；文档链接/编号检查通过。未改代码/Unity，全部租约释放。
+
+
