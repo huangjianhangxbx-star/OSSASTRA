@@ -528,3 +528,7 @@ T7A3独立RendererFeature/密度场/最多2个AtmosphereLight/8-16步积分/Dept
 > 2026-10-24 CONFIG-01技术完成：根Inspector实际view导航与只读已执行信息；Workbench schema3重导164SO/3模型755条，326依赖指纹/307引用GUID对账；当前配置四表/一页样板同步，72用户审查勾选原样。A/B导航13、保存恢复5、小流程19及导出日志RED→GREEN。仅Editor/资料，35原dirty保留，B Edit clean，非实体手柄验收；GitHub定向发布中。交接docs/ossastra/ArtIntegrationCandidate/ConfigurationHandoff.md。
 
 > 2026-10-24 CONFIG-01 complete：产品448ccc5e16255c333455dee8fc033b7e18641d6e已GitHub main核对；A/B根已可直达实际Map/Router/Rig，当前配置说明与可操作样板已交接，末次19步确认身体与左右装备真实轨道播放。B Edit clean/Missing0/无临时输入设备，35原dirty保留，全部租约释放；后续由用户选定具体配置逐模块审查。
+
+> 2026-10-24 DIR01开工：用户附件明确模型目标改为多面，局部替代R24，保留旧仲裁器与原式动画SO。仅研究/隔离可视工具/接入草案，不修改正式运行时或生产资产。
+
+> 2026-10-24 DIR01研究技术完成：776骨/494slot/138动画，官方CLI副本拆图及4.3原工程读取；方向根位移＋原作Late矩形slot显隐已静态闭环，非仅源裁切。独立29+6检查/300姿态、192拆图通过，正式Composer清另一owner方向轨已隔离复现。仅报告/工具/DIR02草案，未接生产；D03/D11/D14未穷举或未正式接入。B Edit ready且dirty保留，35磁盘dirty保护；Unity/源码租约释放，仅文档定向发布。

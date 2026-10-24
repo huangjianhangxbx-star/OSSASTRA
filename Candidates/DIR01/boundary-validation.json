@@ -1,0 +1,54 @@
+{
+  "runtimeChecks": [
+    {
+      "name": "六动作×五进度×五面×镜像均完成真实求解",
+      "ok": true
+    },
+    {
+      "name": "scale起始裁切由实际动作启用",
+      "ok": true
+    },
+    {
+      "name": "关闭源约束改变真实手骨结果",
+      "ok": true
+    },
+    {
+      "name": "约束开关恢复原姿态",
+      "ok": true
+    },
+    {
+      "name": "15个长兵器动作采样已完成边缘检查",
+      "ok": true,
+      "inspectedAttachments": 6483,
+      "invalidVertices": 0,
+      "observedCrossings": 0,
+      "limitation": "仅这15个动作时点；不代表全部动画均不越界"
+    },
+    {
+      "name": "无滞回选面在边界来回切换",
+      "ok": true
+    }
+  ],
+  "poseSamples": 300,
+  "errors": [],
+  "unpack": {
+    "regions": 192,
+    "rotated": 87,
+    "missing": [],
+    "wrongDimensions": []
+  },
+  "sourceHashes": [
+    {
+      "name": "小蓝.png",
+      "unchanged": true
+    },
+    {
+      "name": "unit.atlas",
+      "unchanged": true
+    },
+    {
+      "name": "unit.json",
+      "unchanged": true
+    }
+  ]
+}

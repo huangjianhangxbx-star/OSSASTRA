@@ -1,0 +1,44 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "researchOnly": true,
+      "reproduced": true,
+      "rows": [
+        {
+          "name": "different owners without exclusivity",
+          "tracks": [
+            0,
+            9
+          ],
+          "clears": []
+        },
+        {
+          "name": "exclusive main clears separate direction owner",
+          "tracks": [
+            0
+          ],
+          "clears": [
+            9
+          ]
+        },
+        {
+          "name": "same full plan owner can retain track9",
+          "tracks": [
+            0,
+            9
+          ],
+          "clears": []
+        }
+      ],
+      "sourcePrefabUnsaved": true,
+      "activeScenePreserved": true
+    }
+  }
+}

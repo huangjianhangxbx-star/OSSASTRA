@@ -1,0 +1,2 @@
+/* 预览验收：同一个入口真实加载本地纹理并可控制，而非空白UI。 */
+const {chromium}=require(process.argv[2]);(async()=>{const browser=await chromium.launch({channel:"msedge",headless:true,args:['--use-angle=swiftshader','--enable-unsafe-swiftshader']});try{const page=await browser.newPage();await page.goto('http://127.0.0.1:5187');await page.waitForFunction(()=>window.dir01?.ready===true,null,{timeout:8000});console.log('PASS: official runtime and textures ready');}finally{await browser.close();}})().catch(e=>{console.error(e.message);process.exit(1)});

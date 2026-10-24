@@ -1,0 +1,164 @@
+{
+  "failed": 0,
+  "checks": 29,
+  "rows": [
+    {
+      "name": "方向动画把 上 根移到原点",
+      "ok": true,
+      "detail": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "name": "方向动画把 下 根移到原点",
+      "ok": true,
+      "detail": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "name": "方向动画把 左 根移到原点",
+      "ok": true,
+      "detail": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "name": "方向动画把 左上 根移到原点",
+      "ok": true,
+      "detail": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "name": "方向动画把 左下 根移到原点",
+      "ok": true,
+      "detail": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "name": "镜像不改变 上 根原点",
+      "ok": true
+    },
+    {
+      "name": "镜像不改变 下 根原点",
+      "ok": true
+    },
+    {
+      "name": "镜像不改变 左 根原点",
+      "ok": true
+    },
+    {
+      "name": "镜像不改变 左上 根原点",
+      "ok": true
+    },
+    {
+      "name": "镜像不改变 左下 根原点",
+      "ok": true
+    },
+    {
+      "name": "只切方向保留同一主动作实例与进度",
+      "ok": true
+    },
+    {
+      "name": "只切方向不额外触发原生事件",
+      "ok": true,
+      "detail": {
+        "eventCount": 2
+      }
+    },
+    {
+      "name": "相同动作重播产生新主轨实例",
+      "ok": true
+    },
+    {
+      "name": "受击动作替换保留方向轨",
+      "ok": true
+    },
+    {
+      "name": "暂停求姿态不推进主动作",
+      "ok": true
+    },
+    {
+      "name": "单步推进恰好1/30秒",
+      "ok": true
+    },
+    {
+      "name": "原作零向量明确回退左下而非暗自保留",
+      "ok": true
+    },
+    {
+      "name": "原作22.5度边界两侧不同面",
+      "ok": true
+    },
+    {
+      "name": "原作精确边界按闭区间与表顺序选第一项",
+      "ok": true
+    },
+    {
+      "name": "原型非45度均分边界",
+      "ok": true
+    },
+    {
+      "name": "两实例共享Data却保持方向和轨道独立",
+      "ok": true
+    },
+    {
+      "name": "重建实例没有遗留方向轨",
+      "ok": true
+    },
+    {
+      "name": "源遮罩真实drawOrder仍靠后",
+      "ok": true,
+      "detail": 488
+    },
+    {
+      "name": "原型清理保留拼音分支附件",
+      "ok": true
+    },
+    {
+      "name": "程序矩形剔除显著减少可绘候选",
+      "ok": true,
+      "detail": {
+        "native": 376,
+        "cull": 32,
+        "prototype": 238
+      }
+    },
+    {
+      "name": "非零方向mix使旧新根穿越中间位置",
+      "ok": true,
+      "detail": {
+        "leftX": -200,
+        "upY": 199.99999999999994
+      }
+    },
+    {
+      "name": "零mix离散切面直接归位",
+      "ok": true
+    },
+    {
+      "name": "每面手骨候选已实际求世界坐标",
+      "ok": true
+    },
+    {
+      "name": "全部实验没有修改共享导出数据",
+      "ok": true
+    }
+  ],
+  "errors": [],
+  "benchmark": {
+    "environment": "Edge headless software WebGL; JS CPU only, not original game",
+    "bones": 776,
+    "updateMs": 0.10449999999254941,
+    "cullClassificationMs": 0.00849999999627471,
+    "outsideVisits": 90400
+  },
+  "localMediaOnly": true
+}
