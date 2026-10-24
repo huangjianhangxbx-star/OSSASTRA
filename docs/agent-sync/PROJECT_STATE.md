@@ -536,3 +536,5 @@ T7A3独立RendererFeature/密度场/最多2个AtmosphereLight/8-16步积分/Dept
 > 2026-10-24 DIR01 complete：产品14715e763e4ab92936aa7f26b49ca34fb457c744已GitHub main精确核对。自有研究台与三方报告/DIR02草案交付；D03/D11/D14边界详列。B Edit ready/内存dirty保留，35原磁盘dirty与素材SHA一致；全部租约释放，不自动DIR02，不安装MCP/不Gitee/不关机。
 
 > 2026-10-25 DIR02 technical-complete：小蓝4.3五面Variant与SC_CharacterPresentationCompare已实际接入，A小蓝/B原rozeul；原式动画链的合法结构层、每实例显隐、30条动态Rig与同装备换锚点完成。42输入/1200姿态/10生命周期/16实战/36混合/5原生E验证通过。仅候选，未覆盖主场，复杂穿插/近似动作PARTIAL，实体手感未代签。原36dirty与源SHA保护，最终Edit clean；GitHub定向发布中，Unity/源码租约已释放。见ossastra/DIR02-report.md。
+
+> 2026-10-25 DIR02 complete：产品93eda092c894722a65beff6974217228c2f615dd已GitHub main核对。小蓝五面/rozeul候选与指南交付，原主场未替换、用户美术未代签；最终对照场Edit ready/clean，无临时设备，原36dirty与源SHA一致，全部租约释放。停在用户试玩与正式素材接入判断，不继续扩张。
