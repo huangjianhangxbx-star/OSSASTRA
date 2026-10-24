@@ -946,3 +946,6 @@ active/unity-writer；用户明确要求一轮修整：共享脚本去M01标签�
 2026-10-24 am-review-fixes active/unity-writer：F01-F06与Movement RED→GREEN定向复验完成；正常输入17/双手9/生命周期13等最终回归进行中。无新场景或永久配置修改，保护dirty保持。
 2026-10-24 am-review-fixes technical-complete/docs-writer：F01-F06/Movement完成，最终B Edit ready/clean；源码/Unity租约释放，仅本轮文档与GitHub发布租约，见最新交接。
 2026-10-24 am-review-fixes complete/read-only：c7feaf14c5bd1e7542e79924529c24c712f1fe08已GitHub main核对，全部writer/路径租约释放；最终B Edit clean，用户dirty保持，非实体手柄验收。
+2026-10-24 configuration-authoring active/unity-writer：唯一Unity writer；配置导航/只读Inspector、Workbench导出及当前作者文档样板，独占范围见tasks/2026-10-24-configuration-authoring.md；0b92206基线与35保护dirty保持。
+
+2026-10-24 configuration-authoring technical-complete/docs-writer：A/B导航13、保存恢复5、正常输入/uGUI样板19、导出与指纹/GUID/时线对账通过；仅Editor/资料，35保护dirty不动；Unity/源码租约释放，仅定向GitHub发布。

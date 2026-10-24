@@ -1,0 +1,40 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "failed": 0,
+      "rows": [
+        {
+          "name": "export preserves active single clean scene",
+          "ok": true
+        },
+        {
+          "name": "export preserves selection and edit roots without initialization",
+          "ok": true
+        },
+        {
+          "name": "all existing dependency bytes match SHA256 manifest",
+          "ok": true
+        },
+        {
+          "name": "all exported object reference GUIDs match actual paths",
+          "ok": true
+        },
+        {
+          "name": "event timeline author contract exports hit_start and clip duration rather than scalar defaults",
+          "ok": true
+        }
+      ],
+      "exported": "导出完成：164 SO / 3实际依赖模型 / 755模型条目。\ndocs/ossastra/ArtIntegrationCandidate/Generated\nUnity 2022.3.62t16；工具导出schema=3。REJECT项须单独处理，不以导出成功冒充检查通过。",
+      "manifestRows": 326,
+      "referenceRows": 307,
+      "scenePath": "Assets/OSSASTRA/Scenes/SC_VC02B_IntegrationReady.unity"
+    }
+  }
+}

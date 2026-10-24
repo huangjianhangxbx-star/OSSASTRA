@@ -1,0 +1,42 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [
+      "63378"
+    ],
+    "destroyed": [],
+    "returnValue": {
+      "failed": 0,
+      "path": "Assets/OSSASTRA/Configs/Animation/temporary-a_VC02_Animation_Mapping.asset",
+      "oldMix": 0.08,
+      "newMix": 0.12,
+      "restoredMix": 0.08,
+      "rows": [
+        {
+          "name": "target A mapping saved and reimported mix 0.12",
+          "ok": true
+        },
+        {
+          "name": "B mapping remains independent",
+          "ok": true
+        },
+        {
+          "name": "mapping and meta bytes restored exactly",
+          "ok": true
+        },
+        {
+          "name": "prefab default mapping differs from scene A override",
+          "ok": true
+        },
+        {
+          "name": "missing view diagnosed without guessed child binding",
+          "ok": true
+        }
+      ]
+    }
+  }
+}

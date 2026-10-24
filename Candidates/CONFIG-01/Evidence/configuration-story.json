@@ -1,0 +1,216 @@
+{
+  "state": "completed",
+  "failed": 0,
+  "hardwareExperience": false,
+  "rows": [
+    {
+      "name": "neutral physical inputs",
+      "ok": true,
+      "clip": "idle1_1",
+      "source": "OffHand",
+      "bodyExecution": "00000000-0000-0000-0000-000000000000",
+      "rightExecution": "00000000-0000-0000-0000-000000000000",
+      "leftExecution": "00000000-0000-0000-0000-000000000000",
+      "left": "vc02.shield-a",
+      "ability": "能力未初始化"
+    },
+    {
+      "name": "LT+RT selects configured hunter group",
+      "ok": true,
+      "clip": "idle1_1",
+      "source": "OffHand",
+      "bodyExecution": "00000000-0000-0000-0000-000000000000",
+      "rightExecution": "00000000-0000-0000-0000-000000000000",
+      "leftExecution": "00000000-0000-0000-0000-000000000000",
+      "left": "vc02.shield-a",
+      "ability": "能力未初始化"
+    },
+    {
+      "name": "release mode chord",
+      "ok": true,
+      "clip": "idle1_1",
+      "source": "OffHand",
+      "bodyExecution": "00000000-0000-0000-0000-000000000000",
+      "rightExecution": "00000000-0000-0000-0000-000000000000",
+      "leftExecution": "00000000-0000-0000-0000-000000000000",
+      "left": "vc02.shield-a",
+      "ability": "能力未初始化"
+    },
+    {
+      "name": "RT accepts main stage and body/equipment play same identity",
+      "ok": true,
+      "clip": "atk1",
+      "source": "action",
+      "bodyExecution": "a17e16f8-3fc6-4895-a09e-ba21bb6f51ca",
+      "rightExecution": "a17e16f8-3fc6-4895-a09e-ba21bb6f51ca",
+      "leftExecution": "00000000-0000-0000-0000-000000000000",
+      "left": "vc02.shield-a",
+      "ability": "能力未初始化"
+    },
+    {
+      "name": "active action keeps old mix after mapping adjustment",
+      "ok": true,
+      "clip": "atk1",
+      "source": "action",
+      "bodyExecution": "a17e16f8-3fc6-4895-a09e-ba21bb6f51ca",
+      "rightExecution": "a17e16f8-3fc6-4895-a09e-ba21bb6f51ca",
+      "leftExecution": "00000000-0000-0000-0000-000000000000",
+      "left": "vc02.shield-a",
+      "ability": "能力未初始化"
+    },
+    {
+      "name": "let first action and continuation expire",
+      "ok": true,
+      "clip": "idle1_1",
+      "source": "OffHand",
+      "bodyExecution": "a17e16f8-3fc6-4895-a09e-ba21bb6f51ca",
+      "rightExecution": "00000000-0000-0000-0000-000000000000",
+      "leftExecution": "00000000-0000-0000-0000-000000000000",
+      "left": "vc02.shield-a",
+      "ability": "能力未初始化"
+    },
+    {
+      "name": "fresh RT observes adjusted mix on next accepted action",
+      "ok": true,
+      "clip": "atk1",
+      "source": "action",
+      "bodyExecution": "8af5294e-6350-4ae9-9693-20124de38e29",
+      "rightExecution": "8af5294e-6350-4ae9-9693-20124de38e29",
+      "leftExecution": "00000000-0000-0000-0000-000000000000",
+      "left": "vc02.shield-a",
+      "ability": "能力未初始化"
+    },
+    {
+      "name": "release attack and finish",
+      "ok": true,
+      "clip": "idle1_1",
+      "source": "OffHand",
+      "bodyExecution": "8af5294e-6350-4ae9-9693-20124de38e29",
+      "rightExecution": "00000000-0000-0000-0000-000000000000",
+      "leftExecution": "00000000-0000-0000-0000-000000000000",
+      "left": "vc02.shield-a",
+      "ability": "能力未初始化"
+    },
+    {
+      "name": "Q body skill plays through formal ability and equipment",
+      "ok": true,
+      "clip": "atk3",
+      "source": "action",
+      "bodyExecution": "692b3abe-babe-4858-ba5f-876e5c89048c",
+      "rightExecution": "692b3abe-babe-4858-ba5f-876e5c89048c",
+      "leftExecution": "00000000-0000-0000-0000-000000000000",
+      "left": "vc02.shield-a",
+      "ability": "接受 实验·破势斩"
+    },
+    {
+      "name": "release Q and finish",
+      "ok": true,
+      "clip": "idle1_1",
+      "source": "OffHand",
+      "bodyExecution": "692b3abe-babe-4858-ba5f-876e5c89048c",
+      "rightExecution": "00000000-0000-0000-0000-000000000000",
+      "leftExecution": "00000000-0000-0000-0000-000000000000",
+      "left": "vc02.shield-a",
+      "ability": "接触 0 #692b3abebabe4858ba5f876e5c89048c"
+    },
+    {
+      "name": "LT starts configured shield A hold behavior",
+      "ok": true,
+      "clip": "ready_start",
+      "source": "OffHand",
+      "bodyExecution": "692b3abe-babe-4858-ba5f-876e5c89048c",
+      "rightExecution": "00000000-0000-0000-0000-000000000000",
+      "leftExecution": "b108005f-763b-481e-95df-162b433f1f80",
+      "left": "vc02.shield-a",
+      "ability": "接受 ShieldA_HoldGuard"
+    },
+    {
+      "name": "LT release stops guarding",
+      "ok": true,
+      "clip": "ready_end",
+      "source": "OffHand",
+      "bodyExecution": "692b3abe-babe-4858-ba5f-876e5c89048c",
+      "rightExecution": "00000000-0000-0000-0000-000000000000",
+      "leftExecution": "00000000-0000-0000-0000-000000000000",
+      "left": "vc02.shield-a",
+      "ability": "接受 ShieldA_HoldGuard"
+    },
+    {
+      "name": "Tab opens normal inventory",
+      "ok": true,
+      "clip": "ready_end",
+      "source": "OffHand",
+      "bodyExecution": "692b3abe-babe-4858-ba5f-876e5c89048c",
+      "rightExecution": "00000000-0000-0000-0000-000000000000",
+      "leftExecution": "00000000-0000-0000-0000-000000000000",
+      "left": "vc02.shield-a",
+      "ability": "接受 ShieldA_HoldGuard"
+    },
+    {
+      "name": "release Tab and approach existing chest",
+      "ok": true,
+      "clip": "ready_end",
+      "source": "OffHand",
+      "bodyExecution": "692b3abe-babe-4858-ba5f-876e5c89048c",
+      "rightExecution": "00000000-0000-0000-0000-000000000000",
+      "leftExecution": "00000000-0000-0000-0000-000000000000",
+      "left": "vc02.shield-a",
+      "ability": "接受 ShieldA_HoldGuard"
+    },
+    {
+      "name": "uGUI drag existing chest shield B into actual left slot",
+      "ok": true,
+      "clip": "ready_end",
+      "source": "OffHand",
+      "bodyExecution": "692b3abe-babe-4858-ba5f-876e5c89048c",
+      "rightExecution": "00000000-0000-0000-0000-000000000000",
+      "leftExecution": "00000000-0000-0000-0000-000000000000",
+      "left": "vc02.shield-b",
+      "ability": "接受 ShieldA_HoldGuard"
+    },
+    {
+      "name": "Tab closes inventory",
+      "ok": true,
+      "clip": "ready_end",
+      "source": "OffHand",
+      "bodyExecution": "692b3abe-babe-4858-ba5f-876e5c89048c",
+      "rightExecution": "00000000-0000-0000-0000-000000000000",
+      "leftExecution": "00000000-0000-0000-0000-000000000000",
+      "left": "vc02.shield-b",
+      "ability": "接受 ShieldA_HoldGuard"
+    },
+    {
+      "name": "release Tab to rearm gameplay",
+      "ok": true,
+      "clip": "ready_end",
+      "source": "OffHand",
+      "bodyExecution": "692b3abe-babe-4858-ba5f-876e5c89048c",
+      "rightExecution": "00000000-0000-0000-0000-000000000000",
+      "leftExecution": "00000000-0000-0000-0000-000000000000",
+      "left": "vc02.shield-b",
+      "ability": "接受 ShieldA_HoldGuard"
+    },
+    {
+      "name": "same LT invokes shield B body attack with left source and Spine",
+      "ok": true,
+      "clip": "heavy",
+      "source": "action",
+      "bodyExecution": "94c1d0b0-8f3d-4a7f-9819-a7bb1e696d10",
+      "rightExecution": "00000000-0000-0000-0000-000000000000",
+      "leftExecution": "94c1d0b0-8f3d-4a7f-9819-a7bb1e696d10",
+      "left": "vc02.shield-b",
+      "ability": "接受 ShieldB_PressAttack"
+    },
+    {
+      "name": "release final gesture",
+      "ok": true,
+      "clip": "heavy",
+      "source": "action",
+      "bodyExecution": "94c1d0b0-8f3d-4a7f-9819-a7bb1e696d10",
+      "rightExecution": "00000000-0000-0000-0000-000000000000",
+      "leftExecution": "94c1d0b0-8f3d-4a7f-9819-a7bb1e696d10",
+      "left": "vc02.shield-b",
+      "ability": "接触 1 #94c1d0b08f3d4a7f9819a7bb1e696d10"
+    }
+  ]
+}

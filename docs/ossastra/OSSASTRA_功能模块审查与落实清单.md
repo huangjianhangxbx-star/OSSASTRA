@@ -58,7 +58,7 @@
 
 **功能范围**：组件装配、初始化依赖、Update/LateUpdate调度、暂停/失焦/禁用/销毁、每类实体生命周期。
 
-**当前入口/所有者**：`Characters/Runtime/CharacterRoot`；`Enemies/Runtime/EnemyRoot`；NPC使用独立根。角色根推进本体模块，场景服务负责队伍/库存等跨实体职责。
+**当前入口/所有者**：`Characters/Runtime/CharacterRoot`；`Enemies/Runtime/EnemyRoot`；NPC使用独立根。角色根Update调用StateArbitrator.ManagedUpdate后提交表现；LateUpdate消费同帧身体姿态并推进装备/临时物品。场景服务负责队伍/库存等跨实体职责。
 
 **重点核查**：实际时序是否逐段可解释；子模块是否另开Update造成双更新；独立根能否复用Combat而不依赖玩家组件；初始化失败是否明确且不会半初始化运行。
 
@@ -70,7 +70,7 @@
 
 **功能范围**：角色配置、运行数据、跨模块查询、能力依赖与事件事实。
 
-**当前入口/所有者**：`CharacterDefinitionSO`、`CharacterDataBus`、`CharacterContracts`及领域contracts；资源/装备/库存状态分别由对应领域所有者维护，DataBus不是所有状态的副本。
+**当前入口/所有者**：`CharacterDefinitionSO`、`CharacterDataBus`、`CharacterContracts`及领域contracts；资源/装备/库存状态分别由对应领域所有者维护，DataBus不是所有状态的副本；Combat注册机拥有唯一BasicActionRuntime，AbilityRun/装备payload/InventoryLedger分别保留既有状态所有权。
 
 **重点核查**：哪些字段是权威、快照或只读投影；哪些组件需注入接口而非互相GetComponent；接口按角色/战斗/库存领域放置是否清楚；避免把所有接口堆成无边界总文件。
 
@@ -82,7 +82,7 @@
 
 **功能范围**：键鼠采样、Press/Hold/Tap/LongPress、双角色切控、玩家与伙伴让权、UI焦点与持键重武装。
 
-**当前入口/所有者**：`CharacterInputHandler`、`CharacterControlCoordinator`、`CharacterIntentSelector`、Core `GestureRecognizer`；场景唯一Current，本体接收输入/候选帧。
+**当前入口/所有者**：`CharacterInputHandler`、`CharacterControlCoordinator`、`CharacterIntentSelector`、Core `GestureRecognizer`；场景唯一Current，本体接收输入/候选帧；PlayerInputLayoutSO为配置源。AM03及定向修正已接通设备来源/手势凭据、同帧按下释放与UI不补攻，未测实体手柄手感。
 
 **重点核查**：输入意图与接受成功分离；切控/失焦后的旧按键不得补发；背包开着可走、文本输入时不可走；点击UI不能穿透打击；同次手势不能被两个消费者重复提交。
 
@@ -94,7 +94,7 @@
 
 **功能范围**：候选优先级、能否接受、身体/左右手通道占用、前摇/释放/恢复、预输入、打断和已离手效果。
 
-**当前入口/所有者**：`CharacterActionCoordinator`、Core `ActionAdmissionLedger/BasicActionRuntime`、`AbilityRun`、`ActionDefinitionSO`。角色根调用接受/推进；资源预留与提交走同一次执行事务。
+**当前入口/所有者**：`StateArbitrator`登记五状态机；`CharacterCombatStateMachine`拥有唯一Runtime/连段；`CharacterActionCoordinator`与Core `ActionAdmissionLedger`保持事务受理；`AbilityRun`、`ActionDefinitionSO`保持能力/时间线。Root公开请求转发，仲裁器显式分阶段推进。Enter/Exit当前观察边沿；Movement/Combat子状态部分按真实事实推导，未复制所有旧子状态对象。
 
 **重点核查**：仲裁器、状态机、执行器、动画各自负责什么；MoveReady/AttackReady/Finished是否独立；按执行ID取消能否只取消目标动作；不把所有互斥压成一个busy布尔值。
 
@@ -130,7 +130,7 @@
 
 **功能范围**：移动/待机/普攻/闪避/技能/受击/死亡语义、片段路由、混合、循环、重播、逻辑解锁后的动画交接。
 
-**当前入口/所有者**：`CharacterAnimationProfileSO`、`ConfiguredActionSnapshot`、`CharacterSpineView`、Core `ActionPresentationPolicy`；玩法状态产出表现意图，View拥有播放状态。
+**当前入口/所有者**：身体实际view为`CharacterAnimationController`，配合`CharacterAnimationConfigManager`、`CharacterAnimationComposer`、`AnimationHandleSystem`；`ActionDefinitionSO.animationLogicId`经Router→Override/Mapping生成完整快照。根Inspector直接导航场景实际Map/Router/Rig并显示已执行只读信息。旧CharacterSpineView/CharacterAnimationProfile与animationKey仅历史兼容入口。
 
 **重点核查**：对照旧VELGITA的映射/过渡思路，哪些成熟能力已覆盖、哪些需要补；完整招式片段可保留，不强制拆前中后摇；动画结束和动作允许移动不是同一事件；不能从名字猜背面或原生事件用途。
 
@@ -178,7 +178,7 @@
 
 **功能范围**：独立模型挂接、角色语义与装备片段联动、内部握持点、翻转/颜色/显隐/排序、使用物品临时显示。
 
-**当前入口/所有者**：`CharacterRigProfileSO`、`EquipmentSpinePresentationSO`、`CharacterEquipmentSpineView`、Inventory的`TransientItemView`。当前技术PROBE不是正式装备。
+**当前入口/所有者**：`CharacterRigProfileSO`、`EquipmentSpinePresentationSO`、`CharacterEquipmentSpineView`、Inventory的`TransientItemView`。每手独立原式动画Map/Composer/Handle；实际来源装备bodyAnimationOverride与独立装备Map职责分开。当前技术PROBE不是正式装备。
 
 **重点核查**：Bone/Slot关联骨/Point显式区分；身体姿态更新后再跟随；装备播放状态独立；当前整Renderer排序与将来slot间穿插需求分开决定。
 
@@ -334,7 +334,7 @@
 
 **功能范围**：SO图谱、模型目录/功能映射、错误前置诊断、预览、配置变更生效时机、回归/版本/构建。
 
-**当前入口/所有者**：`Inventory/Editor/CharacterContentWorkbench`；`docs/ossastra/ArtIntegrationCandidate`；现有157 SO/3模型755条目录为该基准的导出，不是永远有效的常量。
+**当前入口/所有者**：`Inventory/Editor/CharacterContentWorkbench`；`docs/ossastra/ArtIntegrationCandidate`；CONFIG-01当前导出164 SO/3模型755条，schema3写日期/复核基线/生成时HEAD与资产SHA；含GUID引用、场景覆盖/Prefab默认、typedID/兼容标记、真实Freeze时点与Rig/grip关系。不是永远有效的常量。
 
 **重点核查**：工具INFO不当PASS；字段/菜单与真实代码一致；目录骨名不臆测语义；更换模型/时点要重导和复验；预览明确会消费测试会话物品。
 
@@ -392,3 +392,5 @@
 - [打开场景与操作](VC02B-handoff.md)：现有综合测试入口。
 
 维护要求：每轮只更新实际审过的模块与影响关系，保留决定历史；新实现不自动意味着架构验收，新正式素材也不自动意味着动作逻辑已验收。技术通过、人工手感、视觉质量、架构认可分别记载。
+
+CONFIG-01说明同步（2026-10-24）：仅更新M01–M04/M07/M11/M24当前实现事实；所有用户验收勾选保持不变。当前职责/状态边沿/四关系表见[配置入口](ArtIntegrationCandidate/README.md)，实际操作见[一页样板](ArtIntegrationCandidate/ConfigurationSample.md)。

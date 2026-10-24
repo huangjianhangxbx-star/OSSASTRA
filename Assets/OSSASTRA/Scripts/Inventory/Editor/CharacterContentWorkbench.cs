@@ -1,5 +1,5 @@
 /* 脚本：CharacterContentWorkbench
- * 功能：检查真实作者定义、导出候选依赖/模型目录，观察具名预览角色与功能挂点。
+ * 功能：检查真实作者定义、导出当前依赖/模型及配置关系，观察具名预览角色与功能挂点。
  * 边界：只写自有候选报告；不修改骨架或SO。使用预览明确消费当前B测试会话的真实物品。
  */
 using System;
@@ -163,7 +163,7 @@ namespace Ossastra.Authoring
                     case SerializedPropertyType.Integer:value=property.longValue.ToString();break;
                     case SerializedPropertyType.Float:value=property.doubleValue.ToString("R",System.Globalization.CultureInfo.InvariantCulture);break;
                     case SerializedPropertyType.Boolean:value=property.boolValue.ToString();break;
-                    case SerializedPropertyType.Enum:value=property.intValue.ToString();break;
+                    case SerializedPropertyType.Enum:value=(property.enumValueIndex>=0&&property.enumValueIndex<property.enumNames.Length?property.enumNames[property.enumValueIndex]:"unmapped")+" ("+property.intValue+")";break;
                     default:value=property.propertyType.ToString();break;
                 }
                 yield return property.propertyPath+"\t"+Clean(value);
@@ -174,15 +174,19 @@ namespace Ossastra.Authoring
         {if(!File.Exists(path))return "local-nonfile";using(var sha=SHA256.Create())using(var stream=File.OpenRead(path))return BitConverter.ToString(sha.ComputeHash(stream)).Replace("-","").ToLowerInvariant();}
         public static string ExportCandidate()
         {
+            if(Application.isPlaying)throw new InvalidOperationException("请先退出Play，再导出已保存综合场的配置目录；运行观察在根Inspector读取。");
             if(AssetDatabase.LoadAssetAtPath<SceneAsset>(ScenePath)==null)throw new InvalidOperationException("missing "+ScenePath);
+            var openScene = UnityEngine.SceneManagement.SceneManager.GetSceneByPath(ScenePath);
+            if(openScene.IsValid() && openScene.isLoaded && openScene.isDirty)throw new InvalidOperationException("请先保存或恢复目标场景，再导出磁盘基准。");
             Directory.CreateDirectory(ReportPath);
             var paths=AssetDatabase.GetDependencies(ScenePath,true).Where(p=>p.StartsWith("Assets/",StringComparison.Ordinal)).OrderBy(p=>p,StringComparer.Ordinal).ToArray();
-            var assets=paths.SelectMany(AssetDatabase.LoadAllAssetsAtPath).OfType<ScriptableObject>().Where(a=>a.GetType().Namespace?.StartsWith("Ossastra",StringComparison.Ordinal)==true).Distinct().ToArray();
-            var graph=new List<string>{"asset\tguid\ttype\tfield\tvalue"};var checks=new List<string>{"asset\tresult"};
+            // Scene参与依赖/指纹，但不能交给LoadAllAssetsAtPath：已加载场景会逐对象报ReadObjectThreaded。
+            var assets=paths.Where(p=>!p.EndsWith(".unity",StringComparison.OrdinalIgnoreCase)).SelectMany(AssetDatabase.LoadAllAssetsAtPath).OfType<ScriptableObject>().Where(a=>a.GetType().Namespace?.StartsWith("Ossastra",StringComparison.Ordinal)==true).Distinct().ToArray();
+            var graph=new List<string>{"asset\tguid\ttype\tfield\tvalue\trole"};var checks=new List<string>{"asset\tresult"};
             foreach(var asset in assets)
             {
                 var path=AssetDatabase.GetAssetPath(asset);var prefix=path+"\t"+AssetDatabase.AssetPathToGUID(path)+"\t"+asset.GetType().FullName+"\t";
-                graph.AddRange(Fields(asset).Select(f=>prefix+f));checks.Add(path+"\t"+Clean(Inspect(asset)));
+                graph.AddRange(Fields(asset).Select(f=>prefix+f+"\t"+CharacterConfigurationCatalog.FieldRole(asset,f.Split('\t')[0])));checks.Add(path+"\t"+Clean(Inspect(asset)));
             }
             File.WriteAllLines(ReportPath+"/SO-fields.tsv",graph);File.WriteAllLines(ReportPath+"/definition-checks.tsv",checks);
             File.WriteAllLines(ReportPath+"/asset-manifest.tsv",new[]{"path\tguid\tsha256"}.Concat(paths.Select(p=>p+"\t"+AssetDatabase.AssetPathToGUID(p)+"\t"+Hash(p))));
@@ -211,11 +215,12 @@ namespace Ossastra.Authoring
                 foreach(var fact in data.Events)rows.Add(prefix+"eventDefinition\t"+fact.Name+"\t\t\t原生事件目录");
             }
             File.WriteAllLines(ReportPath+"/model-inventory.tsv",rows);
-            var actions=new List<string>{"asset\tid\tanimationLogicId\trelease\tmoveReady\tattackReady\tfinish\teventBindings"};
+            var actions=new List<string>{"asset\tid\tanimationLogicId\trelease\tmoveReady\tattackReady\tfinish\teventBindings\ttimingSource\tlegacyAnimationKey"};
             foreach(var action in assets.OfType<ActionDefinitionSO>())
-            {action.Freeze();actions.Add(AssetDatabase.GetAssetPath(action)+"\t"+action.definitionId+"\t"+action.animationLogicId+"\t"+action.releaseAt+"\t"+action.moveReadyAt+"\t"+action.attackReadyAt+"\t"+action.finishAt+"\t"+string.Join(";",action.eventTimeline.Select(e=>e.marker+":"+e.sourceEvent+"@"+e.seconds)));}
+            {var frozen=action.Freeze();actions.Add(AssetDatabase.GetAssetPath(action)+"\t"+action.definitionId+"\t"+action.animationLogicId+"\t"+frozen.ReleaseAt+"\t"+frozen.MoveReadyAt+"\t"+frozen.AttackReadyAt+"\t"+frozen.FinishAt+"\t"+string.Join(";",action.eventTimeline.Select(e=>e.marker+":"+e.sourceEvent+"@"+e.seconds))+"\t"+(action.eventTimeline.Length>0?"eventTimeline":"scalar-timeline")+"\t"+Clean(action.animationKey));}
             File.WriteAllLines(ReportPath+"/action-contracts.tsv",actions);
-            return "导出完成："+assets.Length+" SO / "+models.Length+"实际依赖模型 / "+(rows.Count-1)+"模型条目。\n"+ReportPath+"\nUnity "+Application.unityVersion+"；工具导出schema=2。REJECT项须单独处理，不以导出成功冒充检查通过。";
+            CharacterConfigurationCatalog.Export(ScenePath,ReportPath,assets,models.Length);
+            return "导出完成："+assets.Length+" SO / "+models.Length+"实际依赖模型 / "+(rows.Count-1)+"模型条目。\n"+ReportPath+"\nUnity "+Application.unityVersion+"；工具导出schema=3。REJECT项须单独处理，不以导出成功冒充检查通过。";
         }
     }
 }

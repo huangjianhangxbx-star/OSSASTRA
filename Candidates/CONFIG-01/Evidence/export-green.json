@@ -1,0 +1,37 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "failed": 0,
+      "rows": [
+        {
+          "name": "export includes dated baseline metadata",
+          "ok": true
+        },
+        {
+          "name": "actual scene and prefab defaults are exported",
+          "ok": true
+        },
+        {
+          "name": "reference roles and GUIDs are explicit",
+          "ok": true
+        },
+        {
+          "name": "rig and equipment mount relationship is exported",
+          "ok": true
+        },
+        {
+          "name": "live Mapping Router and typed ID dependencies included",
+          "ok": true
+        }
+      ],
+      "result": "导出完成：164 SO / 3实际依赖模型 / 755模型条目。\ndocs/ossastra/ArtIntegrationCandidate/Generated\nUnity 2022.3.62t16；工具导出schema=3。REJECT项须单独处理，不以导出成功冒充检查通过。"
+    }
+  }
+}

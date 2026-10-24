@@ -524,3 +524,5 @@ T7A3独立RendererFeature/密度场/最多2个AtmosphereLight/8-16步积分/Dept
 > 2026-10-24 AM复核定向修正technical-complete：F01-F06及Movement已RED→GREEN，完整快照/正式Router/装备条件/持续设备凭据/背包不补RT/同帧pulse落正式链；六技能25、混合36、举盾13、播放22等通过。仍为注册式主干，不宣称所有旧子状态对象已恢复。最终B Edit clean/Missing0，实体手柄体验与旧Player构建保留；GitHub定向发布中。见ossastra/AM01-AM03-directed-fixes.md，Unity租约释放，仅本任务文档/发布租约。
 
 > 2026-10-24 AM定向修正complete：c7feaf14c5bd1e7542e79924529c24c712f1fe08已GitHub main精确核对（API逐Blob/树/Commit一致，expected-sha无强推）；F01-F06与Movement及相关回归完成，B Edit ready/clean，所有租约释放。不Gitee/不重复关机；用户旧dirty保持。交接docs/ossastra/AM01-AM03-directed-fixes.md。
+
+> 2026-10-24 CONFIG-01技术完成：根Inspector实际view导航与只读已执行信息；Workbench schema3重导164SO/3模型755条，326依赖指纹/307引用GUID对账；当前配置四表/一页样板同步，72用户审查勾选原样。A/B导航13、保存恢复5、小流程19及导出日志RED→GREEN。仅Editor/资料，35原dirty保留，B Edit clean，非实体手柄验收；GitHub定向发布中。交接docs/ossastra/ArtIntegrationCandidate/ConfigurationHandoff.md。

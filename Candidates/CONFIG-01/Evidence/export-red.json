@@ -1,0 +1,26 @@
+{
+  "failed": 4,
+  "rows": [
+    {
+      "name": "export includes dated baseline metadata",
+      "ok": false
+    },
+    {
+      "name": "actual scene and prefab defaults are exported",
+      "ok": false
+    },
+    {
+      "name": "reference roles and GUIDs are explicit",
+      "ok": false
+    },
+    {
+      "name": "rig and equipment mount relationship is exported",
+      "ok": false
+    },
+    {
+      "name": "live Mapping Router and typed ID dependencies included",
+      "ok": true
+    }
+  ],
+  "result": "导出完成：164 SO / 3实际依赖模型 / 755模型条目。\ndocs/ossastra/ArtIntegrationCandidate/Generated\nUnity 2022.3.62t16；工具导出schema=2。REJECT项须单独处理，不以导出成功冒充检查通过。"
+}

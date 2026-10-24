@@ -1,0 +1,68 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "failed": 0,
+      "rows": [
+        {
+          "name": "root animation navigation is available",
+          "ok": true
+        },
+        {
+          "name": "temporary-a root uses navigation Inspector",
+          "ok": true
+        },
+        {
+          "name": "temporary-a resolves actual scene map",
+          "ok": true
+        },
+        {
+          "name": "temporary-a Body navigates to nonempty real target",
+          "ok": true
+        },
+        {
+          "name": "temporary-a BaseMap navigates to nonempty real target",
+          "ok": true
+        },
+        {
+          "name": "temporary-a Router navigates to nonempty real target",
+          "ok": true
+        },
+        {
+          "name": "temporary-a Rig navigates to nonempty real target",
+          "ok": true
+        },
+        {
+          "name": "temporary-b root uses navigation Inspector",
+          "ok": true
+        },
+        {
+          "name": "temporary-b resolves actual scene map",
+          "ok": true
+        },
+        {
+          "name": "temporary-b Body navigates to nonempty real target",
+          "ok": true
+        },
+        {
+          "name": "temporary-b BaseMap navigates to nonempty real target",
+          "ok": true
+        },
+        {
+          "name": "temporary-b Router navigates to nonempty real target",
+          "ok": true
+        },
+        {
+          "name": "temporary-b Rig navigates to nonempty real target",
+          "ok": true
+        }
+      ]
+    }
+  }
+}
