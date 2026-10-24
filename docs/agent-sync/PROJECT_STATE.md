@@ -526,3 +526,5 @@ T7A3独立RendererFeature/密度场/最多2个AtmosphereLight/8-16步积分/Dept
 > 2026-10-24 AM定向修正complete：c7feaf14c5bd1e7542e79924529c24c712f1fe08已GitHub main精确核对（API逐Blob/树/Commit一致，expected-sha无强推）；F01-F06与Movement及相关回归完成，B Edit ready/clean，所有租约释放。不Gitee/不重复关机；用户旧dirty保持。交接docs/ossastra/AM01-AM03-directed-fixes.md。
 
 > 2026-10-24 CONFIG-01技术完成：根Inspector实际view导航与只读已执行信息；Workbench schema3重导164SO/3模型755条，326依赖指纹/307引用GUID对账；当前配置四表/一页样板同步，72用户审查勾选原样。A/B导航13、保存恢复5、小流程19及导出日志RED→GREEN。仅Editor/资料，35原dirty保留，B Edit clean，非实体手柄验收；GitHub定向发布中。交接docs/ossastra/ArtIntegrationCandidate/ConfigurationHandoff.md。
+
+> 2026-10-24 CONFIG-01 complete：产品448ccc5e16255c333455dee8fc033b7e18641d6e已GitHub main核对；A/B根已可直达实际Map/Router/Rig，当前配置说明与可操作样板已交接，末次19步确认身体与左右装备真实轨道播放。B Edit clean/Missing0/无临时输入设备，35原dirty保留，全部租约释放；后续由用户选定具体配置逐模块审查。

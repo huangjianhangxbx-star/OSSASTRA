@@ -949,3 +949,5 @@ active/unity-writer；用户明确要求一轮修整：共享脚本去M01标签�
 2026-10-24 configuration-authoring active/unity-writer：唯一Unity writer；配置导航/只读Inspector、Workbench导出及当前作者文档样板，独占范围见tasks/2026-10-24-configuration-authoring.md；0b92206基线与35保护dirty保持。
 
 2026-10-24 configuration-authoring technical-complete/docs-writer：A/B导航13、保存恢复5、正常输入/uGUI样板19、导出与指纹/GUID/时线对账通过；仅Editor/资料，35保护dirty不动；Unity/源码租约释放，仅定向GitHub发布。
+
+2026-10-24 configuration-authoring complete/read-only：448ccc5e16255c333455dee8fc033b7e18641d6e已GitHub main精确核对，补强装备实际track0读数19步通过；B Edit clean，35保护dirty保持，全部租约释放。不Gitee/不关机。

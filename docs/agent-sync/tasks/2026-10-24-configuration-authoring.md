@@ -1,6 +1,6 @@
 # 配置入口与样板整理实施记录
 
-- 任务ID：CONFIG-01；状态technical-complete；写入模式docs-writer；2026-10-24。
+- 任务ID：CONFIG-01；状态complete；写入模式read-only；2026-10-24。
 - 用户已指定v1.0详细方案并授权执行；沿用既有设计，不另开运行架构/模型/美术标准。以附件为规格，聊天链接未返回正文。
 - 本机/远端main精确为0b922064b217e46e274ec29b5c2349ac355aa2e1；无基准分叉。35项既有dirty（31旧资源删除+四修改）保留，不暂存、不恢复。
 - 当前唯一Unity writer；B综合场Edit ready/clean、无PrefabStage。A=65440/B=64480，view实际绑定各自MainBody；A/B Mapping独立，共用Router/Rig。
@@ -12,7 +12,7 @@
 - [x] A：实际view只读绑定快照+角色根Inspector。保留默认字段；显示场景覆盖/Prefab默认，四导航调用真实Selection/OpenAsset；Play只显示已保存运行结果，Edit不初始化。先证明缺入口，再验证A/B、Prefab、缺绑定、多选和面板无资产/场景改写。
 - [x] B：补现有Workbench导出，schema3记录日期/基线/来源，savedscene绑定与默认对照、SO引用GUID/兼容分类、Freeze实际时点、Rig/grip/变换；保留模型完整目录，重导当前依赖。使用Editor API已开clean场/临时加法场只读导出，不改变用户选择或已开场。
 - [x] C：更新README/readiness/受影响模块；四关系表+一页当前A/rozeul/既有主副手/身体技能样板，当前值/建议/用户确认分开。一次暂改mix保存回读并恢复、一次正常输入/换装/动画观察，B同构检查。
-- [ ] 收尾：导出引用一致、准确字段/链接/无用户验收勾选；最小编译/现场/日志检查，定向GitHub发布核SHA，无Gitee/关机。
+- [x] 收尾：导出引用一致、准确字段/链接/无用户验收勾选；最小编译/现场/日志检查，定向GitHub发布核SHA，无Gitee/关机。
 
 ## 接口与验证安排
 - Editor导航读Root.serialized.view，不按路径猜组件；没有绑定就报缺失。导航只切选择/打开资产，不调用Root Initialize/配置Resolve/播放。
@@ -28,3 +28,5 @@
 
 
 - 额外导出日志缺陷已最小RED→GREEN：SO枚举排除.unity（仍保留Scene指纹）；修正后导出无ReadObjectThreaded。最终编译ready，单一B Edit clean，无PrefabStage；326依赖指纹/307对象GUID对账、72待审checkbox未改。详见ArtIntegrationCandidate/ConfigurationHandoff.md。Unity/源码租约释放，仅本轮定向文档与发布租约。
+
+- GitHub产品448ccc5e16255c333455dee8fc033b7e18641d6e已精确核对；43文件定向发布。补强小流程读取实际左右装备Spine track0（strike）再次19步通过；当前B Edit clean/无Missing/无临时输入设备。全部Unity、源码、文档与发布租约释放，本任务complete。
