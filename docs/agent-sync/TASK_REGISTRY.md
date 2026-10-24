@@ -955,3 +955,5 @@ active/unity-writer；用户明确要求一轮修整：共享脚本去M01标签�
 2026-10-24 DIR01 active/unity-writer：唯一writer，仅瞬态研究，Candidates/DIR01与docs/ossastra/DIR01、R24局部登记；生产资产只读，范围见tasks/2026-10-24-dir01.md。
 
 2026-10-24 DIR01 technical-complete/docs-writer：Unity/源码租约释放；仅Candidates/DIR01与DIR01文档/任务发布。29+6/300姿态/192拆图通过，D03/D11/D14边界明列；B内存dirty保留不保存。
+
+2026-10-24 DIR01 complete/read-only：14715e763e4ab92936aa7f26b49ca34fb457c744已GitHub核SHA，全部Unity/源码/文档/发布租约释放；原35dirty保护，B现场保留，停止在DIR02待确认。

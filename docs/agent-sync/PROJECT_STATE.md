@@ -532,3 +532,5 @@ T7A3独立RendererFeature/密度场/最多2个AtmosphereLight/8-16步积分/Dept
 > 2026-10-24 DIR01开工：用户附件明确模型目标改为多面，局部替代R24，保留旧仲裁器与原式动画SO。仅研究/隔离可视工具/接入草案，不修改正式运行时或生产资产。
 
 > 2026-10-24 DIR01研究技术完成：776骨/494slot/138动画，官方CLI副本拆图及4.3原工程读取；方向根位移＋原作Late矩形slot显隐已静态闭环，非仅源裁切。独立29+6检查/300姿态、192拆图通过，正式Composer清另一owner方向轨已隔离复现。仅报告/工具/DIR02草案，未接生产；D03/D11/D14未穷举或未正式接入。B Edit ready且dirty保留，35磁盘dirty保护；Unity/源码租约释放，仅文档定向发布。
+
+> 2026-10-24 DIR01 complete：产品14715e763e4ab92936aa7f26b49ca34fb457c744已GitHub main精确核对。自有研究台与三方报告/DIR02草案交付；D03/D11/D14边界详列。B Edit ready/内存dirty保留，35原磁盘dirty与素材SHA一致；全部租约释放，不自动DIR02，不安装MCP/不Gitee/不关机。
