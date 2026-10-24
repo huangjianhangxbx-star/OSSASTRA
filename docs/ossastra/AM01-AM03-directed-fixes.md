@@ -50,3 +50,5 @@
 旧M01独立csproj只链接Core顶层文件，遗漏后续Abilities子目录，单独构建会报缺命名空间；本轮没有修改旧工程。新的CoreRegression.csproj复用原29项断言、递归链接当前Core后通过；这属于旧夹具构建清单问题，不是Unity生产编译失败。
 
 最终现场为 `SC_VC02B_IntegrationReady`，Edit ready/clean、无PrefabStage、无测试临时对象；原InputSettings及既有XInput设备保持。Git发布连接直连github.com失败、api.github.com可达，定向发布通过GitHub官方API，核对树和提交对象SHA后才允许更新main；不改变Git远端或使用Gitee。
+
+发布：产品与证据c7feaf14c5bd1e7542e79924529c24c712f1fe08，GitHub OSSASTRA/main已读取核对；79个Blob／完整树／Commit与本地SHA精确一致，通过expected-sha且force=false更新。全部租约释放，后续由用户检查架构与实体手柄体验。

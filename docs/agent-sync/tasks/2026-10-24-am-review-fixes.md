@@ -12,7 +12,7 @@
 - [x] F02/F03：正式冻结准备携带来源/候选只读意图，Router覆盖默认ID后再解析/冻结；保持既有多阶段预冻结时点；闪避受理前冻结；装备身份参与持续条件失效。实际路由改片段、冻结隔离、站定换装验证。
 - [x] F04/F05/F06：采样分别保留真实按下/最终保持/释放和手势身份；持有者不被别的设备代持；主攻物理保持与申请许可分离；同次update down/up沿正式消费者触发一次；UI初始归属/真释放保护保留。分别做RED→GREEN。
 - [x] Movement移动死亡/停用清理与退出配对；文档区分注册式主干和具体子状态对象，不新建竞争状态副本。
-- [ ] 复用B综合场相关正常操作/动画/能力/背包/生命周期；原错误证据保留，记录硬件未测。定向GitHub提交并核对SHA，无Gitee；更新状态并释放租约。
+- [x] 复用B综合场相关正常操作/动画/能力/背包/生命周期；原错误证据保留，记录硬件未测。定向GitHub提交并核对SHA，无Gitee；更新状态并释放租约。
 
 ## 关键复验进展
 - F01 RED：真实动作组TryPrepare丢完整计划；RequestStage付款10后抛异常且Accepted未派发。WithTimeline保存完整深复制方案，准备/校验前移；MagazineShot同类替换也改走端口。
@@ -29,3 +29,8 @@
 - 最终输入扩展24/24；同时双设备一次申请、同update松/再按新手势额外覆盖。pulse正式消费者11/11，含技能快点不被最终Held=false抹掉。
 - 最终B Edit ready/clean、无PrefabStage；两Root各5机初始化1、Missing0、两身体+四装备Spine有效；测试设备/临时物0、InputSettings复原。最终新日志范围NullReference/MissingReference/CS错误0。
 - 发布：本地github.com:443不可达，GitHub官方API可达。核对远端仍982925b；改用API上传精确Git对象、核对树/提交SHA，更新main前做expected-sha保护。仅发布本任务清单；技术租约释放，仅保留文档/发布租约至完成。
+
+
+## 发布完成
+- 产品与全套证据提交c7feaf14c5bd1e7542e79924529c24c712f1fe08；79个Blob逐一SHA一致、完整树6bd4b68413e59cb41ecc6dc09b8989167643adc6、Commit SHA与本地完全一致。官方GitHub API上传，连接器expected_sha=982925b且force=false更新main；远端main已重新读取核对为c7feaf1。无Gitee。
+- 本轮全部技术任务complete，Unity/源码/配置/文档路径租约释放；只做本条发布完成记录的最后同步。用户旧dirty完整保留，不安排关机。

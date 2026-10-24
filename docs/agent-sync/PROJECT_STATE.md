@@ -522,3 +522,5 @@ T7A3独立RendererFeature/密度场/最多2个AtmosphereLight/8-16步积分/Dept
 > 2026-10-24 AM01–AM03技术完成：AM01 ed74ae1、AM02 67efa5c已GitHub；AM03会话级移动/瞄准独立、配置Action按设备采样、UI按下归属/真释放保护和实际能力目标接通。来源24、综合36、原生E目标7、双手9、举盾开关包13、生命周期13、背包20+手柄拖拽20通过；作者工具3项RED→GREEN。最终B Edit clean/用户VELGITA Stage clean/Missing0，身体双手与Enemy/NPC真实播放有效；旧代码参考及用户键位dirty保留，实体XInput设备保留但实机操控未测。交接docs/ossastra/AM01-handoff.md、AM02-handoff.md、AM03-handoff.md；AM03 faf2938已GitHub精确核对，整轮complete/全部租约释放，不Gitee。用户明确要求整轮验证发布后正常关机。
 
 > 2026-10-24 AM复核定向修正technical-complete：F01-F06及Movement已RED→GREEN，完整快照/正式Router/装备条件/持续设备凭据/背包不补RT/同帧pulse落正式链；六技能25、混合36、举盾13、播放22等通过。仍为注册式主干，不宣称所有旧子状态对象已恢复。最终B Edit clean/Missing0，实体手柄体验与旧Player构建保留；GitHub定向发布中。见ossastra/AM01-AM03-directed-fixes.md，Unity租约释放，仅本任务文档/发布租约。
+
+> 2026-10-24 AM定向修正complete：c7feaf14c5bd1e7542e79924529c24c712f1fe08已GitHub main精确核对（API逐Blob/树/Commit一致，expected-sha无强推）；F01-F06与Movement及相关回归完成，B Edit ready/clean，所有租约释放。不Gitee/不重复关机；用户旧dirty保持。交接docs/ossastra/AM01-AM03-directed-fixes.md。

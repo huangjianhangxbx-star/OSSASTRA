@@ -945,3 +945,4 @@ active/unity-writer；用户明确要求一轮修整：共享脚本去M01标签�
 2026-10-24 am-review-fixes active/unity-writer：唯一Unity writer；F01-F06及Movement定向修正，基线982925b本机/远端一致；独占范围见tasks/2026-10-24-am-review-fixes.md，原用户dirty保持。
 2026-10-24 am-review-fixes active/unity-writer：F01-F06与Movement RED→GREEN定向复验完成；正常输入17/双手9/生命周期13等最终回归进行中。无新场景或永久配置修改，保护dirty保持。
 2026-10-24 am-review-fixes technical-complete/docs-writer：F01-F06/Movement完成，最终B Edit ready/clean；源码/Unity租约释放，仅本轮文档与GitHub发布租约，见最新交接。
+2026-10-24 am-review-fixes complete/read-only：c7feaf14c5bd1e7542e79924529c24c712f1fe08已GitHub main核对，全部writer/路径租约释放；最终B Edit clean，用户dirty保持，非实体手柄验收。
