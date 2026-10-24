@@ -80,6 +80,8 @@ public class AnimationIntent
     public int lifeGeneration, presentationGeneration, configurationVersion;
     public string actorId, target = "body";
     public CharacterAnimationPlan frozenPlan;
+    // 结构层的授权来源必须是本角色实际模型配置，不能由高轨号获得豁免。
+    public Ossastra.Characters.CharacterDirectionProfileSO structureProfile;
     public bool IsValid(CharacterRoot owner, string targetId)
         => owner != null && root == owner && owner.IsAlive && owner.isActiveAndEnabled
         && actorId == owner.ActorId && lifeGeneration == owner.LifeGeneration && target == targetId;
@@ -91,6 +93,7 @@ public class AnimationIntent
             actionId = actionId, phaseId = phaseId, lifeGeneration = lifeGeneration, logicId = logicId,
             presentationGeneration = presentationGeneration, configurationVersion = configurationVersion,
             frozenPlan = frozenPlan?.CloneFor(root),
+            structureProfile = structureProfile,
             intentSourceStateMatine = intentSourceStateMatine,
             semantic = semantic,
 

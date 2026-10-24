@@ -1,0 +1,25 @@
+/* 唯一新对照场：复制已保存主场，在新场内替换A为Variant并保留稳定对象引用。 */
+using System;using System.Linq;using UnityEngine;using UnityEditor;using UnityEditor.SceneManagement;using UnityEngine.SceneManagement;using Spine.Unity;using A=Ossastra.CharacterAnimation;using C=Ossastra.Characters;using Funplay.Editor.Tools.Scripting;
+public class BuildCompareScene:IFunplayCommand
+{
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+ {
+  const string source="Assets/OSSASTRA/Scenes/SC_VC02B_IntegrationReady.unity",target="Assets/OSSASTRA/Scenes/SC_CharacterPresentationCompare.unity",folder="Assets/OSSASTRA/Configs/Characters/BlueFiveFace/";
+  var active=SceneManager.GetActiveScene();if(active.isDirty)throw new Exception("Preserve dirty scene; scene generation deferred");
+  if(AssetDatabase.LoadAssetAtPath<SceneAsset>(target)!=null){ctx.ReturnValue=new{alreadyCreated=true,scene=target,notice="Existing candidate not regenerated"};return;}
+  var variant=AssetDatabase.LoadAssetAtPath<GameObject>("Assets/OSSASTRA/Prefabs/Characters/PlayerCharacter_BlueFiveFace.prefab");if(variant==null)throw new Exception("Missing candidate Variant");
+  if(!AssetDatabase.CopyAsset(source,target))throw new Exception("Scene copy failed");var scene=EditorSceneManager.OpenScene(target,OpenSceneMode.Single);
+  var a=UnityEngine.Object.FindObjectsOfType<C.CharacterRoot>(true).Single(r=>r.ActorId=="temporary-a");int beforeId=a.GetInstanceID();
+  PrefabUtility.ReplacePrefabAssetOfPrefabInstance(a.gameObject,variant,InteractionMode.AutomatedAction);
+  a=UnityEngine.Object.FindObjectsOfType<C.CharacterRoot>(true).Single(r=>r.ActorId=="temporary-a");var body=a.GetComponentInChildren<A.CharacterAnimationController>(true);var skeleton=body.GetComponent<SkeletonAnimation>();var template=variant.GetComponentInChildren<SkeletonAnimation>(true);
+  var serialized=new SerializedObject(a);serialized.FindProperty("characterDefinition").objectReferenceValue=AssetDatabase.LoadAssetAtPath<C.CharacterDefinitionSO>(folder+"BlueFiveFace_Character.asset");serialized.FindProperty("view").objectReferenceValue=body;serialized.ApplyModifiedPropertiesWithoutUndo();
+  skeleton.skeletonDataAsset=template.skeletonDataAsset;skeleton.GetComponent<SkeletonRenderer>().initialSkinName="";skeleton.AnimationName="";skeleton.Initialize(true);skeleton.transform.localScale=template.transform.localScale;skeleton.transform.localPosition=template.transform.localPosition;
+  var config=body.GetComponent<A.CharacterAnimationConfigManager>();config.baseMap=AssetDatabase.LoadAssetAtPath<A.AnimationPlanMappingSO>(folder+"BlueFiveFace_Animation_Mapping.asset");config.modelOverrides=new System.Collections.Generic.List<A.AnimationPlanOverrideRuleSetSO>{AssetDatabase.LoadAssetAtPath<A.AnimationPlanOverrideRuleSetSO>(folder+"BlueFiveFace_Model_Override.asset")};config.statusOverrides=null;
+  if(body.GetComponent<C.CharacterDirectionPresentation>()==null)throw new Exception("Variant direction component missing");
+  // 身体阶段明确关闭额外装备渲染，G4就绪后再按可配置模式启用，防止两套武器叠画。
+  var equipment=a.GetComponent<C.CharacterEquipmentSpineView>();if(equipment!=null)equipment.enabled=false;
+  PrefabUtility.RecordPrefabInstancePropertyModifications(a);PrefabUtility.RecordPrefabInstancePropertyModifications(skeleton);PrefabUtility.RecordPrefabInstancePropertyModifications(skeleton.transform);PrefabUtility.RecordPrefabInstancePropertyModifications(config);
+  var roots=UnityEngine.Object.FindObjectsOfType<C.CharacterRoot>(true);var control=UnityEngine.Object.FindObjectOfType<C.CharacterControlCoordinator>();if(roots.Length!=2||control==null)throw new Exception("Invalid two-character compare assembly");
+  EditorSceneManager.MarkSceneDirty(scene);if(!EditorSceneManager.SaveScene(scene))throw new Exception("Candidate save failed");ctx.ReturnValue=new{scene=target,rootReferencePreserved=beforeId==a.GetInstanceID(),a=a.GetInstanceID(),b=roots.Single(r=>r.ActorId=="temporary-b").GetInstanceID(),roots=roots.Length,bodyStageOnly=true,mainSceneModified=false};
+ }
+}

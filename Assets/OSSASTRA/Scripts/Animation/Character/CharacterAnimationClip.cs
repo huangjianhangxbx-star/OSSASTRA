@@ -55,6 +55,7 @@ public class CharacterAnimationClip
     [System.NonSerialized] public int runtimeGeneration;
     [System.NonSerialized] public int runtimeLifeGeneration;
     [System.NonSerialized] public string runtimeActor, runtimeTarget;
+    [System.NonSerialized] public bool runtimeStructural;
     private IEnumerable<string> GetAnimationNames()
     {
         if (skeletonDataAsset == null)
@@ -99,6 +100,7 @@ public class CharacterAnimationClip
         copy.runtimeActionId = runtimeActionId; copy.runtimePhaseId = runtimePhaseId;
         copy.runtimeGeneration = runtimeGeneration; copy.runtimeActor = runtimeActor; copy.runtimeTarget = runtimeTarget;
         copy.runtimeLifeGeneration = runtimeLifeGeneration;
+        copy.runtimeStructural = runtimeStructural;
         return copy;
     }
 }

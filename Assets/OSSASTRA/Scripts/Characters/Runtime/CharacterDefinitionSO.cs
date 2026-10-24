@@ -12,6 +12,8 @@ namespace Ossastra.Characters
         public string definitionId,displayName;
         [HideInInspector] public CharacterAnimationProfileSO animationProfile; // 历史场/迁移来源；正式动画在ConfigManager原式SO中维护。
         public CharacterRigProfileSO rigProfile;
+        [Tooltip("可选模型方向表现；空引用保留单面角色原行为，不改变玩法方向。")]
+        public CharacterDirectionProfileSO directionProfile;
         public ActionDefinitionSO[] basicAttacks=Array.Empty<ActionDefinitionSO>();
         [Min(.01f)] public float dodgeDuration=.45f,dodgeDistance=2.4f;
         [Min(0)] public float dodgeCost=22,invulnerableFrom=.12f,invulnerableTo=.32f;

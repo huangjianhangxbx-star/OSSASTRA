@@ -1,5 +1,5 @@
 /* 原Composer合成职责迁移：保留来源意图、路由、覆盖、逐轨Play/Clear及过渡。
- * Submit/Remove只修改候选；运动完成后Commit一次。轨道竞争及队列归属在同一完整计划中决定。
+ * Submit/Remove只修改候选；运动完成后Commit一次。只有角色Profile声明的零时长结构方向层可与全身动作共存。
  */
 using System;
 using System.Collections.Generic;
@@ -55,6 +55,7 @@ namespace Ossastra.CharacterAnimation
             if(activeIntents.TryGetValue(intent.intentSourceStateMatine,out var current)&&SameIdentity(current,intent)
                 &&current.semantic==intent.semantic&&current.logicId==intent.logicId&&current.priority==intent.priority&&current.layer==intent.layer
                 &&current.exclusiveFullBody==intent.exclusiveFullBody&&current.oneShot==intent.oneShot
+                &&current.structureProfile==intent.structureProfile
                 &&(intent.oneShot||current.configurationVersion==intent.configurationVersion))return;
             var copy=intent.Clone();
             // 重复提交同一动作不延长寿命；自动到期使用角色唯一模拟时钟。
@@ -148,6 +149,8 @@ namespace Ossastra.CharacterAnimation
             void Offer(int track,ResolvedAnimationPlan owner,CharacterAnimationClip clip)
             {
                 if(track<0)return;
+                if(owner.intent.intentSourceStateMatine==AnimationIntentSourceStateMachine.StructuralDirection&&!LegalStructure(owner.intent,clip))
+                {LastResult="结构层不属于当前Profile或映射非法";return;}
                 if(clip!=null&&(handle.Skeleton?.Skeleton?.Data.FindAnimation(clip.animaName)==null||clip.playbackRate<=0||float.IsNaN(clip.playbackRate)||float.IsInfinity(clip.playbackRate)))
                 {LastResult="无效轨道片段："+clip.animaName;return;}
                 var candidate=new TrackOperation{owner=owner,clip=clip,play=clip!=null};
@@ -167,7 +170,7 @@ namespace Ossastra.CharacterAnimation
             foreach(var pair in operations.OrderBy(p=>p.Key))
             {
                 var op=pair.Value;
-                if(!op.play||exclusive!=null&&op.owner!=exclusive){output.clearTracks.Add(pair.Key);continue;}
+                if(!op.play||exclusive!=null&&op.owner!=exclusive&&!LegalStructure(op.owner.intent,op.clip)){output.clearTracks.Add(pair.Key);continue;}
                 if(pair.Key==0)CurrentBodyIntent=op.owner.intent.Clone();
                 var plan=op.owner.plan;var immediate=plan.clips.FirstOrDefault(c=>c!=null&&c.track==pair.Key);
                 if(immediate!=null)output.clips.Add(Stamp(immediate,op.owner.intent));
@@ -184,7 +187,16 @@ namespace Ossastra.CharacterAnimation
         {
             var c=clip.Clone();c.characterRoot=characterRoot;c.runtimeActor=characterRoot.ActorId;c.runtimeTarget=target;
             c.runtimeActionId=intent.actionId;c.runtimePhaseId=intent.phaseId;c.runtimeSourceStateMachine=intent.intentSourceStateMatine;
-            c.runtimeReplayId=intent.replayId;c.runtimeGeneration=intent.presentationGeneration;c.runtimeLifeGeneration=intent.lifeGeneration;return c;
+            c.runtimeReplayId=intent.replayId;c.runtimeGeneration=intent.presentationGeneration;c.runtimeLifeGeneration=intent.lifeGeneration;
+            c.runtimeStructural=LegalStructure(intent,clip);return c;
+        }
+        private bool LegalStructure(AnimationIntent intent,CharacterAnimationClip clip)
+        {
+            var profile=characterRoot?.Definition?.directionProfile;
+            return target=="body"&&clip!=null&&profile!=null&&intent.structureProfile==profile
+                &&intent.intentSourceStateMatine==AnimationIntentSourceStateMachine.StructuralDirection&&intent.layer==AnimationLayer.StructuralModel
+                &&profile.Authorizes(intent.logicId,clip.track)&&!clip.scalesWithAction&&clip.mixDuration==0
+                &&handle?.Skeleton?.Skeleton?.Data.FindAnimation(clip.animaName)?.Duration==0;
         }
         private void OnDisable(){ClearAllIntents();}
     }

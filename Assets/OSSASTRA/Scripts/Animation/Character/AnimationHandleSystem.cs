@@ -1,5 +1,5 @@
 /* 迁自原Handle的逐轨播放/排队/去重职责；本地派发替代全局EventCenter。
- * 一个目标一个实例。只写计划，不Update Skeleton；身体自动钟与装备手动钟各推进一次。
+ * 一个目标一个实例。只写计划，不Update Skeleton；合法结构轨离散清旧链，不影响身体动作身份或时钟。
  */
 using System;
 using System.Collections.Generic;
@@ -67,6 +67,7 @@ namespace Ossastra.CharacterAnimation
         private static void Append(StringBuilder b, CharacterAnimationClip c)
         {
             b.Append(Identity(c)).Append('|').Append(c.animaName).Append('|').Append(c.loop).Append('|').Append(c.isAdditive)
+                .Append('|').Append(c.runtimeStructural)
                 .Append('|').Append(c.playbackRate.ToString("R",CultureInfo.InvariantCulture)).Append('|').Append(c.mixDuration.ToString("R",CultureInfo.InvariantCulture));
         }
         public void ApplyPlan(CharacterAnimationPlan plan,int generation)
@@ -91,6 +92,8 @@ namespace Ossastra.CharacterAnimation
                 TrackEntry entry;
                 if(clip!=null)
                 {
+                    // 仅Composer授权的结构方向轨。先退掉旧面mix链，主轨与动作事件均不重播。
+                    if(clip.runtimeStructural)ClearTrack(track);
                     RemoveEntryRecords(track);
                     entry=state.SetAnimation(track,clip.animaName,clip.loop); Configure(entry,clip); CommitCount++;
                 }

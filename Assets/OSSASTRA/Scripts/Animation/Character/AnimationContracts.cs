@@ -6,7 +6,8 @@ public enum AnimationLayer
     LowerBody = 10,
     UpperBody = 20,
     FullBodyAction = 30,
-    Additive = 40
+    Additive = 40,
+    StructuralModel = 50
 }
 public enum AnimationIntentSourceStateMachine
 {
@@ -24,7 +25,8 @@ public enum AnimationIntentSourceStateMachine
     WeaponPosture = 92,
     MainHand = 100,
     OffHand = 110,
-    Dodge = 120
+    Dodge = 120,
+    StructuralDirection = 130
 }
 public enum EAnimSemantic
 {
@@ -61,7 +63,8 @@ public enum EAnimSemantic
     HitReact = 1004,
     Stagger = 1005,
     Death = 1006,
-    Ability = 1007
+    Ability = 1007,
+    ModelDirection = 1008
 }
 public enum EAnimationLogicState
 {
@@ -137,7 +140,12 @@ public enum EAnimationLogicState
     PrecisionReload = 1107,
     MagazineShot = 1108,
     GuardEnter = 1110,
-    GuardExit = 1111
+    GuardExit = 1111,
+    DirectionFace1 = 1201,
+    DirectionFace2 = 1202,
+    DirectionFace3 = 1203,
+    DirectionFace4 = 1204,
+    DirectionFace5 = 1205
 }
 public enum TransitionSuppressReason
 {

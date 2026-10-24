@@ -1,0 +1,27 @@
+/* DIR02：真实Composer/Handle，声明结构层必须共存；普通高轨不免清理。只用PrefabContents临时实例。 */
+using System;using System.Linq;using System.Collections;using System.Collections.Generic;using System.Reflection;using UnityEditor;using UnityEngine;using Spine.Unity;using A=Ossastra.CharacterAnimation;using C=Ossastra.Characters;using Funplay.Editor.Tools.Scripting;
+public class ComposerContracts:IFunplayCommand
+{
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+ {
+  var prefab=PrefabUtility.LoadPrefabContents("Assets/OSSASTRA/Prefabs/Characters/PlayerCharacter.prefab");var profile=ScriptableObject.CreateInstance<C.CharacterDirectionProfileSO>();C.CharacterDefinitionSO definition=null;var rows=new List<object>();
+  try{
+   var root=prefab.GetComponent<C.CharacterRoot>();var body=root.GetComponentInChildren<A.CharacterAnimationController>(true);if(body==null)throw new Exception("Missing body");
+   var skeleton=body.GetComponent<SkeletonAnimation>();skeleton.skeletonDataAsset=AssetDatabase.LoadAssetAtPath<SkeletonDataAsset>("Assets/OSSASTRA/LocalMedia/DIR02Blue/Blue43_SkeletonData.asset");if(skeleton.skeletonDataAsset==null)throw new Exception("Missing local 4.3 model");skeleton.Initialize(true);
+   definition=ScriptableObject.CreateInstance<C.CharacterDefinitionSO>();profile.mode=C.CharacterDirectionMode.MultiFace;profile.structureTrack=9;profile.faces=new[]{new C.CharacterDirectionFace{faceId="left",rootBone="左",logicId=(A.EAnimationLogicState)1201},new C.CharacterDirectionFace{faceId="up",rootBone="上",logicId=(A.EAnimationLogicState)1205}};
+   typeof(C.CharacterDefinitionSO).GetField("directionProfile")?.SetValue(definition,profile);new SerializedObject(root).FindProperty("characterDefinition").objectReferenceValue=definition;var so=new SerializedObject(root);so.FindProperty("characterDefinition").objectReferenceValue=definition;so.ApplyModifiedPropertiesWithoutUndo();
+   var config=body.GetComponent<A.CharacterAnimationConfigManager>();var composer=body.GetComponent<A.CharacterAnimationComposer>();var handle=body.GetComponent<A.AnimationHandleSystem>();handle.Bind(root,skeleton,"body");composer.Initialize(root,config,handle);
+   var nested=typeof(A.CharacterAnimationComposer).GetNestedType("ResolvedAnimationPlan",BindingFlags.NonPublic);var merge=typeof(A.CharacterAnimationComposer).GetMethod("MergePlans",BindingFlags.Instance|BindingFlags.NonPublic);var listType=typeof(List<>).MakeGenericType(nested);
+   object Owner(A.AnimationIntentSourceStateMachine source,bool exclusive,int track,string clip,bool authorized=false){var o=Activator.CreateInstance(nested,true);var intent=new A.AnimationIntent{root=root,actorId=root.ActorId,target="body",intentSourceStateMatine=source,priority=track==0?20:100,exclusiveFullBody=exclusive,layer=track==0?A.AnimationLayer.FullBodyAction:(A.AnimationLayer)50,actionId=Guid.Parse("00000000-0000-0000-0000-000000000001"),logicId=clip=="方向_上"?(A.EAnimationLogicState)1205:(A.EAnimationLogicState)1201};if(authorized)typeof(A.AnimationIntent).GetField("structureProfile")?.SetValue(intent,profile);var plan=new A.CharacterAnimationPlan();plan.clips.Add(new A.CharacterAnimationClip{animaName=clip,track=track,playbackRate=1,mixDuration=0,loop=track>0});nested.GetField("intent").SetValue(o,intent);nested.GetField("logic").SetValue(o,intent.logicId);nested.GetField("plan").SetValue(o,plan);return o;}
+   A.CharacterAnimationPlan Merge(params object[] owners){var list=(IList)Activator.CreateInstance(listType);foreach(var item in owners)list.Add(item);return(A.CharacterAnimationPlan)merge.Invoke(composer,new object[]{list});}
+   var attack=Owner(A.AnimationIntentSourceStateMachine.MainHand,true,0,"a1");var structural=Owner((A.AnimationIntentSourceStateMachine)130,false,9,"方向_左",true);var normal=Owner(A.AnimationIntentSourceStateMachine.Movement,false,9,"方向_左");
+   var combined=Merge(attack,structural);rows.Add(new{name="合法Profile的独立结构方向与全身攻击共存",ok=combined.clips.Any(c=>c.track==0)&&combined.clips.Any(c=>c.track==9)&&!combined.clearTracks.Contains(9)});
+   var ordinary=Merge(attack,normal);rows.Add(new{name="普通高轨仍被全身独占清理",ok=ordinary.clearTracks.Contains(9)&&ordinary.clips.All(c=>c.track!=9)});
+   var unauthorized=Merge(attack,Owner((A.AnimationIntentSourceStateMachine)130,false,9,"方向_左"));rows.Add(new{name="未授权Profile的伪结构层不能豁免",ok=unauthorized.clips.All(c=>c.track!=9)});
+   handle.ApplyPlan(combined,0);skeleton.Update(.1f);var main=skeleton.AnimationState.GetTrack(0);float time=main.TrackTime;
+   var next=Merge(attack,Owner((A.AnimationIntentSourceStateMachine)130,false,9,"方向_上",true));handle.ApplyPlan(next,0);skeleton.Update(0);rows.Add(new{name="切结构面不重建主轨实例或时间",ok=ReferenceEquals(main,skeleton.AnimationState.GetTrack(0))&&Math.Abs(time-main.TrackTime)<.00001f&&skeleton.AnimationState.GetTrack(9)?.Animation.Name=="方向_上"});
+   rows.Add(new{name="离散结构面不残留mixingFrom",ok=skeleton.AnimationState.GetTrack(9)!=null&&skeleton.AnimationState.GetTrack(9).MixingFrom==null});
+   ctx.ReturnValue=new{failed=rows.Count(r=>!(bool)r.GetType().GetProperty("ok").GetValue(r)),rows};
+  }finally{PrefabUtility.UnloadPrefabContents(prefab);if(definition!=null)UnityEngine.Object.DestroyImmediate(definition);UnityEngine.Object.DestroyImmediate(profile);}
+ }
+}

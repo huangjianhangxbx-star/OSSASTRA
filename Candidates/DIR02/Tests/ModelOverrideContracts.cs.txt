@@ -1,0 +1,14 @@
+/* 模型换装保留装备逻辑ID与玩法定义，但模型范围的原式Override必须优先于另一模型的片段名。 */
+using System;using UnityEngine;using A=Ossastra.CharacterAnimation;using C=Ossastra.Characters;using Funplay.Editor.Tools.Scripting;
+public class ModelOverrideContracts:IFunplayCommand
+{
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+ {
+  var go=new GameObject("DIR02-model-override-fixture");var config=go.AddComponent<A.CharacterAnimationConfigManager>();var map=ScriptableObject.CreateInstance<A.AnimationPlanMappingSO>();var legacy=ScriptableObject.CreateInstance<A.AnimationPlanOverrideRuleSetSO>();var model=ScriptableObject.CreateInstance<A.AnimationPlanOverrideRuleSetSO>();var gear=ScriptableObject.CreateInstance<C.EquipmentDefinitionSO>();
+  try{A.CharacterAnimationPlan Plan(string clip){var p=new A.CharacterAnimationPlan();p.clips.Add(new A.CharacterAnimationClip{animaName=clip,playbackRate=1});return p;}
+   legacy.rulesOther.Add(new A.AnimationPlanOverrideRuleSetSO.Rule{targetID=A.EAnimationLogicState.HeavyAttack,replacementPlan=Plan("old-model-attack")});model.rulesOther.Add(new A.AnimationPlanOverrideRuleSetSO.Rule{targetID=A.EAnimationLogicState.HeavyAttack,replacementPlan=Plan("new-model-attack")});gear.bodyAnimationOverride=legacy;config.baseMap=map;
+   var field=typeof(A.CharacterAnimationConfigManager).GetField("modelOverrides");field?.SetValue(config,new System.Collections.Generic.List<A.AnimationPlanOverrideRuleSetSO>{model});var result=config.ResolvePlan(A.EAnimationLogicState.HeavyAttack,new A.AnimationComposeContext{target="body",sourceEquipment=gear});
+   ctx.ReturnValue=new{failed=result?.clips[0].animaName=="new-model-attack"?0:1,ok=result?.clips[0].animaName=="new-model-attack",equipmentUnchanged=gear.bodyAnimationOverride==legacy,actual=result?.clips[0].animaName};
+  }finally{UnityEngine.Object.DestroyImmediate(go);UnityEngine.Object.DestroyImmediate(map);UnityEngine.Object.DestroyImmediate(legacy);UnityEngine.Object.DestroyImmediate(model);UnityEngine.Object.DestroyImmediate(gear);}
+ }
+}

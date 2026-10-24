@@ -1,5 +1,5 @@
 /* 角色事实适配器：Root的既有表现端口→原式Intent/配置/Composer/Handle。
- * 不拥有玩法状态、动作钟或伤害。正式片段只在SO中配置；受理阶段冻结完整计划。
+ * 不拥有玩法状态、动作钟或伤害。正式片段只在SO中配置；可选方向端口提交结构层，保持单一Composer/Handle。
  */
 using System;
 using System.Linq;
@@ -20,6 +20,7 @@ namespace Ossastra.CharacterAnimation
         private CharacterAnimationConfigManager config;
         private CharacterAnimationComposer composer;
         private AnimationHandleSystem handle;
+        private CharacterDirectionPresentation direction;
         private Ossastra.Combat.ICombatGuard[] guards;
         private CharacterAnimationPlan captured;
         private Guid capturedId,phaseId;
@@ -51,6 +52,9 @@ namespace Ossastra.CharacterAnimation
             });
             guards=root.GetComponents<MonoBehaviour>().OfType<Ossastra.Combat.ICombatGuard>().ToArray();
             scaleX=Mathf.Abs(skeleton.Skeleton.ScaleX);timeScale=skeleton.timeScale;
+            direction=GetComponent<CharacterDirectionPresentation>();
+            if(root.Definition?.directionProfile?.Enabled==true&&direction==null)return false;
+            if(direction!=null&&!direction.Initialize(root,skeleton,config))return false;
             handle.Signal-=OnSignal;handle.Signal+=OnSignal;return true;
         }
         private void OnSignal(AnimationSignal signal)=>SpineSignal?.Invoke(signal);
@@ -174,7 +178,12 @@ namespace Ossastra.CharacterAnimation
             else composer.RemoveIntent(AnimationIntentSourceStateMachine.Hurt);
             if(staggered)Submit(AnimationIntentSourceStateMachine.Status,EAnimSemantic.Stagger,50,Guid.Empty,exclusive:true);
             else composer.RemoveIntent(AnimationIntentSourceStateMachine.Status);
-            skeleton.Skeleton.ScaleX=scaleX*bus.VisualFacingX;
+            if(direction!=null&&direction.IsConfigured)
+            {
+                direction.SubmitDirection(composer,direction.ReadGameplayDirection(),generation);
+                skeleton.Skeleton.ScaleX=scaleX*(direction.Mirrored?-1:1);
+            }
+            else skeleton.Skeleton.ScaleX=scaleX*bus.VisualFacingX;
             composer.Commit(generation);
             var selected=composer.CurrentBodyIntent;
             if(selected!=null){CurrentSemantic=AnimationSemanticTranslation.ToShared(selected.semantic);CurrentSource=selected.oneShot&&selected.actionId==bus.ActionId&&selected.priority==20?"action":selected.intentSourceStateMatine.ToString();CurrentReplayId=selected.phaseId!=Guid.Empty?selected.phaseId:selected.actionId;}

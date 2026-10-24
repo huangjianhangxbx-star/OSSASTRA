@@ -35,6 +35,8 @@ namespace Ossastra.Characters
         public Guid RightExecutionId=>right?.ExecutionId??Guid.Empty;
         public Guid RightReplayId=>right?.ReplayId??Guid.Empty;
         public float RightGripError=>right?.GripError??0;
+        public string LeftAnchorBone=>left?.AnchorBone;
+        public string RightAnchorBone=>right?.AnchorBone;
         public void Initialize(CharacterRoot root)
         {
             if(owner!=null)owner.ActionObserved-=OnAction;
@@ -100,6 +102,8 @@ namespace Ossastra.Characters
             private Spine.Slot bodySlot;
             private CharacterRigProfileSO rigProfile;
             private ResolvedRigSocket socket;
+            private RigSocketRoute socketRoute;
+            private CharacterDirectionPresentation direction;
             private int profileVersion,rigVersion;
             private PlaybackIdentity playback=new PlaybackIdentity();
             private Guid capturedExecution;
@@ -112,6 +116,7 @@ namespace Ossastra.Characters
             public Guid ExecutionId {get;private set;}
             public Guid ReplayId {get;private set;}
             public float GripError {get;private set;}
+            public string AnchorBone=>bodyBone?.Data.Name;
             public string Status {get;private set;}="无Spine配置";
             public SlotView(string name,bool main){objectName=name;this.main=main;}
             public void Bind(EquipmentDefinitionSO next,SkeletonAnimation nextBody,CharacterRigProfileSO nextRig)
@@ -125,13 +130,15 @@ namespace Ossastra.Characters
                 {
                     catalog=profile.Freeze(body.Skeleton.Data,rigProfile);
                     socket=string.IsNullOrEmpty(profile.semanticSocketId)?null:rigProfile.Resolve(profile.semanticSocketId,body.Skeleton.Data);
+                    socketRoute=string.IsNullOrEmpty(profile.semanticSocketId)?null:rigProfile.CompileRoute(profile.semanticSocketId,body.Skeleton.Data);
+                    direction=body.GetComponent<CharacterDirectionPresentation>();
                     var child=new GameObject(objectName);child.transform.SetParent(body.transform,false);
                     SkeletonAnimation.AddToGameObject(child,profile.skeletonData);
                     Animation=child.GetComponent<SkeletonAnimation>();spineRenderer=child.GetComponent<SkeletonRenderer>();
                     Animation.UpdateTiming=UpdateTiming.ManualUpdate;Animation.Initialize(false);Animation.Update(0);
                     handle=child.AddComponent<A.AnimationHandleSystem>();config=child.AddComponent<A.CharacterAnimationConfigManager>();composer=child.AddComponent<A.CharacterAnimationComposer>();
                     config.baseMap=profile.animationMap;bindingGeneration++;
-                    var boneName=socket?.BoneName??profile.bodyBone;var slotName=socket?.SlotName??profile.bodySlot;
+                    var boneName=socket!=null?socket.BoneName:profile.bodyBone;var slotName=socket!=null?socket.SlotName:profile.bodySlot;
                     bodyBone=body.Skeleton.FindBone(boneName);bodySlot=string.IsNullOrEmpty(slotName)?null:body.Skeleton.FindSlot(slotName);
                     grip=Animation.Skeleton.FindBone(profile.gripBone);meshRenderer=child.GetComponent<MeshRenderer>();bodyRenderer=body.GetComponent<Renderer>();
                     offset=profile.localOffset;scale=profile.localScale;rotation=profile.rotationOffset;sortingOffset=profile.sortingOrderOffset;
@@ -152,10 +159,19 @@ namespace Ossastra.Characters
             public void Present(CharacterRoot root,ICharacterAnimationStateView view,float delta,bool visible)
             {
                 if(Animation==null||bodyBone==null||grip==null)return;
+                if(socketRoute!=null)
+                {
+                    var track=body.AnimationState.GetTrack(0);
+                    float normalized=track?.Animation==null||track.Animation.Duration<=0?0:Mathf.Clamp01(track.TrackTime/track.Animation.Duration);
+                    socket=socketRoute.Select(direction?.FaceId,track?.Animation?.Name,normalized);
+                    bodyBone=body.Skeleton.Bones.Items[socket.BoneIndex];
+                    bodySlot=socket.SlotIndex<0?null:body.Skeleton.Slots.Items[socket.SlotIndex];
+                }
                 var slotPose=bodySlot?.AppliedPose;
                 var tint=slotColor&&slotPose!=null?slotPose.GetColor():Color.white;
                 visible=visible&&tint.a>0&&(!slotVisibility||slotPose==null||slotPose.Attachment!=null);
-                meshRenderer.enabled=visible;if(!visible)return;
+                bool renderEquipment=visible&&(direction==null||direction.IndependentEquipmentVisible&&direction.IsAnchorVisible(bodyBone));
+                meshRenderer.enabled=renderEquipment;if(!visible)return;
                 var module=root.GetComponent<CharacterAbilities>();
                 bool own=module!=null&&module.TryGetHandPresentation(main,out _,out _,out _);
                 Guid execution=Guid.Empty;bool guarding=false,usesBody=false;
@@ -223,7 +239,7 @@ namespace Ossastra.Characters
             public void Dispose()
             {
                 if(Animation!=null){Animation.gameObject.SetActive(false);UnityEngine.Object.Destroy(Animation.gameObject);}
-                Animation=null;spineRenderer=null;meshRenderer=null;bodyBone=null;grip=null;bodySlot=null;socket=null;
+                Animation=null;spineRenderer=null;meshRenderer=null;bodyBone=null;grip=null;bodySlot=null;socket=null;socketRoute=null;direction=null;
             }
         }
     }

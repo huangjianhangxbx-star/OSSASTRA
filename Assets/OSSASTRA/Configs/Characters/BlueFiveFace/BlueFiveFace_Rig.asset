@@ -1,0 +1,434 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3d3cec38353073e46836b8c195545eb2, type: 3}
+  m_Name: BlueFiveFace_Rig
+  m_EditorClassIdentifier: 
+  schemaVersion: 1
+  contentVersion: 2
+  model: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+  evidence: "DIR02\uFF1A\u9762\u9ED8\u8BA4\u4E0Ea4\u5177\u540D\u8F85\u52A9\u63A5\u7BA1\uFF1B\u9636\u6BB5\u533A\u95F4\u5DE6\u95ED\u53F3\u5F00\uFF0C\u7EC8\u70B91\u5305\u542B\u3002\u4EC5\u6280\u672F\u5019\u9009\uFF0C\u975E\u7528\u6237\u6B63\u5F0F\u9AA8\u540D\u6807\u51C6\u3002"
+  sockets:
+  - semanticSocketId: equipment.right
+    kind: 0
+    boneName: "\u53F3\u624B"
+    slotName: 
+    pointAttachmentName: 
+    skinName: 
+    boneLocalOffset: {x: 0, y: 0, z: 0}
+    evidence: 
+  - semanticSocketId: equipment.left
+    kind: 0
+    boneName: "\u5DE6\u624B"
+    slotName: 
+    pointAttachmentName: 
+    skinName: 
+    boneLocalOffset: {x: 0, y: 0, z: 0}
+    evidence: 
+  - semanticSocketId: item.use
+    kind: 0
+    boneName: "\u53F3\u624B"
+    slotName: 
+    pointAttachmentName: 
+    skinName: 
+    boneLocalOffset: {x: 0, y: 0, z: 0}
+    evidence: 
+  variants:
+  - faceId: left
+    bodyClip: a4
+    fromNormalized: 0.16000001
+    toNormalized: 0.72
+    binding:
+      semanticSocketId: equipment.right
+      kind: 0
+      boneName: "\u53F3\u624B6"
+      slotName: 
+      pointAttachmentName: 
+      skinName: 
+      boneLocalOffset: {x: 0, y: 0, z: 0}
+      evidence: "4.3 a4 transform\u7EA6\u675F\u65F6\u95F4\u7EBF0.13333334\u21920.6\u79D2\uFF0C\u771F\u5B9E300\u59FF\u6001\u91C7\u6837\u786E\u8BA4\u8F85\u52A9\u624B\u63A5\u7BA1"
+  - faceId: frontLeft
+    bodyClip: a4
+    fromNormalized: 0.16000001
+    toNormalized: 0.72
+    binding:
+      semanticSocketId: equipment.right
+      kind: 0
+      boneName: "\u53F3\u624B8"
+      slotName: 
+      pointAttachmentName: 
+      skinName: 
+      boneLocalOffset: {x: 0, y: 0, z: 0}
+      evidence: "4.3 a4 transform\u7EA6\u675F\u65F6\u95F4\u7EBF0.13333334\u21920.6\u79D2\uFF0C\u771F\u5B9E300\u59FF\u6001\u91C7\u6837\u786E\u8BA4\u8F85\u52A9\u624B\u63A5\u7BA1"
+  - faceId: backLeft
+    bodyClip: a4
+    fromNormalized: 0.16000001
+    toNormalized: 0.72
+    binding:
+      semanticSocketId: equipment.right
+      kind: 0
+      boneName: "\u53F3\u624B11"
+      slotName: 
+      pointAttachmentName: 
+      skinName: 
+      boneLocalOffset: {x: 0, y: 0, z: 0}
+      evidence: "4.3 a4 transform\u7EA6\u675F\u65F6\u95F4\u7EBF0.13333334\u21920.6\u79D2\uFF0C\u771F\u5B9E300\u59FF\u6001\u91C7\u6837\u786E\u8BA4\u8F85\u52A9\u624B\u63A5\u7BA1"
+  - faceId: front
+    bodyClip: a4
+    fromNormalized: 0.16000001
+    toNormalized: 0.72
+    binding:
+      semanticSocketId: equipment.right
+      kind: 0
+      boneName: "\u53F3\u624B7"
+      slotName: 
+      pointAttachmentName: 
+      skinName: 
+      boneLocalOffset: {x: 0, y: 0, z: 0}
+      evidence: "4.3 a4 transform\u7EA6\u675F\u65F6\u95F4\u7EBF0.13333334\u21920.6\u79D2\uFF0C\u771F\u5B9E300\u59FF\u6001\u91C7\u6837\u786E\u8BA4\u8F85\u52A9\u624B\u63A5\u7BA1"
+  - faceId: back
+    bodyClip: a4
+    fromNormalized: 0.16000001
+    toNormalized: 0.72
+    binding:
+      semanticSocketId: equipment.right
+      kind: 0
+      boneName: "\u53F3\u624B12"
+      slotName: 
+      pointAttachmentName: 
+      skinName: 
+      boneLocalOffset: {x: 0, y: 0, z: 0}
+      evidence: "4.3 a4 transform\u7EA6\u675F\u65F6\u95F4\u7EBF0.13333334\u21920.6\u79D2\uFF0C\u771F\u5B9E300\u59FF\u6001\u91C7\u6837\u786E\u8BA4\u8F85\u52A9\u624B\u63A5\u7BA1"
+  - faceId: left
+    bodyClip: 
+    fromNormalized: 0
+    toNormalized: 1
+    binding:
+      semanticSocketId: equipment.right
+      kind: 0
+      boneName: "\u53F3\u624B"
+      slotName: 
+      pointAttachmentName: 
+      skinName: 
+      boneLocalOffset: {x: 0, y: 0, z: 0}
+      evidence: "DIR01\u624B\u9AA8\u8868\u53CA4.3\u6240\u9009\u52A8\u4F5C\u59FF\u6001\u6838\u9A8C"
+  - faceId: frontLeft
+    bodyClip: 
+    fromNormalized: 0
+    toNormalized: 1
+    binding:
+      semanticSocketId: equipment.right
+      kind: 0
+      boneName: "\u53F3\u624B2"
+      slotName: 
+      pointAttachmentName: 
+      skinName: 
+      boneLocalOffset: {x: 0, y: 0, z: 0}
+      evidence: "DIR01\u624B\u9AA8\u8868\u53CA4.3\u6240\u9009\u52A8\u4F5C\u59FF\u6001\u6838\u9A8C"
+  - faceId: backLeft
+    bodyClip: 
+    fromNormalized: 0
+    toNormalized: 1
+    binding:
+      semanticSocketId: equipment.right
+      kind: 0
+      boneName: "\u53F3\u624B3"
+      slotName: 
+      pointAttachmentName: 
+      skinName: 
+      boneLocalOffset: {x: 0, y: 0, z: 0}
+      evidence: "DIR01\u624B\u9AA8\u8868\u53CA4.3\u6240\u9009\u52A8\u4F5C\u59FF\u6001\u6838\u9A8C"
+  - faceId: front
+    bodyClip: 
+    fromNormalized: 0
+    toNormalized: 1
+    binding:
+      semanticSocketId: equipment.right
+      kind: 0
+      boneName: "\u53F3\u624B4"
+      slotName: 
+      pointAttachmentName: 
+      skinName: 
+      boneLocalOffset: {x: 0, y: 0, z: 0}
+      evidence: "DIR01\u624B\u9AA8\u8868\u53CA4.3\u6240\u9009\u52A8\u4F5C\u59FF\u6001\u6838\u9A8C"
+  - faceId: back
+    bodyClip: 
+    fromNormalized: 0
+    toNormalized: 1
+    binding:
+      semanticSocketId: equipment.right
+      kind: 0
+      boneName: "\u53F3\u624B5"
+      slotName: 
+      pointAttachmentName: 
+      skinName: 
+      boneLocalOffset: {x: 0, y: 0, z: 0}
+      evidence: "DIR01\u624B\u9AA8\u8868\u53CA4.3\u6240\u9009\u52A8\u4F5C\u59FF\u6001\u6838\u9A8C"
+  - faceId: left
+    bodyClip: a4
+    fromNormalized: 0.16000001
+    toNormalized: 0.72
+    binding:
+      semanticSocketId: equipment.left
+      kind: 0
+      boneName: "\u5DE6\u624B6"
+      slotName: 
+      pointAttachmentName: 
+      skinName: 
+      boneLocalOffset: {x: 0, y: 0, z: 0}
+      evidence: "4.3 a4 transform\u7EA6\u675F\u65F6\u95F4\u7EBF0.13333334\u21920.6\u79D2\uFF0C\u771F\u5B9E300\u59FF\u6001\u91C7\u6837\u786E\u8BA4\u8F85\u52A9\u624B\u63A5\u7BA1"
+  - faceId: frontLeft
+    bodyClip: a4
+    fromNormalized: 0.16000001
+    toNormalized: 0.72
+    binding:
+      semanticSocketId: equipment.left
+      kind: 0
+      boneName: "\u5DE6\u624B8"
+      slotName: 
+      pointAttachmentName: 
+      skinName: 
+      boneLocalOffset: {x: 0, y: 0, z: 0}
+      evidence: "4.3 a4 transform\u7EA6\u675F\u65F6\u95F4\u7EBF0.13333334\u21920.6\u79D2\uFF0C\u771F\u5B9E300\u59FF\u6001\u91C7\u6837\u786E\u8BA4\u8F85\u52A9\u624B\u63A5\u7BA1"
+  - faceId: backLeft
+    bodyClip: a4
+    fromNormalized: 0.16000001
+    toNormalized: 0.72
+    binding:
+      semanticSocketId: equipment.left
+      kind: 0
+      boneName: "\u5DE6\u624B11"
+      slotName: 
+      pointAttachmentName: 
+      skinName: 
+      boneLocalOffset: {x: 0, y: 0, z: 0}
+      evidence: "4.3 a4 transform\u7EA6\u675F\u65F6\u95F4\u7EBF0.13333334\u21920.6\u79D2\uFF0C\u771F\u5B9E300\u59FF\u6001\u91C7\u6837\u786E\u8BA4\u8F85\u52A9\u624B\u63A5\u7BA1"
+  - faceId: front
+    bodyClip: a4
+    fromNormalized: 0.16000001
+    toNormalized: 0.72
+    binding:
+      semanticSocketId: equipment.left
+      kind: 0
+      boneName: "\u5DE6\u624B7"
+      slotName: 
+      pointAttachmentName: 
+      skinName: 
+      boneLocalOffset: {x: 0, y: 0, z: 0}
+      evidence: "4.3 a4 transform\u7EA6\u675F\u65F6\u95F4\u7EBF0.13333334\u21920.6\u79D2\uFF0C\u771F\u5B9E300\u59FF\u6001\u91C7\u6837\u786E\u8BA4\u8F85\u52A9\u624B\u63A5\u7BA1"
+  - faceId: back
+    bodyClip: a4
+    fromNormalized: 0.16000001
+    toNormalized: 0.72
+    binding:
+      semanticSocketId: equipment.left
+      kind: 0
+      boneName: "\u5DE6\u624B12"
+      slotName: 
+      pointAttachmentName: 
+      skinName: 
+      boneLocalOffset: {x: 0, y: 0, z: 0}
+      evidence: "4.3 a4 transform\u7EA6\u675F\u65F6\u95F4\u7EBF0.13333334\u21920.6\u79D2\uFF0C\u771F\u5B9E300\u59FF\u6001\u91C7\u6837\u786E\u8BA4\u8F85\u52A9\u624B\u63A5\u7BA1"
+  - faceId: left
+    bodyClip: 
+    fromNormalized: 0
+    toNormalized: 1
+    binding:
+      semanticSocketId: equipment.left
+      kind: 0
+      boneName: "\u5DE6\u624B"
+      slotName: 
+      pointAttachmentName: 
+      skinName: 
+      boneLocalOffset: {x: 0, y: 0, z: 0}
+      evidence: "DIR01\u624B\u9AA8\u8868\u53CA4.3\u6240\u9009\u52A8\u4F5C\u59FF\u6001\u6838\u9A8C"
+  - faceId: frontLeft
+    bodyClip: 
+    fromNormalized: 0
+    toNormalized: 1
+    binding:
+      semanticSocketId: equipment.left
+      kind: 0
+      boneName: "\u5DE6\u624B2"
+      slotName: 
+      pointAttachmentName: 
+      skinName: 
+      boneLocalOffset: {x: 0, y: 0, z: 0}
+      evidence: "DIR01\u624B\u9AA8\u8868\u53CA4.3\u6240\u9009\u52A8\u4F5C\u59FF\u6001\u6838\u9A8C"
+  - faceId: backLeft
+    bodyClip: 
+    fromNormalized: 0
+    toNormalized: 1
+    binding:
+      semanticSocketId: equipment.left
+      kind: 0
+      boneName: "\u5DE6\u624B3"
+      slotName: 
+      pointAttachmentName: 
+      skinName: 
+      boneLocalOffset: {x: 0, y: 0, z: 0}
+      evidence: "DIR01\u624B\u9AA8\u8868\u53CA4.3\u6240\u9009\u52A8\u4F5C\u59FF\u6001\u6838\u9A8C"
+  - faceId: front
+    bodyClip: 
+    fromNormalized: 0
+    toNormalized: 1
+    binding:
+      semanticSocketId: equipment.left
+      kind: 0
+      boneName: "\u5DE6\u624B4"
+      slotName: 
+      pointAttachmentName: 
+      skinName: 
+      boneLocalOffset: {x: 0, y: 0, z: 0}
+      evidence: "DIR01\u624B\u9AA8\u8868\u53CA4.3\u6240\u9009\u52A8\u4F5C\u59FF\u6001\u6838\u9A8C"
+  - faceId: back
+    bodyClip: 
+    fromNormalized: 0
+    toNormalized: 1
+    binding:
+      semanticSocketId: equipment.left
+      kind: 0
+      boneName: "\u5DE6\u624B5"
+      slotName: 
+      pointAttachmentName: 
+      skinName: 
+      boneLocalOffset: {x: 0, y: 0, z: 0}
+      evidence: "DIR01\u624B\u9AA8\u8868\u53CA4.3\u6240\u9009\u52A8\u4F5C\u59FF\u6001\u6838\u9A8C"
+  - faceId: left
+    bodyClip: a4
+    fromNormalized: 0.16000001
+    toNormalized: 0.72
+    binding:
+      semanticSocketId: item.use
+      kind: 0
+      boneName: "\u53F3\u624B6"
+      slotName: 
+      pointAttachmentName: 
+      skinName: 
+      boneLocalOffset: {x: 0, y: 0, z: 0}
+      evidence: "4.3 a4 transform\u7EA6\u675F\u65F6\u95F4\u7EBF0.13333334\u21920.6\u79D2\uFF0C\u771F\u5B9E300\u59FF\u6001\u91C7\u6837\u786E\u8BA4\u8F85\u52A9\u624B\u63A5\u7BA1"
+  - faceId: frontLeft
+    bodyClip: a4
+    fromNormalized: 0.16000001
+    toNormalized: 0.72
+    binding:
+      semanticSocketId: item.use
+      kind: 0
+      boneName: "\u53F3\u624B8"
+      slotName: 
+      pointAttachmentName: 
+      skinName: 
+      boneLocalOffset: {x: 0, y: 0, z: 0}
+      evidence: "4.3 a4 transform\u7EA6\u675F\u65F6\u95F4\u7EBF0.13333334\u21920.6\u79D2\uFF0C\u771F\u5B9E300\u59FF\u6001\u91C7\u6837\u786E\u8BA4\u8F85\u52A9\u624B\u63A5\u7BA1"
+  - faceId: backLeft
+    bodyClip: a4
+    fromNormalized: 0.16000001
+    toNormalized: 0.72
+    binding:
+      semanticSocketId: item.use
+      kind: 0
+      boneName: "\u53F3\u624B11"
+      slotName: 
+      pointAttachmentName: 
+      skinName: 
+      boneLocalOffset: {x: 0, y: 0, z: 0}
+      evidence: "4.3 a4 transform\u7EA6\u675F\u65F6\u95F4\u7EBF0.13333334\u21920.6\u79D2\uFF0C\u771F\u5B9E300\u59FF\u6001\u91C7\u6837\u786E\u8BA4\u8F85\u52A9\u624B\u63A5\u7BA1"
+  - faceId: front
+    bodyClip: a4
+    fromNormalized: 0.16000001
+    toNormalized: 0.72
+    binding:
+      semanticSocketId: item.use
+      kind: 0
+      boneName: "\u53F3\u624B7"
+      slotName: 
+      pointAttachmentName: 
+      skinName: 
+      boneLocalOffset: {x: 0, y: 0, z: 0}
+      evidence: "4.3 a4 transform\u7EA6\u675F\u65F6\u95F4\u7EBF0.13333334\u21920.6\u79D2\uFF0C\u771F\u5B9E300\u59FF\u6001\u91C7\u6837\u786E\u8BA4\u8F85\u52A9\u624B\u63A5\u7BA1"
+  - faceId: back
+    bodyClip: a4
+    fromNormalized: 0.16000001
+    toNormalized: 0.72
+    binding:
+      semanticSocketId: item.use
+      kind: 0
+      boneName: "\u53F3\u624B12"
+      slotName: 
+      pointAttachmentName: 
+      skinName: 
+      boneLocalOffset: {x: 0, y: 0, z: 0}
+      evidence: "4.3 a4 transform\u7EA6\u675F\u65F6\u95F4\u7EBF0.13333334\u21920.6\u79D2\uFF0C\u771F\u5B9E300\u59FF\u6001\u91C7\u6837\u786E\u8BA4\u8F85\u52A9\u624B\u63A5\u7BA1"
+  - faceId: left
+    bodyClip: 
+    fromNormalized: 0
+    toNormalized: 1
+    binding:
+      semanticSocketId: item.use
+      kind: 0
+      boneName: "\u53F3\u624B"
+      slotName: 
+      pointAttachmentName: 
+      skinName: 
+      boneLocalOffset: {x: 0, y: 0, z: 0}
+      evidence: "DIR01\u624B\u9AA8\u8868\u53CA4.3\u6240\u9009\u52A8\u4F5C\u59FF\u6001\u6838\u9A8C"
+  - faceId: frontLeft
+    bodyClip: 
+    fromNormalized: 0
+    toNormalized: 1
+    binding:
+      semanticSocketId: item.use
+      kind: 0
+      boneName: "\u53F3\u624B2"
+      slotName: 
+      pointAttachmentName: 
+      skinName: 
+      boneLocalOffset: {x: 0, y: 0, z: 0}
+      evidence: "DIR01\u624B\u9AA8\u8868\u53CA4.3\u6240\u9009\u52A8\u4F5C\u59FF\u6001\u6838\u9A8C"
+  - faceId: backLeft
+    bodyClip: 
+    fromNormalized: 0
+    toNormalized: 1
+    binding:
+      semanticSocketId: item.use
+      kind: 0
+      boneName: "\u53F3\u624B3"
+      slotName: 
+      pointAttachmentName: 
+      skinName: 
+      boneLocalOffset: {x: 0, y: 0, z: 0}
+      evidence: "DIR01\u624B\u9AA8\u8868\u53CA4.3\u6240\u9009\u52A8\u4F5C\u59FF\u6001\u6838\u9A8C"
+  - faceId: front
+    bodyClip: 
+    fromNormalized: 0
+    toNormalized: 1
+    binding:
+      semanticSocketId: item.use
+      kind: 0
+      boneName: "\u53F3\u624B4"
+      slotName: 
+      pointAttachmentName: 
+      skinName: 
+      boneLocalOffset: {x: 0, y: 0, z: 0}
+      evidence: "DIR01\u624B\u9AA8\u8868\u53CA4.3\u6240\u9009\u52A8\u4F5C\u59FF\u6001\u6838\u9A8C"
+  - faceId: back
+    bodyClip: 
+    fromNormalized: 0
+    toNormalized: 1
+    binding:
+      semanticSocketId: item.use
+      kind: 0
+      boneName: "\u53F3\u624B5"
+      slotName: 
+      pointAttachmentName: 
+      skinName: 
+      boneLocalOffset: {x: 0, y: 0, z: 0}
+      evidence: "DIR01\u624B\u9AA8\u8868\u53CA4.3\u6240\u9009\u52A8\u4F5C\u59FF\u6001\u6838\u9A8C"

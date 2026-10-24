@@ -13,7 +13,7 @@ using Ossastra.Combat;
 namespace Ossastra.Characters
 {
     [DisallowMultipleComponent]
-    public sealed class CharacterAbilities:MonoBehaviour,ICharacterAbilityController,ICombatGuard,ICharacterOffhandStatus,ICharacterMotionOverride,ICombatEvasion,ICharacterLocomotionScale
+    public sealed class CharacterAbilities:MonoBehaviour,ICharacterAbilityController,ICombatGuard,ICharacterOffhandStatus,ICharacterMotionOverride,ICombatEvasion,ICharacterLocomotionScale,ICharacterActionDirectionSource
     {
         private sealed class EquipmentSource:IAbilitySource,IAbilityStateSource
         {
@@ -99,6 +99,14 @@ namespace Ossastra.Characters
         private ICombatGuard ActiveGuard=>runs.OfType<ICombatGuard>().FirstOrDefault(g=>g.IsGuarding);
         public bool IsGuarding=>isActiveAndEnabled&&ActiveGuard!=null;
         public Vector3 GuardDirection=>ActiveGuard?.GuardDirection??Vector3.zero;
+        /// <summary>与本体当前动作ID精确对应的冻结方向；只读原Run，不创建另一份施法或锁向计时器。</summary>
+        public bool TryGetBodyActionDirection(out Vector3 direction)
+        {
+            direction=Vector3.zero;
+            if(owner==null||!owner.ActionActive)return false;
+            var run=runs.LastOrDefault(r=>!r.Ended&&r.Context.id==owner.DataBus.ActionId&&r.Context.definition.executor.UsesBodyAction);
+            if(run==null)return false;direction=run.Context.direction;return direction.sqrMagnitude>.0001f;
+        }
         public double MinimumDot=>ActiveGuard?.MinimumDot??1;
         public double PostureScale=>ActiveGuard?.PostureScale??1;
         public int GuardedCount {get;private set;}

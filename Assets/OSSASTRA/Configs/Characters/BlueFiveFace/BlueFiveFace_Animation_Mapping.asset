@@ -1,0 +1,1255 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 38950824afabfbb4c9a9ccd980cc5045, type: 3}
+  m_Name: BlueFiveFace_Animation_Mapping
+  m_EditorClassIdentifier: 
+  skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+  plansMelee: []
+  plansMovement: []
+  plansFirearm: []
+  plansJump: []
+  plansTransition: []
+  plansSkill: []
+  plansOther:
+  - logicID: 11
+    plan:
+      clips:
+      - animaName: a1
+        track: 0
+        loop: 0
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 1
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 12
+    plan:
+      clips:
+      - animaName: a2
+        track: 0
+        loop: 0
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 1
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 13
+    plan:
+      clips:
+      - animaName: a3
+        track: 0
+        loop: 0
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 1
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 21
+    plan:
+      clips:
+      - animaName: _move
+        track: 0
+        loop: 1
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 22
+    plan:
+      clips:
+      - animaName: _move
+        track: 0
+        loop: 1
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 23
+    plan:
+      clips:
+      - animaName: _move
+        track: 0
+        loop: 1
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 24
+    plan:
+      clips:
+      - animaName: _move
+        track: 0
+        loop: 1
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 25
+    plan:
+      clips:
+      - animaName: _move
+        track: 0
+        loop: 1
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 26
+    plan:
+      clips:
+      - animaName: _dash
+        track: 0
+        loop: 0
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 27
+    plan:
+      clips:
+      - animaName: _stand
+        track: 0
+        loop: 1
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 28
+    plan:
+      clips:
+      - animaName: _standpeace
+        track: 0
+        loop: 0
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 31
+    plan:
+      clips:
+      - animaName: _stand
+        track: 0
+        loop: 1
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 32
+    plan:
+      clips:
+      - animaName: "a4.5\u4E22\u77DB"
+        track: 0
+        loop: 0
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 33
+    plan:
+      clips:
+      - animaName: _pickup
+        track: 0
+        loop: 0
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 34
+    plan:
+      clips:
+      - animaName: _stand
+        track: 0
+        loop: 1
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 35
+    plan:
+      clips:
+      - animaName: _stand
+        track: 0
+        loop: 1
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 36
+    plan:
+      clips:
+      - animaName: _dash
+        track: 0
+        loop: 0
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 37
+    plan:
+      clips:
+      - animaName: _jump
+        track: 0
+        loop: 0
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 38
+    plan:
+      clips:
+      - animaName: _jump
+        track: 0
+        loop: 0
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 39
+    plan:
+      clips:
+      - animaName: _jump
+        track: 0
+        loop: 0
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 40
+    plan:
+      clips:
+      - animaName: _jump
+        track: 0
+        loop: 0
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 41
+    plan:
+      clips:
+      - animaName: _jump
+        track: 0
+        loop: 0
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 42
+    plan:
+      clips:
+      - animaName: _jump
+        track: 0
+        loop: 0
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 43
+    plan:
+      clips:
+      - animaName: _land
+        track: 0
+        loop: 0
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 44
+    plan:
+      clips:
+      - animaName: _stand
+        track: 0
+        loop: 1
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 45
+    plan:
+      clips:
+      - animaName: _standturn
+        track: 0
+        loop: 0
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 501
+    plan:
+      clips:
+      - animaName: _stand
+        track: 0
+        loop: 1
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 502
+    plan:
+      clips:
+      - animaName: _stand
+        track: 0
+        loop: 1
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 503
+    plan:
+      clips:
+      - animaName: _stand
+        track: 0
+        loop: 1
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 504
+    plan:
+      clips:
+      - animaName: _stand
+        track: 0
+        loop: 1
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 505
+    plan:
+      clips:
+      - animaName: _move
+        track: 0
+        loop: 1
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 506
+    plan:
+      clips:
+      - animaName: _move
+        track: 0
+        loop: 1
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 507
+    plan:
+      clips:
+      - animaName: _move
+        track: 0
+        loop: 1
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 508
+    plan:
+      clips:
+      - animaName: _stand
+        track: 0
+        loop: 1
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 509
+    plan:
+      clips:
+      - animaName: _stand
+        track: 0
+        loop: 1
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 510
+    plan:
+      clips:
+      - animaName: _stand
+        track: 0
+        loop: 1
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 511
+    plan:
+      clips:
+      - animaName: _stand2
+        track: 0
+        loop: 0
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 512
+    plan:
+      clips:
+      - animaName: "skill_\u5927\u6233"
+        track: 0
+        loop: 0
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 513
+    plan:
+      clips:
+      - animaName: "skill_\u5927\u6233"
+        track: 0
+        loop: 0
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 514
+    plan:
+      clips:
+      - animaName: "skill_\u5927\u6233"
+        track: 0
+        loop: 0
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 515
+    plan:
+      clips:
+      - animaName: "skill_\u5927\u6233"
+        track: 0
+        loop: 0
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 516
+    plan:
+      clips:
+      - animaName: "skill_\u5927\u6233"
+        track: 0
+        loop: 0
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 517
+    plan:
+      clips:
+      - animaName: "skill_\u5927\u6233"
+        track: 0
+        loop: 0
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 518
+    plan:
+      clips:
+      - animaName: "skill_\u5927\u6233"
+        track: 0
+        loop: 0
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 519
+    plan:
+      clips:
+      - animaName: "skill_\u5927\u6233"
+        track: 0
+        loop: 0
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 520
+    plan:
+      clips:
+      - animaName: "skill_\u5927\u6233"
+        track: 0
+        loop: 0
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 521
+    plan:
+      clips:
+      - animaName: "skill_\u5927\u6233"
+        track: 0
+        loop: 0
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 522
+    plan:
+      clips:
+      - animaName: "skill_\u5927\u6233"
+        track: 0
+        loop: 0
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 523
+    plan:
+      clips:
+      - animaName: "skill_\u5927\u6233"
+        track: 0
+        loop: 0
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 524
+    plan:
+      clips:
+      - animaName: "skill_\u5927\u6233"
+        track: 0
+        loop: 0
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 525
+    plan:
+      clips:
+      - animaName: "skill_\u5927\u6233"
+        track: 0
+        loop: 0
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 526
+    plan:
+      clips:
+      - animaName: "skill_\u5927\u6233"
+        track: 0
+        loop: 0
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 527
+    plan:
+      clips:
+      - animaName: "skill_\u5927\u6233"
+        track: 0
+        loop: 0
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 528
+    plan:
+      clips:
+      - animaName: "skill_\u5927\u6233"
+        track: 0
+        loop: 0
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 529
+    plan:
+      clips:
+      - animaName: "skill_\u5927\u6233"
+        track: 0
+        loop: 0
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 1001
+    plan:
+      clips:
+      - animaName: a4
+        track: 0
+        loop: 0
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 1
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 1002
+    plan:
+      clips:
+      - animaName: _dash
+        track: 0
+        loop: 0
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 1
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 1003
+    plan:
+      clips:
+      - animaName: "skill_\u67B6\u76FE2"
+        track: 0
+        loop: 1
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 1004
+    plan:
+      clips:
+      - animaName: _damaged
+        track: 0
+        loop: 0
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 1005
+    plan:
+      clips:
+      - animaName: _stun
+        track: 0
+        loop: 0
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 1006
+    plan:
+      clips:
+      - animaName: _die
+        track: 0
+        loop: 0
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 1007
+    plan:
+      clips:
+      - animaName: "skill_\u5927\u6233"
+        track: 0
+        loop: 0
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 1
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 1101
+    plan:
+      clips:
+      - animaName: "a0.5\u5927\u6233\u523A"
+        track: 0
+        loop: 0
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 1
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 1102
+    plan:
+      clips:
+      - animaName: "skill_\u4E22\u51B0\u77DB2"
+        track: 0
+        loop: 0
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 1
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 1103
+    plan:
+      clips:
+      - animaName: "skill_\u76FE\u51B2\u524D1"
+        track: 0
+        loop: 0
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 1
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 1104
+    plan:
+      clips:
+      - animaName: "skill_\u76FE\u51B2\uFF01"
+        track: 0
+        loop: 0
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 1
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 1105
+    plan:
+      clips:
+      - animaName: "skill_\u76FE\u51B2\uFF01"
+        track: 0
+        loop: 0
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 1
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 1106
+    plan:
+      clips:
+      - animaName: "skill_\u98DE\u8DC32"
+        track: 0
+        loop: 0
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 1
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 1107
+    plan:
+      clips:
+      - animaName: _pickup
+        track: 0
+        loop: 0
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 1
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 1108
+    plan:
+      clips:
+      - animaName: "a4.5\u4E22\u77DB"
+        track: 0
+        loop: 0
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 1
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 1110
+    plan:
+      clips:
+      - animaName: "skill_\u67B6\u76FE1"
+        track: 0
+        loop: 0
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 1
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 1111
+    plan:
+      clips:
+      - animaName: "skill_\u67B6\u76FE4"
+        track: 0
+        loop: 0
+        mixDuration: 0.08
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 1
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 1201
+    plan:
+      clips:
+      - animaName: "\u65B9\u5411_\u5DE6"
+        track: 9
+        loop: 1
+        mixDuration: 0
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 1202
+    plan:
+      clips:
+      - animaName: "\u65B9\u5411_\u5DE6\u4E0B"
+        track: 9
+        loop: 1
+        mixDuration: 0
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 1203
+    plan:
+      clips:
+      - animaName: "\u65B9\u5411_\u5DE6\u4E0A"
+        track: 9
+        loop: 1
+        mixDuration: 0
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 1204
+    plan:
+      clips:
+      - animaName: "\u65B9\u5411_\u4E0B"
+        track: 9
+        loop: 1
+        mixDuration: 0
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 1205
+    plan:
+      clips:
+      - animaName: "\u65B9\u5411_\u4E0A"
+        track: 9
+        loop: 1
+        mixDuration: 0
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  defaultPlans: []

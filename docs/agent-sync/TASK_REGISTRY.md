@@ -957,3 +957,6 @@ active/unity-writer；用户明确要求一轮修整：共享脚本去M01标签�
 2026-10-24 DIR01 technical-complete/docs-writer：Unity/源码租约释放；仅Candidates/DIR01与DIR01文档/任务发布。29+6/300姿态/192拆图通过，D03/D11/D14边界明列；B内存dirty保留不保存。
 
 2026-10-24 DIR01 complete/read-only：14715e763e4ab92936aa7f26b49ca34fb457c744已GitHub核SHA，全部Unity/源码/文档/发布租约释放；原35dirty保护，B现场保留，停止在DIR02待确认。
+
+2026-10-25 DIR02 active/unity-writer：唯一writer，按附件G0-G5连续实施小蓝候选/rozeul对照；独占详见tasks/2026-10-25-dir02.md。原36dirty与主场/Prefab保护，商业媒体本机不发布。
+2026-10-25 DIR02 technical-complete/docs-writer：G1-G5有界接入/唯一对照场完成，42输入/1200姿态/10生命周期/16实战/36混合/5原生E通过；Unity/源码租约释放，仅DIR02资料与GitHub发布。原36dirty保护，Edit clean，复杂穿插及近似映射明列。

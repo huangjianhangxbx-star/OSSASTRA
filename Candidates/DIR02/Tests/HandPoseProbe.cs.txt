@@ -1,0 +1,10 @@
+using System;using System.Linq;using System.Collections.Generic;using UnityEngine;using UnityEditor;using Spine;using Spine.Unity;using C=Ossastra.Characters;using Funplay.Editor.Tools.Scripting;
+public class HandPoseProbe:IFunplayCommand {
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx){
+ var data=AssetDatabase.LoadAssetAtPath<SkeletonDataAsset>("Assets/OSSASTRA/LocalMedia/DIR02Blue/Blue43_SkeletonData.asset").GetSkeletonData(false);var faces=new[]{"左","左下","左上","下","上"};var rows=new List<object>();
+ foreach(var clip in new[]{"_stand","_move","a1","a2","a3","a4","_dash","_damaged","_stun","skill_架盾2","skill_盾冲！","skill_大戳"})for(int f=0;f<5;f++)foreach(float fraction in new[]{0f,.25f,.5f,.75f,.99f}){
+ var skeleton=new Skeleton(data);var state=new Spine.AnimationState(new AnimationStateData(data));var main=state.SetAnimation(0,clip,false);state.SetAnimation(9,"方向_"+faces[f],true);main.TrackTime=main.Animation.Duration*fraction;state.Apply(skeleton);skeleton.UpdateWorldTransform(Spine.Physics.Pose);var mask=new C.CharacterSlotVisibility(skeleton,"遮罩",new string[0]);mask.Apply(false,false);
+ string suffix=f==0?"":(f+1).ToString();var right=skeleton.FindBone("右手"+suffix);var left=skeleton.FindBone("左手"+suffix);if(!mask.Contains(right)||!mask.Contains(left))rows.Add(new{clip,face=faces[f],fraction,right=right.Data.Name,rightVisible=mask.Contains(right),left=left.Data.Name,leftVisible=mask.Contains(left),nearHands=skeleton.Bones.Where(b=>b.Data.Name.Contains("手")&&mask.Contains(b)).Select(b=>b.Data.Name).ToArray()});
+ mask.Restore();}
+ ctx.ReturnValue=new{samples=300,offscreen=rows.Count,rows};}
+}

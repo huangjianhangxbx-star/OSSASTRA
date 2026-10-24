@@ -1,0 +1,25 @@
+/* 只装配本任务LocalMedia资产；通过Editor API保存，不修改源Spine、原Prefab或项目色彩空间。 */
+using System;using System.Linq;using UnityEngine;using UnityEditor;using Spine.Unity;using Funplay.Editor.Tools.Scripting;
+public class ImportBlue:IFunplayCommand
+{
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+ {
+  const string folder="Assets/OSSASTRA/LocalMedia/DIR02Blue/";
+  var importer=AssetImporter.GetAtPath(folder+"BlueFiveFace.png") as TextureImporter;
+  if(importer==null)throw new Exception("Missing straight-alpha PNG importer");
+  if(importer.maxTextureSize!=4096||importer.textureCompression!=TextureImporterCompression.Uncompressed||importer.mipmapEnabled||importer.alphaIsTransparency||importer.npotScale!=TextureImporterNPOTScale.None){importer.maxTextureSize=4096;importer.textureCompression=TextureImporterCompression.Uncompressed;importer.mipmapEnabled=false;importer.alphaIsTransparency=false;importer.npotScale=TextureImporterNPOTScale.None;importer.SaveAndReimport();}
+  var texture=AssetDatabase.LoadAssetAtPath<Texture2D>(folder+"BlueFiveFace.png");var text=AssetDatabase.LoadAssetAtPath<TextAsset>(folder+"BlueFiveFace.atlas.txt");var json=AssetDatabase.LoadAssetAtPath<TextAsset>(folder+"BlueFiveFace.json");
+  if(texture==null||text==null||json==null||text.text.Contains("pma:true"))throw new Exception("Missing resource or atlas is still PMA");
+  var original=AssetDatabase.LoadAssetAtPath<GameObject>("Assets/OSSASTRA/Prefabs/Characters/PlayerCharacter.prefab");var baseline=original==null?null:original.GetComponentInChildren<SkeletonAnimation>(true);
+  if(baseline==null||baseline.skeletonDataAsset==null)throw new Exception("Missing reference body");
+  var material=AssetDatabase.LoadAssetAtPath<Material>(folder+"Blue43_Material.mat");
+  if(material==null){material=new Material(baseline.skeletonDataAsset.atlasAssets[0].PrimaryMaterial);AssetDatabase.CreateAsset(material,folder+"Blue43_Material.mat");}
+  material.mainTexture=texture;if(material.HasProperty("_StraightAlphaInput"))material.SetFloat("_StraightAlphaInput",1);material.EnableKeyword("_STRAIGHT_ALPHA_INPUT");EditorUtility.SetDirty(material);AssetDatabase.SaveAssetIfDirty(material);
+  var atlas=AssetDatabase.LoadAssetAtPath<SpineAtlasAsset>(folder+"Blue43_Atlas.asset");
+  if(atlas==null){atlas=SpineAtlasAsset.CreateRuntimeInstance(text,new[]{material},true);AssetDatabase.CreateAsset(atlas,folder+"Blue43_Atlas.asset");}
+  var data=AssetDatabase.LoadAssetAtPath<SkeletonDataAsset>(folder+"Blue43_SkeletonData.asset");
+  if(data==null){data=SkeletonDataAsset.CreateRuntimeInstance(json,atlas,true,.01f);AssetDatabase.CreateAsset(data,folder+"Blue43_SkeletonData.asset");}
+  var skeleton=data.GetSkeletonData(false);if(skeleton==null||skeleton.Bones.Count!=776||skeleton.Slots.Count!=494||skeleton.Animations.Count!=138)throw new Exception("4.3 unit contents differ from expected research source");
+  ctx.ReturnValue=new{model=AssetDatabase.GetAssetPath(data),version=skeleton.Version,bones=skeleton.Bones.Count,slots=skeleton.Slots.Count,animations=skeleton.Animations.Count,shader=material.shader.name,texture=texture.width+"x"+texture.height,linear=PlayerSettings.colorSpace==ColorSpace.Linear,baselineScale=baseline.transform.localScale.ToString(),baselineData=AssetDatabase.GetAssetPath(baseline.skeletonDataAsset)};
+ }
+}

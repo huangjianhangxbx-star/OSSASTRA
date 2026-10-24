@@ -1,0 +1,135 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 96f8afc8b511d7545b935181bf2f86c4, type: 3}
+  m_Name: BlueFiveFace_Direction
+  m_EditorClassIdentifier: 
+  mode: 1
+  contentVersion: 1
+  structureTrack: 9
+  yawOffset: 0
+  initialFace: frontLeft
+  boundarySlot: "\u906E\u7F69"
+  faces:
+  - faceId: left
+    rootBone: "\u5DE6"
+    logicId: 1201
+  - faceId: frontLeft
+    rootBone: "\u5DE6\u4E0B"
+    logicId: 1202
+  - faceId: backLeft
+    rootBone: "\u5DE6\u4E0A"
+    logicId: 1203
+  - faceId: front
+    rootBone: "\u4E0B"
+    logicId: 1204
+  - faceId: back
+    rootBone: "\u4E0A"
+    logicId: 1205
+  sectors:
+  - from: 67.5
+    to: 112.5
+    faceId: left
+    mirrored: 1
+  - from: 112.5
+    to: 157.5
+    faceId: frontLeft
+    mirrored: 1
+  - from: 157.5
+    to: 202.5
+    faceId: front
+    mirrored: 0
+  - from: 202.5
+    to: 247.5
+    faceId: frontLeft
+    mirrored: 0
+  - from: 247.5
+    to: 292.5
+    faceId: left
+    mirrored: 0
+  - from: 292.5
+    to: 337.5
+    faceId: backLeft
+    mirrored: 0
+  - from: 337.5
+    to: 22.5
+    faceId: back
+    mirrored: 0
+  - from: 22.5
+    to: 67.5
+    faceId: backLeft
+    mirrored: 1
+  builtInWeaponSlots:
+  - "\u5DE6-\u76FE\u53CD"
+  - "\u5DE6-\u76FE"
+  - "\u5DE6-\u76FE\u628A"
+  - "\u5DE6-\u76FE\u4FA7"
+  - "\u5DE6-\u77DB"
+  - "\u5DE6-\u76FE\u53CD3"
+  - "\u5DE6-\u76FE\u628A5"
+  - "\u5DE6-\u77DB\u5DE6\u4E0B"
+  - "\u5DE6-\u76FE3"
+  - "\u5DE6-\u76FE\u53CD4"
+  - "\u5DE6-\u76FE4"
+  - "\u5DE6-\u76FE\u628A7"
+  - "\u9524\u5B50"
+  - "\u5DE6-\u76FE\u4FA74"
+  - "\u5DE6-\u77DB4"
+  - "\u5DE6-\u77DB7"
+  - "\u5DE6-\u77DB2"
+  - "\u5DE6-\u76FE\u4FA73"
+  - "\u5DE6-\u76FE\u53CD5"
+  - "\u5DE6-\u76FE\u53CD6"
+  - "\u5DE6-\u76FE5"
+  - "\u5DE6-\u76FE6"
+  - "\u5DE6-\u76FE\u628A10"
+  - "\u5DE6-\u77DB3"
+  - "\u5DE6-\u76FE\u4FA75"
+  - "\u5DE6-\u76FE\u628A12"
+  - "\u5DE6-\u76FE\u53CD8"
+  - "\u5DE6-\u76FE\u628A15"
+  - "\u5DE6-\u77DB\u5DE6\u4E0B2"
+  - "\u5DE6-\u76FE8"
+  - "\u5DE6-\u76FE\u53CD7"
+  - "\u5DE6-\u76FE7"
+  - "\u5DE6-\u76FE\u628A13"
+  - "\u5DE6-\u77DB5"
+  - "\u5DE6-\u76FE\u53CD10"
+  - "\u5DE6-\u77DB\u5DE6\u4E0B3"
+  - "\u5DE6-\u76FE\u628A19"
+  - "\u5DE6-\u76FE10"
+  - "\u5DE6-\u77DB8"
+  - "\u5DE6-\u77DB9"
+  - "\u5DE6-\u76FE\u4FA78"
+  - "\u5DE6-\u76FE\u53CD9"
+  - "\u5DE6-\u76FE9"
+  - "\u5DE6-\u76FE\u628A17"
+  - "\u5DE6-\u76FE\u53CD2"
+  - "\u5DE6-\u76FE2"
+  - "\u5DE6-\u76FE\u628A3"
+  - "\u5DE6-\u76FE\u4FA76"
+  - "\u5DE6-\u77DB6"
+  - "\u5DE6-\u76FE\u53CD11"
+  - "\u5DE6-\u76FE11"
+  - "\u5DE6-\u77DB10"
+  - "\u5DE6-\u76FE\u4FA79"
+  - "\u5DE6-\u76FE\u628A22"
+  - "\u5DE6-\u77DB11"
+  - "\u5DE6-\u76FE\u4FA710"
+  - "\u5DE6-\u76FE\u53CD12"
+  - "\u5DE6-\u76FE12"
+  - "\u5DE6-\u76FE\u628A23"
+  - "\u5DE6-\u77DB12"
+  - "\u5DE6-\u76FE\u53CD13"
+  - "\u5DE6-\u76FE13"
+  - "\u5DE6-\u76FE\u628A25"
+  - "\u5DE6-\u76FE\u4FA77"
+  evidence: "DIR01/4.3 unit\uFF1A\u4FDD\u7559\u6240\u6709\u9AA8\u4E0E\u7EA6\u675F\uFF1B\u5185\u7F6E\u6B66\u5668slot\u6309\u5DF2\u6838\u67AA/\u76FE\u9AA8\u7236\u94FE\u5177\u540D\u751F\u6210\u3002\u4E16\u754CXZ\uFF0C\u5F53\u524D\u5BF9\u7167\u76F8\u673A\u65E0Yaw\uFF1B\u96F6\u8F93\u5165\u4FDD\u7559\u672C\u4F53\u65B9\u5411\u3002"

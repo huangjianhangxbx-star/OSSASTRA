@@ -14,6 +14,8 @@ namespace Ossastra.Inventory
         [SerializeField] private InventoryItemUse source;
         private CharacterRoot owner;private Spine.Unity.SkeletonAnimation body;private SpriteRenderer visual;
         private ResolvedRigSocket socket;private Spine.Bone bone;private double until;private Guid execution;
+        private RigSocketRoute route;private CharacterDirectionPresentation direction;
+        private Spine.Skeleton boundSkeleton;private CharacterRigProfileSO boundRig;private int rigVersion;private string semanticSocket;
         public string LastResult {get;private set;}="无临时物品";
         public Guid ExecutionId=>execution;
         public bool Visible=>visual!=null&&visual.enabled;
@@ -26,7 +28,9 @@ namespace Ossastra.Inventory
             try
             {
                 if(body?.Skeleton==null||owner.Definition?.rigProfile==null)throw new ArgumentException(definition.name+".temporarySocketId missing body/RigProfile");
-                socket=owner.Definition.rigProfile.Resolve(definition.temporarySocketId,body.Skeleton.Data);bone=body.Skeleton.FindBone(socket.BoneName);
+                route=owner.Definition.rigProfile.CompileRoute(definition.temporarySocketId,body.Skeleton.Data);direction=body.GetComponent<CharacterDirectionPresentation>();
+                boundSkeleton=body.Skeleton;boundRig=owner.Definition.rigProfile;rigVersion=boundRig.contentVersion;semanticSocket=definition.temporarySocketId;
+                socket=route.Select(direction?.FaceId,null,0);bone=body.Skeleton.Bones.Items[socket.BoneIndex];
                 if(visual==null){var go=new GameObject("TransientItemSprite");go.transform.SetParent(body.transform,false);visual=go.AddComponent<SpriteRenderer>();}
                 execution=id;until=owner.SimulationTime+definition.temporaryVisualSeconds;visual.sprite=definition.icon;visual.transform.localScale=Vector3.one*definition.temporaryVisualScale;
                 var renderer=body.GetComponent<Renderer>();if(renderer!=null){visual.sortingLayerID=renderer.sortingLayerID;visual.sortingOrder=renderer.sortingOrder+8;}LastResult="实际释放 #"+id.ToString("N")+" → "+definition.temporarySocketId;
@@ -36,6 +40,12 @@ namespace Ossastra.Inventory
         public void TickPresentation()
         {
             if(visual==null)return;var show=isActiveAndEnabled&&owner!=null&&owner.IsAlive&&owner.isActiveAndEnabled&&owner.SimulationTime<until&&bone!=null;
+            if(show&&(!ReferenceEquals(boundSkeleton,body.Skeleton)||boundRig!=owner.Definition?.rigProfile||rigVersion!=boundRig.contentVersion))
+            {
+                try{boundSkeleton=body.Skeleton;boundRig=owner.Definition?.rigProfile;route=boundRig.CompileRoute(semanticSocket,boundSkeleton.Data);rigVersion=boundRig.contentVersion;}
+                catch(Exception error){Hide();LastResult="临时物品重绑定失败："+error.Message;return;}
+            }
+            if(show&&route!=null){var track=body.AnimationState.GetTrack(0);socket=route.Select(direction?.FaceId,track?.Animation?.Name,track?.Animation==null||track.Animation.Duration<=0?0:Mathf.Clamp01(track.TrackTime/track.Animation.Duration));bone=body.Skeleton.Bones.Items[socket.BoneIndex];show=direction==null||direction.IsAnchorVisible(bone);}
             visual.enabled=show;if(!show)return;visual.transform.localPosition=socket.Position(bone.AppliedPose);visual.transform.localRotation=Quaternion.identity;
         }
         public void Hide(){if(visual!=null)visual.enabled=false;until=0;}

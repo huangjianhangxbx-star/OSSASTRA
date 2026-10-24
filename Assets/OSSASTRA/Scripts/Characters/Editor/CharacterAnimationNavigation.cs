@@ -19,7 +19,7 @@ namespace Ossastra.Authoring
     using AnimationHandleSystem = Ossastra.CharacterAnimation.AnimationHandleSystem;
     using AnimationPlanMappingSO = Ossastra.CharacterAnimation.AnimationPlanMappingSO;
     using AnimationLogicRouterSO = Ossastra.CharacterAnimation.AnimationLogicRouterSO;
-    public enum CharacterAnimationNavigationTarget { Body, BaseMap, Router, Rig }
+    public enum CharacterAnimationNavigationTarget { Body, BaseMap, Router, Rig, Direction }
 
     public sealed class CharacterAnimationBindings
     {
@@ -34,6 +34,7 @@ namespace Ossastra.Authoring
         public AnimationLogicRouterSO router;
         public CharacterDefinitionSO definition;
         public CharacterRigProfileSO rig;
+        public CharacterDirectionProfileSO direction;
         public EquipmentDefinitionSO rightEquipment, leftEquipment;
         public string equipmentOrigin, problem;
     }
@@ -46,6 +47,7 @@ namespace Ossastra.Authoring
             if (root == null) { result.problem = "未选择角色根"; return result; }
             result.definition = root.Definition;
             result.rig = result.definition == null ? null : result.definition.rigProfile;
+            result.direction = result.definition == null ? null : result.definition.directionProfile;
             result.boundView = new SerializedObject(root).FindProperty("view")?.objectReferenceValue as MonoBehaviour;
             result.controller = result.boundView as CharacterAnimationController;
             if (result.controller == null)
@@ -83,6 +85,7 @@ namespace Ossastra.Authoring
                 case CharacterAnimationNavigationTarget.BaseMap: return bindings.baseMap;
                 case CharacterAnimationNavigationTarget.Router: return bindings.router;
                 case CharacterAnimationNavigationTarget.Rig: return bindings.rig;
+                case CharacterAnimationNavigationTarget.Direction: return bindings.direction;
                 default: return null;
             }
         }

@@ -49,6 +49,8 @@ namespace Ossastra.Authoring
                 EditorGUILayout.LabelField("执行",preview.DataBus.ActionId.ToString());
                 var view=preview.GetComponent<CharacterEquipmentSpineView>();
                 if(view!=null)EditorGUILayout.LabelField("身体/装备",view.LastResult);
+                var direction=preview.GetComponentInChildren<CharacterDirectionPresentation>();
+                if(direction!=null&&direction.IsConfigured)EditorGUILayout.LabelField("模型方向",direction.FaceId+" / mirror="+direction.Mirrored+" / rev="+direction.Revision+" / "+direction.DirectionSource+" / hidden="+direction.HiddenSlotCount);
             }
             itemId=EditorGUILayout.TextField("测试库存实例ID",itemId);
             EditorGUILayout.HelpBox("预览使用只对B候选具名活体开放；调用实际消费者，会消耗该测试会话物品，不会授予或修改资产。",MessageType.Info);
@@ -71,8 +73,9 @@ namespace Ossastra.Authoring
             {
                 try
                 {
-                    var resolved=rig.Resolve(binding.semanticSocketId,skeleton.Skeleton.Data);
-                    var bone=skeleton.Skeleton.FindBone(resolved.BoneName);
+                    var track=skeleton.AnimationState.GetTrack(0);var direction=skeleton.GetComponent<CharacterDirectionPresentation>();
+                    var resolved=rig.CompileRoute(binding.semanticSocketId,skeleton.Skeleton.Data).Select(direction?.FaceId,track?.Animation?.Name,track?.Animation==null||track.Animation.Duration<=0?0:Mathf.Clamp01(track.TrackTime/track.Animation.Duration));
+                    var bone=skeleton.Skeleton.Bones.Items[resolved.BoneIndex];
                     var position=skeleton.transform.TransformPoint(resolved.Position(bone.AppliedPose));
                     Handles.color=Color.cyan;Handles.DrawLine(position,position+skeleton.transform.right*.2f);
                     Handles.color=Color.green;Handles.DrawLine(position,position+skeleton.transform.up*.2f);
@@ -96,12 +99,12 @@ namespace Ossastra.Authoring
                     if(item.ability!=null)item.ability.Compile();
                 }
                 else if(definition is CharacterRigProfileSO rig)
-                {foreach(var binding in rig.sockets)rig.Resolve(binding.semanticSocketId,rig.model==null?null:rig.model.GetSkeletonData(false));}
+                {foreach(var binding in rig.sockets)rig.CompileRoute(binding.semanticSocketId,rig.model==null?null:rig.model.GetSkeletonData(false));}
                 else if(definition is CharacterDefinitionSO character)
                 {
                     // 正式动画由场景/Prefab的ConfigManager持有，不要求作者额外维护隐藏的旧Profile。
                     foreach(var basic in character.basicAttacks){if(basic==null)throw new ArgumentException("basicAttacks null");basic.Freeze();}
-                    var characterRig=character.rigProfile;if(characterRig!=null)foreach(var binding in characterRig.sockets)characterRig.Resolve(binding.semanticSocketId,characterRig.model.GetSkeletonData(false));
+                    var characterRig=character.rigProfile;if(characterRig!=null)foreach(var binding in characterRig.sockets)characterRig.CompileRoute(binding.semanticSocketId,characterRig.model.GetSkeletonData(false));
                 }
                 else if(definition is EquipmentDefinitionSO equipment)
                 {

@@ -42,7 +42,8 @@ namespace Ossastra.Characters
             if(skeletonData==null)throw new ArgumentException(name+".skeletonData missing");
             var data=skeletonData.GetSkeletonData(false);
             var resolved=string.IsNullOrEmpty(semanticSocketId)?null:rig!=null?rig.Resolve(semanticSocketId,body):throw new ArgumentException(name+".semanticSocketId requires CharacterRigProfileSO: "+semanticSocketId);
-            var boneName=resolved?.BoneName??bodyBone;var slotName=resolved?.SlotName??bodySlot;
+            // Rig已经完整声明绑定；空slot表示不跟随slot，不能回落到另一模型的历史slot。
+            var boneName=resolved!=null?resolved.BoneName:bodyBone;var slotName=resolved!=null?resolved.SlotName:bodySlot;
             if(data==null||body==null||string.IsNullOrEmpty(boneName)||body.FindBone(boneName)==null)
                 throw new ArgumentException(name+".bodyBone missing: "+boneName);
             if(string.IsNullOrEmpty(gripBone)||data.FindBone(gripBone)==null)throw new ArgumentException(name+".gripBone missing: "+gripBone);

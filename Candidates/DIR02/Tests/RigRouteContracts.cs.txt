@@ -1,0 +1,8 @@
+using System;using System.Linq;using UnityEngine;using UnityEditor;using C=Ossastra.Characters;using Funplay.Editor.Tools.Scripting;
+public class RigRouteContracts:IFunplayCommand {
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx){
+ var data=AssetDatabase.LoadAssetAtPath<Spine.Unity.SkeletonDataAsset>("Assets/OSSASTRA/LocalMedia/DIR02Blue/Blue43_SkeletonData.asset");var rig=ScriptableObject.CreateInstance<C.CharacterRigProfileSO>();
+ try {rig.model=data;rig.sockets=new[]{new C.RigSocketBinding{semanticSocketId="hand",boneName="右手"}};rig.variants=new[]{new C.RigSocketVariant{faceId="front",bodyClip="a1",fromNormalized=.2f,toNormalized=.7f,binding=new C.RigSocketBinding{semanticSocketId="hand",boneName="右手2"}},new C.RigSocketVariant{faceId="front",binding=new C.RigSocketBinding{semanticSocketId="hand",boneName="右手4"}}};
+ var route=rig.CompileRoute("hand",data.GetSkeletonData(false));var checks=new[]{route.Select("left","a1",.5f).BoneName=="右手",route.Select("front","a1",.5f).BoneName=="右手2",route.Select("front","_stand",0).BoneName=="右手4",ReferenceEquals(route.Select("front","a1",.5f),route.Select("front","a1",.5f)),rig.Resolve("hand",data.GetSkeletonData(false)).BoneName=="右手"};ctx.ReturnValue=new{passed=checks.Count(v=>v),failed=checks.Count(v=>!v)};
+ }finally{UnityEngine.Object.DestroyImmediate(rig);}}
+}

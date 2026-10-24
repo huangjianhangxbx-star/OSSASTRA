@@ -1,0 +1,21 @@
+/* DIR02 RED→GREEN：直接调用正式方向选择器，期望来自手算XZ方向，不检查源码文本。 */
+using System;using System.Linq;using System.Collections.Generic;using UnityEngine;using Funplay.Editor.Tools.Scripting;
+public class DirectionContracts:IFunplayCommand
+{
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+ {
+  var rows=new List<object>();var type=AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType("Ossastra.Characters.CharacterDirectionProfileSO")).FirstOrDefault(t=>t!=null);
+  if(type==null){ctx.ReturnValue=new{failed=1,rows=new[]{new{name="正式方向选择器能消费模型表并保留零输入方向",ok=false,reason="feature-not-implemented"}}};return;}
+  var profile=ScriptableObject.CreateInstance(type);
+  try{
+   JsonUtility.FromJsonOverwrite("{\"mode\":1,\"initialFace\":\"frontLeft\",\"faces\":[{\"faceId\":\"left\",\"rootBone\":\"左\",\"logicId\":1201},{\"faceId\":\"frontLeft\",\"rootBone\":\"左下\",\"logicId\":1202},{\"faceId\":\"backLeft\",\"rootBone\":\"左上\",\"logicId\":1203},{\"faceId\":\"front\",\"rootBone\":\"下\",\"logicId\":1204},{\"faceId\":\"back\",\"rootBone\":\"上\",\"logicId\":1205}],\"sectors\":[{\"from\":67.5,\"to\":112.5,\"faceId\":\"left\",\"mirrored\":true},{\"from\":112.5,\"to\":157.5,\"faceId\":\"frontLeft\",\"mirrored\":true},{\"from\":157.5,\"to\":202.5,\"faceId\":\"front\"},{\"from\":202.5,\"to\":247.5,\"faceId\":\"frontLeft\"},{\"from\":247.5,\"to\":292.5,\"faceId\":\"left\"},{\"from\":292.5,\"to\":337.5,\"faceId\":\"backLeft\"},{\"from\":337.5,\"to\":22.5,\"faceId\":\"back\"},{\"from\":22.5,\"to\":67.5,\"faceId\":\"backLeft\",\"mirrored\":true}]}",profile);
+   var select=type.GetMethod("Select");if(select==null)throw new Exception("Missing Select contract");var choiceType=select.GetParameters()[1].ParameterType;object previous=Activator.CreateInstance(choiceType);
+   object Read(Vector3 direction)=>select.Invoke(profile,new[]{(object)direction,previous});
+   string Face(object choice)=>(string)choiceType.GetProperty("FaceId").GetValue(choice);bool Mirror(object choice)=>(bool)choiceType.GetProperty("Mirrored").GetValue(choice);
+   foreach(var sample in new[]{(Vector3.forward,"back",false),(Vector3.right,"left",true),(Vector3.back,"front",false),(Vector3.left,"left",false),(new Vector3(1,0,1),"backLeft",true),(new Vector3(1,0,-1),"frontLeft",true),(new Vector3(-1,0,-1),"frontLeft",false),(new Vector3(-1,0,1),"backLeft",false)}){var value=Read(sample.Item1);rows.Add(new{name="XZ "+sample.Item1,ok=Face(value)==sample.Item2&&Mirror(value)==sample.Item3});}
+   previous=Read(Vector3.right);var zero=Read(Vector3.zero);rows.Add(new{name="零输入保留上次面和镜像",ok=Face(zero)=="left"&&Mirror(zero)});
+   var invalid=Read(new Vector3(float.NaN,0,1));rows.Add(new{name="非法方向不污染已合法方向",ok=Face(invalid)=="left"&&Mirror(invalid)});
+   ctx.ReturnValue=new{failed=rows.Count(r=>(bool)r.GetType().GetProperty("ok").GetValue(r)==false),rows};
+  }finally{UnityEngine.Object.DestroyImmediate(profile);}
+ }
+}

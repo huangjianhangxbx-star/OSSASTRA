@@ -220,4 +220,14 @@ namespace Ossastra.Characters
         void SetPaused(bool paused);
         void Present();
     }
+    /// <summary>能力执行器公开实际已接受的身体方向，不由动画模块重新读取设备或重采样命中。</summary>
+    public interface ICharacterActionDirectionSource { bool TryGetBodyActionDirection(out Vector3 direction); }
+    /// <summary>每本体只读模型表现状态；不替代连续攻击向量或装备运行状态。</summary>
+    public interface ICharacterModelDirectionState
+    {
+        string FaceId {get;}
+        bool Mirrored {get;}
+        int Revision {get;}
+        bool IndependentEquipmentVisible {get;}
+    }
 }

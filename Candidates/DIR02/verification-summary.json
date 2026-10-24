@@ -1,0 +1,30 @@
+{
+  "date": "2026-10-25",
+  "baseline": "a7efd119294d0d6f3a6093e7ae89924d298bbf7a",
+  "scene": "SC_CharacterPresentationCompare",
+  "contracts": {
+    "composer": 5,
+    "rigRoute": 5,
+    "modelOverride": 1,
+    "visibility": 5,
+    "rigEmptySlotConditions": 2,
+    "direction": 10
+  },
+  "poseSamples": 1200,
+  "inputSteps": 42,
+  "lifecycleConditions": 10,
+  "naturalCombatSteps": 16,
+  "mixedInputSteps": 36,
+  "nativeDirectionSteps": 5,
+  "lastFailures": 0,
+  "virtualDevices": true,
+  "formalSceneReplaced": false,
+  "userArtApproved": false,
+  "fullGameplayPorted": false,
+  "limits": [
+    "complex independent equipment interleaving PARTIAL",
+    "explicit approximate body mappings PRESENTATION_PARTIAL",
+    "custom profiler marker unavailable",
+    "commercial media and third-party dependencies local only"
+  ]
+}

@@ -1,4 +1,4 @@
-/* AM02：原算法适配当前只读角色事实与来源；不引用旧角色/Bus/武器运行态。 */
+/* 原算法适配只读角色事实；模型范围Override仍使用原SO，不修改装备能力或共享装备定义。 */
 namespace Ossastra.CharacterAnimation
 {
 using CharacterRoot = Ossastra.Characters.CharacterRoot;
@@ -11,6 +11,8 @@ public class CharacterAnimationConfigManager : MonoBehaviour
 
     public AnimationPlanMappingSO baseMap;
     public List<AnimationPlanOverrideRuleSetSO> itemOverrides = new List<AnimationPlanOverrideRuleSetSO>();
+    [Tooltip("当前模型专用的原式覆盖；位于装备覆盖之后、状态覆盖之前。空列表保持旧行为。")]
+    public List<AnimationPlanOverrideRuleSetSO> modelOverrides = new List<AnimationPlanOverrideRuleSetSO>();
     public AnimationPlanOverrideRuleSetSO statusOverrides;
     public AnimationLogicRouterSO logicRouter;
     private bool _isInitialized;
@@ -26,6 +28,7 @@ public class CharacterAnimationConfigManager : MonoBehaviour
                 v = v * 31 + (logicRouter == null ? 0 : logicRouter.GetInstanceID() ^ logicRouter.Revision);
                 v = v * 31 + (statusOverrides == null ? 0 : statusOverrides.GetInstanceID() ^ statusOverrides.Revision);
                 if (itemOverrides != null) foreach (var item in itemOverrides) v = v * 31 + (item == null ? 0 : item.GetInstanceID() ^ item.Revision);
+                if (modelOverrides != null) foreach (var item in modelOverrides) v = v * 31 + (item == null ? 0 : item.GetInstanceID() ^ item.Revision);
                 return v;
             }
         }
@@ -74,6 +77,7 @@ public class CharacterAnimationConfigManager : MonoBehaviour
         var effective = new List<AnimationPlanOverrideRuleSetSO>(itemOverrides ?? new List<AnimationPlanOverrideRuleSetSO>());
         if (context?.sourceEquipment?.bodyAnimationOverride != null && context.target == "body")
             effective.Add(context.sourceEquipment.bodyAnimationOverride);
+        if (modelOverrides != null) effective.AddRange(modelOverrides);
         var plan = AnimationArbitrator.Resolve(logicState, baseMap, effective, statusOverrides, characterRoot, context);
         if (plan != null) plan.runtimeLogicId = logicState;
         return plan;

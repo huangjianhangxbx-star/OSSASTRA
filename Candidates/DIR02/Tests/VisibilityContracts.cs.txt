@@ -1,0 +1,17 @@
+/* DIR02：真实4.3姿态的临时alpha所有权、可逆性与共享定义隔离。 */
+using System;using System.Linq;using System.Collections.Generic;using UnityEngine;using UnityEditor;using Spine;using Spine.Unity;using Funplay.Editor.Tools.Scripting;
+public class VisibilityContracts:IFunplayCommand
+{
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+ {
+  var type=AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType("Ossastra.Characters.CharacterSlotVisibility")).FirstOrDefault(t=>t!=null);if(type==null){ctx.ReturnValue=new{failed=1,rows=new[]{new{name="正式每实例显隐可恢复原始透明度",ok=false,reason="feature-not-implemented"}}};return;}
+  var asset=AssetDatabase.LoadAssetAtPath<SkeletonDataAsset>("Assets/OSSASTRA/LocalMedia/DIR02Blue/Blue43_SkeletonData.asset");if(asset==null)throw new Exception("Missing local model");var data=asset.GetSkeletonData(false);var one=new Skeleton(data);var two=new Skeleton(data);one.UpdateWorldTransform(Spine.Physics.Pose);two.UpdateWorldTransform(Spine.Physics.Pose);
+  var mask=Activator.CreateInstance(type,new object[]{one,"遮罩",new string[0]});var apply=type.GetMethod("Apply");var restore=type.GetMethod("Restore");var rows=new List<object>();
+  var slot=one.FindSlot("头盔");var color=slot.Pose.GetColor();color.a=.37f;slot.Pose.SetColor(color);one.UpdateWorldTransform(Spine.Physics.Pose);var attachments=one.Slots.Select(s=>s.AppliedPose.Attachment).ToArray();
+  apply.Invoke(mask,new object[]{false,false});rows.Add(new{name="场外slot被额外mask但附件不变",ok=slot.AppliedPose.GetColor().a==0&&one.Slots.Select((s,i)=>ReferenceEquals(s.AppliedPose.Attachment,attachments[i])).All(b=>b)});
+  rows.Add(new{name="共用SkeletonData的另一实例透明度不受影响",ok=two.FindSlot("头盔").AppliedPose.GetColor().a==1});restore.Invoke(mask,null);rows.Add(new{name="恢复本帧真实0.37而不是硬设为1",ok=Math.Abs(slot.AppliedPose.GetColor().a-.37f)<.00001f});
+  one.FindBone("左").Pose.X=0;one.UpdateWorldTransform(Spine.Physics.Pose);apply.Invoke(mask,new object[]{false,false});rows.Add(new{name="移进显示区不会沿用上一帧透明",ok=Math.Abs(slot.AppliedPose.GetColor().a-.37f)<.00001f});restore.Invoke(mask,null);
+  one.ScaleX=-1;one.UpdateWorldTransform(Spine.Physics.Pose);apply.Invoke(mask,new object[]{false,false});rows.Add(new{name="镜像后边界与骨原点同坐标空间",ok=Math.Abs(slot.AppliedPose.GetColor().a-.37f)<.00001f});restore.Invoke(mask,null);
+  ctx.ReturnValue=new{failed=rows.Count(r=>!(bool)r.GetType().GetProperty("ok").GetValue(r)),rows};
+ }
+}

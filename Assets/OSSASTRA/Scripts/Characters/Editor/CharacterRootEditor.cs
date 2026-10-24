@@ -52,6 +52,9 @@ namespace Ossastra.Authoring
             }
             Reference("Character Definition", bindings.definition, root, "characterDefinition");
             Reference("Rig Profile", bindings.rig);
+            Reference("模型方向配置", bindings.direction);
+            if (bindings.config != null && bindings.config.modelOverrides != null)
+                foreach (var modelOverride in bindings.config.modelOverrides) Reference("模型动作覆盖", modelOverride);
             EditorGUILayout.HelpBox(bindings.equipmentOrigin, MessageType.None);
             DrawEquipment("右手", bindings.rightEquipment);
             DrawEquipment("左手", bindings.leftEquipment);
@@ -108,6 +111,16 @@ namespace Ossastra.Authoring
             EditorGUILayout.Space();
             EditorGUILayout.LabelField("已执行表现 · 只读", EditorStyles.boldLabel);
             EditorGUILayout.LabelField("当前身体片段", bindings.controller.CurrentClip ?? "无轨道");
+            var direction = bindings.controller.GetComponent<CharacterDirectionPresentation>();
+            if (direction != null && direction.IsConfigured)
+            {
+                EditorGUILayout.LabelField("当前面 / 镜像 / 修订", direction.FaceId + " / " + direction.Mirrored + " / " + direction.Revision);
+                EditorGUILayout.LabelField("方向来源 / 结构轨", direction.DirectionSource + " / " + direction.Profile.structureTrack);
+                EditorGUILayout.LabelField("显隐slot数量", direction.HiddenSlotCount.ToString());
+                EditorGUILayout.LabelField("独立装备显示", direction.IndependentEquipmentVisible.ToString());
+                var equipmentView = root.GetComponent<CharacterEquipmentSpineView>();
+                if (equipmentView != null) EditorGUILayout.LabelField("实际左右手骨", equipmentView.LeftAnchorBone + " / " + equipmentView.RightAnchorBone);
+            }
             EditorGUILayout.LabelField("实际来源", bindings.controller.CurrentSource ?? "未提交");
             EditorGUILayout.LabelField("当前动作ID", root.DataBus != null && root.DataBus.ActionActive ? root.DataBus.ActionId.ToString() : "没有进行中的身体动作");
             var intent = bindings.composer == null ? null : bindings.composer.CurrentBodyIntent;
