@@ -25,6 +25,8 @@ public class CharacterAnimationPlan
 
     [HideInInspector] public CharacterRoot characterRoot;
     [System.NonSerialized] public EAnimationLogicState runtimeLogicId = EAnimationLogicState.None;
+    [System.NonSerialized] public AnimationIntentSourceStateMachine runtimeSource;
+    [System.NonSerialized] public EAnimSemantic runtimeSemantic;
 
     public static IEnumerable<ValueDropdownItem<int>> GetTrackOptions()
     {
@@ -38,6 +40,8 @@ public class CharacterAnimationPlan
 
         copyPlan.characterRoot = root;
         copyPlan.runtimeLogicId = runtimeLogicId;
+        copyPlan.runtimeSource = runtimeSource;
+        copyPlan.runtimeSemantic = runtimeSemantic;
 
         if (clips != null)
         {

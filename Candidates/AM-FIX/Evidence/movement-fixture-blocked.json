@@ -1,0 +1,38 @@
+{
+  "state": "completed",
+  "failed": 2,
+  "rows": [
+    {
+      "name": "moving entered",
+      "ok": false,
+      "moving": false,
+      "active": false,
+      "enters": 1,
+      "exits": 1
+    },
+    {
+      "name": "disable clears velocity and matches Exit immediately",
+      "ok": true,
+      "moving": false,
+      "active": false,
+      "enters": 1,
+      "exits": 1
+    },
+    {
+      "name": "reenabled movement enters again",
+      "ok": false,
+      "moving": false,
+      "active": false,
+      "enters": 1,
+      "exits": 1
+    },
+    {
+      "name": "death clears velocity and matches Exit immediately",
+      "ok": true,
+      "moving": false,
+      "active": false,
+      "enters": 1,
+      "exits": 1
+    }
+  ]
+}

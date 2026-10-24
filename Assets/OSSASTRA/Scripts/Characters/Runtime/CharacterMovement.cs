@@ -37,9 +37,7 @@ namespace Ossastra.Characters
 
         public void Tick(bool allowed, float delta)
         {
-            LastAllowed=allowed;RequestedVelocity=Vector3.zero;
-            IsMoving = false;
-            Velocity = Vector3.zero;
+            Stop();LastAllowed=allowed;
             if (dataBus == null || body == null || !body.enabled || delta <= 0) return;
             var move = allowed ? Vector2.ClampMagnitude(dataBus.Input.move, 1) : Vector2.zero;
             var before = transform.position;
@@ -58,6 +56,11 @@ namespace Ossastra.Characters
             Velocity = displacement / delta;
             IsMoving = displacement.sqrMagnitude > .000001f;
         }
+
+        /// <summary>只清运动事实，不Move、不改坐标；死亡/禁用路径也必须形成真实退出边沿。</summary>
+        public void Stop()
+        { LastAllowed=false;RequestedVelocity=Vector3.zero;IsMoving=false;Velocity=Vector3.zero; }
+        private void OnDisable(){Stop();}
 
         public void Teleport(Vector3 position)
         {

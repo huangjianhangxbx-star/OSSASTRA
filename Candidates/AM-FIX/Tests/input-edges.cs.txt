@@ -1,0 +1,38 @@
+using System;using System.Linq;using System.Collections.Generic;using UnityEngine;using UnityEditor;using UnityEngine.InputSystem;using UnityEngine.InputSystem.LowLevel;using C=Ossastra.Characters;using Funplay.Editor.Tools.Scripting;
+public class FixInputEdges:IFunplayCommand{public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx){
+if(!Application.isPlaying)throw new Exception("Play required");var c=UnityEngine.Object.FindObjectOfType<C.CharacterControlCoordinator>();var actor=c.Current;var input=actor.GetComponent<C.CharacterInputHandler>();var view=UnityEngine.Object.FindObjectOfType<Ossastra.UserInterface.InventoryView>();var original=InputSystem.settings;var settings=UnityEngine.Object.Instantiate(original);settings.backgroundBehavior=InputSettings.BackgroundBehavior.IgnoreFocus;settings.editorInputBehaviorInPlayMode=InputSettings.EditorInputBehaviorInPlayMode.AllDeviceInputAlwaysGoesToGameView;InputSystem.settings=settings;
+var mouse=InputSystem.AddDevice<Mouse>("FixMouse");var pad=InputSystem.AddDevice<Gamepad>("FixPad");var keyboard=InputSystem.AddDevice<Keyboard>("FixKeyboard");var overrides=new Dictionary<InputAction,string>();
+foreach(var action in c.Characters.SelectMany(r=>{var i=r.GetComponent<C.CharacterInputHandler>();return new[]{i.movementAction,i.mouseAction,i.gamepadAimAction,i.rightHandAction,i.leftHandAction,i.dodgeAction,i.weaponModeAction,i.skillOneAction,i.skillTwoAction,i.skillThreeAction};}).Distinct()){overrides[action]=action.SaveBindingOverridesAsJson();for(int n=0;n<action.bindings.Count;n++){var b=action.bindings[n];if(b.isComposite||b.path==null)continue;action.ApplyBindingOverride(n,b.path.Replace("<Keyboard>",keyboard.path).Replace("<Mouse>",mouse.path).Replace("<Gamepad>",pad.path));}}
+foreach(var r in c.Characters){r.SendMessage("OnApplicationFocus",true);r.GetComponent<C.CompanionCombatBrain>().enabled=false;r.GetComponent<C.CharacterFollow>().enabled=false;r.Vitals.RestoreForDevelopment();}c.SendMessage("OnApplicationFocus",true);foreach(var e in UnityEngine.Object.FindObjectsOfType<Ossastra.Enemies.EnemyRoot>()){e.AttacksEnabled=false;e.GetComponent<Ossastra.Enemies.ChaseEnemyBrain>().enabled=false;}var engage=UnityEngine.Object.FindObjectOfType<Ossastra.Combat.CombatEngagementSession>();if(engage!=null)engage.enabled=false;EditorWindow.GetWindow(typeof(Editor).Assembly.GetType("UnityEditor.GameView")).Focus();
+var rows=new List<object>();var phases=new List<(string,Action,Func<bool>,double,bool)>();int index=0,failed=0,accepted=0,before=0;bool entered=false;double since=0;Guid guard=Guid.Empty;var gear=actor.GetComponent<C.CharacterEquipmentSpineView>();var ability=actor.GetComponent<C.CharacterAbilities>();Action<Ossastra.CharacterCore.ActionFact> observe=f=>{if(f.Kind==Ossastra.CharacterCore.ActionFactKind.Accepted)accepted++;};actor.ActionObserved+=observe;
+Vector2 point=Camera.main.WorldToScreenPoint(actor.transform.position+Vector3.right*2);
+void Mouse(ushort b)=>InputSystem.QueueStateEvent(mouse,new MouseState{position=point,buttons=b});void Pad(float left=0,float right=0)=>InputSystem.QueueStateEvent(pad,new GamepadState{leftTrigger=left,rightTrigger=right,rightStick=Vector2.right});double Elapsed()=>EditorApplication.timeSinceStartup-since;
+void Add(string name,Action enter,Func<bool> check,double seconds=3,bool required=true)=>phases.Add((name,enter,check,seconds,required));void Delay(string name,Action enter,double seconds)=>Add(name,enter,()=>Elapsed()>=seconds,seconds+2);
+Delay("neutral",()=>{Mouse(0);Pad();InputSystem.QueueStateEvent(keyboard,new KeyboardState());actor.GetComponent<C.CharacterStamina>().Restore();view.SetOpen(false);},.4);
+Add("LT starts guard",()=>Pad(1),()=>ability.IsGuarding&&gear.LeftExecutionId!=Guid.Empty);
+Delay("mouse overlap keeps original",()=>{guard=gear.LeftExecutionId;Mouse(2);},.2);
+Add("F04 releasing LT ends original run",()=>Pad(),()=>gear.LeftExecutionId!=guard||!ability.IsGuarding,1,false);
+Delay("release all",()=>{Mouse(0);Pad();},.4);
+Add("LT starts second guard",()=>Pad(1),()=>ability.IsGuarding&&gear.LeftExecutionId!=Guid.Empty);
+Delay("mouse overlaps before disconnect",()=>{guard=gear.LeftExecutionId;Mouse(2);},.2);
+Add("F04 disconnect ends original run",()=>InputSystem.RemoveDevice(pad),()=>gear.LeftExecutionId!=guard||!ability.IsGuarding,1,false);
+Delay("neutral after disconnect",()=>{Mouse(0);pad=InputSystem.AddDevice<Gamepad>("FixPad");},.4);
+// Restore paths for the replacement device, preserving the configured binding layout.
+Delay("replacement pad paths",()=>{foreach(var action in overrides.Keys)for(int n=0;n<action.bindings.Count;n++){var b=action.bindings[n];if(!b.isComposite&&b.overridePath!=null&&b.overridePath.Contains("/FixPad"))action.ApplyBindingOverride(n,b.overridePath.Replace("/FixPad",pad.path));}Pad();},.3);
+Add("RT starts main",()=>{before=accepted;Pad(0,1);},()=>accepted>before);
+Delay("main held opens ordinary inventory",()=>view.SetOpen(true),1.6);
+Delay("close while RT never released",()=>{before=accepted;view.SetOpen(false);},.45);
+Add("F05 closing does not replay RT",()=>{},()=>accepted==before,.1,false);
+Delay("real RT release",()=>Pad(),.2);
+Add("real repress accepts",()=>{before=accepted;Pad(0,1);},()=>accepted>before);
+Delay("neutral for pulse",()=>Pad(),1.6);
+Add("F06 configured dodge same-update pulse",()=>{InputSystem.QueueStateEvent(keyboard,new KeyboardState(Key.Space));InputSystem.QueueStateEvent(keyboard,new KeyboardState());},()=>actor.GetComponent<C.CharacterDodge>().IsActive,.5,false);
+Delay("neutral after pulse",()=>{Pad();Mouse(0);},.8);
+Add("same-frame two-device guard submits once",()=>{before=ability.AcceptedCount;Mouse(2);Pad(1);},()=>ability.IsGuarding&&ability.AcceptedCount==before+1);
+Delay("both real releases",()=>{Mouse(0);Pad();},.3);
+Add("new LT guard before same-update repress",()=>Pad(1),()=>ability.IsGuarding&&gear.LeftExecutionId!=Guid.Empty);
+Add("release and repress creates fresh run not old hold",()=>{guard=gear.LeftExecutionId;before=ability.AcceptedCount;Pad();Pad(1);},()=>ability.IsGuarding&&gear.LeftExecutionId!=guard&&ability.AcceptedCount==before+1);
+Delay("final release",()=>Pad(),.25);
+void Flush(string state)=>SessionState.SetString("AM_FIX_INPUT",Newtonsoft.Json.JsonConvert.SerializeObject(new{state,failed,rows}));void Cleanup(){view.SetOpen(false);actor.ActionObserved-=observe;foreach(var pair in overrides)pair.Key.LoadBindingOverridesFromJson(pair.Value);if(pad.added)InputSystem.RemoveDevice(pad);InputSystem.RemoveDevice(mouse);InputSystem.RemoveDevice(keyboard);InputSystem.settings=original;UnityEngine.Object.DestroyImmediate(settings);}
+EditorApplication.CallbackFunction tick=null;tick=()=>{try{if(!Application.isPlaying)throw new Exception("Play ended");if(index==phases.Count){EditorApplication.update-=tick;Cleanup();Flush("completed");return;}var p=phases[index];if(!entered){entered=true;since=EditorApplication.timeSinceStartup;p.Item2();}bool ok=p.Item3();if(ok||Elapsed()>p.Item4){rows.Add(new{name=p.Item1,ok,accepted,guarding=ability.IsGuarding,left=gear.LeftExecutionId});if(!ok){failed++;if(p.Item5)throw new Exception("Fixture prerequisite: "+p.Item1);}index++;entered=false;Flush("running");}}catch(Exception e){failed++;rows.Add(new{error=e.ToString()});EditorApplication.update-=tick;Cleanup();Flush("failed");}};EditorApplication.update+=tick;Flush("running");ctx.ReturnValue="F04/F05/F06 actual input story scheduled";
+}}

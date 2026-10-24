@@ -86,6 +86,20 @@ namespace Ossastra.Characters
         ConfiguredActionSnapshot FreezeAction(ActionDefinitionSO definition);
         void CapturePhase(System.Guid actionId,ConfiguredActionSnapshot phase);
     }
+    /// <summary>在任何动作受理和扣费之前复核已冻结的完整表现；不重新读取共享SO。</summary>
+    public interface ICharacterPreparedAnimation
+    {
+        bool CanCapturePhase(ConfiguredActionSnapshot phase,out string reason);
+        ConfiguredActionSnapshot PrepareAnimation(ActionDefinitionSO definition,CharacterAnimationPreparation preparation);
+        ConfiguredActionSnapshot PrepareDodge(float duration);
+    }
+    /// <summary>受理前候选来源；没有伪造已接受ActionId，不向Bus写入临时事实。</summary>
+    public readonly struct CharacterAnimationPreparation
+    {
+        public readonly bool? MainHand;
+        public readonly int Stage;
+        public CharacterAnimationPreparation(bool? mainHand,int stage=0){MainHand=mainHand;Stage=stage;}
+    }
     /// <summary>位移能力的只读表现身份；仍由唯一Movement执行速度。</summary>
     public interface ICharacterMotionAnimation:ICharacterMotionOverride
     {

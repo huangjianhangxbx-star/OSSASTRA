@@ -35,12 +35,21 @@ namespace Ossastra.Characters
         private sealed class BoundGesture
         {
             public AbilityBinding binding;
-            public GestureRecognizer gesture;
             public bool main;
-            public bool repeatWhileHeld,repeatArmed;
+            public bool repeatWhileHeld;
             public CompiledAbilityExecutor executor;
             public IAbilitySource source;
+            public readonly Dictionary<int,BoundInput> inputs=new Dictionary<int,BoundInput>();
         }
+        private sealed class BoundInput
+        {
+            public GestureRecognizer recognizer;
+            public CharacterInputButton previous;
+            public bool repeatArmed;
+        }
+        // 凭据只关联已受理Run，不接管能力生命周期/费用。断开或松开发起者不能由另一设备代持。
+        private readonly Dictionary<Guid,CharacterInputButton> runGestures=new Dictionary<Guid,CharacterInputButton>();
+        private CharacterInputButton requestGesture;
         private readonly List<BoundGesture> bindings=new List<BoundGesture>();
         private readonly List<AbilityRun> runs=new List<AbilityRun>();
         // 即时策略可以早于身体动画结束；直到原Runtime终结都必须抑制模板近战释放。
@@ -249,7 +258,7 @@ namespace Ossastra.Characters
                     var frozen=new AbilityBinding{operation=binding.operation,gesture=binding.gesture,resourceOwner=binding.resourceOwner,longPressThreshold=binding.longPressThreshold,ability=binding.ability,longPressAbility=binding.longPressAbility};
                     var executor=frozen.ability.executor?.CompileExecutor();
                     var mainPayload=frozen.resourceOwner==AbilityResourceOwner.MainEquipment;
-                    bindings.Add(new BoundGesture{binding=frozen,main=pair.main,gesture=new GestureRecognizer(frozen.gesture,frozen.longPressThreshold),repeatWhileHeld=executor!=null&&executor.RepeatWhileHeld,executor=executor,
+                    bindings.Add(new BoundGesture{binding=frozen,main=pair.main,repeatWhileHeld=executor!=null&&executor.RepeatWhileHeld,executor=executor,
                         source=new EquipmentSource(equipment,pair.main||mainPayload,false,!pair.main&&mainPayload?equipment.State.LeftInstanceId:null)});
                 }
             }
@@ -265,18 +274,47 @@ namespace Ossastra.Characters
             var gestureGeneration=owner.GetComponent<CharacterInputHandler>().GestureGeneration;
             foreach(var binding in bindings)
             {
-                var signal=binding.gesture.Sample(Held(binding.binding.operation),owner.SimulationTime,unchecked(bindingEpoch*397^gestureGeneration));
-                if(signal==GestureSignal.Cancel||signal==GestureSignal.End)
-                {binding.repeatArmed=false;foreach(var run in runs.Where(r=>r.Context.operation==binding.binding.operation&&r.RequiresHeld))run.Cancel();continue;}
-                if(signal==GestureSignal.Trigger||signal==GestureSignal.Begin)binding.repeatArmed=true;
-                if(signal==GestureSignal.None&&(!Held(binding.binding.operation)||!owner.HasPlayerInput||input.attackHeld||
-                    !binding.repeatArmed||!binding.repeatWhileHeld))continue;
-                var definition=signal==GestureSignal.LongPress?binding.binding.longPressAbility:binding.binding.ability;
-                TryRequest(definition,binding.main,binding.binding.operation,CharacterActionSource.Player);
+                var samples=Buttons(binding.binding.operation);
+                if(samples==null)samples=new[]{new CharacterInputButton(-1,0,null,Held(binding.binding.operation),false,false)};
+                bool attempted=false;
+                foreach(var device in samples.Select(s=>s.DeviceId).Concat(binding.inputs.Keys).Distinct().ToArray())
+                {
+                    if(!binding.inputs.TryGetValue(device,out var state))
+                    {state=new BoundInput{recognizer=new GestureRecognizer(binding.binding.gesture,binding.binding.longPressThreshold)};binding.inputs.Add(device,state);}
+                    var sample=samples.FirstOrDefault(s=>s.DeviceId==device);
+                    if(sample.Pressed&&state.previous.Held&&!sample.SameGesture(state.previous))
+                    {
+                        // 同次update里先松再按也是新手势；先结束旧凭据，再按原资格申请新操作。
+                        state.recognizer.Sample(false,owner.SimulationTime,unchecked(bindingEpoch*397^gestureGeneration));
+                        state.repeatArmed=false;
+                        foreach(var run in runs.Where(r=>r.Context.operation==binding.binding.operation&&r.RequiresHeld))
+                            if(runGestures.TryGetValue(run.Context.id,out var origin)&&origin.SameGesture(state.previous))run.Cancel();
+                    }
+                    var signal=state.recognizer.Sample(sample.Held,sample.Pressed,sample.Released,owner.SimulationTime,unchecked(bindingEpoch*397^gestureGeneration));
+                    if(signal==GestureSignal.Cancel||signal==GestureSignal.End)
+                    {
+                        state.repeatArmed=false;
+                        foreach(var run in runs.Where(r=>r.Context.operation==binding.binding.operation&&r.RequiresHeld))
+                            if(!runGestures.TryGetValue(run.Context.id,out var origin)||origin.SameGesture(state.previous))run.Cancel();
+                    }
+                    state.previous=sample;
+                    if(signal==GestureSignal.Cancel||signal==GestureSignal.End)continue;
+                    if(signal==GestureSignal.Trigger||signal==GestureSignal.Begin)state.repeatArmed=true;
+                    if(signal==GestureSignal.None&&(!sample.Held||!owner.HasPlayerInput||input.attackHeld||!state.repeatArmed||!binding.repeatWhileHeld))continue;
+                    if(attempted)continue;attempted=true; // 同一逻辑本帧只申请一次，失败也不改走另一设备重试。
+                    var definition=signal==GestureSignal.LongPress?binding.binding.longPressAbility:binding.binding.ability;
+                    requestGesture=sample;
+                    try{TryRequest(definition,binding.main,binding.binding.operation,CharacterActionSource.Player);}
+                    finally{requestGesture=default;}
+                }
             }
         }
+        private CharacterInputButton[] Buttons(AbilityOperation operation)=>operation==AbilityOperation.Secondary?input.offhandButtons:
+            operation==AbilityOperation.SkillOne?input.skillOneButtons:operation==AbilityOperation.SkillTwo?input.skillTwoButtons:input.skillThreeButtons;
         private bool Held(AbilityOperation operation)=>operation==AbilityOperation.Secondary?input.offhandHeld:
             operation==AbilityOperation.SkillOne?input.skillOneHeld:operation==AbilityOperation.SkillTwo?input.skillTwoHeld:input.skillThreeHeld;
+        private bool Held(AbilityRun run)=>runGestures.TryGetValue(run.Context.id,out var origin)
+            ? Buttons(run.Context.operation)?.Any(b=>b.Held&&b.SameGesture(origin))==true:Held(run.Context.operation);
 
         public bool TryRequest(AbilityDefinitionSO definition,bool main,AbilityOperation operation,CharacterActionSource source)
         {
@@ -319,7 +357,8 @@ namespace Ossastra.Characters
             if(!port.IsAvailable||resources.Cooldowns.Remaining(key,resources.Clock(compiled.cooldownPolicy))>0)return Reject("来源失效或冷却中");
             if(runs.Count>=8)return Reject("能力执行预算已满");
             CompiledAbilityExecutor executor;
-            try{executor=compiled.executor.Prepare(owner,port);}catch(ArgumentException error){return Reject(error.Message);}
+            var animationPreparation=new CharacterAnimationPreparation(presentationMainHand);
+            try{executor=compiled.executor.Prepare(owner,port,animationPreparation);}catch(ArgumentException error){return Reject(error.Message);}
             if(!executor.CanUseSource(port))return Reject("来源资源不允许当前能力");
             if(!CanAccept(executor.ActionKind,out var conflict))return Reject(conflict);
             var direction=owner.DataBus.AttackDirection;
@@ -352,7 +391,7 @@ namespace Ossastra.Characters
             Guid id;
             if(compiled.executor.UsesBodyAction)
             {
-                if(!owner.TryAbilityBodyAction(compiled.animation,source,"ability:"+compiled.id,compiled.cost,out id,()=>port.TryReserve(reservation),port.CancelReservation,executor.InitialPhase))return RejectReserved(owner.LastFact);
+                if(!owner.TryAbilityBodyAction(compiled.animation,source,"ability:"+compiled.id,compiled.cost,out id,()=>port.TryReserve(reservation),port.CancelReservation,executor.InitialPhase,animationPreparation))return RejectReserved(owner.LastFact);
             }
             else
             {
@@ -366,6 +405,7 @@ namespace Ossastra.Characters
             owner.Vitals?.Recovery?.RetainParent(id);
             deliveries.RegisterParent(id);
             var run=executor.CreateRun(context);context.onResolved=run.OnResolved;runs.Add(run);
+            if(source==CharacterActionSource.Player&&requestGesture.HasIdentity)runGestures[id]=requestGesture;
             if(executor.UsesBodyAction)ownedBodyReleases.Add(id);
             if(executor.StartsCooldownOnAccept&&!resources.Cooldowns.Commit(key,id,resources.Clock(compiled.cooldownPolicy),context.ModifiedCooldown))throw new InvalidOperationException("Accepted ability cooldown conflict");
             AcceptedCount++;Feedback?.Invoke(id,"accepted",owner.transform.position);LastResult="接受 "+compiled.displayName;return true;
@@ -388,7 +428,7 @@ namespace Ossastra.Characters
             foreach(var run in runs.Where(r=>r.Context.id==fact.ActionId).ToArray())
             {
                 if(fact.Kind==ActionFactKind.Cancelled){if(!run.Ended)run.Context.NotifyFeedback("cancel");run.Cancel();stamina?.CancelReservation(run.Context.releasePaymentId);}
-                else if(fact.Kind==ActionFactKind.Released||fact.Kind==ActionFactKind.Finished)run.Tick(0,Held(run.Context.operation));
+                else if(fact.Kind==ActionFactKind.Released||fact.Kind==ActionFactKind.Finished)run.Tick(0,Held(run));
             }
             if(fact.Kind==ActionFactKind.Cancelled||fact.Kind==ActionFactKind.Finished)ownedBodyReleases.Remove(fact.ActionId);
         }
@@ -407,7 +447,7 @@ namespace Ossastra.Characters
                 var controlValid=run.Context.requestSource==CharacterActionSource.Companion?!owner.GetComponent<CharacterInputHandler>().HasPlayerControl:owner.GetComponent<CharacterInputHandler>().HasPlayerControl;
                 if(run.Context.lifeGeneration!=owner.LifeGeneration||!run.Context.source.IsAvailable||!owner.CanSimulateIntent||!controlValid)
                 {run.Cancel();if(run.Context.definition.executor.UsesBodyAction)owner.CancelOwnedMainAction(run.Context.id,"ability-source-invalid");continue;}
-                run.Tick(delta,Held(run.Context.operation));
+                run.Tick(delta,Held(run));
             }
             deliveries.Tick(delta);
             if(iceWorld!=null){EnsureIceWorld();iceWorld?.Tick(delta);}TickRocketMarks();
@@ -421,7 +461,7 @@ namespace Ossastra.Characters
         private void ReleaseEndedRuns()
         {
             foreach(var run in runs.Where(r=>r.Ended))
-            {run.Context.NotifyFeedback("end");owner.Vitals?.Recovery?.ReleaseParent(run.Context.id);run.Context.source.CancelReservation();stamina?.CancelReservation(run.Context.releasePaymentId);deliveries.CompleteParent(run.Context.id);}
+            {runGestures.Remove(run.Context.id);run.Context.NotifyFeedback("end");owner.Vitals?.Recovery?.ReleaseParent(run.Context.id);run.Context.source.CancelReservation();stamina?.CancelReservation(run.Context.releasePaymentId);deliveries.CompleteParent(run.Context.id);}
             runs.RemoveAll(r=>r.Ended);
         }
         private void Emit(AbilityRunContext context,AbilityEmission emission)

@@ -68,6 +68,8 @@ namespace Ossastra.CharacterAnimation
             activeIntents.Remove(source);cache.Remove(source);history.Remove(source);dirty=true;return true;
         }
         public AnimationIntent GetIntent(AnimationIntentSourceStateMachine source) => activeIntents.TryGetValue(source,out var value)?value.Clone():null;
+        public IReadOnlyDictionary<AnimationIntentSourceStateMachine,AnimationIntent> SnapshotIntents()
+            =>activeIntents.ToDictionary(pair=>pair.Key,pair=>pair.Value.Clone());
         public void ClearAllIntents()
         {activeIntents.Clear();cache.Clear();history.Clear();CurrentOutputPlan=null;CurrentBodyIntent=null;dirty=true;handle?.ClearAll();}
         private string FactsKey()
@@ -93,7 +95,15 @@ namespace Ossastra.CharacterAnimation
                 foreach(var pair in activeIntents.ToArray())if(!pair.Value.IsValid(characterRoot,target)
                     ||pair.Value.oneShot&&pair.Value.duration>0&&characterRoot.SimulationTime>=pair.Value.expireTime)RemoveIntent(pair.Key,pair.Value.actionId,pair.Value.phaseId);
                 var facts=FactsKey();var version=configManager.ConfigurationVersion;
-                foreach(var intent in activeIntents.Values){var overrides=equipmentSource?.Invoke(intent)?.bodyAnimationOverride;if(overrides!=null)version=unchecked(version*31+overrides.GetInstanceID()+overrides.Revision);}
+                foreach(var intent in activeIntents.Values.OrderBy(i=>(int)i.intentSourceStateMatine))
+                {
+                    var equipment=equipmentSource?.Invoke(intent);
+                    version=unchecked(version*31+(equipment==null?0:equipment.GetInstanceID()));
+                    var slots=characterRoot.GetComponent<Ossastra.Characters.CharacterEquipment>()?.State;
+                    var instance=intent.intentSourceStateMatine==AnimationIntentSourceStateMachine.OffHand?slots?.LeftInstanceId:slots?.RightInstanceId;
+                    version=unchecked(version*31+(instance?.GetHashCode()??0));
+                    var overrides=equipment?.bodyAnimationOverride;if(overrides!=null)version=unchecked(version*31+overrides.GetInstanceID()+overrides.Revision);
+                }
                 if(previousVersion!=version||previousFacts!=facts){dirty=true;previousVersion=version;previousFacts=facts;}
                 if(dirty){CurrentOutputPlan=ComposeFinalPlan();dirty=false;}
                 handle.ApplyPlan(CurrentOutputPlan,generation);CommitCount++;

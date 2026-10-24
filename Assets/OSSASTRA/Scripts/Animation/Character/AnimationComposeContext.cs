@@ -13,6 +13,8 @@ namespace Ossastra.CharacterAnimation
         public Ossastra.Characters.EquipmentDefinitionSO sourceEquipment;
         public string target = "body";
         public int configurationVersion;
+        // 仅准备上下文覆盖候选阶段；不回写Root/共享Bus，持续姿态仍读取实际运行事实。
+        public int? preparedStage;
         private static readonly HashSet<string> warned = new HashSet<string>();
         public bool HasWeapon => sourceEquipment != null;
         public bool HasIntent(AnimationIntentSourceStateMachine source) => GetIntent(source) != null;
@@ -37,7 +39,7 @@ namespace Ossastra.CharacterAnimation
                 case "IsAlive": value = root.IsAlive; break;
                 case "HasPlayerInput": value = root.HasPlayerInput; break;
                 case "VisualFacingX": value = dataBus.VisualFacingX; break;
-                case "AttackStage": value = root.AttackStage; break;
+                case "AttackStage": value = preparedStage??root.AttackStage; break;
                 case "EffectiveIntentKind": value = root.EffectiveIntentKind; break;
                 case "LastActionSource": value = root.LastActionSource; break;
                 case "Health": if (root.Vitals != null) value = root.Vitals.Health.Current; break;

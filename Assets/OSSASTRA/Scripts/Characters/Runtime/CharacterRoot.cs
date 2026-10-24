@@ -259,8 +259,9 @@ namespace Ossastra.Characters
         internal Vector3? AbilityAimPoint(CharacterInputFrame frame,float range)
             =>frame.aimSource==PlayerInputSource.KeyboardMouse?PointerGroundPoint(frame):
                 frame.hasDirectionalAim&&range>0?transform.position+DataBus.AttackDirection*range:(Vector3?)null;
-        internal ConfiguredActionSnapshot FreezeAbilityPhase(ActionDefinitionSO config)
-            =>((ICharacterConfiguredAnimation)presentation).FreezeAction(config);
+        internal ConfiguredActionSnapshot FreezeAbilityPhase(ActionDefinitionSO config,CharacterAnimationPreparation? preparation=null)
+            =>presentation is ICharacterPreparedAnimation prepared?prepared.PrepareAnimation(config,preparation??new CharacterAnimationPreparation(true)):
+                ((ICharacterConfiguredAnimation)presentation).FreezeAction(config);
         internal bool ChangeAbilityPhase(Guid id,ConfiguredActionSnapshot phase)=>stateArbitrator.Combat.ChangeAbilityPhase(id,phase);
         private Vector3? PointerDirection(CharacterInputFrame frame)
         {
@@ -278,8 +279,8 @@ namespace Ossastra.Characters
         public bool TryConfiguredAction(ActionDefinitionSO config,CharacterActionSource source,string label,out Guid actionId)
             =>TryAbilityBodyAction(config,source,label,config==null?0:config.staminaCost,out actionId);
         /// <summary>定义驱动身体能力复用原Runtime与接受账本；费用来自已冻结能力，不再由片段定义另付一次。</summary>
-        internal bool TryAbilityBodyAction(ActionDefinitionSO config,CharacterActionSource source,string label,float cost,out Guid actionId,Func<bool> prepareSource=null,Action rollbackSource=null,ConfiguredActionSnapshot phase=null)
-            =>stateArbitrator.Combat.TryAbilityBodyAction(config,source,label,cost,out actionId,prepareSource,rollbackSource,phase);
+        internal bool TryAbilityBodyAction(ActionDefinitionSO config,CharacterActionSource source,string label,float cost,out Guid actionId,Func<bool> prepareSource=null,Action rollbackSource=null,ConfiguredActionSnapshot phase=null,CharacterAnimationPreparation? preparation=null)
+            =>stateArbitrator.Combat.TryAbilityBodyAction(config,source,label,cost,out actionId,prepareSource,rollbackSource,phase,preparation);
         /// <summary>能力按已接受身份只撤回自己的主通道；副手、盾和机动不借此被全局取消。</summary>
         internal bool CancelOwnedMainAction(Guid actionId,string reason)=>stateArbitrator.Combat.CancelOwnedMainAction(actionId,reason);
 
@@ -311,6 +312,7 @@ namespace Ossastra.Characters
 
         private void OnDied(HitOutcome outcome)
         {
+            stateArbitrator?.StopMovement();
             statusEffects?.Clear();
             mainAction?.ResetState();
             equipmentView?.Hide();equipmentSpineView?.Hide();skills?.Clear();
@@ -334,7 +336,7 @@ namespace Ossastra.Characters
         private void OnApplicationPause(bool value)
           { applicationPaused = value; if(value)stateArbitrator?.Combat?.ClearBuffer(); if (follow != null) follow.ResetIntent(); if (value) stateArbitrator?.Combat?.SuppressInput(); }
         private void OnEnable() { stateArbitrator?.Combat?.SuppressInput(); if (intentSelector != null) intentSelector.Clear(); }
-        private void OnDisable() { transientItems?.Hide();statusEffects?.Clear();mainAction?.ResetState();equipmentView?.Hide();equipmentSpineView?.Hide();skills?.Clear();offhand?.CancelAll(); CancelAction("disabled"); if (posture != null) posture.ResetState(); authority.Release(posture); if (follow != null) follow.ResetIntent(); if (intentSelector != null) intentSelector.Clear(); if (ready && presentation != null) presentation.SetPaused(false); }
+        private void OnDisable() { stateArbitrator?.StopMovement();transientItems?.Hide();statusEffects?.Clear();mainAction?.ResetState();equipmentView?.Hide();equipmentSpineView?.Hide();skills?.Clear();offhand?.CancelAll(); CancelAction("disabled"); if (posture != null) posture.ResetState(); authority.Release(posture); if (follow != null) follow.ResetIntent(); if (intentSelector != null) intentSelector.Clear(); if (ready && presentation != null) presentation.SetPaused(false); }
         private void OnDestroy()
         {
             if(mainAction!=null)mainAction.Resolved-=OnHitReceipt;

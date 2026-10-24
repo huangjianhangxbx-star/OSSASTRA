@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework><OutputType>Exe</OutputType>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../M01/Tests/Program.cs" />
+    <Compile Include="../../../Assets/OSSASTRA/Scripts/Characters/Core/**/*.cs" />
+  </ItemGroup>
+</Project>

@@ -96,7 +96,7 @@ public class CharacterAnimationConfigManager : MonoBehaviour
                 return routed;
         }
 
-        return ConvertSemanticToLogicState(intent.semantic);
+        return intent.logicId!=EAnimationLogicState.None?intent.logicId:ConvertSemanticToLogicState(intent.semantic);
     }
 
 

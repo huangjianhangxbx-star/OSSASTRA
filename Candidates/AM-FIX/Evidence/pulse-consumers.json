@@ -1,0 +1,49 @@
+{
+  "failed": 0,
+  "rows": [
+    {
+      "name": "world down/up preserves dodge pressed when final held is false",
+      "ok": true
+    },
+    {
+      "name": "world pulse reaches actual dodge acceptance",
+      "ok": true
+    },
+    {
+      "name": "same-update UI down/up cannot become world dodge",
+      "ok": true
+    },
+    {
+      "name": "reset rejects old hold without synthesizing edge",
+      "ok": true
+    },
+    {
+      "name": "real release then quick press rearms",
+      "ok": true
+    },
+    {
+      "name": "world F pulse reaches actual InventoryInteraction and opens chest",
+      "ok": true
+    },
+    {
+      "name": "quick skill pulse reaches formal ability consumer once",
+      "ok": true
+    },
+    {
+      "name": "pulse semantic Press",
+      "ok": true
+    },
+    {
+      "name": "pulse semantic Hold",
+      "ok": true
+    },
+    {
+      "name": "pulse semantic Release",
+      "ok": true
+    },
+    {
+      "name": "pulse semantic TapOrLongPress",
+      "ok": true
+    }
+  ]
+}

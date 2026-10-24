@@ -1,0 +1,20 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "prepared": true,
+      "completePlan": false,
+      "accepted": 0,
+      "paid": 10.0,
+      "error": "System.ArgumentException: Frozen phase has no original animation plan\r\n  at Ossastra.CharacterAnimation.CharacterAnimationController.CapturePhase (System.Guid id, Ossastra.Characters.ConfiguredActionSnapshot snapshot) [0x00033] in E:\\WORLDCREATOR\\new\\Project_ANKALUTE\\Assets\\OSSASTRA\\Scripts\\Animation\\Character\\CharacterAnimationController.cs:100 \r\n  at Ossastra.Characters.CharacterCombatStateMachine.RequestStage (System.Int32 stage, Ossastra.Combat.CombatVitals aiTarget) [0x0025b] in E:\\WORLDCREATOR\\new\\Project_ANKALUTE\\Assets\\OSSASTRA\\Scripts\\Characters\\Runtime\\CharacterCombatStateMachine.cs:198 \r\n  at Ossastra.Characters.CharacterCombatStateMachine.RequestInput (Ossastra.Characters.CharacterInputFrame frame) [0x000c8] in E:\\WORLDCREATOR\\new\\Project_ANKALUTE\\Assets\\OSSASTRA\\Scripts\\Characters\\Runtime\\CharacterCombatStateMachine.cs:63 \r\n  at F01Repro.Execute (Funplay.Editor.Tools.Scripting.ExecutionContext ctx) [0x0018c] in <a66f3db9ee364bc094189024fd751b61>:0 ",
+      "active": true,
+      "passed": false
+    }
+  }
+}

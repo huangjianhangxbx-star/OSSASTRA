@@ -56,7 +56,8 @@ namespace Ossastra.Characters
   public void Dispose(){if(hitReceipts!=null)hitReceipts.Resolved-=OnHitReceipt;hitReceipts=null;}
   public void RequestInput(CharacterInputFrame frame)
   {
-            if (intent.Observe(frame.attackHeld) && owner.StateFocused && !frame.attackPointerBlocked)
+            var pressed=frame.hasAttackEdges?intent.Observe(frame.attackHeld,frame.attackPressed):intent.Observe(frame.attackHeld);
+            if (pressed && !frame.attackRequestsBlocked && owner.StateFocused && !frame.attackPointerBlocked)
             {
                 var stage=chain==null?1:chain.Request(runtime.SimulationTime,runtime.AttackReady,
                     owner.StateInput.HasPlayerInput && !owner.IsPaused && owner.StateAuthority.Allows(ControlChannel.Attack) && ChainAvailable && (owner.StateMainAction==null||owner.StateMainAction.AllowsBasicRequest));
@@ -121,19 +122,26 @@ namespace Ossastra.Characters
             owner.PublishActionFact(fact);
             if(fact.Kind==ActionFactKind.Finished||fact.Kind==ActionFactKind.Cancelled)owner.StateVitals?.Recovery?.ReleaseParent(fact.ActionId);
         }
-        private bool TryResolveConfiguredAction(ActionDefinitionSO config,out BasicAttackDefinition frozen,out string reason)
+        private bool TryResolveConfiguredAction(ActionDefinitionSO config,out ConfiguredActionSnapshot frozen,out string reason,CharacterAnimationPreparation? preparation=null)
         {
             frozen=null;reason=null;
-            try{frozen=config.Freeze();}catch(ArgumentException error){reason="invalid-definition:"+error.Message;return false;}
             if(!(owner.StatePresentation is ICharacterConfiguredAnimation target)){reason="missing-animation-port";return false;}
-            return target.CanCaptureAction(config,out reason);
+            try{frozen=owner.FreezeAbilityPhase(config,preparation);}catch(ArgumentException error){reason="invalid-definition:"+error.Message;return false;}
+            return ValidatePrepared(frozen,out reason);
         }
-        internal bool TryAbilityBodyAction(ActionDefinitionSO config,CharacterActionSource source,string label,float cost,out Guid actionId,Func<bool> prepareSource=null,Action rollbackSource=null,ConfiguredActionSnapshot phase=null)
+        private bool ValidatePrepared(ConfiguredActionSnapshot phase,out string reason)
+        {
+            reason=phase?.Timeline==null?"missing-phase":null;
+            if(reason!=null)return false;
+            return !(owner.StatePresentation is ICharacterPreparedAnimation validator)||validator.CanCapturePhase(phase,out reason);
+        }
+        internal bool TryAbilityBodyAction(ActionDefinitionSO config,CharacterActionSource source,string label,float cost,out Guid actionId,Func<bool> prepareSource=null,Action rollbackSource=null,ConfiguredActionSnapshot phase=null,CharacterAnimationPreparation? preparation=null)
         {
             actionId=Guid.Empty;if(config==null||!owner.StateReady)return false;
             BasicAttackDefinition frozen;
-            if(phase!=null)frozen=phase.Timeline;
-            else if(!TryResolveConfiguredAction(config,out frozen,out var configurationError)){lastFact="Rejected: "+configurationError;return false;}
+            if(phase==null&&!TryResolveConfiguredAction(config,out phase,out var configurationError,preparation)){lastFact="Rejected: "+configurationError;return false;}
+            if(!ValidatePrepared(phase,out var phaseError)){lastFact="Rejected: "+phaseError;return false;}
+            frozen=phase.Timeline;
             var signature=owner.Actions.CreateRequest(CharacterActionKind.Main,source,label);
             ActionRequestResult result=null;
             if(!owner.Actions.TryCommit(signature,cost,()=>
@@ -146,8 +154,7 @@ namespace Ossastra.Characters
             {lastFact="Rejected: "+rejection;return false;}
             if(result.PreviousTerminal!=null)ObserveFact(result.PreviousTerminal);
             chain?.Clear();autonomousAction=false;autonomousTarget=null;AttackStage=0;
-            if(phase!=null)(owner.StatePresentation as ICharacterConfiguredAnimation)?.CapturePhase(result.Fact.ActionId,phase);
-            else (owner.StatePresentation as ICharacterConfiguredAnimation)?.CaptureAction(result.Fact.ActionId,config);
+            (owner.StatePresentation as ICharacterConfiguredAnimation)?.CapturePhase(result.Fact.ActionId,phase);
             ObserveFact(result.Fact);owner.StateOrienter.FaceAttackDirection();actionId=result.Fact.ActionId;return true;
         }
         internal bool CancelOwnedMainAction(Guid actionId,string reason)
@@ -180,8 +187,13 @@ namespace Ossastra.Characters
             if(owner.StateMainAction?.Sequence!=null&&!owner.StateMainAction.TryPrepare(stage-1,out prepared)){lastFact=owner.StateMainAction.LastResult;return;}
             var actionConfig=prepared!=null?prepared.Definition:owner.StateCharacterDefinition==null?null:ActionLibrary[stage-1];
             var selected=stage==2?secondDefinition:definition;
-            if(prepared!=null)selected=prepared.Phase.Timeline;
-            else if(actionConfig!=null&&!TryResolveConfiguredAction(actionConfig,out selected,out var configurationError)){lastFact="Rejected: "+configurationError;return;}
+            ConfiguredActionSnapshot phase=prepared?.Phase;
+            if(phase==null&&actionConfig!=null&&!TryResolveConfiguredAction(actionConfig,out phase,out var configurationError,new CharacterAnimationPreparation(true,stage))){lastFact="Rejected: "+configurationError;return;}
+            if(phase==null&&owner.StatePresentation is ICharacterDefaultActionAnimation defaults)
+            {
+                try{phase=defaults.FreezeDefaultAction(selected,stage);}catch(ArgumentException error){lastFact="Rejected: "+error.Message;return;}
+            }
+            if(phase!=null){if(!ValidatePrepared(phase,out var phaseError)){lastFact="Rejected: "+phaseError;return;}selected=phase.Timeline;}
             var signature=owner.Actions.CreateRequest(CharacterActionKind.Main,aiTarget==null?CharacterActionSource.Player:CharacterActionSource.Companion,aiTarget==null?"player-input:Stage"+stage:"companion:Stage1");
             ActionRequestResult request=null;
             var accepted=owner.Actions.TryCommit(signature,owner.StateStamina==null?0:prepared!=null?prepared.Cost:actionConfig!=null?actionConfig.staminaCost:owner.StateStamina.AttackCost,()=>
@@ -198,8 +210,7 @@ namespace Ossastra.Characters
                     (owner.StatePresentation as ICharacterConfiguredAnimation)?.CapturePhase(request.Fact.ActionId,prepared.Phase);
                     owner.StateMainAction.Accept(request.Fact.ActionId,prepared,aiTarget==null?owner.StateOrienter.AttackDirection:aiTarget.transform.position-owner.transform.position);
                 }
-                else if(actionConfig!=null)(owner.StatePresentation as ICharacterConfiguredAnimation)?.CaptureAction(request.Fact.ActionId,actionConfig);
-                else (owner.StatePresentation as ICharacterDefaultActionAnimation)?.CaptureDefaultAction(request.Fact.ActionId,selected,stage);
+                else if(phase!=null)(owner.StatePresentation as ICharacterConfiguredAnimation)?.CapturePhase(request.Fact.ActionId,phase);
                 AttackStage=stage; autonomousAction=aiTarget!=null; autonomousTarget=aiTarget;
                 if(autonomousAction) { chain?.Clear(); owner.StateCombatBrain.OnAccepted(); owner.StateOrienter.OrientTowards(aiTarget.transform.position); }
                 else chain?.Accepted(stage,request.Fact.ActionId,runtime.SimulationTime,selected.AttackReadyAt);
@@ -209,6 +220,7 @@ namespace Ossastra.Characters
         }
         internal bool ChangeAbilityPhase(Guid id,ConfiguredActionSnapshot phase)
         {
+            if(!ValidatePrepared(phase,out var error)){lastFact="Rejected: "+error;return false;}
             var fact=runtime.Rephase(id,phase.Timeline);if(fact==null)return false;
             ((ICharacterConfiguredAnimation)owner.StatePresentation).CapturePhase(id,phase);ObserveFact(fact);return true;
         }

@@ -1,0 +1,132 @@
+{
+  "state": "completed",
+  "failed": 0,
+  "rows": [
+    {
+      "name": "neutral",
+      "ok": true,
+      "accepted": 0,
+      "guarding": false,
+      "left": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "name": "LT starts guard",
+      "ok": true,
+      "accepted": 0,
+      "guarding": true,
+      "left": "f44330ef-6372-4105-962d-24edde374647"
+    },
+    {
+      "name": "mouse overlap keeps original",
+      "ok": true,
+      "accepted": 0,
+      "guarding": true,
+      "left": "f44330ef-6372-4105-962d-24edde374647"
+    },
+    {
+      "name": "F04 releasing LT ends original run",
+      "ok": true,
+      "accepted": 0,
+      "guarding": false,
+      "left": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "name": "release all",
+      "ok": true,
+      "accepted": 0,
+      "guarding": false,
+      "left": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "name": "LT starts second guard",
+      "ok": true,
+      "accepted": 0,
+      "guarding": true,
+      "left": "bde85be6-8107-450c-bc9a-ffc8e17b0ffc"
+    },
+    {
+      "name": "mouse overlaps before disconnect",
+      "ok": true,
+      "accepted": 0,
+      "guarding": true,
+      "left": "bde85be6-8107-450c-bc9a-ffc8e17b0ffc"
+    },
+    {
+      "name": "F04 disconnect ends original run",
+      "ok": true,
+      "accepted": 0,
+      "guarding": false,
+      "left": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "name": "neutral after disconnect",
+      "ok": true,
+      "accepted": 0,
+      "guarding": false,
+      "left": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "name": "replacement pad paths",
+      "ok": true,
+      "accepted": 0,
+      "guarding": false,
+      "left": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "name": "RT starts main",
+      "ok": true,
+      "accepted": 1,
+      "guarding": false,
+      "left": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "name": "main held opens ordinary inventory",
+      "ok": true,
+      "accepted": 1,
+      "guarding": false,
+      "left": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "name": "close while RT never released",
+      "ok": true,
+      "accepted": 1,
+      "guarding": false,
+      "left": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "name": "F05 closing does not replay RT",
+      "ok": true,
+      "accepted": 1,
+      "guarding": false,
+      "left": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "name": "real RT release",
+      "ok": true,
+      "accepted": 1,
+      "guarding": false,
+      "left": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "name": "real repress accepts",
+      "ok": true,
+      "accepted": 2,
+      "guarding": false,
+      "left": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "name": "neutral for pulse",
+      "ok": true,
+      "accepted": 2,
+      "guarding": false,
+      "left": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "name": "F06 configured dodge same-update pulse",
+      "ok": true,
+      "accepted": 2,
+      "guarding": false,
+      "left": "00000000-0000-0000-0000-000000000000"
+    }
+  ]
+}

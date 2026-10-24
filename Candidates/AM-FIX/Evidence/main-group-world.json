@@ -1,0 +1,102 @@
+{
+  "state": "completed",
+  "failed": 0,
+  "rows": [
+    {
+      "name": "neutral",
+      "ok": true,
+      "accepted": 0,
+      "stage": 0,
+      "payment": "无",
+      "last": "Idle"
+    },
+    {
+      "name": "actual LT+RT switches to existing configurable group",
+      "ok": true,
+      "accepted": 0,
+      "stage": 0,
+      "payment": "无",
+      "last": "Idle"
+    },
+    {
+      "name": "release chord",
+      "ok": true,
+      "accepted": 0,
+      "stage": 0,
+      "payment": "无",
+      "last": "Idle"
+    },
+    {
+      "name": "accepted stage has full snapshot and exactly one configured payment",
+      "ok": true,
+      "accepted": 1,
+      "stage": 1,
+      "payment": "player-input:Stage1 #f53bb9482ff64d728610749b3672b8b1 已支付 10",
+      "last": "Accepted @0.000 f53bb948"
+    },
+    {
+      "name": "actual RT accepts first group stage",
+      "ok": true,
+      "accepted": 1,
+      "stage": 1,
+      "payment": "player-input:Stage1 #f53bb9482ff64d728610749b3672b8b1 已支付 10",
+      "last": "Accepted @0.000 f53bb948"
+    },
+    {
+      "name": "first group stage reaches attack-ready",
+      "ok": true,
+      "accepted": 1,
+      "stage": 1,
+      "payment": "player-input:Stage1 #f53bb9482ff64d728610749b3672b8b1 已支付 10",
+      "last": "AttackReady @0.200 f53bb948"
+    },
+    {
+      "name": "accepted stage has full snapshot and exactly one configured payment",
+      "ok": true,
+      "accepted": 2,
+      "stage": 2,
+      "payment": "player-input:Stage2 #c0fdd281215c4856ab8e759838bebc07 已支付 10",
+      "last": "Accepted @0.000 c0fdd281"
+    },
+    {
+      "name": "actual fresh RT accepts subsequent group stage",
+      "ok": true,
+      "accepted": 2,
+      "stage": 2,
+      "payment": "player-input:Stage2 #c0fdd281215c4856ab8e759838bebc07 已支付 10",
+      "last": "Released @0.000 c0fdd281"
+    },
+    {
+      "name": "group release and finish facts occur once per accepted identity",
+      "ok": true,
+      "accepted": 2,
+      "stage": 2,
+      "payment": "player-input:Stage2 #c0fdd281215c4856ab8e759838bebc07 已支付 10",
+      "last": "Finished @0.733 c0fdd281"
+    },
+    {
+      "name": "continuation window expires",
+      "ok": true,
+      "accepted": 2,
+      "stage": 2,
+      "payment": "player-input:Stage2 #c0fdd281215c4856ab8e759838bebc07 已支付 10",
+      "last": "Finished @0.733 c0fdd281"
+    },
+    {
+      "name": "invalid Router mapping rejected before acceptance and fee",
+      "ok": true,
+      "accepted": 2,
+      "stage": 2,
+      "payment": "player-input:Stage2 #c0fdd281215c4856ab8e759838bebc07 已支付 10",
+      "last": "拒绝：动作映射无效：missing-frozen-animation-plan"
+    },
+    {
+      "name": "invalid mapping costs nothing and starts no Runtime",
+      "ok": true,
+      "accepted": 2,
+      "stage": 2,
+      "payment": "player-input:Stage2 #c0fdd281215c4856ab8e759838bebc07 已支付 10",
+      "last": "拒绝：动作映射无效：missing-frozen-animation-plan"
+    }
+  ]
+}

@@ -941,3 +941,7 @@ active/unity-writer；用户明确要求一轮修整：共享脚本去M01标签�
 2026-10-24 animation-migration complete/read-only：用户授权AM01-AM03顺序连续；正式状态/动画/混合输入+B必要接线，唯一Unity writer，详见本任务。
 
 2026-10-24 animation-migration CANDIDATE_PUBLISHED：AM01 ed74ae1 / AM02 67efa5c / AM03 faf2938，GitHub main精确核对；整轮技术任务完成，全部writer/路径租约释放；用户要求完成后正常关机。边界与人工待审见AM03-handoff及任务记录。
+
+2026-10-24 am-review-fixes active/unity-writer：唯一Unity writer；F01-F06及Movement定向修正，基线982925b本机/远端一致；独占范围见tasks/2026-10-24-am-review-fixes.md，原用户dirty保持。
+2026-10-24 am-review-fixes active/unity-writer：F01-F06与Movement RED→GREEN定向复验完成；正常输入17/双手9/生命周期13等最终回归进行中。无新场景或永久配置修改，保护dirty保持。
+2026-10-24 am-review-fixes technical-complete/docs-writer：F01-F06/Movement完成，最终B Edit ready/clean；源码/Unity租约释放，仅本轮文档与GitHub发布租约，见最新交接。

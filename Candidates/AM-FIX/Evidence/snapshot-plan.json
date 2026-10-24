@@ -1,0 +1,25 @@
+{
+  "failed": 0,
+  "rows": [
+    {
+      "name": "WithTimeline keeps full tracks queue clear and runtime logic",
+      "ok": true
+    },
+    {
+      "name": "only action-scaled rate follows final duration",
+      "ok": true
+    },
+    {
+      "name": "queue playback and timing parameters survive",
+      "ok": true
+    },
+    {
+      "name": "snapshot consumers receive independent deep plans",
+      "ok": true
+    },
+    {
+      "name": "timeline replacement never rereads edited SO",
+      "ok": true
+    }
+  ]
+}

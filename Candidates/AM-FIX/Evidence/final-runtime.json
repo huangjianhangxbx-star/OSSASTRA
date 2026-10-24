@@ -1,0 +1,92 @@
+[
+  {
+    "ActorId": "temporary-b",
+    "IsAlive": true,
+    "CanSimulateIntent": true,
+    "missing": 0,
+    "machines": [
+      {
+        "machine": "MovementStateMachine",
+        "initialized": 1
+      },
+      {
+        "machine": "CombatStateMachine",
+        "initialized": 1
+      },
+      {
+        "machine": "DodgeStateMachine",
+        "initialized": 1
+      },
+      {
+        "machine": "AbilityStateMachine",
+        "initialized": 1
+      },
+      {
+        "machine": "WeaponPostureStateMachine",
+        "initialized": 1
+      }
+    ],
+    "skeletons": [
+      {
+        "name": "MainBody",
+        "valid": true,
+        "clip": "idle1_1"
+      },
+      {
+        "name": "LeftEquipmentSpine",
+        "valid": true,
+        "clip": "rest"
+      },
+      {
+        "name": "RightEquipmentSpine",
+        "valid": true,
+        "clip": "rest"
+      }
+    ]
+  },
+  {
+    "ActorId": "temporary-a",
+    "IsAlive": true,
+    "CanSimulateIntent": true,
+    "missing": 0,
+    "machines": [
+      {
+        "machine": "MovementStateMachine",
+        "initialized": 1
+      },
+      {
+        "machine": "CombatStateMachine",
+        "initialized": 1
+      },
+      {
+        "machine": "DodgeStateMachine",
+        "initialized": 1
+      },
+      {
+        "machine": "AbilityStateMachine",
+        "initialized": 1
+      },
+      {
+        "machine": "WeaponPostureStateMachine",
+        "initialized": 1
+      }
+    ],
+    "skeletons": [
+      {
+        "name": "MainBody",
+        "valid": true,
+        "clip": "idle1_1"
+      },
+      {
+        "name": "LeftEquipmentSpine",
+        "valid": true,
+        "clip": "rest"
+      },
+      {
+        "name": "RightEquipmentSpine",
+        "valid": true,
+        "clip": "rest"
+      }
+    ]
+  }
+]

@@ -86,9 +86,9 @@ namespace Ossastra.Characters
             try
             {
                 var stage=profile.Sequence.Stage(index);var definition=profile.AnimationDefinition(index);
-                var animation=owner.FreezeAbilityPhase(definition);var t=stage.Timeline;
+                var animation=owner.FreezeAbilityPhase(definition,new CharacterAnimationPreparation(true,index+1));var t=stage.Timeline;
                 var timeline=new BasicAttackDefinition(t.ReleaseAt,t.MoveReadyAt,t.AttackReadyAt,t.FinishAt,t.Damage,t.PostureImpact*profile.Sequence.PostureScale);
-                var phase=new ConfiguredActionSnapshot(timeline,animation.Clip,animation.Mix,animation.Rate,animation.Loop);
+                var phase=animation.WithTimeline(timeline);
                 prepared=new PreparedStage(stage,phase,definition,profileDefinition.contactDuration,index==profile.Sequence.Count-1,profile.Sequence.FullComboRecovery);return true;
             }
             catch(ArgumentException e){return Reject("动作映射无效："+e.Message);}

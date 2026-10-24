@@ -1,0 +1,174 @@
+{
+  "state": "completed",
+  "failed": 0,
+  "rows": [
+    {
+      "name": "neutral",
+      "ok": true,
+      "accepted": 0,
+      "guarding": false,
+      "left": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "name": "LT starts guard",
+      "ok": true,
+      "accepted": 0,
+      "guarding": true,
+      "left": "283171e6-b5fe-4d6a-b22f-ef748a508b62"
+    },
+    {
+      "name": "mouse overlap keeps original",
+      "ok": true,
+      "accepted": 0,
+      "guarding": true,
+      "left": "283171e6-b5fe-4d6a-b22f-ef748a508b62"
+    },
+    {
+      "name": "F04 releasing LT ends original run",
+      "ok": true,
+      "accepted": 0,
+      "guarding": false,
+      "left": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "name": "release all",
+      "ok": true,
+      "accepted": 0,
+      "guarding": false,
+      "left": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "name": "LT starts second guard",
+      "ok": true,
+      "accepted": 0,
+      "guarding": true,
+      "left": "e2ddd8b3-e667-4ed4-b228-1dc3fbf31290"
+    },
+    {
+      "name": "mouse overlaps before disconnect",
+      "ok": true,
+      "accepted": 0,
+      "guarding": true,
+      "left": "e2ddd8b3-e667-4ed4-b228-1dc3fbf31290"
+    },
+    {
+      "name": "F04 disconnect ends original run",
+      "ok": true,
+      "accepted": 0,
+      "guarding": false,
+      "left": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "name": "neutral after disconnect",
+      "ok": true,
+      "accepted": 0,
+      "guarding": false,
+      "left": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "name": "replacement pad paths",
+      "ok": true,
+      "accepted": 0,
+      "guarding": false,
+      "left": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "name": "RT starts main",
+      "ok": true,
+      "accepted": 1,
+      "guarding": false,
+      "left": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "name": "main held opens ordinary inventory",
+      "ok": true,
+      "accepted": 1,
+      "guarding": false,
+      "left": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "name": "close while RT never released",
+      "ok": true,
+      "accepted": 1,
+      "guarding": false,
+      "left": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "name": "F05 closing does not replay RT",
+      "ok": true,
+      "accepted": 1,
+      "guarding": false,
+      "left": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "name": "real RT release",
+      "ok": true,
+      "accepted": 1,
+      "guarding": false,
+      "left": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "name": "real repress accepts",
+      "ok": true,
+      "accepted": 2,
+      "guarding": false,
+      "left": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "name": "neutral for pulse",
+      "ok": true,
+      "accepted": 2,
+      "guarding": false,
+      "left": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "name": "F06 configured dodge same-update pulse",
+      "ok": true,
+      "accepted": 2,
+      "guarding": false,
+      "left": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "name": "neutral after pulse",
+      "ok": true,
+      "accepted": 2,
+      "guarding": false,
+      "left": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "name": "same-frame two-device guard submits once",
+      "ok": true,
+      "accepted": 2,
+      "guarding": true,
+      "left": "9e71230c-0f23-454f-a34e-dd4fe38c5c86"
+    },
+    {
+      "name": "both real releases",
+      "ok": true,
+      "accepted": 2,
+      "guarding": false,
+      "left": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "name": "new LT guard before same-update repress",
+      "ok": true,
+      "accepted": 2,
+      "guarding": true,
+      "left": "191e99ed-6ae3-4456-889f-10171d742e03"
+    },
+    {
+      "name": "release and repress creates fresh run not old hold",
+      "ok": true,
+      "accepted": 2,
+      "guarding": true,
+      "left": "a55f9e35-1085-43a9-958a-c0c2ff06f30a"
+    },
+    {
+      "name": "final release",
+      "ok": true,
+      "accepted": 2,
+      "guarding": false,
+      "left": "00000000-0000-0000-0000-000000000000"
+    }
+  ]
+}

@@ -1,0 +1,137 @@
+{
+  "failed": 0,
+  "rows": [
+    {
+      "name": "Submit never plays intermediate plan",
+      "ok": true,
+      "handle": "已绑定 body",
+      "composer": "未初始化"
+    },
+    {
+      "name": "valid Track0 exclusive suppresses other body track",
+      "ok": true,
+      "handle": "已提交 body track 0",
+      "composer": "最终轨道 1；队列 0；清轨 1"
+    },
+    {
+      "name": "same identity does not restart",
+      "ok": true,
+      "handle": "已提交 body track 0",
+      "composer": "最终轨道 1；队列 0；清轨 1"
+    },
+    {
+      "name": "old Exit cannot remove a new action",
+      "ok": true,
+      "handle": "已提交 body track 0",
+      "composer": "最终轨道 1；队列 0；清轨 1"
+    },
+    {
+      "name": "withdraw restores current sources",
+      "ok": true,
+      "handle": "已提交 body track 1",
+      "composer": "最终轨道 2；队列 0；清轨 0"
+    },
+    {
+      "name": "clear-only wins and does not erase unrelated track",
+      "ok": true,
+      "handle": "已提交 body track 1",
+      "composer": "最终轨道 1；队列 0；清轨 1"
+    },
+    {
+      "name": "transition delay is actual TrackComplete",
+      "ok": true,
+      "handle": "已提交 body track 0",
+      "composer": "最终轨道 1；队列 0；清轨 1"
+    },
+    {
+      "name": "actual playback starts target mix after rate-adjusted transition end",
+      "ok": true,
+      "handle": "已提交 body track 0",
+      "composer": "最终轨道 1；队列 0；清轨 1"
+    },
+    {
+      "name": "redispatch does not restart completed transition or duplicate queue",
+      "ok": true,
+      "handle": "已提交 body track 0",
+      "composer": "最终轨道 1；队列 0；清轨 1"
+    },
+    {
+      "name": "queue-only retains actual same-owner current entry",
+      "ok": true,
+      "handle": "已提交 body track 0",
+      "composer": "最终轨道 1；队列 0；清轨 1"
+    },
+    {
+      "name": "queue-only redispatch is deduplicated",
+      "ok": true,
+      "handle": "已提交 body track 0",
+      "composer": "最终轨道 1；队列 0；清轨 1"
+    },
+    {
+      "name": "queue-only cannot attach to missing context",
+      "ok": true,
+      "handle": "queue-only缺少同来源/阶段上下文：track 0",
+      "composer": "最终轨道 1；队列 0；清轨 1"
+    },
+    {
+      "name": "old life playback identity rejected",
+      "ok": true,
+      "handle": "失效的角色/生命/目标播放身份",
+      "composer": "最终轨道 1；队列 0；清轨 1"
+    },
+    {
+      "name": "real Spine events are forwarded to scoped presentation subscriber",
+      "ok": true,
+      "handle": "已提交 body track 0",
+      "composer": "最终轨道 1；队列 0；清轨 1"
+    },
+    {
+      "name": "valid signal is not consumed twice",
+      "ok": true,
+      "handle": "已提交 body track 0",
+      "composer": "最终轨道 1；队列 0；清轨 1"
+    },
+    {
+      "name": "retired track cannot dispatch pending events",
+      "ok": true,
+      "handle": "已提交 body track 0",
+      "composer": "最终轨道 1；队列 0；清轨 1"
+    },
+    {
+      "name": "Skeleton reinitialization replaces actual state",
+      "ok": true,
+      "handle": "已提交 body track 0",
+      "composer": "最终轨道 1；队列 0；清轨 1"
+    },
+    {
+      "name": "rebind publishes only into replacement Skeleton state",
+      "ok": true,
+      "handle": "已提交 body track 0",
+      "composer": "最终轨道 1；队列 0；清轨 1"
+    },
+    {
+      "name": "new binding forwards events exactly once",
+      "ok": true,
+      "handle": "已提交 body track 0",
+      "composer": "最终轨道 1；队列 0；清轨 1"
+    },
+    {
+      "name": "disable clears actual track",
+      "ok": true,
+      "handle": "已提交 body track 0",
+      "composer": "最终轨道 1；队列 0；清轨 1"
+    },
+    {
+      "name": "reenable restores one event subscription",
+      "ok": true,
+      "handle": "已提交 body track 0",
+      "composer": "最终轨道 1；队列 0；清轨 1"
+    },
+    {
+      "name": "reenable has no pending duplicate events",
+      "ok": true,
+      "handle": "已提交 body track 0",
+      "composer": "最终轨道 1；队列 0；清轨 1"
+    }
+  ]
+}

@@ -52,11 +52,13 @@ namespace Ossastra.Characters
             public override float AimRange=>kind==AmmoKind.Mortar?mortarDelivery.range:0;
             public override bool CanUseSource(IAbilitySource source)=>source?.RuntimeState!=null&&!source.RuntimeState.Magazine.IsReloading&&source.RuntimeState.Magazine.Count>0;
             public override CompiledAbilityExecutor Prepare(CharacterRoot owner,IAbilitySource source)
+                =>Prepare(owner,source,new CharacterAnimationPreparation(true));
+            public override CompiledAbilityExecutor Prepare(CharacterRoot owner,IAbilitySource source,CharacterAnimationPreparation preparation)
             {
                 var kind=source.RuntimeState.Magazine.Next??AmmoKind.Normal;
-                var frozen=owner.FreezeAbilityPhase(kind==AmmoKind.Mortar?mortar:normal);
+                var frozen=owner.FreezeAbilityPhase(kind==AmmoKind.Mortar?mortar:normal,preparation);
                 var rate=source.RuntimeState.ShotEnhancements.Snapshot().Rate;var t=frozen.Timeline;
-                frozen=new ConfiguredActionSnapshot(new BasicAttackDefinition(t.ReleaseAt/rate,t.MoveReadyAt/rate,t.AttackReadyAt/rate,t.FinishAt/rate,t.Damage,t.PostureImpact),frozen.Clip,frozen.Mix,frozen.Rate*(float)rate,frozen.Loop);
+                frozen=frozen.WithTimeline(new BasicAttackDefinition(t.ReleaseAt/rate,t.MoveReadyAt/rate,t.AttackReadyAt/rate,t.FinishAt/rate,t.Damage,t.PostureImpact));
                 return new Executor(normal,mortar,normalDelivery,mortarDelivery,normalDamage,mortarDamage,frozen,kind);
             }
             public override AbilityRun CreateRun(AbilityRunContext context)=>new Run(context,phase,kind==AmmoKind.Mortar?mortarDelivery:normalDelivery,kind==AmmoKind.Mortar?mortarDamage:normalDamage);

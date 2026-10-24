@@ -13,6 +13,10 @@ namespace Ossastra.CharacterCore
         private bool armed = true;
 
         public bool Observe(bool held)
+            => Observe(held,held&&!previousHeld);
+
+        // 正式输入提供独立边沿；支持同次update的down/up，保持值只用于真实释放与重武装。
+        public bool Observe(bool held,bool pressed)
         {
             if (!armed)
             {
@@ -20,7 +24,6 @@ namespace Ossastra.CharacterCore
                 previousHeld = held;
                 return false;
             }
-            var pressed = held && !previousHeld;
             previousHeld = held;
             return pressed;
         }

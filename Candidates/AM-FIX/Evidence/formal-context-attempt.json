@@ -1,0 +1,41 @@
+{
+  "failed": 2,
+  "rows": [
+    {
+      "name": "formal body skill routes with candidate HasIntent and equipment",
+      "ok": true,
+      "clip": "atk2",
+      "source": "MainHand",
+      "last": "接受 实验·破势斩"
+    },
+    {
+      "name": "editing Router preserves current accepted phase",
+      "ok": true,
+      "clip": "atk2",
+      "source": "MainHand",
+      "last": "接受 实验·破势斩"
+    },
+    {
+      "name": "next actual body skill sees revised Router",
+      "ok": true,
+      "clip": "atk3",
+      "source": "MainHand",
+      "last": "接受 实验·破势斩"
+    },
+    {
+      "transfer": false,
+      "reason": "容量不足或目标位置不合法",
+      "access": true
+    },
+    {
+      "name": "actual chest shield B becomes available",
+      "ok": false,
+      "clip": "atk3",
+      "source": "MainHand",
+      "last": "接受 实验·破势斩"
+    },
+    {
+      "error": "System.InvalidOperationException: Sequence contains no matching element\r\n  at System.Linq.Enumerable.First[TSource] (System.Collections.Generic.IEnumerable`1[T] source, System.Func`2[T,TResult] predicate) [0x00011] in <3317859cdf8e4d3ea4e1fea2b71da691>:0 \r\n  at FormalContext.Execute (Funplay.Editor.Tools.Scripting.ExecutionContext ctx) [0x0054d] in <2b8e1c3ca07449df8b3ab1f97a77ba65>:0 "
+    }
+  ]
+}

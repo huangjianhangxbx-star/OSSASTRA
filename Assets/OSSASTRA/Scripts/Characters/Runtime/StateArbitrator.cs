@@ -74,7 +74,7 @@ namespace Ossastra.Characters
         {
             if (owner == null) return;
             FrameCount++;
-            if (!owner.IsAlive) { WeaponPosture.MaintainDeath(); RefreshSnapshots(); return; }
+            if (!owner.IsAlive) { owner.StateMovement?.Stop();WeaponPosture.MaintainDeath(); RefreshSnapshots(); return; }
             Combat.RefreshMainProfile();
             owner.StateCombatBrain?.Sample(owner.SimulationTime, deltaTime);
             owner.StateInputSource.Read();
@@ -123,6 +123,9 @@ namespace Ossastra.Characters
             Combat?.CancelAction(reason);
             foreach (var machine in ordered) ObserveEdge(machine);
         }
+        /// <summary>Root死亡/停用时停止运动并立即配对注册机退出，不等待已停用的Update。</summary>
+        public void StopMovement()
+        { if(owner==null)return;owner.StateMovement?.Stop();if(Movement!=null)ObserveEdge(Movement);RefreshSnapshots(); }
         public void Dispose()
         {
             Combat?.Dispose();

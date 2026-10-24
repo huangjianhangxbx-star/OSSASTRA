@@ -20,6 +20,8 @@ namespace Ossastra.Characters
         public bool weaponModePressed,attackHeld, dodgePressed, offhandHeld, offhandPressed, hasPointer, hasDirectionalAim, attackPointerBlocked;
         public int debugCommand;
         public bool skillOnePressed,skillTwoPressed,skillThreePressed,skillOneHeld,skillTwoHeld,skillThreeHeld;
+        public bool hasAttackEdges,attackPressed,attackReleased,attackRequestsBlocked;
+        public CharacterInputButton[] offhandButtons,skillOneButtons,skillTwoButtons,skillThreeButtons;
     }
 
     // Each character owns its serialized actions. Input does not accept attacks or write gameplay state.
@@ -150,6 +152,9 @@ namespace Ossastra.Characters
             var candidates = new List<DeviceInputCandidate>();
             bool held = false, dodge = false, offhand = false, offhandPressed = false;
             bool one = false, two = false, three = false, oneHeld = false, twoHeld = false, threeHeld = false, mode = false;
+            bool attackPressed=false,attackReleased=false;
+            var leftButtons=new List<CharacterInputButton>();var oneButtons=new List<CharacterInputButton>();
+            var twoButtons=new List<CharacterInputButton>();var threeButtons=new List<CharacterInputButton>();
             int debug = 0;
             DeviceActionSampler.DeviceSample pointerDevice = null;
             foreach (var d in sampler.Devices)
@@ -164,7 +169,11 @@ namespace Ossastra.Characters
                 var right = d.Held(rightHandAction) && !weaponChord;
                 var left = d.Held(leftHandAction) && !weaponChord;
                 held |= right; offhand |= left;
-                offhandPressed |= left && d.Pressed(leftHandAction);
+                attackPressed |= !weaponChord&&d.Pressed(rightHandAction);
+                attackReleased |= d.Button(rightHandAction).Released;
+                offhandPressed |= !weaponChord&&d.Pressed(leftHandAction);
+                leftButtons.Add(weaponChord?default:d.Button(leftHandAction));
+                oneButtons.Add(d.Button(skillOneAction));twoButtons.Add(d.Button(skillTwoAction));threeButtons.Add(d.Button(skillThreeAction));
                 var evasion = d.Pressed(dodgeAction) && !d.ConsumedByComposite(dodgeAction);
                 dodge |= evasion;
                 one |= d.Pressed(skillOneAction); two |= d.Pressed(skillTwoAction); three |= d.Pressed(skillThreeAction);
@@ -197,6 +206,8 @@ namespace Ossastra.Characters
                 moveSource = InputSources.MoveDeviceId<0?PlayerInputSource.None:
                     candidates.Any(c => c.DeviceId == InputSources.MoveDeviceId && c.IsGamepad) ? PlayerInputSource.Gamepad : PlayerInputSource.KeyboardMouse,
                 attackHeld = held, offhandHeld = offhand, offhandPressed = offhandPressed, dodgePressed = dodge,
+                hasAttackEdges=true,attackPressed=attackPressed,attackReleased=attackReleased,
+                offhandButtons=leftButtons.ToArray(),skillOneButtons=oneButtons.ToArray(),skillTwoButtons=twoButtons.ToArray(),skillThreeButtons=threeButtons.ToArray(),
                 skillOnePressed = one, skillTwoPressed = two, skillThreePressed = three,
                 skillOneHeld = oneHeld, skillTwoHeld = twoHeld, skillThreeHeld = threeHeld,
                 weaponModePressed = mode, debugCommand = debug };
@@ -220,14 +231,23 @@ namespace Ossastra.Characters
             if (InventoryCaptured)
             {
                 // 捕获只阻止新申请；既有长按保持自己的设备手势，不凭空收到释放。
-                frame.attackHeld = frame.dodgePressed = frame.offhandPressed = frame.weaponModePressed = false;
+                // 主攻仍报告物理保持/释放；只消费申请边沿，不能用伪释放给旧RT重新武装。
+                frame.attackRequestsBlocked=true;frame.attackPressed=false;
+                frame.dodgePressed = frame.offhandPressed = frame.weaponModePressed = false;
                 frame.skillOnePressed = frame.skillTwoPressed = frame.skillThreePressed = false;
                 frame.offhandHeld &= CurrentFrame.offhandHeld;
                 frame.skillOneHeld &= CurrentFrame.skillOneHeld; frame.skillTwoHeld &= CurrentFrame.skillTwoHeld; frame.skillThreeHeld &= CurrentFrame.skillThreeHeld;
+                frame.offhandButtons=CapturedButtons(frame.offhandButtons,CurrentFrame.offhandButtons);
+                frame.skillOneButtons=CapturedButtons(frame.skillOneButtons,CurrentFrame.skillOneButtons);
+                frame.skillTwoButtons=CapturedButtons(frame.skillTwoButtons,CurrentFrame.skillTwoButtons);
+                frame.skillThreeButtons=CapturedButtons(frame.skillThreeButtons,CurrentFrame.skillThreeButtons);
                 frame.hasPointer = false;
                 sampler.SuppressNewPresses();
             }
             CurrentFrame = frame; return frame;
         }
+        private static CharacterInputButton[] CapturedButtons(CharacterInputButton[] current,CharacterInputButton[] previous)
+            =>current.Select(b=>new CharacterInputButton(b.DeviceId,b.GestureId,b.Control,
+                b.Held&&(previous?.Any(p=>p.Held&&p.SameGesture(b))??false),false,b.Released)).ToArray();
     }
 }

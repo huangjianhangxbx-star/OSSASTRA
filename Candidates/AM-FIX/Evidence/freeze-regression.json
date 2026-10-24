@@ -1,0 +1,31 @@
+{
+  "state": "completed",
+  "failed": 0,
+  "rows": [
+    {
+      "name": "accepted action uses current original-style map",
+      "ok": true,
+      "current": "idle1_1"
+    },
+    {
+      "name": "in-flight action keeps pre-edit full plan",
+      "ok": true,
+      "current": "atk1"
+    },
+    {
+      "name": "other actor and shared SO remain unchanged",
+      "ok": true,
+      "current": "atk1"
+    },
+    {
+      "name": "next request accepts after original finish",
+      "ok": true,
+      "current": "idle1_1"
+    },
+    {
+      "name": "next action sees edited map",
+      "ok": true,
+      "current": "atk2"
+    }
+  ]
+}

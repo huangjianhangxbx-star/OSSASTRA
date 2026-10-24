@@ -1,0 +1,62 @@
+{
+  "state": "completed",
+  "failed": 0,
+  "rows": [
+    {
+      "name": "neutral target-device actions armed",
+      "ok": true,
+      "landing": "(0.00, 0.00, 0.00)",
+      "position": "(-2.00, 0.02, -2.00)",
+      "aim": "None",
+      "hp": 600
+    },
+    {
+      "name": "LB+Y accepts native E once without any mouse ownership",
+      "ok": true,
+      "landing": "(4.00, 0.02, -2.00)",
+      "position": "(-2.00, 0.02, -2.00)",
+      "aim": "Gamepad",
+      "hp": 600
+    },
+    {
+      "name": "landing comes from actual executor range six",
+      "ok": true,
+      "landing": "(4.00, 0.02, -2.00)",
+      "position": "(-2.00, 0.02, -2.00)",
+      "aim": "Gamepad",
+      "hp": 600
+    },
+    {
+      "name": "keyboard movement can change source without changing accepted target",
+      "ok": true,
+      "landing": "(4.00, 0.02, -2.00)",
+      "position": "(-2.00, 0.02, -2.00)",
+      "aim": "KeyboardMouse",
+      "hp": 600
+    },
+    {
+      "name": "release keyboard during actual leap",
+      "ok": true,
+      "landing": "(4.00, 0.02, -2.00)",
+      "position": "(-0.89, 0.02, -2.00)",
+      "aim": "KeyboardMouse",
+      "hp": 600
+    },
+    {
+      "name": "actual skill reaches collision-limited frozen landing and damages target",
+      "ok": true,
+      "landing": "(4.00, 0.02, -2.00)",
+      "position": "(3.43, 0.02, -2.00)",
+      "aim": "KeyboardMouse",
+      "hp": 515
+    },
+    {
+      "name": "one ordinary action accepted despite changed input source",
+      "ok": true,
+      "landing": "(4.00, 0.02, -2.00)",
+      "position": "(3.43, 0.02, -2.00)",
+      "aim": "KeyboardMouse",
+      "hp": 515
+    }
+  ]
+}

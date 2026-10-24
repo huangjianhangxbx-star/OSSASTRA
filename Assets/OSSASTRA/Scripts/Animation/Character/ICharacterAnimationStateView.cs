@@ -5,6 +5,7 @@ namespace Ossastra.Characters
 {
     public interface ICharacterDefaultActionAnimation
     {
+        ConfiguredActionSnapshot FreezeDefaultAction(Ossastra.CharacterCore.BasicAttackDefinition timeline,int stage);
         void CaptureDefaultAction(Guid actionId,Ossastra.CharacterCore.BasicAttackDefinition timeline,int stage);
     }
     public interface ICharacterAnimationStateView

@@ -51,5 +51,17 @@ namespace Ossastra.CharacterCore.Abilities
             {longWon=true;return GestureSignal.LongPress;}
             return GestureSignal.None;
         }
+
+        /// <summary>快按快松保留两个边沿；一次语义最多发一个申请，Hold仍在本帧结束。</summary>
+        public GestureSignal Sample(bool held,bool pressed,bool released,double now,int generation)
+        {
+            if(!held&&pressed&&released)
+            {
+                var begin=Sample(true,now,generation);
+                var end=Sample(false,now,generation);
+                return mode==GestureMode.Release||mode==GestureMode.TapOrLongPress?end:begin;
+            }
+            return Sample(held,now,generation);
+        }
     }
 }

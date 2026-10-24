@@ -1,0 +1,232 @@
+[
+  {
+    "file": "f01-green.json",
+    "category": "verification",
+    "failed": null,
+    "passed": true,
+    "rows": null
+  },
+  {
+    "file": "f01-red.json",
+    "category": "preserved-red-or-fixture-attempt",
+    "failed": null,
+    "passed": false,
+    "rows": null
+  },
+  {
+    "file": "f01-repro-green.json",
+    "category": "verification",
+    "failed": null,
+    "passed": true,
+    "rows": null
+  },
+  {
+    "file": "f02-route-green.json",
+    "category": "verification",
+    "failed": null,
+    "passed": true,
+    "rows": null
+  },
+  {
+    "file": "f02-route-red.json",
+    "category": "preserved-red-or-fixture-attempt",
+    "failed": null,
+    "passed": false,
+    "rows": null
+  },
+  {
+    "file": "f03-equipment-green.json",
+    "category": "verification",
+    "failed": null,
+    "passed": true,
+    "rows": null
+  },
+  {
+    "file": "f03-equipment-red.json",
+    "category": "preserved-red-or-fixture-attempt",
+    "failed": null,
+    "passed": false,
+    "rows": null
+  },
+  {
+    "file": "final-log-check.json",
+    "category": "verification",
+    "failed": null,
+    "passed": null,
+    "rows": null
+  },
+  {
+    "file": "final-runtime.json",
+    "category": "verification",
+    "failed": [
+      null,
+      null
+    ],
+    "passed": [
+      null,
+      null
+    ],
+    "rows": 2
+  },
+  {
+    "file": "formal-context-attempt.json",
+    "category": "preserved-red-or-fixture-attempt",
+    "failed": 2,
+    "passed": null,
+    "rows": 6
+  },
+  {
+    "file": "formal-context-cooldown-attempt.json",
+    "category": "preserved-red-or-fixture-attempt",
+    "failed": 1,
+    "passed": null,
+    "rows": 7
+  },
+  {
+    "file": "formal-context.json",
+    "category": "verification",
+    "failed": 0,
+    "passed": null,
+    "rows": 7
+  },
+  {
+    "file": "freeze-regression.json",
+    "category": "verification",
+    "failed": 0,
+    "passed": null,
+    "rows": 5
+  },
+  {
+    "file": "guard-regression.json",
+    "category": "verification",
+    "failed": 0,
+    "passed": null,
+    "rows": 13
+  },
+  {
+    "file": "hands-regression.json",
+    "category": "verification",
+    "failed": 0,
+    "passed": null,
+    "rows": 9
+  },
+  {
+    "file": "input-final.json",
+    "category": "verification",
+    "failed": 0,
+    "passed": null,
+    "rows": 24
+  },
+  {
+    "file": "input-green.json",
+    "category": "verification",
+    "failed": 0,
+    "passed": null,
+    "rows": 18
+  },
+  {
+    "file": "input-red.json",
+    "category": "preserved-red-or-fixture-attempt",
+    "failed": 4,
+    "passed": null,
+    "rows": 18
+  },
+  {
+    "file": "lifecycle-regression.json",
+    "category": "verification",
+    "failed": 0,
+    "passed": null,
+    "rows": 13
+  },
+  {
+    "file": "main-group-world.json",
+    "category": "verification",
+    "failed": 0,
+    "passed": null,
+    "rows": 12
+  },
+  {
+    "file": "mixed-regression.json",
+    "category": "verification",
+    "failed": 0,
+    "passed": null,
+    "rows": 36
+  },
+  {
+    "file": "movement-fixture-blocked.json",
+    "category": "preserved-red-or-fixture-attempt",
+    "failed": 2,
+    "passed": null,
+    "rows": 4
+  },
+  {
+    "file": "movement-green.json",
+    "category": "verification",
+    "failed": 0,
+    "passed": null,
+    "rows": 4
+  },
+  {
+    "file": "movement-red.json",
+    "category": "preserved-red-or-fixture-attempt",
+    "failed": 2,
+    "passed": null,
+    "rows": 4
+  },
+  {
+    "file": "natural-input-regression.json",
+    "category": "verification",
+    "failed": 0,
+    "passed": null,
+    "rows": 17
+  },
+  {
+    "file": "playback-regression.json",
+    "category": "verification",
+    "failed": 0,
+    "passed": null,
+    "rows": 22
+  },
+  {
+    "file": "pulse-consumers.json",
+    "category": "verification",
+    "failed": 0,
+    "passed": null,
+    "rows": 11
+  },
+  {
+    "file": "six-skills-regression.json",
+    "category": "verification",
+    "failed": 0,
+    "passed": null,
+    "rows": 25
+  },
+  {
+    "file": "six-skills-route-red.json",
+    "category": "preserved-red-or-fixture-attempt",
+    "failed": 10,
+    "passed": null,
+    "rows": 25
+  },
+  {
+    "file": "snapshot-plan.json",
+    "category": "verification",
+    "failed": 0,
+    "passed": null,
+    "rows": 5
+  },
+  {
+    "file": "source-regression.json",
+    "category": "verification",
+    "failed": 0,
+    "passed": null,
+    "rows": 24
+  },
+  {
+    "file": "targeting-regression.json",
+    "category": "verification",
+    "failed": 0,
+    "passed": null,
+    "rows": 7
+  }
+]

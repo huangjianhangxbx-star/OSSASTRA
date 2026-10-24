@@ -1,0 +1,52 @@
+{
+  "failed": 1,
+  "rows": [
+    {
+      "name": "formal body skill routes with candidate HasIntent and equipment",
+      "ok": true,
+      "clip": "atk2",
+      "source": "MainHand",
+      "last": "接受 实验·破势斩"
+    },
+    {
+      "name": "editing Router preserves current accepted phase",
+      "ok": true,
+      "clip": "atk2",
+      "source": "MainHand",
+      "last": "接受 实验·破势斩"
+    },
+    {
+      "name": "next actual body skill sees revised Router",
+      "ok": true,
+      "clip": "atk3",
+      "source": "MainHand",
+      "last": "接受 实验·破势斩"
+    },
+    {
+      "transfer": true,
+      "reason": null,
+      "access": true
+    },
+    {
+      "name": "actual chest shield B equips via inventory swap",
+      "ok": true,
+      "clip": "atk3",
+      "source": "MainHand",
+      "last": "接受 实验·破势斩"
+    },
+    {
+      "name": "actual offhand body action uses left equipment override and routes",
+      "ok": false,
+      "clip": "idle1_1",
+      "source": "MainHand",
+      "last": "拒绝：来源失效或冷却中"
+    },
+    {
+      "name": "one dodge identity retains its prepared plan",
+      "ok": true,
+      "clip": "atk2",
+      "source": "MainHand",
+      "last": "拒绝：来源失效或冷却中"
+    }
+  ]
+}

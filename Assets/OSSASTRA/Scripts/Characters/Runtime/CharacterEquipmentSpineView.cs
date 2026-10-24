@@ -161,7 +161,8 @@ namespace Ossastra.Characters
                 Guid execution=Guid.Empty;bool guarding=false,usesBody=false;
                 if(own)module.TryGetHandPresentation(main,out execution,out guarding,out usesBody);
                 if(own&&usesBody&&!ActionPresentationPolicy.RetainMainPose(root.ActionActive,root.DataBus.MoveReady,root.DataBus.IsMoving)&&!root.DataBus.AbilityMotionActive)own=false;
-                bool mainPose=main&&root.ActionActive&&view.CurrentSource=="action";
+                bool mainPose=main&&root.ActionActive&&view.CurrentSource=="action"&&
+                    (!(view is Ossastra.CharacterAnimation.CharacterAnimationController controller)||controller.CapturedSource==Ossastra.CharacterAnimation.AnimationIntentSourceStateMachine.MainHand);
                 var semantic=own?(guarding?AnimationSemantic.Guard:AnimationSemantic.BasicAttack):mainPose?view.CurrentSemantic:
                     view.CurrentSemantic==AnimationSemantic.BasicAttack||view.CurrentSemantic==AnimationSemantic.BasicAttackSecond?(root.DataBus.IsMoving?AnimationSemantic.Move:AnimationSemantic.Idle):view.CurrentSemantic;
                 ExecutionId=own?execution:mainPose?root.DataBus.ActionId:Guid.Empty;

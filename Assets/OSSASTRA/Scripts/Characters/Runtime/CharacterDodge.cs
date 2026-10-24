@@ -18,6 +18,7 @@ namespace Ossastra.Characters
         private CharacterStamina stamina;
         private Vector3 direction;
         public Guid ActionId {get;private set;}
+        public ConfiguredActionSnapshot PreparedAnimation {get;private set;}
         public string LastResult {get;private set;}="无";
         public bool IsActive=>isActiveAndEnabled&&state!=null&&state.IsActive;
         public bool IsEvading=>IsActive&&owner!=null&&owner.CanSimulateIntent&&state.IsInvulnerable;
@@ -34,14 +35,18 @@ namespace Ossastra.Characters
             direction=move.sqrMagnitude>.0001f?new Vector3(move.x,0,move.y).normalized:owner.DataBus.AttackDirection;
             direction.y=0;if(direction.sqrMagnitude<.0001f){LastResult="无可靠方向";return false;}
             direction.Normalize();
+            ConfiguredActionSnapshot animation=null;
+            var presentation=owner.StatePresentation as ICharacterPreparedAnimation;
+            try{if(presentation!=null)animation=presentation.PrepareDodge(duration);}catch(ArgumentException error){LastResult="拒绝："+error.Message;return false;}
             var request=owner.Actions.CreateRequest(CharacterActionKind.Dodge,CharacterActionSource.Player);
             if(!owner.Actions.TryCommit(request,cost,()=>state.TryStart(owner.SimulationTime)?request.RequestId:Guid.Empty,out var reason))
             {LastResult="拒绝："+reason;return false;}
             ActionId=request.RequestId;
+            PreparedAnimation=animation;
             LastResult="Accepted SAMPLE，表现由角色动画配置映射";return true;
         }
         public void Tick(double time){state?.Tick(time);}
-        public void Cancel(){state?.Cancel();}
+        public void Cancel(){state?.Cancel();PreparedAnimation=null;}
         private void OnDisable(){Cancel();}
     }
 }

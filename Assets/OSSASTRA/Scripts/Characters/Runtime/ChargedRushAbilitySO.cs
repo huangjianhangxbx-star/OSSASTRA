@@ -34,7 +34,9 @@ namespace Ossastra.Characters
             {this.release=release;this.charge=charge;frozenRelease=a;frozenCharge=b;}
             public override bool UsesBodyAction=>true;
             public override bool StartsCooldownOnAccept=>false;
-            public override CompiledAbilityExecutor Prepare(CharacterRoot owner)=>new Executor(null,null,owner.FreezeAbilityPhase(release),owner.FreezeAbilityPhase(charge));
+            public override CompiledAbilityExecutor Prepare(CharacterRoot owner)=>Prepare(owner,null,new CharacterAnimationPreparation(true));
+            public override CompiledAbilityExecutor Prepare(CharacterRoot owner,IAbilitySource source,CharacterAnimationPreparation preparation)
+                =>new Executor(null,null,owner.FreezeAbilityPhase(release,preparation),owner.FreezeAbilityPhase(charge,preparation));
             public override AbilityRun CreateRun(AbilityRunContext context)=>new Run(context,frozenRelease,frozenCharge);
         }
         private sealed class Run:AbilityRun,ICharacterMotionOverride,ICombatEvasion

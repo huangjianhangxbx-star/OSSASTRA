@@ -13,6 +13,7 @@ namespace Ossastra.Characters
         public virtual CharacterActionKind ActionKind=>UsesBodyAction?CharacterActionKind.Main:CharacterActionKind.Offhand;
         public virtual CompiledAbilityExecutor Prepare(CharacterRoot owner)=>this;
         public virtual CompiledAbilityExecutor Prepare(CharacterRoot owner,IAbilitySource source)=>Prepare(owner);
+        public virtual CompiledAbilityExecutor Prepare(CharacterRoot owner,IAbilitySource source,CharacterAnimationPreparation preparation)=>Prepare(owner,source);
         public virtual ConfiguredActionSnapshot InitialPhase=>null;
         public virtual Ossastra.Combat.DeliveryParameters AcceptanceDelivery=>null;
         public virtual bool RepeatWhileHeld=>false;
