@@ -1,0 +1,63 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "passed": 9,
+      "failed": 0,
+      "rows": [
+        {
+          "name": "原因枚举与只读属性确定",
+          "passed": true,
+          "detail": null
+        },
+        {
+          "name": "旧四参数调用兼容且默认为Direct",
+          "passed": true,
+          "detail": null
+        },
+        {
+          "name": "Direct保留真实原因与完整执行身份",
+          "passed": true,
+          "detail": null
+        },
+        {
+          "name": "Direct不改变原HP与逐目标Applied回执",
+          "passed": true,
+          "detail": null
+        },
+        {
+          "name": "Periodic保留真实原因与完整执行身份",
+          "passed": true,
+          "detail": null
+        },
+        {
+          "name": "Periodic不改变原HP与逐目标Applied回执",
+          "passed": true,
+          "detail": null
+        },
+        {
+          "name": "Secondary保留真实原因与完整执行身份",
+          "passed": true,
+          "detail": null
+        },
+        {
+          "name": "Secondary不改变原HP与逐目标Applied回执",
+          "passed": true,
+          "detail": null
+        },
+        {
+          "name": "三种原因共用唯一Health余额",
+          "passed": true,
+          "detail": null
+        }
+      ],
+      "scope": "自有受击体真实结算；不触及场景角色或声音策略"
+    }
+  }
+}

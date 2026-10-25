@@ -21,6 +21,9 @@ namespace Ossastra.Audio
         private readonly Dictionary<int,CombatSfxFactAdapter> factOwners=new Dictionary<int,CombatSfxFactAdapter>();
         private readonly Queue<SfxObservation> sfxHistory=new Queue<SfxObservation>();
         private string sceneScope;
+        private SfxCatalogSO effectiveCatalog;
+        public SfxCatalogSO SfxCatalog => effectiveCatalog;
+        public string SfxContentStatus { get; private set; } = "尚未选择内容";
         public sealed class SfxObservation
         {
             public SfxRequest Request{get;internal set;}
@@ -77,6 +80,11 @@ namespace Ossastra.Audio
                     output=bootstrap.bgmOutput;UnifiedMix.LoadUserSettings();
                     Sfx=new SfxArbitrator(bootstrap.softVoices,bootstrap.hardVoices);
                     SfxPlayer=new SfxVoicePlayer(gameObject,Sfx,bootstrap.Route,bootstrap.hardVoices);
+                    var content=Resources.Load<SfxContentSetSO>("OssastraSfxContent");
+                    effectiveCatalog=bootstrap.sfxCatalog;
+                    if(content!=null&&content.Validate(out var contentReason))
+                    {effectiveCatalog=content.catalog;SfxContentStatus=content.contentLabel;}
+                    else SfxContentStatus="仅公共诊断目录；正常战斗精选素材缺失";
                     BeginSfxWorld(UnityEngine.SceneManagement.SceneManager.GetActiveScene().path+"#"+UnityEngine.SceneManagement.SceneManager.GetActiveScene().handle);
                     SfxStatus="统一SFX就绪";
                 }
@@ -168,7 +176,7 @@ namespace Ossastra.Audio
         {
             SfxDecision decision;bool issued=false;string reason="";
             if(!SfxAvailable)decision=new SfxDecision(false,"OWNER_UNAVAILABLE:"+SfxStatus);
-            else if(!bootstrap.sfxCatalog.TryResolve(request.EventId,out var definition,out reason))decision=new SfxDecision(false,reason);
+            else if(effectiveCatalog==null||!effectiveCatalog.TryResolve(request.EventId,out var definition,out reason))decision=new SfxDecision(false,string.IsNullOrEmpty(reason)?"SFX_CONTENT_MISSING":reason);
             else
             {
                 decision=Sfx.Submit(request,definition,Time.realtimeSinceStartupAsDouble);

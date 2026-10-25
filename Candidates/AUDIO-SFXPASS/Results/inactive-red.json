@@ -1,0 +1,29 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "passed": 2,
+      "failed": 1,
+      "rows": [
+        {
+          "name": "活动角色有合法声音资格",
+          "passed": true
+        },
+        {
+          "name": "只禁用根组件立即撤销声音资格",
+          "passed": false
+        },
+        {
+          "name": "恢复根组件后可继续观察",
+          "passed": true
+        }
+      ]
+    }
+  }
+}

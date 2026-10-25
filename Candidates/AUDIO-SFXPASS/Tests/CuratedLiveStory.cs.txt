@@ -1,0 +1,330 @@
+/* AUDIO-M02自然输入故事：真实InputSystem设备沿现有绑定推进接受/释放、命中、闪避、格挡、治疗与切控。
+ * 仅摆放敌人形成有限交战窗口；不写HP、资源、Engaged、装备、技能、绑定或InputSettings。
+ * Report区分既成事实、统一根请求、Source播放与实际路由；不能由这些结果代签波形/主观听感。
+ * 游戏产生的HP/费用/瓶消耗不回填；测试位置、局部焦点、虚拟设备和Editor回调必在finally路径清理。
+ */
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using UnityEngine;
+using UnityEditor;
+using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.LowLevel;
+using Funplay.Editor.Tools.Scripting;
+using A = Ossastra.Audio;
+using C = Ossastra.Characters;
+using E = Ossastra.Enemies;
+using U = Ossastra.UserInterface;
+using Ossastra.CharacterCore;
+
+public sealed class CuratedLiveStory : IFunplayCommand
+{
+    private sealed class FocusSnapshot { public Component component; public bool focused; }
+    private static readonly List<object> rows = new List<object>();
+    private static readonly List<object> domainFacts = new List<object>();
+    private static readonly List<object> audioFacts = new List<object>();
+    private static readonly List<object> sourceFacts = new List<object>();
+    private static readonly List<Action> unsubscribe = new List<Action>();
+    private static readonly List<FocusSnapshot> focuses = new List<FocusSnapshot>();
+    private static readonly Dictionary<Transform, Vector3> positions = new Dictionary<Transform, Vector3>();
+    private static readonly HashSet<string> seenRequests = new HashSet<string>();
+    private static readonly HashSet<long> seenVoices = new HashSet<long>();
+    private static readonly HashSet<string> routeNames = new HashSet<string>();
+    private static readonly Dictionary<string, int> acceptedByActor = new Dictionary<string, int>();
+    private static readonly Dictionary<string, int> releasedByActor = new Dictionary<string, int>();
+    private static readonly List<(double at, Action run)> steps = new List<(double, Action)>();
+    private static A.GameAudioRoot audio;
+    private static A.CombatSfxFactAdapter adapter;
+    private static C.CharacterControlCoordinator coordinator;
+    private static C.CharacterRoot originalCurrent;
+    private static C.CharacterRoot[] actors;
+    private static E.EnemyRoot[] enemies;
+    private static C.HealingBottleService bottle;
+    private static U.CombatFeedbackView visual;
+    private static Gamepad pad;
+    private static Keyboard keyboard;
+    private static Mouse mouse;
+    private static InputSettings inputSettings;
+    private static bool editorMute, mixFocus, running, done;
+    private static float originalScale;
+    private static string error, prefs, switchPaths;
+    private static Key switchKey;
+    private static double started, hardStarted;
+    private static int next, lastFrame, accepted, released, enemyAccepted, enemyReleased;
+    private static int baselineReleases, baselineHits, baselineHurts, baselineVoices, baselineSourceCount;
+    private static int visualRelease, visualHit, visualMotion, visualHealing;
+    private static int attackAccepted, attackReleased, attackEnemyHp, guardBefore, abilityBefore, healingBefore;
+    private static Guid dodgeBefore;
+    private static C.CharacterRoot switchedFrom;
+    private static string attackActorId;
+    private static C.CharacterAbilities trialAbility, guardAbility;
+    private static Vector3 movedFrom, dodgePosition;
+    private static int[] hpBefore;
+
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+    {
+        if (running) throw new InvalidOperationException("CuratedLiveStory已经运行，不重复登记Editor回调");
+        try
+        {
+            if (!Application.isPlaying || Time.timeScale <= 0) throw new InvalidOperationException("需要新AUDIO-M02场处于正常Play");
+            audio = A.GameAudioRoot.Instance;
+            adapter = UnityEngine.Object.FindObjectOfType<A.CombatSfxFactAdapter>();
+            coordinator = UnityEngine.Object.FindObjectOfType<C.CharacterControlCoordinator>();
+            bottle = UnityEngine.Object.FindObjectOfType<C.HealingBottleService>();
+            visual = UnityEngine.Object.FindObjectOfType<U.CombatFeedbackView>();
+            if (audio == null || !audio.SfxAvailable || adapter == null || coordinator?.Current == null)
+                throw new InvalidOperationException("统一根、事实适配器、Current必须真实就绪");
+            actors = coordinator.Characters.Where(a => a != null).ToArray();
+            enemies = UnityEngine.Object.FindObjectsOfType<E.EnemyRoot>();
+            if (enemies.Length == 0) throw new InvalidOperationException("当前场没有敌方实体，不能用假命中替代");
+
+            rows.Clear(); domainFacts.Clear(); audioFacts.Clear(); sourceFacts.Clear(); unsubscribe.Clear();
+            focuses.Clear(); positions.Clear(); seenRequests.Clear(); seenVoices.Clear(); routeNames.Clear(); steps.Clear(); acceptedByActor.Clear(); releasedByActor.Clear();
+            originalCurrent = coordinator.Current;
+            inputSettings = InputSystem.settings; editorMute = EditorUtility.audioMasterMute; originalScale = Time.timeScale;
+            mixFocus = audio.Mix.Focused; prefs = Preferences();
+            accepted = released = enemyAccepted = enemyReleased = next = 0; error = ""; done = false; lastFrame = -1;
+            baselineReleases = adapter.Releases; baselineHits = adapter.Hits; baselineHurts = adapter.Hurts;
+            baselineVoices = audio.SfxPlayer.StartedCount; baselineSourceCount = audio.GetComponentsInChildren<AudioSource>(true).Length;
+            visualRelease = visual == null ? 0 : visual.ReleaseCues; visualHit = visual == null ? 0 : visual.HitCues;
+            visualMotion = visual == null ? 0 : visual.MotionCues; visualHealing = visual == null ? 0 : visual.HealingCues;
+            hpBefore = actors.Select(a => a.Vitals.Health.Current).ToArray();
+            foreach (var item in audio.SfxHistory) seenRequests.Add(RequestKey(item));
+
+            LocalFocus(coordinator);
+            foreach (var actor in actors)
+            {
+                positions[actor.transform] = actor.transform.position; LocalFocus(actor);
+                var owner = actor;
+                Action<ActionFact> callback = f =>
+                {
+                    if (f.Kind == ActionFactKind.Accepted) { accepted++; acceptedByActor[owner.ActorId] = ActorCount(acceptedByActor, owner.ActorId) + 1; }
+                    if (f.Kind == ActionFactKind.Released) { released++; releasedByActor[owner.ActorId] = ActorCount(releasedByActor, owner.ActorId) + 1; }
+                    domainFacts.Add(new { actor = owner.ActorId, kind = f.Kind.ToString(), id = f.ActionId.ToString("N"), source = f.Source, at = f.At, time = Elapsed });
+                };
+                actor.ActionObserved += callback;
+                unsubscribe.Add(() => { if (owner != null) owner.ActionObserved -= callback; });
+                var abilities = actor.GetComponent<C.CharacterAbilities>();
+                if (abilities != null)
+                {
+                    Action<Guid, string, Vector3> feedback = (id, kind, point) => domainFacts.Add(new { actor = owner.ActorId, kind = "ability." + kind, id = id.ToString("N"), position = point.ToString("F3"), time = Elapsed });
+                    abilities.Feedback += feedback;
+                    unsubscribe.Add(() => { if (abilities != null) abilities.Feedback -= feedback; });
+                }
+            }
+            foreach (var enemy in enemies)
+            {
+                positions[enemy.transform] = enemy.transform.position; LocalFocus(enemy);
+                var owner = enemy;
+                Action<ActionFact> callback = f =>
+                {
+                    if (f.Kind == ActionFactKind.Accepted) enemyAccepted++;
+                    if (f.Kind == ActionFactKind.Released) enemyReleased++;
+                    domainFacts.Add(new { actor = owner.ActorId, kind = f.Kind.ToString(), id = f.ActionId.ToString("N"), source = f.Source, time = Elapsed });
+                };
+                enemy.ActionObserved += callback;
+                unsubscribe.Add(() => { if (owner != null) owner.ActionObserved -= callback; });
+            }
+            foreach (var consumer in UnityEngine.Object.FindObjectsOfType<C.PartyConsumableInput>()) LocalFocus(consumer);
+            audio.SendMessage("OnApplicationFocus", true, SendMessageOptions.DontRequireReceiver);
+            pad = InputSystem.AddDevice<Gamepad>("AUDIO_M02_StoryPad");
+            keyboard = InputSystem.AddDevice<Keyboard>("AUDIO_M02_StoryKeyboard");
+            mouse = InputSystem.AddDevice<Mouse>("AUDIO_M02_StoryMouse");
+            switchPaths = string.Join(";", coordinator.switchAction.bindings.Select(b => b.effectivePath));
+            switchKey = switchPaths.IndexOf("/z", StringComparison.OrdinalIgnoreCase) >= 0 ? Key.Z : Key.Digit7;
+            Neutral();
+            FarEnemies();
+            BuildSteps();
+            started = hardStarted = EditorApplication.timeSinceStartup; running = true;
+            EditorApplication.update += Tick;
+            ctx.ReturnValue = new { started = true, durationSeconds = 53, hardLimitSeconds = 65, actualBindings = switchPaths, overrideBindings = false, changesInputSettings = false, outputProof = "SOURCE_ONLY" };
+        }
+        catch (Exception e) { error = e.ToString(); Cleanup(); ctx.ReturnValue = Report(); }
+    }
+
+    private static double Elapsed => EditorApplication.timeSinceStartup - started;
+    private static C.CharacterRoot Current => coordinator == null ? null : coordinator.Current;
+    private static C.CharacterAbilities Ability => Current == null ? null : Current.GetComponent<C.CharacterAbilities>();
+    private static int EnemyHp => enemies.Where(e => e != null && e.Vitals?.Health != null).Sum(e => e.Vitals.Health.Current);
+    private static int PartyHp => actors.Where(a => a != null && a.Vitals?.Health != null).Sum(a => a.Vitals.Health.Current);
+    private static int ActorCount(Dictionary<string, int> counts, string actor) => actor != null && counts.TryGetValue(actor, out var value) ? value : 0;
+    private static void At(double time, Action action) => steps.Add((time, action));
+    private static void Keys(params Key[] keys) { if (keyboard != null) InputSystem.QueueStateEvent(keyboard, new KeyboardState(keys)); }
+    private static void Pad(GamepadState state) { if (pad != null) InputSystem.QueueStateEvent(pad, state); }
+    private static void Neutral() { Keys(); Pad(new GamepadState()); if (mouse != null) InputSystem.QueueStateEvent(mouse, new MouseState()); }
+    private static void Aim()
+    {
+        if (mouse == null || Camera.main == null) return;
+        var target = enemies.FirstOrDefault(e => e != null && e.Vitals != null && e.Vitals.IsAlive);
+        if (target == null) return;
+        var point = Camera.main.WorldToScreenPoint(target.transform.position + Vector3.up * .3f);
+        InputSystem.QueueStateEvent(mouse, new MouseState { position = new Vector2(point.x, point.y) });
+    }
+    private static void Place(Transform target, Vector3 position)
+    {
+        if (target == null) return;
+        var body = target.GetComponent<CharacterController>(); var enabled = body != null && body.enabled;
+        if (enabled) body.enabled = false;
+        target.position = position;
+        if (enabled) body.enabled = true;
+        Physics.SyncTransforms();
+    }
+    private static void NearEnemy(float distance)
+    {
+        if (Current == null) return;
+        var point = Current.transform.position + Vector3.right * distance;
+        for (int i = 0; i < enemies.Length; i++) if (enemies[i] != null) Place(enemies[i].transform, point + Vector3.forward * i * 3);
+        Aim();
+    }
+    private static void FarEnemies()
+    {
+        if (originalCurrent == null) return;
+        var origin = positions[originalCurrent.transform];
+        for (int i = 0; i < enemies.Length; i++) if (enemies[i] != null) Place(enemies[i].transform, origin + new Vector3(60 + i * 5, 0, 0));
+    }
+
+    private static void BuildSteps()
+    {
+        At(.8, () => { movedFrom = Current.transform.position; Pad(new GamepadState { leftStick = Vector2.right * .7f }); });
+        At(1.2, () => { Neutral(); Row("真实左摇杆移动", Vector3.Distance(movedFrom, Current.transform.position) > .1f); });
+        At(2, () => { NearEnemy(1.1f); attackActorId = Current.ActorId; attackAccepted = ActorCount(acceptedByActor, attackActorId); attackReleased = ActorCount(releasedByActor, attackActorId); attackEnemyHp = EnemyHp; Pad(new GamepadState { rightTrigger = 1 }); });
+        At(2.2, () => Pad(new GamepadState()));
+        At(3.2, () => { Row("RT沿现有绑定接受并释放", ActorCount(acceptedByActor, attackActorId) > attackAccepted && ActorCount(releasedByActor, attackActorId) > attackReleased, new { actor = attackActorId }); Row("实际普攻接触降低敌方HP", EnemyHp < attackEnemyHp, new { before = attackEnemyHp, after = EnemyHp }); FarEnemies(); });
+        At(5, () => { dodgeBefore = Current.GetComponent<C.CharacterDodge>()?.ActionId ?? Guid.Empty; dodgePosition = Current.transform.position; Pad(new GamepadState { leftStick = Vector2.right }.WithButton(GamepadButton.East)); });
+        At(5.2, () => Pad(new GamepadState()));
+        At(6, () => { var dodge = Current.GetComponent<C.CharacterDodge>(); Row("East加方向触发真实闪避", dodge != null && dodge.ActionId != dodgeBefore && Vector3.Distance(dodgePosition, Current.transform.position) > .2f, new { before = dodgeBefore, after = dodge?.ActionId, result = dodge?.LastResult }); });
+        At(7.2, () => { NearEnemy(1.05f); guardAbility = Ability; guardBefore = guardAbility?.GuardedCount ?? 0; Pad(new GamepadState { leftTrigger = 1 }); });
+        At(9.4, () => { Row("LT真实防御收据", (guardAbility?.GuardedCount ?? 0) > guardBefore, new { before = guardBefore, after = guardAbility?.GuardedCount, guarding = guardAbility?.IsGuarding, result = guardAbility?.LastResult }); Neutral(); FarEnemies(); });
+        At(11.2, () => { NearEnemy(1.1f); trialAbility = Ability; abilityBefore = trialAbility?.AcceptedCount ?? 0; Keys(Key.Q); Aim(); });
+        At(11.4, () => Keys());
+        At(12.4, () => { Row("Q沿现有能力绑定接受", (trialAbility?.AcceptedCount ?? 0) > abilityBefore, new { before = abilityBefore, after = trialAbility?.AcceptedCount, result = trialAbility?.LastResult }); FarEnemies(); });
+        At(15.2, () => { NearEnemy(2.2f); trialAbility = Ability; abilityBefore = trialAbility?.AcceptedCount ?? 0; Keys(Key.E); Aim(); });
+        At(15.6, () => Keys());
+        At(16.6, () => { Row("E沿原生能力绑定接受", (trialAbility?.AcceptedCount ?? 0) > abilityBefore, new { before = abilityBefore, after = trialAbility?.AcceptedCount, result = trialAbility?.LastResult }); FarEnemies(); });
+        At(20.2, () => { attackEnemyHp = PartyHp; NearEnemy(1.0f); Neutral(); });
+        At(21.1, () => { Row("敌方实际动作释放", enemyAccepted > 0 && enemyReleased > 0, new { enemyAccepted, enemyReleased }); Row("真实敌击导致队伍HP下降", PartyHp < attackEnemyHp, new { before = attackEnemyHp, after = PartyHp }); FarEnemies(); });
+        At(23.8, () => { healingBefore = bottle == null ? 0 : bottle.UseCount; Keys(Key.Y); });
+        At(24, () => Keys());
+        At(25.5, () => Row("Y真实共享瓶消费与治疗", bottle != null && bottle.UseCount > healingBefore, new { before = healingBefore, after = bottle?.UseCount, result = bottle?.LastResult, partyHp = PartyHp }));
+        At(27.2, () => { switchedFrom = Current; Keys(switchKey); });
+        At(27.4, () => Keys());
+        At(28.2, () => Row("现有切控绑定更换Current", Current != null && Current != switchedFrom, new { key = switchKey.ToString(), paths = switchPaths, before = switchedFrom?.ActorId, after = Current?.ActorId }));
+        At(29.2, () => { if (Current == null) return; NearEnemy(1.1f); attackActorId = Current.ActorId; attackAccepted = ActorCount(acceptedByActor, attackActorId); attackReleased = ActorCount(releasedByActor, attackActorId); Pad(new GamepadState { rightTrigger = 1 }); });
+        At(29.4, () => Pad(new GamepadState()));
+        At(30.5, () => { Row("切控后真实RT来源仍独立", ActorCount(acceptedByActor, attackActorId) > attackAccepted && ActorCount(releasedByActor, attackActorId) > attackReleased, new { current = Current?.ActorId, actor = attackActorId }); FarEnemies(); });
+        At(33.2, () => { NearEnemy(1.1f); trialAbility = Ability; abilityBefore = trialAbility?.AcceptedCount ?? 0; Keys(Key.Q); Aim(); });
+        At(33.4, () => Keys());
+        At(34.4, () => { Row("另一角色Q真实接受", (trialAbility?.AcceptedCount ?? 0) > abilityBefore, new { result = trialAbility?.LastResult }); FarEnemies(); });
+        At(36.2, () => { NearEnemy(2.2f); trialAbility = Ability; abilityBefore = trialAbility?.AcceptedCount ?? 0; Keys(Key.E); Aim(); });
+        At(36.6, () => Keys());
+        At(37.6, () => { Row("另一角色E真实接受", (trialAbility?.AcceptedCount ?? 0) > abilityBefore, new { result = trialAbility?.LastResult }); FarEnemies(); Neutral(); });
+        At(41.2, () => { if (Current != originalCurrent && originalCurrent != null && originalCurrent.IsAlive) Keys(switchKey); });
+        At(41.4, () => Keys());
+        At(43.2, () =>
+        {
+            CaptureAudio();
+            Row("统一根确有非开发战斗释放命中受伤请求", adapter.Releases > baselineReleases && adapter.Hits > baselineHits && adapter.Hurts > baselineHurts,
+                new { releases = adapter.Releases - baselineReleases, hits = adapter.Hits - baselineHits, hurts = adapter.Hurts - baselineHurts });
+            Row("Player与Enemy实际Source路由", routeNames.Contains("Player") && routeNames.Contains("Enemy"), new { routes = routeNames.ToArray() });
+            Row("现有视觉计数保留", visual != null && visual.ReleaseCues > visualRelease && visual.HitCues > visualHit,
+                new { release = visual == null ? 0 : visual.ReleaseCues - visualRelease, hit = visual == null ? 0 : visual.HitCues - visualHit,
+                    motion = visual == null ? 0 : visual.MotionCues - visualMotion, healing = visual == null ? 0 : visual.HealingCues - visualHealing });
+            Row("声源池对象数保持有界", audio.GetComponentsInChildren<AudioSource>(true).Length == baselineSourceCount,
+                new { before = baselineSourceCount, after = audio.GetComponentsInChildren<AudioSource>(true).Length, started = audio.SfxPlayer.StartedCount - baselineVoices, active = audio.SfxPlayer.ActiveCount, returned = audio.SfxPlayer.ReturnedCount });
+        });
+        At(44.5, () => FarEnemies());
+        for(int tap=0;tap<8;tap++)
+        {
+            double at=45+tap*.38;
+            At(at,()=>Pad(new GamepadState{rightTrigger=1}));
+            At(at+.07,()=>Pad(new GamepadState()));
+        }
+        At(50,()=>{CaptureAudio();var ids=audioFacts.Select(x=>x.GetType().GetProperty("eventId")?.GetValue(x) as string).Where(x=>x!=null).ToArray();
+            Row("真实空挥连段具有第4段声音",ids.Any(x=>x.EndsWith("blade.swing.4")),new{events=ids.Distinct().ToArray()});
+            Row("正常战斗不再调用诊断合成音",sourceFacts.All(x=>{var clip=x.GetType().GetProperty("clip")?.GetValue(x) as string;return !new[]{"release","hit","hurt","guard","dodge","land","heal","ui"}.Contains(clip);}),new{sourceCount=sourceFacts.Count});
+            Neutral();});
+        At(52.5, () => { Row("本轮未改用户InputSettings/全局静音/偏好", ReferenceEquals(InputSystem.settings, inputSettings) && EditorUtility.audioMasterMute == editorMute && Preferences() == prefs); Cleanup(); });
+    }
+
+    private static void Tick()
+    {
+        if (Time.frameCount == lastFrame) return;
+        lastFrame = Time.frameCount;
+        try
+        {
+            if (!Application.isPlaying || audio == null || coordinator == null) throw new InvalidOperationException("Play或场景所有者已退出");
+            if (EditorApplication.timeSinceStartup - hardStarted > 65) throw new TimeoutException("自然故事65秒硬边界，未观察的路径不标PASS");
+            CaptureAudio();
+            if (next < steps.Count && Elapsed >= steps[next].at)
+            {
+                var step = steps[next++];
+                var late = Elapsed - step.at;
+                if (late > .12) started += late; // 低帧时不把按下与松开挤在同一帧。
+                step.run();
+            }
+        }
+        catch (Exception e) { error = e.ToString(); Row("故事执行异常", false, new { error }); Cleanup(); }
+    }
+
+    private static void CaptureAudio()
+    {
+        if (audio == null) return;
+        foreach (var item in audio.SfxHistory)
+        {
+            if (!seenRequests.Add(RequestKey(item))) continue;
+            audioFacts.Add(new { time = Elapsed, eventId = item.Request.EventId, source = item.Request.SourceId,
+                world = item.Request.WorldScopeId, generation = item.Request.SourceGeneration, fact = item.Request.FactKey,
+                accepted = item.Decision.Accepted, reason = item.Decision.Reason, voice = item.Decision.VoiceId, playIssued = item.SourcePlayIssued, playback = item.PlaybackReason });
+        }
+        foreach (var voice in audio.SfxPlayer.Voices)
+        {
+            if (voice.VoiceId == 0 || !seenVoices.Add(voice.VoiceId) || voice.Source == null) continue;
+            var route = voice.Source.outputAudioMixerGroup == null ? "MISSING" : voice.Source.outputAudioMixerGroup.name;
+            routeNames.Add(route);
+            sourceFacts.Add(new { time = Elapsed, voice = voice.VoiceId, sourceInstanceId = voice.Source.GetInstanceID(), playing = voice.Source.isPlaying,
+                route, volume = voice.Source.volume, clip = voice.Source.clip == null ? "MISSING" : voice.Source.clip.name,
+                rootInstanceId = audio.GetInstanceID(), status = "PASS-EDITOR-SOURCE" });
+        }
+    }
+
+    private static string RequestKey(A.GameAudioRoot.SfxObservation item) => item.Request.WorldScopeId + "|" + item.Request.SourceId + "|" + item.Request.SourceGeneration + "|" + item.Request.EventId + "|" + item.Request.FactKey;
+    private static void Row(string name, bool pass, object details = null) => rows.Add(new { name, pass,
+        status = pass ? "PASS-EDITOR-SOURCE" : "NOT_OBSERVED_OR_REJECTED", time = Elapsed, current = Current?.ActorId,
+        actorHp = actors == null ? new int[0] : actors.Select(a => a == null || a.Vitals?.Health == null ? -1 : a.Vitals.Health.Current).ToArray(),
+        enemyHp = enemies == null ? new int[0] : enemies.Select(e => e == null || e.Vitals?.Health == null ? -1 : e.Vitals.Health.Current).ToArray(), details });
+    private static void LocalFocus(Component component)
+    {
+        var field = component.GetType().GetField("focused", BindingFlags.Instance | BindingFlags.NonPublic);
+        if (field == null || field.FieldType != typeof(bool)) return;
+        focuses.Add(new FocusSnapshot { component = component, focused = (bool)field.GetValue(component) });
+        component.SendMessage("OnApplicationFocus", true, SendMessageOptions.DontRequireReceiver);
+    }
+    private static string Preferences() => string.Join("|", new[] { "ossastra.audio.master", "ossastra.audio.bgm", "ossastra.audio.muted", "ossastra.audio.sfx" }
+        .Select(k => k + ":" + PlayerPrefs.HasKey(k) + ":" + (k.EndsWith("muted") ? PlayerPrefs.GetInt(k, 0).ToString() : PlayerPrefs.GetFloat(k, -1).ToString("R"))));
+
+    private static void Cleanup()
+    {
+        EditorApplication.update -= Tick;
+        try { Neutral(); } catch { }
+        foreach (var remove in unsubscribe) { try { remove(); } catch { } }
+        unsubscribe.Clear();
+        foreach (var item in positions) { try { if (item.Key != null) Place(item.Key, item.Value); } catch { } }
+        foreach (var focus in focuses)
+            try { if (focus.component != null) focus.component.SendMessage("OnApplicationFocus", focus.focused, SendMessageOptions.DontRequireReceiver); } catch { }
+        focuses.Clear();
+        if (audio != null && audio.Mix != null) audio.SendMessage("OnApplicationFocus", mixFocus, SendMessageOptions.DontRequireReceiver);
+        if (pad != null) { InputSystem.RemoveDevice(pad); pad = null; }
+        if (keyboard != null) { InputSystem.RemoveDevice(keyboard); keyboard = null; }
+        if (mouse != null) { InputSystem.RemoveDevice(mouse); mouse = null; }
+        running = false; done = true;
+    }
+
+    public static object Report() => new { done, running, error, elapsedSeconds = EditorApplication.timeSinceStartup - hardStarted,
+        accepted, released, enemyAccepted, enemyReleased, rows = rows.ToArray(), domainFacts = domainFacts.ToArray(), audioFacts = audioFacts.ToArray(), sourceFacts = sourceFacts.ToArray(),
+        sourceRoutes = routeNames.ToArray(), actorHpBefore = hpBefore, actorHpAfter = actors == null ? new int[0] : actors.Select(a => a == null || a.Vitals?.Health == null ? -1 : a.Vitals.Health.Current).ToArray(),
+        editorMuteBefore = editorMute, editorMuteAfter = EditorUtility.audioMasterMute, prefsUnchanged = prefs == Preferences(),
+        inputSettingsUnchanged = ReferenceEquals(InputSystem.settings, inputSettings), ownVirtualDevicesRemaining = InputSystem.devices.Count(d => d.name.StartsWith("AUDIO_M02_Story")),
+        timeScaleUnchanged = Time.timeScale == originalScale, originalCurrentRestored = coordinator != null && coordinator.Current == originalCurrent,
+        proof = "Real configured input → gameplay facts → SFX request → owned AudioSource. DSP waveform and subjective listening not asserted." };
+}

@@ -1,0 +1,113 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "passed": 2,
+      "failed": 19,
+      "results": [
+        {
+          "name": "默认多变体不会连续选择同一片段",
+          "passed": false
+        },
+        {
+          "name": "随机上界仍在剩余片段集合内选择",
+          "passed": false
+        },
+        {
+          "name": "排除上次片段不依赖重抽循环",
+          "passed": false
+        },
+        {
+          "name": "单片段事件仍能连续准入",
+          "passed": true
+        },
+        {
+          "name": "作者可以明确关闭不连续重复",
+          "passed": false,
+          "error": "Missing authored policy field: avoidImmediateRepeat"
+        },
+        {
+          "name": "不同来源分别记录自己的上次片段",
+          "passed": false
+        },
+        {
+          "name": "同来源不同事件分别记录片段",
+          "passed": false
+        },
+        {
+          "name": "预算拒绝不会消耗随机数或推进上次片段",
+          "passed": false
+        },
+        {
+          "name": "缺媒体拒绝不会推进片段且事实可重试",
+          "passed": false
+        },
+        {
+          "name": "默认无内容间隔不会吞不同事实",
+          "passed": true
+        },
+        {
+          "name": "作者间隔拒绝过密内容并在准确边界允许重试",
+          "passed": false,
+          "error": "Missing authored policy field: minIntervalSeconds"
+        },
+        {
+          "name": "间隔拒绝不推迟下次允许时刻",
+          "passed": false,
+          "error": "Missing authored policy field: minIntervalSeconds"
+        },
+        {
+          "name": "内容间隔只约束同来源同事件",
+          "passed": false,
+          "error": "Missing authored policy field: minIntervalSeconds"
+        },
+        {
+          "name": "精确事实重复仍明确报告而非变成内容间隔",
+          "passed": false,
+          "error": "Missing authored policy field: minIntervalSeconds"
+        },
+        {
+          "name": "重新注册来源清除旧变体与内容间隔",
+          "passed": false,
+          "error": "Missing authored policy field: minIntervalSeconds"
+        },
+        {
+          "name": "停止来源清除内容历史但不移除有效注册",
+          "passed": false,
+          "error": "Missing authored policy field: minIntervalSeconds"
+        },
+        {
+          "name": "换世界清除所有内容历史",
+          "passed": false,
+          "error": "Missing authored policy field: minIntervalSeconds"
+        },
+        {
+          "name": "内容历史在大量事件身份下有界且保留最近来源",
+          "passed": false
+        },
+        {
+          "name": "负数内容间隔无效",
+          "passed": false,
+          "error": "Missing authored policy field: minIntervalSeconds"
+        },
+        {
+          "name": "NaN内容间隔无效",
+          "passed": false,
+          "error": "Missing authored policy field: minIntervalSeconds"
+        },
+        {
+          "name": "无限内容间隔无效",
+          "passed": false,
+          "error": "Missing authored policy field: minIntervalSeconds"
+        }
+      ],
+      "kind": "PASS-PURE requires failed=0; authored density is separate from exact fact identity"
+    }
+  }
+}

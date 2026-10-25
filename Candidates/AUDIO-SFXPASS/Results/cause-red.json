@@ -1,0 +1,23 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "passed": 0,
+      "failed": 1,
+      "rows": [
+        {
+          "name": "原因事实合同与兼容网关入口存在",
+          "passed": false,
+          "detail": "MISSING_FEATURE:CombatContactCause / CombatContactBatch.Cause / Resolve(...,cause)"
+        }
+      ],
+      "scope": "自有受击体真实结算；不触及场景角色或声音策略"
+    }
+  }
+}

@@ -1,0 +1,88 @@
+/* 脚本：PendingLeaseContracts（开发命令）
+ * 功能：重现已排队声音事实跨来源租约重连后，被错误盖上新代次的问题。
+ * 边界：只调用音频适配器私有开发验收边界；不广播假战斗、不写HP/输入/生命代次。
+ * 协作：须自有场Play且实控角色空闲、适配器没有既存待提交事实；新租约保留供正常观察继续使用。
+ */
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using Funplay.Editor.Tools.Scripting;
+using UnityEngine;
+using ActorRoot = Ossastra.Characters.CharacterRoot;
+
+public sealed class PendingLeaseContracts : IFunplayCommand
+{
+    private static readonly BindingFlags instance = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+    private readonly List<object> rows = new List<object>();
+    private int passed, failed, gated;
+    private Ossastra.Audio.CombatSfxFactAdapter adapter;
+    private object observation;
+    private IList pending;
+    private string oldKey, currentKey;
+
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+    {
+        try
+        {
+            adapter = UnityEngine.Object.FindObjectsOfType<Ossastra.Audio.CombatSfxFactAdapter>().FirstOrDefault(value => value.isActiveAndEnabled);
+            var audio = Ossastra.Audio.GameAudioRoot.Instance;
+            if (!Application.isPlaying || adapter == null || audio == null || !audio.SfxAvailable)
+            { Gate("须已就绪自有音频场Play"); return; }
+            pending = (IList)Get(adapter, "pending");
+            observation = ((IEnumerable)Get(adapter, "observed")).Cast<object>().FirstOrDefault(value =>
+            {
+                var actor = Get(value, "actor") as ActorRoot;
+                var abilities = actor == null ? null : actor.GetComponent<Ossastra.Characters.CharacterAbilities>();
+                var main = actor == null ? null : actor.GetComponent<Ossastra.Characters.CharacterMainAction>();
+                return actor != null && actor.HasPlayerInput && actor.CanSimulateIntent && !actor.ActionActive &&
+                    (abilities == null || !abilities.IsBusy && abilities.InFlightCount == 0) &&
+                    (main == null || main.InFlightCount == 0) && (bool)Get(value, "connected");
+            });
+            if (observation == null || pending.Count != 0)
+            { Gate("须空闲受控角色、无在途能力/原待提交队列；保留现场，不清理他人事实"); return; }
+
+            var original = (Ossastra.Audio.SfxSourceHandle)Get(observation, "source");
+            var actorRoot = (ActorRoot)Get(observation, "actor");
+            oldKey = "DEVELOPMENT_ONLY:old-lease:" + Guid.NewGuid().ToString("N");
+            Queue(oldKey, actorRoot.transform.position);
+            Check("开发试听事实真实入队且未立即提交", pending.Count == 1 && !audio.SfxHistory.Any(value => value.Request.FactKey == oldKey));
+            typeof(Ossastra.Audio.CombatSfxFactAdapter).GetMethod("Disconnect", BindingFlags.Static | BindingFlags.NonPublic).Invoke(null, new[] { observation });
+            Invoke("Connect", observation);
+            var current = (Ossastra.Audio.SfxSourceHandle)Get(observation, "source");
+            Check("同一观察对象重连取得独立新租约", original.IsDisposed && current != null && !current.IsDisposed &&
+                !ReferenceEquals(original, current) && original.Generation != current.Generation);
+            Invoke("Flush");
+            var oldRequests = audio.SfxHistory.Where(value => value.Request.FactKey == oldKey).ToArray();
+            Check("旧租约队列不能换新身份重播", oldRequests.Length == 0,
+                new { previousGeneration = original.Generation, currentGeneration = current == null ? -1 : current.Generation,
+                    submitted = oldRequests.Select(value => new { value.Request.SourceId, value.Request.SourceGeneration, value.Decision.Accepted, value.Decision.Reason }).ToArray() });
+
+            currentKey = "DEVELOPMENT_ONLY:current-lease:" + Guid.NewGuid().ToString("N");
+            Queue(currentKey, actorRoot.transform.position);
+            Invoke("Flush");
+            var currentRequests = audio.SfxHistory.Where(value => value.Request.FactKey == currentKey).ToArray();
+            Check("当前租约的新事实仍正常抵达唯一音频根", currentRequests.Length == 1 && currentRequests[0].Request.SourceGeneration == current.Generation,
+                currentRequests.Select(value => new { value.Request.SourceId, value.Request.SourceGeneration, value.Decision.Accepted, value.Decision.Reason }).ToArray());
+        }
+        catch (Exception error) { Check("租约合同执行无异常", false, error.ToString()); }
+        finally
+        {
+            // 本夹具只允许空队列前置条件，因此仅移除自己的试听残留，不清除其它生产事实。
+            if (pending != null)
+                for (int index = pending.Count - 1; index >= 0; index--)
+                { var key = Get(pending[index], "key") as string; if (oldKey != null && key == oldKey || currentKey != null && key == currentKey) pending.RemoveAt(index); }
+            if (adapter != null && observation != null && !(bool)Get(observation, "connected")) Invoke("Connect", observation);
+            ctx.ReturnValue = new { passed, failed, gated, rows, scope = "音频队列租约边界；不伪造战斗或修改玩法状态" };
+        }
+    }
+    private void Queue(string key, Vector3 position)
+        => Invoke("Queue", observation, "body.basic", "release", 1, "", key, position, null);
+    private object Invoke(string method, params object[] args)
+        => typeof(Ossastra.Audio.CombatSfxFactAdapter).GetMethod(method, instance).Invoke(adapter, args);
+    private static object Get(object value, string field) => value.GetType().GetField(field, instance).GetValue(value);
+    private void Gate(string detail) { gated++; rows.Add(new { name = "租约队列合同前置条件", status = "GATED_SCENE_PRECONDITION", detail }); }
+    private void Check(string name, bool ok, object detail = null)
+    { if (ok) passed++; else failed++; rows.Add(new { name, passed = ok, detail }); }
+}

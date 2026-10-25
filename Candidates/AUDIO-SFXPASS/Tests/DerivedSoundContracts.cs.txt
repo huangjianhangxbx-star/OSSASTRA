@@ -1,0 +1,33 @@
+/* 开发合同：冻结的主手语义与同父派生原因的音频隔离。
+ * 只给音频观察器注入本地语义测试快照，真实伤害由Gateway结算到自有受击体；不发布假Root动作、不写场景角色HP。
+ */
+using System;using System.Linq;using System.Collections;using System.Reflection;using System.Collections.Generic;using UnityEngine;using Funplay.Editor.Tools.Scripting;
+using A=Ossastra.Audio;using C=Ossastra.Characters;using Combat=Ossastra.Combat;using Core=Ossastra.CharacterCore;
+public class DerivedSoundContracts:IFunplayCommand
+{
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext c)
+ {
+  var rows=new List<object>();int pass=0,fail=0;GameObject fixture=null;IDictionary actions=null;Guid parent=Guid.NewGuid();var flags=BindingFlags.Instance|BindingFlags.NonPublic|BindingFlags.Public;
+  void Check(string n,bool p){rows.Add(new{name=n,passed=p});if(p)pass++;else fail++;}
+  try{
+   if(!Application.isPlaying)throw new Exception("Play required");var adapter=UnityEngine.Object.FindObjectOfType<A.CombatSfxFactAdapter>();var audio=A.GameAudioRoot.Instance;
+   var observations=(IEnumerable)adapter.GetType().GetField("observed",flags).GetValue(adapter);var item=observations.Cast<object>().FirstOrDefault(o=>o.GetType().GetField("actor",flags).GetValue(o) is C.CharacterRoot root&&root.HasPlayerInput&&!root.ActionActive);
+   var pending=(IList)adapter.GetType().GetField("pending",flags).GetValue(adapter);if(item==null||pending.Count!=0)throw new Exception("Idle own observer with empty queue required");
+   var actor=(C.CharacterRoot)item.GetType().GetField("actor",flags).GetValue(item);actions=(IDictionary)item.GetType().GetField("actions",flags).GetValue(item);
+   var soundType=adapter.GetType().GetNestedType("ActionSound",BindingFlags.NonPublic);var sound=Activator.CreateInstance(soundType);soundType.GetField("selector",flags).SetValue(sound,"main:hunter.prototype.I");soundType.GetField("stage",flags).SetValue(sound,4);actions.Add(parent,sound);
+   fixture=new GameObject("DEVELOPMENT_ONLY:derived-sound-target");fixture.transform.position=new Vector3(2000,1000,2000);var target=fixture.AddComponent<Combat.CombatVitals>();typeof(Combat.CombatVitals).GetField("faction",flags).SetValue(target,Core.CombatFaction.Enemy);if(!target.Initialize("DEVELOPMENT_ONLY:derived-sound:"+Guid.NewGuid().ToString("N")))throw new Exception("Fixturetargetfailed");
+   int normalCount=0;
+   foreach(var cause in new[]{Combat.CombatContactCause.Direct,Combat.CombatContactCause.Periodic,Combat.CombatContactCause.Secondary})
+   {
+    var release=Core.AttackRelease.ForEmission(parent,(int)cause,actor.ActorId,5,0);var result=Combat.CombatContactGateway.Resolve(release,actor.Vitals,new Combat.IHitTarget[]{target},actor.transform.position,cause);
+    Check(cause+"仍有真实Applied",result.Count==1&&result[0].Reason==Core.HitReason.Applied);
+    if(cause==Combat.CombatContactCause.Direct){normalCount=pending.Count;Check("直接主手接触正确排入一条命中声",normalCount==1);}
+    else Check(cause+"同父派生伤害不误排主手重刀",pending.Count==normalCount);
+   }
+   Check("三种原因均保留原始伤害结果",target.Health.Current==85);
+   adapter.GetType().GetMethod("Flush",flags).Invoke(adapter,null);
+   Check("来源测试只提交一条直击声",audio.SfxHistory.Count(h=>h.Request.FactKey.Contains(parent.ToString("N"))||h.Request.FactKey.Contains(target.Health.Id))==1);
+  }catch(Exception e){fail++;rows.Add(new{name="合同执行",error=e.ToString()});}
+  finally{if(actions!=null)actions.Remove(parent);if(fixture!=null)UnityEngine.Object.DestroyImmediate(fixture);c.ReturnValue=new{passed=pass,failed=fail,rows,scope="audio-context fixture + actual owned target HP; not natural input"};}
+ }
+}

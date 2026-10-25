@@ -1,0 +1,20 @@
+# AUDIO-SFXPASS 现有内容音效表现整理
+- 状态technical-complete；模式docs-writer；Unity/源码租约已释放，root仅定向GitHub发布。
+- 用户新授权：认真配置音效调用，评估当前内容是否能形成像样的游戏表现，指出旧版音效调用随意；优先既有素材，不是简单恢复3段声音。
+- 基准35225c929b937e0744110961e1811df30fe4a3d7；36既有dirty不变/索引空。同步层同对话先前完整读取版本与本次尾部核对，其他文件无外来diff。
+- 使用真实project-memory/brainstorming/TDD；这是已存在音频流的定向内容整理，用户明确实现授权沿用，不重复询问已授权局部取舍。先只读盘点再冻结具体方案。
+- 独占Audio模块窄扩展、Audio/SFX自有配置与本机精选目录、既有SC_AUDIO_M02音频配置（不动美术/玩法）、Candidates/AUDIO-SFXPASS、docs/ossastra/AUDIO-SFXPASS-*及规则/同步记录。无新竞争根，不改HP/输入/释放/动画/Spine，不扩Voice/环境，不下载素材/解码新bank，不Gitee。
+- 受限既有媒体可以本机候选使用；公开仓库只提交合法自有代码/参数/工具/证据，受限PCM不上传。真实听感未观察时不冒称已试听。
+- 分工：sfx_facts只读动作/能力时序与唯一事实；sfx_runtime只读现有媒体/来源/可用性；root盘点混音、冻结声音设计、实施与唯一Unity验证/发布。
+- 具体方案冻结：保留唯一根/Mixer/32声部；SO按动作阶段与能力定义语义选择挥击/接触/枪击/装填/爆炸，真实释放和收据驱动。诊断合成音仅供开发试听，不再填充正常战斗缺口。
+- 追加独占中立只读观察接口：Assets/OSSASTRA/Scripts/Characters/Runtime/CharacterAbilities.cs、AbilityFeedbackFact.cs；Assets/OSSASTRA/Scripts/Combat/Runtime/CombatContactGateway.cs、CombatContactBatch.cs。只复制已有事实并隔离观察者异常；HP/判定/费用/时钟/动画算法与参数不变。源文件哈希变化在最终保护检查明确列为本轮白名单，其他628路径继续对账。
+- sound_policy独占SfxArbitrator.cs/SfxEventDefinitionSO.cs与VariationContracts；sfx_facts独占上述4个事实文件与FactProducerContracts；均先RED、root执行后再生产实现。sfx_runtime仅外部Derived目录做非破坏性精选裁剪，Unity由root统一导入。
+- M1通过：Profile合同14/14、variation21/21、原SfxCore47/47；只读生产者合同Play13/13、gated0（预期坏订阅者Warning），未改原HP/费用/动画算法。
+- M2已落地：12份现有PCM的本机派生；42精选事件/63有效目录（21开发诊断引用保留，UI同ID改精选click）；语义配置72条，无场景变更。第一次配方预检因动态类型JsonUtility不解析数组而退出、无写入；改Newtonsoft解析后完整校验/生成/回读VALID。
+- 本机内容入口CuratedLocal/Resources/OssastraSfxContent.asset；公共OssastraCombatSoundProfile.asset仅语义字符串，公开仓库无受限媒体引用。正常战斗不自动选择诊断目录旧事件。
+- M3实际连续故事：20/21；单独20.2→21.1秒敌击窗口未观察到新增损血（190→190），其余路径含已发生伙伴100→90与对应hurt/Enemy源均通过，不冒签全绿。真实空挥4段/盾挡/双人/火箭落地/视觉保留，32请求32起播无诊断样本。70秒真实Listener采集peak .252818、削波0；虚拟输入与偏好恢复。
+- 枪械补充：首轮使用不具资格猎人被库存正确拒绝，改用已有资格的游侠经SwitchNext与库存真实事务；7/7通过、12次枪声变体无相邻重复，600→416、自动装填，零授予/HP改写；70秒输出peak .185486、削波0。该测试消费/换装只在Play，后续退出复原磁盘场。
+- 复核发现并实测RED：pending队列跨租约3通过1失败，旧key被新代次提交；修复为入队冻结lease、Flush拒绝重连旧队列。另补中立Cause元数据区分同父动作的Direct/Periodic/Secondary，不用父ID误推碎冰为刀击。
+- 追加独占Assets/OSSASTRA/Scripts/Combat/Runtime/CombatIceWorld.cs：仅两处现有Resolve调用传原因枚举；不改冰路生成、伤害、频率、几何、费用。属于既有事件事实补全，非新玩法；保护对账明确白名单此文件。
+- M4通过：Cause9/9，Audio derived8/8，Pending4/4；另复核恢复根组件enabled边界，先RED2/3→GREEN3/3，敌人0HP恢复重开租约保持旧行为。最终Profile14/variation21/Core47/runtime32/BGM17+12再次通过；SceneOwner7/Lifecycle3/真实场循环6，近期Console错误0，Editor原场Edit clean。
+- 资产/调用/限制/真实输出与全部结果已落盘handoff与Candidates Results。无主观听感代签，无Player构建宣称。只进入定向GitHub发布，源码/Unity租约释放；原36dirty/受限PCM不暂存。

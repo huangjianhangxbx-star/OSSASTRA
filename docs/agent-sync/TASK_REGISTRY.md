@@ -986,3 +986,7 @@ active/unity-writer；用户明确要求一轮修整：共享脚本去M01标签�
 2026-10-25 AUDIO-M02 technical-complete/docs-writer：Unity/源码租约释放；仅本任务文档与定向GitHub发布。原36dirty/645保护路径不变，Player旧插件14错误、人耳未签，不自动M03。
 
 2026-10-25 AUDIO-M02 complete/read-only：产品e79be1f1d5b4d03b8843b2d9a184971897bcfe7a已GitHub main核SHA，全部Unity/源码/文档/发布租约释放。原36dirty/645保护路径保持，最终新场Edit clean；仅本次发布回执收口，不扩张后续任务。
+
+2026-10-25 AUDIO-SFXPASS active/unity-writer：唯一Unity writer=root。用户明确要求利用现有素材认真配置音效调用与可玩表现，非简单恢复；Audio/Integration/Definitions/Runtime与必要Editor作者工具、音频自有配置/本机精选媒体、既有SC_AUDIO_M02场中音频接线、自有候选测试/文档；角色玩法/动画/旧场/36dirty/BGM策略/全局音频设置保护。子任务只读审计，不操作Unity/Git。
+
+2026-10-26 AUDIO-SFXPASS technical-complete/docs-writer：源码/Unity租约释放，仅本任务文档/选择性GitHub发布；72语义/本机42精选、连续输出无削波，缺素材留白，原36dirty/625非授权保护不变。详细结果含20/21自然故事保留短窗口未观察失败，不代签人耳听感。

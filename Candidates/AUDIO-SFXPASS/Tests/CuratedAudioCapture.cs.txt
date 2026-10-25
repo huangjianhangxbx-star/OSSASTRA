@@ -1,0 +1,17 @@
+/* 开发专用：真实AudioListener DSP滤镜采集；不改音量、设备、播放或玩法。
+ * 输出含本机受限媒体，仅写work目录，不可公开。只有回调样本>0才算实际连续采集。
+ */
+using System;using System.IO;using UnityEngine;using Funplay.Editor.Tools.Scripting;
+public sealed class CuratedAudioCapture:MonoBehaviour
+{
+ public static CuratedAudioCapture Instance;private readonly object gate=new object();private float[] pcm;private int count,channels,rate,callbacks;private bool recording;
+ public void Begin(){rate=AudioSettings.outputSampleRate;pcm=new float[rate*2*70];count=callbacks=0;recording=true;Instance=this;}
+ private void OnAudioFilterRead(float[] data,int channelCount){lock(gate){if(!recording||pcm==null)return;channels=channelCount;callbacks++;int n=Math.Min(data.Length,pcm.Length-count);Array.Copy(data,0,pcm,count,n);count+=n;}}
+ public object Stats(){lock(gate){double sq=0;float peak=0;int clipped=0;for(int i=0;i<count;i++){float a=Math.Abs(pcm[i]);if(a>peak)peak=a;sq+=(double)pcm[i]*pcm[i];if(a>=.999f)clipped++;}return new{callbacks,samples=count,channels,rate,seconds=(double)count/Math.Max(1,channels)/rate,peak,rms=Math.Sqrt(sq/Math.Max(1,count)),clippedSamples=clipped,recording};}}
+ public object Save(string path){lock(gate){recording=false;using(var writer=new BinaryWriter(File.Create(path))){writer.Write(System.Text.Encoding.ASCII.GetBytes("RIFF"));writer.Write(36+count*2);writer.Write(System.Text.Encoding.ASCII.GetBytes("WAVEfmt "));writer.Write(16);writer.Write((short)1);writer.Write((short)Math.Max(1,channels));writer.Write(rate);writer.Write(rate*Math.Max(1,channels)*2);writer.Write((short)(Math.Max(1,channels)*2));writer.Write((short)16);writer.Write(System.Text.Encoding.ASCII.GetBytes("data"));writer.Write(count*2);for(int i=0;i<count;i++)writer.Write((short)Mathf.RoundToInt(Mathf.Clamp(pcm[i],-1,1)*32767));}return Stats();}}
+ private void OnDestroy(){recording=false;if(Instance==this)Instance=null;}
+}
+public sealed class BeginCuratedCapture:IFunplayCommand
+{
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext c){if(!Application.isPlaying)throw new Exception("Play required");var listener=UnityEngine.Object.FindObjectOfType<AudioListener>();if(listener==null||!listener.enabled)throw new Exception("No active listener");if(CuratedAudioCapture.Instance!=null)throw new Exception("Already recording");var capture=listener.gameObject.AddComponent<CuratedAudioCapture>();capture.Begin();c.ReturnValue=new{started=true,listener=listener.gameObject.name,mutePreserved=UnityEditor.EditorUtility.audioMasterMute,maxSeconds=70};}
+}

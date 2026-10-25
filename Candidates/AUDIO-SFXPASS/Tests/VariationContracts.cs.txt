@@ -1,0 +1,235 @@
+/* AUDIO-SFXPASS：用真实短音仲裁验证变体不连续重复、可选内容节奏及拒绝/生命周期边界；不播放、不伪造战斗。 */
+using System;
+using System.Collections.Generic;
+using System.Reflection;
+using Funplay.Editor.Tools.Scripting;
+using Ossastra.Audio;
+using UnityEngine;
+
+public sealed class VariationContracts : IFunplayCommand
+{
+    private readonly List<UnityEngine.Object> owned = new List<UnityEngine.Object>();
+    private readonly List<object> results = new List<object>();
+    private int passed, failed;
+
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+    {
+        try
+        {
+            Check("默认多变体不会连续选择同一片段", () =>
+            {
+                var arb = Arb(); int generation = arb.OpenSource("p"); var definition = Definition(3);
+                int[] expected = { 0, 1, 0, 1 };
+                for (int index = 0; index < expected.Length; index++)
+                {
+                    var decision = arb.Submit(Request("p", generation, "f" + index), definition, 10);
+                    if (!decision.Accepted || decision.ClipIndex != expected[index]) return false;
+                    arb.Release(decision.VoiceId);
+                }
+                return true;
+            });
+            Check("随机上界仍在剩余片段集合内选择", () =>
+            {
+                var arb = Arb(() => 1); int generation = arb.OpenSource("p"); var definition = Definition(4);
+                int[] expected = { 3, 2, 3 };
+                for (int index = 0; index < expected.Length; index++)
+                {
+                    var decision = arb.Submit(Request("p", generation, "f" + index), definition, 10);
+                    if (!decision.Accepted || decision.ClipIndex != expected[index]) return false;
+                    arb.Release(decision.VoiceId);
+                }
+                return true;
+            });
+            Check("排除上次片段不依赖重抽循环", () =>
+            {
+                int randomCalls = 0; var arb = Arb(() => { randomCalls++; return 0; });
+                int generation = arb.OpenSource("p"); var definition = Definition(2);
+                int[] expected = { 0, 1, 0 };
+                for (int index = 0; index < expected.Length; index++)
+                {
+                    var decision = arb.Submit(Request("p", generation, "f" + index), definition, 10);
+                    if (!decision.Accepted || decision.ClipIndex != expected[index]) return false;
+                    arb.Release(decision.VoiceId);
+                }
+                return randomCalls == 6;
+            });
+            Check("单片段事件仍能连续准入", () =>
+            {
+                var arb = Arb(); int generation = arb.OpenSource("p"); var definition = Definition(1);
+                var first = arb.Submit(Request("p", generation, "a"), definition, 10);
+                var second = arb.Submit(Request("p", generation, "b"), definition, 10);
+                return first.Accepted && second.Accepted && first.ClipIndex == 0 && second.ClipIndex == 0;
+            });
+            Check("作者可以明确关闭不连续重复", () =>
+            {
+                var arb = Arb(); int generation = arb.OpenSource("p"); var definition = Definition(3);
+                Set(definition, "avoidImmediateRepeat", false);
+                var first = arb.Submit(Request("p", generation, "a"), definition, 10);
+                var second = arb.Submit(Request("p", generation, "b"), definition, 10);
+                return first.Accepted && second.Accepted && first.ClipIndex == 0 && second.ClipIndex == 0;
+            });
+            Check("不同来源分别记录自己的上次片段", () =>
+            {
+                var arb = Arb(); int player = arb.OpenSource("p"), companion = arb.OpenSource("c"); var definition = Definition(3);
+                var first = arb.Submit(Request("p", player, "a"), definition, 10);
+                var other = arb.Submit(Request("c", companion, "a"), definition, 10);
+                var next = arb.Submit(Request("p", player, "b"), definition, 10);
+                return first.Accepted && other.Accepted && next.Accepted && first.ClipIndex == 0 && other.ClipIndex == 0 && next.ClipIndex == 1;
+            });
+            Check("同来源不同事件分别记录片段", () =>
+            {
+                var arb = Arb(); int generation = arb.OpenSource("p"); var hit = Definition(3); var release = Definition(3, "release");
+                var first = arb.Submit(Request("p", generation, "a"), hit, 10);
+                var other = arb.Submit(Request("p", generation, "a", "release"), release, 10);
+                var next = arb.Submit(Request("p", generation, "b"), hit, 10);
+                return first.Accepted && other.Accepted && next.Accepted && first.ClipIndex == 0 && other.ClipIndex == 0 && next.ClipIndex == 1;
+            });
+            Check("预算拒绝不会消耗随机数或推进上次片段", () =>
+            {
+                int randomCalls = 0; var arb = Arb(() => { randomCalls++; return 0; });
+                int generation = arb.OpenSource("p"); var definition = Definition(3); definition.maxPerSource = 1;
+                var first = arb.Submit(Request("p", generation, "a"), definition, 10);
+                var denied = arb.Submit(Request("p", generation, "b"), definition, 10);
+                arb.Release(first.VoiceId);
+                var retry = arb.Submit(Request("p", generation, "b"), definition, 10);
+                return first.Accepted && !denied.Accepted && denied.Reason == "SOURCE_LIMIT" && retry.Accepted && retry.ClipIndex == 1 && randomCalls == 4;
+            });
+            Check("缺媒体拒绝不会推进片段且事实可重试", () =>
+            {
+                var arb = Arb(); int generation = arb.OpenSource("p"); var definition = Definition(3);
+                var first = arb.Submit(Request("p", generation, "a"), definition, 10);
+                var clips = definition.clips; definition.clips = null;
+                var denied = arb.Submit(Request("p", generation, "b"), definition, 10);
+                definition.clips = clips;
+                var retry = arb.Submit(Request("p", generation, "b"), definition, 10);
+                return first.Accepted && !denied.Accepted && retry.Accepted && retry.ClipIndex == 1;
+            });
+            Check("默认无内容间隔不会吞不同事实", () =>
+            {
+                var arb = Arb(); int generation = arb.OpenSource("p"); var definition = Definition(2);
+                return arb.Submit(Request("p", generation, "a"), definition, 10).Accepted && arb.Submit(Request("p", generation, "b"), definition, 10).Accepted;
+            });
+            Check("作者间隔拒绝过密内容并在准确边界允许重试", () =>
+            {
+                var arb = Arb(); int generation = arb.OpenSource("p"); var definition = Definition(3);
+                Set(definition, "minIntervalSeconds", .25f);
+                var first = arb.Submit(Request("p", generation, "a"), definition, 10);
+                arb.Release(first.VoiceId);
+                var denied = arb.Submit(Request("p", generation, "b", at: 10.125), definition, 10.125);
+                var retry = arb.Submit(Request("p", generation, "b", at: 10.25), definition, 10.25);
+                return first.Accepted && !denied.Accepted && denied.Reason == "CONTENT_INTERVAL" && retry.Accepted && retry.ClipIndex == 1;
+            });
+            Check("间隔拒绝不推迟下次允许时刻", () =>
+            {
+                var arb = Arb(); int generation = arb.OpenSource("p"); var definition = Definition(2);
+                Set(definition, "minIntervalSeconds", .25f);
+                var first = arb.Submit(Request("p", generation, "a"), definition, 10); arb.Release(first.VoiceId);
+                var denied = arb.Submit(Request("p", generation, "b", at: 10.24), definition, 10.24);
+                var next = arb.Submit(Request("p", generation, "c", at: 10.25), definition, 10.25);
+                return !denied.Accepted && next.Accepted;
+            });
+            Check("内容间隔只约束同来源同事件", () =>
+            {
+                var arb = Arb(); int player = arb.OpenSource("p"), companion = arb.OpenSource("c");
+                var hit = Definition(2); var release = Definition(2, "release");
+                Set(hit, "minIntervalSeconds", 1f); Set(release, "minIntervalSeconds", 1f);
+                var first = arb.Submit(Request("p", player, "a"), hit, 10);
+                var otherSource = arb.Submit(Request("c", companion, "a"), hit, 10);
+                var otherEvent = arb.Submit(Request("p", player, "a", "release"), release, 10);
+                return first.Accepted && otherSource.Accepted && otherEvent.Accepted;
+            });
+            Check("精确事实重复仍明确报告而非变成内容间隔", () =>
+            {
+                var arb = Arb(); int generation = arb.OpenSource("p"); var definition = Definition(2);
+                Set(definition, "minIntervalSeconds", 1f);
+                var request = Request("p", generation, "same"); var first = arb.Submit(request, definition, 10);
+                var second = arb.Submit(request, definition, 10);
+                return first.Accepted && !second.Accepted && second.Reason == "DUPLICATE_FACT";
+            });
+            Check("重新注册来源清除旧变体与内容间隔", () =>
+            {
+                var arb = Arb(); int previous = arb.OpenSource("p"); var definition = Definition(3);
+                Set(definition, "minIntervalSeconds", 1f);
+                var first = arb.Submit(Request("p", previous, "a"), definition, 10);
+                int current = arb.OpenSource("p"); arb.CloseSource("p", previous);
+                var next = arb.Submit(Request("p", current, "b"), definition, 10);
+                return first.Accepted && current != previous && next.Accepted && next.ClipIndex == 0;
+            });
+            Check("停止来源清除内容历史但不移除有效注册", () =>
+            {
+                var arb = Arb(); int generation = arb.OpenSource("p"); var definition = Definition(3);
+                Set(definition, "minIntervalSeconds", 1f);
+                var first = arb.Submit(Request("p", generation, "a"), definition, 10);
+                arb.StopSource("p", generation);
+                var next = arb.Submit(Request("p", generation, "b"), definition, 10);
+                return first.Accepted && next.Accepted && next.ClipIndex == 0;
+            });
+            Check("换世界清除所有内容历史", () =>
+            {
+                var arb = Arb(); int generation = arb.OpenSource("p"); var definition = Definition(3);
+                Set(definition, "minIntervalSeconds", 1f);
+                var first = arb.Submit(Request("p", generation, "a"), definition, 10);
+                arb.SetWorldScope("next"); int nextGeneration = arb.OpenSource("p");
+                var next = arb.Submit(new SfxRequest("hit", "p", "next", nextGeneration, "b", Vector3.zero, 10), definition, 10);
+                return first.Accepted && next.Accepted && next.ClipIndex == 0;
+            });
+            Check("内容历史在大量事件身份下有界且保留最近来源", () =>
+            {
+                var arb = Arb(); int generation = arb.OpenSource("p"); var definition = Definition(2);
+                for (int index = 0; index < 1200; index++)
+                {
+                    string eventId = "event" + index; definition.eventId = eventId;
+                    var decision = arb.Submit(Request("p", generation, "a", eventId), definition, 10);
+                    if (!decision.Accepted) return false;
+                    arb.Release(decision.VoiceId);
+                }
+                definition.eventId = "event1199";
+                var next = arb.Submit(Request("p", generation, "b", "event1199"), definition, 10);
+                var property = typeof(SfxArbitrator).GetProperty("ContentHistoryCount");
+                return property != null && (int)property.GetValue(arb) <= 1024 && next.Accepted && next.ClipIndex == 1;
+            });
+            Check("负数内容间隔无效", () => InvalidInterval(-.01f));
+            Check("NaN内容间隔无效", () => InvalidInterval(float.NaN));
+            Check("无限内容间隔无效", () => InvalidInterval(float.PositiveInfinity));
+        }
+        finally
+        {
+            foreach (var value in owned) if (value != null) UnityEngine.Object.DestroyImmediate(value);
+            ctx.ReturnValue = new { passed, failed, results = results.ToArray(), kind = "PASS-PURE requires failed=0; authored density is separate from exact fact identity" };
+        }
+    }
+
+    private bool InvalidInterval(float interval)
+    {
+        var definition = Definition(2); Set(definition, "minIntervalSeconds", interval);
+        return !definition.TryValidate(out string reason) && reason == "INVALID_CONTENT_INTERVAL";
+    }
+    private void Check(string name, Func<bool> contract)
+    {
+        try { bool ok = contract(); if (ok) passed++; else failed++; results.Add(new { name, passed = ok }); }
+        catch (Exception exception) { failed++; results.Add(new { name, passed = false, error = exception.Message }); }
+    }
+    private static void Set(SfxEventDefinitionSO definition, string field, object value)
+    {
+        var info = typeof(SfxEventDefinitionSO).GetField(field, BindingFlags.Instance | BindingFlags.Public);
+        if (info == null) throw new InvalidOperationException("Missing authored policy field: " + field);
+        info.SetValue(definition, value);
+    }
+    private SfxEventDefinitionSO Definition(int clipCount, string eventId = "hit")
+    {
+        var definition = ScriptableObject.CreateInstance<SfxEventDefinitionSO>(); owned.Add(definition);
+        definition.eventId = eventId; definition.clips = new AudioClip[clipCount];
+        for (int index = 0; index < clipCount; index++)
+        {
+            var clip = AudioClip.Create("AUDIO-SFXPASS variation fixture " + index, 1600, 1, 16000, false);
+            owned.Add(clip); definition.clips[index] = clip;
+        }
+        return definition;
+    }
+    private static SfxArbitrator Arb(Func<double> random = null)
+    {
+        var arb = new SfxArbitrator(24, 32, random ?? (() => 0)); arb.SetWorldScope("world"); return arb;
+    }
+    private static SfxRequest Request(string source, int generation, string fact, string eventId = "hit", double at = 10)
+        => new SfxRequest(eventId, source, "world", generation, fact, Vector3.zero, at);
+}

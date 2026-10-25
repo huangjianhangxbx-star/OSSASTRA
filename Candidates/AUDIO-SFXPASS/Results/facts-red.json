@@ -1,0 +1,24 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "passed": 0,
+      "failed": 1,
+      "gated": 0,
+      "rows": [
+        {
+          "name": "能力上下文和网关批次事实存在",
+          "passed": false,
+          "detail": "MISSING_FEATURE: AbilityFeedbackFact / FeedbackObserved / CombatContactBatch / CombatContactReceipt / Resolved"
+        }
+      ],
+      "scope": "自有受击体 + 零费用真实来源事务；不验证自然输入或主观听感"
+    }
+  }
+}

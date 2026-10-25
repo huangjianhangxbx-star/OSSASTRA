@@ -1,0 +1,519 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b3f2d232efcd29949af648a7d214db35, type: 3}
+  m_Name: OssastraCombatSoundProfile
+  m_EditorClassIdentifier: 
+  bindings:
+  - selector: body.basic
+    kind: release
+    stage: 0
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: blade.swing.1
+  - selector: body.basic
+    kind: release
+    stage: 1
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: blade.swing.1
+  - selector: body.basic
+    kind: release
+    stage: 2
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: blade.swing.2
+  - selector: body.basic
+    kind: release
+    stage: 3
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: blade.swing.3
+  - selector: body.basic
+    kind: release
+    stage: 4
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: blade.swing.4
+  - selector: body.basic
+    kind: hit
+    stage: 0
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: blade.impact
+  - selector: body.basic
+    kind: hit
+    stage: 4
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: blade.impact.heavy
+  - selector: main:hunter.prototype.I
+    kind: release
+    stage: 0
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: blade.swing.1
+  - selector: main:hunter.prototype.I
+    kind: release
+    stage: 1
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: blade.swing.1
+  - selector: main:hunter.prototype.I
+    kind: release
+    stage: 2
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: blade.swing.2
+  - selector: main:hunter.prototype.I
+    kind: release
+    stage: 3
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: blade.swing.3
+  - selector: main:hunter.prototype.I
+    kind: release
+    stage: 4
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: blade.swing.4
+  - selector: main:hunter.prototype.I
+    kind: hit
+    stage: 0
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: blade.impact
+  - selector: main:hunter.prototype.I
+    kind: hit
+    stage: 4
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: blade.impact.heavy
+  - selector: main:hunter.prototype.II
+    kind: release
+    stage: 0
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: blade.swing.1
+  - selector: main:hunter.prototype.II
+    kind: release
+    stage: 1
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: blade.swing.1
+  - selector: main:hunter.prototype.II
+    kind: release
+    stage: 2
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: blade.swing.2
+  - selector: main:hunter.prototype.II
+    kind: release
+    stage: 3
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: blade.swing.3
+  - selector: main:hunter.prototype.II
+    kind: release
+    stage: 4
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: blade.swing.4
+  - selector: main:hunter.prototype.II
+    kind: hit
+    stage: 0
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: blade.impact
+  - selector: main:hunter.prototype.II
+    kind: hit
+    stage: 4
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: blade.impact.heavy
+  - selector: main:ranger.prototype.I
+    kind: release
+    stage: 0
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: blade.swing.1
+  - selector: main:ranger.prototype.I
+    kind: release
+    stage: 1
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: blade.swing.1
+  - selector: main:ranger.prototype.I
+    kind: release
+    stage: 2
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: blade.swing.2
+  - selector: main:ranger.prototype.I
+    kind: release
+    stage: 3
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: blade.swing.3
+  - selector: main:ranger.prototype.I
+    kind: release
+    stage: 4
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: blade.swing.4
+  - selector: main:ranger.prototype.I
+    kind: hit
+    stage: 0
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: blade.impact
+  - selector: main:ranger.prototype.I
+    kind: hit
+    stage: 4
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: blade.impact.heavy
+  - selector: main:ranger.prototype.II
+    kind: release
+    stage: 0
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: blade.swing.1
+  - selector: main:ranger.prototype.II
+    kind: release
+    stage: 1
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: blade.swing.1
+  - selector: main:ranger.prototype.II
+    kind: release
+    stage: 2
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: blade.swing.2
+  - selector: main:ranger.prototype.II
+    kind: release
+    stage: 3
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: blade.swing.3
+  - selector: main:ranger.prototype.II
+    kind: release
+    stage: 4
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: blade.swing.4
+  - selector: main:ranger.prototype.II
+    kind: hit
+    stage: 0
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: blade.impact
+  - selector: main:ranger.prototype.II
+    kind: hit
+    stage: 4
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: blade.impact.heavy
+  - selector: enemy.basic
+    kind: hit
+    stage: 0
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: blade.impact
+  - selector: hunter-break
+    kind: release
+    stage: 0
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: blade.heavy
+  - selector: hunter-break
+    kind: hit
+    stage: 0
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: blade.impact.heavy
+  - selector: al-spin
+    kind: release
+    stage: 0
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: blade.heavy
+  - selector: al-spin
+    kind: hit
+    stage: 0
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: blade.impact.heavy
+  - selector: hunter-sweep
+    kind: release
+    stage: 0
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: blade.fast
+  - selector: hunter-sweep
+    kind: hit
+    stage: 0
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: blade.impact
+  - selector: al-stab
+    kind: release
+    stage: 0
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: blade.fast
+  - selector: al-stab
+    kind: hit
+    stage: 0
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: blade.impact
+  - selector: hunter-native-E
+    kind: hit
+    stage: 0
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: guard.metal
+  - selector: rush
+    kind: hit
+    stage: 0
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: guard.metal
+  - selector: vc02.shield-hit
+    kind: hit
+    stage: 0
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: guard.metal
+  - selector: magazine-shot
+    kind: release
+    stage: 0
+    channel: ranged-shot
+    deliveryMode: Projectile
+    role: 
+    cue: gun.fire
+  - selector: magazine-shot
+    kind: release
+    stage: 0
+    channel: ranged-shot
+    deliveryMode: RayLandingArc
+    role: 
+    cue: launcher.fire
+  - selector: magazine-shot
+    kind: hit
+    stage: 0
+    channel: ranged-shot
+    deliveryMode: Projectile
+    role: 
+    cue: blade.impact
+  - selector: magazine-shot
+    kind: hit
+    stage: 0
+    channel: ranged-shot
+    deliveryMode: RayLandingArc
+    role: 
+    cue: blast.small
+  - selector: magazine-shot
+    kind: miss
+    stage: 0
+    channel: ranged-shot
+    deliveryMode: RayLandingArc
+    role: 
+    cue: blast.small
+  - selector: rocket
+    kind: release
+    stage: 0
+    channel: rocket-launch
+    deliveryMode: Projectile
+    role: 
+    cue: gun.fire
+  - selector: rocket
+    kind: hit
+    stage: 0
+    channel: rocket-launch
+    deliveryMode: Projectile
+    role: 
+    cue: blade.impact
+  - selector: rocket
+    kind: hit
+    stage: 0
+    channel: rocket-land
+    deliveryMode: 
+    role: 
+    cue: blast.small
+  - selector: rocket
+    kind: miss
+    stage: 0
+    channel: rocket-land
+    deliveryMode: 
+    role: 
+    cue: blast.small
+  - selector: al-native-E
+    kind: release
+    stage: 0
+    channel: rocket-launch
+    deliveryMode: Projectile
+    role: 
+    cue: gun.fire
+  - selector: al-native-E
+    kind: hit
+    stage: 0
+    channel: rocket-launch
+    deliveryMode: Projectile
+    role: 
+    cue: blade.impact
+  - selector: al-native-E
+    kind: hit
+    stage: 0
+    channel: rocket-land
+    deliveryMode: 
+    role: 
+    cue: blast.small
+  - selector: al-native-E
+    kind: miss
+    stage: 0
+    channel: rocket-land
+    deliveryMode: 
+    role: 
+    cue: blast.small
+  - selector: vc02.shot-probe
+    kind: release
+    stage: 0
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: gun.fire
+  - selector: vc02.shot-probe
+    kind: hit
+    stage: 0
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: blade.impact
+  - selector: vc02.throw
+    kind: hit
+    stage: 0
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: blast.small
+  - selector: vc02.throw
+    kind: miss
+    stage: 0
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: blast.small
+  - selector: sample-al-bomb.use
+    kind: hit
+    stage: 0
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: blast.small
+  - selector: sample-al-bomb.use
+    kind: miss
+    stage: 0
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: blast.small
+  - selector: precision
+    kind: reload
+    stage: 0
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: gun.reload
+  - selector: resource
+    kind: reload
+    stage: 0
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: gun.reload
+  - selector: target
+    kind: hurt
+    stage: 0
+    channel: 
+    deliveryMode: 
+    role: player
+    cue: body.hurt
+  - selector: target
+    kind: hurt
+    stage: 0
+    channel: 
+    deliveryMode: 
+    role: companion
+    cue: body.hurt
+  - selector: target
+    kind: guard
+    stage: 0
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: guard.metal
+  - selector: interface
+    kind: switch
+    stage: 0
+    channel: 
+    deliveryMode: 
+    role: 
+    cue: control.switch

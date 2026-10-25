@@ -1,6 +1,6 @@
 /*
  * 脚本：SfxEventDefinitionSO
- * 功能：定义一个短音事件的真实媒体、音量、音高、路由和并发准入参数。
+ * 功能：定义一个短音事件的真实媒体、变体、音量、音高、路由和内容节奏参数。
  * 边界：SO只保存作者配置，不保存运行声部、已播放事实或角色结算状态。
  * 协作：Catalog校验身份，Arbitrator选片与准入，VoicePlayer读取播放参数。
  */
@@ -14,6 +14,10 @@ namespace Ossastra.Audio
         [Header("稳定事件身份与媒体变体")]
         public string eventId;
         public AudioClip[] clips;
+        [Tooltip("同一来源的同一事件有多个片段时，排除上次已准入片段；单片段事件仍正常播放。")]
+        public bool avoidImmediateRepeat = true;
+        [Tooltip("作者可为特定高密度声音设置最短间隔；默认0不限制，不替代精确事实去重。")]
+        [Min(0)] public float minIntervalSeconds;
         [Header("声音参数；较高优先级可以抢占较低优先级")]
         [Range(0, 1)] public float volume = .3f;
         [Range(.01f, 3)] public float pitchMin = 1;
@@ -38,6 +42,7 @@ namespace Ossastra.Audio
             if (priority < 0 || priority > 100) return Invalid("INVALID_PRIORITY", out reason);
             if (maxPerSource <= 0) return Invalid("INVALID_SOURCE_LIMIT", out reason);
             if (!Finite(maxAgeSeconds) || maxAgeSeconds <= 0) return Invalid("INVALID_MAX_AGE", out reason);
+            if (!Finite(minIntervalSeconds) || minIntervalSeconds < 0) return Invalid("INVALID_CONTENT_INTERVAL", out reason);
             if (!Finite(minDistance) || !Finite(maxDistance) || minDistance <= 0 || maxDistance < minDistance)
                 return Invalid("INVALID_DISTANCE", out reason);
             if (clips == null || clips.Length == 0) return Invalid("ASSET_BLOCKED_NO_CLIPS", out reason);

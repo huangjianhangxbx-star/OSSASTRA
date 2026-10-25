@@ -1,0 +1,50 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "passed": 8,
+      "failed": 0,
+      "rows": [
+        {
+          "name": "Direct仍有真实Applied",
+          "passed": true
+        },
+        {
+          "name": "直接主手接触正确排入一条命中声",
+          "passed": true
+        },
+        {
+          "name": "Periodic仍有真实Applied",
+          "passed": true
+        },
+        {
+          "name": "Periodic同父派生伤害不误排主手重刀",
+          "passed": true
+        },
+        {
+          "name": "Secondary仍有真实Applied",
+          "passed": true
+        },
+        {
+          "name": "Secondary同父派生伤害不误排主手重刀",
+          "passed": true
+        },
+        {
+          "name": "三种原因均保留原始伤害结果",
+          "passed": true
+        },
+        {
+          "name": "来源测试只提交一条直击声",
+          "passed": true
+        }
+      ],
+      "scope": "audio-context fixture + actual owned target HP; not natural input"
+    }
+  }
+}

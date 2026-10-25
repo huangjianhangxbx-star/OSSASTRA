@@ -1,0 +1,41 @@
+/* 自有Play验证：通过真实库存事务装备已有弹仓射击器，再沿现有LT绑定开火/自动装填。
+ * 不授予装备/弹药，不写HP/体力/CD/绑定；仅暂时摆放参与者、取得局部应用焦点和创建虚拟手柄。
+ * 装备与消耗为真实运行事务，测试后退出Play重置；磁盘场景不保存。
+ */
+using System;using System.Linq;using System.Collections.Generic;using System.Reflection;using UnityEngine;using UnityEditor;using UnityEngine.InputSystem;using UnityEngine.InputSystem.LowLevel;using Funplay.Editor.Tools.Scripting;
+using C=Ossastra.Characters;using I=Ossastra.Inventory;using E=Ossastra.Enemies;using A=Ossastra.Audio;
+public class CuratedGunStory:IFunplayCommand
+{
+ public static object Report;static C.CharacterRoot actor;static C.CharacterControlCoordinator coordinator;static C.CharacterEquipment equipment;static C.CharacterAbilities abilities;static I.InventorySession inventory;static E.EnemyRoot[] enemies;static A.GameAudioRoot audio;static Gamepad pad;
+ static readonly Dictionary<Transform,Vector3> positions=new Dictionary<Transform,Vector3>();static readonly List<(Component component,bool value)> focus=new List<(Component,bool)>();static readonly List<object> checks=new List<object>();static readonly List<object> events=new List<object>();static readonly List<object> abilityFacts=new List<object>();static readonly HashSet<long> voices=new HashSet<long>();static readonly HashSet<string> requests=new HashSet<string>();static readonly List<(double time,Action action)> steps=new List<(double,Action)>();static Action<C.AbilityFeedbackFact> feedback;
+ static double start;static int next,lastFrame,hpBefore,acceptedBefore,guardBefore;static bool running,originalMixFocus;static string error;
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext c)
+ {
+  try{
+   if(!Application.isPlaying)throw new Exception("Play required");coordinator=UnityEngine.Object.FindObjectOfType<C.CharacterControlCoordinator>();actor=coordinator?.Current;audio=A.GameAudioRoot.Instance;inventory=UnityEngine.Object.FindObjectOfType<I.InventorySession>();enemies=UnityEngine.Object.FindObjectsOfType<E.EnemyRoot>();
+   if(actor==null||audio==null||inventory==null||!inventory.Ready||enemies.Length==0)throw new Exception("Missing real scene prerequisites");equipment=actor.GetComponent<C.CharacterEquipment>();abilities=actor.GetComponent<C.CharacterAbilities>();
+   checks.Clear();events.Clear();abilityFacts.Clear();steps.Clear();positions.Clear();focus.Clear();voices.Clear();requests.Clear();next=0;lastFrame=-1;error="";
+   foreach(var item in audio.SfxHistory)requests.Add(item.Request.EventId+"|"+item.Request.FactKey);
+   Focus(coordinator);foreach(var a in coordinator.Characters){positions[a.transform]=a.transform.position;Focus(a);}foreach(var e in enemies){positions[e.transform]=e.transform.position;Focus(e);Place(e.transform,actor.transform.position+new Vector3(80,0,0));}
+   if(actor.ActorId!="temporary-b")
+   {if(!coordinator.SwitchNext()||coordinator.Current?.ActorId!="temporary-b")throw new Exception("Existing magazinegun only permits ranger; legal controlswitch failed");actor=coordinator.Current;equipment=actor.GetComponent<C.CharacterEquipment>();abilities=actor.GetComponent<C.CharacterAbilities>();}
+   originalMixFocus=audio.Mix.Focused;audio.SendMessage("OnApplicationFocus",true,SendMessageOptions.DontRequireReceiver);pad=InputSystem.AddDevice<Gamepad>("AUDIO_SFXPASS_GunPad");Pad();
+   feedback=f=>abilityFacts.Add(new{kind=f.Kind,id=f.DefinitionId,execution=f.ExecutionId,emission=f.EmissionIndex,channel=f.Channel,mode=f.DeliveryMode,time=Elapsed});abilities.FeedbackObserved+=feedback;
+   At(4,()=>{var chest=inventory.ContainerPosition("external");if(!chest.HasValue)throw new Exception("No known existingchest");var p=chest.Value+Vector3.right;p.y=actor.transform.position.y;Place(actor.transform,p);});
+   At(5,()=>{var gun=inventory.Ledger.Items.FirstOrDefault(i=>i.DefinitionId=="vc02.magazine-shooter"&&i.Location.ContainerId=="external");if(gun==null)throw new Exception("Existing magazinegun not in chest");var result=inventory.Move(inventory.Ledger.Plan(gun.Id,I.InventorySession.HandId(actor.ActorId,I.InventoryHand.Left)));Check("真实库存装备已有射击器",result.Ok,new{result.Reason,definition=equipment.LeftDefinition?.definitionId});if(!result.Ok)throw new Exception(result.Reason);});
+   At(6,()=>{for(int i=0;i<enemies.Length;i++)Place(enemies[i].transform,actor.transform.position+new Vector3(3.5f,0,i*4));hpBefore=enemies.Sum(e=>e.Vitals.Health.Current);acceptedBefore=abilities.AcceptedCount;Pad(1);});
+   At(11,()=>{Pad();Check("LT真实弹仓能力受理",abilities.AcceptedCount>acceptedBefore,new{before=acceptedBefore,after=abilities.AcceptedCount,result=abilities.LastResult});Check("真实子弹降低敌方HP",enemies.Sum(e=>e.Vitals.Health.Current)<hpBefore,new{before=hpBefore,after=enemies.Sum(e=>e.Vitals.Health.Current)});});
+   At(15.5,()=>{Capture();Check("普通射击使用枪声且未借挥刀",events.Any(x=>(string)x.GetType().GetProperty("eventId").GetValue(x)=="player.gun.fire"),null);Check("自动装填完成发出机械声",events.Any(x=>(string)x.GetType().GetProperty("eventId").GetValue(x)=="player.gun.reload"),null);Pad(1);});
+   At(18,()=>{Pad();foreach(var e in enemies)Place(e.transform,actor.transform.position+new Vector3(80,0,0));});
+   At(20,()=>{Capture();var gunEvents=events.Where(x=>(string)x.GetType().GetProperty("eventId").GetValue(x)=="player.gun.fire"&& (bool)x.GetType().GetProperty("accepted").GetValue(x)).ToArray();var clips=gunEvents.Select(x=>(int)x.GetType().GetProperty("clipIndex").GetValue(x)).ToArray();Check("枪声变体真实调用不连续重复",clips.Length>=3&&clips.Skip(1).Where((v,i)=>v==clips[i]).Count()==0,new{clips});Check("真实射击元数据区分实际Projectile",abilityFacts.Any(x=>(string)x.GetType().GetProperty("mode").GetValue(x)=="Projectile"&&(string)x.GetType().GetProperty("channel").GetValue(x)=="ranged-shot"),null);Cleanup();});
+   start=EditorApplication.timeSinceStartup;running=true;EditorApplication.update+=Tick;c.ReturnValue=new{started=true,seconds=21,scope="actual inventory transaction and boundLT; no grants or HP writes"};
+  }catch(Exception e){error=e.ToString();Cleanup();c.ReturnValue=Report;}
+ }
+ static double Elapsed=>EditorApplication.timeSinceStartup-start;static void At(double at,Action a){steps.Add((at,a));}static void Pad(float lt=0){if(pad!=null)InputSystem.QueueStateEvent(pad,new GamepadState{leftTrigger=lt,rightStick=Vector2.right});}
+ static void Place(Transform t,Vector3 p){var controller=t.GetComponent<CharacterController>();bool enabled=controller!=null&&controller.enabled;if(enabled)controller.enabled=false;t.position=p;if(enabled)controller.enabled=true;Physics.SyncTransforms();}
+ static void Focus(Component c){var f=c.GetType().GetField("focused",BindingFlags.Instance|BindingFlags.NonPublic);if(f==null||f.FieldType!=typeof(bool))return;focus.Add((c,(bool)f.GetValue(c)));c.SendMessage("OnApplicationFocus",true,SendMessageOptions.DontRequireReceiver);}
+ static void Check(string name,bool pass,object detail){checks.Add(new{name,pass,detail});}
+ static void Capture(){foreach(var e in audio.SfxHistory){if(!requests.Add(e.Request.EventId+"|"+e.Request.FactKey))continue;events.Add(new{eventId=e.Request.EventId,fact=e.Request.FactKey,accepted=e.Decision.Accepted,clipIndex=e.Decision.ClipIndex,reason=e.Decision.Reason,source=e.Request.SourceId,playIssued=e.SourcePlayIssued,time=Elapsed});}}
+ static void Tick(){if(lastFrame==Time.frameCount)return;lastFrame=Time.frameCount;try{if(!Application.isPlaying||Elapsed>35)throw new Exception("Play ended or story timeout");Capture();if(next<steps.Count&&Elapsed>=steps[next].time){var s=steps[next++];var late=Elapsed-s.time;if(late>.12)start+=late;s.action();}}catch(Exception e){error=e.ToString();Cleanup();}}
+ static void Cleanup(){EditorApplication.update-=Tick;try{Pad();}catch{}if(abilities!=null&&feedback!=null)abilities.FeedbackObserved-=feedback;foreach(var p in positions)if(p.Key!=null)Place(p.Key,p.Value);foreach(var p in focus)if(p.component!=null)p.component.SendMessage("OnApplicationFocus",p.value,SendMessageOptions.DontRequireReceiver);if(audio!=null)audio.SendMessage("OnApplicationFocus",originalMixFocus,SendMessageOptions.DontRequireReceiver);if(pad!=null){InputSystem.RemoveDevice(pad);pad=null;}running=false;Report=new{done=true,error,checks=checks.ToArray(),events=events.ToArray(),abilityFacts=abilityFacts.ToArray(),devicesRemaining=InputSystem.devices.Count(d=>d.name=="AUDIO_SFXPASS_GunPad"),equipmentTransactionsAreReal=true};}
+}

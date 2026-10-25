@@ -1,0 +1,245 @@
+/* AUDIO-SFXPASS：本机精选音效的显式Editor资产配方。只复制已校验派生PCM与写自有SO，不改原媒体、场景或玩法；受限PCM/本机引用资产禁止公开。 */
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Security.Cryptography;
+using Funplay.Editor.Tools.Scripting;
+using Ossastra.Audio;
+using UnityEditor;
+using UnityEngine;
+
+public sealed class AuthorCuratedSoundAssets : IFunplayCommand
+{
+    private const string derivedRoot = "E:/WORLDCREATOR/XingHaiHuiLang/work/OSSASTRA/AUDIO-SFXPASS-20261025/Derived";
+    private const string localRoot = "Assets/OSSASTRA/Audio/CuratedLocal";
+    private const string profilePath = "Assets/OSSASTRA/Audio/Resources/OssastraCombatSoundProfile.asset";
+    private const string contentPath = localRoot + "/Resources/OssastraSfxContent.asset";
+    private const string catalogPath = localRoot + "/Definitions/CuratedCombatSfxCatalog.asset";
+    private const string diagnosticCatalogPath = "Assets/OSSASTRA/Audio/SFX/Definitions/CombatSfxCatalog.asset";
+    private readonly List<string> created = new List<string>(), changed = new List<string>(), noOp = new List<string>();
+    private readonly Dictionary<string, AudioClip> media = new Dictionary<string, AudioClip>(StringComparer.Ordinal);
+    private Funplay.Editor.Tools.Scripting.ExecutionContext context;
+
+    [Serializable] public sealed class Manifest { public int schemaVersion, manifestVersion; public string task; public bool allOriginalsUnchanged; public MediaRecord[] records; }
+    [Serializable] public sealed class MediaRecord { public string id; public MediaFile source, output; }
+    [Serializable] public sealed class MediaFile { public string absolutePath, sha256; public long bytes; }
+
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext c)
+    {
+        context = c;
+        if (Application.isPlaying || EditorApplication.isCompiling || EditorApplication.isUpdating)
+            throw new InvalidOperationException("Expected ready Edit Mode; this recipe does not change Editor mode or scenes.");
+        string expectedRoot = Path.GetFullPath("E:/WORLDCREATOR/new/Project_ANKALUTE/Assets");
+        if (!string.Equals(Path.GetFullPath(Application.dataPath), expectedRoot, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Wrong project: " + Application.dataPath);
+        string manifestPath = Path.Combine(derivedRoot, "manifest.json");
+        if (!File.Exists(manifestPath)) throw new FileNotFoundException("Missing derived manifest", manifestPath);
+        var manifest = Newtonsoft.Json.JsonConvert.DeserializeObject<Manifest>(File.ReadAllText(manifestPath));
+        string[] required = { "blade-release", "blade-hit", "character-hurt", "gun-5-4", "gun-5-5", "gun-5-6", "reload-load", "reload-pump", "mechanical-ui-candidate", "explosion-small", "metal-impact-heavy", "metal-bullet-impact" };
+        if (manifest == null || manifest.schemaVersion != 1 || manifest.manifestVersion != 2 || manifest.task != "AUDIO-SFXPASS-20261025" ||
+            !manifest.allOriginalsUnchanged || manifest.records == null || manifest.records.Length != required.Length ||
+            !required.OrderBy(v => v).SequenceEqual(manifest.records.Select(v => v.id).OrderBy(v => v)))
+            throw new InvalidOperationException("Manifest schema, provenance protection, or exact 12-media identity set does not match this recipe.");
+        // 所有原文件、派生文件和已有目标先核验；遇到不同字节不覆盖，更不能把未知结果当成可重放的新建。
+        foreach (var record in manifest.records)
+        {
+            if (record.source == null || record.output == null) throw new InvalidOperationException("Incomplete media record: " + record.id);
+            string expectedOutput = Path.GetFullPath(Path.Combine(derivedRoot, record.id + ".wav"));
+            if (!string.Equals(expectedOutput, Path.GetFullPath(record.output.absolutePath), StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Output escaped exact Derived path: " + record.id);
+            Verify(record.source, "original " + record.id); Verify(record.output, "derived " + record.id);
+            string destination = MediaPath(record.id);
+            if (File.Exists(AbsoluteAsset(destination)) && Hash(AbsoluteAsset(destination)) != record.output.sha256)
+                throw new InvalidOperationException("Existing local media differs; inspect rather than overwrite: " + destination);
+        }
+        var diagnostic = Need<SfxCatalogSO>(diagnosticCatalogPath);
+        if (!diagnostic.Validate(out string diagnosticReason) || diagnostic.events.Length != 22)
+            throw new InvalidOperationException("Expected existing valid 22-event diagnostic catalog: " + diagnosticReason);
+        PreflightAsset<CombatSoundProfileSO>(profilePath); PreflightAsset<SfxCatalogSO>(catalogPath); PreflightAsset<SfxContentSetSO>(contentPath);
+        string[] roles = { "player", "companion", "enemy" };
+        string[] cueNames = { "blade.swing.1", "blade.swing.2", "blade.swing.3", "blade.swing.4", "blade.fast", "blade.heavy", "blade.impact", "blade.impact.heavy", "body.hurt", "guard.metal", "gun.fire", "gun.reload", "launcher.fire", "blast.small" };
+        foreach (string role in roles) foreach (string cue in cueNames)
+            if (role != "enemy" || cue != "body.hurt") PreflightAsset<SfxEventDefinitionSO>(DefinitionPath(role + "." + cue));
+        PreflightAsset<SfxEventDefinitionSO>(DefinitionPath("ui.control.switch"));
+
+        Folder(localRoot + "/Media"); Folder(localRoot + "/Definitions"); Folder(localRoot + "/Resources"); Folder("Assets/OSSASTRA/Audio/Resources");
+        var mediaReadback = new List<object>();
+        foreach (var record in manifest.records)
+        {
+            string destination = MediaPath(record.id);
+            string absoluteDestination = AbsoluteAsset(destination);
+            if (!File.Exists(absoluteDestination)) { File.Copy(record.output.absolutePath, absoluteDestination, false); created.Add(destination); }
+            else noOp.Add(destination + " [identical PCM]");
+            if (Hash(absoluteDestination) != record.output.sha256) throw new InvalidOperationException("Copied media checksum mismatch: " + destination);
+            AssetDatabase.ImportAsset(destination, ImportAssetOptions.ForceSynchronousImport);
+            var importer = AssetImporter.GetAtPath(destination) as AudioImporter;
+            if (importer == null) throw new InvalidOperationException("Missing AudioImporter: " + destination);
+            var settings = importer.defaultSampleSettings;
+            bool importChange = settings.loadType != AudioClipLoadType.DecompressOnLoad || settings.compressionFormat != AudioCompressionFormat.PCM ||
+                !settings.preloadAudioData || settings.sampleRateSetting != AudioSampleRateSetting.PreserveSampleRate || importer.forceToMono;
+            if (importChange)
+            {
+                c.RegisterObjectModification(importer);
+                settings.loadType = AudioClipLoadType.DecompressOnLoad; settings.compressionFormat = AudioCompressionFormat.PCM;
+                settings.preloadAudioData = true; settings.sampleRateSetting = AudioSampleRateSetting.PreserveSampleRate;
+                importer.defaultSampleSettings = settings; importer.forceToMono = false; importer.SaveAndReimport(); changed.Add(destination + " [import settings]");
+            }
+            else noOp.Add(destination + " [import settings]");
+            var clip = Need<AudioClip>(destination); if (!clip.LoadAudioData() || clip.loadState == AudioDataLoadState.Failed) throw new InvalidOperationException("Audio data not loadable: " + destination);
+            var actual = ((AudioImporter)AssetImporter.GetAtPath(destination)).defaultSampleSettings;
+            if (actual.loadType != AudioClipLoadType.DecompressOnLoad || actual.compressionFormat != AudioCompressionFormat.PCM || !actual.preloadAudioData || actual.sampleRateSetting != AudioSampleRateSetting.PreserveSampleRate)
+                throw new InvalidOperationException("Importer readback differs: " + destination);
+            media.Add(record.id, clip);
+            mediaReadback.Add(new { id = record.id, path = destination, sha256 = Hash(absoluteDestination), samples = clip.samples, channels = clip.channels, frequency = clip.frequency, seconds = clip.length, pcm = true, preload = actual.preloadAudioData });
+        }
+
+        var effective = diagnostic.events.ToDictionary(d => d.eventId, StringComparer.Ordinal);
+        var authored = new List<SfxEventDefinitionSO>();
+        foreach (string role in roles)
+        {
+            float roleGain = role == "player" ? 1f : role == "companion" ? .62f : .55f;
+            SfxBus bus = role == "player" ? SfxBus.Player : role == "companion" ? SfxBus.Companion : SfxBus.Enemy;
+            float[] swingGains = { .30f, .34f, .38f, .44f }, swingPitches = { 1.08f, 1.02f, .98f, .90f };
+            for (int index = 0; index < 4; index++) AddCue(role + ".blade.swing." + (index + 1), bus, swingGains[index] * roleGain, swingPitches[index], .025f, 50, 0, authored, effective, "blade-release");
+            AddCue(role + ".blade.fast", bus, .30f * roleGain, 1.14f, .025f, 50, 0, authored, effective, "blade-release");
+            AddCue(role + ".blade.heavy", bus, .46f * roleGain, .87f, .025f, 55, 0, authored, effective, "blade-release");
+            AddCue(role + ".blade.impact", bus, .42f * roleGain, .99f, .025f, 65, .035f, authored, effective, "blade-hit");
+            AddCue(role + ".blade.impact.heavy", bus, .50f * roleGain, .90f, .025f, 70, .035f, authored, effective, "blade-hit");
+            if (role != "enemy") AddCue(role + ".body.hurt", bus, .20f * roleGain, 1, .02f, 85, .28f, authored, effective, "character-hurt");
+            AddCue(role + ".guard.metal", bus, .30f * roleGain, .95f, .025f, 80, .09f, authored, effective, "metal-bullet-impact");
+            AddCue(role + ".gun.fire", bus, .40f * roleGain, 1, .025f, 60, 0, authored, effective, "gun-5-4", "gun-5-5", "gun-5-6");
+            AddCue(role + ".gun.reload", bus, .34f * roleGain, 1, .015f, 40, 0, authored, effective, "reload-pump");
+            AddCue(role + ".launcher.fire", bus, .42f * roleGain, .80f, .025f, 60, 0, authored, effective, "gun-5-4", "gun-5-5", "gun-5-6");
+            AddCue(role + ".blast.small", bus, .55f * roleGain, .95f, .025f, 75, .04f, authored, effective, "explosion-small");
+        }
+        AddCue("ui.control.switch", SfxBus.UI, .18f, 1, 0, 35, .1f, authored, effective, "mechanical-ui-candidate");
+        var catalog = Write<SfxCatalogSO>(catalogPath, a => a.events = effective.Values.OrderBy(d => d.eventId, StringComparer.Ordinal).ToArray());
+        var rows = ProfileRows();
+        var profile = Write<CombatSoundProfileSO>(profilePath, a => a.bindings = rows.ToArray());
+        var content = Write<SfxContentSetSO>(contentPath, a => { a.contentLabel = "AUDIO-SFXPASS 本机精选 / 既有受限PCM / 非诊断音回退"; a.catalog = catalog; });
+        if (!profile.Validate(out string profileReason)) throw new InvalidOperationException("Invalid sound profile: " + profileReason);
+        if (!catalog.Validate(out string catalogReason)) throw new InvalidOperationException("Invalid curated catalog: " + catalogReason);
+        if (!content.Validate(out string contentReason)) throw new InvalidOperationException("Invalid content set: " + contentReason);
+        // 每条语义至少能在声明角色下解析到精选声音；未映射的闪避/回血/未知技能明确留白。
+        foreach (var row in profile.bindings)
+        {
+            var checkRoles = string.IsNullOrEmpty(row.role) ? roles : new[] { row.role };
+            foreach (string role in checkRoles)
+            {
+                string eventId = row.selector == "interface" ? "ui." + row.cue : role + "." + row.cue;
+                if (!catalog.TryResolve(eventId, out _, out string reason)) throw new InvalidOperationException("Profile cue unresolved: " + eventId + " / " + reason);
+            }
+        }
+        var storedProfile = Need<CombatSoundProfileSO>(profilePath); var storedCatalog = Need<SfxCatalogSO>(catalogPath); var storedContent = Need<SfxContentSetSO>(contentPath);
+        if (storedProfile.bindings.Length != rows.Count || storedCatalog.events.Length != effective.Count || storedContent.catalog != storedCatalog ||
+            AssetDatabase.GetDependencies(profilePath, false).Any(p => p.EndsWith(".wav", StringComparison.OrdinalIgnoreCase)))
+            throw new InvalidOperationException("Saved references/counts/public profile PCM isolation readback failed.");
+        c.ReturnValue = new
+        {
+            profilePath, contentPath, catalogPath, manifestPath, mediaCount = media.Count, authoredEvents = authored.Count, catalogEvents = catalog.events.Length,
+            diagnosticUnchangedReferences = diagnostic.events.Count(d => effective.TryGetValue(d.eventId, out var current) && current == d),
+            normalDiagnosticFallback = false, sceneModified = false, sourcePcmChanged = false, redistributableMedia = false,
+            validation = new { profileReason, catalogReason, contentReason },
+            created = created.ToArray(), changed = changed.ToArray(), noOp = noOp.ToArray(), media = mediaReadback.ToArray(),
+            parameterTable = authored.Select(d => new { d.eventId, path = AssetDatabase.GetAssetPath(d), d.bus, d.volume, d.pitchMin, d.pitchMax, d.priority, d.maxPerSource, d.minIntervalSeconds, d.avoidImmediateRepeat, clips = d.clips.Select(AssetDatabase.GetAssetPath).ToArray() }).ToArray(),
+            profileRows = storedProfile.bindings
+        };
+    }
+
+    private List<CombatSoundBinding> ProfileRows()
+    {
+        var rows = new List<CombatSoundBinding>();
+        void Add(string selector, string kind, string cue, int stage = 0, string channel = "", string mode = "", string role = "")
+            => rows.Add(new CombatSoundBinding { selector = selector, kind = kind, cue = cue, stage = stage, channel = channel, deliveryMode = mode, role = role });
+        foreach (string selector in new[] { "body.basic", "main:hunter.prototype.I", "main:hunter.prototype.II", "main:ranger.prototype.I", "main:ranger.prototype.II" })
+        {
+            Add(selector, "release", "blade.swing.1");
+            for (int stage = 1; stage <= 4; stage++) Add(selector, "release", "blade.swing." + stage, stage);
+            Add(selector, "hit", "blade.impact"); Add(selector, "hit", "blade.impact.heavy", 4);
+        }
+        Add("enemy.basic", "hit", "blade.impact");
+        foreach (string selector in new[] { "hunter-break", "al-spin" })
+        { Add(selector, "release", "blade.heavy"); Add(selector, "hit", "blade.impact.heavy"); }
+        Add("hunter-sweep", "release", "blade.fast"); Add("hunter-sweep", "hit", "blade.impact");
+        Add("al-stab", "release", "blade.fast"); Add("al-stab", "hit", "blade.impact");
+        foreach (string selector in new[] { "hunter-native-E", "rush", "vc02.shield-hit" }) Add(selector, "hit", "guard.metal");
+        Add("magazine-shot", "release", "gun.fire", channel: "ranged-shot", mode: "Projectile");
+        Add("magazine-shot", "release", "launcher.fire", channel: "ranged-shot", mode: "RayLandingArc");
+        Add("magazine-shot", "hit", "blade.impact", channel: "ranged-shot", mode: "Projectile");
+        Add("magazine-shot", "hit", "blast.small", channel: "ranged-shot", mode: "RayLandingArc");
+        Add("magazine-shot", "miss", "blast.small", channel: "ranged-shot", mode: "RayLandingArc");
+        foreach (string selector in new[] { "rocket", "al-native-E" })
+        {
+            Add(selector, "release", "gun.fire", channel: "rocket-launch", mode: "Projectile");
+            Add(selector, "hit", "blade.impact", channel: "rocket-launch", mode: "Projectile");
+            Add(selector, "hit", "blast.small", channel: "rocket-land"); Add(selector, "miss", "blast.small", channel: "rocket-land");
+        }
+        Add("vc02.shot-probe", "release", "gun.fire"); Add("vc02.shot-probe", "hit", "blade.impact");
+        foreach (string selector in new[] { "vc02.throw", "sample-al-bomb.use" })
+        { Add(selector, "hit", "blast.small"); Add(selector, "miss", "blast.small"); }
+        Add("precision", "reload", "gun.reload"); Add("resource", "reload", "gun.reload");
+        Add("target", "hurt", "body.hurt", role: "player"); Add("target", "hurt", "body.hurt", role: "companion");
+        Add("target", "guard", "guard.metal"); Add("interface", "switch", "control.switch");
+        return rows;
+    }
+
+    private void AddCue(string id, SfxBus bus, float volume, float pitch, float spread, int priority, float interval,
+        List<SfxEventDefinitionSO> authored, Dictionary<string, SfxEventDefinitionSO> effective, params string[] clips)
+    {
+        var definition = Write<SfxEventDefinitionSO>(DefinitionPath(id), a =>
+        {
+            a.eventId = id; a.bus = bus; a.clips = clips.Select(key => media[key]).ToArray(); a.volume = volume;
+            a.pitchMin = pitch - spread; a.pitchMax = pitch + spread; a.priority = priority; a.maxPerSource = 8;
+            a.maxAgeSeconds = .5f; a.avoidImmediateRepeat = true; a.minIntervalSeconds = interval; a.spatial = false; a.minDistance = 1; a.maxDistance = 20;
+        });
+        if (!definition.TryValidate(out string reason)) throw new InvalidOperationException(id + ": " + reason);
+        authored.Add(definition); effective[id] = definition;
+    }
+    private T Write<T>(string path, Action<T> apply) where T : ScriptableObject
+    {
+        var asset = AssetDatabase.LoadAssetAtPath<T>(path); bool isNew = asset == null;
+        if (isNew) { asset = ScriptableObject.CreateInstance<T>(); asset.name = Path.GetFileNameWithoutExtension(path); }
+        else context.RegisterObjectModification(asset);
+        string before = EditorJsonUtility.ToJson(asset); apply(asset); string after = EditorJsonUtility.ToJson(asset);
+        if (isNew) { AssetDatabase.CreateAsset(asset, path); context.RegisterObjectCreation(asset); created.Add(path); }
+        else if (before != after) { EditorUtility.SetDirty(asset); changed.Add(path); }
+        else noOp.Add(path);
+        AssetDatabase.SaveAssetIfDirty(asset); return Need<T>(path);
+    }
+    private static void PreflightAsset<T>(string path) where T : UnityEngine.Object
+    {
+        if (File.Exists(AbsoluteAsset(path)) && AssetDatabase.LoadAssetAtPath<T>(path) == null) throw new InvalidOperationException("Existing owned path has unexpected type; inspect: " + path);
+    }
+    private static T Need<T>(string path) where T : UnityEngine.Object
+    {
+        var asset = AssetDatabase.LoadAssetAtPath<T>(path); if (asset == null) throw new InvalidOperationException("Missing asset: " + path); return asset;
+    }
+    private static string DefinitionPath(string id) => localRoot + "/Definitions/" + id + ".asset";
+    private static string MediaPath(string id) => localRoot + "/Media/" + id + ".wav";
+    private static string AbsoluteAsset(string assetPath)
+    {
+        string project = Path.GetDirectoryName(Application.dataPath);
+        string absolute = Path.GetFullPath(Path.Combine(project, assetPath));
+        string allowed = Path.GetFullPath(Path.Combine(project, "Assets/OSSASTRA/Audio")) + Path.DirectorySeparatorChar;
+        if (!absolute.StartsWith(allowed, StringComparison.OrdinalIgnoreCase)) throw new InvalidOperationException("Asset path escaped owned audio root: " + assetPath);
+        return absolute;
+    }
+    private static void Folder(string path)
+    {
+        if (AssetDatabase.IsValidFolder(path)) return;
+        int slash = path.LastIndexOf('/'); if (slash <= 0) throw new InvalidOperationException("Invalid asset folder: " + path);
+        Folder(path.Substring(0, slash)); string guid = AssetDatabase.CreateFolder(path.Substring(0, slash), path.Substring(slash + 1));
+        if (string.IsNullOrEmpty(guid) || !AssetDatabase.IsValidFolder(path)) throw new InvalidOperationException("Folder creation failed: " + path);
+    }
+    private static void Verify(MediaFile file, string label)
+    {
+        if (string.IsNullOrEmpty(file.absolutePath) || !File.Exists(file.absolutePath) || new FileInfo(file.absolutePath).Length != file.bytes || Hash(file.absolutePath) != file.sha256)
+            throw new InvalidOperationException("Checksum/length mismatch: " + label + " / " + file.absolutePath);
+    }
+    private static string Hash(string path)
+    {
+        using (var sha = SHA256.Create()) using (var stream = File.OpenRead(path))
+            return BitConverter.ToString(sha.ComputeHash(stream)).Replace("-", "").ToLowerInvariant();
+    }
+}

@@ -1,0 +1,761 @@
+{
+  "task": "AUDIO-SFXPASS",
+  "policy": "RESTRICTED_LOCAL_ONLY; no PCM published",
+  "originalsUnchanged": true,
+  "method": "Existing PCM only: threshold trim with preroll/postroll, linear edge fades, one scalar gain per clip; no synthesis/resample/pitch/time-stretch/limiter",
+  "audition": "NOT_AUDITIONED",
+  "records": [
+    {
+      "id": "blade-release",
+      "provenance": "Cinderia原作提取：匕首斩改；仅本机参考",
+      "source": {
+        "absolutePath": "E:\\WORLDCREATOR\\new\\Project_ANKALUTE\\Assets\\OSSASTRA\\Art\\AudioReferenceLocal\\release.wav",
+        "sha256": "3daf69bbeb72cc2bcf6ef004f86c93a9a0d1110792ef45879f3463534085e6ad",
+        "bytes": 7744,
+        "format": {
+          "codec": 1,
+          "channels": 1,
+          "sampleRate": 22050,
+          "blockAlign": 2,
+          "bits": 16
+        },
+        "chunks": [
+          {
+            "id": "fmt ",
+            "size": 16
+          },
+          {
+            "id": "data",
+            "size": 7700
+          }
+        ],
+        "durationSeconds": 0.1746032,
+        "peak": 0.2709961,
+        "rms": 0.0550993,
+        "onsetMs": 0.136
+      },
+      "trim": {
+        "thresholdLinear": 0.001,
+        "originalStartFrame": 0,
+        "originalEndFrameExclusive": 3850,
+        "removedLeadingSeconds": 0,
+        "removedTrailingSeconds": 0,
+        "maxDurationApplied": false,
+        "fadeInMs": 2,
+        "fadeOutMs": 12
+      },
+      "gain": {
+        "linear": 1.0889578,
+        "decibels": 0.7402,
+        "desiredFamilyRms": 0.06,
+        "actualFamilyRmsTarget": 0.06,
+        "peakCeiling": 0.75,
+        "familyTargetReducedByPeakCeiling": false
+      },
+      "output": {
+        "absolutePath": "E:\\WORLDCREATOR\\XingHaiHuiLang\\work\\OSSASTRA\\AUDIO-SFXPASS-20261025\\Derived\\blade-release.wav",
+        "sha256": "52913bce08c06167bbf165bb845ee6733d16e14f8ba3813ad812f61c281ffe52",
+        "bytes": 7744,
+        "channels": 1,
+        "sampleRate": 22050,
+        "bits": 16,
+        "durationSeconds": 0.1746032,
+        "peak": 0.295105,
+        "rms": 0.0600002,
+        "onsetMs": 0.499,
+        "firstFrameZero": true,
+        "lastFrameZero": true
+      }
+    },
+    {
+      "id": "blade-hit",
+      "provenance": "Cinderia原作提取：a击中；仅本机参考",
+      "source": {
+        "absolutePath": "E:\\WORLDCREATOR\\new\\Project_ANKALUTE\\Assets\\OSSASTRA\\Art\\AudioReferenceLocal\\hit.wav",
+        "sha256": "bd4435e63ca6cb15bca4539539f1183389bef1f03ab04fac97764b938a2f99af",
+        "bytes": 19664,
+        "format": {
+          "codec": 1,
+          "channels": 1,
+          "sampleRate": 22050,
+          "blockAlign": 2,
+          "bits": 16
+        },
+        "chunks": [
+          {
+            "id": "fmt ",
+            "size": 16
+          },
+          {
+            "id": "data",
+            "size": 19620
+          }
+        ],
+        "durationSeconds": 0.444898,
+        "peak": 0.1174011,
+        "rms": 0.0176876,
+        "onsetMs": 28.299
+      },
+      "trim": {
+        "thresholdLinear": 0.001,
+        "originalStartFrame": 580,
+        "originalEndFrameExclusive": 7849,
+        "removedLeadingSeconds": 0.0263039,
+        "removedTrailingSeconds": 0.0889342,
+        "maxDurationApplied": false,
+        "fadeInMs": 2,
+        "fadeOutMs": 15
+      },
+      "gain": {
+        "linear": 2.920033,
+        "decibels": 9.3078,
+        "desiredFamilyRms": 0.06,
+        "actualFamilyRmsTarget": 0.06,
+        "peakCeiling": 0.75,
+        "familyTargetReducedByPeakCeiling": false
+      },
+      "output": {
+        "absolutePath": "E:\\WORLDCREATOR\\XingHaiHuiLang\\work\\OSSASTRA\\AUDIO-SFXPASS-20261025\\Derived\\blade-hit.wav",
+        "sha256": "335f9fb253202e1d128924d8bf68e999f4c61dffcfcd152b1d726e6f60e50f56",
+        "bytes": 14582,
+        "channels": 1,
+        "sampleRate": 22050,
+        "bits": 16,
+        "durationSeconds": 0.3296599,
+        "peak": 0.342804,
+        "rms": 0.0600002,
+        "onsetMs": 0.952,
+        "firstFrameZero": true,
+        "lastFrameZero": true
+      }
+    },
+    {
+      "id": "character-hurt",
+      "provenance": "Cinderia原作提取：人物受击；仅本机参考",
+      "source": {
+        "absolutePath": "E:\\WORLDCREATOR\\new\\Project_ANKALUTE\\Assets\\OSSASTRA\\Art\\AudioReferenceLocal\\hurt.wav",
+        "sha256": "b3e65fd8bb2295404c5b272c6f8c76e5182503114489d65f03888ab13aed1bad",
+        "bytes": 152108,
+        "format": {
+          "codec": 1,
+          "channels": 2,
+          "sampleRate": 44100,
+          "blockAlign": 4,
+          "bits": 16
+        },
+        "chunks": [
+          {
+            "id": "fmt ",
+            "size": 16
+          },
+          {
+            "id": "data",
+            "size": 152064
+          }
+        ],
+        "durationSeconds": 0.8620408,
+        "peak": 1,
+        "rms": 0.0758154,
+        "onsetMs": 21.882
+      },
+      "trim": {
+        "thresholdLinear": 0.001,
+        "originalStartFrame": 877,
+        "originalEndFrameExclusive": 31519,
+        "removedLeadingSeconds": 0.0198866,
+        "removedTrailingSeconds": 0.1473243,
+        "maxDurationApplied": false,
+        "fadeInMs": 2,
+        "fadeOutMs": 20
+      },
+      "gain": {
+        "linear": 0.7105088,
+        "decibels": -2.9686,
+        "desiredFamilyRms": 0.06,
+        "actualFamilyRmsTarget": 0.06,
+        "peakCeiling": 0.75,
+        "familyTargetReducedByPeakCeiling": false
+      },
+      "output": {
+        "absolutePath": "E:\\WORLDCREATOR\\XingHaiHuiLang\\work\\OSSASTRA\\AUDIO-SFXPASS-20261025\\Derived\\character-hurt.wav",
+        "sha256": "1d6816d8afecc6f78d5c2cf9df67fbbd2a44d462f8296176be43ecac0626cd61",
+        "bytes": 122612,
+        "channels": 2,
+        "sampleRate": 44100,
+        "bits": 16,
+        "durationSeconds": 0.6948299,
+        "peak": 0.7105103,
+        "rms": 0.0600001,
+        "onsetMs": 2.494,
+        "firstFrameZero": true,
+        "lastFrameZero": true
+      }
+    },
+    {
+      "id": "gun-5-4",
+      "provenance": "工程已有Gun Sounds Pack Vol 1；包内未发现许可文档，仅本机",
+      "source": {
+        "absolutePath": "E:\\WORLDCREATOR\\new\\Project_ANKALUTE\\Assets\\Gun Sounds Pack Vol 1\\Gun Shot\\Gunshot 5-4.wav",
+        "sha256": "d543b420ada0ec6c75d93d37e69847e21b0e098b8e7adefca847db9a02a9e190",
+        "bytes": 192316,
+        "format": {
+          "codec": 1,
+          "channels": 2,
+          "sampleRate": 44100,
+          "blockAlign": 4,
+          "bits": 16
+        },
+        "chunks": [
+          {
+            "id": "fmt ",
+            "size": 16
+          },
+          {
+            "id": "data",
+            "size": 192272
+          }
+        ],
+        "durationSeconds": 1.0899773,
+        "peak": 0.4577942,
+        "rms": 0.0361604,
+        "onsetMs": 1.995
+      },
+      "trim": {
+        "thresholdLinear": 0.001,
+        "originalStartFrame": 0,
+        "originalEndFrameExclusive": 23053,
+        "removedLeadingSeconds": 0,
+        "removedTrailingSeconds": 0.5672336,
+        "maxDurationApplied": false,
+        "fadeInMs": 2,
+        "fadeOutMs": 15
+      },
+      "gain": {
+        "linear": 1.1490921,
+        "decibels": 1.2071,
+        "desiredFamilyRms": 0.06,
+        "actualFamilyRmsTarget": 0.06,
+        "peakCeiling": 0.75,
+        "familyTargetReducedByPeakCeiling": false
+      },
+      "output": {
+        "absolutePath": "E:\\WORLDCREATOR\\XingHaiHuiLang\\work\\OSSASTRA\\AUDIO-SFXPASS-20261025\\Derived\\gun-5-4.wav",
+        "sha256": "6119da42a01a63d8de11051968fb049eadd44e7f77dbfe996ffe80cb9351d9b4",
+        "bytes": 92256,
+        "channels": 2,
+        "sampleRate": 44100,
+        "bits": 16,
+        "durationSeconds": 0.5227438,
+        "peak": 0.526062,
+        "rms": 0.06,
+        "onsetMs": 1.995,
+        "firstFrameZero": true,
+        "lastFrameZero": true
+      }
+    },
+    {
+      "id": "gun-5-5",
+      "provenance": "工程已有Gun Sounds Pack Vol 1；包内未发现许可文档，仅本机",
+      "source": {
+        "absolutePath": "E:\\WORLDCREATOR\\new\\Project_ANKALUTE\\Assets\\Gun Sounds Pack Vol 1\\Gun Shot\\Gunshot 5-5.wav",
+        "sha256": "b022dd7b9108e7580a0a7dd3c89810f759a376ed376974146745c66d83ba394a",
+        "bytes": 199968,
+        "format": {
+          "codec": 1,
+          "channels": 2,
+          "sampleRate": 44100,
+          "blockAlign": 4,
+          "bits": 16
+        },
+        "chunks": [
+          {
+            "id": "fmt ",
+            "size": 16
+          },
+          {
+            "id": "data",
+            "size": 199924
+          }
+        ],
+        "durationSeconds": 1.133356,
+        "peak": 0.4548035,
+        "rms": 0.0339107,
+        "onsetMs": 6.463
+      },
+      "trim": {
+        "thresholdLinear": 0.001,
+        "originalStartFrame": 197,
+        "originalEndFrameExclusive": 20331,
+        "removedLeadingSeconds": 0.0044671,
+        "removedTrailingSeconds": 0.6723356,
+        "maxDurationApplied": false,
+        "fadeInMs": 2,
+        "fadeOutMs": 15
+      },
+      "gain": {
+        "linear": 1.1229941,
+        "decibels": 1.0075,
+        "desiredFamilyRms": 0.06,
+        "actualFamilyRmsTarget": 0.06,
+        "peakCeiling": 0.75,
+        "familyTargetReducedByPeakCeiling": false
+      },
+      "output": {
+        "absolutePath": "E:\\WORLDCREATOR\\XingHaiHuiLang\\work\\OSSASTRA\\AUDIO-SFXPASS-20261025\\Derived\\gun-5-5.wav",
+        "sha256": "ecc40945efd2d37b8f789f5962f734fb22201ab55d4d2d369056c09122cc9a72",
+        "bytes": 80580,
+        "channels": 2,
+        "sampleRate": 44100,
+        "bits": 16,
+        "durationSeconds": 0.4565533,
+        "peak": 0.5107422,
+        "rms": 0.06,
+        "onsetMs": 1.973,
+        "firstFrameZero": true,
+        "lastFrameZero": true
+      }
+    },
+    {
+      "id": "gun-5-6",
+      "provenance": "工程已有Gun Sounds Pack Vol 1；包内未发现许可文档，仅本机",
+      "source": {
+        "absolutePath": "E:\\WORLDCREATOR\\new\\Project_ANKALUTE\\Assets\\Gun Sounds Pack Vol 1\\Gun Shot\\Gunshot 5-6.wav",
+        "sha256": "3d785524068bacf46797e0a998896c8cb51b4630484fc452014b1d464dd6895c",
+        "bytes": 158332,
+        "format": {
+          "codec": 1,
+          "channels": 2,
+          "sampleRate": 44100,
+          "blockAlign": 4,
+          "bits": 16
+        },
+        "chunks": [
+          {
+            "id": "fmt ",
+            "size": 16
+          },
+          {
+            "id": "data",
+            "size": 158288
+          }
+        ],
+        "durationSeconds": 0.8973243,
+        "peak": 0.4382629,
+        "rms": 0.0339257,
+        "onsetMs": 9.819
+      },
+      "trim": {
+        "thresholdLinear": 0.001,
+        "originalStartFrame": 345,
+        "originalEndFrameExclusive": 18816,
+        "removedLeadingSeconds": 0.0078231,
+        "removedTrailingSeconds": 0.4706576,
+        "maxDurationApplied": false,
+        "fadeInMs": 2,
+        "fadeOutMs": 15
+      },
+      "gain": {
+        "linear": 1.2083012,
+        "decibels": 1.6435,
+        "desiredFamilyRms": 0.06,
+        "actualFamilyRmsTarget": 0.06,
+        "peakCeiling": 0.75,
+        "familyTargetReducedByPeakCeiling": false
+      },
+      "output": {
+        "absolutePath": "E:\\WORLDCREATOR\\XingHaiHuiLang\\work\\OSSASTRA\\AUDIO-SFXPASS-20261025\\Derived\\gun-5-6.wav",
+        "sha256": "fab8ca9f396d41814e15128a0e1301383fa0fa08353719622497defdd41be8a3",
+        "bytes": 73928,
+        "channels": 2,
+        "sampleRate": 44100,
+        "bits": 16,
+        "durationSeconds": 0.4188435,
+        "peak": 0.529541,
+        "rms": 0.06,
+        "onsetMs": 1.995,
+        "firstFrameZero": true,
+        "lastFrameZero": true
+      }
+    },
+    {
+      "id": "reload-load",
+      "provenance": "工程已有Gun Sounds Pack Vol 1；包内未发现许可文档，仅本机",
+      "source": {
+        "absolutePath": "E:\\WORLDCREATOR\\new\\Project_ANKALUTE\\Assets\\Gun Sounds Pack Vol 1\\Foley\\Load 1-1.wav",
+        "sha256": "d1f8175b9b5807f6fe60d24e9309c6711019d3a9f0eaa8439dc31f9d9ac61647",
+        "bytes": 240240,
+        "format": {
+          "codec": 1,
+          "channels": 2,
+          "sampleRate": 44100,
+          "blockAlign": 4,
+          "bits": 16
+        },
+        "chunks": [
+          {
+            "id": "fmt ",
+            "size": 16
+          },
+          {
+            "id": "data",
+            "size": 240196
+          }
+        ],
+        "durationSeconds": 1.3616553,
+        "peak": 0.4858398,
+        "rms": 0.0078154,
+        "onsetMs": 67.823
+      },
+      "trim": {
+        "thresholdLinear": 0.001,
+        "originalStartFrame": 2903,
+        "originalEndFrameExclusive": 39786,
+        "removedLeadingSeconds": 0.0658277,
+        "removedTrailingSeconds": 0.4594785,
+        "maxDurationApplied": false,
+        "fadeInMs": 2,
+        "fadeOutMs": 12
+      },
+      "gain": {
+        "linear": 1.5437186,
+        "decibels": 3.7714,
+        "desiredFamilyRms": 0.05,
+        "actualFamilyRmsTarget": 0.0153943,
+        "peakCeiling": 0.75,
+        "familyTargetReducedByPeakCeiling": true
+      },
+      "output": {
+        "absolutePath": "E:\\WORLDCREATOR\\XingHaiHuiLang\\work\\OSSASTRA\\AUDIO-SFXPASS-20261025\\Derived\\reload-load.wav",
+        "sha256": "0389c62d1ae774feddd9bb46e2b8b8da0b564a8f557e155f881b844ec05721fc",
+        "bytes": 147576,
+        "channels": 2,
+        "sampleRate": 44100,
+        "bits": 16,
+        "durationSeconds": 0.8363492,
+        "peak": 0.75,
+        "rms": 0.0153942,
+        "onsetMs": 1.973,
+        "firstFrameZero": true,
+        "lastFrameZero": true
+      }
+    },
+    {
+      "id": "reload-pump",
+      "provenance": "工程已有Gun Sounds Pack Vol 1；包内未发现许可文档，仅本机",
+      "source": {
+        "absolutePath": "E:\\WORLDCREATOR\\new\\Project_ANKALUTE\\Assets\\Gun Sounds Pack Vol 1\\Foley\\Pumping 3-1.wav",
+        "sha256": "a72c543f7169b6c9c15385ca34524afc98648c6357d6aad44ea52c97aed280c3",
+        "bytes": 82500,
+        "format": {
+          "codec": 1,
+          "channels": 2,
+          "sampleRate": 44100,
+          "blockAlign": 4,
+          "bits": 16
+        },
+        "chunks": [
+          {
+            "id": "fmt ",
+            "size": 16
+          },
+          {
+            "id": "data",
+            "size": 82456
+          }
+        ],
+        "durationSeconds": 0.4674376,
+        "peak": 0.4510498,
+        "rms": 0.0214651,
+        "onsetMs": 8.526
+      },
+      "trim": {
+        "thresholdLinear": 0.001,
+        "originalStartFrame": 288,
+        "originalEndFrameExclusive": 9926,
+        "removedLeadingSeconds": 0.0065306,
+        "removedTrailingSeconds": 0.2423583,
+        "maxDurationApplied": false,
+        "fadeInMs": 2,
+        "fadeOutMs": 12
+      },
+      "gain": {
+        "linear": 0.4903852,
+        "decibels": -6.1893,
+        "desiredFamilyRms": 0.05,
+        "actualFamilyRmsTarget": 0.0153943,
+        "peakCeiling": 0.75,
+        "familyTargetReducedByPeakCeiling": true
+      },
+      "output": {
+        "absolutePath": "E:\\WORLDCREATOR\\XingHaiHuiLang\\work\\OSSASTRA\\AUDIO-SFXPASS-20261025\\Derived\\reload-pump.wav",
+        "sha256": "c63e827811edcc4c51b2a2e2753d86d504520dd17054335b17e85c832d4029b5",
+        "bytes": 38596,
+        "channels": 2,
+        "sampleRate": 44100,
+        "bits": 16,
+        "durationSeconds": 0.2185488,
+        "peak": 0.2211914,
+        "rms": 0.0153942,
+        "onsetMs": 6.848,
+        "firstFrameZero": true,
+        "lastFrameZero": true
+      }
+    },
+    {
+      "id": "mechanical-ui-candidate",
+      "provenance": "工程已有Gun Sounds Pack Vol 1；包内未发现许可文档，仅本机",
+      "source": {
+        "absolutePath": "E:\\WORLDCREATOR\\new\\Project_ANKALUTE\\Assets\\Gun Sounds Pack Vol 1\\Foley\\Safety Off 1-1.wav",
+        "sha256": "7d2d84ba1ef093ac6ab71b44bcefc85856029a38e37502b18e18f9d27c34e1e9",
+        "bytes": 97452,
+        "format": {
+          "codec": 1,
+          "channels": 2,
+          "sampleRate": 44100,
+          "blockAlign": 4,
+          "bits": 16
+        },
+        "chunks": [
+          {
+            "id": "fmt ",
+            "size": 16
+          },
+          {
+            "id": "data",
+            "size": 97408
+          }
+        ],
+        "durationSeconds": 0.5521995,
+        "peak": 0.390564,
+        "rms": 0.0114204,
+        "onsetMs": 3.061
+      },
+      "trim": {
+        "thresholdLinear": 0.001,
+        "originalStartFrame": 47,
+        "originalEndFrameExclusive": 3718,
+        "removedLeadingSeconds": 0.0010658,
+        "removedTrailingSeconds": 0.4678912,
+        "maxDurationApplied": false,
+        "fadeInMs": 2,
+        "fadeOutMs": 10
+      },
+      "gain": {
+        "linear": 1.3598992,
+        "decibels": 2.6701,
+        "desiredFamilyRms": 0.04,
+        "actualFamilyRmsTarget": 0.04,
+        "peakCeiling": 0.75,
+        "familyTargetReducedByPeakCeiling": false
+      },
+      "output": {
+        "absolutePath": "E:\\WORLDCREATOR\\XingHaiHuiLang\\work\\OSSASTRA\\AUDIO-SFXPASS-20261025\\Derived\\mechanical-ui-candidate.wav",
+        "sha256": "b4930fc1187f623cbcbb5685960b2035a3ee75c4bc9cb8dc6ba8265b91d58202",
+        "bytes": 14728,
+        "channels": 2,
+        "sampleRate": 44100,
+        "bits": 16,
+        "durationSeconds": 0.0832426,
+        "peak": 0.5311279,
+        "rms": 0.0400002,
+        "onsetMs": 1.927,
+        "firstFrameZero": true,
+        "lastFrameZero": true
+      }
+    },
+    {
+      "id": "explosion-small",
+      "provenance": "工程已有Gun Sounds Pack Vol 1；包内未发现许可文档，仅本机",
+      "source": {
+        "absolutePath": "E:\\WORLDCREATOR\\new\\Project_ANKALUTE\\Assets\\Gun Sounds Pack Vol 1\\Bonus\\Explosion Small 1-1.wav",
+        "sha256": "c22bc1ca983d52fa58feb49194ee68e0607f70d0cf0dedec251bea8f0b757a1a",
+        "bytes": 529244,
+        "format": {
+          "codec": 1,
+          "channels": 2,
+          "sampleRate": 44100,
+          "blockAlign": 4,
+          "bits": 16
+        },
+        "chunks": [
+          {
+            "id": "fmt ",
+            "size": 16
+          },
+          {
+            "id": "data",
+            "size": 529200
+          }
+        ],
+        "durationSeconds": 3,
+        "peak": 0.46698,
+        "rms": 0.027399,
+        "onsetMs": 19.456
+      },
+      "trim": {
+        "thresholdLinear": 0.001,
+        "originalStartFrame": 770,
+        "originalEndFrameExclusive": 67880,
+        "removedLeadingSeconds": 0.0174603,
+        "removedTrailingSeconds": 1.460771,
+        "maxDurationApplied": false,
+        "fadeInMs": 2,
+        "fadeOutMs": 25
+      },
+      "gain": {
+        "linear": 1.2997222,
+        "decibels": 2.277,
+        "desiredFamilyRms": 0.05,
+        "actualFamilyRmsTarget": 0.05,
+        "peakCeiling": 0.75,
+        "familyTargetReducedByPeakCeiling": false
+      },
+      "output": {
+        "absolutePath": "E:\\WORLDCREATOR\\XingHaiHuiLang\\work\\OSSASTRA\\AUDIO-SFXPASS-20261025\\Derived\\explosion-small.wav",
+        "sha256": "1de1191894ad29938912b7337a3cfa429edb3f75e61a6b950c8b4196118e44c9",
+        "bytes": 268484,
+        "channels": 2,
+        "sampleRate": 44100,
+        "bits": 16,
+        "durationSeconds": 1.5217687,
+        "peak": 0.6069336,
+        "rms": 0.05,
+        "onsetMs": 1.859,
+        "firstFrameZero": true,
+        "lastFrameZero": true
+      }
+    },
+    {
+      "id": "metal-impact-heavy",
+      "provenance": "工程已有Feel/NiceVibrations示例；第三方原始媒体授权未核实，仅本机",
+      "source": {
+        "absolutePath": "E:\\WORLDCREATOR\\new\\Project_ANKALUTE\\Assets\\Feel\\NiceVibrations\\HapticSamples\\Impacts\\ImpactMetal1.wav",
+        "sha256": "1ddbe84ad68ef6728a1fe19cd6e4b001f8fbd4cefc1df564bcb2d261811b295a",
+        "bytes": 208052,
+        "format": {
+          "codec": 1,
+          "channels": 1,
+          "sampleRate": 44100,
+          "blockAlign": 2,
+          "bits": 16
+        },
+        "chunks": [
+          {
+            "id": "fmt ",
+            "size": 16
+          },
+          {
+            "id": "data",
+            "size": 208008
+          }
+        ],
+        "durationSeconds": 2.3583673,
+        "peak": 0.9875183,
+        "rms": 0.1204283,
+        "onsetMs": 0.045
+      },
+      "trim": {
+        "thresholdLinear": 0.001,
+        "originalStartFrame": 0,
+        "originalEndFrameExclusive": 104004,
+        "removedLeadingSeconds": 0,
+        "removedTrailingSeconds": 0,
+        "maxDurationApplied": false,
+        "fadeInMs": 2,
+        "fadeOutMs": 20
+      },
+      "gain": {
+        "linear": 0.456707,
+        "decibels": -6.8072,
+        "desiredFamilyRms": 0.055,
+        "actualFamilyRmsTarget": 0.055,
+        "peakCeiling": 0.75,
+        "familyTargetReducedByPeakCeiling": false
+      },
+      "output": {
+        "absolutePath": "E:\\WORLDCREATOR\\XingHaiHuiLang\\work\\OSSASTRA\\AUDIO-SFXPASS-20261025\\Derived\\metal-impact-heavy.wav",
+        "sha256": "d60668eaad9b0449baa864002dc7045fc5164dd98cb44d0dc9ec0cfce8927c10",
+        "bytes": 208052,
+        "channels": 1,
+        "sampleRate": 44100,
+        "bits": 16,
+        "durationSeconds": 2.3583673,
+        "peak": 0.4510193,
+        "rms": 0.055,
+        "onsetMs": 0.522,
+        "firstFrameZero": true,
+        "lastFrameZero": true
+      }
+    },
+    {
+      "id": "metal-bullet-impact",
+      "provenance": "工程已有Feel/NiceVibrations示例；第三方原始媒体授权未核实，仅本机",
+      "source": {
+        "absolutePath": "E:\\WORLDCREATOR\\new\\Project_ANKALUTE\\Assets\\Feel\\NiceVibrations\\HapticSamples\\Impacts\\BulletMetal1.wav",
+        "sha256": "8f16feaf4f3c363ba77da50da10bbc2e5a24d39c092ec2bed93f653668c37ca6",
+        "bytes": 45268,
+        "format": {
+          "codec": 1,
+          "channels": 1,
+          "sampleRate": 44100,
+          "blockAlign": 2,
+          "bits": 16
+        },
+        "chunks": [
+          {
+            "id": "fmt ",
+            "size": 16
+          },
+          {
+            "id": "data",
+            "size": 45126
+          },
+          {
+            "id": "LIST",
+            "size": 40
+          },
+          {
+            "id": "id3 ",
+            "size": 42
+          }
+        ],
+        "durationSeconds": 0.5116327,
+        "peak": 0.2698059,
+        "rms": 0.0416436,
+        "onsetMs": 35.782
+      },
+      "trim": {
+        "thresholdLinear": 0.001,
+        "originalStartFrame": 1490,
+        "originalEndFrameExclusive": 22563,
+        "removedLeadingSeconds": 0.0337868,
+        "removedTrailingSeconds": 0,
+        "maxDurationApplied": false,
+        "fadeInMs": 2,
+        "fadeOutMs": 15
+      },
+      "gain": {
+        "linear": 1.276413,
+        "decibels": 2.1198,
+        "desiredFamilyRms": 0.055,
+        "actualFamilyRmsTarget": 0.055,
+        "peakCeiling": 0.75,
+        "familyTargetReducedByPeakCeiling": false
+      },
+      "output": {
+        "absolutePath": "E:\\WORLDCREATOR\\XingHaiHuiLang\\work\\OSSASTRA\\AUDIO-SFXPASS-20261025\\Derived\\metal-bullet-impact.wav",
+        "sha256": "cfaca253c3b53846ecd893549d062eabed11f41d2ce79fcc188e911bdceae172",
+        "bytes": 42190,
+        "channels": 1,
+        "sampleRate": 44100,
+        "bits": 16,
+        "durationSeconds": 0.4778458,
+        "peak": 0.3443909,
+        "rms": 0.055,
+        "onsetMs": 1.973,
+        "firstFrameZero": true,
+        "lastFrameZero": true
+      }
+    }
+  ]
+}

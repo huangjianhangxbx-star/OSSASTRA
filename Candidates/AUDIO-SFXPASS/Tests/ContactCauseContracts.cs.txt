@@ -1,0 +1,100 @@
+/* 脚本：ContactCauseContracts（开发命令）
+ * 功能：验证共享网关只读记录直接、周期与派生接触原因，且不改变真实结算。
+ * 边界：只创建自有CombatVitals；不伪造Root事实、不改场景角色或音频，不以来源原因决定HP。
+ * 协作：缺少新原因合同时仍可编译并返回明确RED；GREEN调用实际网关三条入口。
+ */
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using Funplay.Editor.Tools.Scripting;
+using UnityEngine;
+using Core = Ossastra.CharacterCore;
+using Combat = Ossastra.Combat;
+
+public sealed class ContactCauseContracts : IFunplayCommand
+{
+    private readonly List<object> rows = new List<object>();
+    private readonly List<GameObject> owned = new List<GameObject>();
+    private int passed, failed;
+    private static readonly BindingFlags instance = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+    {
+        System.Reflection.EventInfo resolved = null;
+        Delegate handler = null;
+        try
+        {
+            var assembly = typeof(Combat.CombatContactGateway).Assembly;
+            var causeType = assembly.GetType("Ossastra.Combat.CombatContactCause");
+            var batchType = assembly.GetType("Ossastra.Combat.CombatContactBatch");
+            var causeProperty = batchType == null ? null : batchType.GetProperty("Cause");
+            var resolve = typeof(Combat.CombatContactGateway).GetMethods().FirstOrDefault(method => method.Name == "Resolve" && method.GetParameters().Length == 5);
+            resolved = typeof(Combat.CombatContactGateway).GetEvent("Resolved");
+            if (causeType == null || !causeType.IsEnum || causeProperty == null || resolve == null || resolved == null)
+            {
+                Check("原因事实合同与兼容网关入口存在", false, "MISSING_FEATURE:CombatContactCause / CombatContactBatch.Cause / Resolve(...,cause)");
+                return;
+            }
+            Check("原因枚举与只读属性确定", !causeProperty.CanWrite && causeProperty.PropertyType == causeType &&
+                Convert.ToInt32(Enum.Parse(causeType, "Direct")) == 0 && Convert.ToInt32(Enum.Parse(causeType, "Periodic")) == 1 && Convert.ToInt32(Enum.Parse(causeType, "Secondary")) == 2);
+            var causeParameter = resolve.GetParameters()[4];
+            Check("旧四参数调用兼容且默认为Direct", causeParameter.IsOptional && causeParameter.ParameterType == causeType && Convert.ToInt32(causeParameter.DefaultValue) == 0);
+
+            var source = Vitals("source", Core.CombatFaction.Allied);
+            var target = Vitals("target", Core.CombatFaction.Enemy);
+            source.transform.position = new Vector3(2000, 1000, 2000);
+            target.transform.position = new Vector3(2001, 1000, 2000);
+            var batches = new List<object>();
+            var delegateType = resolved.EventHandlerType.GetGenericArguments()[0];
+            handler = (Delegate)typeof(ContactCauseContracts).GetMethod("Bridge", BindingFlags.Static | BindingFlags.NonPublic).MakeGenericMethod(delegateType)
+                .Invoke(null, new object[] { (Action<object>)(value => batches.Add(value)) });
+            resolved.AddEventHandler(null, handler);
+            var parent = Guid.NewGuid();
+            foreach (var name in new[] { "Direct", "Periodic", "Secondary" })
+            {
+                int index = batches.Count;
+                int before = target.Health.Current;
+                var release = Core.AttackRelease.ForEmission(parent, index, source.Health.Id, 5, 0);
+                IReadOnlyList<Core.HitOutcome> outcomes;
+                if (name == "Direct")
+                    outcomes = Combat.CombatContactGateway.Resolve(release, source, new Combat.IHitTarget[] { target }, source.WorldPosition);
+                else
+                    outcomes = (IReadOnlyList<Core.HitOutcome>)resolve.Invoke(null, new object[]
+                        { release, source, new Combat.IHitTarget[] { target }, source.WorldPosition, Enum.Parse(causeType, name) });
+                var batch = batches.LastOrDefault();
+                var receipts = batch == null ? Array.Empty<object>() : ((IEnumerable)Get(batch, "Receipts")).Cast<object>().ToArray();
+                Check(name + "保留真实原因与完整执行身份", batches.Count == index + 1 && batch != null &&
+                    Get(batch, "Cause").ToString() == name && Equals(Get(batch, "ParentExecutionId"), parent) &&
+                    Equals(Get(batch, "ActionId"), release.ActionId) && Equals(Get(batch, "EmissionIndex"), index) &&
+                    ReferenceEquals(Get(batch, "Source"), source) && Equals(Get(batch, "Origin"), source.WorldPosition) && receipts.Length == 1 &&
+                    ReferenceEquals(Get(receipts[0], "Target"), target) && Equals(Get(receipts[0], "TargetId"), target.Health.Id) &&
+                    Equals(Get(receipts[0], "Position"), target.WorldPosition));
+                Check(name + "不改变原HP与逐目标Applied回执", outcomes.Count == 1 && outcomes[0].Reason == Core.HitReason.Applied &&
+                    outcomes[0].HpBefore == before && outcomes[0].HpAfter == before - 5 && target.Health.Current == before - 5 &&
+                    receipts.Length == 1 && ReferenceEquals(Get(receipts[0], "Outcome"), outcomes[0]));
+            }
+            Check("三种原因共用唯一Health余额", target.Health.Current == 85);
+        }
+        catch (Exception error) { Check("原因合同执行无异常", false, error.ToString()); }
+        finally
+        {
+            if (resolved != null && handler != null) resolved.RemoveEventHandler(null, handler);
+            foreach (var item in owned.AsEnumerable().Reverse()) if (item != null) UnityEngine.Object.DestroyImmediate(item);
+            ctx.ReturnValue = new { passed, failed, rows, scope = "自有受击体真实结算；不触及场景角色或声音策略" };
+        }
+    }
+    private Combat.CombatVitals Vitals(string suffix, Core.CombatFaction faction)
+    {
+        var go = new GameObject("DEVELOPMENT_ONLY:contact-cause:" + suffix); owned.Add(go);
+        var vitals = go.AddComponent<Combat.CombatVitals>();
+        typeof(Combat.CombatVitals).GetField("faction", instance).SetValue(vitals, faction);
+        if (!vitals.Initialize("DEVELOPMENT_ONLY:cause:" + suffix + ":" + Guid.NewGuid().ToString("N"))) throw new InvalidOperationException("自有受击体初始化失败");
+        return vitals;
+    }
+    private static object Get(object value, string name) => value.GetType().GetProperty(name).GetValue(value);
+    private static Action<T> Bridge<T>(Action<object> handler) => value => handler(value);
+    private void Check(string name, bool ok, object detail = null)
+    { if (ok) passed++; else failed++; rows.Add(new { name, passed = ok, detail }); }
+}

@@ -1,0 +1,50 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "passed": 4,
+      "failed": 0,
+      "gated": 0,
+      "rows": [
+        {
+          "name": "开发试听事实真实入队且未立即提交",
+          "passed": true,
+          "detail": null
+        },
+        {
+          "name": "同一观察对象重连取得独立新租约",
+          "passed": true,
+          "detail": null
+        },
+        {
+          "name": "旧租约队列不能换新身份重播",
+          "passed": true,
+          "detail": {
+            "previousGeneration": 3,
+            "currentGeneration": 5,
+            "submitted": []
+          }
+        },
+        {
+          "name": "当前租约的新事实仍正常抵达唯一音频根",
+          "passed": true,
+          "detail": [
+            {
+              "SourceId": "temporary-a@245222",
+              "SourceGeneration": 5,
+              "Accepted": true,
+              "Reason": "ACCEPTED"
+            }
+          ]
+        }
+      ],
+      "scope": "音频队列租约边界；不伪造战斗或修改玩法状态"
+    }
+  }
+}

@@ -1,6 +1,6 @@
 /*
  * 脚本：SfxArbitrator
- * 功能：纯短音准入策略，拥有世界/来源代次、精确事实去重及有界声部预算。
+ * 功能：纯短音准入策略，拥有世界/来源代次、精确事实去重、作者内容节奏和有界声部预算。
  * 边界：不创建AudioSource、不执行战斗或修改SO；分配许可不代表媒体已经播放。
  * 协作：GameAudioRoot提交事实，VoicePlayer据VoiceId取许可并在结束时Release。
  * 关键约束：本轮短音抢占立即Stop，不存在预算之外的淡出源；软预算触发抢占，硬预算绝不可突破。
@@ -14,11 +14,14 @@ namespace Ossastra.Audio
     public sealed class SfxArbitrator
     {
         private const int recentLimit = 1024;
+        private const int contentLimit = 1024;
         private const double recentSeconds = 2;
         private readonly Dictionary<long, SfxVoiceRecord> active = new Dictionary<long, SfxVoiceRecord>();
         private readonly Dictionary<string, int> sources = new Dictionary<string, int>(StringComparer.Ordinal);
         private readonly Dictionary<FactIdentity, double> recent = new Dictionary<FactIdentity, double>();
         private readonly Queue<RecentFact> recentOrder = new Queue<RecentFact>();
+        private readonly Dictionary<ContentIdentity, LinkedListNode<ContentSample>> contentHistory = new Dictionary<ContentIdentity, LinkedListNode<ContentSample>>();
+        private readonly LinkedList<ContentSample> contentOrder = new LinkedList<ContentSample>();
         private readonly Func<double> random;
         private readonly System.Random defaultRandom = new System.Random();
         private int nextGeneration;
@@ -29,6 +32,7 @@ namespace Ossastra.Audio
         public int HardLimit { get; }
         public int ActiveCount => active.Count;
         public int RecentFactCount => recent.Count;
+        public int ContentHistoryCount => contentHistory.Count;
         public IReadOnlyCollection<SfxVoiceRecord> ActiveVoices => active.Values;
 
         public SfxArbitrator(int softLimit = 24, int hardLimit = 32, Func<double> randomFunc = null)
@@ -47,6 +51,8 @@ namespace Ossastra.Audio
             sources.Clear();
             recent.Clear();
             recentOrder.Clear();
+            contentHistory.Clear();
+            contentOrder.Clear();
         }
 
         /// <summary>来源重新注册获得全新代次，旧异步请求/旧关闭通知无法影响新来源。</summary>
@@ -74,6 +80,15 @@ namespace Ossastra.Audio
             foreach (SfxVoiceRecord voice in active.Values)
                 if (voice.Request.SourceId == sourceId && voice.Request.SourceGeneration == sourceGeneration) ids.Add(voice.VoiceId);
             foreach (long id in ids) active.Remove(id);
+            // 停止/重建来源同时撤销其内容历史；旧代次关闭不能清掉新代次的选择状态。
+            var identities = new List<ContentIdentity>();
+            foreach (ContentIdentity identity in contentHistory.Keys)
+                if (identity.IsSource(sourceId, sourceGeneration)) identities.Add(identity);
+            foreach (ContentIdentity identity in identities)
+            {
+                contentOrder.Remove(contentHistory[identity]);
+                contentHistory.Remove(identity);
+            }
         }
 
         public void StopWorld() => SetWorldScope(string.Empty);
@@ -102,6 +117,12 @@ namespace Ossastra.Audio
             foreach (SfxVoiceRecord voice in active.Values)
                 if (new FactIdentity(voice.Request).Equals(fact)) return Reject("DUPLICATE_FACT");
 
+            var content = new ContentIdentity(request);
+            contentHistory.TryGetValue(content, out LinkedListNode<ContentSample> previous);
+            // 内容节奏是作者显式选择的听感限制，默认关闭；不同来源/事件和精确事实身份互不代替。
+            if (previous != null && now - previous.Value.AcceptedAt < definition.minIntervalSeconds)
+                return Reject("CONTENT_INTERVAL");
+
             int sourceCount = 0;
             SfxVoiceRecord sourceVictim = null;
             SfxVoiceRecord globalVictim = null;
@@ -129,13 +150,20 @@ namespace Ossastra.Audio
             }
 
             if (stolen == null && active.Count >= HardLimit) return Reject("HARD_VOICE_BUDGET");
-            int clipIndex = Mathf.Min(definition.clips.Length - 1, (int)(Sample() * definition.clips.Length));
+            int clipCount = definition.clips.Length;
+            int previousIndex = previous == null ? -1 : previous.Value.ClipIndex;
+            bool excludePrevious = definition.avoidImmediateRepeat && clipCount > 1 && previousIndex >= 0 && previousIndex < clipCount;
+            int choiceCount = excludePrevious ? clipCount - 1 : clipCount;
+            int clipIndex = Mathf.Min(choiceCount - 1, (int)(Sample() * choiceCount));
+            // 从N-1个候选直接映射回原数组，固定一次抽样；避免恒定随机源导致重抽死循环。
+            if (excludePrevious && clipIndex >= previousIndex) clipIndex++;
             float pitch = Mathf.Lerp(definition.pitchMin, definition.pitchMax, (float)Sample());
             if (stolen != null) active.Remove(stolen.VoiceId);
             long id = ++nextVoice;
             active.Add(id, new SfxVoiceRecord(id, request, definition, clipIndex, pitch));
             recent[fact] = now;
             recentOrder.Enqueue(new RecentFact(fact, now));
+            RememberContent(content, previous, clipIndex, now);
             TrimRecent(now);
             return new SfxDecision(true, stolen == null ? "ACCEPTED" : "ACCEPTED_STOLE_LOWER_PRIORITY", id, stolen?.VoiceId ?? 0, clipIndex, pitch);
         }
@@ -155,6 +183,18 @@ namespace Ossastra.Audio
             }
         }
 
+        private void RememberContent(ContentIdentity identity, LinkedListNode<ContentSample> previous, int clipIndex, double now)
+        {
+            // 只有成功分配许可才推进片段和间隔；拒绝/缺媒体/预算不足均不消费下一次机会。
+            if (previous != null) contentOrder.Remove(previous);
+            var node = contentOrder.AddLast(new ContentSample(identity, clipIndex, now));
+            contentHistory[identity] = node;
+            if (contentHistory.Count <= contentLimit) return;
+            LinkedListNode<ContentSample> oldest = contentOrder.First;
+            contentHistory.Remove(oldest.Value.Identity);
+            contentOrder.RemoveFirst();
+        }
+
         private static bool LowerThan(SfxVoiceRecord candidate, SfxVoiceRecord other) =>
             other == null || candidate.Priority < other.Priority ||
             candidate.Priority == other.Priority && candidate.VoiceId < other.VoiceId;
@@ -166,6 +206,36 @@ namespace Ossastra.Audio
             public FactIdentity Fact { get; }
             public double Time { get; }
             public RecentFact(FactIdentity fact, double time) { Fact = fact; Time = time; }
+        }
+
+        private readonly struct ContentSample
+        {
+            public ContentIdentity Identity { get; }
+            public int ClipIndex { get; }
+            public double AcceptedAt { get; }
+            public ContentSample(ContentIdentity identity, int clipIndex, double acceptedAt)
+            { Identity = identity; ClipIndex = clipIndex; AcceptedAt = acceptedAt; }
+        }
+
+        // 世界切换统一清空；来源代次+事件是内容历史的作用域，合法子击依然拥有各自FactKey。
+        private readonly struct ContentIdentity : IEquatable<ContentIdentity>
+        {
+            private readonly string source, eventId;
+            private readonly int generation;
+            public ContentIdentity(SfxRequest request)
+            { source = request.SourceId; eventId = request.EventId; generation = request.SourceGeneration; }
+            public bool IsSource(string sourceId, int sourceGeneration) => source == sourceId && generation == sourceGeneration;
+            public bool Equals(ContentIdentity other) => generation == other.generation && source == other.source && eventId == other.eventId;
+            public override bool Equals(object other) => other is ContentIdentity identity && Equals(identity);
+            public override int GetHashCode()
+            {
+                unchecked
+                {
+                    int hash = generation;
+                    hash = hash * 397 ^ (source?.GetHashCode() ?? 0);
+                    return hash * 397 ^ (eventId?.GetHashCode() ?? 0);
+                }
+            }
         }
 
         // 直接比较各身份字段，避免用分隔符拼接造成带特殊字符的合法ID碰撞。

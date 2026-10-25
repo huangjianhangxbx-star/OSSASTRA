@@ -1,0 +1,206 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "passed": 47,
+      "failed": 0,
+      "results": [
+        {
+          "name": "真实有效定义可以解析",
+          "passed": true
+        },
+        {
+          "name": "空事件身份拒绝",
+          "passed": true
+        },
+        {
+          "name": "重复目录身份拒绝而不取第一项",
+          "passed": true
+        },
+        {
+          "name": "空目录拒绝",
+          "passed": true
+        },
+        {
+          "name": "未知事件显式失败",
+          "passed": true
+        },
+        {
+          "name": "空媒体不占声部",
+          "passed": true
+        },
+        {
+          "name": "空数组成员拒绝",
+          "passed": true
+        },
+        {
+          "name": "NaN音量拒绝",
+          "passed": true
+        },
+        {
+          "name": "反向音高范围拒绝",
+          "passed": true
+        },
+        {
+          "name": "极小音高不得产生实际无限占用",
+          "passed": true
+        },
+        {
+          "name": "无限距离拒绝",
+          "passed": true
+        },
+        {
+          "name": "反向距离拒绝",
+          "passed": true
+        },
+        {
+          "name": "失效总线拒绝",
+          "passed": true
+        },
+        {
+          "name": "非正并发拒绝",
+          "passed": true
+        },
+        {
+          "name": "非有限最大年龄拒绝",
+          "passed": true
+        },
+        {
+          "name": "有媒体事实获得唯一活跃许可",
+          "passed": true
+        },
+        {
+          "name": "同一具体事实只准入一次",
+          "passed": true
+        },
+        {
+          "name": "同动作不同子击不被吞",
+          "passed": true
+        },
+        {
+          "name": "同动作不同事件不被吞",
+          "passed": true
+        },
+        {
+          "name": "两来源相同事实互不吞",
+          "passed": true
+        },
+        {
+          "name": "特殊分隔符身份不碰撞",
+          "passed": true
+        },
+        {
+          "name": "过期事实不补响",
+          "passed": true
+        },
+        {
+          "name": "未来事实拒绝",
+          "passed": true
+        },
+        {
+          "name": "非有限位置拒绝",
+          "passed": true
+        },
+        {
+          "name": "世界不符拒绝",
+          "passed": true
+        },
+        {
+          "name": "定义不能冒充其它事件",
+          "passed": true
+        },
+        {
+          "name": "未知来源拒绝",
+          "passed": true
+        },
+        {
+          "name": "关闭来源撤销旧许可",
+          "passed": true
+        },
+        {
+          "name": "重建来源产生新代次且旧关闭不能撤新来源",
+          "passed": true
+        },
+        {
+          "name": "换世界清旧短音与来源",
+          "passed": true
+        },
+        {
+          "name": "停止世界禁止旧请求复活",
+          "passed": true
+        },
+        {
+          "name": "归还幂等且实际回收",
+          "passed": true
+        },
+        {
+          "name": "缺素材拒绝不污染可重试事实",
+          "passed": true
+        },
+        {
+          "name": "活跃事实超过近期窗口仍挡重复",
+          "passed": true
+        },
+        {
+          "name": "已归还的旧事实窗口结束后可重新准入",
+          "passed": true
+        },
+        {
+          "name": "近期去重记录有界",
+          "passed": true
+        },
+        {
+          "name": "同源达到并发拒绝同优先级",
+          "passed": true
+        },
+        {
+          "name": "同源高优先级立即替换旧许可",
+          "passed": true
+        },
+        {
+          "name": "较小来源上限不能以单次抢占绕过",
+          "passed": true
+        },
+        {
+          "name": "已分配优先级不被后续SO编辑倒改",
+          "passed": true
+        },
+        {
+          "name": "旧SO失效不令新请求抛异常",
+          "passed": true
+        },
+        {
+          "name": "全局预算拒绝低优先级",
+          "passed": true
+        },
+        {
+          "name": "全局高优先级只抢最低且最旧的许可",
+          "passed": true
+        },
+        {
+          "name": "借出未启动的许可也计预算",
+          "passed": true
+        },
+        {
+          "name": "可控变体和音高取值",
+          "passed": true
+        },
+        {
+          "name": "异常随机值不越界",
+          "passed": true
+        },
+        {
+          "name": "非法预算构造拒绝",
+          "passed": true
+        }
+      ],
+      "kind": "PASS-PURE requires failed=0; no SourceStarted/output asserted"
+    }
+  }
+}

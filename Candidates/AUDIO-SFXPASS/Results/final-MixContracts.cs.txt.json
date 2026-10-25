@@ -1,0 +1,88 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "failed": 0,
+      "rows": [
+        {
+          "n": "source master .75 times user music .24",
+          "ok": true,
+          "actual": 0.179999992,
+          "expected": 0.18
+        },
+        {
+          "n": "dialogue ducks bus without changing user",
+          "ok": true,
+          "actual": 0.08099999,
+          "expected": 0.081
+        },
+        {
+          "n": "independent snapshots multiply",
+          "ok": true,
+          "actual": 0.0567,
+          "expected": 0.0567
+        },
+        {
+          "n": "same token replaces its own factor",
+          "ok": true,
+          "actual": 0.0404999964,
+          "expected": 0.0405
+        },
+        {
+          "n": "release only own factor",
+          "ok": true,
+          "actual": 0.0899999961,
+          "expected": 0.09
+        },
+        {
+          "n": "all closed restores user value",
+          "ok": true,
+          "actual": 0.179999992,
+          "expected": 0.18
+        },
+        {
+          "n": "mute",
+          "ok": true,
+          "actual": 0.0,
+          "expected": 0.0
+        },
+        {
+          "n": "source unfocused .25 factor",
+          "ok": true,
+          "actual": 0.0449999981,
+          "expected": 0.045
+        },
+        {
+          "n": "scoped dialogue",
+          "ok": true,
+          "actual": 0.0202499982,
+          "expected": 0.02025
+        },
+        {
+          "n": "scope dispose idempotent",
+          "ok": true,
+          "actual": 0.0449999981,
+          "expected": 0.045
+        },
+        {
+          "n": "SO baseline gain supports declared 0..2 range",
+          "ok": true,
+          "actual": 0.359999985,
+          "expected": 0.36
+        },
+        {
+          "n": "SO snapshot gain supports declared 0..2 range",
+          "ok": true,
+          "actual": 0.539999962,
+          "expected": 0.54
+        }
+      ]
+    }
+  }
+}

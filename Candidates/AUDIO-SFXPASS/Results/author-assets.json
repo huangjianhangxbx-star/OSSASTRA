@@ -1,0 +1,1591 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [
+      "-294462",
+      "-294482",
+      "-294500",
+      "-294518",
+      "-294536",
+      "-294554",
+      "-294572",
+      "-294590",
+      "-294608",
+      "-294626",
+      "-294644",
+      "-294662",
+      "-294680",
+      "-294698",
+      "-294716",
+      "-294734",
+      "-294752",
+      "-294770",
+      "-294788",
+      "-294806",
+      "-294824",
+      "-294842",
+      "-294860",
+      "-294878",
+      "-294896",
+      "-294914",
+      "-294932",
+      "-294950",
+      "-294968",
+      "-294986",
+      "-295004",
+      "-295022",
+      "-295040",
+      "-295058",
+      "-295076",
+      "-295094",
+      "-295112",
+      "-295130",
+      "-295148",
+      "-295166",
+      "-295184",
+      "-295202",
+      "-295220",
+      "-295238",
+      "-295256"
+    ],
+    "modified": [
+      "270538",
+      "270542",
+      "270546",
+      "270550",
+      "270554",
+      "270558",
+      "270562",
+      "270566",
+      "270570",
+      "270574",
+      "270578",
+      "270582"
+    ],
+    "destroyed": [],
+    "returnValue": {
+      "profilePath": "Assets/OSSASTRA/Audio/Resources/OssastraCombatSoundProfile.asset",
+      "contentPath": "Assets/OSSASTRA/Audio/CuratedLocal/Resources/OssastraSfxContent.asset",
+      "catalogPath": "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/CuratedCombatSfxCatalog.asset",
+      "manifestPath": "E:/WORLDCREATOR/XingHaiHuiLang/work/OSSASTRA/AUDIO-SFXPASS-20261025/Derived\\manifest.json",
+      "mediaCount": 12,
+      "authoredEvents": 42,
+      "catalogEvents": 63,
+      "diagnosticUnchangedReferences": 21,
+      "normalDiagnosticFallback": false,
+      "sceneModified": false,
+      "sourcePcmChanged": false,
+      "redistributableMedia": false,
+      "validation": {
+        "profileReason": "VALID",
+        "catalogReason": "VALID",
+        "contentReason": "VALID"
+      },
+      "created": [
+        "Assets/OSSASTRA/Audio/CuratedLocal/Media/blade-release.wav",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Media/blade-hit.wav",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Media/character-hurt.wav",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Media/gun-5-4.wav",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Media/gun-5-5.wav",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Media/gun-5-6.wav",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Media/reload-load.wav",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Media/reload-pump.wav",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Media/mechanical-ui-candidate.wav",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Media/explosion-small.wav",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Media/metal-impact-heavy.wav",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Media/metal-bullet-impact.wav",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/player.blade.swing.1.asset",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/player.blade.swing.2.asset",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/player.blade.swing.3.asset",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/player.blade.swing.4.asset",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/player.blade.fast.asset",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/player.blade.heavy.asset",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/player.blade.impact.asset",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/player.blade.impact.heavy.asset",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/player.body.hurt.asset",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/player.guard.metal.asset",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/player.gun.fire.asset",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/player.gun.reload.asset",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/player.launcher.fire.asset",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/player.blast.small.asset",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/companion.blade.swing.1.asset",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/companion.blade.swing.2.asset",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/companion.blade.swing.3.asset",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/companion.blade.swing.4.asset",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/companion.blade.fast.asset",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/companion.blade.heavy.asset",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/companion.blade.impact.asset",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/companion.blade.impact.heavy.asset",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/companion.body.hurt.asset",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/companion.guard.metal.asset",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/companion.gun.fire.asset",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/companion.gun.reload.asset",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/companion.launcher.fire.asset",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/companion.blast.small.asset",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/enemy.blade.swing.1.asset",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/enemy.blade.swing.2.asset",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/enemy.blade.swing.3.asset",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/enemy.blade.swing.4.asset",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/enemy.blade.fast.asset",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/enemy.blade.heavy.asset",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/enemy.blade.impact.asset",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/enemy.blade.impact.heavy.asset",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/enemy.guard.metal.asset",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/enemy.gun.fire.asset",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/enemy.gun.reload.asset",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/enemy.launcher.fire.asset",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/enemy.blast.small.asset",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/ui.control.switch.asset",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/CuratedCombatSfxCatalog.asset",
+        "Assets/OSSASTRA/Audio/Resources/OssastraCombatSoundProfile.asset",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Resources/OssastraSfxContent.asset"
+      ],
+      "changed": [
+        "Assets/OSSASTRA/Audio/CuratedLocal/Media/blade-release.wav [import settings]",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Media/blade-hit.wav [import settings]",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Media/character-hurt.wav [import settings]",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Media/gun-5-4.wav [import settings]",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Media/gun-5-5.wav [import settings]",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Media/gun-5-6.wav [import settings]",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Media/reload-load.wav [import settings]",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Media/reload-pump.wav [import settings]",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Media/mechanical-ui-candidate.wav [import settings]",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Media/explosion-small.wav [import settings]",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Media/metal-impact-heavy.wav [import settings]",
+        "Assets/OSSASTRA/Audio/CuratedLocal/Media/metal-bullet-impact.wav [import settings]"
+      ],
+      "noOp": [],
+      "media": [
+        {
+          "id": "blade-release",
+          "path": "Assets/OSSASTRA/Audio/CuratedLocal/Media/blade-release.wav",
+          "sha256": "52913bce08c06167bbf165bb845ee6733d16e14f8ba3813ad812f61c281ffe52",
+          "samples": 3850,
+          "channels": 1,
+          "frequency": 22050,
+          "seconds": 0.174603179,
+          "pcm": true,
+          "preload": true
+        },
+        {
+          "id": "blade-hit",
+          "path": "Assets/OSSASTRA/Audio/CuratedLocal/Media/blade-hit.wav",
+          "sha256": "335f9fb253202e1d128924d8bf68e999f4c61dffcfcd152b1d726e6f60e50f56",
+          "samples": 7269,
+          "channels": 1,
+          "frequency": 22050,
+          "seconds": 0.329659849,
+          "pcm": true,
+          "preload": true
+        },
+        {
+          "id": "character-hurt",
+          "path": "Assets/OSSASTRA/Audio/CuratedLocal/Media/character-hurt.wav",
+          "sha256": "1d6816d8afecc6f78d5c2cf9df67fbbd2a44d462f8296176be43ecac0626cd61",
+          "samples": 30642,
+          "channels": 2,
+          "frequency": 44100,
+          "seconds": 0.694829941,
+          "pcm": true,
+          "preload": true
+        },
+        {
+          "id": "gun-5-4",
+          "path": "Assets/OSSASTRA/Audio/CuratedLocal/Media/gun-5-4.wav",
+          "sha256": "6119da42a01a63d8de11051968fb049eadd44e7f77dbfe996ffe80cb9351d9b4",
+          "samples": 23053,
+          "channels": 2,
+          "frequency": 44100,
+          "seconds": 0.522743762,
+          "pcm": true,
+          "preload": true
+        },
+        {
+          "id": "gun-5-5",
+          "path": "Assets/OSSASTRA/Audio/CuratedLocal/Media/gun-5-5.wav",
+          "sha256": "ecc40945efd2d37b8f789f5962f734fb22201ab55d4d2d369056c09122cc9a72",
+          "samples": 20134,
+          "channels": 2,
+          "frequency": 44100,
+          "seconds": 0.45655328,
+          "pcm": true,
+          "preload": true
+        },
+        {
+          "id": "gun-5-6",
+          "path": "Assets/OSSASTRA/Audio/CuratedLocal/Media/gun-5-6.wav",
+          "sha256": "fab8ca9f396d41814e15128a0e1301383fa0fa08353719622497defdd41be8a3",
+          "samples": 18471,
+          "channels": 2,
+          "frequency": 44100,
+          "seconds": 0.418843538,
+          "pcm": true,
+          "preload": true
+        },
+        {
+          "id": "reload-load",
+          "path": "Assets/OSSASTRA/Audio/CuratedLocal/Media/reload-load.wav",
+          "sha256": "0389c62d1ae774feddd9bb46e2b8b8da0b564a8f557e155f881b844ec05721fc",
+          "samples": 36883,
+          "channels": 2,
+          "frequency": 44100,
+          "seconds": 0.8363492,
+          "pcm": true,
+          "preload": true
+        },
+        {
+          "id": "reload-pump",
+          "path": "Assets/OSSASTRA/Audio/CuratedLocal/Media/reload-pump.wav",
+          "sha256": "c63e827811edcc4c51b2a2e2753d86d504520dd17054335b17e85c832d4029b5",
+          "samples": 9638,
+          "channels": 2,
+          "frequency": 44100,
+          "seconds": 0.21854876,
+          "pcm": true,
+          "preload": true
+        },
+        {
+          "id": "mechanical-ui-candidate",
+          "path": "Assets/OSSASTRA/Audio/CuratedLocal/Media/mechanical-ui-candidate.wav",
+          "sha256": "b4930fc1187f623cbcbb5685960b2035a3ee75c4bc9cb8dc6ba8265b91d58202",
+          "samples": 3671,
+          "channels": 2,
+          "frequency": 44100,
+          "seconds": 0.08324263,
+          "pcm": true,
+          "preload": true
+        },
+        {
+          "id": "explosion-small",
+          "path": "Assets/OSSASTRA/Audio/CuratedLocal/Media/explosion-small.wav",
+          "sha256": "1de1191894ad29938912b7337a3cfa429edb3f75e61a6b950c8b4196118e44c9",
+          "samples": 67110,
+          "channels": 2,
+          "frequency": 44100,
+          "seconds": 1.52176869,
+          "pcm": true,
+          "preload": true
+        },
+        {
+          "id": "metal-impact-heavy",
+          "path": "Assets/OSSASTRA/Audio/CuratedLocal/Media/metal-impact-heavy.wav",
+          "sha256": "d60668eaad9b0449baa864002dc7045fc5164dd98cb44d0dc9ec0cfce8927c10",
+          "samples": 104004,
+          "channels": 1,
+          "frequency": 44100,
+          "seconds": 2.35836744,
+          "pcm": true,
+          "preload": true
+        },
+        {
+          "id": "metal-bullet-impact",
+          "path": "Assets/OSSASTRA/Audio/CuratedLocal/Media/metal-bullet-impact.wav",
+          "sha256": "cfaca253c3b53846ecd893549d062eabed11f41d2ce79fcc188e911bdceae172",
+          "samples": 21073,
+          "channels": 1,
+          "frequency": 44100,
+          "seconds": 0.477845818,
+          "pcm": true,
+          "preload": true
+        }
+      ],
+      "parameterTable": [
+        {
+          "eventId": "player.blade.swing.1",
+          "path": "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/player.blade.swing.1.asset",
+          "bus": 0,
+          "volume": 0.3,
+          "pitchMin": 1.05500007,
+          "pitchMax": 1.105,
+          "priority": 50,
+          "maxPerSource": 8,
+          "minIntervalSeconds": 0.0,
+          "avoidImmediateRepeat": true,
+          "clips": [
+            "Assets/OSSASTRA/Audio/CuratedLocal/Media/blade-release.wav"
+          ]
+        },
+        {
+          "eventId": "player.blade.swing.2",
+          "path": "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/player.blade.swing.2.asset",
+          "bus": 0,
+          "volume": 0.34,
+          "pitchMin": 0.995,
+          "pitchMax": 1.045,
+          "priority": 50,
+          "maxPerSource": 8,
+          "minIntervalSeconds": 0.0,
+          "avoidImmediateRepeat": true,
+          "clips": [
+            "Assets/OSSASTRA/Audio/CuratedLocal/Media/blade-release.wav"
+          ]
+        },
+        {
+          "eventId": "player.blade.swing.3",
+          "path": "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/player.blade.swing.3.asset",
+          "bus": 0,
+          "volume": 0.38,
+          "pitchMin": 0.955000043,
+          "pitchMax": 1.005,
+          "priority": 50,
+          "maxPerSource": 8,
+          "minIntervalSeconds": 0.0,
+          "avoidImmediateRepeat": true,
+          "clips": [
+            "Assets/OSSASTRA/Audio/CuratedLocal/Media/blade-release.wav"
+          ]
+        },
+        {
+          "eventId": "player.blade.swing.4",
+          "path": "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/player.blade.swing.4.asset",
+          "bus": 0,
+          "volume": 0.44,
+          "pitchMin": 0.875,
+          "pitchMax": 0.924999952,
+          "priority": 50,
+          "maxPerSource": 8,
+          "minIntervalSeconds": 0.0,
+          "avoidImmediateRepeat": true,
+          "clips": [
+            "Assets/OSSASTRA/Audio/CuratedLocal/Media/blade-release.wav"
+          ]
+        },
+        {
+          "eventId": "player.blade.fast",
+          "path": "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/player.blade.fast.asset",
+          "bus": 0,
+          "volume": 0.3,
+          "pitchMin": 1.115,
+          "pitchMax": 1.165,
+          "priority": 50,
+          "maxPerSource": 8,
+          "minIntervalSeconds": 0.0,
+          "avoidImmediateRepeat": true,
+          "clips": [
+            "Assets/OSSASTRA/Audio/CuratedLocal/Media/blade-release.wav"
+          ]
+        },
+        {
+          "eventId": "player.blade.heavy",
+          "path": "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/player.blade.heavy.asset",
+          "bus": 0,
+          "volume": 0.46,
+          "pitchMin": 0.845,
+          "pitchMax": 0.895,
+          "priority": 55,
+          "maxPerSource": 8,
+          "minIntervalSeconds": 0.0,
+          "avoidImmediateRepeat": true,
+          "clips": [
+            "Assets/OSSASTRA/Audio/CuratedLocal/Media/blade-release.wav"
+          ]
+        },
+        {
+          "eventId": "player.blade.impact",
+          "path": "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/player.blade.impact.asset",
+          "bus": 0,
+          "volume": 0.42,
+          "pitchMin": 0.965000033,
+          "pitchMax": 1.015,
+          "priority": 65,
+          "maxPerSource": 8,
+          "minIntervalSeconds": 0.035,
+          "avoidImmediateRepeat": true,
+          "clips": [
+            "Assets/OSSASTRA/Audio/CuratedLocal/Media/blade-hit.wav"
+          ]
+        },
+        {
+          "eventId": "player.blade.impact.heavy",
+          "path": "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/player.blade.impact.heavy.asset",
+          "bus": 0,
+          "volume": 0.5,
+          "pitchMin": 0.875,
+          "pitchMax": 0.924999952,
+          "priority": 70,
+          "maxPerSource": 8,
+          "minIntervalSeconds": 0.035,
+          "avoidImmediateRepeat": true,
+          "clips": [
+            "Assets/OSSASTRA/Audio/CuratedLocal/Media/blade-hit.wav"
+          ]
+        },
+        {
+          "eventId": "player.body.hurt",
+          "path": "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/player.body.hurt.asset",
+          "bus": 0,
+          "volume": 0.2,
+          "pitchMin": 0.98,
+          "pitchMax": 1.02,
+          "priority": 85,
+          "maxPerSource": 8,
+          "minIntervalSeconds": 0.28,
+          "avoidImmediateRepeat": true,
+          "clips": [
+            "Assets/OSSASTRA/Audio/CuratedLocal/Media/character-hurt.wav"
+          ]
+        },
+        {
+          "eventId": "player.guard.metal",
+          "path": "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/player.guard.metal.asset",
+          "bus": 0,
+          "volume": 0.3,
+          "pitchMin": 0.925,
+          "pitchMax": 0.974999964,
+          "priority": 80,
+          "maxPerSource": 8,
+          "minIntervalSeconds": 0.09,
+          "avoidImmediateRepeat": true,
+          "clips": [
+            "Assets/OSSASTRA/Audio/CuratedLocal/Media/metal-bullet-impact.wav"
+          ]
+        },
+        {
+          "eventId": "player.gun.fire",
+          "path": "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/player.gun.fire.asset",
+          "bus": 0,
+          "volume": 0.4,
+          "pitchMin": 0.975,
+          "pitchMax": 1.025,
+          "priority": 60,
+          "maxPerSource": 8,
+          "minIntervalSeconds": 0.0,
+          "avoidImmediateRepeat": true,
+          "clips": [
+            "Assets/OSSASTRA/Audio/CuratedLocal/Media/gun-5-4.wav",
+            "Assets/OSSASTRA/Audio/CuratedLocal/Media/gun-5-5.wav",
+            "Assets/OSSASTRA/Audio/CuratedLocal/Media/gun-5-6.wav"
+          ]
+        },
+        {
+          "eventId": "player.gun.reload",
+          "path": "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/player.gun.reload.asset",
+          "bus": 0,
+          "volume": 0.34,
+          "pitchMin": 0.985,
+          "pitchMax": 1.015,
+          "priority": 40,
+          "maxPerSource": 8,
+          "minIntervalSeconds": 0.0,
+          "avoidImmediateRepeat": true,
+          "clips": [
+            "Assets/OSSASTRA/Audio/CuratedLocal/Media/reload-pump.wav"
+          ]
+        },
+        {
+          "eventId": "player.launcher.fire",
+          "path": "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/player.launcher.fire.asset",
+          "bus": 0,
+          "volume": 0.42,
+          "pitchMin": 0.775000036,
+          "pitchMax": 0.825,
+          "priority": 60,
+          "maxPerSource": 8,
+          "minIntervalSeconds": 0.0,
+          "avoidImmediateRepeat": true,
+          "clips": [
+            "Assets/OSSASTRA/Audio/CuratedLocal/Media/gun-5-4.wav",
+            "Assets/OSSASTRA/Audio/CuratedLocal/Media/gun-5-5.wav",
+            "Assets/OSSASTRA/Audio/CuratedLocal/Media/gun-5-6.wav"
+          ]
+        },
+        {
+          "eventId": "player.blast.small",
+          "path": "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/player.blast.small.asset",
+          "bus": 0,
+          "volume": 0.55,
+          "pitchMin": 0.925,
+          "pitchMax": 0.974999964,
+          "priority": 75,
+          "maxPerSource": 8,
+          "minIntervalSeconds": 0.04,
+          "avoidImmediateRepeat": true,
+          "clips": [
+            "Assets/OSSASTRA/Audio/CuratedLocal/Media/explosion-small.wav"
+          ]
+        },
+        {
+          "eventId": "companion.blade.swing.1",
+          "path": "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/companion.blade.swing.1.asset",
+          "bus": 1,
+          "volume": 0.186,
+          "pitchMin": 1.05500007,
+          "pitchMax": 1.105,
+          "priority": 50,
+          "maxPerSource": 8,
+          "minIntervalSeconds": 0.0,
+          "avoidImmediateRepeat": true,
+          "clips": [
+            "Assets/OSSASTRA/Audio/CuratedLocal/Media/blade-release.wav"
+          ]
+        },
+        {
+          "eventId": "companion.blade.swing.2",
+          "path": "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/companion.blade.swing.2.asset",
+          "bus": 1,
+          "volume": 0.2108,
+          "pitchMin": 0.995,
+          "pitchMax": 1.045,
+          "priority": 50,
+          "maxPerSource": 8,
+          "minIntervalSeconds": 0.0,
+          "avoidImmediateRepeat": true,
+          "clips": [
+            "Assets/OSSASTRA/Audio/CuratedLocal/Media/blade-release.wav"
+          ]
+        },
+        {
+          "eventId": "companion.blade.swing.3",
+          "path": "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/companion.blade.swing.3.asset",
+          "bus": 1,
+          "volume": 0.2356,
+          "pitchMin": 0.955000043,
+          "pitchMax": 1.005,
+          "priority": 50,
+          "maxPerSource": 8,
+          "minIntervalSeconds": 0.0,
+          "avoidImmediateRepeat": true,
+          "clips": [
+            "Assets/OSSASTRA/Audio/CuratedLocal/Media/blade-release.wav"
+          ]
+        },
+        {
+          "eventId": "companion.blade.swing.4",
+          "path": "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/companion.blade.swing.4.asset",
+          "bus": 1,
+          "volume": 0.2728,
+          "pitchMin": 0.875,
+          "pitchMax": 0.924999952,
+          "priority": 50,
+          "maxPerSource": 8,
+          "minIntervalSeconds": 0.0,
+          "avoidImmediateRepeat": true,
+          "clips": [
+            "Assets/OSSASTRA/Audio/CuratedLocal/Media/blade-release.wav"
+          ]
+        },
+        {
+          "eventId": "companion.blade.fast",
+          "path": "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/companion.blade.fast.asset",
+          "bus": 1,
+          "volume": 0.186,
+          "pitchMin": 1.115,
+          "pitchMax": 1.165,
+          "priority": 50,
+          "maxPerSource": 8,
+          "minIntervalSeconds": 0.0,
+          "avoidImmediateRepeat": true,
+          "clips": [
+            "Assets/OSSASTRA/Audio/CuratedLocal/Media/blade-release.wav"
+          ]
+        },
+        {
+          "eventId": "companion.blade.heavy",
+          "path": "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/companion.blade.heavy.asset",
+          "bus": 1,
+          "volume": 0.2852,
+          "pitchMin": 0.845,
+          "pitchMax": 0.895,
+          "priority": 55,
+          "maxPerSource": 8,
+          "minIntervalSeconds": 0.0,
+          "avoidImmediateRepeat": true,
+          "clips": [
+            "Assets/OSSASTRA/Audio/CuratedLocal/Media/blade-release.wav"
+          ]
+        },
+        {
+          "eventId": "companion.blade.impact",
+          "path": "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/companion.blade.impact.asset",
+          "bus": 1,
+          "volume": 0.2604,
+          "pitchMin": 0.965000033,
+          "pitchMax": 1.015,
+          "priority": 65,
+          "maxPerSource": 8,
+          "minIntervalSeconds": 0.035,
+          "avoidImmediateRepeat": true,
+          "clips": [
+            "Assets/OSSASTRA/Audio/CuratedLocal/Media/blade-hit.wav"
+          ]
+        },
+        {
+          "eventId": "companion.blade.impact.heavy",
+          "path": "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/companion.blade.impact.heavy.asset",
+          "bus": 1,
+          "volume": 0.31,
+          "pitchMin": 0.875,
+          "pitchMax": 0.924999952,
+          "priority": 70,
+          "maxPerSource": 8,
+          "minIntervalSeconds": 0.035,
+          "avoidImmediateRepeat": true,
+          "clips": [
+            "Assets/OSSASTRA/Audio/CuratedLocal/Media/blade-hit.wav"
+          ]
+        },
+        {
+          "eventId": "companion.body.hurt",
+          "path": "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/companion.body.hurt.asset",
+          "bus": 1,
+          "volume": 0.124000005,
+          "pitchMin": 0.98,
+          "pitchMax": 1.02,
+          "priority": 85,
+          "maxPerSource": 8,
+          "minIntervalSeconds": 0.28,
+          "avoidImmediateRepeat": true,
+          "clips": [
+            "Assets/OSSASTRA/Audio/CuratedLocal/Media/character-hurt.wav"
+          ]
+        },
+        {
+          "eventId": "companion.guard.metal",
+          "path": "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/companion.guard.metal.asset",
+          "bus": 1,
+          "volume": 0.186,
+          "pitchMin": 0.925,
+          "pitchMax": 0.974999964,
+          "priority": 80,
+          "maxPerSource": 8,
+          "minIntervalSeconds": 0.09,
+          "avoidImmediateRepeat": true,
+          "clips": [
+            "Assets/OSSASTRA/Audio/CuratedLocal/Media/metal-bullet-impact.wav"
+          ]
+        },
+        {
+          "eventId": "companion.gun.fire",
+          "path": "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/companion.gun.fire.asset",
+          "bus": 1,
+          "volume": 0.248000011,
+          "pitchMin": 0.975,
+          "pitchMax": 1.025,
+          "priority": 60,
+          "maxPerSource": 8,
+          "minIntervalSeconds": 0.0,
+          "avoidImmediateRepeat": true,
+          "clips": [
+            "Assets/OSSASTRA/Audio/CuratedLocal/Media/gun-5-4.wav",
+            "Assets/OSSASTRA/Audio/CuratedLocal/Media/gun-5-5.wav",
+            "Assets/OSSASTRA/Audio/CuratedLocal/Media/gun-5-6.wav"
+          ]
+        },
+        {
+          "eventId": "companion.gun.reload",
+          "path": "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/companion.gun.reload.asset",
+          "bus": 1,
+          "volume": 0.2108,
+          "pitchMin": 0.985,
+          "pitchMax": 1.015,
+          "priority": 40,
+          "maxPerSource": 8,
+          "minIntervalSeconds": 0.0,
+          "avoidImmediateRepeat": true,
+          "clips": [
+            "Assets/OSSASTRA/Audio/CuratedLocal/Media/reload-pump.wav"
+          ]
+        },
+        {
+          "eventId": "companion.launcher.fire",
+          "path": "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/companion.launcher.fire.asset",
+          "bus": 1,
+          "volume": 0.2604,
+          "pitchMin": 0.775000036,
+          "pitchMax": 0.825,
+          "priority": 60,
+          "maxPerSource": 8,
+          "minIntervalSeconds": 0.0,
+          "avoidImmediateRepeat": true,
+          "clips": [
+            "Assets/OSSASTRA/Audio/CuratedLocal/Media/gun-5-4.wav",
+            "Assets/OSSASTRA/Audio/CuratedLocal/Media/gun-5-5.wav",
+            "Assets/OSSASTRA/Audio/CuratedLocal/Media/gun-5-6.wav"
+          ]
+        },
+        {
+          "eventId": "companion.blast.small",
+          "path": "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/companion.blast.small.asset",
+          "bus": 1,
+          "volume": 0.341000021,
+          "pitchMin": 0.925,
+          "pitchMax": 0.974999964,
+          "priority": 75,
+          "maxPerSource": 8,
+          "minIntervalSeconds": 0.04,
+          "avoidImmediateRepeat": true,
+          "clips": [
+            "Assets/OSSASTRA/Audio/CuratedLocal/Media/explosion-small.wav"
+          ]
+        },
+        {
+          "eventId": "enemy.blade.swing.1",
+          "path": "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/enemy.blade.swing.1.asset",
+          "bus": 2,
+          "volume": 0.165,
+          "pitchMin": 1.05500007,
+          "pitchMax": 1.105,
+          "priority": 50,
+          "maxPerSource": 8,
+          "minIntervalSeconds": 0.0,
+          "avoidImmediateRepeat": true,
+          "clips": [
+            "Assets/OSSASTRA/Audio/CuratedLocal/Media/blade-release.wav"
+          ]
+        },
+        {
+          "eventId": "enemy.blade.swing.2",
+          "path": "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/enemy.blade.swing.2.asset",
+          "bus": 2,
+          "volume": 0.187,
+          "pitchMin": 0.995,
+          "pitchMax": 1.045,
+          "priority": 50,
+          "maxPerSource": 8,
+          "minIntervalSeconds": 0.0,
+          "avoidImmediateRepeat": true,
+          "clips": [
+            "Assets/OSSASTRA/Audio/CuratedLocal/Media/blade-release.wav"
+          ]
+        },
+        {
+          "eventId": "enemy.blade.swing.3",
+          "path": "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/enemy.blade.swing.3.asset",
+          "bus": 2,
+          "volume": 0.209,
+          "pitchMin": 0.955000043,
+          "pitchMax": 1.005,
+          "priority": 50,
+          "maxPerSource": 8,
+          "minIntervalSeconds": 0.0,
+          "avoidImmediateRepeat": true,
+          "clips": [
+            "Assets/OSSASTRA/Audio/CuratedLocal/Media/blade-release.wav"
+          ]
+        },
+        {
+          "eventId": "enemy.blade.swing.4",
+          "path": "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/enemy.blade.swing.4.asset",
+          "bus": 2,
+          "volume": 0.242,
+          "pitchMin": 0.875,
+          "pitchMax": 0.924999952,
+          "priority": 50,
+          "maxPerSource": 8,
+          "minIntervalSeconds": 0.0,
+          "avoidImmediateRepeat": true,
+          "clips": [
+            "Assets/OSSASTRA/Audio/CuratedLocal/Media/blade-release.wav"
+          ]
+        },
+        {
+          "eventId": "enemy.blade.fast",
+          "path": "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/enemy.blade.fast.asset",
+          "bus": 2,
+          "volume": 0.165,
+          "pitchMin": 1.115,
+          "pitchMax": 1.165,
+          "priority": 50,
+          "maxPerSource": 8,
+          "minIntervalSeconds": 0.0,
+          "avoidImmediateRepeat": true,
+          "clips": [
+            "Assets/OSSASTRA/Audio/CuratedLocal/Media/blade-release.wav"
+          ]
+        },
+        {
+          "eventId": "enemy.blade.heavy",
+          "path": "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/enemy.blade.heavy.asset",
+          "bus": 2,
+          "volume": 0.253000021,
+          "pitchMin": 0.845,
+          "pitchMax": 0.895,
+          "priority": 55,
+          "maxPerSource": 8,
+          "minIntervalSeconds": 0.0,
+          "avoidImmediateRepeat": true,
+          "clips": [
+            "Assets/OSSASTRA/Audio/CuratedLocal/Media/blade-release.wav"
+          ]
+        },
+        {
+          "eventId": "enemy.blade.impact",
+          "path": "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/enemy.blade.impact.asset",
+          "bus": 2,
+          "volume": 0.230999991,
+          "pitchMin": 0.965000033,
+          "pitchMax": 1.015,
+          "priority": 65,
+          "maxPerSource": 8,
+          "minIntervalSeconds": 0.035,
+          "avoidImmediateRepeat": true,
+          "clips": [
+            "Assets/OSSASTRA/Audio/CuratedLocal/Media/blade-hit.wav"
+          ]
+        },
+        {
+          "eventId": "enemy.blade.impact.heavy",
+          "path": "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/enemy.blade.impact.heavy.asset",
+          "bus": 2,
+          "volume": 0.275,
+          "pitchMin": 0.875,
+          "pitchMax": 0.924999952,
+          "priority": 70,
+          "maxPerSource": 8,
+          "minIntervalSeconds": 0.035,
+          "avoidImmediateRepeat": true,
+          "clips": [
+            "Assets/OSSASTRA/Audio/CuratedLocal/Media/blade-hit.wav"
+          ]
+        },
+        {
+          "eventId": "enemy.guard.metal",
+          "path": "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/enemy.guard.metal.asset",
+          "bus": 2,
+          "volume": 0.165,
+          "pitchMin": 0.925,
+          "pitchMax": 0.974999964,
+          "priority": 80,
+          "maxPerSource": 8,
+          "minIntervalSeconds": 0.09,
+          "avoidImmediateRepeat": true,
+          "clips": [
+            "Assets/OSSASTRA/Audio/CuratedLocal/Media/metal-bullet-impact.wav"
+          ]
+        },
+        {
+          "eventId": "enemy.gun.fire",
+          "path": "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/enemy.gun.fire.asset",
+          "bus": 2,
+          "volume": 0.220000014,
+          "pitchMin": 0.975,
+          "pitchMax": 1.025,
+          "priority": 60,
+          "maxPerSource": 8,
+          "minIntervalSeconds": 0.0,
+          "avoidImmediateRepeat": true,
+          "clips": [
+            "Assets/OSSASTRA/Audio/CuratedLocal/Media/gun-5-4.wav",
+            "Assets/OSSASTRA/Audio/CuratedLocal/Media/gun-5-5.wav",
+            "Assets/OSSASTRA/Audio/CuratedLocal/Media/gun-5-6.wav"
+          ]
+        },
+        {
+          "eventId": "enemy.gun.reload",
+          "path": "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/enemy.gun.reload.asset",
+          "bus": 2,
+          "volume": 0.187,
+          "pitchMin": 0.985,
+          "pitchMax": 1.015,
+          "priority": 40,
+          "maxPerSource": 8,
+          "minIntervalSeconds": 0.0,
+          "avoidImmediateRepeat": true,
+          "clips": [
+            "Assets/OSSASTRA/Audio/CuratedLocal/Media/reload-pump.wav"
+          ]
+        },
+        {
+          "eventId": "enemy.launcher.fire",
+          "path": "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/enemy.launcher.fire.asset",
+          "bus": 2,
+          "volume": 0.230999991,
+          "pitchMin": 0.775000036,
+          "pitchMax": 0.825,
+          "priority": 60,
+          "maxPerSource": 8,
+          "minIntervalSeconds": 0.0,
+          "avoidImmediateRepeat": true,
+          "clips": [
+            "Assets/OSSASTRA/Audio/CuratedLocal/Media/gun-5-4.wav",
+            "Assets/OSSASTRA/Audio/CuratedLocal/Media/gun-5-5.wav",
+            "Assets/OSSASTRA/Audio/CuratedLocal/Media/gun-5-6.wav"
+          ]
+        },
+        {
+          "eventId": "enemy.blast.small",
+          "path": "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/enemy.blast.small.asset",
+          "bus": 2,
+          "volume": 0.3025,
+          "pitchMin": 0.925,
+          "pitchMax": 0.974999964,
+          "priority": 75,
+          "maxPerSource": 8,
+          "minIntervalSeconds": 0.04,
+          "avoidImmediateRepeat": true,
+          "clips": [
+            "Assets/OSSASTRA/Audio/CuratedLocal/Media/explosion-small.wav"
+          ]
+        },
+        {
+          "eventId": "ui.control.switch",
+          "path": "Assets/OSSASTRA/Audio/CuratedLocal/Definitions/ui.control.switch.asset",
+          "bus": 3,
+          "volume": 0.18,
+          "pitchMin": 1.0,
+          "pitchMax": 1.0,
+          "priority": 35,
+          "maxPerSource": 8,
+          "minIntervalSeconds": 0.1,
+          "avoidImmediateRepeat": true,
+          "clips": [
+            "Assets/OSSASTRA/Audio/CuratedLocal/Media/mechanical-ui-candidate.wav"
+          ]
+        }
+      ],
+      "profileRows": [
+        {
+          "selector": "body.basic",
+          "kind": "release",
+          "stage": 0,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "blade.swing.1"
+        },
+        {
+          "selector": "body.basic",
+          "kind": "release",
+          "stage": 1,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "blade.swing.1"
+        },
+        {
+          "selector": "body.basic",
+          "kind": "release",
+          "stage": 2,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "blade.swing.2"
+        },
+        {
+          "selector": "body.basic",
+          "kind": "release",
+          "stage": 3,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "blade.swing.3"
+        },
+        {
+          "selector": "body.basic",
+          "kind": "release",
+          "stage": 4,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "blade.swing.4"
+        },
+        {
+          "selector": "body.basic",
+          "kind": "hit",
+          "stage": 0,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "blade.impact"
+        },
+        {
+          "selector": "body.basic",
+          "kind": "hit",
+          "stage": 4,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "blade.impact.heavy"
+        },
+        {
+          "selector": "main:hunter.prototype.I",
+          "kind": "release",
+          "stage": 0,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "blade.swing.1"
+        },
+        {
+          "selector": "main:hunter.prototype.I",
+          "kind": "release",
+          "stage": 1,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "blade.swing.1"
+        },
+        {
+          "selector": "main:hunter.prototype.I",
+          "kind": "release",
+          "stage": 2,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "blade.swing.2"
+        },
+        {
+          "selector": "main:hunter.prototype.I",
+          "kind": "release",
+          "stage": 3,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "blade.swing.3"
+        },
+        {
+          "selector": "main:hunter.prototype.I",
+          "kind": "release",
+          "stage": 4,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "blade.swing.4"
+        },
+        {
+          "selector": "main:hunter.prototype.I",
+          "kind": "hit",
+          "stage": 0,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "blade.impact"
+        },
+        {
+          "selector": "main:hunter.prototype.I",
+          "kind": "hit",
+          "stage": 4,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "blade.impact.heavy"
+        },
+        {
+          "selector": "main:hunter.prototype.II",
+          "kind": "release",
+          "stage": 0,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "blade.swing.1"
+        },
+        {
+          "selector": "main:hunter.prototype.II",
+          "kind": "release",
+          "stage": 1,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "blade.swing.1"
+        },
+        {
+          "selector": "main:hunter.prototype.II",
+          "kind": "release",
+          "stage": 2,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "blade.swing.2"
+        },
+        {
+          "selector": "main:hunter.prototype.II",
+          "kind": "release",
+          "stage": 3,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "blade.swing.3"
+        },
+        {
+          "selector": "main:hunter.prototype.II",
+          "kind": "release",
+          "stage": 4,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "blade.swing.4"
+        },
+        {
+          "selector": "main:hunter.prototype.II",
+          "kind": "hit",
+          "stage": 0,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "blade.impact"
+        },
+        {
+          "selector": "main:hunter.prototype.II",
+          "kind": "hit",
+          "stage": 4,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "blade.impact.heavy"
+        },
+        {
+          "selector": "main:ranger.prototype.I",
+          "kind": "release",
+          "stage": 0,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "blade.swing.1"
+        },
+        {
+          "selector": "main:ranger.prototype.I",
+          "kind": "release",
+          "stage": 1,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "blade.swing.1"
+        },
+        {
+          "selector": "main:ranger.prototype.I",
+          "kind": "release",
+          "stage": 2,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "blade.swing.2"
+        },
+        {
+          "selector": "main:ranger.prototype.I",
+          "kind": "release",
+          "stage": 3,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "blade.swing.3"
+        },
+        {
+          "selector": "main:ranger.prototype.I",
+          "kind": "release",
+          "stage": 4,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "blade.swing.4"
+        },
+        {
+          "selector": "main:ranger.prototype.I",
+          "kind": "hit",
+          "stage": 0,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "blade.impact"
+        },
+        {
+          "selector": "main:ranger.prototype.I",
+          "kind": "hit",
+          "stage": 4,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "blade.impact.heavy"
+        },
+        {
+          "selector": "main:ranger.prototype.II",
+          "kind": "release",
+          "stage": 0,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "blade.swing.1"
+        },
+        {
+          "selector": "main:ranger.prototype.II",
+          "kind": "release",
+          "stage": 1,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "blade.swing.1"
+        },
+        {
+          "selector": "main:ranger.prototype.II",
+          "kind": "release",
+          "stage": 2,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "blade.swing.2"
+        },
+        {
+          "selector": "main:ranger.prototype.II",
+          "kind": "release",
+          "stage": 3,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "blade.swing.3"
+        },
+        {
+          "selector": "main:ranger.prototype.II",
+          "kind": "release",
+          "stage": 4,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "blade.swing.4"
+        },
+        {
+          "selector": "main:ranger.prototype.II",
+          "kind": "hit",
+          "stage": 0,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "blade.impact"
+        },
+        {
+          "selector": "main:ranger.prototype.II",
+          "kind": "hit",
+          "stage": 4,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "blade.impact.heavy"
+        },
+        {
+          "selector": "enemy.basic",
+          "kind": "hit",
+          "stage": 0,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "blade.impact"
+        },
+        {
+          "selector": "hunter-break",
+          "kind": "release",
+          "stage": 0,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "blade.heavy"
+        },
+        {
+          "selector": "hunter-break",
+          "kind": "hit",
+          "stage": 0,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "blade.impact.heavy"
+        },
+        {
+          "selector": "al-spin",
+          "kind": "release",
+          "stage": 0,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "blade.heavy"
+        },
+        {
+          "selector": "al-spin",
+          "kind": "hit",
+          "stage": 0,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "blade.impact.heavy"
+        },
+        {
+          "selector": "hunter-sweep",
+          "kind": "release",
+          "stage": 0,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "blade.fast"
+        },
+        {
+          "selector": "hunter-sweep",
+          "kind": "hit",
+          "stage": 0,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "blade.impact"
+        },
+        {
+          "selector": "al-stab",
+          "kind": "release",
+          "stage": 0,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "blade.fast"
+        },
+        {
+          "selector": "al-stab",
+          "kind": "hit",
+          "stage": 0,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "blade.impact"
+        },
+        {
+          "selector": "hunter-native-E",
+          "kind": "hit",
+          "stage": 0,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "guard.metal"
+        },
+        {
+          "selector": "rush",
+          "kind": "hit",
+          "stage": 0,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "guard.metal"
+        },
+        {
+          "selector": "vc02.shield-hit",
+          "kind": "hit",
+          "stage": 0,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "guard.metal"
+        },
+        {
+          "selector": "magazine-shot",
+          "kind": "release",
+          "stage": 0,
+          "channel": "ranged-shot",
+          "deliveryMode": "Projectile",
+          "role": "",
+          "cue": "gun.fire"
+        },
+        {
+          "selector": "magazine-shot",
+          "kind": "release",
+          "stage": 0,
+          "channel": "ranged-shot",
+          "deliveryMode": "RayLandingArc",
+          "role": "",
+          "cue": "launcher.fire"
+        },
+        {
+          "selector": "magazine-shot",
+          "kind": "hit",
+          "stage": 0,
+          "channel": "ranged-shot",
+          "deliveryMode": "Projectile",
+          "role": "",
+          "cue": "blade.impact"
+        },
+        {
+          "selector": "magazine-shot",
+          "kind": "hit",
+          "stage": 0,
+          "channel": "ranged-shot",
+          "deliveryMode": "RayLandingArc",
+          "role": "",
+          "cue": "blast.small"
+        },
+        {
+          "selector": "magazine-shot",
+          "kind": "miss",
+          "stage": 0,
+          "channel": "ranged-shot",
+          "deliveryMode": "RayLandingArc",
+          "role": "",
+          "cue": "blast.small"
+        },
+        {
+          "selector": "rocket",
+          "kind": "release",
+          "stage": 0,
+          "channel": "rocket-launch",
+          "deliveryMode": "Projectile",
+          "role": "",
+          "cue": "gun.fire"
+        },
+        {
+          "selector": "rocket",
+          "kind": "hit",
+          "stage": 0,
+          "channel": "rocket-launch",
+          "deliveryMode": "Projectile",
+          "role": "",
+          "cue": "blade.impact"
+        },
+        {
+          "selector": "rocket",
+          "kind": "hit",
+          "stage": 0,
+          "channel": "rocket-land",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "blast.small"
+        },
+        {
+          "selector": "rocket",
+          "kind": "miss",
+          "stage": 0,
+          "channel": "rocket-land",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "blast.small"
+        },
+        {
+          "selector": "al-native-E",
+          "kind": "release",
+          "stage": 0,
+          "channel": "rocket-launch",
+          "deliveryMode": "Projectile",
+          "role": "",
+          "cue": "gun.fire"
+        },
+        {
+          "selector": "al-native-E",
+          "kind": "hit",
+          "stage": 0,
+          "channel": "rocket-launch",
+          "deliveryMode": "Projectile",
+          "role": "",
+          "cue": "blade.impact"
+        },
+        {
+          "selector": "al-native-E",
+          "kind": "hit",
+          "stage": 0,
+          "channel": "rocket-land",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "blast.small"
+        },
+        {
+          "selector": "al-native-E",
+          "kind": "miss",
+          "stage": 0,
+          "channel": "rocket-land",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "blast.small"
+        },
+        {
+          "selector": "vc02.shot-probe",
+          "kind": "release",
+          "stage": 0,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "gun.fire"
+        },
+        {
+          "selector": "vc02.shot-probe",
+          "kind": "hit",
+          "stage": 0,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "blade.impact"
+        },
+        {
+          "selector": "vc02.throw",
+          "kind": "hit",
+          "stage": 0,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "blast.small"
+        },
+        {
+          "selector": "vc02.throw",
+          "kind": "miss",
+          "stage": 0,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "blast.small"
+        },
+        {
+          "selector": "sample-al-bomb.use",
+          "kind": "hit",
+          "stage": 0,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "blast.small"
+        },
+        {
+          "selector": "sample-al-bomb.use",
+          "kind": "miss",
+          "stage": 0,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "blast.small"
+        },
+        {
+          "selector": "precision",
+          "kind": "reload",
+          "stage": 0,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "gun.reload"
+        },
+        {
+          "selector": "resource",
+          "kind": "reload",
+          "stage": 0,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "gun.reload"
+        },
+        {
+          "selector": "target",
+          "kind": "hurt",
+          "stage": 0,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "player",
+          "cue": "body.hurt"
+        },
+        {
+          "selector": "target",
+          "kind": "hurt",
+          "stage": 0,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "companion",
+          "cue": "body.hurt"
+        },
+        {
+          "selector": "target",
+          "kind": "guard",
+          "stage": 0,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "guard.metal"
+        },
+        {
+          "selector": "interface",
+          "kind": "switch",
+          "stage": 0,
+          "channel": "",
+          "deliveryMode": "",
+          "role": "",
+          "cue": "control.switch"
+        }
+      ]
+    }
+  }
+}

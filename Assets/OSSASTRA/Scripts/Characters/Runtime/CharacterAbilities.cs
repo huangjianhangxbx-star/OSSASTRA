@@ -63,7 +63,9 @@ namespace Ossastra.Characters
         private readonly Dictionary<string,double> rocketDirectReadyAt=new Dictionary<string,double>();
         public CombatIceWorld IceWorld=>iceWorld;
         public event Action<Guid,string,Vector3> Feedback;
-        public void NotifyResourceFeedback(string kind)=>Feedback?.Invoke(Guid.Empty,kind,transform.position);
+        public event Action<AbilityFeedbackFact> FeedbackObserved;
+        public void NotifyResourceFeedback(string kind)
+            =>PublishFeedback(new AbilityFeedbackFact(Guid.Empty,"","",kind,transform.position));
         private CharacterRoot owner;
         private CharacterEquipment equipment;
         private CharacterStamina stamina;
@@ -417,14 +419,18 @@ namespace Ossastra.Characters
             var context=new AbilityRunContext(owner,compiled,port,id,direction.normalized,landing,Emit,operation,sprite,scale,frozenEffects,releasePayment,source,presentationMainHand);
             context.commitSource=CommitSource;
             context.deliveryPort=EmitDelivery;
-            context.feedback=(execution,kind,position)=>Feedback?.Invoke(execution,kind,position);
+            // 回调在CreateRun之前捕获接受上下文；即时执行器可在构造Run时同步反馈。
+            var definitionId=compiled.id;var sourceInstanceId=port.InstanceId;
+            var requestSource=source.ToString();var requestedOperation=operation.ToString();var acceptedDelivery=compiled.delivery.mode.ToString();
+            context.feedback=(execution,kind,position)=>PublishFeedback(new AbilityFeedbackFact(execution,definitionId,sourceInstanceId,kind,position,
+                requestSource:requestSource,operation:requestedOperation,deliveryMode:acceptedDelivery));
             owner.Vitals?.Recovery?.RetainParent(id);
             deliveries.RegisterParent(id);
             var run=executor.CreateRun(context);context.onResolved=run.OnResolved;runs.Add(run);
             if(source==CharacterActionSource.Player&&requestGesture.HasIdentity)runGestures[id]=requestGesture;
             if(executor.UsesBodyAction)ownedBodyReleases.Add(id);
             if(executor.StartsCooldownOnAccept&&!resources.Cooldowns.Commit(key,id,resources.Clock(compiled.cooldownPolicy),context.ModifiedCooldown))throw new InvalidOperationException("Accepted ability cooldown conflict");
-            AcceptedCount++;Feedback?.Invoke(id,"accepted",owner.transform.position);LastResult="接受 "+compiled.displayName;return true;
+            AcceptedCount++;context.NotifyFeedback("accepted");LastResult="接受 "+compiled.displayName;return true;
         }
         public bool CanAccept(CharacterActionKind kind,out string reason)
         {
@@ -502,10 +508,26 @@ namespace Ossastra.Characters
                 var offset=context.landing-context.acceptedPosition;offset.y=0;
                 landing=owner.transform.position+direction*offset.magnitude;landing.y=context.landing.y;
             }
+            // 实际投递可覆写定义模式（例如同一弹仓的普通弹与迫击弹），回调只读这次投递的冻结身份。
+            var definitionId=context.definition.id;var sourceInstanceId=context.source.InstanceId;
+            var requestSource=context.requestSource.ToString();var operation=context.operation.ToString();var deliveryMode=delivery.mode.ToString();
             var emitted=deliveries.Emit(owner.Vitals,context.id,emission.Index,delivery,damage,posture,
                 owner.transform.position,direction,landing,()=>this!=null&&isActiveAndEnabled&&owner!=null&&owner.IsAlive&&owner.LifeGeneration==context.lifeGeneration,
-                receipts=>{LastResult="接触 "+receipts.Count+" #"+context.id.ToString("N");context.onResolved?.Invoke(emission.Index,channel,receipts);Feedback?.Invoke(context.id,receipts.Any(r=>r.Reason==HitReason.Applied)?"hit":"miss",landing);},context.projectileSprite,context.projectileScale,context.definition.reclaimBudget,context.definition.reclaimRate);
-            if(emitted){EmittedCount++;Feedback?.Invoke(context.id,"release",owner.transform.position);}
+                receipts=>{LastResult="接触 "+receipts.Count+" #"+context.id.ToString("N");context.onResolved?.Invoke(emission.Index,channel,receipts);
+                    PublishFeedback(new AbilityFeedbackFact(context.id,definitionId,sourceInstanceId,receipts.Any(r=>r.Reason==HitReason.Applied)?"hit":"miss",landing,
+                        emission.Index,channel,deliveryMode,requestSource,operation));},context.projectileSprite,context.projectileScale,context.definition.reclaimBudget,context.definition.reclaimRate);
+            if(emitted){EmittedCount++;PublishFeedback(new AbilityFeedbackFact(context.id,definitionId,sourceInstanceId,"release",owner.transform.position,
+                emission.Index,channel,deliveryMode,requestSource,operation));}
+        }
+        private void PublishFeedback(AbilityFeedbackFact fact)
+        {
+            // 保留旧Feedback先于新观察口的顺序；单个表现观察者失败不得阻断其他观察者或能力结算。
+            var legacy=Feedback;
+            if(legacy!=null)foreach(Action<Guid,string,Vector3> observer in legacy.GetInvocationList())
+                try{observer(fact.ExecutionId,fact.Kind,fact.Position);}catch(Exception error){Debug.LogWarning("CharacterAbilities旧反馈观察者异常："+error,this);}
+            var observed=FeedbackObserved;
+            if(observed!=null)foreach(Action<AbilityFeedbackFact> observer in observed.GetInvocationList())
+                try{observer(fact);}catch(Exception error){Debug.LogWarning("CharacterAbilities事实观察者异常："+error,this);}
         }
         private bool CommitSource(AbilityRunContext context)
         {

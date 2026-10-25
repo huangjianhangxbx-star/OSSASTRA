@@ -1,0 +1,84 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "passed": 13,
+      "failed": 0,
+      "gated": 0,
+      "rows": [
+        {
+          "name": "发布合同仅有只读属性",
+          "passed": true,
+          "detail": null
+        },
+        {
+          "name": "真实HP结算后发布一次且坏观察者不阻断",
+          "passed": true,
+          "detail": null
+        },
+        {
+          "name": "批次保留父执行、真实释放节点、来源及目标身份",
+          "passed": true,
+          "detail": null
+        },
+        {
+          "name": "回执快照不随目标后续位置和HP变化",
+          "passed": true,
+          "detail": null
+        },
+        {
+          "name": "回执集合拒绝外部改写",
+          "passed": true,
+          "detail": null
+        },
+        {
+          "name": "空挥只发布空回执而不伪造命中",
+          "passed": true,
+          "detail": null
+        },
+        {
+          "name": "资源反馈没有伪造攻击执行或装备来源",
+          "passed": true,
+          "detail": null
+        },
+        {
+          "name": "旧反馈先序保留且双方观察者异常隔离",
+          "passed": true,
+          "detail": null
+        },
+        {
+          "name": "同步CreateRun真实来源事务被受理",
+          "passed": true,
+          "detail": "接受 事实合同零费用探针"
+        },
+        {
+          "name": "同步构造回调已具备完整冻结接受上下文",
+          "passed": true,
+          "detail": null
+        },
+        {
+          "name": "真实投递覆写保留实际模式、节点及通道",
+          "passed": true,
+          "detail": null
+        },
+        {
+          "name": "同步回调与原Feedback相对顺序保持",
+          "passed": true,
+          "detail": null
+        },
+        {
+          "name": "只读事实探针不改变角色HP体力",
+          "passed": true,
+          "detail": null
+        }
+      ],
+      "scope": "自有受击体 + 零费用真实来源事务；不验证自然输入或主观听感"
+    }
+  }
+}

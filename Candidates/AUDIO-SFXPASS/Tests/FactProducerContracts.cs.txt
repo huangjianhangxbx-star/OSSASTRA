@@ -1,0 +1,241 @@
+/* 脚本：FactProducerContracts（只在开发命令中编译）
+ * 功能：验证能力上下文与实际命中批次的只读事实；缺功能时仍可编译并给出明确RED。
+ * 边界：只创建自有受击体；场景能力探针为零费用、无动画、零碰撞层的真实来源事务，绝不广播假命中。
+ * 协作：先在旧生产代码运行RED；GREEN须在已就绪的自有测试场Play运行，不把缺前置条件算通过。
+ */
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using Funplay.Editor.Tools.Scripting;
+using UnityEngine;
+using C = Ossastra.Characters;
+using Core = Ossastra.CharacterCore;
+using Ability = Ossastra.CharacterCore.Abilities;
+using Combat = Ossastra.Combat;
+
+public sealed class FactProducerContracts : IFunplayCommand
+{
+    private readonly List<object> rows = new List<object>();
+    private readonly List<UnityEngine.Object> owned = new List<UnityEngine.Object>();
+    private int passed, failed, gated;
+    private const BindingFlags publicInstance = BindingFlags.Public | BindingFlags.Instance;
+    private Type abilityFactType, batchType, receiptType;
+    private System.Reflection.EventInfo feedbackEvent, resolvedEvent;
+
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+    {
+        try
+        {
+            var assembly = typeof(C.CharacterAbilities).Assembly;
+            abilityFactType = assembly.GetType("Ossastra.Characters.AbilityFeedbackFact");
+            batchType = assembly.GetType("Ossastra.Combat.CombatContactBatch");
+            receiptType = assembly.GetType("Ossastra.Combat.CombatContactReceipt");
+            feedbackEvent = typeof(C.CharacterAbilities).GetEvent("FeedbackObserved");
+            resolvedEvent = typeof(Combat.CombatContactGateway).GetEvent("Resolved");
+            if (abilityFactType == null || batchType == null || receiptType == null || feedbackEvent == null || resolvedEvent == null)
+            {
+                Check("能力上下文和网关批次事实存在", () => false,
+                    "MISSING_FEATURE: AbilityFeedbackFact / FeedbackObserved / CombatContactBatch / CombatContactReceipt / Resolved");
+                return;
+            }
+            Check("发布合同仅有只读属性", () =>
+                ReadOnly(abilityFactType, "ExecutionId", "DefinitionId", "SourceInstanceId", "Kind", "Position", "EmissionIndex", "Channel", "DeliveryMode", "RequestSource", "Operation") &&
+                ReadOnly(batchType, "ParentExecutionId", "ActionId", "EmissionIndex", "ActorId", "Source", "Origin", "Receipts") &&
+                ReadOnly(receiptType, "Outcome", "Target", "TargetId", "Position"));
+            GatewayContracts();
+            ResourceContracts();
+            SynchronousRunContracts();
+        }
+        catch (Exception error) { Check("合同执行无异常", () => false, error.ToString()); }
+        finally
+        {
+            foreach (var item in owned.AsEnumerable().Reverse()) if (item != null) UnityEngine.Object.DestroyImmediate(item);
+            ctx.ReturnValue = new { passed, failed, gated, rows, scope = "自有受击体 + 零费用真实来源事务；不验证自然输入或主观听感" };
+        }
+    }
+
+    private void GatewayContracts()
+    {
+        var source = Vitals("source", Core.CombatFaction.Allied, new Vector3(2000, 1000, 2000));
+        var target = Vitals("target", Core.CombatFaction.Enemy, new Vector3(2001, 1000, 2000));
+        var seen = new List<object>();
+        var callbackHp = -1;
+        var firstThrows = Subscribe(resolvedEvent, null, value => { throw new InvalidOperationException("EXPECTED_TEST_OBSERVER_FAILURE:gateway"); });
+        var capture = Subscribe(resolvedEvent, null, value => { seen.Add(value); callbackHp = target.Health.Current; });
+        try
+        {
+            var parent = Guid.NewGuid();
+            var release = Core.AttackRelease.ForEmission(parent, 3, source.Health.Id, 7, 0);
+            var origin = source.WorldPosition;
+            var position = target.WorldPosition;
+            var results = Combat.CombatContactGateway.Resolve(release, source, new Combat.IHitTarget[] { target }, origin);
+            Check("真实HP结算后发布一次且坏观察者不阻断", () =>
+                seen.Count == 1 && callbackHp == 93 && target.Health.Current == 93 && results.Count == 1 && results[0].Reason == Core.HitReason.Applied);
+            if (seen.Count == 1)
+            {
+                var batch = seen[0];
+                var receipts = Objects(Get(batch, "Receipts"));
+                Check("批次保留父执行、真实释放节点、来源及目标身份", () =>
+                    Equals(Get(batch, "ParentExecutionId"), parent) && Equals(Get(batch, "ActionId"), release.ActionId) &&
+                    Equals(Get(batch, "EmissionIndex"), 3) && Equals(Get(batch, "ActorId"), source.Health.Id) &&
+                    ReferenceEquals(Get(batch, "Source"), source) && Equals(Get(batch, "Origin"), origin) && receipts.Length == 1 &&
+                    ReferenceEquals(Get(receipts[0], "Target"), target) && Equals(Get(receipts[0], "TargetId"), target.Health.Id) &&
+                    ReferenceEquals(Get(receipts[0], "Outcome"), results[0]) && Equals(Get(receipts[0], "Position"), position));
+                target.transform.position += Vector3.right * 10;
+                target.Health.Heal(3);
+                Check("回执快照不随目标后续位置和HP变化", () => receipts.Length == 1 &&
+                    Equals(Get(receipts[0], "Position"), position) && ((Core.HitOutcome)Get(receipts[0], "Outcome")).HpAfter == 93);
+                Check("回执集合拒绝外部改写", () =>
+                {
+                    var list = Get(batch, "Receipts") as IList;
+                    if (list == null) return true;
+                    try { list[0] = null; return false; } catch (NotSupportedException) { return true; }
+                });
+            }
+            seen.Clear();
+            var empty = Core.AttackRelease.ForEmission(Guid.NewGuid(), 0, source.Health.Id, 7, 0);
+            var before = target.Health.Current;
+            var miss = Combat.CombatContactGateway.Resolve(empty, source, Array.Empty<Combat.IHitTarget>(), origin);
+            Check("空挥只发布空回执而不伪造命中", () => seen.Count == 1 && Objects(Get(seen[0], "Receipts")).Length == 0 && miss.Count == 0 && target.Health.Current == before);
+        }
+        finally { resolvedEvent.RemoveEventHandler(null, capture); resolvedEvent.RemoveEventHandler(null, firstThrows); }
+    }
+
+    private void ResourceContracts()
+    {
+        var go = NewObject("resource-feedback");
+        var abilities = go.AddComponent<C.CharacterAbilities>();
+        var order = new List<string>();
+        object captured = null;
+        Action<Guid, string, Vector3> badLegacy = (id, kind, position) => { throw new InvalidOperationException("EXPECTED_TEST_OBSERVER_FAILURE:legacy"); };
+        Action<Guid, string, Vector3> legacy = (id, kind, position) => order.Add("legacy:" + kind);
+        abilities.Feedback += badLegacy;
+        abilities.Feedback += legacy;
+        var badRich = Subscribe(feedbackEvent, abilities, value => { throw new InvalidOperationException("EXPECTED_TEST_OBSERVER_FAILURE:rich"); });
+        var rich = Subscribe(feedbackEvent, abilities, value => { captured = value; order.Add("rich:" + Get(value, "Kind")); });
+        try
+        {
+            abilities.NotifyResourceFeedback("reload");
+            Check("资源反馈没有伪造攻击执行或装备来源", () => captured != null &&
+                Equals(Get(captured, "ExecutionId"), Guid.Empty) && Equals(Get(captured, "DefinitionId"), "") &&
+                Equals(Get(captured, "SourceInstanceId"), "") && Equals(Get(captured, "Kind"), "reload") &&
+                Equals(Get(captured, "EmissionIndex"), -1) && Equals(Get(captured, "Position"), go.transform.position));
+            Check("旧反馈先序保留且双方观察者异常隔离", () => order.SequenceEqual(new[] { "legacy:reload", "rich:reload" }));
+        }
+        finally
+        {
+            feedbackEvent.RemoveEventHandler(abilities, rich); feedbackEvent.RemoveEventHandler(abilities, badRich);
+            abilities.Feedback -= legacy; abilities.Feedback -= badLegacy;
+        }
+    }
+
+    private void SynchronousRunContracts()
+    {
+        var actor = UnityEngine.Object.FindObjectsOfType<C.CharacterRoot>().FirstOrDefault(value => value.HasPlayerInput && value.CanSimulateIntent && !value.ActionActive && value.GetComponent<C.CharacterAbilities>() != null && !value.GetComponent<C.CharacterAbilities>().IsBusy);
+        if (!Application.isPlaying || actor == null)
+        {
+            gated++;
+            rows.Add(new { name = "同步CreateRun与实际覆写投递", status = "GATED_SCENE_PRECONDITION", detail = "须已就绪自有测试场Play、存在空闲受控角色；缺前提不计通过" });
+            return;
+        }
+        var abilities = actor.GetComponent<C.CharacterAbilities>();
+        var stamina = actor.GetComponent<C.CharacterStamina>();
+        var executor = ScriptableObject.CreateInstance<FactProducerInstantExecutor>(); owned.Add(executor);
+        var definition = ScriptableObject.CreateInstance<C.AbilityDefinitionSO>(); owned.Add(definition);
+        definition.definitionId = "DEVELOPMENT_ONLY:instant-feedback-contract";
+        definition.displayName = "事实合同零费用探针";
+        definition.executor = executor;
+        definition.acceptCost = definition.releaseCost = definition.cooldown = 0;
+        definition.occupancy = Ability.AbilityOccupancy.None;
+        definition.finishAt = .1f; definition.moveReadyAt = definition.attackReadyAt = 0;
+        definition.delivery = new Combat.DeliveryParameters { mode = Combat.DeliveryMode.Sector };
+        var source = new FactProducerSource(actor.ActorId);
+        var rich = new List<object>(); var legacyKinds = new List<string>();
+        Action<Guid, string, Vector3> legacy = (id, kind, position) => legacyKinds.Add(kind);
+        abilities.Feedback += legacy;
+        var listener = Subscribe(feedbackEvent, abilities, value => rich.Add(value));
+        var hp = actor.Vitals.Health.Current; var energy = stamina.Current;
+        try
+        {
+            var accepted = abilities.TryRequestFromSource(definition, source, C.AbilityOperation.SkillOne, C.CharacterActionSource.Inventory);
+            Check("同步CreateRun真实来源事务被受理", () => accepted, abilities.LastResult);
+            if (!accepted) return;
+            var constructor = rich.FirstOrDefault(value => Equals(Get(value, "Kind"), "reload"));
+            Check("同步构造回调已具备完整冻结接受上下文", () => constructor != null &&
+                (Guid)Get(constructor, "ExecutionId") != Guid.Empty && Equals(Get(constructor, "DefinitionId"), definition.definitionId) &&
+                Equals(Get(constructor, "SourceInstanceId"), source.InstanceId) && Equals(Get(constructor, "RequestSource"), "Inventory") &&
+                Equals(Get(constructor, "Operation"), "SkillOne") && Equals(Get(constructor, "DeliveryMode"), "Sector"));
+            var emission = rich.Where(value => Equals(Get(value, "Kind"), "release") || Equals(Get(value, "Kind"), "miss")).ToArray();
+            Check("真实投递覆写保留实际模式、节点及通道", () => emission.Length == 2 && emission.All(value =>
+                Equals(Get(value, "EmissionIndex"), 7) && Equals(Get(value, "Channel"), "DEVELOPMENT_ONLY:test-channel") &&
+                Equals(Get(value, "DeliveryMode"), "Ray") && Equals(Get(value, "DefinitionId"), definition.definitionId)));
+            Check("同步回调与原Feedback相对顺序保持", () => legacyKinds.SequenceEqual(new[] { "reload", "miss", "release", "accepted" }) &&
+                rich.Select(value => (string)Get(value, "Kind")).SequenceEqual(legacyKinds));
+            Check("只读事实探针不改变角色HP体力", () => actor.Vitals.Health.Current == hp && Math.Abs(stamina.Current - energy) < .0001);
+        }
+        finally { feedbackEvent.RemoveEventHandler(abilities, listener); abilities.Feedback -= legacy; }
+    }
+
+    private Combat.CombatVitals Vitals(string id, Core.CombatFaction faction, Vector3 position)
+    {
+        var go = NewObject(id); go.transform.position = position;
+        var vitals = go.AddComponent<Combat.CombatVitals>();
+        typeof(Combat.CombatVitals).GetField("faction", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(vitals, faction);
+        if (!vitals.Initialize("DEVELOPMENT_ONLY:fact-producer:" + id)) throw new InvalidOperationException("自有受击体初始化失败");
+        return vitals;
+    }
+    private GameObject NewObject(string label) { var go = new GameObject("DEVELOPMENT_ONLY:fact-producer:" + label); owned.Add(go); return go; }
+    private static bool ReadOnly(Type type, params string[] names) => names.All(name => type.GetProperty(name, publicInstance) is PropertyInfo property && !property.CanWrite);
+    private static object Get(object value, string name) => value.GetType().GetProperty(name, publicInstance).GetValue(value);
+    private static object[] Objects(object value) => ((IEnumerable)value).Cast<object>().ToArray();
+    private static Action<T> Bridge<T>(Action<object> handler) => value => handler(value);
+    private static Delegate Subscribe(System.Reflection.EventInfo eventInfo, object target, Action<object> handler)
+    {
+        var type = eventInfo.EventHandlerType.GetGenericArguments()[0];
+        var bridge = (Delegate)typeof(FactProducerContracts).GetMethod("Bridge", BindingFlags.NonPublic | BindingFlags.Static).MakeGenericMethod(type).Invoke(null, new object[] { handler });
+        eventInfo.AddEventHandler(target, bridge); return bridge;
+    }
+    private void Check(string name, Func<bool> check, string detail = null)
+    {
+        try { var ok = check(); if (ok) passed++; else failed++; rows.Add(new { name, passed = ok, detail }); }
+        catch (Exception error) { failed++; rows.Add(new { name, passed = false, detail = error.ToString() }); }
+    }
+}
+
+// 执行器仅存在于开发命令编译产物：构造即同步回调，明确覆盖runs.Add之前的事实窗口。
+public sealed class FactProducerInstantExecutor : C.AbilityExecutorSO
+{
+    public override bool UsesBodyAction => false;
+    public override void Validate(C.AbilityDefinitionSO definition) { }
+    public override C.CompiledAbilityExecutor CompileExecutor() => new Compiled();
+    private sealed class Compiled : C.CompiledAbilityExecutor
+    {
+        public override bool UsesBodyAction => false;
+        public override C.CharacterActionKind ActionKind => C.CharacterActionKind.Support;
+        public override C.AbilityRun CreateRun(C.AbilityRunContext context) => new InstantRun(context);
+    }
+    private sealed class InstantRun : C.AbilityRun
+    {
+        public InstantRun(C.AbilityRunContext context) : base(context)
+        {
+            context.NotifyFeedback("reload");
+            context.Deliver(new Ability.AbilityEmission(0, 1, 7), new Combat.DeliveryParameters
+            { mode = Combat.DeliveryMode.Ray, range = .01f, collisionLayers = 0 }, "DEVELOPMENT_ONLY:test-channel");
+            Ended = true;
+        }
+        public override void Tick(float delta, bool held) { }
+    }
+}
+public sealed class FactProducerSource : C.IAbilitySource
+{
+    public string OwnerId { get; }
+    public string InstanceId { get; } = "DEVELOPMENT_ONLY:producer-contract:" + Guid.NewGuid().ToString("N");
+    public bool IsAvailable => true;
+    public Ability.EquipmentAbilityState RuntimeState { get; } = new Ability.EquipmentAbilityState();
+    public FactProducerSource(string ownerId) { OwnerId = ownerId; }
+    public bool TryReserve(Guid id) => id != Guid.Empty;
+    public bool CommitRelease(Guid id) => id != Guid.Empty;
+    public void CancelReservation() { }
+}

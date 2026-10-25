@@ -13,7 +13,8 @@ namespace Ossastra.Combat
 {
     public static class CombatContactGateway
     {
-        public static IReadOnlyList<HitOutcome> Resolve(AttackRelease release, CombatVitals source, IEnumerable<IHitTarget> candidates, Vector3 origin)
+        public static event Action<CombatContactBatch> Resolved;
+        public static IReadOnlyList<HitOutcome> Resolve(AttackRelease release, CombatVitals source, IEnumerable<IHitTarget> candidates, Vector3 origin, CombatContactCause cause=CombatContactCause.Direct)
         {
             if(release==null)throw new ArgumentNullException(nameof(release));
             if(source!=null && (!source.IsAvailable || source.Health.Id!=release.ActorId))return release.Resolve(Array.Empty<Health>());
@@ -24,6 +25,8 @@ namespace Ossastra.Combat
                     source==null||source.IsAlive,t.Health.Id,t is ICombatTarget combat?combat.Faction:CombatFaction.Neutral,true)).ToArray();
             var defenses=targets.ToDictionary(t=>t,t=>(t as MonoBehaviour)?.GetComponents<MonoBehaviour>().OfType<ICombatDefense>().FirstOrDefault(x=>(x as Behaviour).isActiveAndEnabled));
             var outcomes=release.ResolveContacts(targets.Select(t=>new AttackContact(t.Health,defenses[t]?.CaptureDefense(origin)??DefenseSnapshot.Normal)));
+            // 只快照真实回执的位置；在死亡/破坏表现回调之前捕获，发布仍在原分发循环之后。
+            var batch=Resolved==null?null:CaptureBatch(release,source,origin,outcomes,targets,cause);
             foreach(var outcome in outcomes)
             {
                 var target=targets.First(t=>t.Health.Id==outcome.TargetId);
@@ -37,7 +40,29 @@ namespace Ossastra.Combat
                     foreach(var receiver in component.GetComponents<MonoBehaviour>().OfType<ICombatPostureReceiver>())
                         receiver.ReceiveImpact(outcome,release.PostureImpact*outcome.PostureScale);
             }
+            if(batch!=null)Publish(batch);
             return outcomes;
+        }
+        private static CombatContactBatch CaptureBatch(AttackRelease release,CombatVitals source,Vector3 origin,IReadOnlyList<HitOutcome> outcomes,IHitTarget[] targets,CombatContactCause cause)
+        {
+            try
+            {
+                var receipts=outcomes.Select(outcome=>
+                {
+                    var target=targets.First(t=>t.Health.Id==outcome.TargetId);
+                    var position=target is ICombatTarget combat?combat.WorldPosition:target is Component component&&component!=null?component.transform.position:origin;
+                    return new CombatContactReceipt(outcome,target as CombatVitals,position);
+                });
+                return new CombatContactBatch(release.ParentExecutionId,release.ActionId,release.EmissionIndex,release.ActorId,source,origin,receipts,cause);
+            }
+            catch(Exception error){Debug.LogWarning("CombatContactGateway事实快照异常："+error);return null;}
+        }
+        private static void Publish(CombatContactBatch batch)
+        {
+            var observed=Resolved;
+            if(observed==null)return;
+            foreach(Action<CombatContactBatch> observer in observed.GetInvocationList())
+                try{observer(batch);}catch(Exception error){Debug.LogWarning("CombatContactGateway事实观察者异常："+error);}
         }
     }
 }

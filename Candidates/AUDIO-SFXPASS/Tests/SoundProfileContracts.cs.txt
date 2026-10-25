@@ -1,0 +1,25 @@
+using System;using System.Collections.Generic;using Funplay.Editor.Tools.Scripting;using UnityEngine;using Ossastra.Audio;
+public sealed class SoundProfileContracts:IFunplayCommand
+{
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext c){var r=new List<object>();int p=0,f=0;var so=ScriptableObject.CreateInstance<CombatSoundProfileSO>();
+ Action<string,Func<bool>> check=(n,t)=>{try{bool ok=t();if(ok)p++;else f++;r.Add(new{name=n,passed=ok});}catch(Exception e){f++;r.Add(new{name=n,error=e.Message});}};
+ try{
+ so.bindings=new[]{new CombatSoundBinding{selector="body.basic",kind="release",stage=0,cue="blade.light"},new CombatSoundBinding{selector="body.basic",kind="release",stage=4,cue="blade.finish"},new CombatSoundBinding{selector="magazine-shot",kind="release",channel="bullet",cue="gun.shot"},new CombatSoundBinding{selector="*",kind="hurt",cue="body.hurt"}};
+ check("有效配置",()=>so.Validate(out _));
+ check("第4段覆盖通用配置",()=>so.TryResolve("body.basic","release",4,"",out var s)&&s=="blade.finish");
+ check("第1段可用默认",()=>so.TryResolve("body.basic","release",1,"",out var s)&&s=="blade.light");
+ check("枪声严格匹配通道",()=>so.TryResolve("magazine-shot","release",0,"bullet",out var s)&&s=="gun.shot");
+ check("其他通道不能误鸣枪声",()=>!so.TryResolve("magazine-shot","release",0,"explosion",out _));
+ check("未知能力不冒充挥刀",()=>!so.TryResolve("unmapped","release",1,"",out _));
+ check("未匹配格挡不响诊断音",()=>!so.TryResolve("vc02.guard","guard",0,"",out _));
+ check("受伤是独立公共语义",()=>so.TryResolve("unknown","hurt",0,"",out var s)&&s=="body.hurt");
+ var roleSaved=so.bindings;so.bindings=new[]{new CombatSoundBinding{selector="shot",kind="release",deliveryMode="Projectile",cue="gun"},new CombatSoundBinding{selector="shot",kind="release",deliveryMode="RayLandingArc",cue="launcher"},new CombatSoundBinding{selector="target",kind="hurt",role="player",cue="pain"}};
+ check("同通道不同实际投递分声",()=>so.TryResolve("shot","release",0,"",out var s,"RayLandingArc")&&s=="launcher");
+ check("未提供实际投递不猜枪种",()=>!so.TryResolve("shot","release",0,"",out _));
+ check("敌人不借人类呼痛重复叠声",()=>!so.TryResolve("target","hurt",0,"",out _,"","enemy"));
+ check("玩家受伤配置可独立存在",()=>so.TryResolve("target","hurt",0,"",out var s,"","player")&&s=="pain");
+ so.bindings=roleSaved;
+ var saved=so.bindings;so.bindings=new[]{saved[0],saved[0]};check("重复键明确拒绝",()=>!so.Validate(out _)&&!so.TryResolve("body.basic","release",1,"",out _));
+ so.bindings=new[]{new CombatSoundBinding{selector="x",kind="release",cue=""}};check("空声音配置不假成功",()=>!so.Validate(out _));
+ }finally{UnityEngine.Object.DestroyImmediate(so);c.ReturnValue=new{passed=p,failed=f,results=r};}}
+}

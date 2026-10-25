@@ -51,6 +51,12 @@ namespace Ossastra.Audio.Editor
             EditorGUI.BeginChangeCheck();root.Mix.UserBgmVolume=EditorGUILayout.Slider("音乐用户音量",root.Mix.UserBgmVolume,0,1);root.Mix.MasterVolume=EditorGUILayout.Slider("用户主音量",root.Mix.MasterVolume,0,1);root.Mix.Muted=EditorGUILayout.Toggle("静音",root.Mix.Muted);if(EditorGUI.EndChangeCheck())root.SaveUserSettings();
             EditorGUILayout.Space();EditorGUILayout.LabelField("统一 SFX / Mixer",EditorStyles.boldLabel);
             EditorGUILayout.LabelField("状态 / 世界",root.SfxStatus+" / "+root.WorldScopeId);
+            EditorGUILayout.LabelField("当前声音内容",root.SfxContentStatus);
+            foreach(var facts in UnityEngine.Object.FindObjectsOfType<CombatSfxFactAdapter>())
+            {
+                EditorGUILayout.ObjectField("战斗语义配置",facts.SoundProfile,typeof(CombatSoundProfileSO),false);
+                EditorGUILayout.LabelField("留白事件 / 最近语义",facts.UnmappedFacts+" / "+facts.LastUnmapped);
+            }
             EditorGUILayout.LabelField("来源租约 / 声部",root.SourceLeaseCount+" / "+(root.Sfx?.ActiveCount??0));
             EditorGUILayout.LabelField("音乐局部 / 完整增益",root.Mix.LocalCurrentGain.ToString("F5")+" / "+root.Mix.CurrentGain.ToString("F5"));
             if(root.UnifiedMix!=null)
@@ -68,9 +74,9 @@ namespace Ossastra.Audio.Editor
                 foreach(var voice in player.Voices)if(voice.VoiceId!=0&&root.Sfx.TryGetVoice(voice.VoiceId,out var record))
                     EditorGUILayout.LabelField("Voice "+voice.VoiceId,record.Request.EventId+" | "+record.Request.SourceId+" | "+(record.Definition==null?"定义已删除":record.Definition.bus.ToString())+" | priority "+record.Priority+" | "+record.Request.WorldPosition);
             }
-            if(root.Bootstrap!=null&&root.Bootstrap.sfxCatalog!=null)
+            if(root.SfxCatalog!=null)
             {
-                var events=root.Bootstrap.sfxCatalog.events??Array.Empty<SfxEventDefinitionSO>();var names=Array.ConvertAll(events,e=>e==null?"MISSING":e.eventId);
+                var events=root.SfxCatalog.events??Array.Empty<SfxEventDefinitionSO>();var names=Array.ConvertAll(events,e=>e==null?"MISSING":e.eventId);
                 if(names.Length>0)
                 {
                     auditionEvent=EditorGUILayout.Popup("DEVELOPMENT ONLY 事件",Mathf.Clamp(auditionEvent,0,names.Length-1),names);

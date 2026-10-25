@@ -1,0 +1,9 @@
+/* 开发合同：组件禁用不等于GameObject禁用；只验证空闲自有角色的音频资格，退出必恢复enabled。 */
+using System;using System.Collections;using System.Linq;using System.Reflection;using System.Collections.Generic;using UnityEngine;using Funplay.Editor.Tools.Scripting;
+public class InactiveSoundSourceContracts:IFunplayCommand
+{
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext c){int p=0,f=0;var rows=new List<object>();Ossastra.Characters.CharacterRoot actor=null;bool was=false;void Check(string n,bool ok){if(ok)p++;else f++;rows.Add(new{name=n,passed=ok});}try{
+ if(!Application.isPlaying)throw new Exception("Play required");var flags=BindingFlags.Instance|BindingFlags.NonPublic|BindingFlags.Public;var adapter=UnityEngine.Object.FindObjectOfType<Ossastra.Audio.CombatSfxFactAdapter>();var list=(IEnumerable)adapter.GetType().GetField("observed",flags).GetValue(adapter);var o=list.Cast<object>().First(v=>v.GetType().GetField("actor",flags).GetValue(v) is Ossastra.Characters.CharacterRoot a&&a.HasPlayerInput&&!a.ActionActive);actor=(Ossastra.Characters.CharacterRoot)o.GetType().GetField("actor",flags).GetValue(o);was=actor.enabled;
+ var method=adapter.GetType().GetMethod("CanObserve",flags);Check("活动角色有合法声音资格",(bool)method.Invoke(adapter,new[]{o}));actor.enabled=false;Check("只禁用根组件立即撤销声音资格",!(bool)method.Invoke(adapter,new[]{o}));actor.enabled=was;Check("恢复根组件后可继续观察",(bool)method.Invoke(adapter,new[]{o}));
+ }catch(Exception e){f++;rows.Add(new{name="sourcecontract",error=e.ToString()});}finally{if(actor!=null)actor.enabled=was;c.ReturnValue=new{passed=p,failed=f,rows};}}
+}
