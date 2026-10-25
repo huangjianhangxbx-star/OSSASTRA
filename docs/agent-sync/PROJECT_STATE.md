@@ -546,3 +546,5 @@ T7A3独立RendererFeature/密度场/最多2个AtmosphereLight/8-16步积分/Dept
 > 2026-10-25 AUDIO-M01 technical-complete/publishing：独立Ossastra.Audio根/纯仲裁/SO/固定六源DSP与监控已在自有SC_BGM_AudioMigration验证。Core17/Mix12/Transport16/Host5与真实12项输入/音乐故事、原创三层/快速淡变、跨场与设置、缺媒体回退通过；原373保护路径/36dirty不变。Player仍被旧Unity-Favorites-Tool阻塞，用户听感及正式Title/Dialog/Boss未签。全部Unity/源码租约释放，仅定向GitHub发布记录继续，不推进AUDIO-M02。
 
 > 2026-10-25 AUDIO-M01 complete：产品df90b9fe9ac7c831f791878408e495a6cc46e0bb已GitHub main精确核对，128文件只含独立BGM与原创诊断/证据。Editor自有新场Edit clean/监控已打开，全部租约释放、原36dirty保护。不代签用户听感，Player仍第三方阻塞；停于AUDIO-M01。
+
+> 2026-10-25 AUDIO-M01-FIX01 technical-complete/publishing：已复现死敌点位空挥Accepted误启combat，最小修正交战入口需有效敌对成员；BGM仍只读、原3秒calm保留。点位3/3、7条实体路径15/15，附近活敌命中600→588及退战通过。撤回旧远处空挥等同真实遇敌的验收，修正夹具；用户Editor全局静音保持true，当前两RMS未通过单列。372保护路径/原36dirty不变，Edit clean，全部Unity/源码租约释放，仅发布记录继续。

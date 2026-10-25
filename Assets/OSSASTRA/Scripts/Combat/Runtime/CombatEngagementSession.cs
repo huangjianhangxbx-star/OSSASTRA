@@ -1,5 +1,6 @@
-/* 场景交战资格：仅观察真实Accepted及存活威胁；不拥有Current、HP、动作或角色目标。
- * Update只推进平静脱战窗口。双向根直接发布事实，无全局事件总线。参数为SAMPLE。
+/* 场景交战资格：仅在场景存在有效敌对成员时观察Accepted，存活威胁维持既有交战。
+ * 不拥有Current、HP、动作、角色目标或音乐；动作受理不等于场上仍有敌人。
+ * Update只推进原平静脱战窗口。双向根直接发布事实，无全局事件总线。参数为SAMPLE。
  */
 using System;
 using System.Linq;
@@ -34,14 +35,25 @@ namespace Ossastra.Combat
         }
         private void OnFact(ActionFact fact)
         {
-            if (!IsAvailable || fact.Kind != ActionFactKind.Accepted) return;
+            // 清场后仍能空挥/练习/施法，但这些Accepted不能凭空重启交战或反复重置calm。
+            if (!IsAvailable || fact.Kind != ActionFactKind.Accepted || !enemies.Any(IsActiveOpponent)) return;
             Engaged = true; quietTime = 0;
+        }
+        private bool IsActiveOpponent(Ossastra.Enemies.EnemyRoot enemy)
+        {
+            if (enemy == null || !enemy.isActiveAndEnabled || enemy.Vitals == null ||
+                !enemy.Vitals.IsAvailable || enemy.Vitals.Faction == CombatFaction.Neutral) return false;
+            var opponent = enemy.Vitals;
+            // 显式敌方表中的旧引用/友方也不算威胁；复用命中的身份与阵营资格，不复制HP。
+            return coordinator.Characters.Any(character => character != null && character.isActiveAndEnabled &&
+                character.Vitals != null && character.Vitals.IsAvailable &&
+                CombatTargetPolicy.CanHit(character.ActorId, character.Vitals.Faction, true,
+                    opponent.Health.Id, opponent.Faction, true));
         }
         private void Update()
         {
             if (!CanSample || !Engaged) return;
-            var threat = enemies.Any(e => e != null && e.isActiveAndEnabled && e.Vitals != null &&
-                e.Vitals.IsAvailable && (e.ActionActive || e.HasCombatTarget));
+            var threat = enemies.Any(e => IsActiveOpponent(e) && (e.ActionActive || e.HasCombatTarget));
             if (threat) quietTime = 0;
             else { quietTime += Time.deltaTime; if(quietTime >= quietDuration) Engaged = false; }
         }

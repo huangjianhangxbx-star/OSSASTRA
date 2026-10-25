@@ -10,8 +10,8 @@
 | 04 | PASS：live-story真实移入/移出Zone，home key/epoch/transport/starts不变；合同100次轮询亦不重播。 |
 | 05 | PASS端口：真实播放duck .18→.081并持续原home，释放恢复；Scope 5/5验证精确释放、换Host、无旧Host再取得。无正式NPC对话提供方，未声称接线完成。 |
 | 06 | PASS技术：真实title/home/chapter1输出；real-crossfade 6.016秒、2075次观察，A→预约B→改C→实际淡入后返回A→B，固定6源、4组/12次PlayScheduled；无观察到无可听源的采样。听感待用户。 |
-| 07 | PASS：live-story只用虚拟Gamepad的RT经既有输入→主控ActionObserved.Accepted→既有Engaged→combat，未直接写Engaged或调用私有OnFact。 |
-| 08 | PASS：quietTime 3.006818秒后explore，第二次RT取得第二个主控Accepted后combat。夹具暂将敌人移远，避免伙伴/敌人持续交战污染calm，结束恢复；未改资产/战斗代码。 |
+| 07 | 历史结论收窄：当时只证明Accepted被转送，远处空挥不等于真实遇敌。AUDIO-M01-FIX01已补附近活敌真实命中/交战及清场反例，见专项报告。 |
+| 08 | 原记录的3.006818秒calm计时有效，但启战前提受上一项限制；FIX01另以附近活敌及3.000137秒原calm验证，不再用远处空挥代表遇敌。 |
 | 09 | PASS API测量：原创100BPM三层真实6.016秒；1994个播放时钟观察，最大采样离差342、一个实际DSPbuffer容限343（片段16k/输出48k、buffer1024）。强度期望1074.160，观测1074.176，提前变更0次。非逐采样精确锁相/硬件延迟认证。 |
 | 10 | PASS：三首Candidate knownBpm=0，使用+.08秒起播和.28秒fade；不凭空按原曲小节量化。 |
 | 11 | PASS：Mix 12/12，默认乘法、mute、focus、快照叠加、精确撤销、0..2定义范围。保存.27/.63/muted后退出并重入Play恢复；测试后恢复原.24/.75/unmuted。 |
@@ -32,6 +32,8 @@
 Crossfade以逐源volume/isPlaying/timeSamples/能量观察，最大连续无可听观察跨度0秒，最大update间隔.021333秒。能量之和不是post-mixer总声压，不代表相位抵消检查、声卡录音或人耳无缝结论。没有录制/发布原作PCM主输出。
 
 最初live-story夹具进入far靠近敌人，伙伴自然Accepted让UI阶段转combat；其calm采样也早于3秒。保留外部原始失败记录，收窄独立夹具后最终12项均过。没有把正确战斗行为作为音频缺陷修改。
+
+2026-10-25 AUDIO-M01-FIX01复核：上述“12项均过”仅指当时断言，07/08的真实遇敌结论已按新证据撤回并重验，详见 `AUDIO-M01-FIX01-report.md`。本轮重放时用户Editor全局音频静音为true，RMS两断言失败单列，未改变用户设置或宣称重新通过音频输出验收。
 
 ## 构建和最终现场
 

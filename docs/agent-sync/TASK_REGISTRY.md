@@ -972,3 +972,8 @@ active/unity-writer；用户明确要求一轮修整：共享脚本去M01标签�
 2026-10-25 AUDIO-M01 technical-complete/publishing：Unity与源码租约已释放；独立BGM/新场/20项矩阵交接就绪，仅GitHub定向提交与SHA记录继续。原36dirty/保护路径不变，Player第三方阻塞与用户试听未签详见ossastra/AUDIO-M01-verification.md。
 
 2026-10-25 AUDIO-M01 complete：GitHub产品df90b9fe9ac7c831f791878408e495a6cc46e0bb/128文件已远端核对；全部writer租约释放，原36dirty不变。只收口本发布文档，不推进后续开发。
+
+2026-10-25 AUDIO-M01-FIX01 active/unity-writer：唯一Unity writer=root；排查无敌人点位误入combat音乐，潜在CombatEngagementSession/CompanionCombatBrain/音频被动适配的最小修复及专属测试/记录。原36dirty/原场/正式素材保护；子任务只读。详见tasks/2026-10-25-audio-m01-fix01.md。
+
+
+2026-10-25 AUDIO-M01-FIX01 technical-complete/publishing：代码/Unity租约释放；只改CombatEngagementSession启战/维持资格及自有测试/记录，7路径15断言与点位复验通过。BGM/角色/原场不改，原36dirty保留。

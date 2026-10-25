@@ -1,0 +1,258 @@
+/*
+ * 脚本：EncounterAvailabilityContracts
+ * 功能：在自有BGM场景中通过真实InputSystem普攻边沿，验证无有效敌对实体时不能因空挥入战。
+ * 负责：临时配置死亡、禁用、友方、中立及销毁边界；记录真实Accepted、交战与音乐结果。
+ * 不负责：伪造OnFact/Engaged、保存场景/资产、修改生产配置；销毁夹具仅存在本轮Play，退出Play恢复。
+ * 协作：Gamepad → 当前CharacterRoot → CombatEngagementSession → 原BGM适配与仲裁。
+ */
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using UnityEngine;
+using UnityEditor;
+using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.LowLevel;
+using UnityEngine.SceneManagement;
+using Funplay.Editor.Tools.Scripting;
+using Ossastra.CharacterCore;
+using Ossastra.Characters;
+using Ossastra.Combat;
+using A = Ossastra.Audio;
+using AudioFixtureEnemyRoot = Ossastra.Enemies.EnemyRoot;
+using AudioFixtureCharacterRoot = Ossastra.Characters.CharacterRoot;
+
+public class EncounterAvailabilityContracts : IFunplayCommand
+{
+    public static object Report;
+    private static readonly string[] caseNames =
+    {
+        "dead-enemy", "disabled-enemy-root", "disabled-vitals", "allied-enemy-root",
+        "neutral-enemy-root", "near-live-hostile", "destroyed-enemy-reference"
+    };
+    private sealed class EnemySnapshot
+    {
+        public AudioFixtureEnemyRoot enemy;
+        public CombatVitals vitals;
+        public Vector3 position;
+        public bool rootEnabled, vitalsEnabled, attacksEnabled;
+        public CombatFaction faction;
+    }
+    private static A.GameAudioRoot audioRoot;
+    private static CombatEngagementSession session;
+    private static AudioFixtureCharacterRoot player;
+    private static AudioFixtureEnemyRoot enemy;
+    private static EnemySnapshot[] snapshots;
+    private static Gamepad gamepad;
+    private static FieldInfo factionField;
+    private static EditorApplication.CallbackFunction callback;
+    private static List<object> rows;
+    private static Vector3 playerPosition;
+    private static float originalTimeScale;
+    private static double startedAt, caseStartedAt, calmStartedAt;
+    private static int caseIndex, phase, accepted, acceptedBefore, failures;
+    private static bool running;
+    private static string error;
+
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext context)
+    {
+        if (running) throw new InvalidOperationException("EncounterAvailabilityContracts is already running");
+        audioRoot = A.GameAudioRoot.Instance;
+        session = UnityEngine.Object.FindObjectOfType<CombatEngagementSession>();
+        if (!Application.isPlaying || SceneManager.GetActiveScene().path != "Assets/OSSASTRA/Scenes/SC_BGM_AudioMigration.unity" ||
+            audioRoot == null || session == null || session.Coordinator == null || session.Coordinator.Current == null)
+            throw new InvalidOperationException("Live SC_BGM_AudioMigration with a valid control session is required");
+        enemy = session.Enemies.FirstOrDefault(value => value != null && value.Vitals != null);
+        if (enemy == null) throw new InvalidOperationException("The explicit enemy fixture is missing");
+        factionField = typeof(CombatVitals).GetField("faction", BindingFlags.Instance | BindingFlags.NonPublic);
+        if (factionField == null) throw new InvalidOperationException("CombatVitals.faction fixture field is missing");
+
+        snapshots = session.Enemies.Where(value => value != null && value.Vitals != null).Select(value => new EnemySnapshot
+        {
+            enemy = value, vitals = value.Vitals, position = value.transform.position,
+            rootEnabled = value.enabled, vitalsEnabled = value.Vitals.enabled,
+            attacksEnabled = value.AttacksEnabled, faction = value.Vitals.Faction
+        }).ToArray();
+        player = session.Coordinator.Current;
+        playerPosition = player.transform.position;
+        originalTimeScale = Time.timeScale;
+        Time.timeScale = 1;
+        rows = new List<object>();
+        caseIndex = phase = accepted = acceptedBefore = failures = 0;
+        error = "";
+        audioRoot.SetDiagnosticContext(null);
+        audioRoot.ResumeMusic();
+        session.Coordinator.SendMessage("OnApplicationFocus", true);
+        foreach (var actor in session.Coordinator.Characters)
+        {
+            if (actor == null) continue;
+            actor.SendMessage("OnApplicationFocus", true, SendMessageOptions.DontRequireReceiver);
+            actor.CancelAction("availability-contract-fixture");
+            actor.Vitals?.RestoreForDevelopment();
+            actor.GetComponent<CharacterStamina>()?.Restore();
+        }
+        foreach (var snapshot in snapshots)
+        {
+            snapshot.enemy.AttacksEnabled = false;
+            if (snapshot.enemy != enemy) snapshot.enemy.enabled = false;
+        }
+        player.ActionObserved += Observe;
+        gamepad = InputSystem.AddDevice<Gamepad>();
+        InputSystem.QueueStateEvent(gamepad, new GamepadState());
+        startedAt = AudioSettings.dspTime;
+        running = true;
+        callback = Step;
+        EditorApplication.update += callback;
+        Report = new { done = false, cases = caseNames, expectedSeconds = 36 };
+        context.ReturnValue = new { started = true, expectedSeconds = 36, restoresByLeavingPlay = true };
+    }
+
+    private static void Observe(ActionFact fact)
+    {
+        if (fact.Kind == ActionFactKind.Accepted) accepted++;
+    }
+
+    private static void PrepareCase()
+    {
+        InputSystem.QueueStateEvent(gamepad, new GamepadState());
+        player.CancelAction("availability-contract-next-case");
+        player.GetComponent<CharacterStamina>()?.Restore();
+        Place(player.gameObject, new Vector3(5, .03f, -3));
+        if (enemy != null)
+        {
+            enemy.Vitals.enabled = true;
+            enemy.enabled = true;
+            factionField.SetValue(enemy.Vitals, CombatFaction.Enemy);
+            enemy.RestoreForDevelopment();
+            enemy.AttacksEnabled = false;
+            Place(enemy.gameObject, new Vector3(4, .03f, -3));
+        }
+
+        // 只改变实体事实，不重置Session；上一条受理必须通过原三秒平静路径自行退出。
+        switch (caseIndex)
+        {
+            case 0:
+                var release = AttackRelease.ForEmission(Guid.NewGuid(), 0, "availability-fixture", 1000000, 0);
+                foreach (var outcome in release.Resolve(new[] { enemy.Vitals.Health })) enemy.Vitals.OnHitResolved(outcome);
+                break;
+            case 1: enemy.enabled = false; break;
+            case 2: enemy.Vitals.enabled = false; break;
+            case 3: factionField.SetValue(enemy.Vitals, CombatFaction.Allied); break;
+            case 4: factionField.SetValue(enemy.Vitals, CombatFaction.Neutral); break;
+            case 6:
+                // 保留Session中的真实Unity引用，等待引擎销毁后验证fake-null；不伪造空数组。
+                UnityEngine.Object.Destroy(enemy.gameObject);
+                break;
+        }
+        Physics.SyncTransforms();
+        caseStartedAt = AudioSettings.dspTime;
+        phase = 1;
+    }
+
+    private static void Step()
+    {
+        try
+        {
+            if (!Application.isPlaying) throw new InvalidOperationException("Play ended before the contracts completed");
+            var now = AudioSettings.dspTime;
+            if (now - startedAt > 60) throw new TimeoutException("The real-frame availability fixture exceeded 60 seconds");
+            if (phase == 0) PrepareCase();
+            if (phase == 1 && now - caseStartedAt > 3.6)
+            {
+                AddRow(caseNames[caseIndex] + " / initial calm", !session.Engaged && session.CanSample);
+                acceptedBefore = accepted;
+                // 绑定完全沿用正式共享输入；没有直接调用角色攻击入口或Session私有接收函数。
+                InputSystem.QueueStateEvent(gamepad, new GamepadState { rightTrigger = 1 });
+                phase = 2;
+            }
+            if (phase == 2 && now - caseStartedAt > 3.8)
+            {
+                InputSystem.QueueStateEvent(gamepad, new GamepadState());
+                phase = 3;
+            }
+            if (phase == 3 && now - caseStartedAt > 4.5)
+            {
+                bool expectsEngaged = caseIndex == 5;
+                bool receivedInput = accepted > acceptedBefore;
+                AddRow(caseNames[caseIndex] + " / real attack", receivedInput && session.Engaged == expectsEngaged &&
+                    (expectsEngaged ? audioRoot.Choice?.RuleId == "combat" : audioRoot.Choice?.RuleId != "combat"));
+                if (expectsEngaged)
+                {
+                    // 撤掉刚才的真敌人，不碰Engaged；后续检测既有平静计时有没有被破坏。
+                    enemy.enabled = false;
+                    calmStartedAt = now;
+                    phase = 4;
+                }
+                else AdvanceCase();
+            }
+            if (phase == 4 && now - calmStartedAt > 3.4)
+            {
+                AddRow("near-live-hostile / original calm returns exploration", !session.Engaged &&
+                    session.QuietTime >= 3 && audioRoot.Choice?.RuleId != "combat");
+                AdvanceCase();
+            }
+        }
+        catch (Exception exception)
+        {
+            error = exception.ToString();
+            Cleanup();
+        }
+    }
+
+    private static void AddRow(string name, bool pass)
+    {
+        if (!pass) failures++;
+        rows.Add(new
+        {
+            name, pass, elapsed = AudioSettings.dspTime - startedAt, accepted, acceptedBefore,
+            session.Engaged, session.CanSample, session.QuietTime, rule = audioRoot.Choice?.RuleId,
+            track = audioRoot.Transport.CurrentTrack?.contentId, context = audioRoot.Context,
+            enemyExists = enemy != null,
+            enemyEnabled = enemy != null && enemy.isActiveAndEnabled,
+            vitalsAvailable = enemy != null && enemy.Vitals != null && enemy.Vitals.IsAvailable,
+            faction = enemy == null ? "destroyed" : enemy.Vitals.Faction.ToString(),
+            hp = enemy == null || enemy.Vitals?.Health == null ? -1 : enemy.Vitals.Health.Current,
+            lastAction = player.LastFact, lastSource = player.LastActionSource
+        });
+        Report = new { done = false, failures, error, accepted, rows = rows.ToArray() };
+    }
+
+    private static void AdvanceCase()
+    {
+        caseIndex++;
+        if (caseIndex == caseNames.Length) Cleanup();
+        else phase = 0;
+    }
+
+    private static void Place(GameObject body, Vector3 position)
+    {
+        var controller = body.GetComponent<CharacterController>();
+        bool wasEnabled = controller != null && controller.enabled;
+        if (wasEnabled) controller.enabled = false;
+        body.transform.position = position;
+        if (wasEnabled) controller.enabled = true;
+    }
+
+    private static void Cleanup()
+    {
+        EditorApplication.update -= callback;
+        callback = null;
+        if (player != null) player.ActionObserved -= Observe;
+        if (gamepad != null) { InputSystem.RemoveDevice(gamepad); gamepad = null; }
+        Time.timeScale = originalTimeScale;
+        if (player != null) Place(player.gameObject, playerPosition);
+        if (snapshots != null)
+            foreach (var snapshot in snapshots)
+            {
+                if (snapshot.enemy == null || snapshot.vitals == null) continue;
+                factionField.SetValue(snapshot.vitals, snapshot.faction);
+                snapshot.vitals.enabled = snapshot.vitalsEnabled;
+                snapshot.enemy.enabled = snapshot.rootEnabled;
+                snapshot.enemy.AttacksEnabled = snapshot.attacksEnabled;
+                Place(snapshot.enemy.gameObject, snapshot.position);
+            }
+        running = false;
+        Report = new { done = true, failures, error, accepted, rows = rows?.ToArray(),
+            restoresByLeavingPlay = true, note = "销毁和HP变化仅为本轮Play夹具；退出Play恢复磁盘场景，不保存任何资产" };
+    }
+}

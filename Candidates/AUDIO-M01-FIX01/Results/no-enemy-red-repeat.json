@@ -1,0 +1,69 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "done": true,
+      "error": "",
+      "accepted": 1,
+      "rows": [
+        {
+          "name": "dead-enemy point idle",
+          "pass": true,
+          "noEnemy": true,
+          "Engaged": false,
+          "QuietTime": 3.00019622,
+          "accepted": 0,
+          "rule": "explore-far",
+          "track": "local:home",
+          "context": {
+            "boss": false,
+            "engaged": false,
+            "title": false,
+            "far": true
+          },
+          "player": "(5.00, 0.02, -3.00)"
+        },
+        {
+          "name": "dead-enemy point empty attack must not enter combat",
+          "pass": false,
+          "noEnemy": true,
+          "Engaged": true,
+          "QuietTime": 0.9760668,
+          "accepted": 1,
+          "rule": "combat",
+          "track": "local:chapter1",
+          "context": {
+            "boss": false,
+            "engaged": true,
+            "title": false,
+            "far": true
+          },
+          "player": "(5.00, 0.02, -3.00)"
+        },
+        {
+          "name": "no enemy stays peaceful after calm",
+          "pass": true,
+          "noEnemy": true,
+          "Engaged": false,
+          "QuietTime": 3.00183916,
+          "accepted": 1,
+          "rule": "explore-far",
+          "track": "local:home",
+          "context": {
+            "boss": false,
+            "engaged": false,
+            "title": false,
+            "far": true
+          },
+          "player": "(5.00, 0.02, -3.00)"
+        }
+      ]
+    }
+  }
+}

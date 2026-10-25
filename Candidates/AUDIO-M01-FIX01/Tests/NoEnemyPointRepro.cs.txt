@@ -1,0 +1,20 @@
+/* 无敌人点位复现：真正扣血死亡并通知本体，站到远室点位后走原InputSystem空挥。
+ * 不直接写Engaged/不调用私有OnFact；观察角色Accepted与真实音乐选择，退出Play恢复夹具。
+ */
+using System;using System.Linq;using System.Collections.Generic;using UnityEngine;using UnityEditor;using UnityEngine.InputSystem;using UnityEngine.InputSystem.LowLevel;using Funplay.Editor.Tools.Scripting;using Ossastra.CharacterCore;using A=Ossastra.Audio;
+public class NoEnemyPointRepro:IFunplayCommand
+{
+ public static object Report;static A.GameAudioRoot root;static Ossastra.Combat.CombatEngagementSession session;static Gamepad pad;static int stage,accepted;static double start;static List<object> rows;static string error;static EditorApplication.CallbackFunction callback;
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext c)
+ {
+  root=A.GameAudioRoot.Instance;session=UnityEngine.Object.FindObjectOfType<Ossastra.Combat.CombatEngagementSession>();if(!Application.isPlaying||root==null||session?.Coordinator.Current==null)throw new Exception("Live BGM scene required");
+  rows=new List<object>();stage=accepted=0;error="";root.SetDiagnosticContext(null);root.ResumeMusic();session.Coordinator.SendMessage("OnApplicationFocus",true);foreach(var actor in session.Coordinator.Characters)actor.SendMessage("OnApplicationFocus",true,SendMessageOptions.DontRequireReceiver);
+  foreach(var enemy in session.Enemies)if(enemy?.Vitals?.Health!=null){var release=AttackRelease.ForEmission(Guid.NewGuid(),0,"fix01-fixture",1000000,0);foreach(var outcome in release.Resolve(new[]{enemy.Vitals.Health}))enemy.Vitals.OnHitResolved(outcome);}
+  var player=session.Coordinator.Current;var body=player.GetComponent<CharacterController>();if(body!=null)body.enabled=false;player.transform.position=new Vector3(5,.03f,-3);if(body!=null)body.enabled=true;
+  player.ActionObserved+=Fact;pad=InputSystem.AddDevice<Gamepad>();InputSystem.QueueStateEvent(pad,new GamepadState());start=AudioSettings.dspTime;callback=Step;EditorApplication.update+=callback;Report=new{done=false};c.ReturnValue=new{started=true,seconds=7};
+ }
+ static void Fact(ActionFact f){if(f.Kind==ActionFactKind.Accepted)accepted++;}
+ static void Row(string name){bool noEnemy=session.Enemies.All(e=>e==null||!e.isActiveAndEnabled||e.Vitals==null||!e.Vitals.IsAvailable);rows.Add(new{name,pass=noEnemy&&!session.Engaged&&root.Choice?.RuleId!="combat",noEnemy,session.Engaged,session.QuietTime,accepted,rule=root.Choice?.RuleId,track=root.Transport.CurrentTrack?.contentId,context=root.Context,player=session.Coordinator.Current.transform.position.ToString()});}
+ static void Step(){try{if(!Application.isPlaying)throw new Exception("Play ended");double t=AudioSettings.dspTime-start;if(stage==0&&t>3.5){Row("dead-enemy point idle");InputSystem.QueueStateEvent(pad,new GamepadState{rightTrigger=1});stage++;}if(stage==1&&t>3.7){InputSystem.QueueStateEvent(pad,new GamepadState());stage++;}if(stage==2&&t>4.5){Row("dead-enemy point empty attack must not enter combat");stage++;}if(stage==3&&t>7){Row("no enemy stays peaceful after calm");Cleanup();}}catch(Exception e){error=e.ToString();Cleanup();}}
+ static void Cleanup(){EditorApplication.update-=callback;if(session?.Coordinator.Current!=null)session.Coordinator.Current.ActionObserved-=Fact;if(pad!=null){InputSystem.RemoveDevice(pad);pad=null;}Report=new{done=true,error,accepted,rows};}
+}
