@@ -60,3 +60,5 @@
 连续录音仅本机：`E:/WORLDCREATOR/XingHaiHuiLang/work/OSSASTRA/AUDIO-SFXPASS-20261025/live-gameplay.wav` 与 `gun-gameplay-final.wav`。含受限媒体，不进入公开Git。
 
 最终Editor：原SC_AUDIO_M02场，Edit clean、不编译/更新、Editor静音false保持原值。628路径保护核对仅3个已登记只读元数据生产文件有变化，其余625一致；原36项未提交修改保留。没有同步Gitee。旧Player插件构建错误不属本轮；本轮验证Editor，不宣称Player构建通过。
+
+发布：GitHub main产品 [5fc2ee3](https://github.com/huangjianhangxbx-star/OSSASTRA/commit/5fc2ee359b2fde008f4e1c82fac4daa7557331e5)，64文件，公开PCM为0；tree与本地原提交完全一致。原36项dirty逐项相同，全部writer释放。

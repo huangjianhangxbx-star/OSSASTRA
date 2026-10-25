@@ -1,5 +1,5 @@
 # AUDIO-SFXPASS 现有内容音效表现整理
-- 状态technical-complete；模式docs-writer；Unity/源码租约已释放，root仅定向GitHub发布。
+- 状态complete；模式read-only；源码/Unity/文档/发布租约全部释放。
 - 用户新授权：认真配置音效调用，评估当前内容是否能形成像样的游戏表现，指出旧版音效调用随意；优先既有素材，不是简单恢复3段声音。
 - 基准35225c929b937e0744110961e1811df30fe4a3d7；36既有dirty不变/索引空。同步层同对话先前完整读取版本与本次尾部核对，其他文件无外来diff。
 - 使用真实project-memory/brainstorming/TDD；这是已存在音频流的定向内容整理，用户明确实现授权沿用，不重复询问已授权局部取舍。先只读盘点再冻结具体方案。
@@ -18,3 +18,5 @@
 - 追加独占Assets/OSSASTRA/Scripts/Combat/Runtime/CombatIceWorld.cs：仅两处现有Resolve调用传原因枚举；不改冰路生成、伤害、频率、几何、费用。属于既有事件事实补全，非新玩法；保护对账明确白名单此文件。
 - M4通过：Cause9/9，Audio derived8/8，Pending4/4；另复核恢复根组件enabled边界，先RED2/3→GREEN3/3，敌人0HP恢复重开租约保持旧行为。最终Profile14/variation21/Core47/runtime32/BGM17+12再次通过；SceneOwner7/Lifecycle3/真实场循环6，近期Console错误0，Editor原场Edit clean。
 - 资产/调用/限制/真实输出与全部结果已落盘handoff与Candidates Results。无主观听感代签，无Player构建宣称。只进入定向GitHub发布，源码/Unity租约释放；原36dirty/受限PCM不暂存。
+- GitHub产品发布已核验：5fc2ee359b2fde008f4e1c82fac4daa7557331e5，64文件，tree 87d88ccff9e110d10115a4825c1646980f28dfbd。原本地提交60a46ca因直连Git443与GitData POST失败，转连接器按逐字节相同内容创建tree/commit；远端tree与原本地完全一致，导入精确Git commit对象并只更新refs（无checkout/reset），本地main/origin/main均已与远端一致。
+- 公开媒体0；本机12份PCM与引用SO保留不上传；GitHub完成，不Gitee。发布后原36dirty逐项与接手完全一致、索引空；无后续未完成实施项。这里只追加发布回执文档收口，不再改运行代码或Unity。
