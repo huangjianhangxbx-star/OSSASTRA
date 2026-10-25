@@ -977,3 +977,5 @@ active/unity-writer；用户明确要求一轮修整：共享脚本去M01标签�
 
 
 2026-10-25 AUDIO-M01-FIX01 technical-complete/publishing：代码/Unity租约释放；只改CombatEngagementSession启战/维持资格及自有测试/记录，7路径15断言与点位复验通过。BGM/角色/原场不改，原36dirty保留。
+
+2026-10-25 AUDIO-M01-FIX01 complete：产品651a6e42da2d01b6827627abd7eca7e917f98eea已GitHub main精确核对。点位3/3、可用性7路径15断言通过，历史空挥验收已纠正；全writer释放，原36dirty不变，Editor静音保持用户现场。

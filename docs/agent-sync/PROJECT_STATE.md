@@ -548,3 +548,5 @@ T7A3独立RendererFeature/密度场/最多2个AtmosphereLight/8-16步积分/Dept
 > 2026-10-25 AUDIO-M01 complete：产品df90b9fe9ac7c831f791878408e495a6cc46e0bb已GitHub main精确核对，128文件只含独立BGM与原创诊断/证据。Editor自有新场Edit clean/监控已打开，全部租约释放、原36dirty保护。不代签用户听感，Player仍第三方阻塞；停于AUDIO-M01。
 
 > 2026-10-25 AUDIO-M01-FIX01 technical-complete/publishing：已复现死敌点位空挥Accepted误启combat，最小修正交战入口需有效敌对成员；BGM仍只读、原3秒calm保留。点位3/3、7条实体路径15/15，附近活敌命中600→588及退战通过。撤回旧远处空挥等同真实遇敌的验收，修正夹具；用户Editor全局静音保持true，当前两RMS未通过单列。372保护路径/原36dirty不变，Edit clean，全部Unity/源码租约释放，仅发布记录继续。
+
+> 2026-10-25 AUDIO-M01-FIX01 complete：651a6e42da2d01b6827627abd7eca7e917f98eea已GitHub main核SHA。交战入口拒绝无有效敌对实体的Accepted；原calm/BGM被动边界保留。7路径15断言/点位复验通过；纠正旧远处空挥验收，RMS受当前Editor全局静音限制单列。Edit clean、原36dirty及372非目标SHA保持，所有租约释放；不扩张仇恨/距离系统。
