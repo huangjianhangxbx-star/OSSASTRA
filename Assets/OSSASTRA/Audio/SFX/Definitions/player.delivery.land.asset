@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3dd877c1ca27594479544dc3b22a77a7, type: 3}
+  m_Name: player.delivery.land
+  m_EditorClassIdentifier: 
+  eventId: player.delivery.land
+  clips:
+  - {fileID: 8300000, guid: 49165ed197d922e419e65acaf4cb978f, type: 3}
+  volume: 0.3
+  pitchMin: 0.97
+  pitchMax: 1.03
+  priority: 55
+  maxPerSource: 4
+  maxAgeSeconds: 0.5
+  bus: 0
+  spatial: 0
+  minDistance: 1
+  maxDistance: 20

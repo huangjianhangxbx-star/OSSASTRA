@@ -1,0 +1,90 @@
+/* AUDIO-M02：真实SO、动态音频媒体和纯短音仲裁合同；不播放、不写场景，不伪造命中。 */
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using Funplay.Editor.Tools.Scripting;
+using Ossastra.Audio;
+using UnityEngine;
+
+public sealed class SfxCoreContracts : IFunplayCommand
+{
+    private readonly List<UnityEngine.Object> owned = new List<UnityEngine.Object>();
+    private readonly List<object> results = new List<object>();
+    private int passed, failed;
+
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+    {
+        try
+        {
+            Check("真实有效定义可以解析", () => { var definition = Definition(); var catalog = Catalog(definition); return catalog.Validate(out _) && catalog.TryResolve("hit", out var found, out _) && found == definition; });
+            Check("空事件身份拒绝", () => { var definition = Definition(); definition.eventId = " "; return !definition.TryValidate(out _); });
+            Check("重复目录身份拒绝而不取第一项", () => { var catalog = Catalog(Definition(), Definition()); return !catalog.Validate(out _) && !catalog.TryResolve("hit", out _, out _); });
+            Check("空目录拒绝", () => { var catalog = Catalog(); return !catalog.Validate(out _); });
+            Check("未知事件显式失败", () => !Catalog(Definition()).TryResolve("missing", out _, out _));
+            Check("空媒体不占声部", () => { var arb = Arb(); var definition = Definition(); definition.clips = new AudioClip[0]; int generation = arb.OpenSource("p"); return !arb.Submit(Request("p", generation, "a"), definition, 10).Accepted && arb.ActiveCount == 0; });
+            Check("空数组成员拒绝", () => { var definition = Definition(); definition.clips = new AudioClip[] { null }; return !definition.TryValidate(out _); });
+            Check("NaN音量拒绝", () => { var definition = Definition(); definition.volume = float.NaN; return !definition.TryValidate(out _); });
+            Check("反向音高范围拒绝", () => { var definition = Definition(); definition.pitchMin = 2; definition.pitchMax = 1; return !definition.TryValidate(out _); });
+            Check("极小音高不得产生实际无限占用", () => { var definition = Definition(); definition.pitchMin = .000001f; definition.pitchMax = 1; return !definition.TryValidate(out _); });
+            Check("无限距离拒绝", () => { var definition = Definition(); definition.maxDistance = float.PositiveInfinity; return !definition.TryValidate(out _); });
+            Check("反向距离拒绝", () => { var definition = Definition(); definition.minDistance = 3; definition.maxDistance = 2; return !definition.TryValidate(out _); });
+            Check("失效总线拒绝", () => { var definition = Definition(); definition.bus = (SfxBus)999; return !definition.TryValidate(out _); });
+            Check("非正并发拒绝", () => { var definition = Definition(); definition.maxPerSource = 0; return !definition.TryValidate(out _); });
+            Check("非有限最大年龄拒绝", () => { var definition = Definition(); definition.maxAgeSeconds = float.NaN; return !definition.TryValidate(out _); });
+
+            Check("有媒体事实获得唯一活跃许可", () => { var arb = Arb(); int generation = arb.OpenSource("p"); var result = arb.Submit(Request("p", generation, "a"), Definition(), 10); return result.Accepted && result.VoiceId > 0 && arb.ActiveCount == 1 && arb.TryGetVoice(result.VoiceId, out var voice) && voice.Request.FactKey == "a"; });
+            Check("同一具体事实只准入一次", () => { var arb = Arb(); int generation = arb.OpenSource("p"); var definition = Definition(); var request = Request("p", generation, "action:hit:0"); var first = arb.Submit(request, definition, 10); var second = arb.Submit(request, definition, 10); return first.Accepted && !second.Accepted && second.Reason == "DUPLICATE_FACT" && arb.ActiveCount == 1; });
+            Check("同动作不同子击不被吞", () => { var arb = Arb(); int generation = arb.OpenSource("p"); var definition = Definition(); return arb.Submit(Request("p", generation, "action:hit:0"), definition, 10).Accepted && arb.Submit(Request("p", generation, "action:hit:1"), definition, 10).Accepted && arb.ActiveCount == 2; });
+            Check("同动作不同事件不被吞", () => { var arb = Arb(); int generation = arb.OpenSource("p"); return arb.Submit(Request("p", generation, "action", "hit"), Definition("hit"), 10).Accepted && arb.Submit(Request("p", generation, "action", "release"), Definition("release"), 10).Accepted; });
+            Check("两来源相同事实互不吞", () => { var arb = Arb(); int first = arb.OpenSource("p"), second = arb.OpenSource("c"); var definition = Definition(); return arb.Submit(Request("p", first, "action"), definition, 10).Accepted && arb.Submit(Request("c", second, "action"), definition, 10).Accepted; });
+            Check("特殊分隔符身份不碰撞", () => { var arb = Arb(); int first = arb.OpenSource("a|b"), second = arb.OpenSource("a"); var definition = Definition(); return arb.Submit(Request("a|b", first, "c"), definition, 10).Accepted && arb.Submit(Request("a", second, "b|c"), definition, 10).Accepted; });
+            Check("过期事实不补响", () => { var arb = Arb(); int generation = arb.OpenSource("p"); return !arb.Submit(Request("p", generation, "old", occurredAt: 9), Definition(), 10).Accepted && arb.ActiveCount == 0; });
+            Check("未来事实拒绝", () => { var arb = Arb(); int generation = arb.OpenSource("p"); return !arb.Submit(Request("p", generation, "future", occurredAt: 11), Definition(), 10).Accepted; });
+            Check("非有限位置拒绝", () => { var arb = Arb(); int generation = arb.OpenSource("p"); return !arb.Submit(new SfxRequest("hit", "p", "world", generation, "a", new Vector3(float.NaN, 0, 0), 10), Definition(), 10).Accepted; });
+            Check("世界不符拒绝", () => { var arb = Arb(); int generation = arb.OpenSource("p"); return !arb.Submit(new SfxRequest("hit", "p", "old-world", generation, "a", Vector3.zero, 10), Definition(), 10).Accepted; });
+            Check("定义不能冒充其它事件", () => { var arb = Arb(); int generation = arb.OpenSource("p"); return !arb.Submit(Request("p", generation, "a", "hit"), Definition("release"), 10).Accepted; });
+            Check("未知来源拒绝", () => !Arb().Submit(Request("never-opened", 1, "a"), Definition(), 10).Accepted);
+            Check("关闭来源撤销旧许可", () => { var arb = Arb(); int generation = arb.OpenSource("p"); var definition = Definition(); var first = arb.Submit(Request("p", generation, "a"), definition, 10); arb.CloseSource("p", generation); return first.Accepted && arb.ActiveCount == 0 && !arb.TryGetVoice(first.VoiceId, out _) && !arb.Submit(Request("p", generation, "b"), definition, 10).Accepted; });
+            Check("重建来源产生新代次且旧关闭不能撤新来源", () => { var arb = Arb(); int old = arb.OpenSource("p"), current = arb.OpenSource("p"); arb.CloseSource("p", old); var definition = Definition(); return current > old && !arb.Submit(Request("p", old, "a"), definition, 10).Accepted && arb.Submit(Request("p", current, "a"), definition, 10).Accepted; });
+            Check("换世界清旧短音与来源", () => { var arb = Arb(); int generation = arb.OpenSource("p"); var first = arb.Submit(Request("p", generation, "a"), Definition(), 10); arb.SetWorldScope("new-world"); return first.Accepted && arb.ActiveCount == 0 && !arb.Submit(Request("p", generation, "b"), Definition(), 10).Accepted; });
+            Check("停止世界禁止旧请求复活", () => { var arb = Arb(); int generation = arb.OpenSource("p"); arb.StopWorld(); return !arb.Submit(Request("p", generation, "a"), Definition(), 10).Accepted; });
+            Check("归还幂等且实际回收", () => { var arb = Arb(); int generation = arb.OpenSource("p"); var result = arb.Submit(Request("p", generation, "a"), Definition(), 10); return arb.Release(result.VoiceId) && !arb.Release(result.VoiceId) && arb.ActiveCount == 0; });
+            Check("缺素材拒绝不污染可重试事实", () => { var arb = Arb(); int generation = arb.OpenSource("p"); var definition = Definition(); var clips = definition.clips; definition.clips = null; var denied = arb.Submit(Request("p", generation, "a"), definition, 10); definition.clips = clips; return !denied.Accepted && arb.Submit(Request("p", generation, "a"), definition, 10).Accepted; });
+            Check("活跃事实超过近期窗口仍挡重复", () => { var arb = Arb(); int generation = arb.OpenSource("p"); var definition = Definition(); var first = arb.Submit(Request("p", generation, "a"), definition, 10); return first.Accepted && !arb.Submit(Request("p", generation, "a", occurredAt: 13), definition, 13).Accepted; });
+            Check("已归还的旧事实窗口结束后可重新准入", () => { var arb = Arb(); int generation = arb.OpenSource("p"); var definition = Definition(); var first = arb.Submit(Request("p", generation, "a"), definition, 10); arb.Release(first.VoiceId); return arb.Submit(Request("p", generation, "a", occurredAt: 13), definition, 13).Accepted; });
+            Check("近期去重记录有界", () => { var arb = Arb(); int generation = arb.OpenSource("p"); var definition = Definition(); for (int index = 0; index < 1200; index++) { var result = arb.Submit(Request("p", generation, "f" + index), definition, 10); if (!result.Accepted) return false; arb.Release(result.VoiceId); } return arb.RecentFactCount <= 1024 && arb.ActiveCount == 0; });
+
+            Check("同源达到并发拒绝同优先级", () => { var arb = Arb(); int generation = arb.OpenSource("p"); var definition = Definition(); definition.maxPerSource = 1; var first = arb.Submit(Request("p", generation, "a"), definition, 10); var second = arb.Submit(Request("p", generation, "b"), definition, 10); return first.Accepted && !second.Accepted && second.Reason == "SOURCE_LIMIT" && arb.ActiveCount == 1; });
+            Check("同源高优先级立即替换旧许可", () => { var arb = Arb(); int generation = arb.OpenSource("p"); var low = Definition(); low.maxPerSource = 1; low.priority = 20; var high = Definition(); high.maxPerSource = 1; high.priority = 80; var first = arb.Submit(Request("p", generation, "a"), low, 10); var second = arb.Submit(Request("p", generation, "b"), high, 10); return second.Accepted && second.StolenVoiceId == first.VoiceId && !arb.TryGetVoice(first.VoiceId, out _) && arb.ActiveCount == 1; });
+            Check("较小来源上限不能以单次抢占绕过", () => { var arb = Arb(); int generation = arb.OpenSource("p"); var low = Definition(); low.maxPerSource = 4; low.priority = 20; arb.Submit(Request("p", generation, "a"), low, 10); arb.Submit(Request("p", generation, "b"), low, 10); var high = Definition(); high.maxPerSource = 1; high.priority = 80; var result = arb.Submit(Request("p", generation, "c"), high, 10); return !result.Accepted && arb.ActiveCount == 2; });
+            Check("已分配优先级不被后续SO编辑倒改", () => { var arb = Arb(1, 1); int a = arb.OpenSource("a"), b = arb.OpenSource("b"); var low = Definition(); low.priority = 20; var first = arb.Submit(Request("a", a, "a"), low, 10); low.priority = 100; var high = Definition(); high.priority = 80; var result = arb.Submit(Request("b", b, "b"), high, 10); return result.Accepted && result.StolenVoiceId == first.VoiceId; });
+            Check("旧SO失效不令新请求抛异常", () => { var arb = Arb(1, 1); int a = arb.OpenSource("a"), b = arb.OpenSource("b"); var low = Definition(); low.priority = 20; var first = arb.Submit(Request("a", a, "a"), low, 10); UnityEngine.Object.DestroyImmediate(low); var high = Definition(); high.priority = 80; var result = arb.Submit(Request("b", b, "b"), high, 10); return result.Accepted && result.StolenVoiceId == first.VoiceId; });
+            Check("全局预算拒绝低优先级", () => { var arb = Arb(2, 3); var definition = Definition(); int a = arb.OpenSource("a"), b = arb.OpenSource("b"), c = arb.OpenSource("c"); arb.Submit(Request("a", a, "a"), definition, 10); arb.Submit(Request("b", b, "b"), definition, 10); var denied = arb.Submit(Request("c", c, "c"), definition, 10); return !denied.Accepted && denied.Reason == "VOICE_BUDGET" && arb.ActiveCount == 2; });
+            Check("全局高优先级只抢最低且最旧的许可", () => { var arb = Arb(2, 3); int a = arb.OpenSource("a"), b = arb.OpenSource("b"), c = arb.OpenSource("c"); var low = Definition(); low.priority = 20; var high = Definition(); high.priority = 80; var oldest = arb.Submit(Request("a", a, "a"), low, 10); var kept = arb.Submit(Request("b", b, "b"), low, 10); var result = arb.Submit(Request("c", c, "c"), high, 10); return result.Accepted && result.StolenVoiceId == oldest.VoiceId && arb.TryGetVoice(kept.VoiceId, out _) && arb.ActiveCount == 2; });
+            Check("借出未启动的许可也计预算", () => { var arb = Arb(1, 1); int generation = arb.OpenSource("p"); var definition = Definition(); return arb.Submit(Request("p", generation, "a"), definition, 10).Accepted && !arb.Submit(Request("p", generation, "b"), definition, 10).Accepted && arb.ActiveCount == 1; });
+            Check("可控变体和音高取值", () => { var arb = new SfxArbitrator(24, 32, () => .75); arb.SetWorldScope("world"); int generation = arb.OpenSource("p"); var definition = Definition(); definition.clips = new[] { Clip(), Clip(), Clip(), Clip() }; definition.pitchMin = .5f; definition.pitchMax = 1.5f; var result = arb.Submit(Request("p", generation, "a"), definition, 10); return result.Accepted && result.ClipIndex == 3 && Math.Abs(result.Pitch - 1.25f) < .0001; });
+            Check("异常随机值不越界", () => { var arb = new SfxArbitrator(24, 32, () => double.NaN); arb.SetWorldScope("world"); int generation = arb.OpenSource("p"); var result = arb.Submit(Request("p", generation, "a"), Definition(), 10); return result.Accepted && result.ClipIndex == 0 && result.Pitch == 1; });
+            Check("非法预算构造拒绝", () => { try { new SfxArbitrator(4, 2); return false; } catch (ArgumentOutOfRangeException) { return true; } });
+        }
+        finally
+        {
+            foreach (var value in owned) if (value != null) UnityEngine.Object.DestroyImmediate(value);
+            ctx.ReturnValue = new { passed, failed, results = results.ToArray(), kind = "PASS-PURE requires failed=0; no SourceStarted/output asserted" };
+        }
+    }
+
+    private void Check(string name, Func<bool> contract)
+    {
+        try { bool ok = contract(); if (ok) passed++; else failed++; results.Add(new { name, passed = ok }); }
+        catch (Exception exception) { failed++; results.Add(new { name, passed = false, error = exception.ToString() }); }
+    }
+    private SfxEventDefinitionSO Definition(string eventId = "hit")
+    {
+        var definition = ScriptableObject.CreateInstance<SfxEventDefinitionSO>(); owned.Add(definition);
+        definition.eventId = eventId; definition.clips = new[] { Clip() }; return definition;
+    }
+    private AudioClip Clip() { var clip = AudioClip.Create("AUDIO-M02 pure contract", 1600, 1, 16000, false); owned.Add(clip); return clip; }
+    private SfxCatalogSO Catalog(params SfxEventDefinitionSO[] definitions) { var catalog = ScriptableObject.CreateInstance<SfxCatalogSO>(); owned.Add(catalog); catalog.events = definitions; return catalog; }
+    private SfxArbitrator Arb(int soft = 24, int hard = 32) { var arb = new SfxArbitrator(soft, hard, () => 0); arb.SetWorldScope("world"); return arb; }
+    private SfxRequest Request(string source, int generation, string fact, string eventId = "hit", double occurredAt = 10) => new SfxRequest(eventId, source, "world", generation, fact, Vector3.zero, occurredAt);
+}

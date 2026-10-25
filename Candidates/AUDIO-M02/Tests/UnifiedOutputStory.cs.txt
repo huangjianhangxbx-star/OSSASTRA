@@ -1,0 +1,41 @@
+/* 实际混音后输出测试：保持用户Editor静音，临时隔离本任务根的两类输出。
+ * 声音请求明确标记DEVELOPMENT_ONLY；不广播假战斗事实，不写HP或资源。
+ * 读取AudioListener输出，逐类Master1/.5/0比较；finally恢复全部运行时混音和适配器。
+ */
+using System;using System.Linq;using System.Collections.Generic;using UnityEngine;using UnityEditor;using Funplay.Editor.Tools.Scripting;using A=Ossastra.Audio;
+public class UnifiedOutputStory:IFunplayCommand
+{
+ public static object Report;static A.GameAudioRoot root;static A.CombatSfxFactAdapter[] adapters;static bool[] enabled;static A.SfxSourceHandle lease;static double begin,phaseBegin,nextShot;static int phase,sequence;static double squares;static long count;static float master,bgm,sfx;static bool muted,focused;static float[] buses;static bool editorMute;static string key,backend;static int starts;static A.BgmContext? diagnostic;static List<object> rows;static List<double> rms;static float[] buffer=new float[1024];
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext c)
+ {
+  if(!Application.isPlaying)throw new Exception("Play required");root=A.GameAudioRoot.Instance;if(root==null||!root.SfxAvailable)throw new Exception("Unified root unavailable");
+  editorMute=EditorUtility.audioMasterMute;if(editorMute){Report=new{done=true,blocked="USER_EDITOR_MUTE_PRESERVED"};c.ReturnValue=Report;return;}
+  master=root.Mix.MasterVolume;bgm=root.Mix.UserBgmVolume;muted=root.Mix.Muted;focused=root.Mix.Focused;sfx=root.UnifiedMix.SfxVolume;buses=Enum.GetValues(typeof(A.SfxBus)).Cast<A.SfxBus>().Select(b=>root.UnifiedMix.GetBusVolume(b)).ToArray();
+  diagnostic=(A.BgmContext?)typeof(A.GameAudioRoot).GetField("diagnosticContext",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(root);
+  adapters=UnityEngine.Object.FindObjectsOfType<A.CombatSfxFactAdapter>();enabled=adapters.Select(a=>a.enabled).ToArray();foreach(var adapter in adapters)adapter.enabled=false;
+  root.Mix.Muted=false;root.Mix.Focused=true;root.UnifiedMix.SfxVolume=1;foreach(A.SfxBus b in Enum.GetValues(typeof(A.SfxBus)))root.UnifiedMix.SetBusVolume(b,1);
+  lease=root.RegisterSfxSource("DEVELOPMENT_ONLY:output-story");root.SetDiagnosticContext(new A.BgmContext());rows=new List<object>();rms=new List<double>();phase=sequence=0;begin=phaseBegin=AudioSettings.dspTime;Configure();EditorApplication.update+=Step;Report=new{done=false};c.ReturnValue=new{started=true,seconds=17};
+ }
+ static void Configure(){root.Mix.MasterVolume=phase%3==0?1:phase%3==1?.5f:0;root.Mix.UserBgmVolume=phase<3?1:0;phaseBegin=AudioSettings.dspTime;nextShot=phaseBegin+.3;squares=0;count=0;}
+ static void Step()
+ {
+  try
+  {
+   if(!Application.isPlaying)throw new Exception("Play ended");double now=AudioSettings.dspTime,elapsed=now-phaseBegin;
+   if(phase>=3&&now>=nextShot&&elapsed<2.3){lease.Submit("player.item.heal","diagnostic:"+(++sequence),Vector3.zero);nextShot+=.42;}
+   if(elapsed>.3){AudioListener.GetOutputData(buffer,0);foreach(float v in buffer){squares+=(double)v*v;count++;}}
+   if(elapsed<2.7)return;
+   double value=Math.Sqrt(squares/Math.Max(1,count));rms.Add(value);rows.Add(new{phase,type=phase<3?"BGM":"SFX",master=root.Mix.MasterVolume,rms=value,samples=count,actualDsp=elapsed,rootSources=root.GetComponentsInChildren<AudioSource>(true).Length});
+   if(phase==0){key=root.Transport.CurrentKey;backend=root.Transport.BackendId;starts=root.Transport.StartCount;}
+   phase++;if(phase<6){Configure();return;}
+   var checks=new[]{new{name="BGM真实输出非零",pass=rms[0]>1e-6},new{name="BGM Master半音量非平方",pass=Math.Abs(rms[1]/Math.Max(1e-20,rms[0])-.5)<.15},new{name="BGM Master零输出受控",pass=rms[2]<rms[0]*.003},new{name="SFX真实输出非零",pass=rms[3]>1e-6},new{name="SFX Master半音量非平方",pass=Math.Abs(rms[4]/Math.Max(1e-20,rms[3])-.5)<.15},new{name="SFX Master零输出受控",pass=rms[5]<rms[3]*.003},new{name="改混音不重播BGM",pass=key==root.Transport.CurrentKey&&backend==root.Transport.BackendId&&starts==root.Transport.StartCount},new{name="Editor静音原样保留",pass=EditorUtility.audioMasterMute==editorMute}};
+   Finish(new{done=true,failed=checks.Count(x=>!x.pass),checks,rows,bgmHalfRatio=rms[1]/Math.Max(1e-20,rms[0]),sfxHalfRatio=rms[4]/Math.Max(1e-20,rms[3]),evidence="AudioListener post-mix API; no subjective listening signoff"});
+  }catch(Exception e){Finish(new{done=true,failed=1,error=e.ToString(),rows});}
+ }
+ static void Finish(object result)
+ {
+  EditorApplication.update-=Step;lease?.Dispose();lease=null;
+  if(root!=null){root.Mix.MasterVolume=master;root.Mix.UserBgmVolume=bgm;root.Mix.Muted=muted;root.Mix.Focused=focused;root.UnifiedMix.SfxVolume=sfx;for(int i=0;i<buses.Length;i++)root.UnifiedMix.SetBusVolume((A.SfxBus)i,buses[i]);root.SetDiagnosticContext(diagnostic);root.UnifiedMix.Tick();}
+  if(adapters!=null)for(int i=0;i<adapters.Length;i++)if(adapters[i]!=null)adapters[i].enabled=enabled[i];Report=result;
+ }
+}

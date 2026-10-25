@@ -1,5 +1,5 @@
 /* 脚本：BgmMonitorWindow
- * 功能：观察唯一真实BGM根，提供明确标记的开发覆盖、音量与对话令牌。
+ * 功能：观察唯一真实音频根，保留BGM传输信息并展示SFX准入、路由、池与租约。
  * 边界：不创建播放器，不写战斗会话；关闭只撤自己持有的覆盖与混音令牌。
  */
 using System;
@@ -13,13 +13,18 @@ namespace Ossastra.Audio.Editor
         private GameAudioRoot controlled;
         private Vector2 scroll;
         private bool ownsOverride;
+        private SfxSourceHandle audition;
+        private int auditionSequence;
+        private int auditionEvent;
         [MenuItem("XingHai/OSSASTRA/Audio/BGM Monitor")]
         public static void Open()=>GetWindow<BgmMonitorWindow>("BGM Monitor");
+        [MenuItem("XingHai/OSSASTRA/Audio/Unified Audio Monitor")]
+        public static void OpenUnified()=>GetWindow<BgmMonitorWindow>("Audio Monitor");
         private void OnInspectorUpdate()=>Repaint();
         private void OnGUI()
         {
             var root=GameAudioRoot.Instance;
-            if(root==null){EditorGUILayout.HelpBox("进入 SC_BGM_AudioMigration 的 Play 后观察真实音频根。此窗口不创建播放器。",MessageType.Info);return;}
+            if(root==null){EditorGUILayout.HelpBox("进入 SC_AUDIO_M02_SoundIntegration 的 Play 后观察统一音频根。此窗口不创建播放器。",MessageType.Info);return;}
             if(controlled!=root){Release();controlled=root;}
             var t=root.Transport;scroll=EditorGUILayout.BeginScrollView(scroll);
             EditorGUILayout.LabelField("真实BGM所有者",EditorStyles.boldLabel);EditorGUILayout.ObjectField(root,typeof(GameAudioRoot),true);
@@ -44,11 +49,42 @@ namespace Ossastra.Audio.Editor
             if(GUILayout.Button(dialogue==null?"取得普通对话焦点（只duck）":"结束普通对话焦点"))
             {if(dialogue==null)dialogue=root.AcquireDialogueFocus();else{dialogue.Dispose();dialogue=null;}}
             EditorGUI.BeginChangeCheck();root.Mix.UserBgmVolume=EditorGUILayout.Slider("音乐用户音量",root.Mix.UserBgmVolume,0,1);root.Mix.MasterVolume=EditorGUILayout.Slider("用户主音量",root.Mix.MasterVolume,0,1);root.Mix.Muted=EditorGUILayout.Toggle("静音",root.Mix.Muted);if(EditorGUI.EndChangeCheck())root.SaveUserSettings();
+            EditorGUILayout.Space();EditorGUILayout.LabelField("统一 SFX / Mixer",EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("状态 / 世界",root.SfxStatus+" / "+root.WorldScopeId);
+            EditorGUILayout.LabelField("来源租约 / 声部",root.SourceLeaseCount+" / "+(root.Sfx?.ActiveCount??0));
+            EditorGUILayout.LabelField("音乐局部 / 完整增益",root.Mix.LocalCurrentGain.ToString("F5")+" / "+root.Mix.CurrentGain.ToString("F5"));
+            if(root.UnifiedMix!=null)
+            {
+                EditorGUILayout.ObjectField("唯一共享Mixer",root.UnifiedMix.Mixer,typeof(UnityEngine.Audio.AudioMixer),false);
+                EditorGUI.BeginChangeCheck();root.UnifiedMix.SfxVolume=EditorGUILayout.Slider("全部音效",root.UnifiedMix.SfxVolume,0,1);
+                foreach(SfxBus bus in Enum.GetValues(typeof(SfxBus)))root.UnifiedMix.SetBusVolume(bus,EditorGUILayout.Slider(bus+" 用户组",root.UnifiedMix.GetBusVolume(bus),0,1));
+                if(EditorGUI.EndChangeCheck())root.SaveUserSettings();
+                if(!string.IsNullOrEmpty(root.UnifiedMix.LastError))EditorGUILayout.HelpBox(root.UnifiedMix.LastError,MessageType.Error);
+            }
+            if(root.SfxPlayer!=null)
+            {
+                var player=root.SfxPlayer;EditorGUILayout.LabelField("池 / 活跃 / 实际起播 / 回收",player.PoolSize+" / "+player.ActiveCount+" / "+player.StartedCount+" / "+player.ReturnedCount);
+                if(!string.IsNullOrEmpty(player.LastError))EditorGUILayout.LabelField("最近播放拒绝",player.LastError);
+                foreach(var voice in player.Voices)if(voice.VoiceId!=0&&root.Sfx.TryGetVoice(voice.VoiceId,out var record))
+                    EditorGUILayout.LabelField("Voice "+voice.VoiceId,record.Request.EventId+" | "+record.Request.SourceId+" | "+(record.Definition==null?"定义已删除":record.Definition.bus.ToString())+" | priority "+record.Priority+" | "+record.Request.WorldPosition);
+            }
+            if(root.Bootstrap!=null&&root.Bootstrap.sfxCatalog!=null)
+            {
+                var events=root.Bootstrap.sfxCatalog.events??Array.Empty<SfxEventDefinitionSO>();var names=Array.ConvertAll(events,e=>e==null?"MISSING":e.eventId);
+                if(names.Length>0)
+                {
+                    auditionEvent=EditorGUILayout.Popup("DEVELOPMENT ONLY 事件",Mathf.Clamp(auditionEvent,0,names.Length-1),names);
+                    if(GUILayout.Button("提交开发试听事实（不改变HP/动作）"))
+                    {if(audition==null||audition.IsDisposed||audition.WorldScopeId!=root.WorldScopeId){audition?.Dispose();audition=root.RegisterSfxSource("DEVELOPMENT_ONLY:AudioMonitor");}audition?.Submit(names[auditionEvent],"audition:"+(++auditionSequence),Vector3.zero);}
+                }
+            }
+            foreach(var observation in root.SfxHistory)
+                EditorGUILayout.LabelField(observation.Request.EventId+" | "+observation.Request.SourceId+" | "+observation.Request.FactKey+" | "+observation.Decision.Reason+" | "+observation.PlaybackReason,EditorStyles.wordWrappedMiniLabel);
             EditorGUILayout.BeginHorizontal();if(GUILayout.Button("显式Stop"))root.StopMusic();if(GUILayout.Button("显式Resume"))root.ResumeMusic();EditorGUILayout.EndHorizontal();
             foreach(var line in root.History)EditorGUILayout.LabelField(line,EditorStyles.wordWrappedMiniLabel);
             EditorGUILayout.EndScrollView();
         }
-        private void Release(){dialogue?.Dispose();dialogue=null;if(ownsOverride&&controlled!=null)controlled.SetDiagnosticContext(null);ownsOverride=false;}
+        private void Release(){dialogue?.Dispose();dialogue=null;audition?.Dispose();audition=null;if(ownsOverride&&controlled!=null)controlled.SetDiagnosticContext(null);ownsOverride=false;}
         private void OnDisable()=>Release();
     }
 }

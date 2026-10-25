@@ -1,0 +1,183 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "done": true,
+      "error": "",
+      "rows": [
+        {
+          "label": "local title actual output",
+          "pass": true,
+          "dsp": 2.0053333333335104,
+          "rule": "title",
+          "key": "bgm-v1|16:diagnostic:title1:116:four-bars-100bpm24:owned-synthesis-v1:titleL|0|0",
+          "epoch": 4885.093333333333,
+          "transport": "c9a9ca96730c4bb2b5c71422fdb05586",
+          "starts": 6,
+          "gain": 0.179999992,
+          "details": {
+            "rms": 0.0020538946600603897,
+            "bpm": 100.0
+          }
+        },
+        {
+          "label": "local explore actual output",
+          "pass": true,
+          "dsp": 4.010666666667021,
+          "rule": "explore",
+          "key": "bgm-v1|15:diagnostic:home1:116:four-bars-100bpm23:owned-synthesis-v1:homeL|0|0",
+          "epoch": 4887.493333333333,
+          "transport": "3a3672a4f3b24ca3a3638531973b08ea",
+          "starts": 7,
+          "gain": 0.179999992,
+          "details": {
+            "rms": 0.0018793667547965442
+          }
+        },
+        {
+          "label": "actual far-zone preserves home transport",
+          "pass": true,
+          "dsp": 5.013333333333321,
+          "rule": "explore-far",
+          "key": "bgm-v1|15:diagnostic:home1:116:four-bars-100bpm23:owned-synthesis-v1:homeL|0|0",
+          "epoch": 4887.493333333333,
+          "transport": "3a3672a4f3b24ca3a3638531973b08ea",
+          "starts": 7,
+          "gain": 0.179999992,
+          "details": null
+        },
+        {
+          "label": "live dialogue only ducks continuous home",
+          "pass": true,
+          "dsp": 7.018666666666832,
+          "rule": "explore",
+          "key": "bgm-v1|15:diagnostic:home1:116:four-bars-100bpm23:owned-synthesis-v1:homeL|0|0",
+          "epoch": 4887.493333333333,
+          "transport": "3a3672a4f3b24ca3a3638531973b08ea",
+          "starts": 7,
+          "gain": 0.08100001,
+          "details": {
+            "target": 0.08099999,
+            "outputRms": 0.0008704194411397211
+          }
+        },
+        {
+          "label": "timescale zero advances same DSP music",
+          "pass": true,
+          "dsp": 8.021333333333132,
+          "rule": "explore",
+          "key": "bgm-v1|15:diagnostic:home1:116:four-bars-100bpm23:owned-synthesis-v1:homeL|0|0",
+          "epoch": 4887.493333333333,
+          "transport": "3a3672a4f3b24ca3a3638531973b08ea",
+          "starts": 7,
+          "gain": 0.179999948,
+          "details": {
+            "elapsed": 5.349333333333561,
+            "timeScale": 0.0
+          }
+        },
+        {
+          "label": "real inventory UI does not select new music",
+          "pass": true,
+          "dsp": 9.00266666666721,
+          "rule": "explore",
+          "key": "bgm-v1|15:diagnostic:home1:116:four-bars-100bpm23:owned-synthesis-v1:homeL|0|0",
+          "epoch": 4887.493333333333,
+          "transport": "3a3672a4f3b24ca3a3638531973b08ea",
+          "starts": 7,
+          "gain": 0.179999977,
+          "details": null
+        },
+        {
+          "label": "InputSystem RT accepted triggers actual combat music",
+          "pass": true,
+          "dsp": 10.00533333333351,
+          "rule": "combat",
+          "key": "bgm-v1|19:diagnostic:chapter11:116:four-bars-100bpm27:owned-synthesis-v1:chapter1L|0|0",
+          "epoch": 4894.693333333333,
+          "transport": "d5d91fdb23c3482bbed130645edc74fc",
+          "starts": 8,
+          "gain": 0.179999977,
+          "details": {
+            "accepted": 1,
+            "CanSample": true,
+            "QuietTime": 0.996914744
+          }
+        },
+        {
+          "label": "existing three-second calm returns explore",
+          "pass": false,
+          "dsp": 14.208000000000538,
+          "rule": "combat",
+          "key": "bgm-v1|19:diagnostic:chapter11:116:four-bars-100bpm27:owned-synthesis-v1:chapter1L|0|0",
+          "epoch": 4894.693333333333,
+          "transport": "d5d91fdb23c3482bbed130645edc74fc",
+          "starts": 8,
+          "gain": 0.179999977,
+          "details": {
+            "QuietTime": 3.00269055
+          }
+        },
+        {
+          "label": "second real Accepted re-enters combat",
+          "pass": true,
+          "dsp": 15.509333333333416,
+          "rule": "combat",
+          "key": "bgm-v1|19:diagnostic:chapter11:116:four-bars-100bpm27:owned-synthesis-v1:chapter1L|0|0",
+          "epoch": 4894.693333333333,
+          "transport": "d5d91fdb23c3482bbed130645edc74fc",
+          "starts": 8,
+          "gain": 0.179999977,
+          "details": {
+            "accepted": 2
+          }
+        },
+        {
+          "label": "explicit Stop stays stopped across real frames",
+          "pass": true,
+          "dsp": 16.512000000000626,
+          "rule": "combat",
+          "key": "",
+          "epoch": 0.0,
+          "transport": "",
+          "starts": 8,
+          "gain": 0.179999977,
+          "details": null
+        },
+        {
+          "label": "disable/enable does not silently resume",
+          "pass": true,
+          "dsp": 18.517333333333227,
+          "rule": "combat",
+          "key": "",
+          "epoch": 0.0,
+          "transport": "",
+          "starts": 8,
+          "gain": 0.179999977,
+          "details": null
+        },
+        {
+          "label": "explicit resume plays",
+          "pass": true,
+          "dsp": 20.501333333333605,
+          "rule": "explore",
+          "key": "bgm-v1|15:diagnostic:home1:116:four-bars-100bpm23:owned-synthesis-v1:homeL|0|0",
+          "epoch": 4903.44,
+          "transport": "6ed5c9c2159844289d0c53d6e719f16e",
+          "starts": 9,
+          "gain": 0.179999977,
+          "details": {
+            "rms": 0.002067245226639982
+          }
+        }
+      ],
+      "accepted": 2
+    }
+  }
+}

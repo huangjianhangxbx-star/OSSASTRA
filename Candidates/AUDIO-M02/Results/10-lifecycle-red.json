@@ -1,0 +1,29 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "passed": 1,
+      "failed": 2,
+      "rows": [
+        {
+          "name": "无声音消费者的附加场不撤销当前声音世界",
+          "pass": false
+        },
+        {
+          "name": "根禁用再启用后来源可合法注册: 尚无有效音声世界作用域",
+          "pass": false
+        },
+        {
+          "name": "旧来源已撤销且不能抢新来源",
+          "pass": true
+        }
+      ]
+    }
+  }
+}

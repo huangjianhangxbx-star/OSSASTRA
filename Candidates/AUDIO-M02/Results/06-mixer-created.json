@@ -1,0 +1,78 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "path": "Assets/OSSASTRA/Audio/Mixer/UnifiedAudio.mixer",
+      "groups": [
+        "Master",
+        "BGM",
+        "SFX",
+        "Player",
+        "Companion",
+        "Enemy",
+        "UI",
+        "Interaction",
+        "Voice",
+        "Ambience"
+      ],
+      "parameters": [
+        {
+          "name": "MasterGain",
+          "exists": true,
+          "value": 0.0
+        },
+        {
+          "name": "BgmGain",
+          "exists": true,
+          "value": 0.0
+        },
+        {
+          "name": "SfxGain",
+          "exists": true,
+          "value": 0.0
+        },
+        {
+          "name": "PlayerGain",
+          "exists": true,
+          "value": 0.0
+        },
+        {
+          "name": "CompanionGain",
+          "exists": true,
+          "value": 0.0
+        },
+        {
+          "name": "EnemyGain",
+          "exists": true,
+          "value": 0.0
+        },
+        {
+          "name": "UIGain",
+          "exists": true,
+          "value": 0.0
+        },
+        {
+          "name": "InteractionGain",
+          "exists": true,
+          "value": 0.0
+        },
+        {
+          "name": "VoiceGain",
+          "exists": true,
+          "value": 0.0
+        },
+        {
+          "name": "AmbienceGain",
+          "exists": true,
+          "value": 0.0
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,44 @@
+// 自有音频资产与新测试场；所有SO/场景通过Editor API建立，旧场不保存。
+using System;using System.Linq;using UnityEngine;using UnityEngine.Audio;using UnityEditor;using UnityEditor.SceneManagement;using Ossastra.Audio;using Funplay.Editor.Tools.Scripting;
+public class CreateAudioAssets:IFunplayCommand
+{
+    static void Folder(string p){if(AssetDatabase.IsValidFolder(p))return;int i=p.LastIndexOf('/');Folder(p.Substring(0,i));AssetDatabase.CreateFolder(p.Substring(0,i),p.Substring(i+1));}
+    static T Need<T>(string path)where T:UnityEngine.Object{var a=AssetDatabase.LoadAssetAtPath<T>(path);if(a==null)throw new Exception("Missing "+path);return a;}
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext c)
+    {
+        if(Application.isPlaying||EditorSceneManager.GetActiveScene().isDirty)throw new Exception("Expected clean Edit");
+        const string basePath="Assets/OSSASTRA/Audio/SFX";Folder(basePath+"/Definitions");Folder("Assets/OSSASTRA/Audio/Resources");
+        const string configPath="Assets/OSSASTRA/Audio/Resources/OssastraAudioBootstrap.asset";
+        if(AssetDatabase.LoadAssetAtPath<GameAudioBootstrapSO>(configPath)!=null)throw new Exception("Assets already exist; inspect instead of replay");
+        string[] suffix={"combat.release","combat.hit","combat.hurt","combat.guard","movement.dodge","delivery.land","item.heal"};
+        string[] clips={"release","hit","hurt","guard","dodge","land","heal"};int[] priorities={50,60,70,75,50,55,60};
+        var list=new System.Collections.Generic.List<SfxEventDefinitionSO>();
+        string[] sampleNames=clips.Concat(new[]{"ui"}).ToArray();
+        foreach(string name in sampleNames)
+        {
+            string p=basePath+"/Diagnostics/"+name+".wav";AssetDatabase.ImportAsset(p,ImportAssetOptions.ForceSynchronousImport);
+            var importer=AssetImporter.GetAtPath(p)as AudioImporter;if(importer==null)throw new Exception("Missing importer "+p);
+            var settings=importer.defaultSampleSettings;settings.loadType=AudioClipLoadType.DecompressOnLoad;settings.compressionFormat=AudioCompressionFormat.PCM;settings.preloadAudioData=true;importer.defaultSampleSettings=settings;importer.SaveAndReimport();
+        }
+        foreach(var role in new[]{SfxBus.Player,SfxBus.Companion,SfxBus.Enemy})for(int i=0;i<suffix.Length;i++)
+        {
+            var def=ScriptableObject.CreateInstance<SfxEventDefinitionSO>();def.eventId=role.ToString().ToLowerInvariant()+"."+suffix[i];def.clips=new[]{Need<AudioClip>(basePath+"/Diagnostics/"+clips[i]+".wav")};def.bus=role;def.priority=priorities[i];def.volume=.3f;def.pitchMin=.97f;def.pitchMax=1.03f;def.maxPerSource=4;def.spatial=false;
+            AssetDatabase.CreateAsset(def,basePath+"/Definitions/"+def.eventId+".asset");list.Add(def);
+        }
+        var ui=ScriptableObject.CreateInstance<SfxEventDefinitionSO>();ui.eventId="ui.control.switch";ui.clips=new[]{Need<AudioClip>(basePath+"/Diagnostics/ui.wav")};ui.bus=SfxBus.UI;ui.priority=35;AssetDatabase.CreateAsset(ui,basePath+"/Definitions/ui.control.switch.asset");list.Add(ui);
+        var catalog=ScriptableObject.CreateInstance<SfxCatalogSO>();catalog.events=list.ToArray();AssetDatabase.CreateAsset(catalog,basePath+"/Definitions/CombatSfxCatalog.asset");
+        var mixer=Need<AudioMixer>("Assets/OSSASTRA/Audio/Mixer/UnifiedAudio.mixer");AudioMixerGroup Group(string name)=>mixer.FindMatchingGroups("").Single(g=>g.name==name);
+        var config=ScriptableObject.CreateInstance<GameAudioBootstrapSO>();config.rules=Need<BgmRuleSetSO>("Assets/OSSASTRA/Audio/BGM/Definitions/Engine_Diagnostic_Only.asset");config.mixProfile=Need<BgmMixProfileSO>("Assets/OSSASTRA/Audio/BGM/Definitions/Prototype_Mix.asset");config.sfxCatalog=catalog;config.mixer=mixer;config.bgmOutput=Group("BGM");config.sfxOutputs=Enum.GetValues(typeof(SfxBus)).Cast<SfxBus>().Select(bus=>Group(bus.ToString())).ToArray();AssetDatabase.CreateAsset(config,configPath);
+        if(!config.Validate(out string reason))throw new Exception("Configuration invalid "+reason);
+        const string scene="Assets/OSSASTRA/Scenes/SC_AUDIO_M02_SoundIntegration.unity";
+        if(System.IO.File.Exists(scene))throw new Exception("Target scene already exists");
+        if(!AssetDatabase.CopyAsset("Assets/OSSASTRA/Scenes/SC_BGM_AudioMigration.unity",scene))throw new Exception("Scene copy failed");
+        var opened=EditorSceneManager.OpenScene(scene);
+        var root=UnityEngine.Object.FindObjectOfType<Ossastra.Audio.GameAudioRoot>();if(root==null)throw new Exception("Copied scene missing root");
+        c.RegisterObjectModification(root);var so=new SerializedObject(root);so.FindProperty("bootstrap").objectReferenceValue=config;so.FindProperty("rules").objectReferenceValue=config.rules;so.FindProperty("output").objectReferenceValue=config.bgmOutput;so.ApplyModifiedPropertiesWithoutUndo();root.name="GameAudioRoot [Unified BGM + SFX]";
+        var view=UnityEngine.Object.FindObjectOfType<Ossastra.UserInterface.CombatFeedbackView>();if(view==null)throw new Exception("Copied scene missing feedback");
+        var host=new GameObject("Combat SFX Facts [Audio Owned]");c.RegisterObjectCreation(host);host.AddComponent<CombatSfxFactAdapter>();
+        EditorSceneManager.MarkSceneDirty(opened);if(!EditorSceneManager.SaveScene(opened))throw new Exception("Scene save failed");
+        c.ReturnValue=new{scene,catalog=list.Count,valid=reason,mixer=AssetDatabase.GetAssetPath(config.mixer),sceneClean=!opened.isDirty,media=sampleNames};
+    }
+}

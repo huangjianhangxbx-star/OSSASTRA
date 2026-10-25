@@ -1,0 +1,114 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "done": true,
+      "running": false,
+      "error": "",
+      "reason": "已接受 实验消耗型炸弹",
+      "attempted": true,
+      "accepted": true,
+      "itemId": "3cd499671be6483fa4b676ddec46058d",
+      "definitionId": "sample-al-bomb",
+      "execution": "6fe6f98d3828475f9e879a21eb62fd88",
+      "rows": [
+        {
+          "name": "现有背包UI同端口真实接受",
+          "pass": true,
+          "status": "PASS-EDITOR-SOURCE",
+          "result": "已接受 实验消耗型炸弹",
+          "execution": "6fe6f98d3828475f9e879a21eb62fd88"
+        },
+        {
+          "name": "真实释放消费已有数量",
+          "pass": true,
+          "before": 2,
+          "after": 1,
+          "emittedBefore": 0,
+          "emittedAfter": 1
+        },
+        {
+          "name": "有限投递飞行后实际结算",
+          "pass": true,
+          "sawFlight": true,
+          "resolvedBefore": 0,
+          "resolvedAfter": 1
+        },
+        {
+          "name": "实际投掷命中降低敌HP",
+          "pass": false,
+          "before": 600,
+          "after": 600
+        },
+        {
+          "name": "投掷释放和命中短音经同根请求",
+          "pass": false,
+          "count": 1,
+          "sourceVoices": 1
+        },
+        {
+          "name": "InputSettings与Editor静音保持",
+          "pass": true
+        }
+      ],
+      "feedback": [
+        {
+          "time": 0.8127387000022281,
+          "execution": "6fe6f98d3828475f9e879a21eb62fd88",
+          "kind": "accepted",
+          "point": "(-1.200, 0.020, -2.000)"
+        },
+        {
+          "time": 0.8549878000012541,
+          "execution": "6fe6f98d3828475f9e879a21eb62fd88",
+          "kind": "release",
+          "point": "(-1.200, 0.020, -2.000)"
+        },
+        {
+          "time": 0.8994106999998621,
+          "execution": "6fe6f98d3828475f9e879a21eb62fd88",
+          "kind": "end",
+          "point": "(-1.200, 0.020, -2.000)"
+        },
+        {
+          "time": 1.301483700000972,
+          "execution": "6fe6f98d3828475f9e879a21eb62fd88",
+          "kind": "miss",
+          "point": "(3.300, 0.000, -2.000)"
+        }
+      ],
+      "sources": [
+        {
+          "voice": 4,
+          "time": 0.8590987000025052,
+          "playing": true,
+          "source": "temporary-a@210590",
+          "eventId": "player.combat.release",
+          "fact": "ability:6fe6f98d3828475f9e879a21eb62fd88:release:observation:2",
+          "route": "Player",
+          "clip": "release",
+          "root": -222022
+        }
+      ],
+      "requests": [
+        {
+          "eventId": "player.combat.release",
+          "source": "temporary-a@210590",
+          "fact": "ability:6fe6f98d3828475f9e879a21eb62fd88:release:observation:2",
+          "accepted": true,
+          "reason": "ACCEPTED",
+          "voice": 4,
+          "playIssued": true
+        }
+      ],
+      "ownVirtualDevicesRemaining": 0,
+      "proof": "Actual existing inventory-consumption/delivery API, not synthetic facts and not InputSystem throw input; no land event invented."
+    }
+  }
+}

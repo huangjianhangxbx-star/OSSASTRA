@@ -2,7 +2,7 @@
  * 脚本：BgmTransport
  * 职责：独占两组固定音乐音源，以内容身份管理起播、DSP时基、显式淡变和诊断分层。
  * 边界：不选择玩法曲目，不写角色状态；加载只报告可用性，启动权限属于当前请求代次。
- * 协作：GameAudioRoot显式Request/Tick；程序是AudioSource.volume唯一写入者，Mixer保持静态单位增益。
+ * 协作：GameAudioRoot显式Request/Tick；本类独写AudioSource局部增益，统一Mixer独写用户Master/BGM因子。
  */
 using System;
 using System.Collections.Generic;

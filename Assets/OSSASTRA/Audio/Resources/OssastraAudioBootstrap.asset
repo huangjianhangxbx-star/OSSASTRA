@@ -1,0 +1,29 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5d1b2ca4b3975b947b95e5961dbd656f, type: 3}
+  m_Name: OssastraAudioBootstrap
+  m_EditorClassIdentifier: 
+  rules: {fileID: 11400000, guid: 4d2d7a845f2360c4a95052f06d1b5a23, type: 2}
+  mixProfile: {fileID: 11400000, guid: 79970a5544ca01b4fa72c692ecf228b4, type: 2}
+  sfxCatalog: {fileID: 11400000, guid: b0c4318e720680544b5dd1d8f5eadb67, type: 2}
+  mixer: {fileID: 24100000, guid: 348e24be0eb53714781b50bc946465f5, type: 2}
+  bgmOutput: {fileID: -5601408796575369880, guid: 348e24be0eb53714781b50bc946465f5, type: 2}
+  sfxOutputs:
+  - {fileID: -8173322604798976552, guid: 348e24be0eb53714781b50bc946465f5, type: 2}
+  - {fileID: 8390327190425216153, guid: 348e24be0eb53714781b50bc946465f5, type: 2}
+  - {fileID: 5527133422040323771, guid: 348e24be0eb53714781b50bc946465f5, type: 2}
+  - {fileID: 8685141199821755862, guid: 348e24be0eb53714781b50bc946465f5, type: 2}
+  - {fileID: -928986048718444649, guid: 348e24be0eb53714781b50bc946465f5, type: 2}
+  - {fileID: 6654778417150906201, guid: 348e24be0eb53714781b50bc946465f5, type: 2}
+  - {fileID: 2793857451015794063, guid: 348e24be0eb53714781b50bc946465f5, type: 2}
+  softVoices: 24
+  hardVoices: 32

@@ -1,0 +1,22 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "passed": 0,
+      "failed": 1,
+      "results": [
+        {
+          "name": "事实适配器存在且接管声音",
+          "pass": false
+        }
+      ],
+      "reason": "MISSING_FEATURE:CombatSfxFactAdapter"
+    }
+  }
+}

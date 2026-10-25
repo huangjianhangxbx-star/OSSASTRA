@@ -1,0 +1,19 @@
+// 音声生命周期合同：使用实际Root/scene入口，不伪造角色事实。
+using System;using System.Linq;using System.Reflection;using System.Collections.Generic;using UnityEngine;using UnityEngine.SceneManagement;using Funplay.Editor.Tools.Scripting;
+public class AudioLifecycleContracts:IFunplayCommand
+{
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext c)
+ {
+  if(!Application.isPlaying)throw new Exception("Play required");var root=Ossastra.Audio.GameAudioRoot.Instance;if(root==null)throw new Exception("Missing root");var rows=new List<object>();int failed=0;
+  void Check(string n,bool p){rows.Add(new{name=n,pass=p});if(!p)failed++;}
+  var world=root.WorldScopeId;var additive=SceneManager.CreateScene("AUDIO_M02_Empty_Additive_Contract");
+  try{typeof(Ossastra.Audio.GameAudioBootstrap).GetMethod("OnSceneLoaded",BindingFlags.NonPublic|BindingFlags.Static).Invoke(null,new object[]{additive,LoadSceneMode.Additive});Check("无声音消费者的附加场不撤销当前声音世界",root.WorldScopeId==world);}
+  finally{SceneManager.UnloadSceneAsync(additive);}
+  var old=root.RegisterSfxSource("DEVELOPMENT_ONLY:lifecycle");string previous=root.WorldScopeId;
+  root.enabled=false;root.enabled=true;
+  try{using(var next=root.RegisterSfxSource("DEVELOPMENT_ONLY:lifecycle"))Check("根禁用再启用后来源可合法注册",next!=null&&!string.IsNullOrEmpty(root.WorldScopeId)&&root.WorldScopeId!=previous);}
+  catch(Exception e){Check("根禁用再启用后来源可合法注册: "+e.Message,false);}
+  Check("旧来源已撤销且不能抢新来源",old==null||old.IsDisposed);old?.Dispose();root.ResumeMusic();
+  c.ReturnValue=new{passed=rows.Count-failed,failed,rows};
+ }
+}

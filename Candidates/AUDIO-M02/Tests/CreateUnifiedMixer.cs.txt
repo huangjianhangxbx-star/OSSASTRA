@@ -1,0 +1,25 @@
+// AUDIO-M02 自有Mixer建立夹具；仅使用Editor API，不手写序列化内容。
+using System;using System.Linq;using System.Reflection;using UnityEngine;using UnityEngine.Audio;using UnityEditor;using UnityEditor.SceneManagement;using Funplay.Editor.Tools.Scripting;
+public class CreateUnifiedMixer:IFunplayCommand
+{
+    const BindingFlags F=BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Instance|BindingFlags.Static;
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext c)
+    {
+        if(Application.isPlaying||EditorSceneManager.GetActiveScene().isDirty)throw new Exception("Preserve scene; expected clean Edit");
+        const string path="Assets/OSSASTRA/Audio/Mixer/UnifiedAudio.mixer";
+        if(AssetDatabase.LoadAssetAtPath<AudioMixer>(path)!=null)throw new Exception("Already exists; inspect instead of replay");
+        if(!AssetDatabase.IsValidFolder("Assets/OSSASTRA/Audio/Mixer"))AssetDatabase.CreateFolder("Assets/OSSASTRA/Audio","Mixer");
+        var a=typeof(Editor).Assembly;var mt=a.GetType("UnityEditor.Audio.AudioMixerController");var gt=a.GetType("UnityEditor.Audio.AudioMixerGroupController");var et=a.GetType("UnityEditor.Audio.ExposedAudioParameter");
+        if(mt==null||gt==null||et==null)throw new Exception("Missing mixer Editor API");
+        var mixer=(AudioMixer)mt.GetMethod("CreateMixerControllerAtPath",F).Invoke(null,new object[]{path});
+        var master=mt.GetProperty("masterGroup",F).GetValue(mixer);var create=mt.GetMethod("CreateNewGroup",F);
+        string[] names={"Master","BGM","SFX","Player","Companion","Enemy","UI","Interaction","Voice","Ambience"};
+        string[] pars={"MasterGain","BgmGain","SfxGain","PlayerGain","CompanionGain","EnemyGain","UIGain","InteractionGain","VoiceGain","AmbienceGain"};
+        object[] groups=new object[names.Length];groups[0]=master;for(int i=1;i<names.Length;i++)groups[i]=create.Invoke(mixer,new object[]{names[i],true});
+        var children=gt.GetProperty("children",F);var top=Array.CreateInstance(gt,2);top.SetValue(groups[1],0);top.SetValue(groups[2],1);children.SetValue(master,top);
+        var bottom=Array.CreateInstance(gt,7);for(int i=0;i<7;i++)bottom.SetValue(groups[i+3],i);children.SetValue(groups[2],bottom);
+        var exposed=Array.CreateInstance(et,names.Length);for(int i=0;i<names.Length;i++){object item=Activator.CreateInstance(et);et.GetField("guid",F).SetValue(item,gt.GetMethod("GetGUIDForVolume",F).Invoke(groups[i],null));et.GetField("name",F).SetValue(item,pars[i]);exposed.SetValue(item,i);}
+        mt.GetProperty("exposedParameters",F).SetValue(mixer,exposed);EditorUtility.SetDirty(mixer);AssetDatabase.SaveAssetIfDirty(mixer);
+        c.ReturnValue=new{path,groups=mixer.FindMatchingGroups("").Select(g=>g.name).ToArray(),parameters=pars.Select(p=>new{name=p,exists=mixer.GetFloat(p,out float value),value}).ToArray()};
+    }
+}

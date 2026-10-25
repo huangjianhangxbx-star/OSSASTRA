@@ -1,0 +1,183 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "done": true,
+      "error": "",
+      "rows": [
+        {
+          "label": "local title actual output",
+          "pass": true,
+          "dsp": 2.005333333332601,
+          "rule": "title",
+          "key": "bgm-v1|11:local:title1:121:whole-file-evaluation64:DD17354C33C0808C91A4FCB32800503DC3D2887680BE0999822BC6B9237D5D58L|0|0",
+          "epoch": 5130.96,
+          "transport": "0d9ea374f02f4e72a376c06371a63211",
+          "starts": 4,
+          "gain": 0.179999992,
+          "details": {
+            "rms": 0.0012693322442966512,
+            "bpm": 0.0
+          }
+        },
+        {
+          "label": "local explore actual output",
+          "pass": true,
+          "dsp": 4.010666666666111,
+          "rule": "explore",
+          "key": "bgm-v1|10:local:home1:121:whole-file-evaluation64:1468CB17CCEE32C0250806CB7DC72A6D1BEE3A2039FC9F13D73FC905DC97038DL|0|0",
+          "epoch": 5132.9439999999995,
+          "transport": "d80f29f7fd1d4cb88dc5323b7d4f2e50",
+          "starts": 6,
+          "gain": 0.179999992,
+          "details": {
+            "rms": 0.001360256697708964
+          }
+        },
+        {
+          "label": "actual far-zone preserves home transport",
+          "pass": true,
+          "dsp": 5.013333333333321,
+          "rule": "explore-far",
+          "key": "bgm-v1|10:local:home1:121:whole-file-evaluation64:1468CB17CCEE32C0250806CB7DC72A6D1BEE3A2039FC9F13D73FC905DC97038DL|0|0",
+          "epoch": 5132.9439999999995,
+          "transport": "d80f29f7fd1d4cb88dc5323b7d4f2e50",
+          "starts": 6,
+          "gain": 0.179999992,
+          "details": null
+        },
+        {
+          "label": "live dialogue only ducks continuous home",
+          "pass": true,
+          "dsp": 7.018666666665922,
+          "rule": "explore",
+          "key": "bgm-v1|10:local:home1:121:whole-file-evaluation64:1468CB17CCEE32C0250806CB7DC72A6D1BEE3A2039FC9F13D73FC905DC97038DL|0|0",
+          "epoch": 5132.9439999999995,
+          "transport": "d80f29f7fd1d4cb88dc5323b7d4f2e50",
+          "starts": 6,
+          "gain": 0.08099999,
+          "details": {
+            "target": 0.08099999,
+            "outputRms": 0.0010858545985530078
+          }
+        },
+        {
+          "label": "timescale zero advances same DSP music",
+          "pass": true,
+          "dsp": 8.021333333333132,
+          "rule": "explore",
+          "key": "bgm-v1|10:local:home1:121:whole-file-evaluation64:1468CB17CCEE32C0250806CB7DC72A6D1BEE3A2039FC9F13D73FC905DC97038DL|0|0",
+          "epoch": 5132.9439999999995,
+          "transport": "d80f29f7fd1d4cb88dc5323b7d4f2e50",
+          "starts": 6,
+          "gain": 0.179999948,
+          "details": {
+            "elapsed": 5.914666666667472,
+            "timeScale": 0.0
+          }
+        },
+        {
+          "label": "real inventory UI does not select new music",
+          "pass": true,
+          "dsp": 9.0026666666663,
+          "rule": "explore",
+          "key": "bgm-v1|10:local:home1:121:whole-file-evaluation64:1468CB17CCEE32C0250806CB7DC72A6D1BEE3A2039FC9F13D73FC905DC97038DL|0|0",
+          "epoch": 5132.9439999999995,
+          "transport": "d80f29f7fd1d4cb88dc5323b7d4f2e50",
+          "starts": 6,
+          "gain": 0.179999977,
+          "details": null
+        },
+        {
+          "label": "InputSystem RT accepted triggers actual combat music",
+          "pass": true,
+          "dsp": 10.0053333333326,
+          "rule": "combat",
+          "key": "bgm-v1|14:local:chapter11:121:whole-file-evaluation64:C154C8B55ED6A8B8B7DAF47084DC5CB59E42E164045CAB70BB6529228BFC1A19L|0|0",
+          "epoch": 5139.962666666666,
+          "transport": "65b461378ce646f189e35c7c46482bf8",
+          "starts": 8,
+          "gain": 0.179999977,
+          "details": {
+            "accepted": 1,
+            "CanSample": true,
+            "QuietTime": 0.984568238
+          }
+        },
+        {
+          "label": "existing three-second calm returns explore",
+          "pass": true,
+          "dsp": 14.207999999999629,
+          "rule": "explore",
+          "key": "bgm-v1|10:local:home1:121:whole-file-evaluation64:1468CB17CCEE32C0250806CB7DC72A6D1BEE3A2039FC9F13D73FC905DC97038DL|0|0",
+          "epoch": 5142.949333333333,
+          "transport": "e8265f309ee04aaaa87b59824e61f8ff",
+          "starts": 10,
+          "gain": 0.179999977,
+          "details": {
+            "QuietTime": 3.000315
+          }
+        },
+        {
+          "label": "second real Accepted re-enters combat",
+          "pass": true,
+          "dsp": 15.509333333333416,
+          "rule": "combat",
+          "key": "bgm-v1|14:local:chapter11:121:whole-file-evaluation64:C154C8B55ED6A8B8B7DAF47084DC5CB59E42E164045CAB70BB6529228BFC1A19L|0|0",
+          "epoch": 5145.1466666666665,
+          "transport": "f4bda79fca244969b98fee185407d871",
+          "starts": 12,
+          "gain": 0.179999977,
+          "details": {
+            "accepted": 2
+          }
+        },
+        {
+          "label": "explicit Stop stays stopped across real frames",
+          "pass": true,
+          "dsp": 16.511999999999716,
+          "rule": "combat",
+          "key": "",
+          "epoch": 0.0,
+          "transport": "",
+          "starts": 12,
+          "gain": 0.179999977,
+          "details": null
+        },
+        {
+          "label": "disable/enable does not silently resume",
+          "pass": true,
+          "dsp": 18.517333333333227,
+          "rule": "combat",
+          "key": "",
+          "epoch": 0.0,
+          "transport": "",
+          "starts": 12,
+          "gain": 0.179999977,
+          "details": null
+        },
+        {
+          "label": "explicit resume plays",
+          "pass": true,
+          "dsp": 20.501333333332695,
+          "rule": "explore",
+          "key": "bgm-v1|10:local:home1:121:whole-file-evaluation64:1468CB17CCEE32C0250806CB7DC72A6D1BEE3A2039FC9F13D73FC905DC97038DL|0|0",
+          "epoch": 5149.456,
+          "transport": "8af21b97a2ee4702ae0a451e2a80ba76",
+          "starts": 14,
+          "gain": 0.179999977,
+          "details": {
+            "rms": 0.001239482967825037
+          }
+        }
+      ],
+      "accepted": 2
+    }
+  }
+}

@@ -1,0 +1,2637 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "done": true,
+      "running": false,
+      "error": "",
+      "elapsedSeconds": 79.36824120000165,
+      "accepted": 12,
+      "released": 13,
+      "enemyAccepted": 3,
+      "enemyReleased": 1,
+      "rows": [
+        {
+          "name": "真实左摇杆移动",
+          "pass": true,
+          "status": "PASS-EDITOR-SOURCE",
+          "time": 1.2030030000023544,
+          "current": "temporary-a",
+          "actorHp": [
+            100,
+            100
+          ],
+          "enemyHp": [
+            600
+          ],
+          "details": null
+        },
+        {
+          "name": "RT沿现有绑定接受并释放",
+          "pass": true,
+          "status": "PASS-EDITOR-SOURCE",
+          "time": 3.201931899999181,
+          "current": "temporary-a",
+          "actorHp": [
+            100,
+            100
+          ],
+          "enemyHp": [
+            588
+          ],
+          "details": {
+            "actor": "temporary-a"
+          }
+        },
+        {
+          "name": "实际普攻接触降低敌方HP",
+          "pass": true,
+          "status": "PASS-EDITOR-SOURCE",
+          "time": 3.2019650000002002,
+          "current": "temporary-a",
+          "actorHp": [
+            100,
+            100
+          ],
+          "enemyHp": [
+            588
+          ],
+          "details": {
+            "before": 600,
+            "after": 588
+          }
+        },
+        {
+          "name": "East加方向触发真实闪避",
+          "pass": true,
+          "status": "PASS-EDITOR-SOURCE",
+          "time": 6.003071200000704,
+          "current": "temporary-a",
+          "actorHp": [
+            100,
+            100
+          ],
+          "enemyHp": [
+            588
+          ],
+          "details": {
+            "before": "00000000-0000-0000-0000-000000000000",
+            "after": "bb7b78dc-9da2-42c6-9621-c59196c277db",
+            "result": "Accepted SAMPLE，表现由角色动画配置映射"
+          }
+        },
+        {
+          "name": "LT真实防御收据",
+          "pass": true,
+          "status": "PASS-EDITOR-SOURCE",
+          "time": 9.403452099999413,
+          "current": "temporary-a",
+          "actorHp": [
+            100,
+            85
+          ],
+          "enemyHp": [
+            576
+          ],
+          "details": {
+            "before": 0,
+            "after": 1,
+            "guarding": true,
+            "result": "已格挡"
+          }
+        },
+        {
+          "name": "Q沿现有能力绑定接受",
+          "pass": true,
+          "status": "PASS-EDITOR-SOURCE",
+          "time": 12.400323500001832,
+          "current": "temporary-a",
+          "actorHp": [
+            100,
+            90
+          ],
+          "enemyHp": [
+            544
+          ],
+          "details": {
+            "before": 1,
+            "after": 2,
+            "result": "接触 1 #d90c5c691ad547e9bdefda24f1fcc168"
+          }
+        },
+        {
+          "name": "E沿原生能力绑定接受",
+          "pass": true,
+          "status": "PASS-EDITOR-SOURCE",
+          "time": 16.600395699999353,
+          "current": "temporary-a",
+          "actorHp": [
+            100,
+            90
+          ],
+          "enemyHp": [
+            457
+          ],
+          "details": {
+            "before": 2,
+            "after": 3,
+            "result": "接触 0 #9182c03bfc5640e3ba32b6eec341369b"
+          }
+        },
+        {
+          "name": "敌方实际动作释放",
+          "pass": true,
+          "status": "PASS-EDITOR-SOURCE",
+          "time": 21.101302099999884,
+          "current": "temporary-a",
+          "actorHp": [
+            100,
+            90
+          ],
+          "enemyHp": [
+            457
+          ],
+          "details": {
+            "enemyAccepted": 2,
+            "enemyReleased": 1
+          }
+        },
+        {
+          "name": "真实敌击导致队伍HP下降",
+          "pass": false,
+          "status": "NOT_OBSERVED_OR_REJECTED",
+          "time": 21.101311200000055,
+          "current": "temporary-a",
+          "actorHp": [
+            100,
+            90
+          ],
+          "enemyHp": [
+            457
+          ],
+          "details": {
+            "before": 190,
+            "after": 190
+          }
+        },
+        {
+          "name": "Y真实共享瓶消费与治疗",
+          "pass": true,
+          "status": "PASS-EDITOR-SOURCE",
+          "time": 25.502530300000217,
+          "current": "temporary-a",
+          "actorHp": [
+            100,
+            100
+          ],
+          "enemyHp": [
+            457
+          ],
+          "details": {
+            "before": 0,
+            "after": 1,
+            "result": "Y +100（存活成员，上限截断）",
+            "partyHp": 200
+          }
+        },
+        {
+          "name": "现有切控绑定更换Current",
+          "pass": true,
+          "status": "PASS-EDITOR-SOURCE",
+          "time": 28.20181439999942,
+          "current": "temporary-b",
+          "actorHp": [
+            100,
+            100
+          ],
+          "enemyHp": [
+            457
+          ],
+          "details": {
+            "key": "Z",
+            "paths": "<Keyboard>/z;ButtonWithOneModifier;<Gamepad>/leftShoulder;<Gamepad>/rightShoulder",
+            "before": "temporary-a",
+            "after": "temporary-b"
+          }
+        },
+        {
+          "name": "切控后真实RT来源仍独立",
+          "pass": true,
+          "status": "PASS-EDITOR-SOURCE",
+          "time": 30.501535200000944,
+          "current": "temporary-b",
+          "actorHp": [
+            100,
+            100
+          ],
+          "enemyHp": [
+            433
+          ],
+          "details": {
+            "current": "temporary-b",
+            "actor": "temporary-b"
+          }
+        },
+        {
+          "name": "另一角色Q真实接受",
+          "pass": true,
+          "status": "PASS-EDITOR-SOURCE",
+          "time": 34.403168700002425,
+          "current": "temporary-b",
+          "actorHp": [
+            100,
+            100
+          ],
+          "enemyHp": [
+            401
+          ],
+          "details": {
+            "result": "接触 1 #ae508a1948fd4fddaa63b8f624d19129"
+          }
+        },
+        {
+          "name": "另一角色E真实接受",
+          "pass": true,
+          "status": "PASS-EDITOR-SOURCE",
+          "time": 37.60117230000105,
+          "current": "temporary-b",
+          "actorHp": [
+            100,
+            100
+          ],
+          "enemyHp": [
+            304
+          ],
+          "details": {
+            "result": "接触 1 #df51e6a3b0e647dc9c3920ab1c766ffc"
+          }
+        },
+        {
+          "name": "统一根确有非开发战斗释放命中受伤请求",
+          "pass": true,
+          "status": "PASS-EDITOR-SOURCE",
+          "time": 43.20280470000216,
+          "current": "temporary-a",
+          "actorHp": [
+            100,
+            100
+          ],
+          "enemyHp": [
+            304
+          ],
+          "details": {
+            "releases": 14,
+            "hits": 13,
+            "hurts": 13
+          }
+        },
+        {
+          "name": "Player与Enemy实际Source路由",
+          "pass": true,
+          "status": "PASS-EDITOR-SOURCE",
+          "time": 43.202825700001995,
+          "current": "temporary-a",
+          "actorHp": [
+            100,
+            100
+          ],
+          "enemyHp": [
+            304
+          ],
+          "details": {
+            "routes": [
+              "Player",
+              "Enemy",
+              "Companion",
+              "UI"
+            ]
+          }
+        },
+        {
+          "name": "现有视觉计数保留",
+          "pass": true,
+          "status": "PASS-EDITOR-SOURCE",
+          "time": 43.2028504000009,
+          "current": "temporary-a",
+          "actorHp": [
+            100,
+            100
+          ],
+          "enemyHp": [
+            304
+          ],
+          "details": {
+            "release": 12,
+            "hit": 14,
+            "motion": 3,
+            "healing": 1
+          }
+        },
+        {
+          "name": "声源池对象数保持有界",
+          "pass": true,
+          "status": "PASS-EDITOR-SOURCE",
+          "time": 43.20289430000048,
+          "current": "temporary-a",
+          "actorHp": [
+            100,
+            100
+          ],
+          "enemyHp": [
+            304
+          ],
+          "details": {
+            "before": 38,
+            "after": 38,
+            "started": 46,
+            "active": 0,
+            "returned": 46
+          }
+        },
+        {
+          "name": "本轮未改用户InputSettings/全局静音/偏好",
+          "pass": true,
+          "status": "PASS-EDITOR-SOURCE",
+          "time": 45.512475800001994,
+          "current": "temporary-a",
+          "actorHp": [
+            100,
+            100
+          ],
+          "enemyHp": [
+            304
+          ],
+          "details": null
+        }
+      ],
+      "domainFacts": [
+        {
+          "actor": "temporary-a",
+          "kind": "Accepted",
+          "id": "7692f80d9e804dd5932b4dbb8365896c",
+          "source": "player-input:Stage1",
+          "at": 0.0,
+          "time": 2.0133091999996395
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "Released",
+          "id": "7692f80d9e804dd5932b4dbb8365896c",
+          "source": "player-input:Stage1",
+          "at": 0.0833333358168602,
+          "time": 2.09121149999919
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "MoveReady",
+          "id": "7692f80d9e804dd5932b4dbb8365896c",
+          "source": "player-input:Stage1",
+          "at": 0.36666667461395264,
+          "time": 2.3687267000022985
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "AttackReady",
+          "id": "7692f80d9e804dd5932b4dbb8365896c",
+          "source": "player-input:Stage1",
+          "at": 0.36666667461395264,
+          "time": 2.3687295999989146
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "Finished",
+          "id": "7692f80d9e804dd5932b4dbb8365896c",
+          "source": "player-input:Stage1",
+          "at": 1.100000023841858,
+          "time": 3.102466299998923
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.accepted",
+          "id": "ee6e6b9dd3ca4e4c85e05747d594d34b",
+          "position": "(2.406, 0.020, -2.000)",
+          "time": 7.2120192000002135
+        },
+        {
+          "actor": "enemy-stationary-01",
+          "kind": "Accepted",
+          "id": "8b8044a468f14bd799842d49a8fd61b1",
+          "source": "enemy-brain",
+          "time": 8.070034600001236
+        },
+        {
+          "actor": "temporary-b",
+          "kind": "Accepted",
+          "id": "6e6b85307fe446319e39388adb7bbcd9",
+          "source": "companion:Stage1",
+          "at": 0.0,
+          "time": 8.559761100001197
+        },
+        {
+          "actor": "enemy-stationary-01",
+          "kind": "Released",
+          "id": "8b8044a468f14bd799842d49a8fd61b1",
+          "source": "enemy-brain",
+          "time": 8.568111399999907
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.guard",
+          "id": "ee6e6b9dd3ca4e4c85e05747d594d34b",
+          "position": "(2.406, 0.020, -2.000)",
+          "time": 8.570003700002417
+        },
+        {
+          "actor": "temporary-b",
+          "kind": "Released",
+          "id": "6e6b85307fe446319e39388adb7bbcd9",
+          "source": "companion:Stage1",
+          "at": 0.0833333358168602,
+          "time": 8.639227800002118
+        },
+        {
+          "actor": "enemy-stationary-01",
+          "kind": "MoveReady",
+          "id": "8b8044a468f14bd799842d49a8fd61b1",
+          "source": "enemy-brain",
+          "time": 8.66617050000059
+        },
+        {
+          "actor": "temporary-b",
+          "kind": "MoveReady",
+          "id": "6e6b85307fe446319e39388adb7bbcd9",
+          "source": "companion:Stage1",
+          "at": 0.36666667461395264,
+          "time": 8.923931000001176
+        },
+        {
+          "actor": "temporary-b",
+          "kind": "AttackReady",
+          "id": "6e6b85307fe446319e39388adb7bbcd9",
+          "source": "companion:Stage1",
+          "at": 0.36666667461395264,
+          "time": 8.923934300000838
+        },
+        {
+          "actor": "enemy-stationary-01",
+          "kind": "AttackReady",
+          "id": "8b8044a468f14bd799842d49a8fd61b1",
+          "source": "enemy-brain",
+          "time": 8.96741370000018
+        },
+        {
+          "actor": "enemy-stationary-01",
+          "kind": "Finished",
+          "id": "8b8044a468f14bd799842d49a8fd61b1",
+          "source": "enemy-brain",
+          "time": 9.166892299999745
+        },
+        {
+          "actor": "temporary-b",
+          "kind": "Cancelled",
+          "id": "6e6b85307fe446319e39388adb7bbcd9",
+          "source": "companion:Stage1",
+          "at": 0.8435482010245323,
+          "time": 9.404349600001296
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.end",
+          "id": "ee6e6b9dd3ca4e4c85e05747d594d34b",
+          "position": "(2.406, 0.020, -2.000)",
+          "time": 9.405385599999136
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "Accepted",
+          "id": "d90c5c691ad547e9bdefda24f1fcc168",
+          "source": "ability:hunter-break",
+          "at": 0.0,
+          "time": 11.202559199999087
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.accepted",
+          "id": "d90c5c691ad547e9bdefda24f1fcc168",
+          "position": "(2.406, 0.020, -2.000)",
+          "time": 11.203001699999731
+        },
+        {
+          "actor": "temporary-b",
+          "kind": "Accepted",
+          "id": "86d06f6835984f078e6dacbdad9040a6",
+          "source": "companion:Stage1",
+          "at": 0.0,
+          "time": 11.259979999998905
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.hit",
+          "id": "d90c5c691ad547e9bdefda24f1fcc168",
+          "position": "(4.506, 0.020, -2.000)",
+          "time": 11.323386800002481
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.release",
+          "id": "d90c5c691ad547e9bdefda24f1fcc168",
+          "position": "(2.406, 0.020, -2.000)",
+          "time": 11.323456800000713
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "Released",
+          "id": "d90c5c691ad547e9bdefda24f1fcc168",
+          "source": "ability:hunter-break",
+          "at": 0.11999999731779099,
+          "time": 11.32346250000046
+        },
+        {
+          "actor": "temporary-b",
+          "kind": "Released",
+          "id": "86d06f6835984f078e6dacbdad9040a6",
+          "source": "companion:Stage1",
+          "at": 0.0833333358168602,
+          "time": 11.337618699999439
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "MoveReady",
+          "id": "d90c5c691ad547e9bdefda24f1fcc168",
+          "source": "ability:hunter-break",
+          "at": 0.4000000059604645,
+          "time": 11.59786510000049
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "AttackReady",
+          "id": "d90c5c691ad547e9bdefda24f1fcc168",
+          "source": "ability:hunter-break",
+          "at": 0.4000000059604645,
+          "time": 11.597869199998968
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "Finished",
+          "id": "d90c5c691ad547e9bdefda24f1fcc168",
+          "source": "ability:hunter-break",
+          "at": 0.4000000059604645,
+          "time": 11.597873999999138
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.end",
+          "id": "d90c5c691ad547e9bdefda24f1fcc168",
+          "position": "(2.406, 0.020, -2.000)",
+          "time": 11.59797140000228
+        },
+        {
+          "actor": "temporary-b",
+          "kind": "MoveReady",
+          "id": "86d06f6835984f078e6dacbdad9040a6",
+          "source": "companion:Stage1",
+          "at": 0.36666667461395264,
+          "time": 11.622800600001938
+        },
+        {
+          "actor": "temporary-b",
+          "kind": "AttackReady",
+          "id": "86d06f6835984f078e6dacbdad9040a6",
+          "source": "companion:Stage1",
+          "at": 0.36666667461395264,
+          "time": 11.622803500002192
+        },
+        {
+          "actor": "enemy-stationary-01",
+          "kind": "Accepted",
+          "id": "6bcb3eabf63f46ca86bf8b183ce34406",
+          "source": "enemy-brain",
+          "time": 11.987286800002039
+        },
+        {
+          "actor": "temporary-b",
+          "kind": "Finished",
+          "id": "86d06f6835984f078e6dacbdad9040a6",
+          "source": "companion:Stage1",
+          "at": 1.100000023841858,
+          "time": 12.354332400002022
+        },
+        {
+          "actor": "enemy-stationary-01",
+          "kind": "Cancelled",
+          "id": "6bcb3eabf63f46ca86bf8b183ce34406",
+          "source": "enemy-brain",
+          "time": 12.401370899999165
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "Accepted",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "source": "ability:hunter-native-E",
+          "at": 0.0,
+          "time": 15.203274999999849
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.accepted",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(2.406, 0.020, -2.000)",
+          "time": 15.203889200001868
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "PhaseChanged",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "source": "ability:hunter-native-E",
+          "at": 0.0,
+          "time": 15.601012800001627
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "Released",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "source": "ability:hunter-native-E",
+          "at": 0.0,
+          "time": 15.604919600002177
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "PhaseChanged",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "source": "ability:hunter-native-E",
+          "at": 0.0,
+          "time": 15.771278200001689
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.772693099999742
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.release",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(0.706, 0.020, -2.000)",
+          "time": 15.772949800000788
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "Released",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "source": "ability:hunter-native-E",
+          "at": 0.0,
+          "time": 15.777224500001466
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.77746720000141
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.781166600001598
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.785255999999208
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.788834300001326
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.792451600002096
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.796651399999973
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.801427599999442
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.804894000000786
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.809688500001357
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.hit",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.816153899999335
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.821366200001648
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.826017999999749
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.829731100002391
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.833190900000773
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.837056500000472
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "MoveReady",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "source": "ability:hunter-native-E",
+          "at": 0.06666667014360428,
+          "time": 15.840157999999064
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.840355600001203
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.843560199999047
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.846848400000454
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.850289500001963
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.853666999999405
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.856660100002046
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.86065840000083
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.86394940000173
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.867625200000475
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.87086470000213
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.873725299999933
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.877474600001733
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.880676100001438
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.88406390000091
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.887095199999749
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.892376200001308
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.896308300001692
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.899942300002294
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.903199799999129
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.908338400000503
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.911652300001151
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.91486040000018
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.918309399999998
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.92204540000239
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.926341900001717
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.929900200000702
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.933073700001842
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.936398100002407
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.939444899999216
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.942644000002474
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.945725000001403
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.948581799999374
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.952221700001246
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.955570099999022
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.960550700001477
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.965031200001249
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.969971400001668
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.973650899999484
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.97697960000005
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.98014189999958
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.983388200002082
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.987264300001698
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.990773900000931
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.994727699999203
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 15.998177900000883
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 16.00191360000099
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 16.00523030000113
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 16.008780100000877
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.miss",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(3.806, 0.020, -2.000)",
+          "time": 16.012421300001733
+        },
+        {
+          "actor": "temporary-b",
+          "kind": "Accepted",
+          "id": "d7c38199d4b54415afe4e512ef501753",
+          "source": "companion:Stage1",
+          "at": 0.0,
+          "time": 16.279287000001204
+        },
+        {
+          "actor": "temporary-b",
+          "kind": "Released",
+          "id": "d7c38199d4b54415afe4e512ef501753",
+          "source": "companion:Stage1",
+          "at": 0.0833333358168602,
+          "time": 16.361240500002168
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "AttackReady",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "source": "ability:hunter-native-E",
+          "at": 0.6000000238418579,
+          "time": 16.371420999999827
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "Finished",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "source": "ability:hunter-native-E",
+          "at": 0.6000000238418579,
+          "time": 16.37181060000148
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "ability.end",
+          "id": "9182c03bfc5640e3ba32b6eec341369b",
+          "position": "(2.793, 0.020, -1.996)",
+          "time": 16.37190660000124
+        },
+        {
+          "actor": "temporary-b",
+          "kind": "Cancelled",
+          "id": "d7c38199d4b54415afe4e512ef501753",
+          "source": "companion:Stage1",
+          "at": 0.32139399950392544,
+          "time": 16.60072339999897
+        },
+        {
+          "actor": "temporary-b",
+          "kind": "Accepted",
+          "id": "e1f3b30e39b34e99ba34ce0c933f9b28",
+          "source": "player-input:Stage1",
+          "at": 0.0,
+          "time": 29.202678199999355
+        },
+        {
+          "actor": "temporary-b",
+          "kind": "Released",
+          "id": "e1f3b30e39b34e99ba34ce0c933f9b28",
+          "source": "player-input:Stage1",
+          "at": 0.0833333358168602,
+          "time": 29.286130000000412
+        },
+        {
+          "actor": "temporary-b",
+          "kind": "MoveReady",
+          "id": "e1f3b30e39b34e99ba34ce0c933f9b28",
+          "source": "player-input:Stage1",
+          "at": 0.36666667461395264,
+          "time": 29.567693799999688
+        },
+        {
+          "actor": "temporary-b",
+          "kind": "AttackReady",
+          "id": "e1f3b30e39b34e99ba34ce0c933f9b28",
+          "source": "player-input:Stage1",
+          "at": 0.36666667461395264,
+          "time": 29.56769659999918
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "Accepted",
+          "id": "ad3e1e4ed4c547b28aa81b2357e8a009",
+          "source": "companion:Stage1",
+          "at": 0.0,
+          "time": 30.08074889999989
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "Released",
+          "id": "ad3e1e4ed4c547b28aa81b2357e8a009",
+          "source": "companion:Stage1",
+          "at": 0.0833333358168602,
+          "time": 30.163055600001826
+        },
+        {
+          "actor": "temporary-b",
+          "kind": "Finished",
+          "id": "e1f3b30e39b34e99ba34ce0c933f9b28",
+          "source": "player-input:Stage1",
+          "at": 1.100000023841858,
+          "time": 30.300894300002255
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "MoveReady",
+          "id": "ad3e1e4ed4c547b28aa81b2357e8a009",
+          "source": "companion:Stage1",
+          "at": 0.36666667461395264,
+          "time": 30.44587390000015
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "AttackReady",
+          "id": "ad3e1e4ed4c547b28aa81b2357e8a009",
+          "source": "companion:Stage1",
+          "at": 0.36666667461395264,
+          "time": 30.44587700000193
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "Cancelled",
+          "id": "ad3e1e4ed4c547b28aa81b2357e8a009",
+          "source": "companion:Stage1",
+          "at": 0.42045649979263544,
+          "time": 30.502131299999746
+        },
+        {
+          "actor": "temporary-b",
+          "kind": "Accepted",
+          "id": "ae508a1948fd4fddaa63b8f624d19129",
+          "source": "ability:al-stab",
+          "at": 0.0,
+          "time": 33.22008149999965
+        },
+        {
+          "actor": "temporary-b",
+          "kind": "ability.accepted",
+          "id": "ae508a1948fd4fddaa63b8f624d19129",
+          "position": "(3.945, 0.020, -2.647)",
+          "time": 33.22085580000203
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "Accepted",
+          "id": "22aad6a6f65b4828bf38139eeef38427",
+          "source": "companion:Stage1",
+          "at": 0.0,
+          "time": 33.314620600001945
+        },
+        {
+          "actor": "temporary-b",
+          "kind": "ability.hit",
+          "id": "ae508a1948fd4fddaa63b8f624d19129",
+          "position": "(6.045, 0.020, -2.647)",
+          "time": 33.323617599999125
+        },
+        {
+          "actor": "temporary-b",
+          "kind": "ability.release",
+          "id": "ae508a1948fd4fddaa63b8f624d19129",
+          "position": "(3.945, 0.020, -2.647)",
+          "time": 33.323681199999555
+        },
+        {
+          "actor": "temporary-b",
+          "kind": "Released",
+          "id": "ae508a1948fd4fddaa63b8f624d19129",
+          "source": "ability:al-stab",
+          "at": 0.11999999731779099,
+          "time": 33.32368750000023
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "Released",
+          "id": "22aad6a6f65b4828bf38139eeef38427",
+          "source": "companion:Stage1",
+          "at": 0.0833333358168602,
+          "time": 33.398653500000364
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "Cancelled",
+          "id": "22aad6a6f65b4828bf38139eeef38427",
+          "source": "companion:Stage1",
+          "at": 0.2053228998556733,
+          "time": 33.519699200001924
+        },
+        {
+          "actor": "temporary-b",
+          "kind": "MoveReady",
+          "id": "ae508a1948fd4fddaa63b8f624d19129",
+          "source": "ability:al-stab",
+          "at": 0.4000000059604645,
+          "time": 33.604321400001936
+        },
+        {
+          "actor": "temporary-b",
+          "kind": "AttackReady",
+          "id": "ae508a1948fd4fddaa63b8f624d19129",
+          "source": "ability:al-stab",
+          "at": 0.4000000059604645,
+          "time": 33.60432480000236
+        },
+        {
+          "actor": "temporary-b",
+          "kind": "Finished",
+          "id": "ae508a1948fd4fddaa63b8f624d19129",
+          "source": "ability:al-stab",
+          "at": 0.4000000059604645,
+          "time": 33.604329800000414
+        },
+        {
+          "actor": "temporary-b",
+          "kind": "ability.end",
+          "id": "ae508a1948fd4fddaa63b8f624d19129",
+          "position": "(3.945, 0.020, -2.647)",
+          "time": 33.60442450000119
+        },
+        {
+          "actor": "temporary-b",
+          "kind": "Accepted",
+          "id": "df51e6a3b0e647dc9c3920ab1c766ffc",
+          "source": "ability:al-native-E",
+          "at": 0.0,
+          "time": 36.20351990000199
+        },
+        {
+          "actor": "temporary-b",
+          "kind": "ability.accepted",
+          "id": "df51e6a3b0e647dc9c3920ab1c766ffc",
+          "position": "(3.945, 0.020, -2.647)",
+          "time": 36.20391890000246
+        },
+        {
+          "actor": "temporary-b",
+          "kind": "ability.launch",
+          "id": "df51e6a3b0e647dc9c3920ab1c766ffc",
+          "position": "(3.945, 0.020, -2.647)",
+          "time": 36.305146999999124
+        },
+        {
+          "actor": "temporary-b",
+          "kind": "Released",
+          "id": "df51e6a3b0e647dc9c3920ab1c766ffc",
+          "source": "ability:al-native-E",
+          "at": 0.10000000149011612,
+          "time": 36.305154600002425
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "Accepted",
+          "id": "fec6bc788e2541b8a071153e2f33eb74",
+          "source": "companion:Stage1",
+          "at": 0.0,
+          "time": 36.43093620000218
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "Released",
+          "id": "fec6bc788e2541b8a071153e2f33eb74",
+          "source": "companion:Stage1",
+          "at": 0.0833333358168602,
+          "time": 36.51322470000014
+        },
+        {
+          "actor": "temporary-b",
+          "kind": "ability.land",
+          "id": "df51e6a3b0e647dc9c3920ab1c766ffc",
+          "position": "(5.760, 0.020, -2.205)",
+          "time": 36.6362188000021
+        },
+        {
+          "actor": "temporary-b",
+          "kind": "ability.hit",
+          "id": "df51e6a3b0e647dc9c3920ab1c766ffc",
+          "position": "(9.945, 0.020, -2.647)",
+          "time": 36.638122100001056
+        },
+        {
+          "actor": "temporary-b",
+          "kind": "ability.release",
+          "id": "df51e6a3b0e647dc9c3920ab1c766ffc",
+          "position": "(5.760, 0.020, -2.205)",
+          "time": 36.63818259999971
+        },
+        {
+          "actor": "temporary-b",
+          "kind": "MoveReady",
+          "id": "df51e6a3b0e647dc9c3920ab1c766ffc",
+          "source": "ability:al-native-E",
+          "at": 0.46666669845581055,
+          "time": 36.66798910000216
+        },
+        {
+          "actor": "temporary-b",
+          "kind": "AttackReady",
+          "id": "df51e6a3b0e647dc9c3920ab1c766ffc",
+          "source": "ability:al-native-E",
+          "at": 0.46666669845581055,
+          "time": 36.66799209999954
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "MoveReady",
+          "id": "fec6bc788e2541b8a071153e2f33eb74",
+          "source": "companion:Stage1",
+          "at": 0.36666667461395264,
+          "time": 36.79449830000158
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "AttackReady",
+          "id": "fec6bc788e2541b8a071153e2f33eb74",
+          "source": "companion:Stage1",
+          "at": 0.36666667461395264,
+          "time": 36.79450150000048
+        },
+        {
+          "actor": "temporary-b",
+          "kind": "Finished",
+          "id": "df51e6a3b0e647dc9c3920ab1c766ffc",
+          "source": "ability:al-native-E",
+          "at": 0.8999999761581421,
+          "time": 37.1016363000017
+        },
+        {
+          "actor": "temporary-b",
+          "kind": "ability.end",
+          "id": "df51e6a3b0e647dc9c3920ab1c766ffc",
+          "position": "(5.760, 0.020, -2.205)",
+          "time": 37.101736399999936
+        },
+        {
+          "actor": "enemy-stationary-01",
+          "kind": "Accepted",
+          "id": "1b7c6a3322684bfc950eda3fb5860344",
+          "source": "enemy-brain",
+          "time": 37.10597609999968
+        },
+        {
+          "actor": "temporary-a",
+          "kind": "Finished",
+          "id": "fec6bc788e2541b8a071153e2f33eb74",
+          "source": "companion:Stage1",
+          "at": 1.100000023841858,
+          "time": 37.52807219999886
+        },
+        {
+          "actor": "enemy-stationary-01",
+          "kind": "Cancelled",
+          "id": "1b7c6a3322684bfc950eda3fb5860344",
+          "source": "enemy-brain",
+          "time": 37.602106500002265
+        }
+      ],
+      "audioFacts": [
+        {
+          "time": 2.105418400002236,
+          "eventId": "player.combat.release",
+          "source": "temporary-a@191610",
+          "world": "Assets/OSSASTRA/Scenes/SC_AUDIO_M02_SoundIntegration.unity#-174906:64ef829db5414e47b10ac46a0751000f",
+          "generation": 3,
+          "fact": "root-release:7692f80d9e804dd5932b4dbb8365896c:observation:1",
+          "accepted": true,
+          "reason": "ACCEPTED",
+          "voice": 1,
+          "playIssued": true,
+          "playback": "PLAY_ISSUED"
+        },
+        {
+          "time": 2.1055039999992005,
+          "eventId": "player.combat.hit",
+          "source": "temporary-a@191610",
+          "world": "Assets/OSSASTRA/Scenes/SC_AUDIO_M02_SoundIntegration.unity#-174906:64ef829db5414e47b10ac46a0751000f",
+          "generation": 3,
+          "fact": "melee:7692f80d9e804dd5932b4dbb8365896c:observation:2",
+          "accepted": true,
+          "reason": "ACCEPTED",
+          "voice": 2,
+          "playIssued": true,
+          "playback": "PLAY_ISSUED"
+        },
+        {
+          "time": 2.1055062000014004,
+          "eventId": "enemy.combat.hurt",
+          "source": "enemy-stationary-01@190080",
+          "world": "Assets/OSSASTRA/Scenes/SC_AUDIO_M02_SoundIntegration.unity#-174906:64ef829db5414e47b10ac46a0751000f",
+          "generation": 4,
+          "fact": "hp:600>588:observation:1",
+          "accepted": true,
+          "reason": "ACCEPTED",
+          "voice": 3,
+          "playIssued": true,
+          "playback": "PLAY_ISSUED"
+        },
+        {
+          "time": 5.00728159999926,
+          "eventId": "player.movement.dodge",
+          "source": "temporary-a@191610",
+          "world": "Assets/OSSASTRA/Scenes/SC_AUDIO_M02_SoundIntegration.unity#-174906:64ef829db5414e47b10ac46a0751000f",
+          "generation": 3,
+          "fact": "dodge:bb7b78dc9da242c69621c59196c277db:observation:3",
+          "accepted": true,
+          "reason": "ACCEPTED",
+          "voice": 4,
+          "playIssued": true,
+          "playback": "PLAY_ISSUED"
+        },
+        {
+          "time": 8.574016700000357,
+          "eventId": "enemy.combat.release",
+          "source": "enemy-stationary-01@190080",
+          "world": "Assets/OSSASTRA/Scenes/SC_AUDIO_M02_SoundIntegration.unity#-174906:64ef829db5414e47b10ac46a0751000f",
+          "generation": 4,
+          "fact": "enemy-release:8b8044a468f14bd799842d49a8fd61b1:observation:2",
+          "accepted": true,
+          "reason": "ACCEPTED",
+          "voice": 5,
+          "playIssued": true,
+          "playback": "PLAY_ISSUED"
+        },
+        {
+          "time": 8.57401960000061,
+          "eventId": "player.combat.guard",
+          "source": "temporary-a@191610",
+          "world": "Assets/OSSASTRA/Scenes/SC_AUDIO_M02_SoundIntegration.unity#-174906:64ef829db5414e47b10ac46a0751000f",
+          "generation": 3,
+          "fact": "ability:ee6e6b9dd3ca4e4c85e05747d594d34b:guard:observation:4",
+          "accepted": true,
+          "reason": "ACCEPTED",
+          "voice": 6,
+          "playIssued": true,
+          "playback": "PLAY_ISSUED"
+        },
+        {
+          "time": 8.57402060000095,
+          "eventId": "enemy.combat.hit",
+          "source": "enemy-stationary-01@190080",
+          "world": "Assets/OSSASTRA/Scenes/SC_AUDIO_M02_SoundIntegration.unity#-174906:64ef829db5414e47b10ac46a0751000f",
+          "generation": 4,
+          "fact": "enemy-receipt:8b8044a468f14bd799842d49a8fd61b1:observation:3",
+          "accepted": true,
+          "reason": "ACCEPTED",
+          "voice": 7,
+          "playIssued": true,
+          "playback": "PLAY_ISSUED"
+        },
+        {
+          "time": 8.57402379999985,
+          "eventId": "companion.combat.hurt",
+          "source": "temporary-b@190622",
+          "world": "Assets/OSSASTRA/Scenes/SC_AUDIO_M02_SoundIntegration.unity#-174906:64ef829db5414e47b10ac46a0751000f",
+          "generation": 2,
+          "fact": "hp:100>80:observation:1",
+          "accepted": true,
+          "reason": "ACCEPTED",
+          "voice": 8,
+          "playIssued": true,
+          "playback": "PLAY_ISSUED"
+        },
+        {
+          "time": 8.64323720000175,
+          "eventId": "companion.combat.release",
+          "source": "temporary-b@190622",
+          "world": "Assets/OSSASTRA/Scenes/SC_AUDIO_M02_SoundIntegration.unity#-174906:64ef829db5414e47b10ac46a0751000f",
+          "generation": 2,
+          "fact": "root-release:6e6b85307fe446319e39388adb7bbcd9:observation:2",
+          "accepted": true,
+          "reason": "ACCEPTED",
+          "voice": 9,
+          "playIssued": true,
+          "playback": "PLAY_ISSUED"
+        },
+        {
+          "time": 8.643240100002004,
+          "eventId": "companion.combat.hit",
+          "source": "temporary-b@190622",
+          "world": "Assets/OSSASTRA/Scenes/SC_AUDIO_M02_SoundIntegration.unity#-174906:64ef829db5414e47b10ac46a0751000f",
+          "generation": 2,
+          "fact": "melee:6e6b85307fe446319e39388adb7bbcd9:observation:3",
+          "accepted": true,
+          "reason": "ACCEPTED",
+          "voice": 10,
+          "playIssued": true,
+          "playback": "PLAY_ISSUED"
+        },
+        {
+          "time": 8.643241900001158,
+          "eventId": "enemy.combat.hurt",
+          "source": "enemy-stationary-01@190080",
+          "world": "Assets/OSSASTRA/Scenes/SC_AUDIO_M02_SoundIntegration.unity#-174906:64ef829db5414e47b10ac46a0751000f",
+          "generation": 4,
+          "fact": "hp:588>576:observation:4",
+          "accepted": true,
+          "reason": "ACCEPTED",
+          "voice": 11,
+          "playIssued": true,
+          "playback": "PLAY_ISSUED"
+        },
+        {
+          "time": 11.326758600000176,
+          "eventId": "player.combat.hit",
+          "source": "temporary-a@191610",
+          "world": "Assets/OSSASTRA/Scenes/SC_AUDIO_M02_SoundIntegration.unity#-174906:64ef829db5414e47b10ac46a0751000f",
+          "generation": 3,
+          "fact": "ability:d90c5c691ad547e9bdefda24f1fcc168:hit:observation:5",
+          "accepted": true,
+          "reason": "ACCEPTED",
+          "voice": 12,
+          "playIssued": true,
+          "playback": "PLAY_ISSUED"
+        },
+        {
+          "time": 11.326760200001445,
+          "eventId": "player.combat.release",
+          "source": "temporary-a@191610",
+          "world": "Assets/OSSASTRA/Scenes/SC_AUDIO_M02_SoundIntegration.unity#-174906:64ef829db5414e47b10ac46a0751000f",
+          "generation": 3,
+          "fact": "ability:d90c5c691ad547e9bdefda24f1fcc168:release:observation:6",
+          "accepted": true,
+          "reason": "ACCEPTED",
+          "voice": 13,
+          "playIssued": true,
+          "playback": "PLAY_ISSUED"
+        },
+        {
+          "time": 11.32676100000026,
+          "eventId": "enemy.combat.hurt",
+          "source": "enemy-stationary-01@190080",
+          "world": "Assets/OSSASTRA/Scenes/SC_AUDIO_M02_SoundIntegration.unity#-174906:64ef829db5414e47b10ac46a0751000f",
+          "generation": 4,
+          "fact": "hp:576>556:observation:5",
+          "accepted": true,
+          "reason": "ACCEPTED",
+          "voice": 14,
+          "playIssued": true,
+          "playback": "PLAY_ISSUED"
+        },
+        {
+          "time": 11.340942800001358,
+          "eventId": "companion.combat.release",
+          "source": "temporary-b@190622",
+          "world": "Assets/OSSASTRA/Scenes/SC_AUDIO_M02_SoundIntegration.unity#-174906:64ef829db5414e47b10ac46a0751000f",
+          "generation": 2,
+          "fact": "root-release:86d06f6835984f078e6dacbdad9040a6:observation:4",
+          "accepted": true,
+          "reason": "ACCEPTED",
+          "voice": 15,
+          "playIssued": true,
+          "playback": "PLAY_ISSUED"
+        },
+        {
+          "time": 11.340944600000512,
+          "eventId": "companion.combat.hit",
+          "source": "temporary-b@190622",
+          "world": "Assets/OSSASTRA/Scenes/SC_AUDIO_M02_SoundIntegration.unity#-174906:64ef829db5414e47b10ac46a0751000f",
+          "generation": 2,
+          "fact": "melee:86d06f6835984f078e6dacbdad9040a6:observation:5",
+          "accepted": true,
+          "reason": "ACCEPTED",
+          "voice": 16,
+          "playIssued": true,
+          "playback": "PLAY_ISSUED"
+        },
+        {
+          "time": 11.340945200001443,
+          "eventId": "enemy.combat.hurt",
+          "source": "enemy-stationary-01@190080",
+          "world": "Assets/OSSASTRA/Scenes/SC_AUDIO_M02_SoundIntegration.unity#-174906:64ef829db5414e47b10ac46a0751000f",
+          "generation": 4,
+          "fact": "hp:556>544:observation:6",
+          "accepted": true,
+          "reason": "ACCEPTED",
+          "voice": 17,
+          "playIssued": true,
+          "playback": "PLAY_ISSUED"
+        },
+        {
+          "time": 15.77659720000156,
+          "eventId": "player.combat.release",
+          "source": "temporary-a@191610",
+          "world": "Assets/OSSASTRA/Scenes/SC_AUDIO_M02_SoundIntegration.unity#-174906:64ef829db5414e47b10ac46a0751000f",
+          "generation": 3,
+          "fact": "ability:9182c03bfc5640e3ba32b6eec341369b:release:observation:7",
+          "accepted": true,
+          "reason": "ACCEPTED",
+          "voice": 18,
+          "playIssued": true,
+          "playback": "PLAY_ISSUED"
+        },
+        {
+          "time": 15.820736699999543,
+          "eventId": "player.combat.hit",
+          "source": "temporary-a@191610",
+          "world": "Assets/OSSASTRA/Scenes/SC_AUDIO_M02_SoundIntegration.unity#-174906:64ef829db5414e47b10ac46a0751000f",
+          "generation": 3,
+          "fact": "ability:9182c03bfc5640e3ba32b6eec341369b:hit:observation:8",
+          "accepted": true,
+          "reason": "ACCEPTED",
+          "voice": 19,
+          "playIssued": true,
+          "playback": "PLAY_ISSUED"
+        },
+        {
+          "time": 15.820738400001574,
+          "eventId": "enemy.combat.hurt",
+          "source": "enemy-stationary-01@190080",
+          "world": "Assets/OSSASTRA/Scenes/SC_AUDIO_M02_SoundIntegration.unity#-174906:64ef829db5414e47b10ac46a0751000f",
+          "generation": 4,
+          "fact": "hp:544>469:observation:7",
+          "accepted": true,
+          "reason": "ACCEPTED",
+          "voice": 20,
+          "playIssued": true,
+          "playback": "PLAY_ISSUED"
+        },
+        {
+          "time": 16.364172500001587,
+          "eventId": "companion.combat.release",
+          "source": "temporary-b@190622",
+          "world": "Assets/OSSASTRA/Scenes/SC_AUDIO_M02_SoundIntegration.unity#-174906:64ef829db5414e47b10ac46a0751000f",
+          "generation": 2,
+          "fact": "root-release:d7c38199d4b54415afe4e512ef501753:observation:6",
+          "accepted": true,
+          "reason": "ACCEPTED",
+          "voice": 21,
+          "playIssued": true,
+          "playback": "PLAY_ISSUED"
+        },
+        {
+          "time": 16.36417380000057,
+          "eventId": "companion.combat.hit",
+          "source": "temporary-b@190622",
+          "world": "Assets/OSSASTRA/Scenes/SC_AUDIO_M02_SoundIntegration.unity#-174906:64ef829db5414e47b10ac46a0751000f",
+          "generation": 2,
+          "fact": "melee:d7c38199d4b54415afe4e512ef501753:observation:7",
+          "accepted": true,
+          "reason": "ACCEPTED",
+          "voice": 22,
+          "playIssued": true,
+          "playback": "PLAY_ISSUED"
+        },
+        {
+          "time": 16.36417430000074,
+          "eventId": "enemy.combat.hurt",
+          "source": "enemy-stationary-01@190080",
+          "world": "Assets/OSSASTRA/Scenes/SC_AUDIO_M02_SoundIntegration.unity#-174906:64ef829db5414e47b10ac46a0751000f",
+          "generation": 4,
+          "fact": "hp:469>457:observation:8",
+          "accepted": true,
+          "reason": "ACCEPTED",
+          "voice": 23,
+          "playIssued": true,
+          "playback": "PLAY_ISSUED"
+        },
+        {
+          "time": 23.80746160000126,
+          "eventId": "player.item.heal",
+          "source": "temporary-a@191610",
+          "world": "Assets/OSSASTRA/Scenes/SC_AUDIO_M02_SoundIntegration.unity#-174906:64ef829db5414e47b10ac46a0751000f",
+          "generation": 3,
+          "fact": "bottle-use:1:observation:9",
+          "accepted": true,
+          "reason": "ACCEPTED",
+          "voice": 24,
+          "playIssued": true,
+          "playback": "PLAY_ISSUED"
+        },
+        {
+          "time": 27.208896700001787,
+          "eventId": "ui.control.switch",
+          "source": "ui-control@190796",
+          "world": "Assets/OSSASTRA/Scenes/SC_AUDIO_M02_SoundIntegration.unity#-174906:64ef829db5414e47b10ac46a0751000f",
+          "generation": 1,
+          "fact": "control-switch:1:temporary-b",
+          "accepted": true,
+          "reason": "ACCEPTED",
+          "voice": 25,
+          "playIssued": true,
+          "playback": "PLAY_ISSUED"
+        },
+        {
+          "time": 29.289185699999507,
+          "eventId": "player.combat.release",
+          "source": "temporary-b@190622",
+          "world": "Assets/OSSASTRA/Scenes/SC_AUDIO_M02_SoundIntegration.unity#-174906:64ef829db5414e47b10ac46a0751000f",
+          "generation": 2,
+          "fact": "root-release:e1f3b30e39b34e99ba34ce0c933f9b28:observation:8",
+          "accepted": true,
+          "reason": "ACCEPTED",
+          "voice": 26,
+          "playIssued": true,
+          "playback": "PLAY_ISSUED"
+        },
+        {
+          "time": 29.289187400001538,
+          "eventId": "player.combat.hit",
+          "source": "temporary-b@190622",
+          "world": "Assets/OSSASTRA/Scenes/SC_AUDIO_M02_SoundIntegration.unity#-174906:64ef829db5414e47b10ac46a0751000f",
+          "generation": 2,
+          "fact": "melee:e1f3b30e39b34e99ba34ce0c933f9b28:observation:9",
+          "accepted": true,
+          "reason": "ACCEPTED",
+          "voice": 27,
+          "playIssued": true,
+          "playback": "PLAY_ISSUED"
+        },
+        {
+          "time": 29.289187900001707,
+          "eventId": "enemy.combat.hurt",
+          "source": "enemy-stationary-01@190080",
+          "world": "Assets/OSSASTRA/Scenes/SC_AUDIO_M02_SoundIntegration.unity#-174906:64ef829db5414e47b10ac46a0751000f",
+          "generation": 4,
+          "fact": "hp:457>445:observation:9",
+          "accepted": true,
+          "reason": "ACCEPTED",
+          "voice": 28,
+          "playIssued": true,
+          "playback": "PLAY_ISSUED"
+        },
+        {
+          "time": 30.168653100001393,
+          "eventId": "companion.combat.release",
+          "source": "temporary-a@191610",
+          "world": "Assets/OSSASTRA/Scenes/SC_AUDIO_M02_SoundIntegration.unity#-174906:64ef829db5414e47b10ac46a0751000f",
+          "generation": 3,
+          "fact": "root-release:ad3e1e4ed4c547b28aa81b2357e8a009:observation:10",
+          "accepted": true,
+          "reason": "ACCEPTED",
+          "voice": 29,
+          "playIssued": true,
+          "playback": "PLAY_ISSUED"
+        },
+        {
+          "time": 30.168655199999193,
+          "eventId": "companion.combat.hit",
+          "source": "temporary-a@191610",
+          "world": "Assets/OSSASTRA/Scenes/SC_AUDIO_M02_SoundIntegration.unity#-174906:64ef829db5414e47b10ac46a0751000f",
+          "generation": 3,
+          "fact": "melee:ad3e1e4ed4c547b28aa81b2357e8a009:observation:11",
+          "accepted": true,
+          "reason": "ACCEPTED",
+          "voice": 30,
+          "playIssued": true,
+          "playback": "PLAY_ISSUED"
+        },
+        {
+          "time": 30.168655900000886,
+          "eventId": "enemy.combat.hurt",
+          "source": "enemy-stationary-01@190080",
+          "world": "Assets/OSSASTRA/Scenes/SC_AUDIO_M02_SoundIntegration.unity#-174906:64ef829db5414e47b10ac46a0751000f",
+          "generation": 4,
+          "fact": "hp:445>433:observation:10",
+          "accepted": true,
+          "reason": "ACCEPTED",
+          "voice": 31,
+          "playIssued": true,
+          "playback": "PLAY_ISSUED"
+        },
+        {
+          "time": 33.32711310000013,
+          "eventId": "player.combat.hit",
+          "source": "temporary-b@190622",
+          "world": "Assets/OSSASTRA/Scenes/SC_AUDIO_M02_SoundIntegration.unity#-174906:64ef829db5414e47b10ac46a0751000f",
+          "generation": 2,
+          "fact": "ability:ae508a1948fd4fddaa63b8f624d19129:hit:observation:10",
+          "accepted": true,
+          "reason": "ACCEPTED",
+          "voice": 32,
+          "playIssued": true,
+          "playback": "PLAY_ISSUED"
+        },
+        {
+          "time": 33.327114800002164,
+          "eventId": "player.combat.release",
+          "source": "temporary-b@190622",
+          "world": "Assets/OSSASTRA/Scenes/SC_AUDIO_M02_SoundIntegration.unity#-174906:64ef829db5414e47b10ac46a0751000f",
+          "generation": 2,
+          "fact": "ability:ae508a1948fd4fddaa63b8f624d19129:release:observation:11",
+          "accepted": true,
+          "reason": "ACCEPTED",
+          "voice": 33,
+          "playIssued": true,
+          "playback": "PLAY_ISSUED"
+        },
+        {
+          "time": 33.32711610000115,
+          "eventId": "enemy.combat.hurt",
+          "source": "enemy-stationary-01@190080",
+          "world": "Assets/OSSASTRA/Scenes/SC_AUDIO_M02_SoundIntegration.unity#-174906:64ef829db5414e47b10ac46a0751000f",
+          "generation": 4,
+          "fact": "hp:433>413:observation:11",
+          "accepted": true,
+          "reason": "ACCEPTED",
+          "voice": 34,
+          "playIssued": true,
+          "playback": "PLAY_ISSUED"
+        },
+        {
+          "time": 33.402031100002205,
+          "eventId": "companion.combat.release",
+          "source": "temporary-a@191610",
+          "world": "Assets/OSSASTRA/Scenes/SC_AUDIO_M02_SoundIntegration.unity#-174906:64ef829db5414e47b10ac46a0751000f",
+          "generation": 3,
+          "fact": "root-release:22aad6a6f65b4828bf38139eeef38427:observation:12",
+          "accepted": true,
+          "reason": "ACCEPTED",
+          "voice": 35,
+          "playIssued": true,
+          "playback": "PLAY_ISSUED"
+        },
+        {
+          "time": 33.40203300000212,
+          "eventId": "companion.combat.hit",
+          "source": "temporary-a@191610",
+          "world": "Assets/OSSASTRA/Scenes/SC_AUDIO_M02_SoundIntegration.unity#-174906:64ef829db5414e47b10ac46a0751000f",
+          "generation": 3,
+          "fact": "melee:22aad6a6f65b4828bf38139eeef38427:observation:13",
+          "accepted": true,
+          "reason": "ACCEPTED",
+          "voice": 36,
+          "playIssued": true,
+          "playback": "PLAY_ISSUED"
+        },
+        {
+          "time": 33.40203359999941,
+          "eventId": "enemy.combat.hurt",
+          "source": "enemy-stationary-01@190080",
+          "world": "Assets/OSSASTRA/Scenes/SC_AUDIO_M02_SoundIntegration.unity#-174906:64ef829db5414e47b10ac46a0751000f",
+          "generation": 4,
+          "fact": "hp:413>401:observation:12",
+          "accepted": true,
+          "reason": "ACCEPTED",
+          "voice": 37,
+          "playIssued": true,
+          "playback": "PLAY_ISSUED"
+        },
+        {
+          "time": 36.31373660000099,
+          "eventId": "player.combat.release",
+          "source": "temporary-b@190622",
+          "world": "Assets/OSSASTRA/Scenes/SC_AUDIO_M02_SoundIntegration.unity#-174906:64ef829db5414e47b10ac46a0751000f",
+          "generation": 2,
+          "fact": "ability:df51e6a3b0e647dc9c3920ab1c766ffc:launch:observation:12",
+          "accepted": true,
+          "reason": "ACCEPTED",
+          "voice": 38,
+          "playIssued": true,
+          "playback": "PLAY_ISSUED"
+        },
+        {
+          "time": 36.51612849999947,
+          "eventId": "companion.combat.release",
+          "source": "temporary-a@191610",
+          "world": "Assets/OSSASTRA/Scenes/SC_AUDIO_M02_SoundIntegration.unity#-174906:64ef829db5414e47b10ac46a0751000f",
+          "generation": 3,
+          "fact": "root-release:fec6bc788e2541b8a071153e2f33eb74:observation:14",
+          "accepted": true,
+          "reason": "ACCEPTED",
+          "voice": 39,
+          "playIssued": true,
+          "playback": "PLAY_ISSUED"
+        },
+        {
+          "time": 36.516130600000906,
+          "eventId": "companion.combat.hit",
+          "source": "temporary-a@191610",
+          "world": "Assets/OSSASTRA/Scenes/SC_AUDIO_M02_SoundIntegration.unity#-174906:64ef829db5414e47b10ac46a0751000f",
+          "generation": 3,
+          "fact": "melee:fec6bc788e2541b8a071153e2f33eb74:observation:15",
+          "accepted": true,
+          "reason": "ACCEPTED",
+          "voice": 40,
+          "playIssued": true,
+          "playback": "PLAY_ISSUED"
+        },
+        {
+          "time": 36.516131600001245,
+          "eventId": "enemy.combat.hurt",
+          "source": "enemy-stationary-01@190080",
+          "world": "Assets/OSSASTRA/Scenes/SC_AUDIO_M02_SoundIntegration.unity#-174906:64ef829db5414e47b10ac46a0751000f",
+          "generation": 4,
+          "fact": "hp:401>389:observation:13",
+          "accepted": true,
+          "reason": "ACCEPTED",
+          "voice": 41,
+          "playIssued": true,
+          "playback": "PLAY_ISSUED"
+        },
+        {
+          "time": 36.64169899999979,
+          "eventId": "player.delivery.land",
+          "source": "temporary-b@190622",
+          "world": "Assets/OSSASTRA/Scenes/SC_AUDIO_M02_SoundIntegration.unity#-174906:64ef829db5414e47b10ac46a0751000f",
+          "generation": 2,
+          "fact": "ability:df51e6a3b0e647dc9c3920ab1c766ffc:land:observation:13",
+          "accepted": true,
+          "reason": "ACCEPTED",
+          "voice": 42,
+          "playIssued": true,
+          "playback": "PLAY_ISSUED"
+        },
+        {
+          "time": 36.64170120000199,
+          "eventId": "player.combat.hit",
+          "source": "temporary-b@190622",
+          "world": "Assets/OSSASTRA/Scenes/SC_AUDIO_M02_SoundIntegration.unity#-174906:64ef829db5414e47b10ac46a0751000f",
+          "generation": 2,
+          "fact": "ability:df51e6a3b0e647dc9c3920ab1c766ffc:hit:observation:14",
+          "accepted": true,
+          "reason": "ACCEPTED",
+          "voice": 43,
+          "playIssued": true,
+          "playback": "PLAY_ISSUED"
+        },
+        {
+          "time": 36.64170220000233,
+          "eventId": "player.combat.release",
+          "source": "temporary-b@190622",
+          "world": "Assets/OSSASTRA/Scenes/SC_AUDIO_M02_SoundIntegration.unity#-174906:64ef829db5414e47b10ac46a0751000f",
+          "generation": 2,
+          "fact": "ability:df51e6a3b0e647dc9c3920ab1c766ffc:release:observation:15",
+          "accepted": true,
+          "reason": "ACCEPTED",
+          "voice": 44,
+          "playIssued": true,
+          "playback": "PLAY_ISSUED"
+        },
+        {
+          "time": 36.64170319999903,
+          "eventId": "enemy.combat.hurt",
+          "source": "enemy-stationary-01@190080",
+          "world": "Assets/OSSASTRA/Scenes/SC_AUDIO_M02_SoundIntegration.unity#-174906:64ef829db5414e47b10ac46a0751000f",
+          "generation": 4,
+          "fact": "hp:389>304:observation:14",
+          "accepted": true,
+          "reason": "ACCEPTED",
+          "voice": 45,
+          "playIssued": true,
+          "playback": "PLAY_ISSUED"
+        },
+        {
+          "time": 41.20386739999958,
+          "eventId": "ui.control.switch",
+          "source": "ui-control@190796",
+          "world": "Assets/OSSASTRA/Scenes/SC_AUDIO_M02_SoundIntegration.unity#-174906:64ef829db5414e47b10ac46a0751000f",
+          "generation": 1,
+          "fact": "control-switch:2:temporary-a",
+          "accepted": true,
+          "reason": "ACCEPTED",
+          "voice": 46,
+          "playIssued": true,
+          "playback": "PLAY_ISSUED"
+        }
+      ],
+      "sourceFacts": [
+        {
+          "time": 2.105937799999083,
+          "voice": 1,
+          "sourceInstanceId": -180068,
+          "playing": true,
+          "route": "Player",
+          "volume": 0.3,
+          "clip": "release",
+          "rootInstanceId": 191136,
+          "status": "PASS-EDITOR-SOURCE"
+        },
+        {
+          "time": 2.1060634999994363,
+          "voice": 2,
+          "sourceInstanceId": -180074,
+          "playing": true,
+          "route": "Player",
+          "volume": 0.3,
+          "clip": "hit",
+          "rootInstanceId": 191136,
+          "status": "PASS-EDITOR-SOURCE"
+        },
+        {
+          "time": 2.106066700001975,
+          "voice": 3,
+          "sourceInstanceId": -180080,
+          "playing": true,
+          "route": "Enemy",
+          "volume": 0.3,
+          "clip": "hurt",
+          "rootInstanceId": 191136,
+          "status": "PASS-EDITOR-SOURCE"
+        },
+        {
+          "time": 5.007464900001651,
+          "voice": 4,
+          "sourceInstanceId": -180068,
+          "playing": true,
+          "route": "Player",
+          "volume": 0.3,
+          "clip": "dodge",
+          "rootInstanceId": 191136,
+          "status": "PASS-EDITOR-SOURCE"
+        },
+        {
+          "time": 8.57402860000002,
+          "voice": 5,
+          "sourceInstanceId": -180068,
+          "playing": true,
+          "route": "Enemy",
+          "volume": 0.3,
+          "clip": "release",
+          "rootInstanceId": 191136,
+          "status": "PASS-EDITOR-SOURCE"
+        },
+        {
+          "time": 8.574033900000359,
+          "voice": 6,
+          "sourceInstanceId": -180074,
+          "playing": true,
+          "route": "Player",
+          "volume": 0.3,
+          "clip": "guard",
+          "rootInstanceId": 191136,
+          "status": "PASS-EDITOR-SOURCE"
+        },
+        {
+          "time": 8.574036000001797,
+          "voice": 7,
+          "sourceInstanceId": -180080,
+          "playing": true,
+          "route": "Enemy",
+          "volume": 0.3,
+          "clip": "hit",
+          "rootInstanceId": 191136,
+          "status": "PASS-EDITOR-SOURCE"
+        },
+        {
+          "time": 8.574039099999936,
+          "voice": 8,
+          "sourceInstanceId": -180086,
+          "playing": true,
+          "route": "Companion",
+          "volume": 0.3,
+          "clip": "hurt",
+          "rootInstanceId": 191136,
+          "status": "PASS-EDITOR-SOURCE"
+        },
+        {
+          "time": 8.643246100000397,
+          "voice": 9,
+          "sourceInstanceId": -180092,
+          "playing": true,
+          "route": "Companion",
+          "volume": 0.3,
+          "clip": "release",
+          "rootInstanceId": 191136,
+          "status": "PASS-EDITOR-SOURCE"
+        },
+        {
+          "time": 8.643249100001412,
+          "voice": 10,
+          "sourceInstanceId": -180098,
+          "playing": true,
+          "route": "Companion",
+          "volume": 0.3,
+          "clip": "hit",
+          "rootInstanceId": 191136,
+          "status": "PASS-EDITOR-SOURCE"
+        },
+        {
+          "time": 8.643251199999213,
+          "voice": 11,
+          "sourceInstanceId": -180104,
+          "playing": true,
+          "route": "Enemy",
+          "volume": 0.3,
+          "clip": "hurt",
+          "rootInstanceId": 191136,
+          "status": "PASS-EDITOR-SOURCE"
+        },
+        {
+          "time": 11.3267651999995,
+          "voice": 12,
+          "sourceInstanceId": -180068,
+          "playing": true,
+          "route": "Player",
+          "volume": 0.3,
+          "clip": "hit",
+          "rootInstanceId": 191136,
+          "status": "PASS-EDITOR-SOURCE"
+        },
+        {
+          "time": 11.326767700000346,
+          "voice": 13,
+          "sourceInstanceId": -180074,
+          "playing": true,
+          "route": "Player",
+          "volume": 0.3,
+          "clip": "release",
+          "rootInstanceId": 191136,
+          "status": "PASS-EDITOR-SOURCE"
+        },
+        {
+          "time": 11.326769800001784,
+          "voice": 14,
+          "sourceInstanceId": -180080,
+          "playing": true,
+          "route": "Enemy",
+          "volume": 0.3,
+          "clip": "hurt",
+          "rootInstanceId": 191136,
+          "status": "PASS-EDITOR-SOURCE"
+        },
+        {
+          "time": 11.340950599998905,
+          "voice": 15,
+          "sourceInstanceId": -180086,
+          "playing": true,
+          "route": "Companion",
+          "volume": 0.3,
+          "clip": "release",
+          "rootInstanceId": 191136,
+          "status": "PASS-EDITOR-SOURCE"
+        },
+        {
+          "time": 11.34095349999916,
+          "voice": 16,
+          "sourceInstanceId": -180092,
+          "playing": true,
+          "route": "Companion",
+          "volume": 0.3,
+          "clip": "hit",
+          "rootInstanceId": 191136,
+          "status": "PASS-EDITOR-SOURCE"
+        },
+        {
+          "time": 11.340955399999075,
+          "voice": 17,
+          "sourceInstanceId": -180098,
+          "playing": true,
+          "route": "Enemy",
+          "volume": 0.3,
+          "clip": "hurt",
+          "rootInstanceId": 191136,
+          "status": "PASS-EDITOR-SOURCE"
+        },
+        {
+          "time": 15.776603700000123,
+          "voice": 18,
+          "sourceInstanceId": -180068,
+          "playing": true,
+          "route": "Player",
+          "volume": 0.3,
+          "clip": "release",
+          "rootInstanceId": 191136,
+          "status": "PASS-EDITOR-SOURCE"
+        },
+        {
+          "time": 15.820742200001405,
+          "voice": 19,
+          "sourceInstanceId": -180074,
+          "playing": true,
+          "route": "Player",
+          "volume": 0.3,
+          "clip": "hit",
+          "rootInstanceId": 191136,
+          "status": "PASS-EDITOR-SOURCE"
+        },
+        {
+          "time": 15.820745799999713,
+          "voice": 20,
+          "sourceInstanceId": -180080,
+          "playing": true,
+          "route": "Enemy",
+          "volume": 0.3,
+          "clip": "hurt",
+          "rootInstanceId": 191136,
+          "status": "PASS-EDITOR-SOURCE"
+        },
+        {
+          "time": 16.364177700001164,
+          "voice": 21,
+          "sourceInstanceId": -180068,
+          "playing": true,
+          "route": "Companion",
+          "volume": 0.3,
+          "clip": "release",
+          "rootInstanceId": 191136,
+          "status": "PASS-EDITOR-SOURCE"
+        },
+        {
+          "time": 16.364180500000657,
+          "voice": 22,
+          "sourceInstanceId": -180074,
+          "playing": true,
+          "route": "Companion",
+          "volume": 0.3,
+          "clip": "hit",
+          "rootInstanceId": 191136,
+          "status": "PASS-EDITOR-SOURCE"
+        },
+        {
+          "time": 16.36418219999905,
+          "voice": 23,
+          "sourceInstanceId": -180080,
+          "playing": true,
+          "route": "Enemy",
+          "volume": 0.3,
+          "clip": "hurt",
+          "rootInstanceId": 191136,
+          "status": "PASS-EDITOR-SOURCE"
+        },
+        {
+          "time": 23.807467700000416,
+          "voice": 24,
+          "sourceInstanceId": -180068,
+          "playing": true,
+          "route": "Player",
+          "volume": 0.3,
+          "clip": "heal",
+          "rootInstanceId": 191136,
+          "status": "PASS-EDITOR-SOURCE"
+        },
+        {
+          "time": 27.208905399998912,
+          "voice": 25,
+          "sourceInstanceId": -180068,
+          "playing": true,
+          "route": "UI",
+          "volume": 0.3,
+          "clip": "ui",
+          "rootInstanceId": 191136,
+          "status": "PASS-EDITOR-SOURCE"
+        },
+        {
+          "time": 29.289191399999254,
+          "voice": 26,
+          "sourceInstanceId": -180068,
+          "playing": true,
+          "route": "Player",
+          "volume": 0.3,
+          "clip": "release",
+          "rootInstanceId": 191136,
+          "status": "PASS-EDITOR-SOURCE"
+        },
+        {
+          "time": 29.28919400000086,
+          "voice": 27,
+          "sourceInstanceId": -180074,
+          "playing": true,
+          "route": "Player",
+          "volume": 0.3,
+          "clip": "hit",
+          "rootInstanceId": 191136,
+          "status": "PASS-EDITOR-SOURCE"
+        },
+        {
+          "time": 29.28919560000213,
+          "voice": 28,
+          "sourceInstanceId": -180080,
+          "playing": true,
+          "route": "Enemy",
+          "volume": 0.3,
+          "clip": "hurt",
+          "rootInstanceId": 191136,
+          "status": "PASS-EDITOR-SOURCE"
+        },
+        {
+          "time": 30.168660300001648,
+          "voice": 29,
+          "sourceInstanceId": -180068,
+          "playing": true,
+          "route": "Companion",
+          "volume": 0.3,
+          "clip": "release",
+          "rootInstanceId": 191136,
+          "status": "PASS-EDITOR-SOURCE"
+        },
+        {
+          "time": 30.16866370000207,
+          "voice": 30,
+          "sourceInstanceId": -180074,
+          "playing": true,
+          "route": "Companion",
+          "volume": 0.3,
+          "clip": "hit",
+          "rootInstanceId": 191136,
+          "status": "PASS-EDITOR-SOURCE"
+        },
+        {
+          "time": 30.168666000001394,
+          "voice": 31,
+          "sourceInstanceId": -180080,
+          "playing": true,
+          "route": "Enemy",
+          "volume": 0.3,
+          "clip": "hurt",
+          "rootInstanceId": 191136,
+          "status": "PASS-EDITOR-SOURCE"
+        },
+        {
+          "time": 33.327120099998865,
+          "voice": 32,
+          "sourceInstanceId": -180068,
+          "playing": true,
+          "route": "Player",
+          "volume": 0.3,
+          "clip": "hit",
+          "rootInstanceId": 191136,
+          "status": "PASS-EDITOR-SOURCE"
+        },
+        {
+          "time": 33.32712320000064,
+          "voice": 33,
+          "sourceInstanceId": -180074,
+          "playing": true,
+          "route": "Player",
+          "volume": 0.3,
+          "clip": "release",
+          "rootInstanceId": 191136,
+          "status": "PASS-EDITOR-SOURCE"
+        },
+        {
+          "time": 33.32712580000225,
+          "voice": 34,
+          "sourceInstanceId": -180080,
+          "playing": true,
+          "route": "Enemy",
+          "volume": 0.3,
+          "clip": "hurt",
+          "rootInstanceId": 191136,
+          "status": "PASS-EDITOR-SOURCE"
+        },
+        {
+          "time": 33.40203760000077,
+          "voice": 35,
+          "sourceInstanceId": -180086,
+          "playing": true,
+          "route": "Companion",
+          "volume": 0.3,
+          "clip": "release",
+          "rootInstanceId": 191136,
+          "status": "PASS-EDITOR-SOURCE"
+        },
+        {
+          "time": 33.40204040000026,
+          "voice": 36,
+          "sourceInstanceId": -180092,
+          "playing": true,
+          "route": "Companion",
+          "volume": 0.3,
+          "clip": "hit",
+          "rootInstanceId": 191136,
+          "status": "PASS-EDITOR-SOURCE"
+        },
+        {
+          "time": 33.40204269999958,
+          "voice": 37,
+          "sourceInstanceId": -180098,
+          "playing": true,
+          "route": "Enemy",
+          "volume": 0.3,
+          "clip": "hurt",
+          "rootInstanceId": 191136,
+          "status": "PASS-EDITOR-SOURCE"
+        },
+        {
+          "time": 36.31377219999922,
+          "voice": 38,
+          "sourceInstanceId": -180068,
+          "playing": true,
+          "route": "Player",
+          "volume": 0.3,
+          "clip": "release",
+          "rootInstanceId": 191136,
+          "status": "PASS-EDITOR-SOURCE"
+        },
+        {
+          "time": 36.516135900001245,
+          "voice": 39,
+          "sourceInstanceId": -180068,
+          "playing": true,
+          "route": "Companion",
+          "volume": 0.3,
+          "clip": "release",
+          "rootInstanceId": 191136,
+          "status": "PASS-EDITOR-SOURCE"
+        },
+        {
+          "time": 36.516139100000146,
+          "voice": 40,
+          "sourceInstanceId": -180074,
+          "playing": true,
+          "route": "Companion",
+          "volume": 0.3,
+          "clip": "hit",
+          "rootInstanceId": 191136,
+          "status": "PASS-EDITOR-SOURCE"
+        },
+        {
+          "time": 36.51614110000082,
+          "voice": 41,
+          "sourceInstanceId": -180080,
+          "playing": true,
+          "route": "Enemy",
+          "volume": 0.3,
+          "clip": "hurt",
+          "rootInstanceId": 191136,
+          "status": "PASS-EDITOR-SOURCE"
+        },
+        {
+          "time": 36.641707400001906,
+          "voice": 42,
+          "sourceInstanceId": -180086,
+          "playing": true,
+          "route": "Player",
+          "volume": 0.3,
+          "clip": "land",
+          "rootInstanceId": 191136,
+          "status": "PASS-EDITOR-SOURCE"
+        },
+        {
+          "time": 36.641711000000214,
+          "voice": 43,
+          "sourceInstanceId": -180092,
+          "playing": true,
+          "route": "Player",
+          "volume": 0.3,
+          "clip": "hit",
+          "rootInstanceId": 191136,
+          "status": "PASS-EDITOR-SOURCE"
+        },
+        {
+          "time": 36.64171239999996,
+          "voice": 44,
+          "sourceInstanceId": -180098,
+          "playing": true,
+          "route": "Player",
+          "volume": 0.3,
+          "clip": "release",
+          "rootInstanceId": 191136,
+          "status": "PASS-EDITOR-SOURCE"
+        },
+        {
+          "time": 36.64171460000216,
+          "voice": 45,
+          "sourceInstanceId": -180104,
+          "playing": true,
+          "route": "Enemy",
+          "volume": 0.3,
+          "clip": "hurt",
+          "rootInstanceId": 191136,
+          "status": "PASS-EDITOR-SOURCE"
+        },
+        {
+          "time": 41.20387169999958,
+          "voice": 46,
+          "sourceInstanceId": -180068,
+          "playing": true,
+          "route": "UI",
+          "volume": 0.3,
+          "clip": "ui",
+          "rootInstanceId": 191136,
+          "status": "PASS-EDITOR-SOURCE"
+        }
+      ],
+      "sourceRoutes": [
+        "Player",
+        "Enemy",
+        "Companion",
+        "UI"
+      ],
+      "actorHpBefore": [
+        100,
+        100
+      ],
+      "actorHpAfter": [
+        100,
+        100
+      ],
+      "editorMuteBefore": false,
+      "editorMuteAfter": false,
+      "prefsUnchanged": true,
+      "inputSettingsUnchanged": true,
+      "ownVirtualDevicesRemaining": 0,
+      "timeScaleUnchanged": true,
+      "originalCurrentRestored": true,
+      "proof": "Real configured input → gameplay facts → SFX request → owned AudioSource. DSP waveform and subjective listening not asserted."
+    }
+  }
+}

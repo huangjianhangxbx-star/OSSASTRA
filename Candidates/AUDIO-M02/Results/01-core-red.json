@@ -1,0 +1,23 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "passed": 0,
+      "failed": 1,
+      "missing": [
+        "Ossastra.Audio.SfxRequest",
+        "Ossastra.Audio.SfxDecision",
+        "Ossastra.Audio.SfxArbitrator",
+        "Ossastra.Audio.SfxEventDefinitionSO",
+        "Ossastra.Audio.SfxCatalogSO"
+      ],
+      "assertion": "统一短音请求、事件SO、目录与纯仲裁入口应存在"
+    }
+  }
+}

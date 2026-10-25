@@ -1,0 +1,55 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "passed": 9,
+      "failed": 0,
+      "results": [
+        {
+          "name": "Accepted本身不发释放声",
+          "pass": true
+        },
+        {
+          "name": "真实Release合同边界发一条释放请求",
+          "pass": true
+        },
+        {
+          "name": "同一个不可变Root事实重复观察不会重播",
+          "pass": true
+        },
+        {
+          "name": "未命中回执不发命中请求",
+          "pass": true
+        },
+        {
+          "name": "同父动作两次正回执各保留独立声音事实",
+          "pass": true
+        },
+        {
+          "name": "技能accepted/cancel/end/miss不伪造声音",
+          "pass": true
+        },
+        {
+          "name": "同执行两次技能命中不被整动作去重",
+          "pass": true
+        },
+        {
+          "name": "没有实际HP下降不发受伤声",
+          "pass": true
+        },
+        {
+          "name": "声音边界从未改写角色HP",
+          "pass": true
+        }
+      ],
+      "source": "DEVELOPMENT_ONLY:fact-contract",
+      "proof": "adapter-boundary-only; natural-input covered separately"
+    }
+  }
+}

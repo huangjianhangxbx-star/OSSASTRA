@@ -1,0 +1,173 @@
+/* AUDIO-M02：通过公开InventoryItemUse.TryUseFor端口和明确合法目标点验证现有投掷消耗品，不冒充UI点击或按键输入。
+ * 只用团队现有条目；不授予道具、不换装备、不写HP/资源/Engaged或资产。敌人仅作临时空间布置。
+ * 泛用投递本来只反馈release与hit/miss；以实际ResolvedCount证明落地结算，不虚造land事件。
+ */
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using UnityEngine;
+using UnityEditor;
+using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.LowLevel;
+using Funplay.Editor.Tools.Scripting;
+using A = Ossastra.Audio;
+using C = Ossastra.Characters;
+using E = Ossastra.Enemies;
+using I = Ossastra.Inventory;
+
+public sealed class ThrowDeliveryProbe : IFunplayCommand
+{
+    private static readonly List<object> rows = new List<object>();
+    private static readonly List<object> feedback = new List<object>();
+    private static readonly List<object> sources = new List<object>();
+    private static readonly HashSet<long> seenVoices = new HashSet<long>();
+    private static A.GameAudioRoot audio;
+    private static I.InventorySession inventory;
+    private static I.InventoryItemUse consumer;
+    private static C.CharacterRoot actor;
+    private static C.CharacterAbilities abilities;
+    private static E.EnemyRoot enemy;
+    private static Action<Guid, string, Vector3> observer;
+    private static readonly Dictionary<Component, bool> focuses = new Dictionary<Component, bool>();
+    private static Vector3 enemyPosition;
+    private static InputSettings originalSettings;
+    private static bool originalMute, running, done, attempted, accepted, sawFlight, positionCaptured;
+    private static string itemId, definitionId, reason, error;
+    private static Guid execution;
+    private static int baselineEmitted, baselineResolved, quantityBefore, hpBefore, stage, lastFrame;
+    private static double started;
+
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+    {
+        if (running) throw new InvalidOperationException("ThrowDeliveryProbe已经运行");
+        rows.Clear(); feedback.Clear(); sources.Clear(); seenVoices.Clear(); focuses.Clear();
+        done = attempted = accepted = sawFlight = positionCaptured = false; stage = 0; lastFrame = -1; execution = Guid.Empty; error = reason = "";
+        try
+        {
+            if (!Application.isPlaying || Time.timeScale <= 0) throw new InvalidOperationException("需要正常Play");
+            audio = A.GameAudioRoot.Instance;
+            inventory = UnityEngine.Object.FindObjectOfType<I.InventorySession>();
+            consumer = inventory == null ? null : inventory.GetComponent<I.InventoryItemUse>();
+            actor = inventory == null ? null : inventory.Coordinator.Current;
+            abilities = actor == null ? null : actor.GetComponent<C.CharacterAbilities>();
+            enemy = UnityEngine.Object.FindObjectsOfType<E.EnemyRoot>().FirstOrDefault(e => e.isActiveAndEnabled && e.Vitals != null && e.Vitals.IsAvailable);
+            if (audio == null || !audio.SfxAvailable || inventory == null || !inventory.Ready || consumer == null || actor == null || abilities == null || enemy == null)
+            { NotExercised("场景没有已就绪的统一根/背包消费者/合法敌人"); ctx.ReturnValue = Report(); return; }
+            if (actor.ActionActive || abilities.IsBusy)
+            { NotExercised("当前角色尚未空闲；不取消其实际动作强造前提"); ctx.ReturnValue = Report(); return; }
+            var item = inventory.Ledger.Items.FirstOrDefault(candidate =>
+            {
+                var definition = inventory.Definition(candidate.DefinitionId);
+                return candidate.Location.ContainerId == "team" && candidate.Quantity > 0 && definition != null &&
+                    definition.equipment == null && definition.ability != null && definition.ability.delivery != null &&
+                    definition.ability.delivery.mode == Ossastra.Combat.DeliveryMode.RayLandingArc;
+            });
+            if (item == null)
+            { NotExercised("团队当前没有mode4投掷消耗品；不授予物品或改装备"); ctx.ReturnValue = Report(); return; }
+
+            originalSettings = InputSystem.settings; originalMute = EditorUtility.audioMasterMute;
+            itemId = item.Id; definitionId = item.DefinitionId; quantityBefore = item.Quantity;
+            enemyPosition = enemy.transform.position; positionCaptured = true; hpBefore = enemy.Vitals.Health.Current;
+            baselineEmitted = abilities.EmittedCount; baselineResolved = abilities.ResolvedCount;
+            LocalFocus(inventory.Coordinator); LocalFocus(actor); LocalFocus(enemy);
+            observer = (id, kind, point) =>
+            {
+                if (!attempted) return;
+                if (execution == Guid.Empty && kind == "accepted") execution = id;
+                if (id == execution) feedback.Add(new { time = Elapsed, execution = id.ToString("N"), kind, point = point.ToString("F3") });
+            };
+            abilities.Feedback += observer;
+            Place(enemy.transform, actor.transform.position + Vector3.right * 1.8f);
+            started = EditorApplication.timeSinceStartup;
+            running = true; EditorApplication.update += Tick;
+            ctx.ReturnValue = new { started = true, seconds = 8, inputProof = "InventoryItemUse.TryUseFor public domain API with explicit valid target point; NOT UI click or InputSystem throw input", itemId, definitionId, quantityBefore };
+        }
+        catch (Exception e) { error = e.ToString(); Cleanup(); ctx.ReturnValue = Report(); }
+    }
+
+    private static double Elapsed => EditorApplication.timeSinceStartup - started;
+    private static void NotExercised(string why) { reason = why; done = true; running = false; rows.Add(new { name = "现有投掷路径可达性", pass = false, status = "NOT_EXERCISED_PRECONDITION", reason }); }
+    private static int Quantity => inventory == null || inventory.Ledger.Find(itemId) == null ? 0 : inventory.Ledger.Find(itemId).Quantity;
+    private static void Tick()
+    {
+        if (Time.frameCount == lastFrame) return;
+        lastFrame = Time.frameCount;
+        try
+        {
+            if (!Application.isPlaying || audio == null || actor == null) throw new InvalidOperationException("Play或来源已退出");
+            if (Elapsed > 11) throw new TimeoutException("11秒硬边界，未观察路径不冒充成功");
+            sawFlight |= abilities.InFlightCount > 0;
+            if (execution != Guid.Empty)
+                foreach (var voice in audio.SfxPlayer.Voices)
+                {
+                    if (voice.VoiceId == 0 || voice.Source == null || seenVoices.Contains(voice.VoiceId)) continue;
+                    if (!audio.Sfx.TryGetVoice(voice.VoiceId, out var permit) || !permit.Request.FactKey.Contains(execution.ToString("N"))) continue;
+                    seenVoices.Add(voice.VoiceId);
+                    sources.Add(new { voice = voice.VoiceId, time = Elapsed, playing = voice.Source.isPlaying,
+                        source = permit.Request.SourceId, eventId = permit.Request.EventId, fact = permit.Request.FactKey,
+                        route = voice.Source.outputAudioMixerGroup == null ? "MISSING" : voice.Source.outputAudioMixerGroup.name,
+                        clip = voice.Source.clip == null ? "MISSING" : voice.Source.clip.name, root = audio.GetInstanceID() });
+                }
+            if (stage == 0 && Elapsed >= .8)
+            {
+                attempted = true;
+                // 调用者提供真实敌人的当前世界点；投递仍自行检查范围/地面/遮挡并结算，不预先注入命中。
+                accepted = consumer.TryUseFor(itemId, actor, enemy.Vitals, enemy.Vitals.WorldPosition, false);
+                reason = consumer.LastResult;
+                rows.Add(new { name = "现有背包公开目标端口真实接受", pass = accepted, status = accepted ? "PASS-EDITOR-SOURCE" : "REJECTED_GAMEPLAY_PRECONDITION", result = reason, execution = execution.ToString("N"), target = enemy.Vitals.Health.Id, aimPoint = enemy.Vitals.WorldPosition.ToString("F3") });
+                stage++;
+            }
+            if (stage == 1 && Elapsed >= 2.6)
+            {
+                rows.Add(new { name = "真实释放消费已有数量", pass = accepted && abilities.EmittedCount > baselineEmitted && Quantity == quantityBefore - 1,
+                    before = quantityBefore, after = Quantity, emittedBefore = baselineEmitted, emittedAfter = abilities.EmittedCount });
+                rows.Add(new { name = "有限投递飞行后实际结算", pass = accepted && sawFlight && abilities.ResolvedCount > baselineResolved,
+                    sawFlight, resolvedBefore = baselineResolved, resolvedAfter = abilities.ResolvedCount });
+                rows.Add(new { name = "实际投掷命中降低敌HP", pass = enemy != null && enemy.Vitals.Health.Current < hpBefore,
+                    before = hpBefore, after = enemy == null ? -1 : enemy.Vitals.Health.Current });
+                Place(enemy.transform, enemyPosition);
+                stage++;
+            }
+            if (stage == 2 && Elapsed >= 8)
+            {
+                var requests = MatchingRequests();
+                rows.Add(new { name = "投掷释放和命中短音经同根请求", pass = requests.Any(r => r.Request.EventId.EndsWith("combat.release") && r.Decision.Accepted && r.SourcePlayIssued) &&
+                    requests.Any(r => r.Request.EventId.EndsWith("combat.hit") && r.Decision.Accepted && r.SourcePlayIssued), count = requests.Length, sourceVoices = sources.Count });
+                rows.Add(new { name = "InputSettings与Editor静音保持", pass = ReferenceEquals(originalSettings, InputSystem.settings) && originalMute == EditorUtility.audioMasterMute });
+                Cleanup();
+            }
+        }
+        catch (Exception e) { error = e.ToString(); Cleanup(); }
+    }
+
+    private static A.GameAudioRoot.SfxObservation[] MatchingRequests() => audio == null || execution == Guid.Empty ? new A.GameAudioRoot.SfxObservation[0] :
+        audio.SfxHistory.Where(r => r.Request.FactKey != null && r.Request.FactKey.Contains(execution.ToString("N"))).ToArray();
+    private static void Place(Transform target, Vector3 position)
+    {
+        if (target == null) return;
+        var body = target.GetComponent<CharacterController>(); var enabled = body != null && body.enabled;
+        if (enabled) body.enabled = false; target.position = position; if (enabled) body.enabled = true; Physics.SyncTransforms();
+    }
+    private static void LocalFocus(Component component)
+    {
+        var field = component.GetType().GetField("focused", BindingFlags.Instance | BindingFlags.NonPublic);
+        if (field == null || field.FieldType != typeof(bool)) return;
+        focuses[component] = (bool)field.GetValue(component); component.SendMessage("OnApplicationFocus", true, SendMessageOptions.DontRequireReceiver);
+    }
+    private static void Cleanup()
+    {
+        EditorApplication.update -= Tick;
+        if (abilities != null && observer != null) abilities.Feedback -= observer; observer = null;
+        if (positionCaptured && enemy != null) Place(enemy.transform, enemyPosition);
+        foreach (var pair in focuses) if (pair.Key != null) pair.Key.SendMessage("OnApplicationFocus", pair.Value, SendMessageOptions.DontRequireReceiver);
+        focuses.Clear();
+        running = false; done = true;
+    }
+    public static object Report() => new { done, running, error, reason, attempted, accepted, itemId, definitionId, execution = execution.ToString("N"),
+        rows = rows.ToArray(), feedback = feedback.ToArray(), sources = sources.ToArray(),
+        requests = MatchingRequests().Select(r => new { eventId = r.Request.EventId, source = r.Request.SourceId, fact = r.Request.FactKey,
+            accepted = r.Decision.Accepted, reason = r.Decision.Reason, voice = r.Decision.VoiceId, playIssued = r.SourcePlayIssued }).ToArray(),
+        ownVirtualDevicesRemaining = InputSystem.devices.Count(d => d.name == "AUDIO_M02_ThrowMouse"),
+        proof = "Actual existing InventoryItemUse.TryUseFor public domain API with explicit target point; not UI click, InputSystem input, or synthetic hit; no land event invented." };
+}

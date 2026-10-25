@@ -1,0 +1,129 @@
+/* AUDIO-M02运行时合同：捕获Master重复相乘、跨组串音、许可重复播放和来源/池回收错误。
+ * 首次缺功能反射RED另存Results；本版使用真实Mixer/AudioSource和自有短音，须在Play执行。
+ * 不改PlayerPrefs、Editor静音或AudioListener；所有临时对象和Mixer参数在finally归还。 */
+using System;
+using System.Linq;
+using System.Collections.Generic;
+using Ossastra.Audio;
+using UnityEngine;
+using UnityEngine.Audio;
+using UnityEditor;
+using Funplay.Editor.Tools.Scripting;
+
+public sealed class SfxRuntimeContracts : IFunplayCommand
+{
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+    {
+        var rows = new List<object>();
+        int failed = 0;
+        void Check(string name, bool result) { rows.Add(new { name, result }); if (!result) failed++; }
+        bool Near(float actual, float expected) => Math.Abs(actual - expected) < .0001f;
+        var bgm = new BgmMixController(1, .45f, .035f);
+        Check("旧完整增益仍为.24x.75", Near(bgm.TargetGain, .18f));
+        Check("共享路由本地音乐增益不含两个用户因子", Near(bgm.LocalTargetGain, 1));
+        bgm.MasterVolume = .2f; bgm.UserBgmVolume = .5f;
+        Check("修改用户设置不会污染本地音乐增益", Near(bgm.TargetGain, .1f) && Near(bgm.LocalTargetGain, 1));
+        bgm.Muted = true;
+        Check("mute在共享Mixer拥有但旧API仍报告零", Near(bgm.TargetGain, 0) && Near(bgm.LocalTargetGain, 1));
+        bgm.Muted = false; bgm.Focused = false;
+        var dialogue = bgm.AcquireDialogueFocus();
+        Check("对话与失焦仅降低音乐局部增益", Near(bgm.LocalTargetGain, .1125f) && Near(bgm.TargetGain, .01125f));
+        dialogue.Dispose(); dialogue.Dispose();
+        Check("精确归还对话保留失焦与用户值", Near(bgm.LocalTargetGain, .25f) && Near(bgm.TargetGain, .025f));
+        bgm.Tick(1);
+        Check("两种显式平滑最终各自趋于目标", Near(bgm.LocalCurrentGain, .25f) && Near(bgm.CurrentGain, .025f));
+        Check("安全dB零静音下限", GameAudioMixService.LinearToDecibels(0) == -80);
+        Check("安全dB非有限输入", GameAudioMixService.LinearToDecibels(float.NaN) == -80 && GameAudioMixService.LinearToDecibels(float.PositiveInfinity) == -80);
+        Check("安全dB半音量", Near(GameAudioMixService.LinearToDecibels(.5f), -6.0206f));
+        Check("缺Mixer不冒报统一混音成功", !new GameAudioMixService(bgm, null).Tick());
+
+        var mixer = AssetDatabase.LoadAssetAtPath<AudioMixer>("Assets/OSSASTRA/Audio/Mixer/UnifiedAudio.mixer");
+        if (mixer == null || !Application.isPlaying)
+        {
+            Check("真实统一Mixer且Play模式为运行时合同前提", false);
+            ctx.ReturnValue = new { failed, passed = rows.Count - failed, rows, blocked = mixer == null ? "MIXER_MISSING" : "PLAY_REQUIRED" };
+            return;
+        }
+        string[] parameters = { "MasterGain", "BgmGain", "SfxGain", "PlayerGain", "CompanionGain", "EnemyGain", "UIGain", "InteractionGain", "VoiceGain", "AmbienceGain" };
+        var previous = new Dictionary<string, float>();
+        foreach (string parameter in parameters) if (mixer.GetFloat(parameter, out float value)) previous[parameter] = value;
+        GameObject owner = null;
+        AudioClip clip = null;
+        SfxEventDefinitionSO low = null, high = null;
+        SfxVoicePlayer player = null, missingRoute = null;
+        try
+        {
+            var mix = new GameAudioMixService(bgm, mixer);
+            mix.SfxVolume = .8f; mix.SetBusVolume(SfxBus.Enemy, .25f);
+            Check("全部统一参数配置可写", mix.IsConfigured && mix.Tick());
+            mixer.GetFloat("MasterGain", out float masterDb);
+            mixer.GetFloat("BgmGain", out float bgmDb);
+            mixer.GetFloat("SfxGain", out float sfxDb);
+            mixer.GetFloat("EnemyGain", out float enemyDb);
+            Check("Master只在组乘.2而非平方", Near(masterDb, -13.9794f));
+            Check("BGM用户值只在组乘.5", Near(bgmDb, -6.0206f));
+            Check("SFX与Enemy各自用户组可独立写", Near(sfxDb, -1.9382f) && Near(enemyDb, -12.0412f));
+            Check("独立组最终目标不串音", Near(mix.EffectiveSfxGain(SfxBus.Player), .16f) && Near(mix.EffectiveSfxGain(SfxBus.Enemy), .04f));
+            bgm.UserBgmVolume = 1; mix.Tick();
+            Check("只改BGM不影响短音有效增益", Near(mix.EffectiveSfxGain(SfxBus.Player), .16f));
+            bgm.Muted = true; mix.Tick(); mixer.GetFloat("MasterGain", out float muteDb);
+            Check("共同Master mute控制音乐与短音", muteDb == -80 && mix.EffectiveSfxGain(SfxBus.Player) == 0 && bgm.TargetGain == 0);
+            bgm.Muted = false; mix.Tick();
+
+            var group = mixer.FindMatchingGroups("Player").FirstOrDefault(item => item.name == "Player");
+            Check("播放器使用真实Player总线", group != null);
+            owner = new GameObject("AUDIO-M02 runtime contract owner");
+            clip = AudioClip.Create("ORIGINAL_TEST_SINE", 2400, 1, 24000, false);
+            float[] samples = new float[2400];
+            for (int index = 0; index < samples.Length; index++) samples[index] = .02f * Mathf.Sin(2 * Mathf.PI * 440 * index / 24000f);
+            clip.SetData(samples, 0);
+            low = ScriptableObject.CreateInstance<SfxEventDefinitionSO>();
+            low.eventId = "test.release"; low.clips = new[] { clip }; low.priority = 10; low.maxPerSource = 8;
+            high = ScriptableObject.CreateInstance<SfxEventDefinitionSO>();
+            high.eventId = "test.hurt"; high.clips = new[] { clip }; high.priority = 90; high.maxPerSource = 8;
+            var arb = new SfxArbitrator(2, 3, () => .5);
+            arb.SetWorldScope("runtime-test");
+            int a = arb.OpenSource("a"), b = arb.OpenSource("b");
+            player = new SfxVoicePlayer(owner, arb, bus => group, 3);
+            double now = AudioSettings.dspTime;
+            SfxDecision A(string source, int generation, string fact, SfxEventDefinitionSO definition) => arb.Submit(new SfxRequest(definition.eventId, source, "runtime-test", generation, fact, new Vector3(2, 3, 4), now), definition, now);
+            var first = A("a", a, "first", low);
+            Check("有效许可真正启动声源", first.Accepted && player.TryPlay(first));
+            var voice = player.Voices.FirstOrDefault(item => item.VoiceId == first.VoiceId);
+            Check("真实源路由音量与2D政策", voice != null && voice.Source.outputAudioMixerGroup == group && Near(voice.Source.volume, .3f) && voice.Source.spatialBlend == 0 && voice.Source.transform.position == new Vector3(2, 3, 4));
+            Check("SourceStarted是实际isPlaying而不是Accepted", voice != null && voice.Source.isPlaying && player.StartedCount == 1);
+            Check("重用许可不叠第二声音", !player.TryPlay(first) && player.ActiveCount == 1 && arb.ActiveCount == 1);
+            var second = A("b", b, "second", low);
+            Check("另一来源可独立播放", player.TryPlay(second) && player.ActiveCount == 2);
+            var important = A("a", a, "important", high);
+            Check("高优先许可抢占回收且不超池", important.Accepted && important.StolenVoiceId != 0 && player.TryPlay(important) && player.ActiveCount == 2 && owner.GetComponentsInChildren<AudioSource>().Length == 3);
+            player.StopSource("a", a);
+            Check("停止A来源不切B来源", player.ActiveCount == 1 && player.Voices.Any(item => item.VoiceId == second.VoiceId) && arb.ActiveCount == 1);
+            player.Tick(now + 1);
+            Check("到期音源与许可一起归还", player.ActiveCount == 0 && arb.ActiveCount == 0 && player.ReturnedCount == 3);
+            player.Tick(now + 2);
+            Check("重复Tick不双重归还", player.ReturnedCount == 3 && player.ActiveCount == 0);
+            var late = A("b", b, "world-end", low);
+            Check("世界关闭前可播放", player.TryPlay(late));
+            player.StopWorld(); player.StopWorld();
+            Check("世界关闭撤许可且旧许可不能补响", player.ActiveCount == 0 && arb.ActiveCount == 0 && !player.TryPlay(late));
+            Check("多轮播放对象数仍固定", player.PoolSize == 3 && owner.GetComponentsInChildren<AudioSource>().Length == 3);
+            var emptyArb = new SfxArbitrator(1, 1);
+            emptyArb.SetWorldScope("missing-route"); int missingSource = emptyArb.OpenSource("a");
+            missingRoute = new SfxVoicePlayer(owner, emptyArb, bus => null, 1);
+            var accepted = emptyArb.Submit(new SfxRequest(low.eventId, "a", "missing-route", missingSource, "no-route", Vector3.zero, now), low, now);
+            Check("路由缺失不能假成功且归还许可", accepted.Accepted && !missingRoute.TryPlay(accepted) && missingRoute.FailedStartCount == 1 && emptyArb.ActiveCount == 0 && missingRoute.ActiveCount == 0 && missingRoute.StartedCount == 0);
+        }
+        finally
+        {
+            if (player != null) player.Dispose();
+            if (missingRoute != null) missingRoute.Dispose();
+            if (owner != null) UnityEngine.Object.DestroyImmediate(owner);
+            if (low != null) UnityEngine.Object.DestroyImmediate(low);
+            if (high != null) UnityEngine.Object.DestroyImmediate(high);
+            if (clip != null) UnityEngine.Object.DestroyImmediate(clip);
+            foreach (var parameter in previous) mixer.SetFloat(parameter.Key, parameter.Value);
+        }
+        ctx.ReturnValue = new { failed, passed = rows.Count - failed, rows, sourceOnly = true, outputWaveformNotMeasured = true };
+    }
+}

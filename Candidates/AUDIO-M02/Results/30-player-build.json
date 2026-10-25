@@ -1,0 +1,33 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "result": "Failed",
+      "totalErrors": 14,
+      "totalWarnings": 0,
+      "seconds": 3.5269594,
+      "errors": [
+        "Assets\\Unity-Favorites-Tool\\Editor\\QuickAccessWindow.cs(13,45): error CS0246: The type or namespace name 'EditorWindow' could not be found (are you missing a using directive or an assembly reference?)",
+        "Assets\\Unity-Favorites-Tool\\Editor\\QuickAccessWindow.cs(335,55): error CS0246: The type or namespace name 'AssetModificationProcessor' could not be found (are you missing a using directive or an assembly reference?)",
+        "Assets\\Unity-Favorites-Tool\\Editor\\QuickAccessWindow.cs(348,54): error CS0246: The type or namespace name 'AssetPostprocessor' could not be found (are you missing a using directive or an assembly reference?)",
+        "Assets\\Unity-Favorites-Tool\\Editor\\QuickAccessWindow.cs(31,10): error CS0246: The type or namespace name 'MenuItemAttribute' could not be found (are you missing a using directive or an assembly reference?)",
+        "Assets\\Unity-Favorites-Tool\\Editor\\QuickAccessWindow.cs(31,10): error CS0246: The type or namespace name 'MenuItem' could not be found (are you missing a using directive or an assembly reference?)",
+        "Assets\\Unity-Favorites-Tool\\Editor\\QuickAccessWindow.cs(53,10): error CS0246: The type or namespace name 'MenuItemAttribute' could not be found (are you missing a using directive or an assembly reference?)",
+        "Assets\\Unity-Favorites-Tool\\Editor\\QuickAccessWindow.cs(53,10): error CS0246: The type or namespace name 'MenuItem' could not be found (are you missing a using directive or an assembly reference?)",
+        "Assets\\Unity-Favorites-Tool\\Editor\\QuickAccessWindow.cs(67,10): error CS0246: The type or namespace name 'MenuItemAttribute' could not be found (are you missing a using directive or an assembly reference?)",
+        "Assets\\Unity-Favorites-Tool\\Editor\\QuickAccessWindow.cs(67,10): error CS0246: The type or namespace name 'MenuItem' could not be found (are you missing a using directive or an assembly reference?)",
+        "Assets\\Unity-Favorites-Tool\\Editor\\QuickAccessWindow.cs(86,10): error CS0246: The type or namespace name 'MenuItemAttribute' could not be found (are you missing a using directive or an assembly reference?)",
+        "Assets\\Unity-Favorites-Tool\\Editor\\QuickAccessWindow.cs(86,10): error CS0246: The type or namespace name 'MenuItem' could not be found (are you missing a using directive or an assembly reference?)",
+        "Assets\\Unity-Favorites-Tool\\Editor\\QuickAccessWindow.cs(100,10): error CS0246: The type or namespace name 'MenuItemAttribute' could not be found (are you missing a using directive or an assembly reference?)",
+        "Assets\\Unity-Favorites-Tool\\Editor\\QuickAccessWindow.cs(100,10): error CS0246: The type or namespace name 'MenuItem' could not be found (are you missing a using directive or an assembly reference?)",
+        "Error building Player because scripts had compiler errors"
+      ]
+    }
+  }
+}

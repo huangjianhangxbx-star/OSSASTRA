@@ -550,3 +550,5 @@ T7A3独立RendererFeature/密度场/最多2个AtmosphereLight/8-16步积分/Dept
 > 2026-10-25 AUDIO-M01-FIX01 technical-complete/publishing：已复现死敌点位空挥Accepted误启combat，最小修正交战入口需有效敌对成员；BGM仍只读、原3秒calm保留。点位3/3、7条实体路径15/15，附近活敌命中600→588及退战通过。撤回旧远处空挥等同真实遇敌的验收，修正夹具；用户Editor全局静音保持true，当前两RMS未通过单列。372保护路径/原36dirty不变，Edit clean，全部Unity/源码租约释放，仅发布记录继续。
 
 > 2026-10-25 AUDIO-M01-FIX01 complete：651a6e42da2d01b6827627abd7eca7e917f98eea已GitHub main核SHA。交战入口拒绝无有效敌对实体的Accepted；原calm/BGM被动边界保留。7路径15断言/点位复验通过；纠正旧远处空挥验收，RMS受当前Editor全局静音限制单列。Edit clean、原36dirty及372非目标SHA保持，所有租约释放；不扩张仇恨/距离系统。
+
+> 2026-10-25 AUDIO-M02 technical-complete/publishing：在原唯一音频根组合短音仲裁/32源池/共享Master与分组，保留原BGM DSP；Feedback仅视觉，独立音频宿主且单场观察者准入。47/32/9/3/7合同、8混音后输出、旧BGM12/FIX01七路径15、切场6/旧无根bootstrap及自然四总线路由通过；投掷正例6/6，公开资源为原创数学样本。原645保护路径/36dirty保持，Player仍旧插件14错误、人耳听感未签；Unity/源码租约完成释放，只剩定向GitHub发布。详见ossastra/AUDIO-M02-handoff.md。

@@ -1,0 +1,29 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "failed": 3,
+      "passed": 0,
+      "rows": [
+        {
+          "name": "统一路由的音乐局部增益不能再次乘用户Master/BGM",
+          "result": false
+        },
+        {
+          "name": "共享Mixer参数有唯一服务",
+          "result": false
+        },
+        {
+          "name": "短音只由根所属有限许可播放器播放",
+          "result": false
+        }
+      ]
+    }
+  }
+}

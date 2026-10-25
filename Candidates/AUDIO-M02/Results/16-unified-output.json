@@ -1,0 +1,108 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "done": true,
+      "failed": 0,
+      "checks": [
+        {
+          "name": "BGM真实输出非零",
+          "pass": true
+        },
+        {
+          "name": "BGM Master半音量非平方",
+          "pass": true
+        },
+        {
+          "name": "BGM Master零输出受控",
+          "pass": true
+        },
+        {
+          "name": "SFX真实输出非零",
+          "pass": true
+        },
+        {
+          "name": "SFX Master半音量非平方",
+          "pass": true
+        },
+        {
+          "name": "SFX Master零输出受控",
+          "pass": true
+        },
+        {
+          "name": "改混音不重播BGM",
+          "pass": true
+        },
+        {
+          "name": "Editor静音原样保留",
+          "pass": true
+        }
+      ],
+      "rows": [
+        {
+          "phase": 0,
+          "type": "BGM",
+          "master": 1.0,
+          "rms": 0.010884845321591815,
+          "samples": 801792,
+          "actualDsp": 2.7093333333341434,
+          "rootSources": 38
+        },
+        {
+          "phase": 1,
+          "type": "BGM",
+          "master": 0.5,
+          "rms": 0.005425401873058941,
+          "samples": 808960,
+          "actualDsp": 2.709333333333234,
+          "rootSources": 38
+        },
+        {
+          "phase": 2,
+          "type": "BGM",
+          "master": 0.0,
+          "rms": 0.0,
+          "samples": 775168,
+          "actualDsp": 2.709333333333234,
+          "rootSources": 38
+        },
+        {
+          "phase": 3,
+          "type": "SFX",
+          "master": 1.0,
+          "rms": 0.009080432539494091,
+          "samples": 854016,
+          "actualDsp": 2.709333333333234,
+          "rootSources": 38
+        },
+        {
+          "phase": 4,
+          "type": "SFX",
+          "master": 0.5,
+          "rms": 0.004548847684581281,
+          "samples": 856064,
+          "actualDsp": 2.709333333333234,
+          "rootSources": 38
+        },
+        {
+          "phase": 5,
+          "type": "SFX",
+          "master": 0.0,
+          "rms": 0.0,
+          "samples": 805888,
+          "actualDsp": 2.709333333333234,
+          "rootSources": 38
+        }
+      ],
+      "bgmHalfRatio": 0.49843628575013343,
+      "sfxHalfRatio": 0.5009505510664491,
+      "evidence": "AudioListener post-mix API; no subjective listening signoff"
+    }
+  }
+}

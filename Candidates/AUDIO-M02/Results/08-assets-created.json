@@ -1,0 +1,31 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [
+      "167422",
+      "167744"
+    ],
+    "destroyed": [],
+    "returnValue": {
+      "scene": "Assets/OSSASTRA/Scenes/SC_AUDIO_M02_SoundIntegration.unity",
+      "catalog": 22,
+      "valid": "VALID",
+      "mixer": "Assets/OSSASTRA/Audio/Mixer/UnifiedAudio.mixer",
+      "sceneClean": true,
+      "media": [
+        "release",
+        "hit",
+        "hurt",
+        "guard",
+        "dodge",
+        "land",
+        "heal",
+        "ui"
+      ]
+    }
+  }
+}

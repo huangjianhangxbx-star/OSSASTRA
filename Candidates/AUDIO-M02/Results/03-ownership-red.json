@@ -1,0 +1,22 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "passed": 0,
+      "failed": 3,
+      "missing": [
+        "Sfx",
+        "SfxPlayer",
+        "UnifiedMix"
+      ],
+      "adapterExists": false,
+      "localPlayback": true
+    }
+  }
+}

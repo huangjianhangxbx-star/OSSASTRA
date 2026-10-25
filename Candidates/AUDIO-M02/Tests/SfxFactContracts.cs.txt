@@ -1,0 +1,127 @@
+/* AUDIO-M02：声音适配器合同。开发来源只驱动适配器的声音边界，不向角色广播假事实，不写HP/动作。
+ * 可捕获的错误：Accepted伪装释放、未命中播Hit、按整个ActionId吞多段、受伤只按意图播报。
+ * 本合同不是自然输入或主观听感验收；真实输入由独立集成故事覆盖。
+ */
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using Funplay.Editor.Tools.Scripting;
+using Ossastra.Audio;
+using Ossastra.CharacterCore;
+using UnityEngine;
+using ActorRoot = Ossastra.Characters.CharacterRoot;
+
+public sealed class SfxFactContracts : IFunplayCommand
+{
+    private readonly List<object> results = new List<object>();
+    private int passed, failed;
+    private Type adapterType, observationType;
+    private object adapter, observation;
+    private IDisposable source;
+    private static readonly BindingFlags instance = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+    {
+        try
+        {
+            adapterType = typeof(Ossastra.Audio.GameAudioRoot).Assembly.GetType("Ossastra.Audio.CombatSfxFactAdapter");
+            if (adapterType == null)
+            {
+                Check("事实适配器存在且接管声音", () => false);
+                ctx.ReturnValue = new { passed, failed, results, reason = "MISSING_FEATURE:CombatSfxFactAdapter" };
+                return;
+            }
+            var root = Ossastra.Audio.GameAudioRoot.Instance;
+            var actor = UnityEngine.Object.FindObjectsOfType<ActorRoot>().FirstOrDefault(a => a.isActiveAndEnabled && a.Vitals != null && a.Vitals.Health != null);
+            adapter = UnityEngine.Object.FindObjectsOfType(adapterType).FirstOrDefault();
+            if (root == null || actor == null || adapter == null)
+                throw new InvalidOperationException("需要已就绪的AUDIO-M02场、音频根和角色；不创建第二根或修改玩法现场");
+
+            observationType = adapterType.GetNestedType("ActorObservation", BindingFlags.NonPublic);
+            observation = Activator.CreateInstance(observationType, true);
+            Set("root", actor);
+            Set("vitals", actor.Vitals);
+            Set("connected", true);
+            var register = typeof(Ossastra.Audio.GameAudioRoot).GetMethod("RegisterSfxSource");
+            source = (IDisposable)register.Invoke(root, new object[] { "DEVELOPMENT_ONLY:fact-contract:" + Guid.NewGuid().ToString("N") });
+            Set("source", source);
+            Set("hp", actor.Vitals.Health.Current);
+            var hpBefore = actor.Vitals.Health.Current;
+
+            var runtime = new BasicActionRuntime("DEVELOPMENT_ONLY:audio-contract");
+            var request = runtime.Request(new BasicAttackDefinition(.1, .2, .3, .4, 1), "DEVELOPMENT_ONLY", new ControlAuthority());
+            Check("Accepted本身不发释放声", () =>
+            {
+                var before = Count("FactSubmissions");
+                Invoke("OnActorFact", observation, request.Fact);
+                return Count("FactSubmissions") == before;
+            });
+            var release = runtime.Advance(.11, false).First(f => f.Kind == ActionFactKind.Released);
+            Check("真实Release合同边界发一条释放请求", () =>
+            {
+                var before = Count("Releases");
+                Invoke("OnActorFact", observation, release);
+                return Count("Releases") == before + 1;
+            });
+            Check("同一个不可变Root事实重复观察不会重播", () =>
+            {
+                var before = Count("Releases");
+                Invoke("OnActorFact", observation, release);
+                return Count("Releases") == before;
+            });
+            Check("未命中回执不发命中请求", () =>
+            {
+                var before = Count("Hits");
+                Invoke("OnMeleeReceipt", observation, release.ActionId, false, "melee");
+                return Count("Hits") == before;
+            });
+            Check("同父动作两次正回执各保留独立声音事实", () =>
+            {
+                var before = Count("Hits");
+                Invoke("OnMeleeReceipt", observation, release.ActionId, true, "main-profile");
+                Invoke("OnMeleeReceipt", observation, release.ActionId, true, "main-profile");
+                return Count("Hits") == before + 2;
+            });
+            Check("技能accepted/cancel/end/miss不伪造声音", () =>
+            {
+                var before = Count("FactSubmissions");
+                foreach (var kind in new[] { "accepted", "cancel", "end", "miss" })
+                    Invoke("OnAbilityFeedback", observation, release.ActionId, kind, actor.transform.position);
+                return Count("FactSubmissions") == before;
+            });
+            Check("同执行两次技能命中不被整动作去重", () =>
+            {
+                var before = Count("Hits");
+                Invoke("OnAbilityFeedback", observation, release.ActionId, "hit", actor.transform.position);
+                Invoke("OnAbilityFeedback", observation, release.ActionId, "hit", actor.transform.position);
+                return Count("Hits") == before + 2;
+            });
+            Check("没有实际HP下降不发受伤声", () =>
+            {
+                var before = Count("Hurts");
+                Invoke("PollHealth", observation);
+                return Count("Hurts") == before;
+            });
+            Check("声音边界从未改写角色HP", () => actor.Vitals.Health.Current == hpBefore);
+            ctx.ReturnValue = new { passed, failed, results, source = "DEVELOPMENT_ONLY:fact-contract", proof = "adapter-boundary-only; natural-input covered separately" };
+        }
+        catch (Exception e)
+        {
+            failed++;
+            results.Add(new { name = "fixture", pass = false, error = e.ToString() });
+            ctx.ReturnValue = new { passed, failed, results };
+        }
+        finally { source?.Dispose(); }
+    }
+
+    private void Set(string name, object value) => observationType.GetField(name, instance).SetValue(observation, value);
+    private int Count(string name) => (int)adapterType.GetProperty(name, instance).GetValue(adapter);
+    private void Invoke(string name, params object[] args) => adapterType.GetMethod(name, instance).Invoke(adapter, args);
+    private void Check(string name, Func<bool> test)
+    {
+        try { var pass = test(); if (pass) passed++; else failed++; results.Add(new { name, pass }); }
+        catch (Exception e) { failed++; results.Add(new { name, pass = false, error = e.GetBaseException().Message }); }
+    }
+}
