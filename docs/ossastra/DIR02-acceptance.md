@@ -53,3 +53,6 @@ ProfilerRecorder对整帧GC成功取到180帧，均值约241616字节/帧（包�
 `Candidates/DIR02/LocalEvidence/a4-42-*.png`：同a4 42%八向；离屏姿态证据，非输入故事。`body-first.png`、`combat-after.png`及Library/FunplayMcp/Recordings中的55秒视频仅本机。离屏预览首轮未设PreviewScene剔除掩码导致空图，已修正相机scene/culling后重生成并目视抽查，不使用空图验收。
 
 五份受保护修改逐项SHA相同；31项原删除未改；源Spine SHA为CEA88B22BD2C1539AEF081D0FA0B76720B3A0AC6F6C22ED779430049B22F3196。受限媒体与旧商业IL/许可证记录不发布。
+
+## 2026-10-25 试玩修正关联
+用户试玩发现末帧停留、移动方向不符和换面穿帮；旧PASS仅代表旧范围，不能替代新移动定向规则。新增复验及NO_REPRO/PARTIAL边界见DIR02-playtest-fixes.md。原历史日志不覆盖。

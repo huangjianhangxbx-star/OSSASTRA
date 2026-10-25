@@ -11,8 +11,10 @@ namespace Ossastra.Characters
         {
             var canMove = owner.StateFocused && !owner.IsPaused && owner.DataBus.AllowsMovement && owner.DataBus.MoveReady;
             if (owner.StateFocused && !owner.IsPaused)
-                owner.StateOrienter.ResolveDirections(frame.move, owner.StatePointerDirection(frame), frame.hasDirectionalAim ? frame.aimDirection : Vector2.zero, canMove);
+                owner.StateOrienter.ResolveDirections(frame, owner.StatePointerDirection(frame), canMove, owner.StateInput.HasPlayerControl);
         }
+        public void ResolvePresentation()
+            =>owner.StateOrienter.ResolvePresentation(owner.DataBus,owner.StateAbilities,owner.StateInput.HasPlayerControl);
         public override void Update(float deltaTime)
         {
             var canMove = owner.StateFocused && !owner.IsPaused && owner.DataBus.AllowsMovement && (owner.DataBus.MoveReady || owner.DataBus.AbilityMotionActive);

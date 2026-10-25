@@ -1,4 +1,4 @@
-/* 玩家会话级来源记忆。移动与战斗瞄准独立；设备/辅助键不改变控制权或动作身份。
+/* 玩家会话级来源记忆。保留移动/战斗上下文归属；手柄方向来自移动，右杆不夺取上下文。
  * 只处理经过配置Action采样和UI分类的候选，不读硬件、不生成玩法请求。
  */
 using System.Collections.Generic;
@@ -36,9 +36,9 @@ namespace Ossastra.Characters
             DeviceInputCandidate aim = null; int priority = 0; double time = -1;
             foreach (var d in devices)
             {
-                int p = combat && d.BattlePressed ? 3 : combat && d.IsGamepad && d.AimChanged && d.AimActive ? 2 :
-                    exploration && !d.IsGamepad && d.MoveChanged && d.MoveActive ? 1 : 0;
-                double t = p == 3 ? d.BattleTime : p == 2 ? d.AimTime : d.MoveTime;
+                int p = combat && d.BattlePressed ? 3 :
+                    exploration && d.MoveActive && (d.MoveChanged || AimSource == PlayerInputSource.None) ? 1 : 0;
+                double t = p == 3 ? d.BattleTime : d.MoveTime;
                 if (p > priority || p > 0 && p == priority && (t > time || t == time && d.DeviceId == AimDeviceId))
                 { aim = d; priority = p; time = t; }
             }
@@ -47,8 +47,7 @@ namespace Ossastra.Characters
             foreach (var d in devices)
                 if (AimSource == PlayerInputSource.Gamepad && d.DeviceId == AimDeviceId)
                 {
-                    if (d.AimActive) LastAimDirection = d.Aim.normalized;
-                    else if (d.MoveActive) LastAimDirection = d.Move.normalized;
+                    if (d.MoveActive) LastAimDirection = d.Move.normalized;
                 }
             if (AimSource == PlayerInputSource.None && Move.sqrMagnitude > .0001f) LastAimDirection = Move.normalized;
         }

@@ -1,0 +1,176 @@
+{
+  "baseline": "e08a046dd71fbc4bbfbc79e2fbedcfaa31ff28f8",
+  "date": "2026-10-25",
+  "attackFreeze": "NO_REPRO/PARTIAL",
+  "tests": [
+    {
+      "name": "defaultStops",
+      "state": "completed",
+      "failed": 0,
+      "steps": 29
+    },
+    {
+      "name": "mainGroupsValidPreconditions",
+      "state": "completed",
+      "failed": 0,
+      "steps": 49
+    },
+    {
+      "name": "keyboardFacing",
+      "state": "completed",
+      "failed": 0,
+      "steps": 15
+    },
+    {
+      "name": "mixedInput",
+      "state": "completed",
+      "failed": 0,
+      "steps": 36
+    },
+    {
+      "name": "padDirection",
+      "state": "completed",
+      "failed": 0,
+      "steps": 43
+    },
+    {
+      "name": "nativeRush",
+      "state": "completed",
+      "failed": 0,
+      "steps": 5
+    },
+    {
+      "name": "lifecycle",
+      "state": "completed",
+      "failed": 0,
+      "steps": 10
+    }
+  ],
+  "continuousInjectedFrames": {
+    "total": 1440,
+    "failed": 0,
+    "identityFailures": 0,
+    "method": "injected continuous solver/mesh frames; effective SO and real Handle; no gameplay timing claim",
+    "rows": [
+      {
+        "fps": 30,
+        "independent": false,
+        "scenario": 0,
+        "frames": 60,
+        "failed": 0
+      },
+      {
+        "fps": 30,
+        "independent": false,
+        "scenario": 1,
+        "frames": 60,
+        "failed": 0
+      },
+      {
+        "fps": 30,
+        "independent": false,
+        "scenario": 2,
+        "frames": 60,
+        "failed": 0
+      },
+      {
+        "fps": 30,
+        "independent": false,
+        "scenario": 3,
+        "frames": 60,
+        "failed": 0
+      },
+      {
+        "fps": 30,
+        "independent": true,
+        "scenario": 0,
+        "frames": 60,
+        "failed": 0
+      },
+      {
+        "fps": 30,
+        "independent": true,
+        "scenario": 1,
+        "frames": 60,
+        "failed": 0
+      },
+      {
+        "fps": 30,
+        "independent": true,
+        "scenario": 2,
+        "frames": 60,
+        "failed": 0
+      },
+      {
+        "fps": 30,
+        "independent": true,
+        "scenario": 3,
+        "frames": 60,
+        "failed": 0
+      },
+      {
+        "fps": 60,
+        "independent": false,
+        "scenario": 0,
+        "frames": 120,
+        "failed": 0
+      },
+      {
+        "fps": 60,
+        "independent": false,
+        "scenario": 1,
+        "frames": 120,
+        "failed": 0
+      },
+      {
+        "fps": 60,
+        "independent": false,
+        "scenario": 2,
+        "frames": 120,
+        "failed": 0
+      },
+      {
+        "fps": 60,
+        "independent": false,
+        "scenario": 3,
+        "frames": 120,
+        "failed": 0
+      },
+      {
+        "fps": 60,
+        "independent": true,
+        "scenario": 0,
+        "frames": 120,
+        "failed": 0
+      },
+      {
+        "fps": 60,
+        "independent": true,
+        "scenario": 1,
+        "frames": 120,
+        "failed": 0
+      },
+      {
+        "fps": 60,
+        "independent": true,
+        "scenario": 2,
+        "frames": 120,
+        "failed": 0
+      },
+      {
+        "fps": 60,
+        "independent": true,
+        "scenario": 3,
+        "frames": 120,
+        "failed": 0
+      }
+    ]
+  },
+  "boundaries": [
+    "Virtual InputSystem devices, not physical gamepad certification",
+    "Original 36 dirty paths excluded",
+    "No unique attack-freeze cause reproduced",
+    "Natural wall and full cooldown stress not signed off",
+    "Restricted media retained locally"
+  ]
+}

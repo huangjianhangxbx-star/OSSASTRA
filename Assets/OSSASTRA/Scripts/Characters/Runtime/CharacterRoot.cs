@@ -34,7 +34,7 @@ namespace Ossastra.Characters
         public StateArbitrator StateArbitrator=>stateArbitrator;
         private BasicActionRuntime runtime=>stateArbitrator?.Combat?.Runtime;
         internal ActionDefinitionSO[] StateActionLibrary=>ActionLibrary;
-        internal void PublishActionFact(ActionFact fact)=>ActionObserved?.Invoke(fact);
+        internal void PublishActionFact(ActionFact fact){orienter?.ObserveActionFact(fact);ActionObserved?.Invoke(fact);}
         internal Vector3? StatePointerDirection(CharacterInputFrame frame)=>PointerDirection(frame);
         internal Vector3? StatePointerGroundPoint(CharacterInputFrame frame)=>PointerGroundPoint(frame);
         internal CharacterDefinitionSO StateCharacterDefinition=>characterDefinition;

@@ -103,6 +103,8 @@ namespace Ossastra.Characters
             Combat.CompleteFrame(deltaTime);
             Tick(Dodge, deltaTime);
             Tick(Movement, deltaTime);
+            // 动作/机动/真实移动已完成：统一交接显示朝向，两个模型只读同一结果。
+            Movement.ResolvePresentation();
             owner.StateStamina?.Tick(owner.SimulationTime, !Combat.Runtime.IsActive && !Dodge.IsActive && !WeaponPosture.IsActive && owner.CanSimulateIntent);
             RefreshSnapshots();
         }

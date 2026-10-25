@@ -208,8 +208,16 @@ namespace Ossastra.Characters
     public interface ICharacterOrientation
     {
         Vector3 AttackDirection { get; }
+        Vector3 PresentationDirection { get; }
+        Vector3 LastMoveDirection { get; }
+        string DirectionReason { get; }
         float VisualFacingX { get; }
         void ResolveDirections(Vector2 moveInput, Vector3? pointerDirection, Vector2 stickDirection, bool movementFacing);
+        void ResolveDirections(CharacterInputFrame frame, Vector3? pointerDirection, bool movementFacing, bool playerControl);
+        void ResolvePresentation(CharacterDataBus bus, ICharacterAbilityController abilities, bool playerControl);
+        bool UsesMovementAim {get;}
+        Vector3 ResolveDeliveryDirection(Vector3 acceptedDirection,bool frozenMotion);
+        void ObserveActionFact(ActionFact fact);
         void OrientTowards(Vector3 worldPosition);
         void FaceAttackDirection();
     }
@@ -221,7 +229,12 @@ namespace Ossastra.Characters
         void Present();
     }
     /// <summary>能力执行器公开实际已接受的身体方向，不由动画模块重新读取设备或重采样命中。</summary>
-    public interface ICharacterActionDirectionSource { bool TryGetBodyActionDirection(out Vector3 direction); }
+    public interface ICharacterActionDirectionSource
+    {
+        bool TryGetBodyActionDirection(out Vector3 direction);
+        /// <summary>仅已接受的身体机动Run可声明强制锁向；不是所有身体技能的通用高优先级。</summary>
+        bool TryGetLockedMotionDirection(out Vector3 direction);
+    }
     /// <summary>每本体只读模型表现状态；不替代连续攻击向量或装备运行状态。</summary>
     public interface ICharacterModelDirectionState
     {

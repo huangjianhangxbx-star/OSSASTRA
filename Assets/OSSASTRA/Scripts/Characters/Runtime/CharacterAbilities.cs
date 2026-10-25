@@ -107,6 +107,14 @@ namespace Ossastra.Characters
             var run=runs.LastOrDefault(r=>!r.Ended&&r.Context.id==owner.DataBus.ActionId&&r.Context.definition.executor.UsesBodyAction);
             if(run==null)return false;direction=run.Context.direction;return direction.sqrMagnitude>.0001f;
         }
+        public bool TryGetLockedMotionDirection(out Vector3 direction)
+        {
+            direction=Vector3.zero;
+            if(owner==null||!owner.ActionActive)return false;
+            // 当前盾冲/跃击Run同时承担机动，按受理上下文锁向；普通身体攻击不进入此例外。
+            var run=runs.LastOrDefault(r=>!r.Ended&&r.Context.id==owner.DataBus.ActionId&&r.Context.definition.executor.UsesBodyAction&&r is ICharacterMotionOverride);
+            if(run==null)return false;direction=run.Context.direction;return direction.sqrMagnitude>.0001f;
+        }
         public double MinimumDot=>ActiveGuard?.MinimumDot??1;
         public double PostureScale=>ActiveGuard?.PostureScale??1;
         public int GuardedCount {get;private set;}
@@ -484,9 +492,19 @@ namespace Ossastra.Characters
                 power=(power+emission.Damage*(context.shot.DamageMultiplier/critical-1))*critical;
             }
             var damage=Mathf.RoundToInt((float)power);
+            // 仅新投递取当前政策；盾冲/火箭跃击按受理方向与落点执行，已发射弹体不追溯转弯。
+            bool frozen=context.requestSource!=CharacterActionSource.Player||!owner.HasPlayerInput||
+                runs.Any(r=>ReferenceEquals(r.Context,context)&&r is ICharacterMotionOverride);
+            var direction=owner.DataBus.ResolveDeliveryDirection(context.direction,frozen);
+            var landing=context.landing;
+            if(!frozen&&owner.DataBus.UsesMovementAim)
+            {
+                var offset=context.landing-context.acceptedPosition;offset.y=0;
+                landing=owner.transform.position+direction*offset.magnitude;landing.y=context.landing.y;
+            }
             var emitted=deliveries.Emit(owner.Vitals,context.id,emission.Index,delivery,damage,posture,
-                owner.transform.position,context.direction,context.landing,()=>this!=null&&isActiveAndEnabled&&owner!=null&&owner.IsAlive&&owner.LifeGeneration==context.lifeGeneration,
-                receipts=>{LastResult="接触 "+receipts.Count+" #"+context.id.ToString("N");context.onResolved?.Invoke(emission.Index,channel,receipts);Feedback?.Invoke(context.id,receipts.Any(r=>r.Reason==HitReason.Applied)?"hit":"miss",context.landing);},context.projectileSprite,context.projectileScale,context.definition.reclaimBudget,context.definition.reclaimRate);
+                owner.transform.position,direction,landing,()=>this!=null&&isActiveAndEnabled&&owner!=null&&owner.IsAlive&&owner.LifeGeneration==context.lifeGeneration,
+                receipts=>{LastResult="接触 "+receipts.Count+" #"+context.id.ToString("N");context.onResolved?.Invoke(emission.Index,channel,receipts);Feedback?.Invoke(context.id,receipts.Any(r=>r.Reason==HitReason.Applied)?"hit":"miss",landing);},context.projectileSprite,context.projectileScale,context.definition.reclaimBudget,context.definition.reclaimRate);
             if(emitted){EmittedCount++;Feedback?.Invoke(context.id,"release",owner.transform.position);}
         }
         private bool CommitSource(AbilityRunContext context)

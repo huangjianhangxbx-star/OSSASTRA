@@ -24,6 +24,11 @@ namespace Ossastra.Characters
         public bool IsMoving => movement.IsMoving;
         public Vector3 Velocity => movement.Velocity;
         public Vector3 AttackDirection => orientation.AttackDirection;
+        public Vector3 PresentationDirection => orientation.PresentationDirection;
+        public Vector3 LastMoveDirection => orientation.LastMoveDirection;
+        public string DirectionReason => orientation.DirectionReason;
+        public bool UsesMovementAim => orientation.UsesMovementAim;
+        public Vector3 ResolveDeliveryDirection(Vector3 acceptedDirection,bool frozenMotion) => orientation.ResolveDeliveryDirection(acceptedDirection,frozenMotion);
         public float VisualFacingX => orientation.VisualFacingX;
         public bool ActionActive => actionRuntime.IsActive;
         public Guid ActionId => actionRuntime.ActionId;

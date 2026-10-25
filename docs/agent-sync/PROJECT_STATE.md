@@ -538,3 +538,5 @@ T7A3独立RendererFeature/密度场/最多2个AtmosphereLight/8-16步积分/Dept
 > 2026-10-25 DIR02 technical-complete：小蓝4.3五面Variant与SC_CharacterPresentationCompare已实际接入，A小蓝/B原rozeul；原式动画链的合法结构层、每实例显隐、30条动态Rig与同装备换锚点完成。42输入/1200姿态/10生命周期/16实战/36混合/5原生E验证通过。仅候选，未覆盖主场，复杂穿插/近似动作PARTIAL，实体手感未代签。原36dirty与源SHA保护，最终Edit clean；GitHub定向发布中，Unity/源码租约已释放。见ossastra/DIR02-report.md。
 
 > 2026-10-25 DIR02 complete：产品93eda092c894722a65beff6974217228c2f615dd已GitHub main核对。小蓝五面/rozeul候选与指南交付，原主场未替换、用户美术未代签；最终对照场Edit ready/clean，无临时设备，原36dirty与源SHA一致，全部租约释放。停在用户试玩与正式素材接入判断，不继续扩张。
+
+> 2026-10-25 DIR02-FIX01验证进展：显式新规则替代DIR02静止右杆选面。Orientation统一最终显示方向，键鼠普通移动/鼠标攻击分开，手柄用移动/最近移动；普通未来投递消费同一政策，盾冲/跃击/闪避保留具名机动快照。小蓝身体0.08混合导致场外slot入中心已实际定位，Blue限定零mix A/B及1440连续帧验证通过，未全局改rozeul。历史攻击末帧目前NO_REPRO，不宣称唯一根因已修复。生命周期最终10项通过；最终动作组及重开交接仍在收尾，不沿用旧候选PASS覆盖新规则。

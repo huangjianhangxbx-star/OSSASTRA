@@ -20,7 +20,7 @@ namespace Ossastra.Characters
         public readonly Guid releasePaymentId;
         public readonly int lifeGeneration;
         public readonly double acceptedAt;
-        public readonly Vector3 direction,landing;
+        public readonly Vector3 direction,landing,acceptedPosition;
         public readonly Action<AbilityRunContext,AbilityEmission> emit;
         public readonly AbilityOperation operation;
         public readonly CharacterActionSource requestSource;
@@ -50,7 +50,7 @@ namespace Ossastra.Characters
         public AbilityRunContext(CharacterRoot owner,CompiledAbility definition,IAbilitySource source,Guid id,Vector3 direction,Vector3 landing,Action<AbilityRunContext,AbilityEmission> emit,AbilityOperation operation,Sprite sprite,float scale,EffectSnapshot effects=null,Guid releasePaymentId=default,CharacterActionSource requestSource=CharacterActionSource.Player,bool? presentationMainHand=null)
         {
             this.owner=owner;this.definition=definition;this.source=source;this.id=id;this.direction=direction;this.landing=landing;this.emit=emit;
-            lifeGeneration=owner.LifeGeneration;acceptedAt=owner.SimulationTime;
+            lifeGeneration=owner.LifeGeneration;acceptedAt=owner.SimulationTime;acceptedPosition=owner.transform.position;
             this.operation=operation;this.requestSource=requestSource;
             this.presentationMainHand=presentationMainHand;
             projectileSprite=sprite;projectileScale=scale;
