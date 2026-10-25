@@ -552,3 +552,5 @@ T7A3独立RendererFeature/密度场/最多2个AtmosphereLight/8-16步积分/Dept
 > 2026-10-25 AUDIO-M01-FIX01 complete：651a6e42da2d01b6827627abd7eca7e917f98eea已GitHub main核SHA。交战入口拒绝无有效敌对实体的Accepted；原calm/BGM被动边界保留。7路径15断言/点位复验通过；纠正旧远处空挥验收，RMS受当前Editor全局静音限制单列。Edit clean、原36dirty及372非目标SHA保持，所有租约释放；不扩张仇恨/距离系统。
 
 > 2026-10-25 AUDIO-M02 technical-complete/publishing：在原唯一音频根组合短音仲裁/32源池/共享Master与分组，保留原BGM DSP；Feedback仅视觉，独立音频宿主且单场观察者准入。47/32/9/3/7合同、8混音后输出、旧BGM12/FIX01七路径15、切场6/旧无根bootstrap及自然四总线路由通过；投掷正例6/6，公开资源为原创数学样本。原645保护路径/36dirty保持，Player仍旧插件14错误、人耳听感未签；Unity/源码租约完成释放，只剩定向GitHub发布。详见ossastra/AUDIO-M02-handoff.md。
+
+> 2026-10-25 AUDIO-M02 complete：产品e79be1f1d5b4d03b8843b2d9a184971897bcfe7a/164文件已GitHub main精确核对。原36dirty逐行保持、645保护路径无差异；统一根/分组混音/固定池及真实输入/原BGM/FIX01/旧场接管交付。Editor自有SC_AUDIO_M02_SoundIntegration Edit clean/ready，全部租约释放；Player旧插件14错误与人耳待验收单列，不Gitee、不M03、不关机。

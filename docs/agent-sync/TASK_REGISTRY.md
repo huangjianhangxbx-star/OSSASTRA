@@ -984,3 +984,5 @@ active/unity-writer；用户明确要求一轮修整：共享脚本去M01标签�
 
 
 2026-10-25 AUDIO-M02 technical-complete/docs-writer：Unity/源码租约释放；仅本任务文档与定向GitHub发布。原36dirty/645保护路径不变，Player旧插件14错误、人耳未签，不自动M03。
+
+2026-10-25 AUDIO-M02 complete/read-only：产品e79be1f1d5b4d03b8843b2d9a184971897bcfe7a已GitHub main核SHA，全部Unity/源码/文档/发布租约释放。原36dirty/645保护路径保持，最终新场Edit clean；仅本次发布回执收口，不扩张后续任务。
