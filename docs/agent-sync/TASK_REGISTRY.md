@@ -970,3 +970,5 @@ active/unity-writer；用户明确要求一轮修整：共享脚本去M01标签�
 2026-10-25 AUDIO-M01 active/unity-writer：唯一writer；独立Audio/Core/Runtime/Integration/Editor、Audio/BGM、SC_BGM_AudioMigration、Candidates/AUDIO-M01和本任务文档。角色/旧场/旧音频/原36dirty保护。子任务代码互斥范围见任务记录，只有root操作Unity。
 
 2026-10-25 AUDIO-M01 technical-complete/publishing：Unity与源码租约已释放；独立BGM/新场/20项矩阵交接就绪，仅GitHub定向提交与SHA记录继续。原36dirty/保护路径不变，Player第三方阻塞与用户试听未签详见ossastra/AUDIO-M01-verification.md。
+
+2026-10-25 AUDIO-M01 complete：GitHub产品df90b9fe9ac7c831f791878408e495a6cc46e0bb/128文件已远端核对；全部writer租约释放，原36dirty不变。只收口本发布文档，不推进后续开发。

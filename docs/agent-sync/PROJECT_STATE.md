@@ -544,3 +544,5 @@ T7A3独立RendererFeature/密度场/最多2个AtmosphereLight/8-16步积分/Dept
 > 2026-10-25 DIR02-FIX01 complete：产品4fe18701e1c9ce6b3cd731b3ebd434c0eeabbcd0已GitHub main精确核对。键鼠移动/攻击鼠标分权、手柄移动定向及未来投递一致；Blue限定身体mix0修正场外分支滑入。历史末帧NO_REPRO/PARTIAL，不冒称已修；49动作组/29停止/43输入/36混合/15方向/10生命周期及1440注入帧定向证据已交接。原36dirty/素材不变，最终对照场Edit clean/ready，全部租约释放；仅用户复验，不自动DIR03。
 
 > 2026-10-25 AUDIO-M01 technical-complete/publishing：独立Ossastra.Audio根/纯仲裁/SO/固定六源DSP与监控已在自有SC_BGM_AudioMigration验证。Core17/Mix12/Transport16/Host5与真实12项输入/音乐故事、原创三层/快速淡变、跨场与设置、缺媒体回退通过；原373保护路径/36dirty不变。Player仍被旧Unity-Favorites-Tool阻塞，用户听感及正式Title/Dialog/Boss未签。全部Unity/源码租约释放，仅定向GitHub发布记录继续，不推进AUDIO-M02。
+
+> 2026-10-25 AUDIO-M01 complete：产品df90b9fe9ac7c831f791878408e495a6cc46e0bb已GitHub main精确核对，128文件只含独立BGM与原创诊断/证据。Editor自有新场Edit clean/监控已打开，全部租约释放、原36dirty保护。不代签用户听感，Player仍第三方阻塞；停于AUDIO-M01。

@@ -23,7 +23,7 @@
 | 17 | PASS：MissingMediaLive临时克隆SO取消clip，不改磁盘资产；真实ASSET_BLOCKED_FALLBACK且Pending原曲/Current诊断分开；far保留同诊断home身份。 |
 | 18 | PASS静态+现场：监控实际Instance，显示context/rule/key/素材/version/section/loop/epoch/elapsed、Backend/Transport、组与源起播、Pending/Fading/真实Scheduled、gain/token/history；关闭只释放自己的覆盖和令牌，不创建播放器。 |
 | 19 | PASS：isolation 373保护条目一致，原36dirty保留；Feedback+meta独立diff/SHA，无角色或工程设置变更。 |
-| 20 | 发布核验见publication；合法原创诊断可发布，原作媒体与输出不发布，不Gitee。 |
+| 20 | PASS：128文件产品df90b9f已GitHub main精确核SHA，范围见publication；只发布12份原创诊断，不发布原作媒体与输出，不Gitee。 |
 
 ## 输出与测量边界
 
@@ -36,3 +36,5 @@ Crossfade以逐源volume/isPlaying/timeSamples/能量观察，最大连续无可
 ## 构建和最终现场
 
 player-build实际 BuildPipeline 报告Failed/14errors，首要为 `Assets/Unity-Favorites-Tool/Editor/QuickAccessWindow.cs` 找不到EditorWindow/MenuItem等。第三方未改，Player未验；Editor编译/更新状态均false，SC_BGM_AudioMigration为Edit clean，零临时输出探针，监控已打开。人耳听感、版权定稿、正式Title/Dialog和完整音效均未代签。
+
+提交前C#、工具与文档的差异空白检查通过（Windows CR以cr-at-eol识别）；Unity原生序列化资源的空字段尾空格保持Editor输出，不以文本方式清洗。

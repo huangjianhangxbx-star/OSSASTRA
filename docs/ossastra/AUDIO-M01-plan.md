@@ -46,4 +46,4 @@ Files：Editor/BgmMonitorWindow；AUDIO-M01-review/verification/source-map/publi
 - [x] 完成20项定向矩阵、场景往返与重开、原路径SHA、RMS/同步证据；用户主观试听单列未验。
 - [x] 精确自有文件清单发布GitHub，核远端SHA，释放租约，停在AUDIO-M01。
 
-2026-10-25：20项矩阵及真实DSP/输入/跨场证据已交付；Player实际复核仍被旧Unity-Favorites-Tool阻塞，听感未代签。定向GitHub发布与最终SHA核对进行中，未进入AUDIO-M02。
+2026-10-25：20项矩阵及真实DSP/输入/跨场证据已交付；Player实际复核仍被旧Unity-Favorites-Tool阻塞，听感未代签。定向GitHub产品df90b9f发布及远端SHA核对完成，未进入AUDIO-M02。
