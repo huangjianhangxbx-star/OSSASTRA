@@ -61,3 +61,5 @@ native-rush-final.mp4：18秒/516帧，原生E实际输入与结束；已抽取�
 最终源码编译通过；Edit对照场clean、Missing Script=0、临时设备=0；两份Blue生效表各77个mix字段全部为0（含5结构字段），源素材SHA与原5修改一致。默认动作29步、方向15步、移动定向故事43步、混合输入36步、原生E锁向5步、生命周期10项、双实例显隐5项均按上述真实类型记录。碰墙人工验收、实体手柄手感及完整CD压力场景未代签；历史末帧原因仍PARTIAL。
 
 场景重开后方向故事15步再次0失败；最终两份自有SO已单独保存并强制重导回读，各77 mix字段0且dirty=false。补充facing-and-idle-final.mp4（8秒/191帧），已抽看1/1.8/5秒画面，保留在本机排除目录。
+
+产品提交：4fe18701e1c9ce6b3cd731b3ebd434c0eeabbcd0，已GitHub main精确核对。最终对照场SC_CharacterPresentationCompare为Edit clean/ready，全部独占已释放。原36dirty及源SHA保持，受限媒体未上传；保留本报告明列的PARTIAL/未测项供用户复验。
