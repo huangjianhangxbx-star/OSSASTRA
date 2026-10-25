@@ -1,0 +1,42 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "failed": 0,
+      "rows": [
+        {
+          "n": "configured title survives disable/enable",
+          "ok": true,
+          "tokens": 0
+        },
+        {
+          "n": "disposed dialogue leases are not retained",
+          "ok": true,
+          "tokens": 0
+        },
+        {
+          "n": "new host releases previous world dialogue leases",
+          "ok": true,
+          "tokens": 0
+        },
+        {
+          "n": "unbound old host cannot acquire new world duck",
+          "ok": true,
+          "tokens": 0
+        },
+        {
+          "n": "world invalidation revokes an old diagnostic target",
+          "ok": true,
+          "tokens": 0
+        }
+      ],
+      "method": "explicit host lifecycle injection, not NPC dialogue flow"
+    }
+  }
+}

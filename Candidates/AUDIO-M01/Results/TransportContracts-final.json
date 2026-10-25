@@ -1,0 +1,34 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "passed": 16,
+      "failed": 0,
+      "passes": [
+        "同内容100次请求保持epoch、transport和source起播次数",
+        "总线2倍增益先乘普通层.42再限制最终音源，得到.84",
+        "不同内容分配新transport身份，但backend身份保持",
+        "快速A→B→A重用仍在淡出的A，不重置A的epoch",
+        "快速往返不额外创建AudioSource",
+        "缺失资源请求仅等待，不抢占原音源",
+        "Stop后晚到资源不得复活旧请求",
+        "显式Stop锁存，普通轮询Request不自行恢复",
+        "自定义循环边界实际作用于采样内容，不只写identity",
+        "100BPM强度在2.4秒下一小节切换，不能立即或反复延后",
+        "已知节拍新歌下一小节起播前保留旧歌音量",
+        "目标失效撤销未来预约并保留已经开始的音乐",
+        "A正在播放→B未来预约→C未来预约，替换B并保持A直到C起点",
+        "新歌刚开始淡入又换曲，保留较响旧歌防止音量黑洞",
+        "错误回退的循环拒绝缓存不得挡住同请求晚到的有效原曲",
+        "失效的显式DSP时钟已过epoch时，不得用旧Tick时钟清除已开始的音源"
+      ],
+      "failures": []
+    }
+  }
+}

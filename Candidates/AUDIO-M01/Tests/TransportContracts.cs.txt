@@ -1,0 +1,136 @@
+// 测试边界：重播同key、A→B→A重建源、Stop后晚到资源自行启动，任一错误都应令本合同失败。
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using Funplay.Editor.Tools.Scripting;
+using UnityEngine;
+
+public sealed class AudioTransportContracts : IFunplayCommand
+{
+    private readonly List<string> failures = new List<string>();
+    private readonly List<string> passes = new List<string>();
+    private Type transportType, trackType;
+    private object transport;
+    private GameObject owner;
+    private readonly List<UnityEngine.Object> temporary = new List<UnityEngine.Object>();
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+    {
+        transportType = Find("Ossastra.Audio.BgmTransport"); trackType = Find("Ossastra.Audio.BgmTrackSO");
+        if (transportType == null || trackType == null)
+        {
+            ctx.ReturnValue = new { passed = 0, failed = 1, failures = new[] { "缺失正式 BgmTransport/BgmTrackSO；无法满足同key连续、Stop代次及固定source契约" } };
+            return;
+        }
+        try
+        {
+            owner = new GameObject("AUDIO-M01-TransportContract-Temporary");
+            transport = Activator.CreateInstance(transportType, owner, null, .5f);
+            var a = Track("a", Clip("fixture-a", 8)); var b = Track("b", Clip("fixture-b", 8));
+            double now = AudioSettings.dspTime + .2;
+            Call("Request", a, now); Call("Tick", now + .6, .6f, 1f);
+            string key = Get("CurrentKey").ToString(); double epoch = Convert.ToDouble(Get("Epoch"));
+            int starts = Convert.ToInt32(Get("StartCount")); var id = Get("TransportId");
+            var backendProperty = transportType.GetProperty("BackendId");
+            object backendId = backendProperty == null ? null : backendProperty.GetValue(transport);
+            for (int i = 0; i < 100; i++) { Call("Request", a, now + .6 + i * .01); Call("Tick", now + .6 + i * .01, .01f, .2f); }
+            Check("同内容100次请求保持epoch、transport和source起播次数", key == Get("CurrentKey").ToString() && epoch == Convert.ToDouble(Get("Epoch")) && starts == Convert.ToInt32(Get("StartCount")) && Equals(id, Get("TransportId")));
+            Call("Tick", now + 1.62, .01f, 2f);
+            Check("总线2倍增益先乘普通层.42再限制最终音源，得到.84", Math.Abs(owner.GetComponentsInChildren<AudioSource>(true).Max(s => s.volume) - .84f) < .00001f);
+            Call("Request", b, now + 1.7); Call("Tick", now + 1.85, .15f, 1f);
+            int afterB = Convert.ToInt32(Get("StartCount"));
+            Check("不同内容分配新transport身份，但backend身份保持", backendProperty != null && Equals(backendId, backendProperty.GetValue(transport)) && !Equals(id, Get("TransportId")));
+            Call("Request", a, now + 1.9); Call("Tick", now + 2.1, .2f, 1f);
+            Check("快速A→B→A重用仍在淡出的A，不重置A的epoch", Get("CurrentKey").ToString() == key && Convert.ToInt32(Get("StartCount")) == afterB && Convert.ToDouble(Get("Epoch")) == epoch && Equals(id, Get("TransportId")));
+            for (int i = 0; i < 30; i++) { Call("Request", i % 2 == 0 ? b : a, now + 2.2 + i * .02); Call("Tick", now + 2.2 + i * .02, .02f, 1f); }
+            Check("快速往返不额外创建AudioSource", owner.GetComponentsInChildren<AudioSource>(true).Length <= 6 && Convert.ToInt32(Get("SourceCount")) == owner.GetComponentsInChildren<AudioSource>(true).Length);
+            Call("Stop"); int stoppedStarts = Convert.ToInt32(Get("StartCount"));
+            Call("Resume"); var late = Track("late", null); Call("Request", late, now + 3);
+            Check("缺失资源请求仅等待，不抢占原音源", !string.IsNullOrEmpty(Get("PendingKey") as string) && Convert.ToInt32(Get("StartCount")) == stoppedStarts);
+            Call("Stop"); Set(late, "clip", Clip("late-ready", 8));
+            for (int i = 0; i < 20; i++) Call("Tick", now + 3.1 + i * .1, .1f, 1f);
+            Check("Stop后晚到资源不得复活旧请求", Convert.ToInt32(Get("StartCount")) == stoppedStarts && string.IsNullOrEmpty(Get("CurrentKey") as string) && string.IsNullOrEmpty(Get("PendingKey") as string) && owner.GetComponentsInChildren<AudioSource>(true).All(s => !s.isPlaying && s.volume == 0));
+            Call("Request", a, now + 6); Call("Tick", now + 6.5, .5f, 1f);
+            Check("显式Stop锁存，普通轮询Request不自行恢复", Convert.ToInt32(Get("StartCount")) == stoppedStarts && string.IsNullOrEmpty(Get("CurrentKey") as string));
+            Call("Resume");
+            var segment = Track("custom-section", Clip("section-source", 8));
+            Set(segment, "loopStartSeconds", 1f); Set(segment, "loopEndSeconds", 2f);
+            Call("Request", segment, now + 7); Call("Tick", now + 7.6, .6f, 1f);
+            var sectionSources = owner.GetComponentsInChildren<AudioSource>(true).Where(s => s.clip != null).ToArray();
+            Check("自定义循环边界实际作用于采样内容，不只写identity", sectionSources.Length == 1 && sectionSources[0].clip.samples == 44100 && sectionSources[0].loop);
+            Call("Stop"); Call("Resume");
+            var diagnostic = Track("diagnostic", null);
+            var layers = new[] { Clip("layer0", 10), Clip("layer1", 10), Clip("layer2", 10) };
+            Set(diagnostic, "diagnosticOnly", true); Set(diagnostic, "knownBpm", 100f); Set(diagnostic, "beatsPerBar", 4); Set(diagnostic, "synchronizedLayers", layers);
+            Call("Request", diagnostic, now + 8); double diagnosticEpoch = Convert.ToDouble(Get("Epoch"));
+            Call("Tick", diagnosticEpoch + .1, .6f, 1f);
+            Call("SetIntensity", 1f, diagnosticEpoch + .2);
+            Call("Tick", diagnosticEpoch + 2.39, .1f, 1f);
+            var diagnosticSources = owner.GetComponentsInChildren<AudioSource>(true).Where(s => s.clip != null).ToArray();
+            bool lowerOnly = diagnosticSources.Length == 3 && diagnosticSources.Count(s => s.volume > 0) == 1;
+            Call("Tick", diagnosticEpoch + 2.4, .01f, 1f);
+            Check("100BPM强度在2.4秒下一小节切换，不能立即或反复延后", lowerOnly && diagnosticSources.Count(s => s.volume > 0) == 3 && Convert.ToDouble(Get("Epoch")) == diagnosticEpoch);
+            var pendingKnown = Track("diagnostic-next", null);
+            Set(pendingKnown, "diagnosticOnly", true); Set(pendingKnown, "knownBpm", 100f); Set(pendingKnown, "beatsPerBar", 4); Set(pendingKnown, "synchronizedLayers", layers);
+            Call("Request", pendingKnown, diagnosticEpoch + 2.5);
+            double nextEpoch = Convert.ToDouble(Get("Epoch"));
+            Call("Tick", diagnosticEpoch + 2.6, .1f, 1f);
+            Check("已知节拍新歌下一小节起播前保留旧歌音量", Math.Abs(nextEpoch - (diagnosticEpoch + 4.8)) < .00001 && diagnosticSources.Any(s => s.volume > 0));
+            Call("InvalidateTarget");
+            Check("目标失效撤销未来预约并保留已经开始的音乐", Get("CurrentKey").ToString() == diagnostic.GetType().GetProperty("PlaybackKey").GetValue(diagnostic).ToString() && owner.GetComponentsInChildren<AudioSource>(true).Count(s => s.clip != null) == 3);
+            Call("Request", pendingKnown, diagnosticEpoch + 2.7); Call("Tick", diagnosticEpoch + 2.71, .01f, 1f);
+            var thirdKnown = Track("diagnostic-third", null);
+            Set(thirdKnown, "diagnosticOnly", true); Set(thirdKnown, "knownBpm", 100f); Set(thirdKnown, "beatsPerBar", 4); Set(thirdKnown, "synchronizedLayers", layers);
+            Call("Request", thirdKnown, diagnosticEpoch + 2.72); Call("Tick", diagnosticEpoch + 2.73, .02f, 1f);
+            Check("A正在播放→B未来预约→C未来预约，替换B并保持A直到C起点", Get("FadingKey").ToString() == diagnostic.GetType().GetProperty("PlaybackKey").GetValue(diagnostic).ToString() && diagnosticSources.Any(s => s.clip != null && s.volume > 0));
+            double thirdEpoch = Convert.ToDouble(Get("Epoch"));
+            Call("Tick", thirdEpoch + .01, .01f, 1f);
+            float beforeThirdReplacement = owner.GetComponentsInChildren<AudioSource>(true).Sum(s => s.volume);
+            var fourthKnown = Track("diagnostic-fourth", null);
+            Set(fourthKnown, "diagnosticOnly", true); Set(fourthKnown, "knownBpm", 100f); Set(fourthKnown, "beatsPerBar", 4); Set(fourthKnown, "synchronizedLayers", layers);
+            Call("Request", fourthKnown, thirdEpoch + .02); Call("Tick", thirdEpoch + .03, .01f, 1f);
+            Check("新歌刚开始淡入又换曲，保留较响旧歌防止音量黑洞", Get("FadingKey").ToString() == diagnostic.GetType().GetProperty("PlaybackKey").GetValue(diagnostic).ToString() && owner.GetComponentsInChildren<AudioSource>(true).Sum(s => s.volume) >= beforeThirdReplacement * .9f);
+            Call("Stop"); Call("Resume");
+            var badFallback = Track("bad-loop-fallback", Clip("bad-loop-fallback-source", 8));
+            Set(badFallback, "loopStartSeconds", 9f); Set(badFallback, "loopEndSeconds", 10f);
+            var delayedOriginal = Track("late-original-after-bad-fallback", null); Set(delayedOriginal, "missingFallback", badFallback);
+            int beforeLateOriginal = Convert.ToInt32(Get("StartCount"));
+            Call("Request", delayedOriginal, now + 20); Call("Tick", now + 20.1, .1f, 1f);
+            Set(delayedOriginal, "clip", Clip("late-original-valid", 8));
+            Call("Tick", now + 20.2, .1f, 1f);
+            Check("错误回退的循环拒绝缓存不得挡住同请求晚到的有效原曲", Convert.ToInt32(Get("StartCount")) == beforeLateOriginal + 1 && Get("CurrentKey").ToString() == delayedOriginal.GetType().GetProperty("PlaybackKey").GetValue(delayedOriginal).ToString());
+            string begunBeforeInvalidation = Get("CurrentKey").ToString();
+            double explicitInvalidationTime = Convert.ToDouble(Get("Epoch")) + .1;
+            var invalidateMethod = transportType.GetMethod("InvalidateTarget");
+            if (invalidateMethod.GetParameters().Length == 1) Call("InvalidateTarget", explicitInvalidationTime);
+            else Call("InvalidateTarget");
+            Check("失效的显式DSP时钟已过epoch时，不得用旧Tick时钟清除已开始的音源", Get("CurrentKey").ToString() == begunBeforeInvalidation && owner.GetComponentsInChildren<AudioSource>(true).Count(s => s.clip != null) == 1);
+            Call("Dispose"); transport = null;
+        }
+        catch (Exception e) { failures.Add("正式合同执行异常：" + (e.InnerException ?? e)); }
+        finally
+        {
+            if (transport != null) ((IDisposable)transport).Dispose();
+            if (owner != null) UnityEngine.Object.DestroyImmediate(owner);
+            foreach (var value in temporary) if (value != null) UnityEngine.Object.DestroyImmediate(value);
+        }
+        ctx.ReturnValue = new { passed = passes.Count, failed = failures.Count, passes, failures };
+    }
+    private static Type Find(string name) { return AppDomain.CurrentDomain.GetAssemblies().Select(a => a.GetType(name)).FirstOrDefault(t => t != null); }
+    private object Track(string id, AudioClip clip)
+    {
+        var value = ScriptableObject.CreateInstance(trackType); temporary.Add(value);
+        Set(value, "contentId", id); Set(value, "contentVersion", "1"); Set(value, "sectionId", "whole"); Set(value, "assetId", id); Set(value, "loop", true); Set(value, "clip", clip); return value;
+    }
+    private AudioClip Clip(string name, int seconds) { var c = AudioClip.Create(name, 44100 * seconds, 1, 44100, false); temporary.Add(c); return c; }
+    private static void Set(object o, string name, object value) { o.GetType().GetField(name).SetValue(o, value); }
+    private object Get(string name) { return transportType.GetProperty(name).GetValue(transport); }
+    private object Call(string name, params object[] values)
+    {
+        var method = transportType.GetMethod(name); var parameters = method.GetParameters();
+        var arguments = new object[parameters.Length];
+        for (int i = 0; i < arguments.Length; i++) arguments[i] = i < values.Length ? values[i] : parameters[i].IsOptional ? Type.Missing : null;
+        return method.Invoke(transport, arguments);
+    }
+    private void Check(string label, bool success) { (success ? passes : failures).Add(label); }
+}

@@ -1,0 +1,40 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 36303ecd15e8399468e296d4cb580b1e, type: 3}
+  m_Name: Prototype_Local_Candidates
+  m_EditorClassIdentifier: 
+  rules:
+  - ruleId: boss
+    priority: 100
+    condition: 4
+    track: {fileID: 11400000, guid: df7ae03245da4a849b59913f023500b7, type: 2}
+    intensity: 1
+  - ruleId: combat
+    priority: 60
+    condition: 3
+    track: {fileID: 11400000, guid: c018285d62824f647b38a4ae89c2eb14, type: 2}
+    intensity: 1
+  - ruleId: title
+    priority: 40
+    condition: 2
+    track: {fileID: 11400000, guid: b2cfe573776e9454d899b4b5329e835a, type: 2}
+    intensity: 0
+  - ruleId: explore-far
+    priority: 1
+    condition: 1
+    track: {fileID: 11400000, guid: 2d5b1edb8f941c54989807c06b72730e, type: 2}
+    intensity: 0.32
+  - ruleId: explore
+    priority: 0
+    condition: 0
+    track: {fileID: 11400000, guid: 2d5b1edb8f941c54989807c06b72730e, type: 2}
+    intensity: 0.25

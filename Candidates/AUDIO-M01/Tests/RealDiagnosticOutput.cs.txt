@@ -1,0 +1,169 @@
+/*
+ * 真实 DSP 合同：只读本任务非零原创 home 三层，通过独立临时 Transport 实际等待约六秒。
+ * 不虚构推进 DSP、不写媒体、不修改正式音频根；GetOutputData 证明 API 输出非零，不代签人耳听感。
+ * 静态 Report 可外部反射读取；完成、异常、退出 Play 均解除更新并释放本测试所有对象。
+ */
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using UnityEngine;
+using UnityEditor;
+using A = Ossastra.Audio;
+using Funplay.Editor.Tools.Scripting;
+
+public sealed class RealDiagnosticOutput : IFunplayCommand
+{
+    public static object Report { get; private set; }
+    private static bool running;
+
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+    {
+        if (running) { ctx.ReturnValue = new { state = "already-running", report = Report }; return; }
+        if (!Application.isPlaying) throw new InvalidOperationException("Play independent BGM scene required");
+        var track = AssetDatabase.LoadAssetAtPath<A.BgmTrackSO>("Assets/OSSASTRA/Audio/BGM/Definitions/Diagnostic_home.asset");
+        if (track == null || track.synchronizedLayers == null || track.synchronizedLayers.Length != 3 ||
+            track.synchronizedLayers.Any(c => c == null)) throw new InvalidOperationException("Missing owned diagnostic home three-layer definition");
+
+        GameObject owned = null;
+        A.BgmTransport transport = null;
+        EditorApplication.CallbackFunction update = null;
+        bool finished = false, requestedHigh = false;
+        int updates = 0, clockSamples = 0, beforeBarSamples = 0, beforeBarViolations = 0, maxSampleSpread = 0;
+        double beginDsp = AudioSettings.dspTime, beginWall = EditorApplication.timeSinceStartup, priorDsp = beginDsp;
+        double epoch = 0, intensityRequestedAt = 0, firstAllLayersAt = -1, maxUpdateDelta = 0, lastRowAt = -1;
+        var sourceRmsMax = new double[3];
+        double listenerRmsMax = 0;
+        string listenerError = "";
+        var rows = new List<object>();
+        var failures = new List<string>();
+        var buffer = new float[1024];
+        AudioSettings.GetDSPBufferSize(out int dspBufferFrames, out int dspBufferCount);
+        int outputRate = AudioSettings.outputSampleRate;
+        int clipRate = track.synchronizedLayers[0].frequency;
+        int sampleTolerance = (int)Math.Ceiling((double)dspBufferFrames * clipRate / Math.Max(1, outputRate)) + 1;
+
+        double Rms(float[] data)
+        {
+            double sum = 0;
+            for (int i = 0; i < data.Length; i++) sum += data[i] * data[i];
+            return Math.Sqrt(sum / data.Length);
+        }
+
+        void Finish(string state, string error = "")
+        {
+            if (finished) return;
+            finished = true;
+            EditorApplication.update -= update;
+            int starts = transport == null ? 0 : transport.StartCount;
+            int sourceStarts = transport == null ? 0 : transport.SourceStartCount;
+            int allocatedSources = owned == null ? 0 : owned.GetComponentsInChildren<AudioSource>(true).Length;
+            double endDsp = AudioSettings.dspTime;
+            if (state == "completed")
+            {
+                if (clockSamples == 0) failures.Add("未观察到三个实际起播音源的采样时钟");
+                if (maxSampleSpread > sampleTolerance) failures.Add("三层timeSamples离差超过一个实际DSPbuffer容限");
+                if (sourceRmsMax.Any(v => v <= .00001)) failures.Add("至少一层未取得非零AudioSource.GetOutputData输出");
+                if (beforeBarSamples == 0 || beforeBarViolations != 0) failures.Add("下一小节前的强度保持未通过");
+                double barEpoch = epoch + 2.4;
+                if (firstAllLayersAt < barEpoch || firstAllLayersAt > barEpoch + Math.Max(.1, maxUpdateDelta + (double)dspBufferFrames / Math.Max(1, outputRate)))
+                    failures.Add("0到1强度未在真实下一小节及更新容限内生效");
+                if (starts != 1 || sourceStarts != 3 || allocatedSources != 6) failures.Add("单一三层起播被重复创建或重复PlayScheduled");
+            }
+            else failures.Add(string.IsNullOrEmpty(error) ? state : error);
+            try
+            {
+                transport?.Dispose();
+                // 此对象及其全部子对象仅属于本测试；立即移除使最终清理读数不依赖下一帧。
+                if (owned != null) UnityEngine.Object.DestroyImmediate(owned);
+            }
+            catch (Exception cleanupError) { failures.Add("清理失败：" + cleanupError.Message); }
+            running = false;
+            Report = new
+            {
+                state, failed = failures.Count, failures, updates,
+                actualDspSeconds = endDsp - beginDsp, wallSeconds = EditorApplication.timeSinceStartup - beginWall,
+                epoch, intensityRequestedAt, expectedIntensityEpoch = epoch + 2.4, firstAllLayersAt,
+                clockSamples, maxSampleSpread, sampleTolerance, dspBufferFrames, dspBufferCount, outputRate, clipRate,
+                beforeBarSamples, beforeBarViolations, maxUpdateDelta, sourceRmsMax, listenerRmsMax, listenerError,
+                starts, sourceStarts, allocatedSources, disposed = transport == null || transport.IsDisposed,
+                ownedDestroyed = owned == null, callbackDetached = true,
+                listenerScope = "AudioListener output may include other existing scene sounds; per-source RMS belongs only to this test",
+                limitation = "Actual DSP/output API evidence only; not human audition or hardware latency certification",
+                rows
+            };
+        }
+
+        try
+        {
+            owned = new GameObject("AUDIO-M01 Real DSP Output [Temporary]");
+            owned.hideFlags = HideFlags.DontSave;
+            transport = new A.BgmTransport(owned, null, .12f);
+            transport.SetIntensity(0, beginDsp);
+            transport.Request(track, beginDsp);
+            running = true;
+            Report = new { state = "running", beginDsp, expectedWallSeconds = 6, clipRate, sampleTolerance };
+            update = () =>
+            {
+                try
+                {
+                    if (!Application.isPlaying || owned == null) { Finish("aborted", "Play ended or owned test object disappeared"); return; }
+                    double now = AudioSettings.dspTime;
+                    float delta = (float)Math.Max(0, now - priorDsp);
+                    maxUpdateDelta = Math.Max(maxUpdateDelta, delta);
+                    priorDsp = now;
+                    updates++;
+                    // 此处仅输入真实系统时钟，不以预设帧数或测试时钟加速音频后端。
+                    transport.Request(track, now);
+                    if (epoch == 0 && transport.StartCount > 0) epoch = transport.Epoch;
+                    if (!requestedHigh && epoch > 0 && now >= epoch + .25)
+                    {
+                        requestedHigh = true;
+                        intensityRequestedAt = now;
+                        transport.SetIntensity(1, now);
+                    }
+                    transport.Tick(now, delta, 1);
+                    var sources = owned.GetComponentsInChildren<AudioSource>(true).Where(s => s.clip != null).ToArray();
+                    if (sources.Length == 3 && epoch > 0 && now >= epoch + .15)
+                    {
+                        int[] samples = sources.Select(s => s.timeSamples).ToArray();
+                        float[] volumes = sources.Select(s => s.volume).ToArray();
+                        bool playing = sources.All(s => s.isPlaying);
+                        if (playing)
+                        {
+                            clockSamples++;
+                            maxSampleSpread = Math.Max(maxSampleSpread, samples.Max() - samples.Min());
+                        }
+                        for (int i = 0; i < sources.Length; i++)
+                        {
+                            sources[i].GetOutputData(buffer, 0);
+                            if (volumes[i] > .0001f && playing) sourceRmsMax[i] = Math.Max(sourceRmsMax[i], Rms(buffer));
+                        }
+                        if (requestedHigh && now < epoch + 2.4)
+                        {
+                            beforeBarSamples++;
+                            if (volumes[1] > .0001f || volumes[2] > .0001f) beforeBarViolations++;
+                        }
+                        if (volumes.All(v => v > .0001f) && firstAllLayersAt < 0) firstAllLayersAt = now;
+                        if (now - lastRowAt >= .1 && rows.Count < 75)
+                        {
+                            lastRowAt = now;
+                            rows.Add(new { dsp = now, elapsed = now - epoch, samples, volumes, playing });
+                        }
+                    }
+                    try { AudioListener.GetOutputData(buffer, 0); listenerRmsMax = Math.Max(listenerRmsMax, Rms(buffer)); }
+                    catch (Exception listenerException) { listenerError = listenerException.Message; }
+                    if (now - beginDsp >= 6) Finish("completed");
+                    else if (EditorApplication.timeSinceStartup - beginWall >= 8) Finish("timeout", "Actual DSP clock did not advance six seconds within wall-clock timeout");
+                }
+                catch (Exception error) { Finish("error", error.ToString()); }
+            };
+            EditorApplication.update += update;
+            ctx.ReturnValue = new { state = "started", reportType = "RealDiagnosticOutput", reportProperty = "Report", expectedSeconds = 6 };
+        }
+        catch (Exception error)
+        {
+            Finish("error", error.ToString());
+            ctx.ReturnValue = Report;
+        }
+    }
+}

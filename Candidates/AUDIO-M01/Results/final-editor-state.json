@@ -1,0 +1,67 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "playing": false,
+      "isCompiling": false,
+      "isUpdating": false,
+      "scene": "Assets/OSSASTRA/Scenes/SC_BGM_AudioMigration.unity",
+      "dirty": false,
+      "roots": 1,
+      "extraOutputProbes": 0,
+      "rules": [
+        {
+          "ruleId": "boss",
+          "priority": 100,
+          "condition": "Boss",
+          "intensity": 1.0,
+          "track": "diagnostic:boss",
+          "key": "bgm-v1|15:diagnostic:boss1:116:four-bars-100bpm23:owned-synthesis-v1:bossL|0|0"
+        },
+        {
+          "ruleId": "combat",
+          "priority": 60,
+          "condition": "Engaged",
+          "intensity": 1.0,
+          "track": "local:chapter1",
+          "key": "bgm-v1|14:local:chapter11:121:whole-file-evaluation64:C154C8B55ED6A8B8B7DAF47084DC5CB59E42E164045CAB70BB6529228BFC1A19L|0|0"
+        },
+        {
+          "ruleId": "title",
+          "priority": 40,
+          "condition": "Title",
+          "intensity": 0.0,
+          "track": "local:title",
+          "key": "bgm-v1|11:local:title1:121:whole-file-evaluation64:DD17354C33C0808C91A4FCB32800503DC3D2887680BE0999822BC6B9237D5D58L|0|0"
+        },
+        {
+          "ruleId": "explore-far",
+          "priority": 1,
+          "condition": "Far",
+          "intensity": 0.32,
+          "track": "local:home",
+          "key": "bgm-v1|10:local:home1:121:whole-file-evaluation64:1468CB17CCEE32C0250806CB7DC72A6D1BEE3A2039FC9F13D73FC905DC97038DL|0|0"
+        },
+        {
+          "ruleId": "explore",
+          "priority": 0,
+          "condition": "Always",
+          "intensity": 0.25,
+          "track": "local:home",
+          "key": "bgm-v1|10:local:home1:121:whole-file-evaluation64:1468CB17CCEE32C0250806CB7DC72A6D1BEE3A2039FC9F13D73FC905DC97038DL|0|0"
+        }
+      ],
+      "prefs": {
+        "music": 0.24,
+        "master": 0.75,
+        "muted": 0
+      }
+    }
+  }
+}

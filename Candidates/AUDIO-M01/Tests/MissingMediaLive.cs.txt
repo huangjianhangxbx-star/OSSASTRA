@@ -1,0 +1,14 @@
+/* 不修改资产：临时克隆SO缺媒体，真实DSP检查ASSET_BLOCKED及同home规则连续，随后恢复。 */
+using System;using System.Linq;using System.Reflection;using UnityEngine;using UnityEditor;using A=Ossastra.Audio;using Funplay.Editor.Tools.Scripting;
+public class MissingMediaLive:IFunplayCommand
+{
+ public static object Report;public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext c)
+ {
+  var root=A.GameAudioRoot.Instance;if(!Application.isPlaying||root==null)throw new Exception("Play BGM scene required");
+  var original=root.Rules;var copy=UnityEngine.Object.Instantiate(original);var home=UnityEngine.Object.Instantiate(original.rules.First(x=>x.ruleId=="explore").track);home.clip=null;home.synchronizedLayers=Array.Empty<AudioClip>();foreach(var rule in copy.rules)if(rule.ruleId=="explore"||rule.ruleId=="explore-far")rule.track=home;
+  var field=typeof(A.GameAudioRoot).GetField("rules",BindingFlags.NonPublic|BindingFlags.Instance);field.SetValue(root,copy);root.SetDiagnosticContext(new A.BgmContext());double start=AudioSettings.dspTime;string key="",id="";double epoch=0;int starts=0,stage=0;bool blocked=false;EditorApplication.CallbackFunction tick=null;
+  tick=()=>{try{double now=AudioSettings.dspTime;if(!Application.isPlaying)throw new Exception("Play ended");if(stage==0&&now-start>1){blocked=root.Transport.Status=="ASSET_BLOCKED_FALLBACK"&&root.Transport.CurrentTrack.diagnosticOnly;key=root.Transport.CurrentKey;id=root.Transport.TransportId;epoch=root.Transport.Epoch;starts=root.Transport.StartCount;root.SetDiagnosticContext(new A.BgmContext{far=true});stage++;}if(stage==1&&now-start>2){Report=new{done=true,blocked,pass=blocked&&key==root.Transport.CurrentKey&&id==root.Transport.TransportId&&epoch==root.Transport.Epoch&&starts==root.Transport.StartCount,status=root.Transport.Status,root.Transport.PendingKey,root.Transport.CurrentKey};Cleanup();}}catch(Exception e){Report=new{done=true,error=e.ToString()};Cleanup();}};
+  void Cleanup(){EditorApplication.update-=tick;if(root!=null){field.SetValue(root,original);root.SetDiagnosticContext(null);}UnityEngine.Object.DestroyImmediate(copy);UnityEngine.Object.DestroyImmediate(home);}
+  EditorApplication.update+=tick;c.ReturnValue=new{started=true};
+ }
+}

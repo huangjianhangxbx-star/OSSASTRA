@@ -1,0 +1,42 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [
+      "-29468",
+      "-29478",
+      "-29492"
+    ],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "scene": "Assets/OSSASTRA/Scenes/SC_BGM_AudioMigration.unity",
+      "mixer": "Assets/OSSASTRA/Audio/BGM/Mixer/BGM.mixer",
+      "rules": "Assets/OSSASTRA/Audio/BGM/Definitions/Prototype_Local_Candidates.asset",
+      "diagnosticLayers": 12,
+      "local": [
+        {
+          "id": "title",
+          "available": true,
+          "hash": "DD17354C33C0808C91A4FCB32800503DC3D2887680BE0999822BC6B9237D5D58",
+          "seconds": 148.728
+        },
+        {
+          "id": "home",
+          "available": true,
+          "hash": "1468CB17CCEE32C0250806CB7DC72A6D1BEE3A2039FC9F13D73FC905DC97038D",
+          "seconds": 99.0
+        },
+        {
+          "id": "chapter1",
+          "available": true,
+          "hash": "C154C8B55ED6A8B8B7DAF47084DC5CB59E42E164045CAB70BB6529228BFC1A19",
+          "seconds": 318.192
+        }
+      ],
+      "sourceSceneUntouched": true
+    }
+  }
+}

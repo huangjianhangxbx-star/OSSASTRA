@@ -1,0 +1,119 @@
+/* 真实六秒DSP输出：A→预约B→预约前换C→C淡入后立即回A→B。
+ * 仅使用本任务原创三层素材和临时Transport；逐真实Editor更新采样，不加速时钟。
+ * 分音源能量相加不是post-mixer输出，不能证明相消/响度无瑕疵或代替用户试听。
+ */
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using UnityEngine;
+using UnityEditor;
+using A = Ossastra.Audio;
+using Funplay.Editor.Tools.Scripting;
+
+public sealed class RealCrossfadeOutput : IFunplayCommand
+{
+    public static object Report { get; private set; }
+    private static bool running;
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+    {
+        if (running) { ctx.ReturnValue = new { state = "already-running", report = Report }; return; }
+        if (!Application.isPlaying) throw new InvalidOperationException("Play owned BGM scene required");
+        var tracks = new[] { "home", "title", "chapter1" }.Select(id => AssetDatabase.LoadAssetAtPath<A.BgmTrackSO>(
+            "Assets/OSSASTRA/Audio/BGM/Definitions/Diagnostic_" + id + ".asset")).ToArray();
+        if (tracks.Any(t => t == null || t.synchronizedLayers == null || t.synchronizedLayers.Length != 3 || t.synchronizedLayers.Any(c => c == null)))
+            throw new InvalidOperationException("Missing owned nonzero diagnostic definitions");
+
+        GameObject owned = null; A.BgmTransport transport = null;
+        EditorApplication.CallbackFunction update = null;
+        var rows = new List<object>(); var events = new List<object>(); var failures = new List<string>();
+        var buffer = new float[1024];
+        double begin = AudioSettings.dspTime, wall = EditorApplication.timeSinceStartup, prior = begin;
+        double cEpoch = 0, cAudibleAt = -1, returnedAt = 0, lastRow = -1, noAudibleFrom = -1, maxNoAudibleSpan = 0, maxDelta = 0, maxSumEnergy = 0;
+        string aTransport = ""; double aEpoch = 0;
+        int stage = 0, desired = 0, updates = 0, noAudibleSamples = 0, maxSources = 0, sourceCountViolations = 0;
+        bool finished = false, reusedA = false, cancelledB = false, retainedA = false, bOutputObserved = false;
+        void Finish(string state, string error = "")
+        {
+            if (finished) return; finished = true; EditorApplication.update -= update;
+            int starts = transport == null ? 0 : transport.StartCount, sourceStarts = transport == null ? 0 : transport.SourceStartCount;
+            if (state == "completed")
+            {
+                if (stage != 4 || !cancelledB || !reusedA || !retainedA) failures.Add("未完成预约替换、A保留及原transport返回链");
+                if (noAudibleSamples != 0) failures.Add("启动.2秒后存在无正音量且非零输出的音源采样");
+                if (maxSources != 6 || sourceCountViolations != 0 || starts != 4 || sourceStarts != 12) failures.Add("固定六源或四次三层预约计数不符");
+                if (!bOutputObserved || maxSumEnergy <= .00000001) failures.Add("最终B或全程未取得非零实际音源输出");
+            }
+            else failures.Add(string.IsNullOrEmpty(error) ? state : error);
+            double end = AudioSettings.dspTime;
+            try { transport?.Dispose(); if (owned != null) UnityEngine.Object.DestroyImmediate(owned); }
+            catch (Exception cleanup) { failures.Add("清理失败：" + cleanup.Message); }
+            running = false;
+            Report = new
+            {
+                state, failed = failures.Count, failures, updates, stage, actualDspSeconds = end - begin,
+                wallSeconds = EditorApplication.timeSinceStartup - wall, aEpoch, cEpoch, cAudibleAt, returnedAt,
+                cStartToReturnSeconds = returnedAt == 0 ? -1 : returnedAt - cEpoch,
+                cancelledB, reusedA, retainedA, bOutputObserved, maxSources, sourceCountViolations, starts, sourceStarts,
+                noAudibleSamples, maxObservedNoAudibleDspSpan = maxNoAudibleSpan, maxUpdateDelta = maxDelta, maxSumEnergy,
+                disposed = transport == null || transport.IsDisposed, ownedDestroyed = owned == null, callbackDetached = true,
+                scope = "Per-source GetOutputData energy + volume/isPlaying/timeSamples sampled on real DSP updates; summed energy is not post-mixer audio, phase-cancellation proof or human audition", events, rows
+            };
+        }
+        try
+        {
+            owned = new GameObject("AUDIO-M01 Real Crossfade [Temporary]"); owned.hideFlags = HideFlags.DontSave;
+            transport = new A.BgmTransport(owned, null, .28f);
+            transport.SetIntensity(1, begin); transport.Request(tracks[0], begin);
+            aTransport = transport.TransportId; aEpoch = transport.Epoch;
+            running = true; Report = new { state = "running", beginDsp = begin, expectedSeconds = 6 };
+            update = () =>
+            {
+                try
+                {
+                    if (!Application.isPlaying || owned == null) { Finish("aborted", "Play ended or owned object disappeared"); return; }
+                    double now = AudioSettings.dspTime; float delta = (float)Math.Max(0, now - prior); prior = now;
+                    updates++; maxDelta = Math.Max(maxDelta, delta);
+                    if (stage == 0 && now >= begin + .5) { desired = 1; stage = 1; events.Add(new { action = "A→B预约", dsp = now }); }
+                    else if (stage == 1 && now >= begin + .7)
+                    { cancelledB = transport.ScheduledKey == tracks[1].PlaybackKey && now < transport.ScheduledEpoch; desired = 2; stage = 2; events.Add(new { action = "B预约前替换C", dsp = now }); }
+                    else if (stage == 2 && cAudibleAt >= 0 && now >= cAudibleAt + .02)
+                    { desired = 0; stage = 3; returnedAt = now; events.Add(new { action = "C开始淡入后返回A", dsp = now }); }
+                    else if (stage == 3 && now >= returnedAt + .2) { desired = 1; stage = 4; events.Add(new { action = "A再转B", dsp = now }); }
+                    transport.Request(tracks[desired], now); transport.Tick(now, delta, 1);
+                    if (stage == 2 && cEpoch == 0) cEpoch = transport.Epoch;
+                    if (stage == 2 && now < cEpoch) retainedA |= transport.FadingKey == tracks[0].PlaybackKey;
+                    if (stage == 3) reusedA |= transport.TransportId == aTransport && transport.Epoch == aEpoch;
+                    var sources = owned.GetComponentsInChildren<AudioSource>(true); maxSources = Math.Max(maxSources, sources.Length);
+                    if (sources.Length != 6) sourceCountViolations++;
+                    var sourceRows = new List<object>(); double sumEnergy = 0; bool anyAudible = false;
+                    for (int i = 0; i < sources.Length; i++)
+                    {
+                        var source = sources[i]; double energy = 0;
+                        if (source.clip != null && source.isPlaying)
+                        { source.GetOutputData(buffer, 0); for (int n = 0; n < buffer.Length; n++) energy += buffer[n] * buffer[n]; energy /= buffer.Length; }
+                        bool active = source.clip != null && source.isPlaying && source.volume > .0001f && energy > .0000000001;
+                        anyAudible |= active;
+                        if (active && stage == 2 && cAudibleAt < 0 && now >= cEpoch && tracks[2].synchronizedLayers.Contains(source.clip)) cAudibleAt = now;
+                        if (source.volume > .0001f) sumEnergy += energy;
+                        if (active && stage == 4 && transport.CurrentKey == tracks[1].PlaybackKey && now >= transport.Epoch + .1 && tracks[1].synchronizedLayers.Contains(source.clip)) bOutputObserved = true;
+                        sourceRows.Add(new { bank = i / 3, source = source.name, clip = source.clip == null ? "" : source.clip.name, source.volume, source.isPlaying, timeSamples = source.clip == null ? 0 : source.timeSamples, energy });
+                    }
+                    maxSumEnergy = Math.Max(maxSumEnergy, sumEnergy);
+                    if (now >= begin + .2)
+                    {
+                        if (!anyAudible) { noAudibleSamples++; if (noAudibleFrom < 0) noAudibleFrom = now; maxNoAudibleSpan = Math.Max(maxNoAudibleSpan, now - noAudibleFrom); }
+                        else noAudibleFrom = -1;
+                    }
+                    if (now - lastRow >= .05 && rows.Count < 150)
+                    { lastRow = now; rows.Add(new { dsp = now, elapsed = now - begin, stage, transport.CurrentKey, transport.TransportId, transport.ScheduledKey, transport.ScheduledEpoch, transport.FadingKey, anyAudible, sumEnergy, sources = sourceRows }); }
+                    if (now - begin >= 6) Finish("completed");
+                    else if (EditorApplication.timeSinceStartup - wall > 10) Finish("timeout", "真实DSP未在十秒墙钟内前进六秒");
+                }
+                catch (Exception error) { Finish("error", error.ToString()); }
+            };
+            EditorApplication.update += update;
+            ctx.ReturnValue = new { state = "started", reportType = "RealCrossfadeOutput", reportProperty = "Report", expectedSeconds = 6 };
+        }
+        catch (Exception error) { Finish("error", error.ToString()); ctx.ReturnValue = Report; }
+    }
+}

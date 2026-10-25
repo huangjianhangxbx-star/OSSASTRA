@@ -542,3 +542,5 @@ T7A3独立RendererFeature/密度场/最多2个AtmosphereLight/8-16步积分/Dept
 > 2026-10-25 DIR02-FIX01验证进展：显式新规则替代DIR02静止右杆选面。Orientation统一最终显示方向，键鼠普通移动/鼠标攻击分开，手柄用移动/最近移动；普通未来投递消费同一政策，盾冲/跃击/闪避保留具名机动快照。小蓝身体0.08混合导致场外slot入中心已实际定位，Blue限定零mix A/B及1440连续帧验证通过，未全局改rozeul。历史攻击末帧目前NO_REPRO，不宣称唯一根因已修复。生命周期最终10项通过；最终动作组及重开交接仍在收尾，不沿用旧候选PASS覆盖新规则。
 
 > 2026-10-25 DIR02-FIX01 complete：产品4fe18701e1c9ce6b3cd731b3ebd434c0eeabbcd0已GitHub main精确核对。键鼠移动/攻击鼠标分权、手柄移动定向及未来投递一致；Blue限定身体mix0修正场外分支滑入。历史末帧NO_REPRO/PARTIAL，不冒称已修；49动作组/29停止/43输入/36混合/15方向/10生命周期及1440注入帧定向证据已交接。原36dirty/素材不变，最终对照场Edit clean/ready，全部租约释放；仅用户复验，不自动DIR03。
+
+> 2026-10-25 AUDIO-M01 technical-complete/publishing：独立Ossastra.Audio根/纯仲裁/SO/固定六源DSP与监控已在自有SC_BGM_AudioMigration验证。Core17/Mix12/Transport16/Host5与真实12项输入/音乐故事、原创三层/快速淡变、跨场与设置、缺媒体回退通过；原373保护路径/36dirty不变。Player仍被旧Unity-Favorites-Tool阻塞，用户听感及正式Title/Dialog/Boss未签。全部Unity/源码租约释放，仅定向GitHub发布记录继续，不推进AUDIO-M02。

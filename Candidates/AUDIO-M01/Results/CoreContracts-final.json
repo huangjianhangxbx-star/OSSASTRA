@@ -1,0 +1,102 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "failed": 0,
+      "total": 17,
+      "cases": [
+        {
+          "label": "普通探索选择home与探索强度",
+          "pass": true,
+          "detail": ""
+        },
+        {
+          "label": "远室只换规则不换内容身份",
+          "pass": true,
+          "detail": ""
+        },
+        {
+          "label": "标题高于远室",
+          "pass": true,
+          "detail": ""
+        },
+        {
+          "label": "真实交战高于标题",
+          "pass": true,
+          "detail": ""
+        },
+        {
+          "label": "Boss诊断最高且保留配置优先级",
+          "pass": true,
+          "detail": ""
+        },
+        {
+          "label": "无上下文变化反复仲裁不会改变home身份",
+          "pass": true,
+          "detail": ""
+        },
+        {
+          "label": "段落改变是合法新身份",
+          "pass": true,
+          "detail": ""
+        },
+        {
+          "label": "循环边界改变是合法新身份",
+          "pass": true,
+          "detail": ""
+        },
+        {
+          "label": "循环政策改变是合法新身份",
+          "pass": true,
+          "detail": ""
+        },
+        {
+          "label": "拒绝NaN边界",
+          "pass": true,
+          "detail": ""
+        },
+        {
+          "label": "拒绝逆序边界",
+          "pass": true,
+          "detail": ""
+        },
+        {
+          "label": "拒绝缺少版本的身份",
+          "pass": true,
+          "detail": ""
+        },
+        {
+          "label": "含分隔符的不同内容不能产生碰撞",
+          "pass": true,
+          "detail": ""
+        },
+        {
+          "label": "身份不随区域小数格式变化",
+          "pass": true,
+          "detail": ""
+        },
+        {
+          "label": "重命名标题规则仍保留标题语义供hold消费",
+          "pass": true,
+          "detail": ""
+        },
+        {
+          "label": "同优先级稳定使用配置顺序",
+          "pass": true,
+          "detail": ""
+        },
+        {
+          "label": "空规则集明确无选择",
+          "pass": true,
+          "detail": ""
+        }
+      ]
+    }
+  }
+}

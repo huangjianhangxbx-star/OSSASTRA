@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 95a2f02d4b221aa44ba66569967e279f, type: 3}
+  m_Name: Candidate_home
+  m_EditorClassIdentifier: 
+  contentId: local:home
+  contentVersion: 1
+  sectionId: whole-file-evaluation
+  assetId: 1468CB17CCEE32C0250806CB7DC72A6D1BEE3A2039FC9F13D73FC905DC97038D
+  clip: {fileID: 8300000, guid: c1eaa3db48b546e43a65ad256108b5a5, type: 3}
+  synchronizedLayers: []
+  diagnosticOnly: 0
+  missingFallback: {fileID: 11400000, guid: 4f55e2bb460fbe34590682fbcc3ae464, type: 2}
+  loop: 1
+  loopStartSeconds: 0
+  loopEndSeconds: 0
+  knownBpm: 0
+  beatsPerBar: 4

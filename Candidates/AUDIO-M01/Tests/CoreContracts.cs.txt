@@ -1,0 +1,120 @@
+/*
+ * 脚本：CoreContracts（仅候选测试，不进入生产程序集）
+ * 功能：调用真实仲裁器与内容身份，验证优先级、同曲跨规则连续身份和非法配置拒绝。
+ * 先红：生产类型尚不存在时返回缺失能力失败；实现后同一测试直接运行真实生产 API。
+ */
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
+using System.Reflection;
+using UnityEngine;
+using Funplay.Editor.Tools.Scripting;
+
+public sealed class CoreContracts : IFunplayCommand
+{
+    private readonly List<object> rows = new List<object>();
+    private readonly List<UnityEngine.Object> created = new List<UnityEngine.Object>();
+    private int failed;
+    private Type trackType, ruleType, ruleSetType, contextType, conditionType, arbitratorType;
+
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+    {
+        try
+        {
+            trackType = Find("BgmTrackSO"); ruleType = Find("BgmRuleBinding");
+            ruleSetType = Find("BgmRuleSetSO"); contextType = Find("BgmContext");
+            conditionType = Find("BgmRuleCondition"); arbitratorType = Find("BgmArbitrator");
+            if (trackType == null || ruleType == null || ruleSetType == null || contextType == null || conditionType == null || arbitratorType == null)
+            {
+                Check("选择器、配置和内容身份尚缺失", false, "FEATURE_MISSING: independent BGM Core/Definitions");
+                return;
+            }
+            var home = Track("home", "v1", "whole", "home-local");
+            var combat = Track("chapter1", "v1", "whole", "combat-local");
+            var title = Track("title", "v1", "whole", "title-local");
+            var boss = Track("diagnostic-boss", "v1", "whole", "diag");
+            var ruleSet = ScriptableObject.CreateInstance(ruleSetType); created.Add(ruleSet);
+            var rules = Array.CreateInstance(ruleType, 5);
+            rules.SetValue(Rule("explore", 0, "Always", home, .25f), 0);
+            rules.SetValue(Rule("explore-far", 1, "Far", home, .32f), 1);
+            rules.SetValue(Rule("title", 40, "Title", title, 0), 2);
+            rules.SetValue(Rule("combat", 60, "Engaged", combat, 1), 3);
+            rules.SetValue(Rule("boss", 100, "Boss", boss, 1), 4);
+            Set(ruleSet, "rules", rules);
+
+            var plain = Choose(ruleSet, false, false, false, false);
+            var far = Choose(ruleSet, false, false, false, true);
+            Check("普通探索选择home与探索强度", Read<string>(plain, "RuleId") == "explore" && Read<float>(plain, "Intensity") == .25f && Read<object>(plain, "Track") == home);
+            Check("远室只换规则不换内容身份", Read<string>(far, "RuleId") == "explore-far" && Read<float>(far, "Intensity") == .32f && Key(home) == Key((UnityEngine.Object)Read<object>(far, "Track")));
+            Check("标题高于远室", Read<string>(Choose(ruleSet, false, false, true, true), "RuleId") == "title");
+            Check("真实交战高于标题", Read<string>(Choose(ruleSet, false, true, true, true), "RuleId") == "combat");
+            var all = Choose(ruleSet, true, true, true, true);
+            Check("Boss诊断最高且保留配置优先级", Read<string>(all, "RuleId") == "boss" && Read<int>(all, "Priority") == 100);
+            Check("无上下文变化反复仲裁不会改变home身份", Enumerable.Range(0, 80).All(i => Read<object>(Choose(ruleSet, false, false, false, i % 2 == 0), "Track") == home));
+
+            string initial = Key(home);
+            Set(home, "sectionId", "verse2"); Check("段落改变是合法新身份", Key(home) != initial);
+            Set(home, "sectionId", "whole"); Set(home, "loopStartSeconds", 2f); Set(home, "loopEndSeconds", 8f);
+            Check("循环边界改变是合法新身份", Key(home) != initial);
+            string bounded = Key(home); Set(home, "loop", false); Check("循环政策改变是合法新身份", Key(home) != bounded);
+            Set(home, "loop", true); Set(home, "loopStartSeconds", float.NaN); Check("拒绝NaN边界", Key(home) == "");
+            Set(home, "loopStartSeconds", 9f); Check("拒绝逆序边界", Key(home) == "");
+            Set(home, "loopStartSeconds", 0f); Set(home, "loopEndSeconds", 0f); Set(home, "contentVersion", ""); Check("拒绝缺少版本的身份", Key(home) == "");
+            Set(home, "contentVersion", "v1");
+
+            var collisionA = Track("a|b", "c", "whole", "local");
+            var collisionB = Track("a", "b|c", "whole", "local");
+            Check("含分隔符的不同内容不能产生碰撞", Key(collisionA) != Key(collisionB));
+            var priorCulture = CultureInfo.CurrentCulture;
+            try
+            {
+                Set(home, "loopStartSeconds", 1.25f); Set(home, "loopEndSeconds", 8.5f);
+                CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("fr-FR"); string french = Key(home);
+                CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("en-US"); Check("身份不随区域小数格式变化", Key(home) == french);
+            }
+            finally { CultureInfo.CurrentCulture = priorCulture; }
+
+            Set(rules.GetValue(2), "ruleId", "menu-semantic");
+            var renamedTitle = Choose(ruleSet, false, false, true, false);
+            var chosenCondition = renamedTitle.GetType().GetProperty("Condition");
+            Check("重命名标题规则仍保留标题语义供hold消费", Read<string>(renamedTitle, "RuleId") == "menu-semantic" &&
+                chosenCondition != null && chosenCondition.GetValue(renamedTitle).ToString() == "Title");
+
+            var tied = Array.CreateInstance(ruleType, 2);
+            tied.SetValue(Rule("first", 9, "Always", title, 0), 0); tied.SetValue(Rule("second", 9, "Always", combat, 1), 1);
+            Set(ruleSet, "rules", tied); Check("同优先级稳定使用配置顺序", Read<string>(Choose(ruleSet, false, false, false, false), "RuleId") == "first");
+            Set(ruleSet, "rules", Array.CreateInstance(ruleType, 0)); Check("空规则集明确无选择", Choose(ruleSet, false, false, false, false) == null);
+        }
+        catch (Exception error) { Check("合同执行无异常", false, error.ToString()); }
+        finally
+        {
+            foreach (var item in created) if (item != null) UnityEngine.Object.DestroyImmediate(item);
+            ctx.ReturnValue = new { failed, total = rows.Count, cases = rows };
+        }
+    }
+
+    private static Type Find(string name) { return AppDomain.CurrentDomain.GetAssemblies().Select(a => a.GetType("Ossastra.Audio." + name)).FirstOrDefault(t => t != null); }
+    private static void Set(object owner, string name, object value) { owner.GetType().GetField(name).SetValue(owner, value); }
+    private static T Read<T>(object owner, string name) { return (T)owner.GetType().GetProperty(name).GetValue(owner); }
+    private string Key(UnityEngine.Object track) { return Read<string>(track, "PlaybackKey"); }
+    private UnityEngine.Object Track(string content, string version, string section, string asset)
+    {
+        var item = ScriptableObject.CreateInstance(trackType); created.Add(item);
+        Set(item, "contentId", content); Set(item, "contentVersion", version); Set(item, "sectionId", section); Set(item, "assetId", asset);
+        return item;
+    }
+    private object Rule(string id, int priority, string condition, UnityEngine.Object track, float intensity)
+    {
+        var rule = Activator.CreateInstance(ruleType);
+        Set(rule, "ruleId", id); Set(rule, "priority", priority); Set(rule, "condition", Enum.Parse(conditionType, condition)); Set(rule, "track", track); Set(rule, "intensity", intensity);
+        return rule;
+    }
+    private object Choose(object rules, bool boss, bool engaged, bool title, bool far)
+    {
+        var context = Activator.CreateInstance(contextType);
+        Set(context, "boss", boss); Set(context, "engaged", engaged); Set(context, "title", title); Set(context, "far", far);
+        return arbitratorType.GetMethod("Choose").Invoke(null, new[] { context, rules });
+    }
+    private void Check(string label, bool pass, string detail = "") { if (!pass) failed++; rows.Add(new { label, pass, detail }); }
+}

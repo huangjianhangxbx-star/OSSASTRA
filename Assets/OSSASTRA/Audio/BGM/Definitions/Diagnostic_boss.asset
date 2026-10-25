@@ -1,0 +1,30 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 95a2f02d4b221aa44ba66569967e279f, type: 3}
+  m_Name: Diagnostic_boss
+  m_EditorClassIdentifier: 
+  contentId: diagnostic:boss
+  contentVersion: 1
+  sectionId: four-bars-100bpm
+  assetId: owned-synthesis-v1:boss
+  clip: {fileID: 8300000, guid: efc2544f4a6636f4f835a8fdc1f4d7dc, type: 3}
+  synchronizedLayers:
+  - {fileID: 8300000, guid: efc2544f4a6636f4f835a8fdc1f4d7dc, type: 3}
+  - {fileID: 8300000, guid: 873d8ac067e5db74e9427587e550b1bd, type: 3}
+  - {fileID: 8300000, guid: 1ce1437459d05dd4dba9df3035d8928f, type: 3}
+  diagnosticOnly: 1
+  missingFallback: {fileID: 0}
+  loop: 1
+  loopStartSeconds: 0
+  loopEndSeconds: 0
+  knownBpm: 100
+  beatsPerBar: 4

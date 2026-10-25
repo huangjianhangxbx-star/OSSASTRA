@@ -1,0 +1,41 @@
+/* 真实帧故事：仅自有场Play、设备注入走原输入/Accepted链；不写Engaged。Play退出恢复现场。 */
+using System;using System.Linq;using System.Collections.Generic;using UnityEngine;using UnityEditor;using UnityEngine.InputSystem;using UnityEngine.InputSystem.LowLevel;using Funplay.Editor.Tools.Scripting;using A=Ossastra.Audio;using C=Ossastra.Characters;using Ossastra.CharacterCore;
+public class AudioLiveStory:IFunplayCommand
+{
+ public static List<object> Rows=new List<object>();public static bool Done;public static string Error="";
+ static A.GameAudioRoot root;static A.BgmContextHost host;static Ossastra.Combat.CombatEngagementSession session;static Gamepad pad;static IDisposable dialogue;static double start;static int stage,accepted;static string key,id;static double epoch;static int starts;static float gain;static Vector3 original;static Vector3[] enemyPositions;static float[] samples=new float[1024];
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+ {
+  if(!Application.isPlaying)throw new Exception("Play BGM scene required");root=A.GameAudioRoot.Instance;host=UnityEngine.Object.FindObjectOfType<A.BgmContextHost>();session=UnityEngine.Object.FindObjectOfType<Ossastra.Combat.CombatEngagementSession>();
+  if(root==null||host==null||session==null)throw new Exception("Missing scene context");Done=false;stage=accepted=0;Rows.Clear();Error="";original=session.Coordinator.Current.transform.position;
+  session.Coordinator.SendMessage("OnApplicationFocus",true);foreach(var c in session.Coordinator.Characters)c.SendMessage("OnApplicationFocus",true,SendMessageOptions.DontRequireReceiver);root.SendMessage("OnApplicationFocus",true);root.Mix.Muted=false;
+  enemyPositions=session.Enemies.Select(e=>e.transform.position).ToArray();foreach(var e in session.Enemies)e.transform.position+=Vector3.right*100;session.Coordinator.Current.ActionObserved+=OnFact;pad=InputSystem.AddDevice<Gamepad>();InputSystem.QueueStateEvent(pad,new GamepadState());root.SetDiagnosticContext(new A.BgmContext{title=true});start=AudioSettings.dspTime;EditorApplication.update+=Step;ctx.ReturnValue=new{started=true,realTimeSeconds=21};
+ }
+ static void OnFact(ActionFact f){if(f.Kind==ActionFactKind.Accepted)accepted++;}
+ static void Row(string label,bool pass,object details=null){Rows.Add(new{label,pass,dsp=AudioSettings.dspTime-start,rule=root.Choice?.RuleId,key=root.Transport.CurrentKey,epoch=root.Transport.Epoch,transport=root.Transport.TransportId,starts=root.Transport.StartCount,gain=root.Mix.CurrentGain,details});}
+ static double Rms(){AudioListener.GetOutputData(samples,0);return Math.Sqrt(samples.Select(x=>(double)x*x).Average());}
+ static void Place(Vector3 p){var c=session.Coordinator.Current;var cc=c.GetComponent<CharacterController>();if(cc!=null)cc.enabled=false;c.transform.position=p;if(cc!=null)cc.enabled=true;}
+ static void Step()
+ {
+  try{
+   if(!Application.isPlaying)throw new Exception("Play ended");double t=AudioSettings.dspTime-start;
+   if(stage==0&&t>2){Row("local title actual output",root.Choice?.RuleId=="title",new{rms=Rms(),bpm=root.Transport.CurrentTrack.knownBpm});root.SetDiagnosticContext(new A.BgmContext());stage++;}
+   if(stage==1&&t>4){Row("local explore actual output",root.Choice?.RuleId=="explore"&&Rms()>1e-7,new{rms=Rms()});root.SetDiagnosticContext(null);key=root.Transport.CurrentKey;id=root.Transport.TransportId;epoch=root.Transport.Epoch;starts=root.Transport.StartCount;Place(new Vector3(5,original.y,0));stage++;}
+   if(stage==2&&t>5){Row("actual far-zone preserves home transport",root.Choice?.RuleId=="explore-far"&&key==root.Transport.CurrentKey&&id==root.Transport.TransportId&&epoch==root.Transport.Epoch&&starts==root.Transport.StartCount);Place(original);dialogue=host.AcquireDialogueFocus();gain=root.Mix.TargetGain;stage++;}
+   if(stage==3&&t>7){Row("live dialogue only ducks continuous home",key==root.Transport.CurrentKey&&id==root.Transport.TransportId&&starts==root.Transport.StartCount&&root.Mix.SnapshotCount==1,new{target=root.Mix.TargetGain,outputRms=Rms()});dialogue.Dispose();dialogue=null;Time.timeScale=0;stage++;}
+   if(stage==4&&t>8){Row("timescale zero advances same DSP music",id==root.Transport.TransportId&&root.Transport.Elapsed>t-4, new{elapsed=root.Transport.Elapsed,timeScale=Time.timeScale});Time.timeScale=1;var ui=UnityEngine.Object.FindObjectOfType<Ossastra.UserInterface.InventoryView>();if(ui!=null)ui.SetOpen(true);stage++;}
+   if(stage==5&&t>9){var ui=UnityEngine.Object.FindObjectOfType<Ossastra.UserInterface.InventoryView>();Row("real inventory UI does not select new music",ui!=null&&ui.IsOpen&&id==root.Transport.TransportId);if(ui!=null)ui.SetOpen(false);InputSystem.QueueStateEvent(pad,new GamepadState{rightTrigger=1});stage++;}
+   if(stage==6&&t>9.3){InputSystem.QueueStateEvent(pad,new GamepadState());stage++;}
+   if(stage==7&&t>10){Row("InputSystem RT accepted triggers actual combat music",accepted>0&&session.Engaged&&root.Choice?.RuleId=="combat",new{accepted,session.CanSample,session.QuietTime});stage++;}
+   if(stage==8&&t>14.2){Row("existing three-second calm returns explore",accepted>0&&!session.Engaged&&root.Choice?.RuleId=="explore",new{session.QuietTime});InputSystem.QueueStateEvent(pad,new GamepadState{rightTrigger=1});stage++;}
+   if(stage==9&&t>14.5){InputSystem.QueueStateEvent(pad,new GamepadState());stage++;}
+   if(stage==10&&t>15.5){Row("second real Accepted re-enters combat",accepted>=2&&session.Engaged&&root.Choice?.RuleId=="combat",new{accepted});root.StopMusic();starts=root.Transport.StartCount;stage++;}
+   if(stage==11&&t>16.5){Row("explicit Stop stays stopped across real frames",root.Transport.IsStopped&&starts==root.Transport.StartCount&&root.Transport.CurrentKey=="");root.enabled=false;stage++;}
+   if(stage==12&&t>17.5){root.enabled=true;stage++;}
+   if(stage==13&&t>18.5){Row("disable/enable does not silently resume",root.Transport.IsStopped&&starts==root.Transport.StartCount);root.ResumeMusic();root.SetDiagnosticContext(new A.BgmContext());stage++;}
+   if(stage==14&&t>20.5){Row("explicit resume plays",!root.Transport.IsStopped&&root.Transport.CurrentKey!=""&&Rms()>1e-7,new{rms=Rms()});Cleanup();}
+  }catch(Exception e){Error=e.ToString();Cleanup();}
+ }
+ static void Cleanup(){EditorApplication.update-=Step;Time.timeScale=1;dialogue?.Dispose();dialogue=null;if(pad!=null){InputSystem.RemoveDevice(pad);pad=null;}if(session!=null){foreach(var c in session.Coordinator.Characters)if(c!=null)c.ActionObserved-=OnFact;for(int i=0;i<session.Enemies.Length;i++)if(session.Enemies[i]!=null)session.Enemies[i].transform.position=enemyPositions[i];}if(root!=null){root.enabled=true;root.ResumeMusic();root.SetDiagnosticContext(null);}Done=true;}
+ public static object Report()=>new{done=Done,error=Error,rows=Rows.ToArray(),accepted};
+}

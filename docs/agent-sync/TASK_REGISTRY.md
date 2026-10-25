@@ -966,3 +966,7 @@ active/unity-writer；用户明确要求一轮修整：共享脚本去M01标签�
 2026-10-25 DIR02-FIX01 complete/read-only：租约已释放；原唯一writer，e08a046基准/36dirty保护；既有对照场Play clean，P0复现→攻击回落/朝向政策/五面时序修复，独占详见tasks/2026-10-25-dir02-fix01.md，不新增场景。
 
 2026-10-25 DIR02-FIX01 complete：产品4fe18701e1c9ce6b3cd731b3ebd434c0eeabbcd0已GitHub main核SHA。移动朝向/Blue限定离散混合修正交付；历史攻击末帧NO_REPRO/PARTIAL明确保留。对照场Edit clean/ready，原36dirty与源SHA不变，全部租约释放，不进入DIR03。
+
+2026-10-25 AUDIO-M01 active/unity-writer：唯一writer；独立Audio/Core/Runtime/Integration/Editor、Audio/BGM、SC_BGM_AudioMigration、Candidates/AUDIO-M01和本任务文档。角色/旧场/旧音频/原36dirty保护。子任务代码互斥范围见任务记录，只有root操作Unity。
+
+2026-10-25 AUDIO-M01 technical-complete/publishing：Unity与源码租约已释放；独立BGM/新场/20项矩阵交接就绪，仅GitHub定向提交与SHA记录继续。原36dirty/保护路径不变，Player第三方阻塞与用户试听未签详见ossastra/AUDIO-M01-verification.md。
