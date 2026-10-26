@@ -1,0 +1,23 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "checks": [
+        {
+          "name": "known stage4 metal beats generic heavy contact",
+          "pass": true
+        },
+        {
+          "name": "unknown material retains heavy contact",
+          "pass": true
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "passed": 0,
+      "failed": 1,
+      "rows": [
+        {
+          "name": "明确效果语义及六参数网关存在",
+          "passed": false,
+          "detail": "MISSING_FEATURE: CombatContactBatch.EffectSemantic / Resolve(...,cause,effectSemantic)"
+        }
+      ],
+      "scope": "明确效果元数据与实际HP回执；不触及场景角色或声音"
+    }
+  }
+}

@@ -559,3 +559,8 @@ T7A3独立RendererFeature/密度场/最多2个AtmosphereLight/8-16步积分/Dept
 用户要求现有内容音效表现整理已完成Editor验证：唯一音频根/BGM/Mixer不换；公共72条语义配置、本机42精选/63有效目录，四段挥击、真实接触/盾挡/受伤、枪声3变体与机械装填/真实爆炸分开。缺闪避/喝药/元素专用素材留白，无正常诊断音回退。AbilityFeedbackFact与CombatContactBatch只读快照，Cause区分直击/周期/派生，冰世界2调用仅补元数据；队列冻结来源租约防重连旧声。合同14/21/47/32/13/9/8/4/3及所有权7/生命周期3/场循环6、BGM17/12通过。自然故事20/21（短1秒敌击窗口未新增损血，保留失败）、游侠真实库存换装/绑定LT枪械7/7；70秒Listener输出两段无削波。原36dirty保留，628保护仅3已登记事实生产源码变更，625一致；Editor原SC_AUDIO_M02 Edit clean。详见docs/ossastra/AUDIO-SFXPASS-handoff.md；受限PCM/本机内容SO不公开，GitHub发布另记，不Gitee。
 
 2026-10-26 AUDIO-SFXPASS complete：GitHub产品5fc2ee359b2fde008f4e1c82fac4daa7557331e5/64文件已远端核验，tree与本地逐字节相同；受限PCM/本机SO零公开。所有writer释放，原36dirty精确保持，Editor原场Edit clean；仅发布回执文档收口，无后续自动迁移。
+
+2026-10-27 AUDIO-BB-FUSION启动：用户授权F00–F10一轮连续融合及完成后休眠，保留唯一音频根与原BGM/仲裁；efdd6138基准、36原dirty保护，参考内容本机隔离，源码/素材只读审计并行。
+
+## 2026-10-27 AUDIO-BB-FUSION verified
+F00–F10工程实施/定向验证完成：原唯一音频根/Transport/32短音池与Mixer保留，A0–A3原子切档；本机参考67媒体、117绑定/111事件，3音乐/3区域环境。实际四档同事实Mixer捕获无削波、峰5/5/9/9；主输入20/21、枪7/7、世界8/9保留真实未过。跨场6/附加5/晚Host4/死亡3/原创替换3通过。36原dirty/67源目录项/5FSB/67派生保持；新场SC_AUDIO_BB_Fusion Edit clean、418依赖无私有内容、零测试设备/对象/缺脚本。Player既有收藏插件14错，人工NEEDS_LISTENING，真冰等CONTENT_INCOMPLETE。详见docs/ossastra/AUDIO-BB-FUSION-handoff.md。Unity/源码writer已释放；仅文档/选择性GitHub发布收口，不Gitee。

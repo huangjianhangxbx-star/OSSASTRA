@@ -1,0 +1,28 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "checks": [
+        {
+          "name": "original clip replaces one semantic without new playback root",
+          "pass": true
+        },
+        {
+          "name": "same source permit actually uses authored clip",
+          "pass": true
+        },
+        {
+          "name": "fixed 38-source topology retained",
+          "pass": true
+        }
+      ],
+      "reason": "APPLIED"
+    }
+  }
+}

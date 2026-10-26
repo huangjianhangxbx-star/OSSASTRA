@@ -1,0 +1,116 @@
+/* 开发合同：EffectSemanticContracts
+ * 功能：验证共享接触批次保留明确效果语义，同时继续使用原网关的唯一HP与逐目标回执。
+ * 边界：只创建并清理自有Vitals，不触碰场景角色、能力或声音；未知Periodic不得自动变成冰。
+ * 协作：反射探测新增只读属性/六参数入口，缺少功能时返回明确RED而非编译失败。
+ */
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using Funplay.Editor.Tools.Scripting;
+using UnityEngine;
+using Core = Ossastra.CharacterCore;
+using Combat = Ossastra.Combat;
+
+public sealed class EffectSemanticContracts : IFunplayCommand
+{
+    private readonly List<object> rows = new List<object>();
+    private readonly List<GameObject> owned = new List<GameObject>();
+    private int passed, failed;
+    private static readonly BindingFlags instance = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+    {
+        Action<Combat.CombatContactBatch> handler = null;
+        try
+        {
+            var semantic = typeof(Combat.CombatContactBatch).GetProperty("EffectSemantic");
+            var extended = typeof(Combat.CombatContactGateway).GetMethods().FirstOrDefault(method =>
+                method.Name == "Resolve" && method.GetParameters().Length == 6 &&
+                method.GetParameters()[5].ParameterType == typeof(string));
+            if (semantic == null || extended == null)
+            {
+                Check("明确效果语义及六参数网关存在", false,
+                    "MISSING_FEATURE: CombatContactBatch.EffectSemantic / Resolve(...,cause,effectSemantic)");
+                return;
+            }
+            Check("明确效果语义及六参数网关存在", true);
+            Check("效果语义是只读字符串", semantic.PropertyType == typeof(string) && !semantic.CanWrite);
+            Check("保留原五参数网关签名", typeof(Combat.CombatContactGateway).GetMethods().Any(method =>
+                method.Name == "Resolve" && method.GetParameters().Length == 5));
+
+            var source = Vitals("source", Core.CombatFaction.Allied);
+            var target = Vitals("target", Core.CombatFaction.Enemy);
+            source.transform.position = new Vector3(3000, 1000, 3000);
+            target.transform.position = new Vector3(3001, 1000, 3000);
+            var batches = new List<Combat.CombatContactBatch>();
+            handler = value => { if (ReferenceEquals(value.Source, source)) batches.Add(value); };
+            Combat.CombatContactGateway.Resolved += handler;
+            var parent = Guid.NewGuid();
+
+            foreach (var entry in new[]
+            {
+                new { semanticId = "ice.pulse", cause = Combat.CombatContactCause.Periodic },
+                new { semanticId = "ice.shatter", cause = Combat.CombatContactCause.Secondary }
+            })
+            {
+                int count = batches.Count, before = target.Health.Current;
+                var release = Core.AttackRelease.ForEmission(parent, count, source.Health.Id, 5, 0);
+                var outcomes = (IReadOnlyList<Core.HitOutcome>)extended.Invoke(null, new object[]
+                    { release, source, new Combat.IHitTarget[] { target }, source.WorldPosition, entry.cause, entry.semanticId });
+                var batch = batches.LastOrDefault();
+                Check(entry.semanticId + "保留明确语义与原执行身份", batches.Count == count + 1 && batch != null &&
+                    (string)semantic.GetValue(batch) == entry.semanticId && batch.Cause == entry.cause &&
+                    batch.ParentExecutionId == parent && batch.ActionId == release.ActionId &&
+                    batch.EmissionIndex == count && batch.Origin == source.WorldPosition);
+                Check(entry.semanticId + "仍只有一笔原HP与原回执", batch != null && outcomes.Count == 1 &&
+                    outcomes[0].Reason == Core.HitReason.Applied && outcomes[0].HpBefore == before &&
+                    outcomes[0].HpAfter == before - 5 && target.Health.Current == before - 5 &&
+                    batch.Receipts.Count == 1 && ReferenceEquals(batch.Receipts[0].Outcome, outcomes[0]) &&
+                    ReferenceEquals(batch.Receipts[0].Target, target));
+            }
+
+            int previous = target.Health.Current, oldCount = batches.Count;
+            var oldFive = Core.AttackRelease.ForEmission(parent, oldCount, source.Health.Id, 5, 0);
+            var fiveOutcomes = Combat.CombatContactGateway.Resolve(oldFive, source,
+                new Combat.IHitTarget[] { target }, source.WorldPosition, Combat.CombatContactCause.Periodic);
+            var fiveBatch = batches.LastOrDefault();
+            Check("旧五参数Periodic没有被猜成冰", batches.Count == oldCount + 1 && fiveBatch != null &&
+                fiveBatch.Cause == Combat.CombatContactCause.Periodic && string.IsNullOrEmpty((string)semantic.GetValue(fiveBatch)));
+            Check("旧五参数仍唯一扣除原伤害", fiveOutcomes.Count == 1 && target.Health.Current == previous - 5 &&
+                fiveBatch.Receipts.Count == 1 && ReferenceEquals(fiveBatch.Receipts[0].Outcome, fiveOutcomes[0]));
+
+            previous = target.Health.Current; oldCount = batches.Count;
+            var oldFour = Core.AttackRelease.ForEmission(parent, oldCount, source.Health.Id, 5, 0);
+            var fourOutcomes = Combat.CombatContactGateway.Resolve(oldFour, source,
+                new Combat.IHitTarget[] { target }, source.WorldPosition);
+            var fourBatch = batches.LastOrDefault();
+            Check("旧四参数仍默认Direct且语义为空", batches.Count == oldCount + 1 && fourBatch != null &&
+                fourBatch.Cause == Combat.CombatContactCause.Direct && string.IsNullOrEmpty((string)semantic.GetValue(fourBatch)));
+            Check("旧四参数仍唯一扣除原伤害", fourOutcomes.Count == 1 && target.Health.Current == previous - 5 &&
+                fourBatch.Receipts.Count == 1 && ReferenceEquals(fourBatch.Receipts[0].Outcome, fourOutcomes[0]));
+            Check("四条入口共用唯一HP且来源不受伤", batches.Count == 4 && target.Health.Current == 80 && source.Health.Current == 100);
+        }
+        catch (Exception error) { Check("效果语义合同执行无异常", false, error.ToString()); }
+        finally
+        {
+            if (handler != null) Combat.CombatContactGateway.Resolved -= handler;
+            foreach (var item in owned.AsEnumerable().Reverse()) if (item != null) UnityEngine.Object.DestroyImmediate(item);
+            ctx.ReturnValue = new { passed, failed, rows, scope = "明确效果元数据与实际HP回执；不触及场景角色或声音" };
+        }
+    }
+
+    private Combat.CombatVitals Vitals(string suffix, Core.CombatFaction faction)
+    {
+        var go = new GameObject("DEVELOPMENT_ONLY:effect-semantic:" + suffix);
+        owned.Add(go);
+        var value = go.AddComponent<Combat.CombatVitals>();
+        typeof(Combat.CombatVitals).GetField("faction", instance).SetValue(value, faction);
+        if (!value.Initialize("DEVELOPMENT_ONLY:effect:" + suffix + ":" + Guid.NewGuid().ToString("N")))
+            throw new InvalidOperationException("自有受击体初始化失败");
+        return value;
+    }
+
+    private void Check(string name, bool ok, object detail = null)
+    { if (ok) passed++; else failed++; rows.Add(new { name, passed = ok, detail }); }
+}

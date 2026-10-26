@@ -1,0 +1,32 @@
+/* 从已核验音频整合场复制为本任务自有入口；不保存旧场、角色Prefab或任何本机媒体引用。 */
+using System;using System.Linq;using UnityEngine;using UnityEditor;using UnityEditor.SceneManagement;using UnityEngine.SceneManagement;using Ossastra.Audio;using Funplay.Editor.Tools.Scripting;
+public class CreateFusionScene:IFunplayCommand
+{
+ const string ScenePath="Assets/OSSASTRA/Scenes/SC_AUDIO_BB_Fusion.unity";
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+ {
+  var scene=EditorSceneManager.GetActiveScene();if(Application.isPlaying||scene.isDirty||scene.path!="Assets/OSSASTRA/Scenes/SC_AUDIO_M02_SoundIntegration.unity")throw new Exception("Expected saved owned source scene");
+  if(AssetDatabase.LoadAssetAtPath<SceneAsset>(ScenePath)!=null)throw new Exception("Candidate already exists; inspect instead of replay");
+  if(!EditorSceneManager.SaveScene(scene,ScenePath,true))throw new Exception("Scene copy failed");scene=EditorSceneManager.OpenScene(ScenePath);
+  var host=new GameObject("Bloodborne Fusion [Audio Facts]");ctx.RegisterObjectCreation(host);host.AddComponent<LocomotionAudioAdapter>();host.AddComponent<InterfaceAudioAdapter>();
+  int surfaces=0;foreach(var collider in UnityEngine.Object.FindObjectsOfType<Collider>().Where(c=>c.gameObject.scene==scene))
+  {
+   if(collider.name.StartsWith("Tile_",StringComparison.Ordinal))
+   {var surface=collider.gameObject.AddComponent<AudioSurfaceFact>();surface.surface=collider.bounds.center.x < -2?"wood":collider.bounds.center.x>2?"dirt":"stone";surfaces++;}
+   else if(collider.name.Contains("Wall")||collider.name.Contains("Boundary")){if(collider.GetComponent<AudioAcousticObstacle>()==null)collider.gameObject.AddComponent<AudioAcousticObstacle>();}
+  }
+  foreach(var vitals in UnityEngine.Object.FindObjectsOfType<Ossastra.Combat.CombatVitals>())
+  {var surface=vitals.GetComponent<AudioSurfaceFact>();if(surface==null)surface=vitals.gameObject.AddComponent<AudioSurfaceFact>();surface.impactMaterial="flesh";}
+  CreateZone(ctx,host.transform,"wood_room",new Vector3(-4,1,0),new Vector3(4,4,10),"ambience.torch",true);
+  CreateZone(ctx,host.transform,"stone_corridor",new Vector3(0,1,0),new Vector3(4,4,10),"ambience.fire",true);
+  CreateZone(ctx,host.transform,"rain_court",new Vector3(4,1,0),new Vector3(4,4,10),"ambience.rain",false);
+  EditorSceneManager.MarkSceneDirty(scene);if(!EditorSceneManager.SaveScene(scene))throw new Exception("Candidate save failed");
+  ctx.ReturnValue=new{scene=scene.path,surfaces,zones=3,dirty=scene.isDirty,privateReferences=false};
+ }
+ static void CreateZone(Funplay.Editor.Tools.Scripting.ExecutionContext ctx,Transform parent,string id,Vector3 center,Vector3 size,string cue,bool indoors)
+ {
+  var go=new GameObject("Audio Zone "+id);ctx.RegisterObjectCreation(go);go.transform.SetParent(parent);go.transform.position=center;
+  var box=go.AddComponent<BoxCollider>();box.isTrigger=true;box.size=size;
+  var zone=go.AddComponent<AudioEnvironmentZone>();var so=new SerializedObject(zone);so.FindProperty("zoneId").stringValue=id;so.FindProperty("eventId").stringValue=cue;so.FindProperty("indoors").boolValue=indoors;so.ApplyModifiedPropertiesWithoutUndo();
+ }
+}

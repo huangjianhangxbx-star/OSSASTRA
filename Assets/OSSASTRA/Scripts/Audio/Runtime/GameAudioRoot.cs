@@ -22,15 +22,32 @@ namespace Ossastra.Audio
         private readonly Queue<SfxObservation> sfxHistory=new Queue<SfxObservation>();
         private string sceneScope;
         private SfxCatalogSO effectiveCatalog;
+        private AudioContentProfileSO baselineProfile;
+        private System.Random contentRandom=new System.Random(27027);
+        private AudioListener acousticListener;
+        private float nextListenerRead;
+        public AudioContentProfileSO ContentProfile {get;private set;}
+        public CombatSoundProfileSO CombatSoundProfile => ContentProfile==null?Resources.Load<CombatSoundProfileSO>("OssastraCombatSoundProfile"):ContentProfile.combatProfile;
+        public bool WorldAudioEnabled=>ContentProfile!=null&&ContentProfile.worldAudio;
+        public bool AcousticsEnabled=>ContentProfile!=null&&ContentProfile.acoustics;
+        public int ProfileRevision {get;private set;}
+        public string ProfileError {get;private set;}="";
         public SfxCatalogSO SfxCatalog => effectiveCatalog;
         public string SfxContentStatus { get; private set; } = "尚未选择内容";
         public sealed class SfxObservation
         {
+            public long Sequence{get;internal set;}
             public SfxRequest Request{get;internal set;}
             public SfxDecision Decision{get;internal set;}
             public bool SourcePlayIssued{get;internal set;}
             public string PlaybackReason{get;internal set;}
+            public string ClipName{get;internal set;}
+            public string Provenance{get;internal set;}
         }
+        public event Action<SfxObservation> SfxObserved;
+        /// <summary>成功切换世界后同步重新绑定事实观察者，避免下一Update的首个Accepted丢失。</summary>
+        public event Action ContentProfileApplied;
+        private long sfxSequence;
         private readonly Queue<string> history=new Queue<string>();
         private BgmContextHost host;
         private BgmContext context;
@@ -59,14 +76,14 @@ namespace Ossastra.Audio
         public string[] History=>history.ToArray();
         public BgmRuleSetSO Rules=>rules;
         public double HoldUntil=>holdUntil;
-        public bool IsBoundHost(BgmContextHost source)=>IsOwner&&host==source;
+        public bool IsBoundHost(BgmContextHost source)=>IsOwner&&isActiveAndEnabled&&host==source;
         private void Awake()
         {
             if(Instance!=null&&Instance!=this){Status="拒绝重复正式BGM所有者";enabled=false;Destroy(gameObject);return;}
             if(bootstrap==null)bootstrap=GameAudioBootstrap.LoadConfiguration();
             if(bootstrap!=null){if(rules==null)rules=bootstrap.rules;if(mixProfile==null)mixProfile=bootstrap.mixProfile;}
             if(rules==null||mixProfile==null){Status="缺少音频规则/混音配置";enabled=false;return;}
-            Instance=this;IsOwner=true;
+            Instance=this;IsOwner=true;UnityEngine.SceneManagement.SceneManager.activeSceneChanged+=OnActiveAudioScene;
             Mix=new BgmMixController(mixProfile.baselineGain,mixProfile.dialogueGain,mixProfile.duckSeconds);
             Mix.UserBgmVolume=PlayerPrefs.GetFloat("ossastra.audio.bgm",.24f);
             Mix.MasterVolume=PlayerPrefs.GetFloat("ossastra.audio.master",.75f);
@@ -78,7 +95,7 @@ namespace Ossastra.Audio
                 if(UnifiedMix.IsConfigured)
                 {
                     output=bootstrap.bgmOutput;UnifiedMix.LoadUserSettings();
-                    Sfx=new SfxArbitrator(bootstrap.softVoices,bootstrap.hardVoices);
+                    Sfx=new SfxArbitrator(bootstrap.softVoices,bootstrap.hardVoices,()=>contentRandom.NextDouble());
                     SfxPlayer=new SfxVoicePlayer(gameObject,Sfx,bootstrap.Route,bootstrap.hardVoices);
                     var content=Resources.Load<SfxContentSetSO>("OssastraSfxContent");
                     effectiveCatalog=bootstrap.sfxCatalog;
@@ -92,19 +109,38 @@ namespace Ossastra.Audio
             }
             else SfxStatus=reason;
             Transport=new BgmTransport(gameObject,output,mixProfile.crossfadeSeconds);
+            baselineProfile=ScriptableObject.CreateInstance<AudioContentProfileSO>();
+            baselineProfile.hideFlags=HideFlags.HideAndDontSave;baselineProfile.profileId="A0_OSS_BASELINE";
+            baselineProfile.catalog=effectiveCatalog;baselineProfile.musicRules=rules;
+            baselineProfile.combatProfile=Resources.Load<CombatSoundProfileSO>("OssastraCombatSoundProfile");
+            ContentProfile=baselineProfile;
+            // 唯一本机入口；缺包时公开版本明确说明未加载参考内容，不伪造成功。
+            var localProfile=Resources.Load<AudioContentProfileSO>("OssastraBloodborneDefault");
+            if(localProfile!=null){if(!TryApplyProfile(localProfile,out var failure))ProfileError="REFERENCE_CONTENT_UNAVAILABLE: "+failure;}
+            else ProfileError="REFERENCE_CONTENT_UNAVAILABLE：未安装本机Bloodborne档案；当前A0";
             if(persistAcrossScenes)DontDestroyOnLoad(gameObject);
             Status="等待场景有效快照";
+            OnActiveAudioScene(default,UnityEngine.SceneManagement.SceneManager.GetActiveScene());
         }
         public void BindHost(BgmContextHost source)
         {
-            if(!IsOwner||source==null)return;
+            if(!IsOwner||!isActiveAndEnabled||source==null||source.gameObject.scene!=UnityEngine.SceneManagement.SceneManager.GetActiveScene())return;
             if(host!=source){if(host!=null)host.ReleaseWorldScope();diagnosticContext=null;Transport.InvalidateTarget(AudioSettings.dspTime);host=source;contextValid=false;Record("绑定新场景Host");}
         }
         public void Publish(BgmContextHost source,BgmContext value)
         {if(!IsOwner||host!=source)return;context=value;contextValid=true;}
+        private void OnActiveAudioScene(UnityEngine.SceneManagement.Scene previous,UnityEngine.SceneManagement.Scene current)
+        {
+            if(!IsOwner||!isActiveAndEnabled)return;
+            // 非活动Additive场不能夺取音乐上下文；显式切Active后才绑定该场事实。
+            BgmContextHost next=null;
+            foreach(var candidate in FindObjectsOfType<BgmContextHost>())if(candidate.isActiveAndEnabled&&candidate.gameObject.scene==current){next=candidate;break;}
+            if(host!=next)UnbindHost(host);
+            if(next!=null)next.AttachAudioRoot(this);
+        }
         public void UnbindHost(BgmContextHost source)
         {
-            if(host!=source)return;host=null;contextValid=false;diagnosticContext=null;
+            if(host!=source)return;if(source!=null)source.ReleaseWorldScope();host=null;contextValid=false;diagnosticContext=null;
             // 与原型setWorld一致：旧歌可继续，晚到加载不能在失效世界抢播放权。
             Transport?.InvalidateTarget(AudioSettings.dspTime);Record("场景目标失效：保留已开始的声音");
         }
@@ -133,6 +169,11 @@ namespace Ossastra.Audio
             if(unified&&!UnifiedMix.Tick())SfxStatus=UnifiedMix.LastError;
             Transport.Tick(now,Time.unscaledDeltaTime,unified?Mix.LocalCurrentGain:Mix.CurrentGain);
             SfxPlayer?.Tick(now);
+            if(SfxPlayer!=null)
+            {
+                if(acousticListener==null&&Time.unscaledTime>=nextListenerRead){acousticListener=FindObjectOfType<AudioListener>();nextListenerRead=Time.unscaledTime+1;}
+                if(acousticListener!=null)SfxPlayer.AcousticOrigin=acousticListener.transform.position;
+            }
             // 加载可用性在Tick中变化；hold只能从真实起播epoch计算，不能从请求帧推算。
             if(Transport.StartCount!=observedStarts)
             {observedStarts=Transport.StartCount;var track=Transport.CurrentTrack;double bar=track!=null&&track.knownBpm>0?60d/track.knownBpm*track.beatsPerBar:0;holdUntil=Transport.Epoch+(bar>0?bar*2:1);}
@@ -149,6 +190,29 @@ namespace Ossastra.Audio
             if(Mix==null)return;
             PlayerPrefs.SetFloat("ossastra.audio.bgm",Mix.UserBgmVolume);PlayerPrefs.SetFloat("ossastra.audio.master",Mix.MasterVolume);
             PlayerPrefs.SetInt("ossastra.audio.muted",Mix.Muted?1:0);UnifiedMix?.SaveUserSettings();PlayerPrefs.Save();
+        }
+        /// <summary>先验证全部引用，再一次更换配置和SFX代次；同曲不重建Transport或DSP epoch。</summary>
+        public bool TryApplyProfile(AudioContentProfileSO profile,out string reason)
+        {
+            if(!IsOwner||Sfx==null||Transport==null){reason="OWNER_UNAVAILABLE";return false;}
+            if(profile==null){reason="REFERENCE_CONTENT_UNAVAILABLE";return false;}
+            if(!profile.Validate(out reason)){ProfileError=reason;return false;}
+            foreach(var source in new List<SfxSourceHandle>(sources))source.Dispose();
+            SfxPlayer.StopWorld();
+            effectiveCatalog=profile.catalog;rules=profile.musicRules;ContentProfile=profile;
+            contentRandom=new System.Random(profile.randomSeed);ProfileRevision++;
+            SfxPlayer.AcousticsEnabled=profile.acoustics;
+            sceneScope=null;var scene=UnityEngine.SceneManagement.SceneManager.GetActiveScene();BeginSfxWorld(scene.path+"#"+scene.handle);
+            SfxContentStatus=profile.profileId;ProfileError="";holdUntil=0;
+            if(ContentProfileApplied!=null)foreach(Action observer in ContentProfileApplied.GetInvocationList())try{observer();}catch(Exception error){Debug.LogWarning("AUDIO_PROFILE_OBSERVER: "+error.Message);}
+            Record("内容档案 "+profile.profileId+"；SFX代次已撤销，BGM按身份连续");reason="APPLIED";return true;
+        }
+        public bool RestoreBaseline(out string reason)=>TryApplyProfile(baselineProfile,out reason);
+        internal bool StopSfxVoice(SfxSourceHandle source,long voiceId)
+        {
+            if(source==null||!sources.Contains(source)||Sfx==null||!Sfx.TryGetVoice(voiceId,out var voice)||
+                voice.Request.SourceId!=source.SourceId||voice.Request.SourceGeneration!=source.Generation||voice.Request.WorldScopeId!=source.WorldScopeId)return false;
+            SfxPlayer.StopVoice(voiceId);return true;
         }
         public void BeginSfxWorld(string sceneIdentity)
         {
@@ -183,16 +247,22 @@ namespace Ossastra.Audio
                 if(decision.Accepted){issued=SfxPlayer.TryPlay(decision);if(!issued)reason=SfxPlayer.LastError;}
             }
             if(sfxHistory.Count>=128)sfxHistory.Dequeue();
-            sfxHistory.Enqueue(new SfxObservation{Request=request,Decision=decision,SourcePlayIssued=issued,PlaybackReason=issued?"PLAY_ISSUED":string.IsNullOrEmpty(reason)?decision.Reason:reason});
+            SfxVoiceRecord record=null;if(decision.Accepted)Sfx.TryGetVoice(decision.VoiceId,out record);
+            var observation=new SfxObservation{Sequence=++sfxSequence,Request=request,Decision=decision,SourcePlayIssued=issued,
+                PlaybackReason=issued?"PLAY_ISSUED":string.IsNullOrEmpty(reason)?decision.Reason:reason,
+                ClipName=record==null?"":record.Definition.clips[record.ClipIndex].name,Provenance=record==null?"":record.Definition.provenance};
+            sfxHistory.Enqueue(observation);
+            // 诊断观察者不拥有播放权；导出失败不得阻断既成游戏事实。
+            if(SfxObserved!=null)foreach(Action<SfxObservation> observer in SfxObserved.GetInvocationList())try{observer(observation);}catch(Exception exception){Debug.LogWarning("AUDIO_TRACE_OBSERVER: "+exception.Message);}
             return decision;
         }
         private void Record(string message)
         {if(history.Count>=64)history.Dequeue();history.Enqueue(AudioSettings.dspTime.ToString("F3")+" "+message);}
         private void OnApplicationFocus(bool focused){if(Mix!=null)Mix.Focused=focused;}
         private void OnEnable()
-        {if(IsOwner&&Sfx!=null&&string.IsNullOrEmpty(Sfx.WorldScopeId)){var scene=UnityEngine.SceneManagement.SceneManager.GetActiveScene();BeginSfxWorld(scene.path+"#"+scene.handle);}}
+        {if(IsOwner&&Sfx!=null){var scene=UnityEngine.SceneManagement.SceneManager.GetActiveScene();if(string.IsNullOrEmpty(Sfx.WorldScopeId))BeginSfxWorld(scene.path+"#"+scene.handle);OnActiveAudioScene(default,scene);}}
         private void OnDisable(){if(IsOwner){explicitStop=true;Transport?.Stop();Mix?.ClearSnapshots();foreach(var source in new List<SfxSourceHandle>(sources))source.Dispose();SfxPlayer?.StopWorld();sceneScope=null;}}
         private void OnDestroy()
-        {if(!IsOwner)return;SfxPlayer?.Dispose();Transport?.Dispose();Mix?.ClearSnapshots();if(Instance==this)Instance=null;IsOwner=false;}
+        {if(!IsOwner)return;UnityEngine.SceneManagement.SceneManager.activeSceneChanged-=OnActiveAudioScene;SfxPlayer?.Dispose();Transport?.Dispose();Mix?.ClearSnapshots();if(baselineProfile!=null)Destroy(baselineProfile);if(Instance==this)Instance=null;IsOwner=false;}
     }
 }

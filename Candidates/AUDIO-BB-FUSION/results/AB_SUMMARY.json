@@ -1,0 +1,109 @@
+{
+  "evidence": "OSS_REAL_MIXER_RECORDED_GAME_FACT_REPLAY",
+  "factTraceSha256": "6d4e1f7c63887cc314f2b87ff5daf8faeec303cc4119c433b64eb6bb6abde2cb",
+  "summary": {
+    "done": true,
+    "error": "",
+    "modes": [
+      {
+        "mode": "A0",
+        "metrics": {
+          "callbacks": 2633,
+          "samples": 5392384,
+          "channels": 2,
+          "rate": 48000,
+          "seconds": 56.17066666666667,
+          "peak": 0.2531052,
+          "rms": 0.005293534679900844,
+          "clipped": 0
+        },
+        "peak": 5
+      },
+      {
+        "mode": "A1",
+        "metrics": {
+          "callbacks": 2632,
+          "samples": 5390336,
+          "channels": 2,
+          "rate": 48000,
+          "seconds": 56.14933333333333,
+          "peak": 0.285223961,
+          "rms": 0.014775687172791515,
+          "clipped": 0
+        },
+        "peak": 5
+      },
+      {
+        "mode": "A2",
+        "metrics": {
+          "callbacks": 2632,
+          "samples": 5390336,
+          "channels": 2,
+          "rate": 48000,
+          "seconds": 56.14933333333333,
+          "peak": 0.243570283,
+          "rms": 0.015711010863163347,
+          "clipped": 0
+        },
+        "peak": 9
+      },
+      {
+        "mode": "A3",
+        "metrics": {
+          "callbacks": 2632,
+          "samples": 5390336,
+          "channels": 2,
+          "rate": 48000,
+          "seconds": 56.14933333333333,
+          "peak": 0.2582144,
+          "rms": 0.015622719010010475,
+          "clipped": 0
+        },
+        "peak": 9
+      }
+    ],
+    "restored": true
+  },
+  "normalized": [
+    {
+      "mode": "A0",
+      "blind": "D",
+      "gain": 1,
+      "targetRms": 0.005293534679900844,
+      "sha256": "883284cc906c99b734892fe6e2000d7a4f7bc1210163b58ef88f3a15d5d1584e",
+      "rawSha256": "883284cc906c99b734892fe6e2000d7a4f7bc1210163b58ef88f3a15d5d1584e",
+      "source": "OSS_REAL_MIXER_RECORDED_GAME_FACT_REPLAY",
+      "normalization": "POST_CAPTURE_SCALAR_ONLY; raw untouched; no claim native engine loudness equality"
+    },
+    {
+      "mode": "A1",
+      "blind": "B",
+      "gain": 0.35825979651549134,
+      "targetRms": 0.005293534679900844,
+      "sha256": "68d4832db62d35a3f0565c257c68923eedd3693fb1dbdf475af4e7d573cb9c74",
+      "rawSha256": "6aacb8ff921c2606fcf53961025a487d2a40084cd390b4df06b8d9fcb5937bfb",
+      "source": "OSS_REAL_MIXER_RECORDED_GAME_FACT_REPLAY",
+      "normalization": "POST_CAPTURE_SCALAR_ONLY; raw untouched; no claim native engine loudness equality"
+    },
+    {
+      "mode": "A2",
+      "blind": "A",
+      "gain": 0.3369315142103474,
+      "targetRms": 0.005293534679900844,
+      "sha256": "40067389cfe6175b6f7ae3e19e91675e2645ea36188ba0382b6ef203bb8d4639",
+      "rawSha256": "cf47b8f17d51eb11a9e43770c5ae203d724046899c7c37a42a81cc6c11e2a364",
+      "source": "OSS_REAL_MIXER_RECORDED_GAME_FACT_REPLAY",
+      "normalization": "POST_CAPTURE_SCALAR_ONLY; raw untouched; no claim native engine loudness equality"
+    },
+    {
+      "mode": "A3",
+      "blind": "C",
+      "gain": 0.3388356838850483,
+      "targetRms": 0.005293534679900844,
+      "sha256": "b5ea201c11db4a08133daaf056ec98d97aa2327da25457a16067948c6e078365",
+      "rawSha256": "eacf9a7c2c71c3c8a29f56cbe3cb3f8cc1d82c806aaabb51dd347aff59c281e1",
+      "source": "OSS_REAL_MIXER_RECORDED_GAME_FACT_REPLAY",
+      "normalization": "POST_CAPTURE_SCALAR_ONLY; raw untouched; no claim native engine loudness equality"
+    }
+  ]
+}

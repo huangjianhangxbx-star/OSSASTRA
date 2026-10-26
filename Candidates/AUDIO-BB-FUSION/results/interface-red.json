@@ -1,0 +1,23 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "passed": 0,
+      "failed": 1,
+      "rows": [
+        {
+          "name": "真实界面边沿观察器已实现",
+          "passed": false,
+          "detail": null
+        }
+      ],
+      "scope": "纯界面状态边沿；不伪造库存事务或发声"
+    }
+  }
+}

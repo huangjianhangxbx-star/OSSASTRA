@@ -1,0 +1,944 @@
+{
+  "scope": "staged candidate before audit evidence file itself is added; final commit tree verified separately",
+  "files": 157,
+  "bytes": 1989227,
+  "originalDirtyStaged": [],
+  "privateTracked": "",
+  "violations": [],
+  "filesReviewed": [
+    {
+      "status": "M",
+      "path": ".gitignore",
+      "bytes": 8907,
+      "sha256": "353bf084554f5ad38eea26de5189be7a59eb545726343639e5c53ecac3780517"
+    },
+    {
+      "status": "D",
+      "path": "Assets/OSSASTRA/Art/AudioReferenceLocal.meta"
+    },
+    {
+      "status": "D",
+      "path": "Assets/OSSASTRA/Art/AudioReferenceLocal/hit.wav.meta"
+    },
+    {
+      "status": "D",
+      "path": "Assets/OSSASTRA/Art/AudioReferenceLocal/hurt.wav.meta"
+    },
+    {
+      "status": "D",
+      "path": "Assets/OSSASTRA/Art/AudioReferenceLocal/release.wav.meta"
+    },
+    {
+      "status": "A",
+      "path": "Assets/OSSASTRA/Scenes/SC_AUDIO_BB_Fusion.unity",
+      "bytes": 709483,
+      "sha256": "eca1019745db112df01b4692b644d215d352d006315550ee95c57ea4f6c5f445"
+    },
+    {
+      "status": "A",
+      "path": "Assets/OSSASTRA/Scenes/SC_AUDIO_BB_Fusion.unity.meta",
+      "bytes": 179,
+      "sha256": "d7c04e41a751f08eebef6ef3c74fcc9e608d58a8880da6dabc7482eabb33978d"
+    },
+    {
+      "status": "A",
+      "path": "Assets/OSSASTRA/Scripts/Audio/Core/CombatSoundFact.cs",
+      "bytes": 1078,
+      "sha256": "588a0ebc65386b7bb00d152b8ee91895877105a6bf58529f0c3e5399bd2485fa"
+    },
+    {
+      "status": "A",
+      "path": "Assets/OSSASTRA/Scripts/Audio/Core/CombatSoundFact.cs.meta",
+      "bytes": 267,
+      "sha256": "b62b60f75ce07f03a8784931e5651f99347d85d48e2d380eff83c9219cc32bc1"
+    },
+    {
+      "status": "A",
+      "path": "Assets/OSSASTRA/Scripts/Audio/Definitions/AudioContentProfileSO.cs",
+      "bytes": 1989,
+      "sha256": "e76deed53b0502ee1964d51246f9acf99ce12a9dfb440c6708134954bbb35661"
+    },
+    {
+      "status": "A",
+      "path": "Assets/OSSASTRA/Scripts/Audio/Definitions/AudioContentProfileSO.cs.meta",
+      "bytes": 267,
+      "sha256": "44fd4e91527f185cce682230ee74c0b73e2c2b0143e2a169f25d59624296c502"
+    },
+    {
+      "status": "M",
+      "path": "Assets/OSSASTRA/Scripts/Audio/Definitions/CombatSoundProfileSO.cs",
+      "bytes": 3592,
+      "sha256": "2eae1be41206ce3f027c1b1920950caf014e748288747ec2332627447069ba38"
+    },
+    {
+      "status": "M",
+      "path": "Assets/OSSASTRA/Scripts/Audio/Definitions/SfxEventDefinitionSO.cs",
+      "bytes": 3921,
+      "sha256": "11a02075724bbdb1e2c5d42cd2253242a8a9f67a8938c67821d3c143984de717"
+    },
+    {
+      "status": "M",
+      "path": "Assets/OSSASTRA/Scripts/Audio/Editor/BgmMonitorWindow.cs",
+      "bytes": 10320,
+      "sha256": "135812f14ca5566585201c67c7d18d0874450ff00cabad0d34f1f5a2d61382dc"
+    },
+    {
+      "status": "A",
+      "path": "Assets/OSSASTRA/Scripts/Audio/Integration/AudioAcousticObstacle.cs",
+      "bytes": 352,
+      "sha256": "aad2a63ea8699596f14e3239449372e89e42b601beb158fe9b7d5415d21bc489"
+    },
+    {
+      "status": "A",
+      "path": "Assets/OSSASTRA/Scripts/Audio/Integration/AudioAcousticObstacle.cs.meta",
+      "bytes": 267,
+      "sha256": "5d4f0b5cbb064c46b45662b1598239ba823ceb962fa5d1ff7b9616e8c25951bd"
+    },
+    {
+      "status": "A",
+      "path": "Assets/OSSASTRA/Scripts/Audio/Integration/AudioEnvironmentZone.cs",
+      "bytes": 5866,
+      "sha256": "85e70ab47f36abe3348e79cc47f5f652feec175d10a0fb1a77643c1fd520cde3"
+    },
+    {
+      "status": "A",
+      "path": "Assets/OSSASTRA/Scripts/Audio/Integration/AudioEnvironmentZone.cs.meta",
+      "bytes": 267,
+      "sha256": "b1d9979e876a0d8bbe8eab74bff5773ee3e098b80e58a6155961ef270f4b31ca"
+    },
+    {
+      "status": "A",
+      "path": "Assets/OSSASTRA/Scripts/Audio/Integration/AudioSurfaceFact.cs",
+      "bytes": 805,
+      "sha256": "61664b0576edd15f96176c33e7f53fb2834cc19aeaaee40df9cb1ac5ac0819b3"
+    },
+    {
+      "status": "A",
+      "path": "Assets/OSSASTRA/Scripts/Audio/Integration/AudioSurfaceFact.cs.meta",
+      "bytes": 267,
+      "sha256": "04acd3bde93a22ff10a5c30e463454cb4e339b16041e119cb82bf84a2fd796e8"
+    },
+    {
+      "status": "M",
+      "path": "Assets/OSSASTRA/Scripts/Audio/Integration/CombatSfxFactAdapter.cs",
+      "bytes": 15620,
+      "sha256": "e9bb81850ff66ca2a71b666a6dfb59a8b152e79908385e2e8726d276fbd258c8"
+    },
+    {
+      "status": "A",
+      "path": "Assets/OSSASTRA/Scripts/Audio/Integration/InterfaceAudioAdapter.cs",
+      "bytes": 5837,
+      "sha256": "14c570ae7b0cfbda7b217c48a5e45d1eb030693e7586699203e6c80fc18f1178"
+    },
+    {
+      "status": "A",
+      "path": "Assets/OSSASTRA/Scripts/Audio/Integration/InterfaceAudioAdapter.cs.meta",
+      "bytes": 267,
+      "sha256": "595347dbc7ac545a92689611c00fa80c06d20cacd1748fb5d78b8fd5dc6c0819"
+    },
+    {
+      "status": "A",
+      "path": "Assets/OSSASTRA/Scripts/Audio/Integration/LocomotionAudioAdapter.cs",
+      "bytes": 11080,
+      "sha256": "beb4b9514079a1329a4b270b89386b1c11ed005b093059ffd36361b8edc3d61e"
+    },
+    {
+      "status": "A",
+      "path": "Assets/OSSASTRA/Scripts/Audio/Integration/LocomotionAudioAdapter.cs.meta",
+      "bytes": 267,
+      "sha256": "df4c79d381c4c5d12b17a31fe806f1b502f2e8ce9a113687745c058686e9b0cb"
+    },
+    {
+      "status": "M",
+      "path": "Assets/OSSASTRA/Scripts/Audio/Runtime/BgmContextHost.cs",
+      "bytes": 2957,
+      "sha256": "120000c04506350d53f608a5954fe76a677f5ab84a0db463544806c436f5cb6c"
+    },
+    {
+      "status": "M",
+      "path": "Assets/OSSASTRA/Scripts/Audio/Runtime/GameAudioBootstrap.cs",
+      "bytes": 3013,
+      "sha256": "0b122eabb56802012875c0ce5052a19fd4844826414b4e8684a553c52e15cbf9"
+    },
+    {
+      "status": "M",
+      "path": "Assets/OSSASTRA/Scripts/Audio/Runtime/GameAudioRoot.cs",
+      "bytes": 19086,
+      "sha256": "65af3d434f489b554557da4e99cbe438376562d6fa8fc99211cf4887d7c9a6ba"
+    },
+    {
+      "status": "M",
+      "path": "Assets/OSSASTRA/Scripts/Audio/Runtime/SfxSourceHandle.cs",
+      "bytes": 1346,
+      "sha256": "575661b908e1aa629ccd96d61a76505532f0a4d4b6d54b55f5cb3a370c99f787"
+    },
+    {
+      "status": "M",
+      "path": "Assets/OSSASTRA/Scripts/Audio/Runtime/SfxVoicePlayer.cs",
+      "bytes": 12364,
+      "sha256": "7d7a3f5ee0d40fa32a79fbdf8b7c3693002cefed630d08fabf4858960d25b8a4"
+    },
+    {
+      "status": "M",
+      "path": "Assets/OSSASTRA/Scripts/Combat/Runtime/CombatContactBatch.cs",
+      "bytes": 2601,
+      "sha256": "260e7a0057dc03a119806a30bbb2e145e7967e466267070eec344fce1cd1bb72"
+    },
+    {
+      "status": "M",
+      "path": "Assets/OSSASTRA/Scripts/Combat/Runtime/CombatContactGateway.cs",
+      "bytes": 5066,
+      "sha256": "729f3b8c6b60a902363901dd129b7dfe5c4b199d79afe00443cb0c0be423c197"
+    },
+    {
+      "status": "M",
+      "path": "Assets/OSSASTRA/Scripts/Combat/Runtime/CombatIceWorld.cs",
+      "bytes": 9787,
+      "sha256": "261882352e00fe596933246edaa2533d14b1678bce3f34e3f82dec3a1bf103f2"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/BUILD_VALIDATION.md",
+      "bytes": 1604,
+      "sha256": "3e2dcd15a7d35b72d9853ac1f6000ddda2ac11e5346250605ddac58712e01c40"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/FINAL_AUDITION.md",
+      "bytes": 3113,
+      "sha256": "beb5662dbfd36e752a52df739b407490e3428f1deeccf519b341e8aff0fc3072"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/ImplementationPlan.md",
+      "bytes": 1754,
+      "sha256": "13365e0e1a5f51311a2ac0352361464b38b62024b757af8f89eb3f9b79ed850b"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/MORNING_README.md",
+      "bytes": 2451,
+      "sha256": "0d53fa805c15c8f91fdf735b12d7c40b2506d8d48b67b15e76ba404029bfa307"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/PROGRESS.json",
+      "bytes": 685,
+      "sha256": "6d24bc81cbc05e4c27a2937cd16c2a550757fe567150131b73a678d308f1296b"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/RESUME.md",
+      "bytes": 549,
+      "sha256": "1f76309e5e670a6da513202969472caa9c739f5643cd4ad0986fed22bfe1908d"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/VERIFICATION_INDEX.md",
+      "bytes": 11231,
+      "sha256": "7f7bb429b5eaaa21a62c00bad2b1daab21db753b01c731abbdb91efe5e644a17"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/recipes/AuditPublicIndex.mjs",
+      "bytes": 2121,
+      "sha256": "66b64e40ca4e77fe359d0170ed4bc5defd607c2faa405c450797a96eb6a5d24e"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/recipes/AuthorLocalProfiles.cs.txt",
+      "bytes": 9368,
+      "sha256": "fe1a72bac8d0edd36db26b805b6bd9f0b5224ffda5e43294d29331903de9568a"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/recipes/CreateFusionScene.cs.txt",
+      "bytes": 3229,
+      "sha256": "83af01155d20b1ef827f92d3cf4fe67711026529ca1c779a285bbcfcebc76752"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/recipes/ExportAbEvidence.mjs",
+      "bytes": 6185,
+      "sha256": "1a06553c7bfb5212ea9381441c91e0874fb041595d47b73d11bd725f13d44dc3"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/recipes/PrepareLocalContent.mjs",
+      "bytes": 6928,
+      "sha256": "8164e201d0f3171dd72195cb30cd37f07b9814b0696d9776837bd72e40f28524"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/recipes/RefineSemanticBindings.cs.txt",
+      "bytes": 1921,
+      "sha256": "0523baf8339e7ca53b706f7c2dca9a17bcfe64783f3a0b68392c35e21627904c"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/recipes/VerifySourceProtection.mjs",
+      "bytes": 1479,
+      "sha256": "34308078955539d9bb0640e632e3725b6cb0d7434aa6ca0f99db7f0466451441"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/reports/AB_CASES.csv",
+      "bytes": 702,
+      "sha256": "99cc47ae5d3126b0ebb1d9c3b25bff3844e7f0b002f04dc7e9fabb64bd304c56"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/reports/AB_MATRIX.md",
+      "bytes": 1663,
+      "sha256": "2a01f611a942567e758cfbfe836faa32d1a28e728e5160f208fd3298bb56fb66"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/reports/AB_PLAYER_NOTES.md",
+      "bytes": 414,
+      "sha256": "6d8caf3ff292315093ea10c25abee3c4fafd637b6fb1b198152d411402fd6654"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/reports/ARCHITECTURE_WINNER_MATRIX.md",
+      "bytes": 8196,
+      "sha256": "c66662f9958f27d476223e2a761d4b9d89d064b36ae1f32d0008790946f57746"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/reports/BASELINE.md",
+      "bytes": 1843,
+      "sha256": "cd905e98ab21a15bdb178e0c39132a79f4003a1288b03e4957c1c8ac4e57d46c"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/reports/BB_SOURCE_MAP.csv",
+      "bytes": 78855,
+      "sha256": "8bccb4daa9d43359870c00962930da81d6a141096a3e4f9b83346a1adbcb98e6"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/reports/CALL_GRAPH.md",
+      "bytes": 6772,
+      "sha256": "4f236ff32260acb1ed42e25c0e07f68b2c6a292c82cb65aaf677ddb5eb2dfa36"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/reports/CANDIDATE_LISTENING_QUEUE.md",
+      "bytes": 9711,
+      "sha256": "d26875136fed687411ea72aa8bd34ec40585eebbe3e0dc827c0e26a1f217770d"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/reports/CURRENT_AUDIO_GRAPH.md",
+      "bytes": 7674,
+      "sha256": "ea1cf19ea7658c7401c4caf864f57eb597c8e50a8b1e8f27d5a34a3956335933"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/reports/FACT_BINDING_REVIEW.md",
+      "bytes": 9188,
+      "sha256": "f790c4374b5876f419c6a01e83be612be6bdd06b95786873225ab46b9c607b03"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/reports/FILE_PROTECTION.tsv",
+      "bytes": 2101,
+      "sha256": "b1b23a199295cf56462d16c09bb90a80b7991114773221efdd6991cb9e6a48dd"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/reports/LICENSE_BOUNDARY.md",
+      "bytes": 4742,
+      "sha256": "10c461b9d870d06e7b0e29b586a9ca2c5942efcb2781bd54f4679ead9852a1de"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/reports/MEDIA_LEVELS.json",
+      "bytes": 13806,
+      "sha256": "93e6f9f54facbc6447e96a5151e4855e01774f0a30172de73be448dd039d3639"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/reports/MIGRATION_DECISIONS.md",
+      "bytes": 11209,
+      "sha256": "c0bfa15662c786d84d639204f74af155523a98367058aff570b387d1f72e0f3f"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/reports/ORIGINAL_REPLACEMENT_GUIDE.md",
+      "bytes": 8645,
+      "sha256": "11eb682af22a5ab9d7042833224115684052800e3c30565832e5d5dda73410ef"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/reports/SEMANTIC_COVERAGE.csv",
+      "bytes": 97069,
+      "sha256": "ef523999ca3305f0b91655eeb51f9d1dd90187e586e06f692a3e579bfea3d794"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/AB_SUMMARY.json",
+      "bytes": 3436,
+      "sha256": "25735367cf147fff86233f8c3f23ad2c005409c7ae007b4af065216ac45944c5"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/AcousticContracts-green.json",
+      "bytes": 589,
+      "sha256": "d34e25cbe1ecb7dff26ea22f90d7f9b578f1c069b17ebe2963b97a8ff874bbf0"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/AcousticFadeContracts-final.json",
+      "bytes": 516,
+      "sha256": "8fa7415525a95215a63b8b35e2a73f784a2b97c9b61513afc22865d7b99c00a4"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/AdditiveHostContracts-red.json",
+      "bytes": 576,
+      "sha256": "d5dc7f180a726aff37c74cd883d81976c84a94d6765f784c1c5550c6b7523c59"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/BGMCYCLE.csv",
+      "bytes": 586,
+      "sha256": "487a6f2dfc21018e30d3ab18e42aa307a6207b42522cd3781394e4127306feea"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/DeathSoundBoundary-red.json",
+      "bytes": 370,
+      "sha256": "4c9e32a98497b9c747c1547780352d644bce965ec1f063565654e05d1be8d7ed"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/EVENT_TRACE.csv",
+      "bytes": 112927,
+      "sha256": "500f7c565c7a4b6e65f8b235da7e0b06329399fb385f30d6b79111cb1ec972b3"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/EffectSemanticContracts-final.json",
+      "bytes": 2034,
+      "sha256": "88508ecb06369ebe359aed7b76cfc7f54d260cd4895f16dba88150005962e77e"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/FusionContracts-green.json",
+      "bytes": 1085,
+      "sha256": "5de30066044da29d77b485c42959962d2c4c7d9f9b3b9af6f9c135c1e0ceedfd"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/FusionSceneCycle.json",
+      "bytes": 259,
+      "sha256": "c38d37c2f702a147e83982225a6232c98dee54af1c30c9b0a2dc1fcf61618899"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/FusionSceneOwnershipContracts.json",
+      "bytes": 1209,
+      "sha256": "f1ae325c058d20a0239d864b32de2859a73b0241cfff807e05cb5576c19a00e6"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/GroundPresenceContracts-start.json",
+      "bytes": 474,
+      "sha256": "f10fa2ad0c544a0a7bb9b336e2421161af93ff47c9dd1f995a3e700239944c6f"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/InterfaceFactsContracts-green.json",
+      "bytes": 2422,
+      "sha256": "e497d42327b1485d5bcb5ba44c9e50078d302450f55c81c7937d1266074c26b6"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/MIXER_TELEMETRY.csv",
+      "bytes": 491,
+      "sha256": "1fcb0da2075c2a1e6d1705521e27a06159081f1fb9e529a00c1d26430c7bb71e"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/MaterialContracts-final.json",
+      "bytes": 466,
+      "sha256": "1c9b19e25a011a6a0cf07ce67b11de24b5d2e1784995ecb1f10358797148ca0a"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/MaterialContracts-green.json",
+      "bytes": 313,
+      "sha256": "576606461f44ab3220d95a420f55e5735de3d225b2fa0fdb83b377bd98c5e19f"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/VOICE_TRACE.csv",
+      "bytes": 55607,
+      "sha256": "4ce011211a6c168dce71c01cde801315f8827e0c322e9870756a99a8d20e64e7"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/WalkRunDefaultsContracts-red.json",
+      "bytes": 315,
+      "sha256": "b3778cad1af82d8fd1fc24be1277644d14adbe50597e9fe48a33744f453aa966"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/WorldAudioFactsContracts-green.json",
+      "bytes": 2052,
+      "sha256": "89cece548a3991fdb11344656e746b408cbb98509df3667d66633be44b18b243"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/WorldExplorationStory-start.json",
+      "bytes": 260,
+      "sha256": "51e28a6925353b1c186de581475748ccc53bd426246228073b14bd517897b859"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/acoustic-fade-red.json",
+      "bytes": 516,
+      "sha256": "a84f617cb0918b5704b3f00c2d43093605de72758bfde5d03b5aa6203d8969b2"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/acoustics-red.json",
+      "bytes": 592,
+      "sha256": "3a3a6a2767de138613f9b324d6744af50e25690ad17eb67dc8ac0e49475ae384"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/additive-focus-red.json",
+      "bytes": 796,
+      "sha256": "07a6d2e2e24f797af252cb59568b05b40b6fa8ab7082fe79f69ac7ca04b312e5"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/additive-host-green.json",
+      "bytes": 795,
+      "sha256": "fcffb76585541bb5916924c326e261ead5b2445203b7c3848304ae6978a3ade3"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/contracts-red.json",
+      "bytes": 1000,
+      "sha256": "b48ced7812e3073be493a223d17eb0bfb2d58945d7167d57d680ee972e27e96d"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/death-boundary-green.json",
+      "bytes": 725,
+      "sha256": "1303a9a7cae74f2eb615aec7b553d09d0e4eef1cf0c9cf67ac9ccef94461ad30"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/death-boundary-red.json",
+      "bytes": 822,
+      "sha256": "1836720517067ea1c03f57a4dfd9b6e184e450770e92075848e41f2298653027"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/effect-semantic-red.json",
+      "bytes": 597,
+      "sha256": "e38eaa1f831a6f3e2f52f98c746d67db731f5bdad87247144a56f05a99ba337b"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/final-editor-audit.json",
+      "bytes": 715,
+      "sha256": "20d8baa27f5484fc94dc998016d0c7be61e5e8fc6278ba61fd39da515f0722bc"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/first-action-green.json",
+      "bytes": 302,
+      "sha256": "a4322fc541185448c1ace4e376dd4cb91f2bf4f431bde17241eb0667e1001e2b"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/first-action-red.json",
+      "bytes": 303,
+      "sha256": "ed32ae98988d3d91577e120556c10504100452a03971bbe42f9ce54edb1eca98"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/ground-red.json",
+      "bytes": 475,
+      "sha256": "54e64fd34bac254e2fd58cf240b29a9fe1abf801bfdf6afa4127e4e19f994c89"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/gun-story.json",
+      "bytes": 40907,
+      "sha256": "3bbec34ad19aaa294569941178dc6297128de234fa123070bd482821996524ee"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/interface-red.json",
+      "bytes": 490,
+      "sha256": "cb76b60136cba527d81baf2ce58ba9048ed71235c9c9f897c77eb4088fee4a2f"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/invalid-music-green.json",
+      "bytes": 528,
+      "sha256": "26ae99bf3de18b81789095520c54a2c890d0297b21f60af7cf151c2ec425bd0b"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/invalid-music-red.json",
+      "bytes": 531,
+      "sha256": "44895c4eaea50a75e23e6c46ad022f9708a21a8411a1226cc6842c894b162e03"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/late-host-green.json",
+      "bytes": 772,
+      "sha256": "e05c7e08358b5e28e5eac91a75ad657b53fd23f544cbbf66c5a8146b7f713262"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/late-host-red.json",
+      "bytes": 776,
+      "sha256": "0d61901e9cbe744b6d1b21a0220f93a10142904bad1cfab4aaacb11da75d9c13"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/main-story.json",
+      "bytes": 158414,
+      "sha256": "1512d098b3a625560bacc1136e46feb7fd31d82b4754e49b23c4b4913f0f0807"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/material-red.json",
+      "bytes": 314,
+      "sha256": "6250aa57380cd72bef13cdb11a41595e1defce9fd801745c90a46ad4d7a31907"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/material-stage4-red.json",
+      "bytes": 467,
+      "sha256": "35b2ea58d2053e497651d327aaec8562cec9b9c99b32d81a8132d4a370ea89f8"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/original-dirty-protection.json",
+      "bytes": 6546,
+      "sha256": "ca7fef8f6990dd9ff2b720a8e1182ba1c8b1368644daeae0d34f4009d544469a"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/original-replacement.json",
+      "bytes": 620,
+      "sha256": "55536acbdce19cbc0b5b18acbd418f5461ba9df04fbe0ef6812d417ac7667dbc"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/player-build-probe.json",
+      "bytes": 3258,
+      "sha256": "94b7b6c1d884ba67accd46057b43d3d5ec67dccdae05627034a8d21720a526b5"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/pre-scene-audit.json",
+      "bytes": 785,
+      "sha256": "2e6553e8c270e1ce2a677038756ecbece9241c48cfed182e8a152711179217ff"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/profile-lifecycle.json",
+      "bytes": 1813,
+      "sha256": "8ac959be93fb8f9bdea15f897801e44b9b0597082bf3f15bc2b8393d5a239b81"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/real-input-output.json",
+      "bytes": 671,
+      "sha256": "2e36fcda09ececbdd208bd61a45e5ac7050b38b785f20a279d83f666532773a3"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/refined-semantic-profile.json",
+      "bytes": 331,
+      "sha256": "cea9e3a13179b2c456df78540a01f606adf7e1542b36bbae36fa85a8f2d3a0f3"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/regression-AudioLifecycleContracts.json",
+      "bytes": 628,
+      "sha256": "f2a9ae3bb779f51e38de6304436fa1839f6a6148b6732823d4109fb0a92425c1"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/regression-ContactCauseContracts.json",
+      "bytes": 1648,
+      "sha256": "8db18b0e027dc33e7516a2467200b5fa9a88e438c65d4c89150a65acfeefc446"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/regression-CoreContracts.json",
+      "bytes": 2481,
+      "sha256": "83e6ca03d7e27876a85edf741b0709f316c2af44704062f5451d2cba396cf27e"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/regression-FactProducerContracts.json",
+      "bytes": 2328,
+      "sha256": "f09d20b6129131bb97968bc65b3114a14e652739e5c1c81da43d293772fb873c"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/regression-MixContracts.json",
+      "bytes": 2151,
+      "sha256": "726e701d13e69840cd4fa69621bb861437973e8b74fe1475d334f191841005fc"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/regression-SceneAdapterOwnershipContracts.json",
+      "bytes": 326,
+      "sha256": "13bdd31039743161ec4d9ef8064a8b76ed22cf28338f0459b3844815b2c6d75c"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/regression-SfxCoreContracts.cs.txt.json",
+      "bytes": 5138,
+      "sha256": "bb8be7ac8e0f4b31c43d35a2f00e5050345d3886e40c9db460d470669318028d"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/regression-SfxRuntimeContracts.json",
+      "bytes": 3747,
+      "sha256": "d149051612f34685c1994ee4b51fe7b3a6e80f991a4ba9046884c098b9b19710"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/regression-SoundProfileContracts.cs.txt.json",
+      "bytes": 1669,
+      "sha256": "c12fc5e90bb623ad84aec81cd59018488ea23210e767f72f74de920c54992b68"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/regression-SoundProfileContracts.json",
+      "bytes": 1669,
+      "sha256": "c12fc5e90bb623ad84aec81cd59018488ea23210e767f72f74de920c54992b68"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/regression-TransportContracts.json",
+      "bytes": 1507,
+      "sha256": "88f2019d69a782266ccf681b0bd847cd1938951f499032b88f2d623fa5f0ebc1"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/regression-VariationContracts.cs.txt.json",
+      "bytes": 2791,
+      "sha256": "67d7c26ddd28bc94f225325ae7299237fd1e68fe6b796703f57d74946c66b94d"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/regression-VariationContracts.json",
+      "bytes": 2791,
+      "sha256": "67d7c26ddd28bc94f225325ae7299237fd1e68fe6b796703f57d74946c66b94d"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/regression-WalkRunDefaultsContracts.json",
+      "bytes": 314,
+      "sha256": "7ad512fd379938571963dab9fe48065cae776f368d9d1816a25c8cd57111c2c1"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/scene-authoring.json",
+      "bytes": 455,
+      "sha256": "a801f3204e42f35bdcee688a4d318cacb440a801c811d7c6ade9bd4bf5a5e2d8"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/scene-cycle.json",
+      "bytes": 2253,
+      "sha256": "f5c996935f79fc5b90aefffeb6a1472df9c29d478dde95f2e8fb425af453abd1"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/source-protection-final.json",
+      "bytes": 236,
+      "sha256": "4fb01ae7e6b49d967e786ff1512a49c95e0cda7b8ae6b97cec38e98b2d5e9422"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/world-facts-red.json",
+      "bytes": 469,
+      "sha256": "2c4726a6e1e0bf638f76780b9ed521b14ef8518363118750f77a28a469cc4149"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/results/world-story.json",
+      "bytes": 2323,
+      "sha256": "44fc14daaaa7711eb15a7a77d1c9c21daecc8532c3c6cd6e05a295bc27d18202"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/tests/AcousticContracts.cs.txt",
+      "bytes": 1026,
+      "sha256": "e4d18d7db9b8c6549b0c31ac41ce15a9114421872111e142fa3305c997178b9d"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/tests/AcousticFadeContracts.cs.txt",
+      "bytes": 1755,
+      "sha256": "e456bc4c979da502316d61acd53539ff058b985abbbae3ca6f3f389a2e9d856a"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/tests/AdditiveHostContracts.cs.txt",
+      "bytes": 1427,
+      "sha256": "ac31f3124bd4a751d1f104cdda28875dbc4832b00dce64274aef03b04d0c24dd"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/tests/ControlledAbReplay.cs.txt",
+      "bytes": 8913,
+      "sha256": "f4de8524d8296423fa3d98c5119000d6a8b617e9db49b490cd59a4c2bd9df2cb"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/tests/DeathSoundBoundary.cs.txt",
+      "bytes": 2307,
+      "sha256": "0bb7cf89f04ff3f43493abdec9ae1bb6daa6253fd8fac9e863f19b5a7e9c69c4"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/tests/EffectSemanticContracts.cs.txt",
+      "bytes": 7539,
+      "sha256": "59c4f70c445ff12be61622ae1afc487a4aa7970fb47e8d86b18d0b57c47e8da9"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/tests/FirstActionAfterProfile.cs.txt",
+      "bytes": 2533,
+      "sha256": "fdb407521b4b4d45ec052fdbd3ea4cb5aa51e29cb4ce246f5bcfb562c8a2ac9a"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/tests/FusionCapture.cs.txt",
+      "bytes": 6529,
+      "sha256": "c1a11ff60725d86d08fa4d9727bc04b9449d58e14079d7503718727e88b683ba"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/tests/FusionContracts.cs.txt",
+      "bytes": 1605,
+      "sha256": "039daa87d0063295e21c9e5768edc727234296797422bc7bcddecf8b1f2a78fd"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/tests/FusionPlayerBuildProbe.cs.txt",
+      "bytes": 1226,
+      "sha256": "301f4829fcd1a71926053d753927a7f290e6658b6eb7a9cb83adccf134642de7"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/tests/FusionSceneCycle.cs.txt",
+      "bytes": 3589,
+      "sha256": "fc7de7b47674429daee394613b2f2092e30c6fa510d80b2f312ddf2c3f6d4ba3"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/tests/FusionSceneOwnershipContracts.cs.txt",
+      "bytes": 4008,
+      "sha256": "3e5c4b29d86ca9bf30bf4bcea0a25029260be6ece57462c89dee9875750d4290"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/tests/GroundPresenceContracts.cs.txt",
+      "bytes": 1265,
+      "sha256": "a77b5a7cfa66eab8264af0b49d3464a13015501bd5ef3fe86da506c056d33ee0"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/tests/InterfaceFactsContracts.cs.txt",
+      "bytes": 3914,
+      "sha256": "6c62b41d410c5f7f604b0372ca265d7a2f547819451eef47e3695394a3887801"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/tests/InvalidMusicProfileContracts.cs.txt",
+      "bytes": 1015,
+      "sha256": "13aa570aeed326dff866c65a07aecc87e9550544d7bd12d6feab62465ba9b114"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/tests/LateRootHostContracts.cs.txt",
+      "bytes": 1907,
+      "sha256": "8be1f8f3fb33037a08107be568f36fd41546ce13647db0c8803fe79ae3143b9a"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/tests/MaterialContracts.cs.txt",
+      "bytes": 921,
+      "sha256": "2b337881b5f34f32b0f32569a27fdc915c28e7bfc794b962b40908cdfa9b9219"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/tests/OriginalReplacementContracts.cs.txt",
+      "bytes": 2119,
+      "sha256": "9c0e63e6c65866b9e422b5f100673ac935521fa401b7e341ed6dd0316a347abe"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/tests/ProfileLifecycleContracts.cs.txt",
+      "bytes": 4128,
+      "sha256": "ea15cab615c08c1ea5fcb8f87c37be272608864782cc23b850a6de10027fb61b"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/tests/SaveGameCapture.cs.txt",
+      "bytes": 2285,
+      "sha256": "3fa49ddbd51013e7b755fa14097815e57e595914b1750be9d5039eca89258ee8"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/tests/WalkRunDefaultsContracts.cs.txt",
+      "bytes": 420,
+      "sha256": "933a76d3970701dab4fb2a39ff55a20f1f3d03c4ca2255bb68d8d3166fac9c15"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/tests/WorldAudioFactsContracts.cs.txt",
+      "bytes": 3819,
+      "sha256": "24e722facef4d2ab7b7e8336c0b5ecd3920df8a86c34e1bf85767ac6863ee5fc"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-BB-FUSION/tests/WorldExplorationStory.cs.txt",
+      "bytes": 6588,
+      "sha256": "8f6d3c9407b15d13d9764a3e13f72dcdf117dd1389aade8511197f1993066c39"
+    },
+    {
+      "status": "M",
+      "path": "docs/agent-sync/PROJECT_STATE.md",
+      "bytes": 162237,
+      "sha256": "46dbc9fc51f5497e983492b1b558cb1e1958e9ac648ff629e79992e12fc5ccc2"
+    },
+    {
+      "status": "M",
+      "path": "docs/agent-sync/TASK_REGISTRY.md",
+      "bytes": 152401,
+      "sha256": "eb49c25009fb78722e78f53d168490cdef4162fdbb82b4f2f70a42847d30db4f"
+    },
+    {
+      "status": "A",
+      "path": "docs/agent-sync/tasks/2026-10-27-audio-bb-fusion.md",
+      "bytes": 3251,
+      "sha256": "e112d6cbfd308e2b13a9452aafeebbb539dae2e9993299aff444e75223021b2f"
+    },
+    {
+      "status": "A",
+      "path": "docs/ossastra/AUDIO-BB-FUSION-handoff.md",
+      "bytes": 2402,
+      "sha256": "2dc9e4060873db9ae403b43af1bf3f5541f05a31e0d2f03bfac8afb54be66d32"
+    }
+  ]
+}

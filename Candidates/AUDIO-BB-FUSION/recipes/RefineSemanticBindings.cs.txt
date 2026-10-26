@@ -1,0 +1,18 @@
+using System;using System.Linq;using System.Collections.Generic;using UnityEngine;using UnityEditor;using Ossastra.Audio;using Funplay.Editor.Tools.Scripting;
+public class RefineSemanticBindings:IFunplayCommand
+{
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+ {
+  if(Application.isPlaying)throw new Exception("Edit required");
+  var p=AssetDatabase.LoadAssetAtPath<CombatSoundProfileSO>("Assets/OSSASTRA/Audio/BloodborneLocal/Profiles/ReferenceSemanticProfile.asset");if(p==null)throw new Exception("Missing owned profile");
+  var rows=p.bindings.Where(r=>!new[]{"al-native-Q","ice-road","ice-blast","sample-al-ice.use"}.Contains(r.selector)&&!(r.selector=="al-native-E"&&r.kind=="release"&&string.IsNullOrEmpty(r.channel))).ToList();
+  Action<string,string,string,string,string> add=(selector,kind,cue,channel,mode)=>{if(!rows.Any(r=>r.selector==selector&&r.kind==kind&&r.stage==0&&(r.channel??"")==(channel??"")&&(r.deliveryMode??"")==(mode??"")))rows.Add(new CombatSoundBinding{selector=selector,kind=kind,cue=cue,channel=channel,deliveryMode=mode});};
+  add("ice.pulse","hit","skill.electric",null,null);add("ice.shatter","hit","impact.stone",null,null);
+  foreach(var id in new[]{"hunter-native-E","rush"}){add(id,"release","movement.dodge","rush","Sector");add(id,"hit","blade.impact.heavy","rush","Sector");}
+  foreach(var id in new[]{"al-native-E","rocket"})add(id,"launch","movement.dodge",null,"Sector");
+  foreach(var id in new[]{"vc02.throw","sample-al-bomb.use"})add(id,"release","blade.fast",null,"RayLandingArc");
+  foreach(var row in rows.Where(r=>r.selector=="sample-al-regen.use"&&r.kind=="release"))row.cue="item.heal";
+  p.bindings=rows.ToArray();if(!p.Validate(out var why))throw new Exception(why);EditorUtility.SetDirty(p);AssetDatabase.SaveAssetIfDirty(p);
+  ctx.ReturnValue=new{bindings=p.bindings.Length,valid=why,guessedIdsRemoved=true,actualIceMetadata=true};
+ }
+}

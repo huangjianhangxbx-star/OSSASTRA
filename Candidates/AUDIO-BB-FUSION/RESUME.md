@@ -1,0 +1,2 @@
+# Resume / terminal state
+Engineering F00–F10 complete. Read MORNING_README, VERIFICATION_INDEX, FINAL_AUDITION and docs/ossastra/AUDIO-BB-FUSION-handoff.md. Current SC_AUDIO_BB_Fusion is Edit clean; source/Unity leases released. No new migration beyond this package. Outstanding human/content gaps and old Player plugin blocker are explicit, not reasons to replay all tests. Only exact GitHub receipt/power action remain; consult publication-receipt before retry. Private PCM/native profiles stay local. Preserve user's 36 original dirty paths.

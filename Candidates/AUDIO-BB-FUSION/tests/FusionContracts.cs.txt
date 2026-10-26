@@ -1,0 +1,19 @@
+using System;using System.Linq;using System.Collections.Generic;using UnityEngine;using Funplay.Editor.Tools.Scripting;
+public class FusionContracts:IFunplayCommand
+{
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+ {
+  var checks=new List<object>();Action<string,bool> check=(name,pass)=>checks.Add(new{name,pass});
+  Func<string,Type> find=name=>AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType("Ossastra.Audio."+name)).FirstOrDefault(t=>t!=null);
+  var profile=find("AudioContentProfileSO");var root=typeof(Ossastra.Audio.GameAudioRoot);var definition=typeof(Ossastra.Audio.SfxEventDefinitionSO);
+  check("replaceable complete content profile exists",profile!=null);
+  check("atomic root profile application exists",root.GetMethod("TryApplyProfile")!=null);
+  check("bounded loop uses same permit definition",definition.GetField("loop")!=null);
+  check("source lease explicit stop a single voice",typeof(Ossastra.Audio.SfxSourceHandle).GetMethod("StopVoice")!=null);
+  check("actual distance footstep adapter",find("LocomotionAudioAdapter")!=null);
+  check("owned environment zones",find("AudioEnvironmentZone")!=null);
+  check("content mode monitorable",root.GetProperty("ContentProfile")!=null);
+  if(profile!=null){var p=ScriptableObject.CreateInstance(profile);try{var args=new object[]{null};var valid=(bool)profile.GetMethod("Validate").Invoke(p,args);check("empty profile rejected",!valid);}finally{UnityEngine.Object.DestroyImmediate(p);}}
+  ctx.ReturnValue=new{checks,failed=checks.Count(x=>(bool)x.GetType().GetProperty("pass").GetValue(x)==false)};
+ }
+}

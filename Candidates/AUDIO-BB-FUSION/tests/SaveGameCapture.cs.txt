@@ -1,0 +1,17 @@
+using System;using System.IO;using System.Linq;using System.Collections;using UnityEngine;using Newtonsoft.Json;using Funplay.Editor.Tools.Scripting;
+public class CompactVectorConverter:JsonConverter{public override bool CanConvert(Type t)=>t==typeof(Vector3)||t==typeof(Vector2);public override void WriteJson(JsonWriter w,object value,JsonSerializer s){w.WriteStartArray();if(value is Vector3 a){w.WriteValue(a.x);w.WriteValue(a.y);w.WriteValue(a.z);}else{var b=(Vector2)value;w.WriteValue(b.x);w.WriteValue(b.y);}w.WriteEndArray();}public override object ReadJson(JsonReader r,Type t,object value,JsonSerializer s)=>throw new NotSupportedException();}
+public class SaveGameCapture:IFunplayCommand
+{
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+ {
+  const string work="E:/WORLDCREATOR/XingHaiHuiLang/work/OSSASTRA/AUDIO-BB-FUSION-20261027";
+  var assemblies=AppDomain.CurrentDomain.GetAssemblies();var story=assemblies.Select(a=>a.GetType("CuratedLiveStory")).LastOrDefault(t=>t!=null);if(story==null)throw new Exception("Story missing");var report=story.GetMethod("Report").Invoke(null,null);
+  if(!(bool)report.GetType().GetProperty("done").GetValue(report)){ctx.ReturnValue="STILL_RUNNING";return;}
+  var capture=assemblies.Select(a=>a.GetType("FusionCapture")).Where(t=>t!=null).Select(t=>new{type=t,instance=t.GetField("Instance").GetValue(null) as Component}).LastOrDefault(p=>p.instance!=null);
+  if(capture==null)throw new Exception("Actual Listener capture missing");var metrics=capture.type.GetMethod("Save").Invoke(capture.instance,new object[]{work+"/real-game-story"});
+  var settings=new JsonSerializerSettings();settings.Converters.Add(new CompactVectorConverter());File.WriteAllText(work+"/real-input-story-report.json",JsonConvert.SerializeObject(report,Formatting.Indented,settings));
+  var rows=((IEnumerable)report.GetType().GetProperty("rows").GetValue(report)).Cast<object>().ToArray();
+  int passed=rows.Count(r=>{var p=r.GetType().GetProperty("status");return p!=null&&p.GetValue(r).ToString()=="PASS-EDITOR-SOURCE";});
+  UnityEngine.Object.Destroy(capture.instance);ctx.ReturnValue=new{metrics,storyChecks=rows.Length,passed,failed=rows.Length-passed,error=report.GetType().GetProperty("error").GetValue(report),done=true};
+ }
+}

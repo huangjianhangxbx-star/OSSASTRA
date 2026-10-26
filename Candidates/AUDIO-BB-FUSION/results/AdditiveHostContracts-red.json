@@ -1,0 +1,27 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "checks": [
+        {
+          "name": "nonactive additive host does not steal music context",
+          "pass": false
+        },
+        {
+          "name": "unloading secondary retains primary host",
+          "pass": false
+        },
+        {
+          "name": "active scene remains untouched",
+          "pass": true
+        }
+      ]
+    }
+  }
+}

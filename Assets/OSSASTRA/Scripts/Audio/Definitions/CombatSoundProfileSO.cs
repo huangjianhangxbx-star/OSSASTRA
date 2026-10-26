@@ -22,6 +22,8 @@ namespace Ossastra.Audio
         public string deliveryMode;
         [Tooltip("空白不限制；player / companion / enemy。可以有意省略不适合该实体的角色呼痛。")]
         public string role;
+        [Tooltip("空白通用；仅来自真实目标AudioSurfaceFact的明确材质，不由攻击位置猜测。")]
+        public string material;
         public string cue;
     }
 
@@ -32,18 +34,18 @@ namespace Ossastra.Audio
 
         public bool Validate(out string reason)
         {
-            var keys = new HashSet<(string,string,int,string,string,string)>();
+            var keys = new HashSet<(string,string,int,string,string,string,string)>();
             if(bindings==null||bindings.Length==0){reason="EMPTY_SOUND_PROFILE";return false;}
             foreach(var row in bindings)
             {
                 if(row==null||string.IsNullOrWhiteSpace(row.selector)||string.IsNullOrWhiteSpace(row.kind)||
                     string.IsNullOrWhiteSpace(row.cue)||row.stage<0){reason="INVALID_SOUND_BINDING";return false;}
-                if(!keys.Add((row.selector,row.kind,row.stage,row.channel??"",row.deliveryMode??"",row.role??""))){reason="DUPLICATE_SOUND_BINDING";return false;}
+                if(!keys.Add((row.selector,row.kind,row.stage,row.channel??"",row.deliveryMode??"",row.role??"",row.material??""))){reason="DUPLICATE_SOUND_BINDING";return false;}
             }
             reason="VALID";return true;
         }
 
-        public bool TryResolve(string selector,string kind,int stage,string channel,out string cue,string deliveryMode=null,string role=null)
+        public bool TryResolve(string selector,string kind,int stage,string channel,out string cue,string deliveryMode=null,string role=null,string material=null)
         {
             cue=null;if(!Validate(out _))return false;
             int best=-1;
@@ -52,8 +54,9 @@ namespace Ossastra.Audio
                 if(row.kind!=kind||row.selector!=selector&&row.selector!="*"||row.stage!=0&&row.stage!=stage||
                     !string.IsNullOrEmpty(row.channel)&&row.channel!=(channel??"")||
                     !string.IsNullOrEmpty(row.deliveryMode)&&row.deliveryMode!=(deliveryMode??"")||
-                    !string.IsNullOrEmpty(row.role)&&row.role!=(role??""))continue;
-                int score=(row.selector==selector?16:0)+(row.stage!=0?8:0)+(!string.IsNullOrEmpty(row.channel)?4:0)+(!string.IsNullOrEmpty(row.deliveryMode)?2:0)+(!string.IsNullOrEmpty(row.role)?1:0);
+                    !string.IsNullOrEmpty(row.role)&&row.role!=(role??"")||!string.IsNullOrEmpty(row.material)&&row.material!=(material??""))continue;
+                // 同动作的明确接触材质优先于通用连段重击，不能在第4段把金属误变肉击。
+                int score=(row.selector==selector?64:0)+(!string.IsNullOrEmpty(row.material)?32:0)+(row.stage!=0?16:0)+(!string.IsNullOrEmpty(row.channel)?8:0)+(!string.IsNullOrEmpty(row.deliveryMode)?4:0)+(!string.IsNullOrEmpty(row.role)?2:0);
                 if(score<=best)continue;best=score;cue=row.cue;
             }
             return cue!=null;

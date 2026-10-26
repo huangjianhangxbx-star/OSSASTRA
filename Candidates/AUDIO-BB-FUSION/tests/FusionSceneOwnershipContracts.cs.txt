@@ -1,0 +1,66 @@
+/* AUDIO-M02场景适配器所有权合同：重复适配器不能抢来源代次，关闭HUD不能终止全场声音观察。
+ * 仅新集成场Play可运行；临时GO无角色/伤害组件，退出finally恢复原HUD并删除测试对象。
+ * 本合同不推进战斗、不改HP/动作/输入/场景磁盘，也不创建第二音频根。 */
+using System;
+using System.Linq;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using Ossastra.Audio;
+using Ossastra.UserInterface;
+using Funplay.Editor.Tools.Scripting;
+
+public sealed class FusionSceneOwnershipContracts : IFunplayCommand
+{
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+    {
+        var rows = new List<object>();
+        int failed = 0;
+        void Check(string name, bool result) { rows.Add(new { name, result }); if (!result) failed++; }
+        var scene = SceneManager.GetActiveScene();
+        var root = Ossastra.Audio.GameAudioRoot.Instance;
+        if (!Application.isPlaying || scene.path != "Assets/OSSASTRA/Scenes/SC_AUDIO_BB_Fusion.unity" || root == null || !root.SfxAvailable)
+        {
+            ctx.ReturnValue = new { failed = 1, passed = 0, blocked = "OWN_INTEGRATION_SCENE_PLAY_AND_READY_ROOT_REQUIRED" };
+            return;
+        }
+        var adapters = UnityEngine.Object.FindObjectsOfType<CombatSfxFactAdapter>().Where(a => a.gameObject.scene == scene).ToArray();
+        var view = UnityEngine.Object.FindObjectsOfType<CombatFeedbackView>().FirstOrDefault(v => v.gameObject.scene == scene);
+        if (adapters.Length != 1 || view == null || view.gameObject == root.gameObject)
+        {
+            ctx.ReturnValue = new { failed = 1, passed = 0, blocked = "EXACT_ONE_BASELINE_ADAPTER_AND_SEPARATE_FEEDBACK_REQUIRED", adapters = adapters.Length };
+            return;
+        }
+        var owner = adapters[0];
+        string world = root.WorldScopeId;
+        var transport = root.Transport.TransportId;
+        int musicStarts = root.Transport.StartCount;
+        int leases = root.SourceLeaseCount;
+        bool viewWasActive = view.gameObject.activeSelf;
+        GameObject duplicateObject = null, otherViewObject = null;
+        try
+        {
+            Check("场景声音适配器必须独立于任一FeedbackView宿主", owner.GetComponentInParent<CombatFeedbackView>() == null);
+            otherViewObject = new GameObject("AUDIO-M02 extra feedback ownership fixture");
+            otherViewObject.AddComponent<CombatFeedbackView>();
+            duplicateObject = new GameObject("AUDIO-M02 duplicate adapter ownership fixture");
+            var duplicate = duplicateObject.AddComponent<CombatSfxFactAdapter>();
+            Check("第二适配器OnEnable不能取得额外来源租约或抢代次", root.SourceLeaseCount == leases);
+            duplicate.enabled = false;
+            duplicate.enabled = true;
+            Check("重复启用被拒适配器仍不能抢场景所有权", root.SourceLeaseCount == leases);
+            view.gameObject.SetActive(false);
+            Check("仍有另一个反馈视图时原声音所有者保持活动", otherViewObject.activeInHierarchy && owner.isActiveAndEnabled);
+            Check("关闭HUD不撤销场景声音来源租约", root.SourceLeaseCount == leases);
+            Check("观察器竞争不改变声音世界", root.WorldScopeId == world);
+            Check("观察器竞争不重启BGM", root.Transport.TransportId == transport && root.Transport.StartCount == musicStarts);
+        }
+        finally
+        {
+            if (duplicateObject != null) UnityEngine.Object.DestroyImmediate(duplicateObject);
+            if (otherViewObject != null) UnityEngine.Object.DestroyImmediate(otherViewObject);
+            if (view != null) view.gameObject.SetActive(viewWasActive);
+        }
+        ctx.ReturnValue = new { failed, passed = rows.Count - failed, rows, baselineLeases = leases, afterLeases = root.SourceLeaseCount, worldStable = root.WorldScopeId == world };
+    }
+}

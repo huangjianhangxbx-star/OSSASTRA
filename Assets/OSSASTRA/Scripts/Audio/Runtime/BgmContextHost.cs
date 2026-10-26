@@ -28,7 +28,14 @@ namespace Ossastra.Audio
         {
             if(audioRoot==null||!audioRoot.IsOwner)audioRoot=GameAudioRoot.Instance;
             if(audioRoot==null)return;
-            audioRoot.BindHost(this);Publish();
+            AttachAudioRoot(audioRoot);
+        }
+        /// <summary>根晚于Host创建或重新启用时显式补绑；不轮询、不创建另一播放所有者。</summary>
+        internal void AttachAudioRoot(GameAudioRoot value)
+        {
+            if(value==null||!value.IsOwner||!isActiveAndEnabled)return;
+            if(audioRoot!=null&&audioRoot!=value)audioRoot.UnbindHost(this);
+            audioRoot=value;audioRoot.BindHost(this);Publish();
         }
         public void SetTitle(bool value){title=value;Publish();}
         public void SetEngaged(bool value){engaged=value;Publish();}

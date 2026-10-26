@@ -88,7 +88,7 @@ namespace Ossastra.Combat
     if(!contactClock.TryPulse(target.Health.Id,time))continue;
     var patch=patches.First(p=>p.members.Contains(target));
     var release=AttackRelease.ForEmission(patch.parent,emission++,owner.Health.Id,15,0,0,0);
-    CombatContactGateway.Resolve(release,owner,new IHitTarget[]{target},patch.position,CombatContactCause.Periodic);PulseCount++;
+    CombatContactGateway.Resolve(release,owner,new IHitTarget[]{target},patch.position,CombatContactCause.Periodic,"ice.pulse");PulseCount++;
    }
    // 等原命中批次返回后在世界推进中爆炸；不会在柱OnHit里递归进入其他伤害批次。
    foreach(var burst in bursts.ToArray())
@@ -96,7 +96,7 @@ namespace Ossastra.Combat
     var targets=Physics.OverlapSphere(burst.position+Vector3.up*.8f,2,~0,QueryTriggerInteraction.Ignore)
        .Select(c=>c.GetComponentInParent<CombatVitals>()).Where(v=>v!=null&&v.IsAvailable&&CombatDeliveryQueue.Clear(burst.position,v.WorldPosition)).Distinct().Cast<IHitTarget>().ToArray();
     var release=AttackRelease.ForEmission(burst.lease.parent,emission++,owner.Health.Id,80,0,.05,.5);
-    CombatContactGateway.Resolve(release,owner,targets,burst.position,CombatContactCause.Secondary);BurstCount++;Release(burst.lease);
+    CombatContactGateway.Resolve(release,owner,targets,burst.position,CombatContactCause.Secondary,"ice.shatter");BurstCount++;Release(burst.lease);
    }
    bursts.Clear();
   }

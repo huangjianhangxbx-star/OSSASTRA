@@ -1,0 +1,16 @@
+using System;using System.Linq;using System.Reflection;using UnityEngine;using UnityEditor;using Ossastra.Audio;using Ossastra.CharacterCore;using Funplay.Editor.Tools.Scripting;
+public class FirstActionAfterProfile:IFunplayCommand
+{
+ public static object Result;static Ossastra.Characters.CharacterRoot actor;static Ossastra.Audio.GameAudioRoot root;static AudioContentProfileSO original;static double deadline;static bool focused;static int releases,voices;static bool accepted;static Action<ActionFact> action;static Action<Ossastra.Audio.GameAudioRoot.SfxObservation> sound;
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+ {
+  if(!Application.isPlaying)throw new Exception("Play required");root=Ossastra.Audio.GameAudioRoot.Instance;actor=UnityEngine.Object.FindObjectOfType<Ossastra.Characters.CharacterControlCoordinator>()?.Current;if(root==null||actor==null)throw new Exception("Missing real actor/root");
+  Result=null;original=root.ContentProfile;var field=actor.GetType().GetField("focused",BindingFlags.Instance|BindingFlags.NonPublic);focused=(bool)field.GetValue(actor);field.SetValue(actor,true);releases=voices=0;
+  action=f=>{if(f.Kind==ActionFactKind.Released)releases++;};sound=o=>{if(o.Request.SourceId.StartsWith(actor.Vitals.Health.Id+"@")&&o.Request.EventId.Contains("blade.swing")&&o.SourcePlayIssued)voices++;};actor.ActionObserved+=action;root.SfxObserved+=sound;
+  var next=AssetDatabase.LoadAssetAtPath<AudioContentProfileSO>("Assets/OSSASTRA/Audio/BloodborneLocal/Profiles/A2.asset");root.TryApplyProfile(next,out _);
+  var method=actor.GetType().GetMethod("TryConfiguredAction");var config=AssetDatabase.LoadAssetAtPath<Ossastra.Characters.ActionDefinitionSO>("Assets/OSSASTRA/Configs/Actions/Rozeul_Basic1.asset");
+  var args=new object[]{config,Enum.Parse(method.GetParameters()[1].ParameterType,"Player"),"profile-first-action",Guid.Empty};accepted=(bool)method.Invoke(actor,args);
+  deadline=EditorApplication.timeSinceStartup+2;EditorApplication.update+=Poll;ctx.ReturnValue=new{started=true,accepted};
+ }
+ static void Poll(){if(EditorApplication.timeSinceStartup<deadline&&Application.isPlaying)return;EditorApplication.update-=Poll;try{Result=new{accepted,releases,voices,pass=accepted&&releases>0&&voices>0};}finally{if(actor!=null){actor.ActionObserved-=action;actor.GetType().GetField("focused",BindingFlags.Instance|BindingFlags.NonPublic).SetValue(actor,focused);}if(root!=null){root.SfxObserved-=sound;if(original!=null)root.TryApplyProfile(original,out _);}}}
+}

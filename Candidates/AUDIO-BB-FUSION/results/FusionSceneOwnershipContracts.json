@@ -1,0 +1,48 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "failed": 0,
+      "passed": 7,
+      "rows": [
+        {
+          "name": "场景声音适配器必须独立于任一FeedbackView宿主",
+          "result": true
+        },
+        {
+          "name": "第二适配器OnEnable不能取得额外来源租约或抢代次",
+          "result": true
+        },
+        {
+          "name": "重复启用被拒适配器仍不能抢场景所有权",
+          "result": true
+        },
+        {
+          "name": "仍有另一个反馈视图时原声音所有者保持活动",
+          "result": true
+        },
+        {
+          "name": "关闭HUD不撤销场景声音来源租约",
+          "result": true
+        },
+        {
+          "name": "观察器竞争不改变声音世界",
+          "result": true
+        },
+        {
+          "name": "观察器竞争不重启BGM",
+          "result": true
+        }
+      ],
+      "baselineLeases": 6,
+      "afterLeases": 6,
+      "worldStable": true
+    }
+  }
+}

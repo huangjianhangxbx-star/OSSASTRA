@@ -1,0 +1,76 @@
+/* 真实游戏事实的四模式受控重放：不重算伤害。临时停模拟并关闭事实适配器，
+ * 只重放已录制的事实/真实BGM上下文；使用真实唯一根、Mixer和Listener DSP输出。
+ * 四段PCM及完整trace只写本机work；音量设置不改变，内容seed每模式重置。
+ */
+using System;using System.IO;using System.Linq;using System.Collections.Generic;using UnityEngine;using UnityEditor;using Ossastra.Audio;using Funplay.Editor.Tools.Scripting;
+public class AbPcmCapture:MonoBehaviour
+{
+ readonly object gate=new object();float[] pcm;int count,channels,rate,callbacks;bool active;
+ public void Begin(){rate=AudioSettings.outputSampleRate;pcm=new float[rate*2*70];active=true;}
+ void OnAudioFilterRead(float[] data,int ch){lock(gate){if(!active)return;channels=ch;callbacks++;int n=Math.Min(data.Length,pcm.Length-count);Array.Copy(data,0,pcm,count,n);count+=n;}}
+ public object Save(string p){lock(gate){active=false;double sum=0;float peak=0;int clipped=0;using(var w=new BinaryWriter(File.Create(p))){w.Write(System.Text.Encoding.ASCII.GetBytes("RIFF"));w.Write(36+count*2);w.Write(System.Text.Encoding.ASCII.GetBytes("WAVEfmt "));w.Write(16);w.Write((short)1);w.Write((short)Math.Max(1,channels));w.Write(rate);w.Write(rate*Math.Max(1,channels)*2);w.Write((short)(Math.Max(1,channels)*2));w.Write((short)16);w.Write(System.Text.Encoding.ASCII.GetBytes("data"));w.Write(count*2);for(int i=0;i<count;i++){var x=pcm[i];sum+=(double)x*x;peak=Math.Max(peak,Math.Abs(x));if(Math.Abs(x)>=.999f)clipped++;w.Write((short)Mathf.RoundToInt(Mathf.Clamp(x,-1,1)*32767));}}return new{callbacks,samples=count,channels,rate,seconds=(double)count/Math.Max(1,channels)/rate,peak,rms=Math.Sqrt(sum/Math.Max(1,count)),clipped};}}
+}
+public class FusionAbReplay:MonoBehaviour
+{
+ public class Fact{public double t;public int frame;public string source,role,selector,kind,channel,mode,material,key,eventId;public int stage;public float[] position;public bool stop;}
+ public class Context{public double t;public bool title,engaged,far;}
+ public class Story{public Fact[] facts;public Context[] contexts;}
+ const string Work="E:/WORLDCREATOR/XingHaiHuiLang/work/OSSASTRA/AUDIO-BB-FUSION-20261027";
+ public static FusionAbReplay Instance;public static object Result;
+ readonly Dictionary<string,SfxSourceHandle> sources=new Dictionary<string,SfxSourceHandle>();readonly Dictionary<string,long> loops=new Dictionary<string,long>();
+ readonly List<object> rows=new List<object>(),voices=new List<object>(),modes=new List<object>();readonly List<Behaviour> disabled=new List<Behaviour>();
+ Ossastra.Audio.GameAudioRoot root;AudioContentProfileSO original;AbPcmCapture capture;Fact[] facts;Context[] contexts;int mode=-1,next,contextNext,peak;double start,duration;float timeScale;bool focus,running,restored;string error="";
+ public void Begin()
+ {
+  if(Instance!=null)throw new Exception("Replay already active");root=Ossastra.Audio.GameAudioRoot.Instance;if(root==null||!Application.isPlaying||root.DiagnosticOverride)throw new Exception("Expected normal playable audio world");
+  var story=Newtonsoft.Json.JsonConvert.DeserializeObject<Story>(File.ReadAllText(Work+"/real-game-story.json"));if(story?.facts==null||story.facts.Length<10)throw new Exception("Actual game trace missing");
+  facts=story.facts.OrderBy(f=>f.frame).ThenBy(f=>f.stop?2:f.kind=="release"||f.kind=="launch"?0:1).ThenBy(f=>f.t).ToArray();
+  foreach(var group in facts.GroupBy(f=>f.frame)){double t=group.Min(f=>f.t);foreach(var f in group)f.t=Math.Max(0,t);}
+  facts=facts.OrderBy(f=>f.t).ToArray();contexts=story.contexts??Array.Empty<Context>();duration=Math.Min(65,Math.Max(8,facts.Max(f=>f.t)+2));
+  original=root.ContentProfile;timeScale=Time.timeScale;focus=root.Mix.Focused;
+  foreach(var b in UnityEngine.Object.FindObjectsOfType<MonoBehaviour>())if(b.enabled&&(b is CombatSfxFactAdapter||b is LocomotionAudioAdapter||b is InterfaceAudioAdapter||b is AudioEnvironmentZone)){disabled.Add(b);b.enabled=false;}
+  Time.timeScale=0;root.Mix.Focused=true;root.SfxObserved+=OnVoice;Instance=this;Result=null;running=true;StartMode();
+ }
+ void StartMode()
+ {
+  foreach(var source in sources.Values)source.Dispose();sources.Clear();loops.Clear();next=contextNext=peak=0;voices.Clear();rows.Clear();mode++;
+  if(mode>=4){Finish();return;}
+  bool ok;string why;
+  if(mode==0)ok=root.RestoreBaseline(out why);else{var profile=mode==3?Resources.Load<AudioContentProfileSO>("OssastraBloodborneDefault"):AssetDatabase.LoadAssetAtPath<AudioContentProfileSO>("Assets/OSSASTRA/Audio/BloodborneLocal/Profiles/A"+mode+".asset");ok=root.TryApplyProfile(profile,out why);}
+  if(!ok)throw new Exception("Mode switch "+why);
+  root.StopMusic();root.SetDiagnosticContext(contexts.Length==0?new BgmContext():ToContext(contexts[0]));
+  capture=UnityEngine.Object.FindObjectOfType<AudioListener>().gameObject.AddComponent<AbPcmCapture>();capture.Begin();start=Time.realtimeSinceStartupAsDouble;
+ }
+ static BgmContext ToContext(Context c)=>new BgmContext{title=c.title,engaged=c.engaged,far=c.far};
+ void Update()
+ {
+  if(!running)return;
+  try{
+   double elapsed=Time.realtimeSinceStartupAsDouble-start;peak=Math.Max(peak,root.Sfx.ActiveCount);
+   while(contextNext<contexts.Length&&contexts[contextNext].t<=elapsed)root.SetDiagnosticContext(ToContext(contexts[contextNext++]));
+   while(next<facts.Length&&facts[next].t<=elapsed)Emit(facts[next++],elapsed);
+   if(elapsed<duration)return;
+   var metrics=capture.Save(Work+"/AB_A"+mode+"_RAW.wav");Destroy(capture);capture=null;
+   var report=new{mode="A"+mode,evidence="OSS_REAL_MIXER_RECORDED_GAME_FACT_REPLAY",factCount=facts.Length,contextCount=contexts.Length,seed=root.ContentProfile.randomSeed,profile=root.ContentProfile.profileId,master=root.Mix.MasterVolume,bgm=root.Mix.UserBgmVolume,sfx=root.UnifiedMix.SfxVolume,pool=root.SfxPlayer.PoolSize,peak,metrics,events=rows.ToArray(),voices=voices.ToArray()};
+   File.WriteAllText(Work+"/AB_A"+mode+".json",Newtonsoft.Json.JsonConvert.SerializeObject(report,Newtonsoft.Json.Formatting.Indented));modes.Add(report);StartMode();
+  }catch(Exception e){error=e.ToString();Finish();}
+ }
+ void Emit(Fact f,double actual)
+ {
+  string identity=f.source+"|"+f.key;
+  if(f.stop){if(loops.TryGetValue(identity,out var voice)&&sources.TryGetValue(f.source,out var owner))owner.StopVoice(voice);loops.Remove(identity);return;}
+  string eventId=f.eventId;string reason="";
+  if(!string.IsNullOrEmpty(f.selector)){if(!root.CombatSoundProfile.TryResolve(f.selector,f.kind,f.stage,f.channel,out var cue,f.mode,f.role,f.material))reason="UNMAPPED_IN_PROFILE";else eventId=f.role+"."+cue;}
+  else if(eventId!="ui.control.switch"&&!root.WorldAudioEnabled)reason="WORLD_AUDIO_DISABLED_IN_BASELINE";
+  if(!string.IsNullOrEmpty(reason)){rows.Add(new{scheduled=f.t,actual,source=f.source,selector=f.selector,kind=f.kind,eventId,reason});return;}
+  if(!sources.TryGetValue(f.source,out var source)){source=root.RegisterSfxSource("AB_RECORDED:"+f.source);sources.Add(f.source,source);}
+  var p=f.position??new float[3];var decision=source.Submit(eventId,f.key,new Vector3(p[0],p[1],p[2]));
+  if(decision.Accepted&&root.Sfx.TryGetVoice(decision.VoiceId,out var record)&&record.Definition.loop)loops[identity]=decision.VoiceId;
+  rows.Add(new{scheduled=f.t,actual,source=f.source,selector=f.selector,kind=f.kind,eventId,reason=decision.Reason});
+ }
+ void OnVoice(Ossastra.Audio.GameAudioRoot.SfxObservation o){if(!running||voices.Count>=8192)return;voices.Add(new{t=Time.realtimeSinceStartupAsDouble-start,eventId=o.Request.EventId,source=o.Request.SourceId,key=o.Request.FactKey,reason=o.Decision.Reason,issued=o.SourcePlayIssued,clip=o.ClipName,provenance=o.Provenance});}
+ void Finish(){running=false;Restore();Result=new{done=true,error,modes=modes.Select(m=>new{mode=m.GetType().GetProperty("mode").GetValue(m),metrics=m.GetType().GetProperty("metrics").GetValue(m),peak=m.GetType().GetProperty("peak").GetValue(m)}).ToArray(),restored};File.WriteAllText(Work+"/AB_SUMMARY.json",Newtonsoft.Json.JsonConvert.SerializeObject(Result,Newtonsoft.Json.Formatting.Indented));Destroy(gameObject);}
+ void Restore(){if(restored)return;foreach(var s in sources.Values)s.Dispose();sources.Clear();if(root!=null){root.SfxObserved-=OnVoice;root.SetDiagnosticContext(null);if(original!=null)root.TryApplyProfile(original,out _);root.Mix.Focused=focus;}Time.timeScale=timeScale;foreach(var b in disabled)if(b!=null)b.enabled=true;disabled.Clear();restored=true;}
+ void OnDestroy(){Restore();if(Instance==this)Instance=null;}
+}
+public class BeginControlledReplay:IFunplayCommand{public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext c){var go=new GameObject("DEVELOPMENT_ONLY_AB_REPLAY");var replay=go.AddComponent<FusionAbReplay>();replay.Begin();c.ReturnValue=new{started=true,modes=4,evidence="REAL_GAME_FACT_REPLAY_TO_UNITY_MIXER",outputPrivate=true};}}

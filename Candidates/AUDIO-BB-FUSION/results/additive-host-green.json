@@ -1,0 +1,35 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "checks": [
+        {
+          "name": "nonactive additive host does not steal music context",
+          "pass": true
+        },
+        {
+          "name": "explicit active change binds its actual host",
+          "pass": true
+        },
+        {
+          "name": "active change releases previous dialogue scope",
+          "pass": true
+        },
+        {
+          "name": "unloading secondary retains primary host",
+          "pass": true
+        },
+        {
+          "name": "active scene restored",
+          "pass": true
+        }
+      ]
+    }
+  }
+}

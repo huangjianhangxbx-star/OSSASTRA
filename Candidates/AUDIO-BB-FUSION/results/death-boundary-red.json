@@ -1,0 +1,38 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "killed": true,
+      "events": [
+        {
+          "id": "player.body.death",
+          "SourcePlayIssued": true
+        },
+        {
+          "id": "player.body.hurt",
+          "SourcePlayIssued": true
+        }
+      ],
+      "checks": [
+        {
+          "name": "lethal receipt remains one actual death",
+          "pass": true
+        },
+        {
+          "name": "death uses prehandoff player role",
+          "pass": true
+        },
+        {
+          "name": "lethal contact does not stack hurt cry with death cry",
+          "pass": false
+        }
+      ]
+    }
+  }
+}

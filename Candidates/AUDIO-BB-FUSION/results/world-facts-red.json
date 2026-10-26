@@ -1,0 +1,24 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "checks": [
+        {
+          "name": "actual distance sampler available",
+          "pass": false
+        },
+        {
+          "name": "owned environment zone available",
+          "pass": false
+        }
+      ],
+      "failed": 2
+    }
+  }
+}

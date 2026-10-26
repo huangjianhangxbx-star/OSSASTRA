@@ -1,0 +1,72 @@
+/* 受控本机原生资产配方：只写BloodborneLocal；所有媒体/引用SO均不公开。原A0/SFXPASS及场景保持。 */
+using System;using System.IO;using System.Linq;using System.Collections.Generic;using System.Security.Cryptography;
+using UnityEngine;using UnityEditor;using Ossastra.Audio;using Funplay.Editor.Tools.Scripting;
+public class AuthorLocalProfiles:IFunplayCommand
+{
+ const string Local="Assets/OSSASTRA/Audio/BloodborneLocal";
+ const string Work="E:/WORLDCREATOR/XingHaiHuiLang/work/OSSASTRA/AUDIO-BB-FUSION-20261027";
+ [Serializable] public class Manifest{public int schemaVersion;public bool privateOnly,allSourcesUnchanged;public Media[] media;public Cue[] events;public string[] music;}
+ [Serializable] public class Media{public string id,sourcePath,sourceSha256,outputPath,outputSha256,assetPath,confidence,streamName;public float durationSeconds;}
+ [Serializable] public class Cue{public string id;public string[] clips;public float volume,interval;public int priority;public bool loop;public string notes;}
+ static string Hash(string p){using(var a=SHA256.Create())return BitConverter.ToString(a.ComputeHash(File.ReadAllBytes(p))).Replace("-","").ToLowerInvariant();}
+ static void Folder(string p){if(AssetDatabase.IsValidFolder(p))return;var parent=p.Substring(0,p.LastIndexOf('/'));Folder(parent);AssetDatabase.CreateFolder(parent,p.Substring(p.LastIndexOf('/')+1));}
+ static T Asset<T>(string p)where T:ScriptableObject{var x=AssetDatabase.LoadAssetAtPath<T>(p);if(x==null){x=ScriptableObject.CreateInstance<T>();Folder(p.Substring(0,p.LastIndexOf('/')));AssetDatabase.CreateAsset(x,p);}return x;}
+ static void Save(UnityEngine.Object x){EditorUtility.SetDirty(x);AssetDatabase.SaveAssetIfDirty(x);}
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+ {
+  if(Application.isPlaying||EditorApplication.isCompiling||Application.dataPath.Replace('\\','/')!="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets")throw new Exception("Expected target ready Edit");
+  var manifest=Newtonsoft.Json.JsonConvert.DeserializeObject<Manifest>(File.ReadAllText(Work+"/prepared-manifest.json"));
+  if(manifest==null||manifest.schemaVersion!=1||!manifest.privateOnly||!manifest.allSourcesUnchanged||manifest.media.Length<60)throw new Exception("Manifest preflight");
+  foreach(var m in manifest.media){if(Hash(m.sourcePath)!=m.sourceSha256||Hash(m.outputPath)!=m.outputSha256)throw new Exception("Source/derived hash "+m.id);if(File.Exists(m.assetPath)&&Hash(m.assetPath)!=m.outputSha256)throw new Exception("Conflicting local target "+m.assetPath);}
+  var config=GameAudioBootstrap.LoadConfiguration();var baseline=Resources.Load<SfxContentSetSO>("OssastraSfxContent");var semantic=Resources.Load<CombatSoundProfileSO>("OssastraCombatSoundProfile");
+  if(config==null||baseline==null||semantic==null||!baseline.Validate(out _)||!semantic.Validate(out _))throw new Exception("A0 content unavailable");
+  Folder(Local+"/Media");Folder(Local+"/Profiles");Folder(Local+"/Resources");var clips=new Dictionary<string,AudioClip>();
+  foreach(var m in manifest.media)
+  {
+   if(!File.Exists(m.assetPath))File.Copy(m.outputPath,m.assetPath,false);
+   AssetDatabase.ImportAsset(m.assetPath,ImportAssetOptions.ForceSynchronousImport);
+   var importer=AssetImporter.GetAtPath(m.assetPath) as AudioImporter;if(importer==null)throw new Exception("Importer "+m.id);
+   var settings=importer.defaultSampleSettings;settings.loadType=AudioClipLoadType.DecompressOnLoad;settings.compressionFormat=AudioCompressionFormat.PCM;
+   settings.preloadAudioData=true;settings.sampleRateSetting=AudioSampleRateSetting.PreserveSampleRate;importer.defaultSampleSettings=settings;importer.forceToMono=false;importer.SaveAndReimport();
+   var clip=AssetDatabase.LoadAssetAtPath<AudioClip>(m.assetPath);if(clip==null||!clip.LoadAudioData())throw new Exception("Clip load "+m.id);clips.Add(m.id,clip);
+  }
+  var music=new Dictionary<string,BgmTrackSO>();foreach(var id in manifest.music){var track=Asset<BgmTrackSO>(Local+"/Profiles/"+id+".asset");track.contentId="bb.reference."+id;track.contentVersion="1";track.sectionId="whole_candidate_loop";track.assetId=manifest.media.First(m=>m.id==id).outputSha256;track.clip=clips[id];track.knownBpm=0;track.loop=true;track.missingFallback=null;track.synchronizedLayers=Array.Empty<AudioClip>();Save(track);music.Add(id,track);}
+  var rules=Asset<BgmRuleSetSO>(Local+"/Profiles/ReferenceMusicRules.asset");rules.rules=config.rules.rules.Select(r=>new BgmRuleBinding{ruleId=r.ruleId,priority=r.priority,condition=r.condition,intensity=r.intensity,track=music[r.condition==BgmRuleCondition.Engaged?manifest.music[1]:r.condition==BgmRuleCondition.Boss?manifest.music[2]:manifest.music[0]]}).ToArray();Save(rules);
+  var design=Asset<CombatSoundProfileSO>(Local+"/Profiles/ReferenceSemanticProfile.asset");var bindings=semantic.bindings.Select(r=>new CombatSoundBinding{selector=r.selector,kind=r.kind,stage=r.stage,channel=r.channel,deliveryMode=r.deliveryMode,role=r.role,material=r.material,cue=r.cue}).ToList();
+  Action<string,string,string,string> bind=(selector,kind,cue,role)=>{if(!bindings.Any(r=>r.selector==selector&&r.kind==kind&&r.stage==0&&string.IsNullOrEmpty(r.channel)&&string.IsNullOrEmpty(r.material)&&(r.role??"")==(role??"")))bindings.Add(new CombatSoundBinding{selector=selector,kind=kind,cue=cue,role=role});};
+  bind("movement","dodge","movement.dodge",null);bind("item","heal","item.heal",null);bind("enemy.basic","release","attack","enemy");bind("target","hurt","body.hurt","enemy");bind("target","death","body.death",null);
+  foreach(var id in new[]{"food-0.use","food-1.use","food-2.use","food-3.use","food-4.use"})bind(id,"release","item.food",null);bind("sample-al-regen.use","release","item.heal",null);
+  // 本机元素候选不冒充冰的原声身份；冰路采用记录在覆盖表的电能近似，留待人耳决定。
+  bind("ice.pulse","hit","skill.electric",null);bind("ice.shatter","hit","impact.stone",null);
+  bind("hunter-native-E","release","movement.dodge",null);bind("rush","release","movement.dodge",null);
+  bind("al-native-E","launch","movement.dodge",null);bind("rocket","launch","movement.dodge",null);
+  foreach(var selector in new[]{"body.basic","main:hunter.prototype.I","main:hunter.prototype.II","main:ranger.prototype.I","main:ranger.prototype.II","enemy.basic"})foreach(var material in new[]{"flesh","metal","stone","wood"})bindings.Add(new CombatSoundBinding{selector=selector,kind="hit",material=material,cue="impact."+material});
+  design.bindings=bindings.ToArray();if(!design.Validate(out var validation))throw new Exception(validation);Save(design);
+  var profileResults=new List<object>();
+  foreach(var mode in new[]{"A1","A2","A3"})
+  {
+   var authored=new List<SfxEventDefinitionSO>();bool composition=mode!="A1";
+   foreach(var cue in manifest.events)
+   {
+    var old=baseline.catalog.events.FirstOrDefault(e=>e.eventId==cue.id);
+    if(!composition&&old==null)continue;
+    var definition=Asset<SfxEventDefinitionSO>(Local+"/Definitions/"+mode+"/"+cue.id+".asset");
+    if(!composition)EditorUtility.CopySerialized(old,definition);
+    definition.eventId=cue.id;definition.clips=(composition?cue.clips:cue.clips.Take(old.clips.Length)).Select(id=>clips[id]).ToArray();
+    definition.provenance=string.Join("; ",cue.clips.Select(id=>{var m=manifest.media.First(r=>r.id==id);return id+" / "+m.confidence+" / "+m.outputSha256;}));
+    if(composition){definition.volume=cue.volume;definition.pitchMin=.99f;definition.pitchMax=1.01f;definition.priority=cue.priority;definition.maxPerSource=8;definition.maxAgeSeconds=.5f;definition.minIntervalSeconds=cue.interval;definition.avoidImmediateRepeat=true;definition.loop=cue.loop;}
+    var prefix=cue.id.Split('.')[0];definition.bus=prefix=="player"?SfxBus.Player:prefix=="companion"?SfxBus.Companion:prefix=="enemy"?SfxBus.Enemy:prefix=="ui"?SfxBus.UI:prefix=="ambience"?SfxBus.Ambience:SfxBus.Interaction;
+    // A3只改声学。A2/A3媒体、编排、音量与seed相同；环境也占相同24/32池。
+    if(composition){definition.spatial=mode=="A3"&&prefix!="ui";definition.minDistance=14;definition.maxDistance=65;}
+    if(!definition.TryValidate(out validation))throw new Exception(cue.id+validation);Save(definition);authored.Add(definition);
+   }
+   var catalog=Asset<SfxCatalogSO>(Local+"/Profiles/"+mode+"Catalog.asset");catalog.events=authored.ToArray();Save(catalog);
+   var profile=Asset<AudioContentProfileSO>(mode=="A3"?Local+"/Resources/OssastraBloodborneDefault.asset":Local+"/Profiles/"+mode+".asset");
+   profile.profileId=mode=="A3"?"A3_Bloodborne_Reference_Local":mode=="A2"?"A2_BB_COMPOSITION":"A1_BB_CONTENT";
+   profile.referenceLocal=true;profile.catalog=catalog;profile.combatProfile=composition?design:semantic;profile.musicRules=rules;profile.worldAudio=composition;profile.acoustics=mode=="A3";profile.randomSeed=27027;
+   profile.provenance="LOCAL_RESEARCH_ONLY; static source confidence; user listening pending; whole-loop seams and music role unverified";
+   if(!profile.Validate(out validation))throw new Exception(mode+validation);Save(profile);profileResults.Add(new{mode,events=authored.Count,bindings=profile.combatProfile.bindings.Length,valid=validation});
+  }
+  ctx.ReturnValue=new{media=clips.Count,profiles=profileResults,sourceChecks=true,privateOnly=true};
+ }
+}

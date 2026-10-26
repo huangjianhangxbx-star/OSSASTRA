@@ -28,6 +28,10 @@ namespace Ossastra.Audio
         [Header("混音与可选空间衰减；默认保留旧2D短音")]
         public SfxBus bus = SfxBus.Player;
         public bool spatial;
+        [Tooltip("持续声仍占用同一仲裁池；只能由持有来源租约的环境适配器显式停止。")]
+        public bool loop;
+        [Tooltip("内容出处与身份置信度，仅供诊断；不参与玩法判定。")]
+        public string provenance;
         [Min(.001f)] public float minDistance = 1;
         [Min(.001f)] public float maxDistance = 20;
 

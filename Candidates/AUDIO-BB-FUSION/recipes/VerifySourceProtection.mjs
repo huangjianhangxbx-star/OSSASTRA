@@ -1,0 +1,11 @@
+import fs from 'node:fs';import crypto from 'node:crypto';
+const work='E:/WORLDCREATOR/XingHaiHuiLang/work/OSSASTRA/AUDIO-BB-FUSION-20261027';
+const read=p=>JSON.parse(fs.readFileSync(p,'utf8').replace(/^\uFEFF/,''));
+const sha=p=>crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex');
+const audit=read(work+'/content-audit.json'),prepared=read(work+'/prepared-manifest.json');
+const sourceRows=audit.catalog.map(r=>({id:r.id,path:r.sourcePath,pass:sha(r.sourcePath).toLowerCase()===r.sourceSha256.toLowerCase()}));
+const banks=[...new Map(prepared.media.filter(r=>r.fsbPath&&r.fsbSha256).map(r=>[r.fsbPath,r.fsbSha256])).entries()].map(([path,expected])=>({path,pass:sha(path).toLowerCase()===expected.toLowerCase()}));
+const derived=prepared.media.map(r=>({id:r.id,pass:sha(r.outputPath)===r.outputSha256&&sha('E:/WORLDCREATOR/new/Project_ANKALUTE/'+r.assetPath)===r.outputSha256}));
+const output={sourceCatalog:sourceRows.length,sourceChanged:sourceRows.filter(r=>!r.pass),bankCount:banks.length,bankChanged:banks.filter(r=>!r.pass),privateMediaCount:derived.length,derivedChanged:derived.filter(r=>!r.pass),note:'Hash evidence only; neither original runtime equivalence nor redistribution license.'};
+fs.writeFileSync('Candidates/AUDIO-BB-FUSION/results/source-protection-final.json',JSON.stringify(output,null,2));
+console.log(JSON.stringify(output));if(output.sourceChanged.length||output.bankChanged.length||output.derivedChanged.length)process.exitCode=1;

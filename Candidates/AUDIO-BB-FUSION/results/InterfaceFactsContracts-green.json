@@ -1,0 +1,93 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "passed": 15,
+      "failed": 0,
+      "rows": [
+        {
+          "name": "真实界面边沿观察器已实现",
+          "passed": true,
+          "detail": null
+        },
+        {
+          "name": "公开状态观察与重采基线入口存在",
+          "passed": true,
+          "detail": null
+        },
+        {
+          "name": "初次关闭状态只建立基线",
+          "passed": true,
+          "detail": null
+        },
+        {
+          "name": "相同关闭状态不产生声音",
+          "passed": true,
+          "detail": null
+        },
+        {
+          "name": "真正打开背包只产生一次打开事实",
+          "passed": true,
+          "detail": null
+        },
+        {
+          "name": "界面刷新而开关不变时不产生事实",
+          "passed": true,
+          "detail": null
+        },
+        {
+          "name": "合法容器打开产生容器事实",
+          "passed": true,
+          "detail": null
+        },
+        {
+          "name": "容器不变不重复播放",
+          "passed": true,
+          "detail": null
+        },
+        {
+          "name": "容器更换先关闭原容器再打开新容器",
+          "passed": true,
+          "detail": null
+        },
+        {
+          "name": "关包同时关闭容器且各只产生一次",
+          "passed": true,
+          "detail": null
+        },
+        {
+          "name": "重复关闭保持安静",
+          "passed": true,
+          "detail": null
+        },
+        {
+          "name": "世界换代时已打开界面只重采基线",
+          "passed": true,
+          "detail": null
+        },
+        {
+          "name": "重连后相同状态保持安静",
+          "passed": true,
+          "detail": null
+        },
+        {
+          "name": "重连后的真实关闭仍可观察",
+          "passed": true,
+          "detail": null
+        },
+        {
+          "name": "首次发现已打开的界面不补播历史事实",
+          "passed": true,
+          "detail": null
+        }
+      ],
+      "scope": "纯界面状态边沿；不伪造库存事务或发声"
+    }
+  }
+}

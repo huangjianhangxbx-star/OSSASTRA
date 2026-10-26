@@ -1,0 +1,10 @@
+import fs from 'node:fs';import crypto from 'node:crypto';import{execFileSync}from'node:child_process';
+const cwd='E:/WORLDCREATOR/new/Project_ANKALUTE',git=(...a)=>execFileSync('git',a,{cwd,windowsHide:true,maxBuffer:16*1024*1024});
+const original=JSON.parse(fs.readFileSync('E:/WORLDCREATOR/XingHaiHuiLang/work/OSSASTRA/AUDIO-BB-FUSION-20261027/original-dirty-hashes.json','utf8').replace(/^\uFEFF/,''));
+const rows=git('-c','core.quotepath=false','diff','--cached','--no-renames','--name-status').toString('utf8').trim().split('\n').filter(Boolean).map(line=>{const [status,path]=line.split('\t');return{status,path};});
+const bad=[];for(const r of rows){if(original.some(o=>o.path===r.path))bad.push('original dirty staged: '+r.path);if(r.status==='D'){if(!/^Assets\/OSSASTRA\/Art\/AudioReferenceLocal(?:\.meta|\/(?:hit|hurt|release)\.wav\.meta)$/.test(r.path))bad.push('unexpected deletion '+r.path);continue;}
+if(/BloodborneLocal|CuratedLocal|AudioReferenceLocal|\.(wav|ogg|mp3|flac|fsb|fev|zip|exe|dll|png)$/i.test(r.path))bad.push('restricted path '+r.path);
+const b=git('show',':'+r.path),s=b.toString('utf8');if(!Buffer.from(s,'utf8').equals(b)||/^(RIFF|OggS|fLaC|ID3)/.test(s)||/data:audio\//i.test(s))bad.push('nontext/media '+r.path);r.bytes=b.length;r.sha256=crypto.createHash('sha256').update(b).digest('hex');}
+const privateTracked=git('ls-files','--','Assets/OSSASTRA/Audio/BloodborneLocal*','Assets/OSSASTRA/Audio/CuratedLocal*','Assets/OSSASTRA/Art/AudioReferenceLocal*').toString('utf8').trim();if(privateTracked)bad.push('private paths remain tracked: '+privateTracked);
+const output={scope:'staged candidate before audit evidence file itself is added; final commit tree verified separately',files:rows.length,bytes:rows.reduce((s,r)=>s+(r.bytes||0),0),originalDirtyStaged:rows.filter(r=>original.some(o=>o.path===r.path)),privateTracked,violations:bad,filesReviewed:rows};
+fs.writeFileSync('Candidates/AUDIO-BB-FUSION/results/PUBLICATION_AUDIT.json',JSON.stringify(output,null,2));console.log(JSON.stringify({files:output.files,bytes:output.bytes,violations:bad}));if(bad.length)process.exitCode=1;

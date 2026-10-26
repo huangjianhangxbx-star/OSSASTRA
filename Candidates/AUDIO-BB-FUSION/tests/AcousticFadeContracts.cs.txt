@@ -1,0 +1,16 @@
+using System;using System.Collections.Generic;using UnityEngine;using Ossastra.Audio;using Funplay.Editor.Tools.Scripting;
+public class AcousticFadeContracts:IFunplayCommand
+{
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+ {
+  var go=new GameObject("TEMP_ACOUSTIC_FADE");var wall=new GameObject("TEMP_SOUND_OBSTACLE");var clip=AudioClip.Create("owned-test-silence",4800,1,48000,false);var d=ScriptableObject.CreateInstance<SfxEventDefinitionSO>();SfxVoicePlayer p=null;
+  try{
+   d.eventId="test.loop";d.clips=new[]{clip};d.volume=1;d.spatial=true;d.loop=true;
+   var a=new SfxArbitrator();a.SetWorldScope("test");int generation=a.OpenSource("test");p=new SfxVoicePlayer(go,a,GameAudioBootstrap.LoadConfiguration().Route);p.AcousticsEnabled=true;p.AcousticOrigin=new Vector3(1010,1000.6f,1000);
+   wall.transform.position=new Vector3(1005,1000.6f,1000);wall.AddComponent<BoxCollider>().size=new Vector3(.5f,2,2);wall.AddComponent<AudioAcousticObstacle>();Physics.SyncTransforms();
+   var decision=a.Submit(new SfxRequest(d.eventId,"test","test",generation,"one",new Vector3(1000,1000,1000),0),d,0);bool issued=p.TryPlay(decision);p.Tick(AudioSettings.dspTime);
+   var voice=p.Voices[0];float blocked=voice.Source.volume;p.SetVoice(decision.VoiceId,new Vector3(1000,1000,1000),.5f);float faded=voice.Source.volume;
+   ctx.ReturnValue=new{issued,blocked,faded,checks=new[]{new{name="actual marked wall attenuates",pass=Mathf.Abs(blocked-.68f)<.001f},new{name="loop fade preserves occlusion factor",pass=Mathf.Abs(faded-.34f)<.001f}}};
+  }finally{p?.Dispose();UnityEngine.Object.DestroyImmediate(go);UnityEngine.Object.DestroyImmediate(wall);UnityEngine.Object.DestroyImmediate(d);UnityEngine.Object.DestroyImmediate(clip);}
+ }
+}

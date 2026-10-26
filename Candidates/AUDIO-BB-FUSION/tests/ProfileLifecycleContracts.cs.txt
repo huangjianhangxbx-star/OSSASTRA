@@ -1,0 +1,36 @@
+using System;using System.Linq;using System.Collections.Generic;using UnityEngine;using UnityEditor;using Ossastra.Audio;using Funplay.Editor.Tools.Scripting;
+public class ProfileLifecycleContracts:IFunplayCommand
+{
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+ {
+  var root=Ossastra.Audio.GameAudioRoot.Instance;if(!Application.isPlaying||root==null)throw new Exception("Expected real audio scene Play");
+  var checks=new List<object>();Action<string,bool> check=(name,pass)=>checks.Add(new{name,pass});var original=root.ContentProfile;
+  var invalid=ScriptableObject.CreateInstance<AudioContentProfileSO>();invalid.profileId="INVALID";
+  var first=root.RegisterSfxSource("DEVELOPMENT_ONLY:profile-first");var second=root.RegisterSfxSource("DEVELOPMENT_ONLY:profile-second");
+  try
+  {
+   var world=root.WorldScopeId;var before=root.ContentProfile;var epoch=root.Transport.Epoch;
+   check("invalid profile rejected without mutating world",!root.TryApplyProfile(invalid,out _)&&root.WorldScopeId==world&&root.ContentProfile==before&&!first.IsDisposed);
+   var loop=first.Submit("ambience.torch","loop:one",Vector3.zero);var other=second.Submit("ambience.fire","loop:two",Vector3.one);
+   check("loop consumes actual fixed-pool permit",loop.Accepted&&other.Accepted&&root.SfxPlayer.Voices.Any(v=>v.VoiceId==loop.VoiceId&&v.Source.loop&&double.IsPositiveInfinity(v.EndsAt)));
+   root.SfxPlayer.Tick(AudioSettings.dspTime+20);
+   check("loop survives ordinary clip duration",root.Sfx.TryGetVoice(loop.VoiceId,out _));
+   check("other source cannot stop owned voice",!second.StopVoice(loop.VoiceId)&&root.Sfx.TryGetVoice(loop.VoiceId,out _));
+   check("owner stop releases only its loop",first.StopVoice(loop.VoiceId)&&!root.Sfx.TryGetVoice(loop.VoiceId,out _)&&root.Sfx.TryGetVoice(other.VoiceId,out _));
+   var a2=AssetDatabase.LoadAssetAtPath<AudioContentProfileSO>("Assets/OSSASTRA/Audio/BloodborneLocal/Profiles/A2.asset");
+   check("validated profile changes SFX generation",root.TryApplyProfile(a2,out _)&&root.WorldScopeId!=world&&first.IsDisposed&&second.IsDisposed);
+   check("stale source cannot reenter new profile",!first.Submit("ambience.torch","late",Vector3.zero).Accepted);
+   check("same music retains transport instance and epoch",root.Transport.Epoch==epoch);
+   check("profile does not allocate extra audio sources",root.GetComponentsInChildren<AudioSource>(true).Length==38);
+   var p=a2.combatProfile;check("known metal chooses specific material",p.TryResolve("body.basic","hit",1,"",out var cue,null,"player","metal")&&cue=="impact.metal");
+   check("unknown material retains generic contact",p.TryResolve("body.basic","hit",1,"",out cue,null,"player",null)&&cue=="blade.impact");
+   var a3=Resources.Load<AudioContentProfileSO>("OssastraBloodborneDefault");
+   bool mediaSame=a2.catalog.events.All(e=>a3.catalog.TryResolve(e.eventId,out var d,out _)&&d.clips.SequenceEqual(e.clips)&&d.volume==e.volume&&d.priority==e.priority&&d.minIntervalSeconds==e.minIntervalSeconds);
+   check("A2 to A3 retains exact media composition gain and seed",mediaSame&&a2.combatProfile==a3.combatProfile&&a2.musicRules==a3.musicRules&&a2.randomSeed==a3.randomSeed&&a2.worldAudio==a3.worldAudio);
+   var a1=AssetDatabase.LoadAssetAtPath<AudioContentProfileSO>("Assets/OSSASTRA/Audio/BloodborneLocal/Profiles/A1.asset");var old=Resources.Load<SfxContentSetSO>("OssastraSfxContent");
+   check("A1 preserves old semantic profile",a1.combatProfile==Resources.Load<CombatSoundProfileSO>("OssastraCombatSoundProfile")&&!a1.worldAudio&&!a1.acoustics);
+   check("A1 preserves original per-event rules and gain",a1.catalog.events.All(e=>old.catalog.TryResolve(e.eventId,out var d,out _)&&e.volume==d.volume&&e.pitchMin==d.pitchMin&&e.pitchMax==d.pitchMax&&e.priority==d.priority&&e.minIntervalSeconds==d.minIntervalSeconds&&e.maxPerSource==d.maxPerSource));
+  }finally{first?.Dispose();second?.Dispose();if(original!=null)root.TryApplyProfile(original,out _);UnityEngine.Object.Destroy(invalid);}
+  ctx.ReturnValue=new{checks,failed=checks.Count(r=>!(bool)r.GetType().GetProperty("pass").GetValue(r))};
+ }
+}

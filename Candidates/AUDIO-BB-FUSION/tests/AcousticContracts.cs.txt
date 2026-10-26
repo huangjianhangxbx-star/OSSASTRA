@@ -1,0 +1,13 @@
+using System;using System.Linq;using System.Collections.Generic;using UnityEngine;using Ossastra.Audio;using Funplay.Editor.Tools.Scripting;
+public class AcousticContracts:IFunplayCommand
+{
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+ {
+  var go=new GameObject("TEMP_ACOUSTIC_CONTRACT");SfxVoicePlayer p=null;var checks=new List<object>();
+  try{var arb=new SfxArbitrator();p=new SfxVoicePlayer(go,arb,b=>null);checks.Add(new{name="fixed pool keeps 32 sources",pass=go.GetComponentsInChildren<AudioSource>().Length==32});
+   checks.Add(new{name="preallocated 32 lowpass filters",pass=go.GetComponentsInChildren<AudioLowPassFilter>().Length==32});
+   checks.Add(new{name="preallocated 32 reverb filters",pass=go.GetComponentsInChildren<AudioReverbFilter>().Length==32});
+   checks.Add(new{name="explicit bounded acoustic configuration",pass=typeof(SfxVoicePlayer).GetProperty("AcousticOrigin")!=null});
+  }finally{p?.Dispose();UnityEngine.Object.DestroyImmediate(go);}ctx.ReturnValue=checks;
+ }
+}

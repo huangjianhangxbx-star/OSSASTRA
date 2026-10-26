@@ -1,0 +1,32 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "checks": [
+        {
+          "name": "Host before bootstrap root binds on root readiness",
+          "pass": true
+        },
+        {
+          "name": "host receives actual owner reference",
+          "pass": true
+        },
+        {
+          "name": "later real context publications reach new root",
+          "pass": true
+        },
+        {
+          "name": "reenable root reattaches and explicit resume works",
+          "pass": true
+        }
+      ],
+      "resetRequired": "exit Play then reopen owned fusion scene"
+    }
+  }
+}

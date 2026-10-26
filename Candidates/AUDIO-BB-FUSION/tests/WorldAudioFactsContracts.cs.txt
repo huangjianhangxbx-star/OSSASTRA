@@ -1,0 +1,61 @@
+// 设计：真实XZ距离累计只生成落脚候选；由唯一音频根/来源租约决定是否播放。
+// 预期抓住的错误：用按键或计时器发脚步、传送算脚步、死亡后累计、低帧率补发爆量。
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using UnityEngine;
+using Funplay.Editor.Tools.Scripting;
+public sealed class WorldAudioFactsContracts : IFunplayCommand
+{
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+ {
+  var checks=new List<object>();int failed=0;
+  Action<string,bool> check=(name,pass)=>{checks.Add(new{name,pass});if(!pass)failed++;};
+  Func<string,Type> find=name=>AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType("Ossastra.Audio."+name)).FirstOrDefault(t=>t!=null);
+  var type=find("DistanceFootstepSampler");
+  check("actual distance sampler available",type!=null);
+  if(type!=null)
+  {
+   Func<object> make=()=>Activator.CreateInstance(type,new object[]{.8f,1.2f,3.5f,3f});
+   var advance=type.GetMethod("Advance");
+   Func<object,Vector3,bool,float,bool> step=(sample,p,eligible,dt)=>(bool)advance.Invoke(sample,new object[]{p,eligible,dt});
+   var walk=make();
+   check("first observation does not synthesize a step",!step(walk,Vector3.zero,true,.1f));
+   check("partial actual distance waits",!step(walk,new Vector3(.4f,0,0),true,1f));
+   check("real walk distance releases once",step(walk,new Vector3(.81f,0,0),true,1f));
+   bool stationary=true;for(int i=0;i<40;i++)stationary&=!step(walk,new Vector3(.81f,0,0),true,.1f);
+   check("standing or blocked movement stays silent",stationary);
+   var vertical=make();step(vertical,Vector3.zero,true,.1f);
+   check("vertical movement is not XZ foot travel",!step(vertical,new Vector3(0,2,0),true,1f));
+   var dead=make();step(dead,Vector3.zero,true,.1f);step(dead,new Vector3(.4f,0,0),true,1f);
+   check("ineligible travel cannot emit",!step(dead,new Vector3(1.6f,0,0),false,1f));
+   check("returning alive rebases instead of replaying",!step(dead,new Vector3(2,0,0),true,1f));
+   check("old partial distance cleared on death",!step(dead,new Vector3(2.5f,0,0),true,1f));
+   var tele=make();step(tele,Vector3.zero,true,.1f);
+   check("teleport is discarded",!step(tele,new Vector3(4,0,0),true,.1f));
+   check("post teleport travel starts fresh",!step(tele,new Vector3(4.4f,0,0),true,1f));
+   var run=make();step(run,Vector3.zero,true,.1f);
+   check("running uses actual speed and longer stride",step(run,new Vector3(1.3f,0,0),true,.2f)&&(bool)type.GetProperty("IsRunning").GetValue(run));
+   var late=make();step(late,Vector3.zero,true,.1f);
+   check("late sampling emits at most one step",step(late,new Vector3(2.9f,0,0),true,1f)&&!step(late,new Vector3(2.9f,0,0),true,1f));
+   check("invalid delta cannot produce a step",!step(late,new Vector3(3.8f,0,0),true,0));
+  }
+  var zoneType=find("AudioEnvironmentZone");check("owned environment zone available",zoneType!=null);
+  if(zoneType!=null)
+  {
+   var go=new GameObject("WorldAudioFactsContracts Zone");go.SetActive(false);
+   try
+   {
+    var box=go.AddComponent<BoxCollider>();box.isTrigger=true;box.size=new Vector3(4,4,4);go.transform.position=new Vector3(10,2,10);
+    var zone=go.AddComponent(zoneType);var contains=zoneType.GetMethod("Contains");
+    // Bounds is evaluated on the actual collider, so temporarily activate this owned object.
+    go.SetActive(true);Physics.SyncTransforms();
+    check("zone uses its real collider bounds",(bool)contains.Invoke(zone,new object[]{new Vector3(10,0.1f,10)})&&!(bool)contains.Invoke(zone,new object[]{Vector3.zero}));
+    check("zone never creates its own AudioSource",go.GetComponentsInChildren<AudioSource>(true).Length==0);
+   }
+   finally{UnityEngine.Object.DestroyImmediate(go);}
+  }
+  ctx.ReturnValue=new{checks,failed};
+ }
+}

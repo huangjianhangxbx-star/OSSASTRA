@@ -1,0 +1,32 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "metrics": {
+        "callbacks": 4730,
+        "samples": 6720000,
+        "rate": 48000,
+        "channels": 2,
+        "seconds": 70.0,
+        "peak": 0.228223965,
+        "rms": 0.014537653340946791,
+        "clipped": 0,
+        "peakVoices": 8,
+        "facts": 237,
+        "voices": 153,
+        "contexts": 13
+      },
+      "storyChecks": 21,
+      "passed": 20,
+      "failed": 1,
+      "error": "",
+      "done": true
+    }
+  }
+}

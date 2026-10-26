@@ -1,0 +1,78 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "passed": 12,
+      "failed": 0,
+      "rows": [
+        {
+          "name": "明确效果语义及六参数网关存在",
+          "passed": true,
+          "detail": null
+        },
+        {
+          "name": "效果语义是只读字符串",
+          "passed": true,
+          "detail": null
+        },
+        {
+          "name": "保留原五参数网关签名",
+          "passed": true,
+          "detail": null
+        },
+        {
+          "name": "ice.pulse保留明确语义与原执行身份",
+          "passed": true,
+          "detail": null
+        },
+        {
+          "name": "ice.pulse仍只有一笔原HP与原回执",
+          "passed": true,
+          "detail": null
+        },
+        {
+          "name": "ice.shatter保留明确语义与原执行身份",
+          "passed": true,
+          "detail": null
+        },
+        {
+          "name": "ice.shatter仍只有一笔原HP与原回执",
+          "passed": true,
+          "detail": null
+        },
+        {
+          "name": "旧五参数Periodic没有被猜成冰",
+          "passed": true,
+          "detail": null
+        },
+        {
+          "name": "旧五参数仍唯一扣除原伤害",
+          "passed": true,
+          "detail": null
+        },
+        {
+          "name": "旧四参数仍默认Direct且语义为空",
+          "passed": true,
+          "detail": null
+        },
+        {
+          "name": "旧四参数仍唯一扣除原伤害",
+          "passed": true,
+          "detail": null
+        },
+        {
+          "name": "四条入口共用唯一HP且来源不受伤",
+          "passed": true,
+          "detail": null
+        }
+      ],
+      "scope": "明确效果元数据与实际HP回执；不触及场景角色或声音"
+    }
+  }
+}

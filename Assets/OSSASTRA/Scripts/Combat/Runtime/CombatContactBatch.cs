@@ -38,10 +38,12 @@ namespace Ossastra.Combat
         public CombatVitals Source { get; }
         public Vector3 Origin { get; }
         public CombatContactCause Cause { get; }
+        /// <summary>可选领域效果事实，如ice.pulse；空白不能从Periodic或Secondary自行猜测。</summary>
+        public string EffectSemantic { get; }
         public IReadOnlyList<CombatContactReceipt> Receipts { get; }
 
         public CombatContactBatch(Guid parentExecutionId, Guid actionId, int emissionIndex, string actorId,
-            CombatVitals source, Vector3 origin, IEnumerable<CombatContactReceipt> receipts, CombatContactCause cause=CombatContactCause.Direct)
+            CombatVitals source, Vector3 origin, IEnumerable<CombatContactReceipt> receipts, CombatContactCause cause=CombatContactCause.Direct,string effectSemantic=null)
         {
             ParentExecutionId = parentExecutionId;
             ActionId = actionId;
@@ -50,6 +52,7 @@ namespace Ossastra.Combat
             Source = source;
             Origin = origin;
             Cause = cause;
+            EffectSemantic=effectSemantic??"";
             // 复制再包装，不能把调用方的可变数组作为只读接口直接暴露。
             Receipts = Array.AsReadOnly((receipts ?? throw new ArgumentNullException(nameof(receipts))).ToArray());
         }

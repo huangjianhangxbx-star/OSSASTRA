@@ -21,5 +21,7 @@ namespace Ossastra.Audio
             return owner.SubmitSfx(new SfxRequest(eventId,SourceId,WorldScopeId,Generation,factKey,position,Time.realtimeSinceStartupAsDouble));
         }
         public void Dispose(){if(owner==null)return;var root=owner;owner=null;root.ReleaseSfxSource(this);}
+        /// <summary>只能停止本租约签发的声部，不能凭全局VoiceId停止别人。</summary>
+        public bool StopVoice(long voiceId)=>owner!=null&&owner.StopSfxVoice(this,voiceId);
     }
 }

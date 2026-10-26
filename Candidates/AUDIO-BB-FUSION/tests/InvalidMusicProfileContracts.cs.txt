@@ -1,0 +1,9 @@
+using System;using System.Collections.Generic;using UnityEngine;using Ossastra.Audio;using Funplay.Editor.Tools.Scripting;
+public class InvalidMusicProfileContracts:IFunplayCommand
+{
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+ {
+  var source=Resources.Load<AudioContentProfileSO>("OssastraBloodborneDefault");var p=UnityEngine.Object.Instantiate(source);var rules=ScriptableObject.CreateInstance<BgmRuleSetSO>();p.musicRules=rules;var checks=new List<object>();
+  try{foreach(var kind in new[]{"emptyId","nanIntensity","unknownCondition"}){rules.rules=new[]{new BgmRuleBinding{ruleId=kind=="emptyId"?"":"test",track=source.musicRules.rules[0].track,condition=kind=="unknownCondition"?(BgmRuleCondition)900:BgmRuleCondition.Always,intensity=kind=="nanIntensity"?float.NaN:.5f}};checks.Add(new{name=kind+" rejected before world mutation",pass=!p.Validate(out _)});}ctx.ReturnValue=checks;}finally{UnityEngine.Object.DestroyImmediate(p);UnityEngine.Object.DestroyImmediate(rules);}
+ }
+}

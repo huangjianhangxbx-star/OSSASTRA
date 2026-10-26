@@ -992,3 +992,7 @@ active/unity-writer；用户明确要求一轮修整：共享脚本去M01标签�
 2026-10-26 AUDIO-SFXPASS technical-complete/docs-writer：源码/Unity租约释放，仅本任务文档/选择性GitHub发布；72语义/本机42精选、连续输出无削波，缺素材留白，原36dirty/625非授权保护不变。详细结果含20/21自然故事保留短窗口未观察失败，不代签人耳听感。
 
 2026-10-26 AUDIO-SFXPASS complete/read-only：GitHub产品5fc2ee359b2fde008f4e1c82fac4daa7557331e5已精确核对；全部Unity/源码/文档/发布租约释放，原36dirty/受限媒体保留。仅本回执文档闭环。
+
+2026-10-27 AUDIO-BB-FUSION active/unity-writer：唯一Unity writer=root；独占Audio源码/配置、新SC_AUDIO_BB_Fusion、Candidates与本任务文档/.gitignore，详见tasks/2026-10-27-audio-bb-fusion.md。原36dirty/旧场/玩法/用户维护及Bloodborne/AudioLab源库只读。
+
+2026-10-27 AUDIO-BB-FUSION technical-complete/docs-writer：Unity/源码租约释放，仅本任务文档/.gitignore/定向GitHub发布收口；原36dirty保留，严格CONTENT_INCOMPLETE+PENDING_HUMAN；Player旧插件14错，详见任务记录/交接。

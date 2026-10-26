@@ -1,0 +1,87 @@
+{
+  "done": true,
+  "error": "",
+  "checks": [
+    {
+      "name": "zone entered via actual controlled actor",
+      "pass": true
+    },
+    {
+      "name": "terminated loop retries using actual permit liveness",
+      "pass": true
+    },
+    {
+      "name": "walk across wood stone dirt",
+      "pass": false
+    },
+    {
+      "name": "run across wood stone dirt",
+      "pass": true
+    },
+    {
+      "name": "holding movement against real wall creates no new footsteps",
+      "pass": true
+    },
+    {
+      "name": "real Tab inventory open and close edges issue audio",
+      "pass": true
+    },
+    {
+      "name": "moving outside real floor emits no footsteps",
+      "pass": true
+    },
+    {
+      "name": "all three real ambience zones entered",
+      "pass": true
+    },
+    {
+      "name": "leaving all zones releases loops after fade",
+      "pass": true
+    }
+  ],
+  "events": [
+    "ambience.torch",
+    "companion.footstep.wood.run",
+    "companion.footstep.wood.run",
+    "ambience.torch",
+    "player.footstep.wood.run",
+    "player.footstep.wood.run",
+    "ambience.fire",
+    "player.footstep.stone.run",
+    "companion.footstep.wood.walk",
+    "player.footstep.stone.run",
+    "companion.footstep.wood.run",
+    "companion.footstep.stone.walk",
+    "player.footstep.stone.run",
+    "companion.footstep.stone.run",
+    "ambience.rain",
+    "player.footstep.dirt.run",
+    "companion.footstep.stone.run",
+    "player.footstep.dirt.run",
+    "companion.footstep.stone.run",
+    "player.footstep.dirt.run",
+    "companion.footstep.dirt.run",
+    "ambience.torch",
+    "companion.footstep.dirt.run",
+    "companion.footstep.stone.run",
+    "player.footstep.wood.run",
+    "companion.footstep.stone.run",
+    "player.footstep.wood.run",
+    "ambience.fire",
+    "player.footstep.stone.run",
+    "player.footstep.stone.run",
+    "player.footstep.stone.run",
+    "ambience.rain",
+    "player.footstep.dirt.run",
+    "companion.footstep.stone.run",
+    "player.footstep.dirt.run",
+    "ambience.fire",
+    "companion.footstep.stone.run",
+    "ui.inventory.open",
+    "ui.inventory.close",
+    "companion.footstep.dirt.run",
+    "companion.footstep.dirt.run",
+    "companion.footstep.dirt.run"
+  ],
+  "devicesRemaining": 0
+}

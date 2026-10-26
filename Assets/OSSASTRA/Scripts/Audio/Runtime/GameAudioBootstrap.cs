@@ -34,6 +34,11 @@ namespace Ossastra.Audio
                 var host=new GameObject("Combat SFX Facts [Audio Owned]");SceneManager.MoveGameObjectToScene(host,scene);
                 host.AddComponent<CombatSfxFactAdapter>();
             }
+            // 世界声音仍由音频根管理；适配器只观察本场，旧场不保存任何新引用。
+            bool hasMovement=System.Array.Exists(Object.FindObjectsOfType<LocomotionAudioAdapter>(),a=>a.gameObject.scene==scene);
+            if(!hasMovement){var go=new GameObject("Locomotion Facts [Audio Owned]");SceneManager.MoveGameObjectToScene(go,scene);go.AddComponent<LocomotionAudioAdapter>();}
+            bool hasInterface=System.Array.Exists(Object.FindObjectsOfType<InterfaceAudioAdapter>(),a=>a.gameObject.scene==scene);
+            if(!hasInterface){var go=new GameObject("Interface Facts [Audio Owned]");SceneManager.MoveGameObjectToScene(go,scene);go.AddComponent<InterfaceAudioAdapter>();}
         }
     }
 }

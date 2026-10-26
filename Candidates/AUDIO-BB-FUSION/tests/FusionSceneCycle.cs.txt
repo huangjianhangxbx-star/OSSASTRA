@@ -1,0 +1,35 @@
+/* 实际Single场景循环：旧VC02B无音频根时沿当前唯一根延续；回新场重复根拒绝。
+ * 同时核对旧来源租约撤销与旧请求不补响，不修改场景磁盘或玩法事实。 */
+using System;using System.Linq;using System.Collections.Generic;using UnityEngine;using UnityEditor;using UnityEditor.SceneManagement;using UnityEngine.SceneManagement;using Funplay.Editor.Tools.Scripting;using A=Ossastra.Audio;
+public class FusionSceneCycle:IFunplayCommand
+{
+ public static object Report;static A.GameAudioRoot root;static A.SfxSourceHandle old;static A.SfxRequest stale;static double began;static int stage,failed;static string backend,key,transport;static double epoch;static List<object> rows;
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext c)
+ {
+  if(!Application.isPlaying)throw new Exception("Play required");root=A.GameAudioRoot.Instance;if(root==null||!root.SfxAvailable)throw new Exception("Missing root");
+  backend=root.Transport.BackendId;key=root.Transport.CurrentKey;transport=root.Transport.TransportId;epoch=root.Transport.Epoch;rows=new List<object>();failed=stage=0;old=root.RegisterSfxSource("DEVELOPMENT_ONLY:scene-cycle");stale=new A.SfxRequest("ui.control.switch",old.SourceId,old.WorldScopeId,old.Generation,"late-after-world",Vector3.zero,Time.realtimeSinceStartupAsDouble);began=EditorApplication.timeSinceStartup;
+  EditorApplication.update+=Step;EditorSceneManager.LoadSceneInPlayMode("Assets/OSSASTRA/Scenes/SC_VC02B_IntegrationReady.unity",new LoadSceneParameters(LoadSceneMode.Single));Report=new{done=false};c.ReturnValue=new{started=true,seconds=6};
+ }
+ static void Row(string n,bool pass){rows.Add(new{name=n,pass,scene=SceneManager.GetActiveScene().path,sources=root.GetComponentsInChildren<AudioSource>(true).Length,world=root.WorldScopeId});if(!pass)failed++;}
+ static void Step()
+ {
+  try
+  {
+   if(!Application.isPlaying)throw new Exception("Play ended");double t=EditorApplication.timeSinceStartup-began;if(stage==0&&t>2)
+   {
+    Row("旧VC02B真实场沿唯一音频根接管",A.GameAudioRoot.Instance==root&&UnityEngine.Object.FindObjectsOfType<A.GameAudioRoot>().Count(a=>a.IsOwner)==1);
+    Row("旧场补独立音效观察者且无局部音源",UnityEngine.Object.FindObjectsOfType<A.CombatSfxFactAdapter>().Length==1&&UnityEngine.Object.FindObjectsOfType<Ossastra.UserInterface.CombatFeedbackView>().All(v=>v.GetComponent<AudioSource>()==null));
+    Row("旧租约撤销且旧世界事实拒绝",old.IsDisposed&&!root.SubmitSfx(stale).Accepted);
+    Row("换无音乐Host场保留已开始音乐",backend==root.Transport.BackendId&&key==root.Transport.CurrentKey&&transport==root.Transport.TransportId&&epoch==root.Transport.Epoch);
+    stage++;EditorSceneManager.LoadSceneInPlayMode("Assets/OSSASTRA/Scenes/SC_AUDIO_BB_Fusion.unity",new LoadSceneParameters(LoadSceneMode.Single));
+   }
+   if(stage==1&&t>5)
+   {
+    Row("回新场重复根拒绝且38源不增",A.GameAudioRoot.Instance==root&&UnityEngine.Object.FindObjectsOfType<A.GameAudioRoot>().Count(a=>a.IsOwner)==1&&root.GetComponentsInChildren<AudioSource>(true).Length==38);
+    Row("回新场独立事实拥有者唯一",UnityEngine.Object.FindObjectsOfType<A.CombatSfxFactAdapter>().Length==1&&root.SourceLeaseCount>=4&&root.SourceLeaseCount<=20);
+    EditorApplication.update-=Step;old.Dispose();Report=new{done=true,failed,rows};
+   }
+   if(t>15)throw new Exception("Scene cycle deadline");
+  }catch(Exception e){EditorApplication.update-=Step;old?.Dispose();Report=new{done=true,failed=failed+1,error=e.ToString(),rows};}
+ }
+}

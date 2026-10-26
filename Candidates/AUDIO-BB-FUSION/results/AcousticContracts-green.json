@@ -1,0 +1,29 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": [
+      {
+        "name": "fixed pool keeps 32 sources",
+        "pass": true
+      },
+      {
+        "name": "preallocated 32 lowpass filters",
+        "pass": true
+      },
+      {
+        "name": "preallocated 32 reverb filters",
+        "pass": true
+      },
+      {
+        "name": "explicit bounded acoustic configuration",
+        "pass": true
+      }
+    ]
+  }
+}

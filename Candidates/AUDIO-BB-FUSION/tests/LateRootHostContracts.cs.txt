@@ -1,0 +1,17 @@
+/* 自有Play生命周期边界：销毁/重建唯一音频根，Host先于Root出现；不保存场景，结束后退出Play重开。 */
+using System;using UnityEngine;using UnityEngine.SceneManagement;using Ossastra.Audio;using Funplay.Editor.Tools.Scripting;
+public class LateRootHostContracts:IFunplayCommand
+{
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext c)
+ {
+  if(!Application.isPlaying)throw new Exception("Play required");var original=SceneManager.GetActiveScene();var old=Ossastra.Audio.GameAudioRoot.Instance;
+  var scene=SceneManager.CreateScene("DEVELOPMENT_ONLY_LATE_ROOT");SceneManager.SetActiveScene(scene);
+  UnityEngine.Object.DestroyImmediate(old.gameObject);
+  var hostGo=new GameObject("Host Before Root");SceneManager.MoveGameObjectToScene(hostGo,scene);var host=hostGo.AddComponent<BgmContextHost>();
+  var rootGo=new GameObject("Late Unified Root");SceneManager.MoveGameObjectToScene(rootGo,scene);var root=rootGo.AddComponent<Ossastra.Audio.GameAudioRoot>();
+  bool bound=root.IsBoundHost(host);bool attached=host.AudioRoot==root;host.SetEngaged(true);bool updates=root.ContextValid&&root.Context.engaged;
+  root.enabled=false;host.SetEngaged(false);root.enabled=true;root.ResumeMusic();host.SetEngaged(true);bool resumed=root.IsBoundHost(host)&&host.AudioRoot==root&&root.ContextValid&&root.Context.engaged;
+  UnityEngine.Object.DestroyImmediate(rootGo);UnityEngine.Object.DestroyImmediate(hostGo);SceneManager.SetActiveScene(original);SceneManager.UnloadSceneAsync(scene);
+  c.ReturnValue=new{checks=new[]{new{name="Host before bootstrap root binds on root readiness",pass=bound},new{name="host receives actual owner reference",pass=attached},new{name="later real context publications reach new root",pass=updates},new{name="reenable root reattaches and explicit resume works",pass=resumed}},resetRequired="exit Play then reopen owned fusion scene"};
+ }
+}

@@ -1,0 +1,26 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "issued": true,
+      "blocked": 0.68,
+      "faded": 0.34,
+      "checks": [
+        {
+          "name": "actual marked wall attenuates",
+          "pass": true
+        },
+        {
+          "name": "loop fade preserves occlusion factor",
+          "pass": true
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": [
+      {
+        "name": "emptyId rejected before world mutation",
+        "pass": false
+      },
+      {
+        "name": "nanIntensity rejected before world mutation",
+        "pass": false
+      },
+      {
+        "name": "unknownCondition rejected before world mutation",
+        "pass": false
+      }
+    ]
+  }
+}

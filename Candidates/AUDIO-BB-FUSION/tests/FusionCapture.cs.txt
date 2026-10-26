@@ -1,0 +1,46 @@
+/* 开发取证：真实Listener DSP输出＋实际游戏语义，最多70秒/8192事实；不改声音样本或玩法。
+ * PCM只留本机work，不提交。输出不是OFFLINE_PREVIEW，也不替代人耳听感。
+ */
+using System;using System.IO;using System.Linq;using System.Collections.Generic;using UnityEngine;using Funplay.Editor.Tools.Scripting;
+public class FusionCapture:MonoBehaviour
+{
+ public class Fact{public double t;public int frame;public string source,role,selector,kind,channel,mode,material,key,eventId;public int stage;public float[] position;public bool stop;}
+ public class ContextFact{public double t;public bool title,engaged,far;}
+ public static FusionCapture Instance;
+ public readonly List<Fact> Facts=new List<Fact>();public readonly List<ContextFact> Contexts=new List<ContextFact>();public readonly List<object> Voices=new List<object>();
+ private readonly Dictionary<long,Fact> loops=new Dictionary<long,Fact>();private Ossastra.Audio.GameAudioRoot root;private Ossastra.Audio.CombatSfxFactAdapter adapter;
+ private readonly object gate=new object();private float[] pcm;private int count,channels,rate,callbacks,peakVoices;private bool recording;private double start;private string previousContext;
+ public static float[] Pos(Vector3 p)=>new[]{p.x,p.y,p.z};
+ public void Begin()
+ {
+  if(Instance!=null)throw new Exception("Already capturing");Instance=this;root=Ossastra.Audio.GameAudioRoot.Instance;adapter=UnityEngine.Object.FindObjectOfType<Ossastra.Audio.CombatSfxFactAdapter>();
+  if(root==null||adapter==null)throw new Exception("Real scene root/facts required");rate=AudioSettings.outputSampleRate;pcm=new float[rate*2*70];start=Time.realtimeSinceStartupAsDouble;recording=true;
+  root.SfxObserved+=OnVoice;adapter.SoundFactObserved+=OnFact;
+  foreach(var v in root.Sfx.ActiveVoices.Where(v=>v.Definition.loop)){var row=new Fact{t=0,frame=Time.frameCount,source=v.Request.SourceId,eventId=v.Request.EventId,key="recorded-existing-loop:"+v.VoiceId,position=Pos(v.Request.WorldPosition)};Facts.Add(row);loops[v.VoiceId]=row;}
+ }
+ void OnFact(Ossastra.Audio.CombatSoundFact f){if(!recording||Facts.Count>=8192)return;Facts.Add(new Fact{t=f.Time-start,frame=Time.frameCount,source=f.SourceId,role=f.Role,selector=f.Selector,kind=f.Kind,channel=f.Channel,mode=f.DeliveryMode,material=f.Material,stage=f.Stage,key=f.FactKey,position=Pos(f.Position)});}
+ void OnVoice(Ossastra.Audio.GameAudioRoot.SfxObservation o)
+ {
+  if(!recording)return;double t=Time.realtimeSinceStartupAsDouble-start;
+  if(Voices.Count<8192)Voices.Add(new{t,sequence=o.Sequence,eventId=o.Request.EventId,source=o.Request.SourceId,world=o.Request.WorldScopeId,generation=o.Request.SourceGeneration,key=o.Request.FactKey,position=Pos(o.Request.WorldPosition),accepted=o.Decision.Accepted,reason=o.Decision.Reason,clip=o.ClipName,provenance=o.Provenance,issued=o.SourcePlayIssued,voice=o.Decision.VoiceId,profile=root.ContentProfile?.profileId});
+  string id=o.Request.EventId;
+  if(id.Contains(".footstep.")||id.StartsWith("ambience.")||id.StartsWith("interaction.")||id.StartsWith("ui."))
+  {var row=new Fact{t=t,frame=Time.frameCount,source=o.Request.SourceId,eventId=id,key=o.Request.FactKey,position=Pos(o.Request.WorldPosition)};if(Facts.Count<8192)Facts.Add(row);if(o.Decision.Accepted&&root.Sfx.TryGetVoice(o.Decision.VoiceId,out var v)&&v.Definition.loop)loops[o.Decision.VoiceId]=row;}
+ }
+ void Update()
+ {
+  if(!recording||root==null)return;peakVoices=Math.Max(peakVoices,root.Sfx.ActiveCount);var c=root.Context;string signature=c.title+"/"+c.engaged+"/"+c.far;
+  if(signature!=previousContext){previousContext=signature;Contexts.Add(new ContextFact{t=Time.realtimeSinceStartupAsDouble-start,title=c.title,engaged=c.engaged,far=c.far});}
+  foreach(var pair in loops.ToArray())if(!root.Sfx.TryGetVoice(pair.Key,out _)){var row=pair.Value;Facts.Add(new Fact{t=Time.realtimeSinceStartupAsDouble-start,frame=Time.frameCount,source=row.source,eventId=row.eventId,key=row.key,position=row.position,stop=true});loops.Remove(pair.Key);}
+ }
+ void OnAudioFilterRead(float[] data,int channelCount){lock(gate){if(!recording||pcm==null)return;channels=channelCount;callbacks++;int n=Math.Min(data.Length,pcm.Length-count);Array.Copy(data,0,pcm,count,n);count+=n;}}
+ public object Save(string prefix)
+ {
+  lock(gate){recording=false;Unsubscribe();using(var w=new BinaryWriter(File.Create(prefix+".wav"))){w.Write(System.Text.Encoding.ASCII.GetBytes("RIFF"));w.Write(36+count*2);w.Write(System.Text.Encoding.ASCII.GetBytes("WAVEfmt "));w.Write(16);w.Write((short)1);w.Write((short)Math.Max(1,channels));w.Write(rate);w.Write(rate*Math.Max(1,channels)*2);w.Write((short)(Math.Max(1,channels)*2));w.Write((short)16);w.Write(System.Text.Encoding.ASCII.GetBytes("data"));w.Write(count*2);for(int i=0;i<count;i++)w.Write((short)Mathf.RoundToInt(Mathf.Clamp(pcm[i],-1,1)*32767));}
+   var metrics=Stats();File.WriteAllText(prefix+".json",Newtonsoft.Json.JsonConvert.SerializeObject(new{evidence="OSS_REAL_GAME_OUTPUT",facts=Facts,contexts=Contexts,voices=Voices,metrics,scene=gameObject.scene.path,sourceScene=UnityEngine.SceneManagement.SceneManager.GetActiveScene().path,profile=root.ContentProfile?.profileId,hardware=AudioSettings.speakerMode.ToString(),master=root.Mix.MasterVolume,bgm=root.Mix.UserBgmVolume,sfx=root.UnifiedMix.SfxVolume},Newtonsoft.Json.Formatting.Indented));return metrics;}
+ }
+ public object Stats(){lock(gate){double sum=0;float peak=0;int clipped=0;for(int i=0;i<count;i++){var x=Math.Abs(pcm[i]);peak=Math.Max(peak,x);sum+=(double)pcm[i]*pcm[i];if(x>=.999f)clipped++;}return new{callbacks,samples=count,rate,channels,seconds=(double)count/Math.Max(1,channels)/rate,peak,rms=Math.Sqrt(sum/Math.Max(1,count)),clipped,peakVoices,facts=Facts.Count,voices=Voices.Count,contexts=Contexts.Count};}}
+ void Unsubscribe(){if(root!=null)root.SfxObserved-=OnVoice;if(adapter!=null)adapter.SoundFactObserved-=OnFact;}
+ void OnDestroy(){recording=false;Unsubscribe();if(Instance==this)Instance=null;}
+}
+public class BeginFusionCapture:IFunplayCommand{public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext c){if(!Application.isPlaying)throw new Exception("Play required");var l=UnityEngine.Object.FindObjectOfType<AudioListener>();if(l==null)throw new Exception("Listener missing");var r=l.gameObject.AddComponent<FusionCapture>();r.Begin();c.ReturnValue=new{started=true,scene=UnityEngine.SceneManagement.SceneManager.GetActiveScene().path,maxSeconds=70,mute=UnityEditor.EditorUtility.audioMasterMute};}}

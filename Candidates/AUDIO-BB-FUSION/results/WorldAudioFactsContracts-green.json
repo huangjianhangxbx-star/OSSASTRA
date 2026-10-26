@@ -1,0 +1,84 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "checks": [
+        {
+          "name": "actual distance sampler available",
+          "pass": true
+        },
+        {
+          "name": "first observation does not synthesize a step",
+          "pass": true
+        },
+        {
+          "name": "partial actual distance waits",
+          "pass": true
+        },
+        {
+          "name": "real walk distance releases once",
+          "pass": true
+        },
+        {
+          "name": "standing or blocked movement stays silent",
+          "pass": true
+        },
+        {
+          "name": "vertical movement is not XZ foot travel",
+          "pass": true
+        },
+        {
+          "name": "ineligible travel cannot emit",
+          "pass": true
+        },
+        {
+          "name": "returning alive rebases instead of replaying",
+          "pass": true
+        },
+        {
+          "name": "old partial distance cleared on death",
+          "pass": true
+        },
+        {
+          "name": "teleport is discarded",
+          "pass": true
+        },
+        {
+          "name": "post teleport travel starts fresh",
+          "pass": true
+        },
+        {
+          "name": "running uses actual speed and longer stride",
+          "pass": true
+        },
+        {
+          "name": "late sampling emits at most one step",
+          "pass": true
+        },
+        {
+          "name": "invalid delta cannot produce a step",
+          "pass": true
+        },
+        {
+          "name": "owned environment zone available",
+          "pass": true
+        },
+        {
+          "name": "zone uses its real collider bounds",
+          "pass": true
+        },
+        {
+          "name": "zone never creates its own AudioSource",
+          "pass": true
+        }
+      ],
+      "failed": 0
+    }
+  }
+}

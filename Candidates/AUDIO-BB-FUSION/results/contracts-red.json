@@ -1,0 +1,44 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "checks": [
+        {
+          "name": "replaceable complete content profile exists",
+          "pass": false
+        },
+        {
+          "name": "atomic root profile application exists",
+          "pass": false
+        },
+        {
+          "name": "bounded loop uses same permit definition",
+          "pass": false
+        },
+        {
+          "name": "source lease explicit stop a single voice",
+          "pass": false
+        },
+        {
+          "name": "actual distance footstep adapter",
+          "pass": false
+        },
+        {
+          "name": "owned environment zones",
+          "pass": false
+        },
+        {
+          "name": "content mode monitorable",
+          "pass": false
+        }
+      ],
+      "failed": 7
+    }
+  }
+}

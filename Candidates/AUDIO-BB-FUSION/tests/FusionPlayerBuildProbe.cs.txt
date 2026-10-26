@@ -1,0 +1,11 @@
+// 本轮唯一有界Player探测；不修改第三方插件或全局构建设置。
+using System;using System.Linq;using UnityEngine;using UnityEditor;using UnityEditor.Build.Reporting;using Funplay.Editor.Tools.Scripting;
+public class FusionPlayerBuildProbe:IFunplayCommand
+{
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext c)
+ {
+  if(Application.isPlaying||EditorApplication.isCompiling||EditorUserBuildSettings.activeBuildTarget!=BuildTarget.StandaloneWindows64)throw new Exception("Expected ready Windows64 Edit; no target switch");
+  var options=new BuildPlayerOptions{scenes=new[]{"Assets/OSSASTRA/Scenes/SC_AUDIO_BB_Fusion.unity"},target=BuildTarget.StandaloneWindows64,locationPathName="E:/WORLDCREATOR/XingHaiHuiLang/work/OSSASTRA/AUDIO-BB-FUSION-20261027/player-probe/OSSASTRA.exe",options=BuildOptions.Development};
+  var report=BuildPipeline.BuildPlayer(options);c.ReturnValue=new{result=report.summary.result.ToString(),totalErrors=report.summary.totalErrors,totalWarnings=report.summary.totalWarnings,seconds=report.summary.totalTime.TotalSeconds,errors=report.steps.SelectMany(s=>s.messages).Where(m=>m.type==LogType.Error||m.type==LogType.Exception).Select(m=>m.content).ToArray()};
+ }
+}

@@ -21,7 +21,7 @@ namespace Ossastra.Audio
    public readonly HashSet<ActionFact> facts=new HashSet<ActionFact>();public readonly Queue<ActionFact> factOrder=new Queue<ActionFact>();
    public Component Entity=>(Component)actor??enemy;
   }
-  private sealed class Pending {public Observation owner;public SfxSourceHandle lease;public string cue,key,kind;public Vector3 position;public int order;}
+  private sealed class Pending {public Observation owner;public SfxSourceHandle lease;public string cue,key,kind,prefix;public Vector3 position;public int order;}
   [SerializeField,Tooltip("语义配置只选内容，不决定动作；空引用时读取统一Resources入口。")]
   private CombatSoundProfileSO soundProfile;
   private readonly List<Observation> observed=new List<Observation>();private readonly List<Pending> pending=new List<Pending>();
@@ -33,6 +33,7 @@ namespace Ossastra.Audio
   public int Releases{get;private set;}public int Hits{get;private set;}public int Hurts{get;private set;}
   public int UnmappedFacts{get;private set;}public string LastUnmapped{get;private set;}="无";
   public CombatSoundProfileSO SoundProfile=>soundProfile;
+  public event Action<CombatSoundFact> SoundFactObserved;
   public string LastFact{get;private set;}="尚未观察事实";public string Status{get;private set;}="等待音频根";
   public int ActorSources=>observed.Count(o=>o.actor!=null&&o.connected);public int EnemySources=>observed.Count(o=>o.enemy!=null&&o.connected);
   private void OnEnable(){TryInitialize();}private void Start(){TryInitialize();}
@@ -43,14 +44,15 @@ namespace Ossastra.Audio
    if(root==null||!root.SfxAvailable){Status="统一音频根不可用";return false;}
    if(audioRoot==root&&world==root.WorldScopeId&&interfaceSource!=null&&!interfaceSource.IsDisposed)return root.TryClaimSfxFacts(this);
    DisconnectAll();if(!root.TryClaimSfxFacts(this)){Status="拒绝重复事实观察者";return false;}
-   if(soundProfile==null)soundProfile=Resources.Load<CombatSoundProfileSO>("OssastraCombatSoundProfile");
+   if(root.CombatSoundProfile!=null)soundProfile=root.CombatSoundProfile;
    if(soundProfile==null||!soundProfile.Validate(out _)){root.ReleaseSfxFacts(this);Status="缺少有效音效语义配置；不回退为通用提示音";return false;}
    audioRoot=root;world=root.WorldScopeId;interfaceSource=root.RegisterSfxSource("sound-interface@"+GetInstanceID());
    coordinator=FindObjectsOfType<CharacterControlCoordinator>().FirstOrDefault(c=>c.isActiveAndEnabled&&InOwnScene(c));
    bottle=FindObjectsOfType<HealingBottleService>().FirstOrDefault(c=>c.isActiveAndEnabled&&InOwnScene(c));
    previousCurrent=coordinator==null?null:coordinator.Current;bottleUses=bottle==null?0:bottle.UseCount;
-   CombatContactGateway.Resolved+=OnContact;Discover();Status="真实语义 → 精选内容；未匹配留白";return true;
+   CombatContactGateway.Resolved+=OnContact;root.ContentProfileApplied+=OnProfileApplied;Discover();foreach(var o in observed)Connect(o);Status="真实语义 → 精选内容；未匹配留白";return true;
   }
+  private void OnProfileApplied(){if(isActiveAndEnabled)TryInitialize();}
   private void Discover()
   {
    foreach(var actor in FindObjectsOfType<ActorRoot>().Where(InOwnScene))if(!observed.Any(o=>o.actor==actor))
@@ -67,6 +69,8 @@ namespace Ossastra.Audio
    if(o.actor!=null&&!o.actor.isActiveAndEnabled||o.enemy!=null&&!o.enemy.isActiveAndEnabled)return;
    o.source=audioRoot.RegisterSfxSource(o.vitals.Health.Id+"@"+o.Entity.GetInstanceID());if(o.source==null)return;
    o.connected=true;o.hp=o.vitals.Health.Current;o.generation=o.actor==null?0:o.actor.LifeGeneration;o.dodgeId=o.dodge==null?Guid.Empty:o.dodge.ActionId;
+   Action<HitOutcome> died=f=>{if(CanObserve(o))Queue(o,"target","death",0,"","death:"+o.generation+":"+(++o.sequence),o.Entity.transform.position);};
+   o.vitals.Died+=died;o.remove.Add(()=>{if(o.vitals!=null)o.vitals.Died-=died;});
    Action<ActionFact> action=f=>OnAction(o,f);
    if(o.actor!=null){o.actor.ActionObserved+=action;o.remove.Add(()=>{if(o.actor!=null)o.actor.ActionObserved-=action;});}
    else{o.enemy.ActionObserved+=action;o.remove.Add(()=>{if(o.enemy!=null)o.enemy.ActionObserved-=action;});}
@@ -106,6 +110,9 @@ namespace Ossastra.Audio
    contactPositions[contactKey]=batch.Origin;
    while(contactOrder.Count>256)contactPositions.Remove(contactOrder.Dequeue());
    var source=observed.FirstOrDefault(o=>o.connected&&o.vitals==batch.Source);
+   // 只消费生产方明确发布的效果语义；不能把任意周期伤害冒充冰效果。
+   if(source!=null&&CanObserve(source)&&!string.IsNullOrEmpty(batch.EffectSemantic)&&batch.Receipts.Any(r=>r.Outcome.Reason==HitReason.Applied))
+    Queue(source,batch.EffectSemantic,"hit",0,"","effect:"+batch.ActionId+":"+batch.EmissionIndex,batch.Origin);
    foreach(var receipt in batch.Receipts)
    {
     var hit=receipt.Outcome;if(hit==null)continue;
@@ -114,27 +121,29 @@ namespace Ossastra.Audio
     if(batch.Cause==CombatContactCause.Direct&&source!=null&&CanObserve(source)&&source.actions.TryGetValue(batch.ParentExecutionId,out var sound)&&
       (sound.selector=="body.basic"||sound.selector=="enemy.basic"||sound.selector.StartsWith("main:",StringComparison.Ordinal)))
     {
-     if(hit.Reason==HitReason.Applied)Queue(source,sound.selector,"hit",sound.stage,"",key,receipt.Position);
+     if(hit.Reason==HitReason.Applied){var surface=receipt.Target==null?null:receipt.Target.GetComponentInParent<AudioSurfaceFact>();Queue(source,sound.selector,"hit",sound.stage,"",key,receipt.Position,null,surface==null?null:surface.impactMaterial);}
     }
     var target=observed.FirstOrDefault(o=>o.connected&&o.vitals==receipt.Target);
     if(target==null||!CanObserve(target))continue;
-    if(hit.Reason==HitReason.Applied&&hit.HpAfter<hit.HpBefore)Queue(target,"target","hurt",0,"",key,receipt.Position);
+    if(hit.Reason==HitReason.Applied&&hit.HpAfter>0&&hit.HpAfter<hit.HpBefore)Queue(target,"target","hurt",0,"",key,receipt.Position);
     if(hit.Reason==HitReason.Guarded)Queue(target,"target","guard",0,"",key,receipt.Position);
     // 同批已经有精确损血，轮询只作为其它来源的兼容观察；不重复播同一笔HP下降。
     target.hp=target.vitals.Health.Current;
    }
   }
-  private void Queue(Observation o,string selector,string kind,int stage,string channel,string key,Vector3 position,string deliveryMode=null)
+  private void Queue(Observation o,string selector,string kind,int stage,string channel,string key,Vector3 position,string deliveryMode=null,string material=null)
   {
    if(!CanObserve(o))return;
-   if(!soundProfile.TryResolve(selector,kind,stage,channel,out var cue,deliveryMode,Prefix(o).TrimEnd('.'))){UnmappedFacts++;LastUnmapped=selector+" / "+kind+" / "+channel+" / "+deliveryMode;return;}
+   var prefix=Prefix(o);
+   if(SoundFactObserved!=null){var fact=new CombatSoundFact(o.source.SourceId,prefix.TrimEnd('.'),selector,kind,stage,channel,deliveryMode,material,key,position,Time.realtimeSinceStartupAsDouble);foreach(Action<CombatSoundFact> observer in SoundFactObserved.GetInvocationList())try{observer(fact);}catch(Exception error){Debug.LogWarning("AUDIO_SEMANTIC_OBSERVER: "+error.Message);}}
+   if(!soundProfile.TryResolve(selector,kind,stage,channel,out var cue,deliveryMode,prefix.TrimEnd('.'),material)){UnmappedFacts++;LastUnmapped=selector+" / "+kind+" / "+channel+" / "+deliveryMode;return;}
    if(pending.Count>=512){Rejected++;return;}
-   pending.Add(new Pending{owner=o,lease=o.source,cue=cue,key=key,kind=kind,position=position,order=kind=="release"||kind=="launch"?0:1});
+   pending.Add(new Pending{owner=o,lease=o.source,prefix=prefix,cue=cue,key=key,kind=kind,position=position,order=kind=="release"||kind=="launch"?0:1});
   }
   private string Prefix(Observation o)
   {
    if(o.enemy!=null)return "enemy.";
-   bool player=coordinator!=null&&coordinator.Characters.Contains(o.actor)?coordinator.Current==o.actor:o.actor.GetComponent<CharacterInputHandler>()?.HasPlayerControl==true;
+   bool player=coordinator!=null&&coordinator.Characters.Contains(o.actor)?coordinator.Current==o.actor||previousCurrent==o.actor&&!o.actor.IsAlive:o.actor.GetComponent<CharacterInputHandler>()?.HasPlayerControl==true;
    return player?"player.":"companion.";
   }
   private void Flush()
@@ -142,7 +151,7 @@ namespace Ossastra.Audio
    foreach(var fact in pending.OrderBy(f=>f.order))
    {
     // 复活/来源重连可以复用Observation，但绝不能给旧队列换上新租约。
-    if(!CanObserve(fact.owner)||fact.lease==null||fact.lease.IsDisposed||!ReferenceEquals(fact.owner.source,fact.lease))continue;var id=Prefix(fact.owner)+fact.cue;
+    if(!CanObserve(fact.owner)||fact.lease==null||fact.lease.IsDisposed||!ReferenceEquals(fact.owner.source,fact.lease))continue;var id=fact.prefix+fact.cue;
     if(fact.kind=="release"||fact.kind=="launch")Releases++;else if(fact.kind=="hit")Hits++;else if(fact.kind=="hurt")Hurts++;
     Record(id,fact.key,fact.owner.source.Submit(id,fact.key,fact.position));
    }
@@ -158,7 +167,7 @@ namespace Ossastra.Audio
     if(o.connected&&(o.source==null||o.source.IsDisposed||o.actor!=null&&o.actor.LifeGeneration!=o.generation||
        o.enemy!=null&&o.hp==0&&o.vitals?.Health!=null&&o.vitals.Health.Current>0))Disconnect(o);
     Connect(o);if(!o.connected||o.vitals?.Health==null)continue;
-    int hp=o.vitals.Health.Current;if(hp<o.hp)Queue(o,"target","hurt",0,"","hp:"+o.hp+">"+hp+":"+(++o.sequence),o.vitals.WorldPosition);o.hp=hp;
+    int hp=o.vitals.Health.Current;if(hp>0&&hp<o.hp)Queue(o,"target","hurt",0,"","hp:"+o.hp+">"+hp+":"+(++o.sequence),o.vitals.WorldPosition);o.hp=hp;
     if(o.dodge!=null&&o.dodge.IsActive&&o.dodge.ActionId!=o.dodgeId){o.dodgeId=o.dodge.ActionId;Queue(o,"movement","dodge",0,"","dodge:"+o.dodgeId,o.Entity.transform.position);}
    }
    observed.RemoveAll(o=>o.Entity==null);
@@ -170,7 +179,7 @@ namespace Ossastra.Audio
    Flush();
   }
   private static void Disconnect(Observation o){foreach(var remove in o.remove)remove();o.remove.Clear();o.source?.Dispose();o.source=null;o.connected=false;o.actions.Clear();o.actionOrder.Clear();o.facts.Clear();o.factOrder.Clear();}
-  private void DisconnectAll(){CombatContactGateway.Resolved-=OnContact;if(audioRoot!=null)audioRoot.ReleaseSfxFacts(this);foreach(var o in observed)Disconnect(o);observed.Clear();pending.Clear();contactPositions.Clear();contactOrder.Clear();interfaceSource?.Dispose();interfaceSource=null;audioRoot=null;world=null;}
+  private void DisconnectAll(){CombatContactGateway.Resolved-=OnContact;if(audioRoot!=null){audioRoot.ContentProfileApplied-=OnProfileApplied;audioRoot.ReleaseSfxFacts(this);}foreach(var o in observed)Disconnect(o);observed.Clear();pending.Clear();contactPositions.Clear();contactOrder.Clear();interfaceSource?.Dispose();interfaceSource=null;audioRoot=null;world=null;}
   private void OnDisable(){DisconnectAll();}private void OnDestroy(){DisconnectAll();}
  }
 }

@@ -1,0 +1,2 @@
+using UnityEngine;using Ossastra.Audio;using Funplay.Editor.Tools.Scripting;
+public class WalkRunDefaultsContracts:IFunplayCommand{public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext c){var s=new DistanceFootstepSampler();s.Advance(Vector3.zero,true,.5f);s.Advance(new Vector3(1.5f,0,0),true,.5f);c.ReturnValue=new{name="full existing 3u per second movement qualifies for run sound",pass=s.IsRunning};}}

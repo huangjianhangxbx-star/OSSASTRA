@@ -23,6 +23,11 @@ namespace Ossastra.Audio
             /// <summary>带设备缓冲余量的回收上限；正常声音优先以isPlaying自然结束归还。</summary>
             public double EndsAt { get; internal set; }
             public bool ObservedPlaying { get; internal set; }
+            public AudioLowPassFilter LowPass {get;internal set;}
+            public AudioReverbFilter Reverb {get;internal set;}
+            internal double nextAcoustic;
+            internal float gain=1;
+            internal float acousticGain=1;
         }
 
         private readonly SfxArbitrator arbitrator;
@@ -35,6 +40,9 @@ namespace Ossastra.Audio
         public int StartedCount { get; private set; }
         public int ReturnedCount { get; private set; }
         public int FailedStartCount { get; private set; }
+        public bool AcousticsEnabled { get; set; }
+        public Vector3 AcousticOrigin {get;set;}
+        private readonly RaycastHit[] acousticHits=new RaycastHit[16];
         public string LastError { get; private set; } = string.Empty;
         public IReadOnlyList<VoiceState> Voices => voices;
 
@@ -55,7 +63,9 @@ namespace Ossastra.Audio
                 source.playOnAwake = false;
                 source.loop = false;
                 source.spatialBlend = 0;
-                voices[index] = new VoiceState { Source = source };
+                var lowPass=child.AddComponent<AudioLowPassFilter>();lowPass.enabled=false;
+                var reverb=child.AddComponent<AudioReverbFilter>();reverb.enabled=false;
+                voices[index] = new VoiceState { Source = source,LowPass=lowPass,Reverb=reverb };
             }
         }
 
@@ -86,6 +96,7 @@ namespace Ossastra.Audio
             if (source == null || !source.gameObject.activeInHierarchy)
                 return FailPermit(record.VoiceId, "SOURCE_UNAVAILABLE");
             source.Stop();
+            source.loop = definition.loop;
             source.clip = clip;
             source.volume = definition.volume;
             source.pitch = record.Pitch;
@@ -96,12 +107,15 @@ namespace Ossastra.Audio
             source.maxDistance = definition.maxDistance;
             source.rolloffMode = AudioRolloffMode.Logarithmic;
             source.transform.position = record.Request.WorldPosition;
+            source.dopplerLevel=0;
+            slot.gain=1;slot.acousticGain=1;slot.nextAcoustic=0;
+            slot.LowPass.enabled=false;slot.Reverb.enabled=false;
             slot.VoiceId = record.VoiceId;
             slot.StartedAt = AudioSettings.dspTime;
             AudioSettings.GetDSPBufferSize(out int bufferLength, out int bufferCount);
             double bufferSafety = (double)bufferLength * bufferCount / Math.Max(1, AudioSettings.outputSampleRate);
             // Play实际进入DSP可能晚一个缓冲块；正常以isPlaying归还，期限另留缓冲余量避免截断短音尾部。
-            slot.EndsAt = slot.StartedAt + (double)clip.samples / clip.frequency / record.Pitch + Math.Max(.05, bufferSafety + .02);
+            slot.EndsAt = definition.loop?double.PositiveInfinity:slot.StartedAt + (double)clip.samples / clip.frequency / record.Pitch + Math.Max(.05, bufferSafety + .02);
             slot.ObservedPlaying = false;
             ActiveCount++;
             source.Play();
@@ -119,6 +133,7 @@ namespace Ossastra.Audio
                 if (!arbitrator.TryGetVoice(voice.VoiceId, out _) || voice.Source == null || !voice.Source.gameObject.activeInHierarchy)
                 { Return(voice); continue; }
                 ObservePlaying(voice);
+                ApplyAcoustics(voice,dspNow);
                 // DSP期限负责静音/设备暂不输出时的上限；真实已播放源可在自然结束时提前归还。
                 if (dspNow >= voice.EndsAt || (voice.ObservedPlaying && !voice.Source.isPlaying)) Return(voice);
             }
@@ -129,6 +144,36 @@ namespace Ossastra.Audio
             if (disposed) return;
             arbitrator.StopSource(sourceId, sourceGeneration);
             ReclaimInvalidPermits();
+        }
+
+        public void StopVoice(long voiceId)
+        {if(!disposed)Return(Find(voiceId));}
+
+        /// <summary>持续源位置和淡变只作用于许可声部，音量仍经唯一Mixer。</summary>
+        public bool SetVoice(long id,Vector3 position,float gain)
+        {
+            var voice=Find(id);if(voice==null||voice.Source==null||!arbitrator.TryGetVoice(id,out var record))return false;
+            voice.Source.transform.position=position;voice.gain=Mathf.Clamp01(gain);voice.Source.volume=record.Definition.volume*voice.gain*voice.acousticGain;return true;
+        }
+
+        private void ApplyAcoustics(VoiceState voice,double now)
+        {
+            if(!arbitrator.TryGetVoice(voice.VoiceId,out var record))return;
+            bool active=AcousticsEnabled&&record.Definition.spatial;
+            if(!active){voice.LowPass.enabled=false;voice.Reverb.enabled=false;voice.acousticGain=1;voice.Source.volume=record.Definition.volume*voice.gain;return;}
+            if(now<voice.nextAcoustic)return;voice.nextAcoustic=now+.1;
+            var from=voice.Source.transform.position+Vector3.up*.6f;var delta=AcousticOrigin-from;
+            bool blocked=false;float distance=delta.magnitude;
+            if(distance>.05f)
+            {
+                int count=Physics.RaycastNonAlloc(from,delta/distance,acousticHits,distance,~0,QueryTriggerInteraction.Ignore);
+                for(int i=0;i<count;i++)if(acousticHits[i].collider!=null&&acousticHits[i].collider.GetComponentInParent<AudioAcousticObstacle>()!=null){blocked=true;break;}
+            }
+            // 仅作者明确标记的墙体产生遮挡；低通/混响在预分配声部内，不新增全局混音所有者。
+            voice.LowPass.enabled=true;voice.LowPass.cutoffFrequency=blocked?2800:22000;
+            voice.Reverb.enabled=blocked;voice.Reverb.reverbPreset=AudioReverbPreset.Room;
+            voice.acousticGain=blocked?.68f:1;
+            voice.Source.volume=record.Definition.volume*voice.gain*voice.acousticGain;
         }
 
         /// <summary>清空短音许可及声音池；新世界由Root之后显式SetWorldScope。</summary>
@@ -176,6 +221,7 @@ namespace Ossastra.Audio
             {
                 voice.Source.Stop();
                 voice.Source.clip = null;
+                voice.Source.loop=false;voice.LowPass.enabled=false;voice.Reverb.enabled=false;
                 voice.Source.outputAudioMixerGroup = null;
             }
             voice.VoiceId = 0;

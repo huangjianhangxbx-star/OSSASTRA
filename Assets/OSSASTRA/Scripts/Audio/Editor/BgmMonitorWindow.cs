@@ -52,6 +52,20 @@ namespace Ossastra.Audio.Editor
             EditorGUILayout.Space();EditorGUILayout.LabelField("统一 SFX / Mixer",EditorStyles.boldLabel);
             EditorGUILayout.LabelField("状态 / 世界",root.SfxStatus+" / "+root.WorldScopeId);
             EditorGUILayout.LabelField("当前声音内容",root.SfxContentStatus);
+            EditorGUILayout.LabelField("Profile / 代次",(root.ContentProfile==null?"无":root.ContentProfile.profileId)+" / "+root.ProfileRevision);
+            if(!string.IsNullOrEmpty(root.ProfileError))EditorGUILayout.HelpBox(root.ProfileError,MessageType.Warning);
+            EditorGUILayout.BeginHorizontal();
+            if(GUILayout.Button("A0 原内容"))root.RestoreBaseline(out _);
+            foreach(var mode in new[]{"A1","A2","A3"})if(GUILayout.Button(mode))
+            {
+                var path=mode=="A3"?"Assets/OSSASTRA/Audio/BloodborneLocal/Resources/OssastraBloodborneDefault.asset":"Assets/OSSASTRA/Audio/BloodborneLocal/Profiles/"+mode+".asset";
+                var profile=AssetDatabase.LoadAssetAtPath<AudioContentProfileSO>(path);
+                if(!root.TryApplyProfile(profile,out var failure))Debug.LogWarning("REFERENCE_CONTENT_UNAVAILABLE: "+failure);
+            }
+            EditorGUILayout.EndHorizontal();
+            EditorGUILayout.LabelField("世界声音 / 空间声学",root.WorldAudioEnabled+" / "+root.AcousticsEnabled);
+            foreach(var zone in UnityEngine.Object.FindObjectsOfType<AudioEnvironmentZone>())EditorGUILayout.LabelField("区域 "+zone.ZoneId,zone.IsInside+" | 活跃 "+zone.ActiveVoiceCount+" | "+zone.Status);
+            foreach(var movement in UnityEngine.Object.FindObjectsOfType<LocomotionAudioAdapter>())EditorGUILayout.LabelField("实际位移脚步",movement.AcceptedSteps+" / "+movement.SubmittedSteps+" | "+movement.LastEvent);
             foreach(var facts in UnityEngine.Object.FindObjectsOfType<CombatSfxFactAdapter>())
             {
                 EditorGUILayout.ObjectField("战斗语义配置",facts.SoundProfile,typeof(CombatSoundProfileSO),false);
@@ -72,7 +86,7 @@ namespace Ossastra.Audio.Editor
                 var player=root.SfxPlayer;EditorGUILayout.LabelField("池 / 活跃 / 实际起播 / 回收",player.PoolSize+" / "+player.ActiveCount+" / "+player.StartedCount+" / "+player.ReturnedCount);
                 if(!string.IsNullOrEmpty(player.LastError))EditorGUILayout.LabelField("最近播放拒绝",player.LastError);
                 foreach(var voice in player.Voices)if(voice.VoiceId!=0&&root.Sfx.TryGetVoice(voice.VoiceId,out var record))
-                    EditorGUILayout.LabelField("Voice "+voice.VoiceId,record.Request.EventId+" | "+record.Request.SourceId+" | "+(record.Definition==null?"定义已删除":record.Definition.bus.ToString())+" | priority "+record.Priority+" | "+record.Request.WorldPosition);
+                    EditorGUILayout.LabelField("Voice "+voice.VoiceId,record.Request.EventId+" | "+record.Request.SourceId+" | "+(voice.Source.clip==null?"无片段":voice.Source.clip.name)+" | "+(record.Definition==null?"定义已删除":record.Definition.bus.ToString())+" | priority "+record.Priority+" | "+record.Request.WorldPosition+" | "+record.Definition.provenance);
             }
             if(root.SfxCatalog!=null)
             {

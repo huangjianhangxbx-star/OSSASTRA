@@ -1,0 +1,23 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "checks": [
+        {
+          "name": "no actual ground produces no footstep semantic",
+          "pass": false
+        },
+        {
+          "name": "actual unmarked floor retains generic fallback",
+          "pass": true
+        }
+      ]
+    }
+  }
+}

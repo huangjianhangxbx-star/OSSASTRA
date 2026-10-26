@@ -1,0 +1,9 @@
+# Fixed baseline and implementation boundary
+
+2026-10-27. Local and GitHub main began at `efdd6138c8f8dd41f421075e480b34de5d8f6008`. The supplied archive's seven documents were extracted and SHA checked in local `work/OSSASTRA/AUDIO-BB-FUSION-20261027`. The linked private conversation's available latest request agreed with the archive; missing assistant body placeholders were not treated as implementation evidence.
+
+36 pre-existing dirty paths were snapshotted before implementation. `FILE_PROTECTION.tsv` and `results/original-dirty-protection.json` verify all 36 remain exactly as found, including prior deletions. No old scene, user input binding, user rules or Spine asset was saved. Native assets were authored only through Unity Editor APIs in the new owned scene/private content folder. The working tree was shared, not an isolated clean checkout.
+
+The original fixed six BGM / 32 SFX AudioSource topology, BGM arbitration/transport, contact gateway, action authority, HP, input and animation owners remain. The only necessary Combat change is a backward-compatible optional readonly effect semantic from the real ice producer; no second audio engine or Lab package was copied. Source libraries and original FSB banks remain readonly. Seven targeted streams, not whole banks, were decoded into external work.
+
+All reference PCM, derived clips, profiles/catalogs/track SO and real mixed recordings remain local. New public scene dependencies were checked through AssetDatabase: 418 entries, zero BloodborneLocal/CuratedLocal dependencies. The private default profile is loaded explicitly at runtime, so a public clone without local content reports unavailable reference content rather than claiming BB playback. This repository still has separately documented third-party dependency setup; it is not a turnkey licensed distribution.

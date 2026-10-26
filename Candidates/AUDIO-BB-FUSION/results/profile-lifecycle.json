@@ -1,0 +1,72 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "checks": [
+        {
+          "name": "invalid profile rejected without mutating world",
+          "pass": true
+        },
+        {
+          "name": "loop consumes actual fixed-pool permit",
+          "pass": true
+        },
+        {
+          "name": "loop survives ordinary clip duration",
+          "pass": true
+        },
+        {
+          "name": "other source cannot stop owned voice",
+          "pass": true
+        },
+        {
+          "name": "owner stop releases only its loop",
+          "pass": true
+        },
+        {
+          "name": "validated profile changes SFX generation",
+          "pass": true
+        },
+        {
+          "name": "stale source cannot reenter new profile",
+          "pass": true
+        },
+        {
+          "name": "same music retains transport instance and epoch",
+          "pass": true
+        },
+        {
+          "name": "profile does not allocate extra audio sources",
+          "pass": true
+        },
+        {
+          "name": "known metal chooses specific material",
+          "pass": true
+        },
+        {
+          "name": "unknown material retains generic contact",
+          "pass": true
+        },
+        {
+          "name": "A2 to A3 retains exact media composition gain and seed",
+          "pass": true
+        },
+        {
+          "name": "A1 preserves old semantic profile",
+          "pass": true
+        },
+        {
+          "name": "A1 preserves original per-event rules and gain",
+          "pass": true
+        }
+      ],
+      "failed": 0
+    }
+  }
+}
