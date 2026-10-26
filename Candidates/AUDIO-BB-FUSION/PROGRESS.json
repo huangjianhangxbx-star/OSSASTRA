@@ -1,8 +1,8 @@
 {
   "task": "AUDIO-BB-FUSION",
   "baseline": "efdd6138c8f8dd41f421075e480b34de5d8f6008",
-  "status": "technical-complete",
-  "phase": "F10-publication",
+  "status": "complete-with-content-and-human-gates",
+  "phase": "F10-complete",
   "completed": [
     "F00",
     "F01",
@@ -14,18 +14,19 @@
     "F07",
     "F08",
     "F09",
-    "F10-engineering"
+    "F10-GitHub-product-verified"
   ],
   "pending": [
-    "exact-GitHub-publication-receipt",
-    "final-power-action",
     "human-listening",
-    "explicit-content-gaps"
+    "explicit-content-gaps",
+    "existing-third-party-Player-blocker"
   ],
   "humanListening": "PENDING_HUMAN",
   "completionLevels": [
     "TECHNICAL_INTEGRATION_COMPLETE",
     "CONTENT_INCOMPLETE"
   ],
-  "next": "selective publication then existing S3 sleep; no further migration"
+  "next": "no automatic migration; final S3 requested after closure publication",
+  "productCommit": "765fea102638cb329a45867a74dee471da0574a8",
+  "productTree": "2c0fc859bb3c9a56556f0b877e3fe1821b9cfe57"
 }

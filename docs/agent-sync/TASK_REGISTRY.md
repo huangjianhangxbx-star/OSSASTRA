@@ -996,3 +996,5 @@ active/unity-writer；用户明确要求一轮修整：共享脚本去M01标签�
 2026-10-27 AUDIO-BB-FUSION active/unity-writer：唯一Unity writer=root；独占Audio源码/配置、新SC_AUDIO_BB_Fusion、Candidates与本任务文档/.gitignore，详见tasks/2026-10-27-audio-bb-fusion.md。原36dirty/旧场/玩法/用户维护及Bloodborne/AudioLab源库只读。
 
 2026-10-27 AUDIO-BB-FUSION technical-complete/docs-writer：Unity/源码租约释放，仅本任务文档/.gitignore/定向GitHub发布收口；原36dirty保留，严格CONTENT_INCOMPLETE+PENDING_HUMAN；Player旧插件14错，详见任务记录/交接。
+
+2026-10-27 AUDIO-BB-FUSION complete/read-only：产品765fea102/tree2c0fc859远端main精确核验；全部Unity/源码/文档writer释放，36原dirty/本机受限音频保留。仅本次纯文档回执闭环与用户要求最终S3睡眠，无后续迁移。
