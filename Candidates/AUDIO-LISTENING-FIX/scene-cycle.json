@@ -1,0 +1,63 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "cycle": {
+        "done": true,
+        "failed": 0,
+        "rows": [
+          {
+            "name": "旧VC02B真实场沿唯一音频根接管",
+            "pass": true,
+            "scene": "Assets/OSSASTRA/Scenes/SC_VC02B_IntegrationReady.unity",
+            "sources": 38,
+            "world": "Assets/OSSASTRA/Scenes/SC_VC02B_IntegrationReady.unity#-264346:80fdab24a1ec44038de3064761661ee8"
+          },
+          {
+            "name": "旧场补独立音效观察者且无局部音源",
+            "pass": true,
+            "scene": "Assets/OSSASTRA/Scenes/SC_VC02B_IntegrationReady.unity",
+            "sources": 38,
+            "world": "Assets/OSSASTRA/Scenes/SC_VC02B_IntegrationReady.unity#-264346:80fdab24a1ec44038de3064761661ee8"
+          },
+          {
+            "name": "旧租约撤销且旧世界事实拒绝",
+            "pass": true,
+            "scene": "Assets/OSSASTRA/Scenes/SC_VC02B_IntegrationReady.unity",
+            "sources": 38,
+            "world": "Assets/OSSASTRA/Scenes/SC_VC02B_IntegrationReady.unity#-264346:80fdab24a1ec44038de3064761661ee8"
+          },
+          {
+            "name": "换无音乐Host场保留已开始音乐",
+            "pass": true,
+            "scene": "Assets/OSSASTRA/Scenes/SC_VC02B_IntegrationReady.unity",
+            "sources": 38,
+            "world": "Assets/OSSASTRA/Scenes/SC_VC02B_IntegrationReady.unity#-264346:80fdab24a1ec44038de3064761661ee8"
+          },
+          {
+            "name": "回新场重复根拒绝且38源不增",
+            "pass": true,
+            "scene": "Assets/OSSASTRA/Scenes/SC_AUDIO_BB_Fusion.unity",
+            "sources": 38,
+            "world": "Assets/OSSASTRA/Scenes/SC_AUDIO_BB_Fusion.unity#-272578:d6ec824225a74a67afe395e6283f4b43"
+          },
+          {
+            "name": "回新场独立事实拥有者唯一",
+            "pass": true,
+            "scene": "Assets/OSSASTRA/Scenes/SC_AUDIO_BB_Fusion.unity",
+            "sources": 38,
+            "world": "Assets/OSSASTRA/Scenes/SC_AUDIO_BB_Fusion.unity#-272578:d6ec824225a74a67afe395e6283f4b43"
+          }
+        ]
+      },
+      "listeners": 1,
+      "audioRoots": 1
+    }
+  }
+}

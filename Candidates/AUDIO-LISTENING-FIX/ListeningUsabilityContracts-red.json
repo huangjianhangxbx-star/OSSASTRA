@@ -1,0 +1,33 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "checks": [
+        {
+          "name": "one actual listener follows controlled actor rather than high camera",
+          "pass": false
+        },
+        {
+          "name": "existing system menu exposes AudioSettings",
+          "pass": false
+        },
+        {
+          "name": "no implicit continuous ambience without user preference",
+          "pass": false
+        },
+        {
+          "name": "collision-only scene boundaries do not occlude audio",
+          "pass": false
+        }
+      ],
+      "listenerDistance": 14.1718349,
+      "ambient": 1.0
+    }
+  }
+}

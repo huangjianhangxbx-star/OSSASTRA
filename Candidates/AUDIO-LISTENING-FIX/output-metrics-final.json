@@ -1,0 +1,32 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "evidence": "OSS_REAL_GAME_OUTPUT current enabled gameplay listener; no diagnostic tests mixed into capture",
+      "metrics": {
+        "callbacks": 1317,
+        "samples": 2697216,
+        "rate": 48000,
+        "channels": 2,
+        "seconds": 28.096,
+        "peak": 0.749935031,
+        "rms": 0.055737753714816526,
+        "clipped": 0,
+        "peakVoices": 12,
+        "facts": 73,
+        "voices": 66,
+        "contexts": 3
+      },
+      "passed": 7,
+      "checks": 7,
+      "error": "",
+      "devicesRemaining": 0
+    }
+  }
+}

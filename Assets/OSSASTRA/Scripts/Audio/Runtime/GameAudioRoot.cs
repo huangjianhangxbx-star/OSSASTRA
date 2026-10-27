@@ -1,7 +1,7 @@
 /* 脚本：GameAudioRoot
  * 功能：正式唯一音频生命周期根，组合专业BGM/SFX仲裁、共享混音与有限播放器。
- * 边界：不拥有角色/战斗状态，不修改全局AudioListener或工程音频设置。
- * 协作：场景Host发布只读快照；同内容先于hold短路；加载和UI监控没有独立播放权。
+ * 边界：不拥有角色/战斗状态，不修改AudioListener.volume或工程音频设置。
+ * 协作：场景Host发布只读快照；独占运行期听点跟随当前实控；加载和UI监控没有独立播放权。
  */
 using System;
 using System.Collections.Generic;
@@ -24,8 +24,7 @@ namespace Ossastra.Audio
         private SfxCatalogSO effectiveCatalog;
         private AudioContentProfileSO baselineProfile;
         private System.Random contentRandom=new System.Random(27027);
-        private AudioListener acousticListener;
-        private float nextListenerRead;
+        private GameplayAudioListener listenerRig;
         public AudioContentProfileSO ContentProfile {get;private set;}
         public CombatSoundProfileSO CombatSoundProfile => ContentProfile==null?Resources.Load<CombatSoundProfileSO>("OssastraCombatSoundProfile"):ContentProfile.combatProfile;
         public bool WorldAudioEnabled=>ContentProfile!=null&&ContentProfile.worldAudio;
@@ -120,6 +119,7 @@ namespace Ossastra.Audio
             else ProfileError="REFERENCE_CONTENT_UNAVAILABLE：未安装本机Bloodborne档案；当前A0";
             if(persistAcrossScenes)DontDestroyOnLoad(gameObject);
             Status="等待场景有效快照";
+            if(isActiveAndEnabled)listenerRig=new GameplayAudioListener(gameObject);
             OnActiveAudioScene(default,UnityEngine.SceneManagement.SceneManager.GetActiveScene());
         }
         public void BindHost(BgmContextHost source)
@@ -168,11 +168,12 @@ namespace Ossastra.Audio
             bool unified=UnifiedMix!=null&&UnifiedMix.IsConfigured;
             if(unified&&!UnifiedMix.Tick())SfxStatus=UnifiedMix.LastError;
             Transport.Tick(now,Time.unscaledDeltaTime,unified?Mix.LocalCurrentGain:Mix.CurrentGain);
-            SfxPlayer?.Tick(now);
+            // 当前角色的听点先于空间衰减/遮挡更新；相机高度与地图边界不能改变自身音色。
+            listenerRig?.Tick();
             if(SfxPlayer!=null)
             {
-                if(acousticListener==null&&Time.unscaledTime>=nextListenerRead){acousticListener=FindObjectOfType<AudioListener>();nextListenerRead=Time.unscaledTime+1;}
-                if(acousticListener!=null)SfxPlayer.AcousticOrigin=acousticListener.transform.position;
+                if(listenerRig?.Listener!=null)SfxPlayer.AcousticOrigin=listenerRig.Listener.transform.position;
+                SfxPlayer.Tick(now);
             }
             // 加载可用性在Tick中变化；hold只能从真实起播epoch计算，不能从请求帧推算。
             if(Transport.StartCount!=observedStarts)
@@ -260,9 +261,9 @@ namespace Ossastra.Audio
         {if(history.Count>=64)history.Dequeue();history.Enqueue(AudioSettings.dspTime.ToString("F3")+" "+message);}
         private void OnApplicationFocus(bool focused){if(Mix!=null)Mix.Focused=focused;}
         private void OnEnable()
-        {if(IsOwner&&Sfx!=null){var scene=UnityEngine.SceneManagement.SceneManager.GetActiveScene();if(string.IsNullOrEmpty(Sfx.WorldScopeId))BeginSfxWorld(scene.path+"#"+scene.handle);OnActiveAudioScene(default,scene);}}
-        private void OnDisable(){if(IsOwner){explicitStop=true;Transport?.Stop();Mix?.ClearSnapshots();foreach(var source in new List<SfxSourceHandle>(sources))source.Dispose();SfxPlayer?.StopWorld();sceneScope=null;}}
+        {if(IsOwner&&Sfx!=null){if(listenerRig==null)listenerRig=new GameplayAudioListener(gameObject);var scene=UnityEngine.SceneManagement.SceneManager.GetActiveScene();if(string.IsNullOrEmpty(Sfx.WorldScopeId))BeginSfxWorld(scene.path+"#"+scene.handle);OnActiveAudioScene(default,scene);}}
+        private void OnDisable(){if(IsOwner){listenerRig?.Dispose();listenerRig=null;explicitStop=true;Transport?.Stop();Mix?.ClearSnapshots();foreach(var source in new List<SfxSourceHandle>(sources))source.Dispose();SfxPlayer?.StopWorld();sceneScope=null;}}
         private void OnDestroy()
-        {if(!IsOwner)return;UnityEngine.SceneManagement.SceneManager.activeSceneChanged-=OnActiveAudioScene;SfxPlayer?.Dispose();Transport?.Dispose();Mix?.ClearSnapshots();if(baselineProfile!=null)Destroy(baselineProfile);if(Instance==this)Instance=null;IsOwner=false;}
+        {if(!IsOwner)return;listenerRig?.Dispose();listenerRig=null;UnityEngine.SceneManagement.SceneManager.activeSceneChanged-=OnActiveAudioScene;SfxPlayer?.Dispose();Transport?.Dispose();Mix?.ClearSnapshots();if(baselineProfile!=null)Destroy(baselineProfile);if(Instance==this)Instance=null;IsOwner=false;}
     }
 }

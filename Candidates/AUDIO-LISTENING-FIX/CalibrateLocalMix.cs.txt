@@ -1,0 +1,11 @@
+// 定向原生作者修正：仅本机A2/A3定义，不动原始/派生PCM、A0/A1、用户Prefs或用户场景。
+using System;using System.Linq;using System.Collections.Generic;using UnityEngine;using UnityEditor;using UnityEditor.SceneManagement;using Ossastra.Audio;using Funplay.Editor.Tools.Scripting;
+public class CalibrateListeningMix:IFunplayCommand{
+const string Revision="LISTENING_GAIN_V3_20261027";
+public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext c){if(Application.isPlaying||EditorApplication.isCompiling)throw new Exception("Ready Edit required");var scene=EditorSceneManager.GetActiveScene();if(scene.path!="Assets/OSSASTRA/Scenes/SC_AUDIO_BB_Fusion.unity"||scene.isDirty)throw new Exception("Expected saved owned scene");var changes=new List<object>();int already=0;
+AssetDatabase.StartAssetEditing();try{
+foreach(var mode in new[]{"A2","A3"})foreach(var guid in AssetDatabase.FindAssets("t:SfxEventDefinitionSO",new[]{"Assets/OSSASTRA/Audio/BloodborneLocal/Definitions/"+mode})){var path=AssetDatabase.GUIDToAssetPath(guid);var d=AssetDatabase.LoadAssetAtPath<SfxEventDefinitionSO>(path);if(d==null||d.loop||d.bus==SfxBus.Ambience)continue;if((d.provenance??"").Contains(Revision)){already++;continue;}float before=d.volume;float correction=(d.provenance??"").Contains("LISTENING_GAIN_V2_20261027")?.8f:1.6f;c.RegisterObjectModification(d);d.volume=Mathf.Min(1,before*correction);d.provenance=(d.provenance??"")+"; "+Revision+": one-shot gain net x1.6 from fusion baseline; PCM unchanged; measured headroom correction";if(!d.TryValidate(out var reason))throw new Exception(path+reason);EditorUtility.SetDirty(d);AssetDatabase.SaveAssetIfDirty(d);changes.Add(new{eventId=d.eventId,mode,before,after=d.volume});}
+}finally{AssetDatabase.StopAssetEditing();}
+var boundaries=UnityEngine.Object.FindObjectsOfType<AudioAcousticObstacle>().Where(o=>o.gameObject.scene==scene&&o.name.Contains("Boundary")).ToArray();foreach(var o in boundaries)Undo.DestroyObjectImmediate(o);
+if(boundaries.Length>0){EditorSceneManager.MarkSceneDirty(scene);if(!EditorSceneManager.SaveScene(scene))throw new Exception("Owned scene save failed");}
+c.ReturnValue=new{changed=changes.Count,alreadyCalibrated=already,removedBoundaryMarkers=boundaries.Length,changes,scene=scene.path,dirty=scene.isDirty,pcmUnchanged=true,userPreferencesUnchanged=true};}}

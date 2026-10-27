@@ -1,0 +1,74 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "done": true,
+      "error": "",
+      "checks": [
+        {
+          "name": "menu opens actual audio controls",
+          "pass": true
+        },
+        {
+          "name": "menu captures character input without pausing world",
+          "pass": true
+        },
+        {
+          "name": "real pointer geometry sets master to midpoint",
+          "pass": true
+        },
+        {
+          "name": "slider reaches sole Mixer master gain",
+          "pass": true
+        },
+        {
+          "name": "navigation changes selected slider",
+          "pass": true
+        },
+        {
+          "name": "interaction completion persists actual gain",
+          "pass": true
+        },
+        {
+          "name": "mute button changes real user mute",
+          "pass": true
+        },
+        {
+          "name": "recommended levels are usable and preserve unrelated buses",
+          "pass": true
+        },
+        {
+          "name": "optional ambience can actually start a budgeted loop",
+          "pass": true
+        },
+        {
+          "name": "turning ambience off releases actual loop permit",
+          "pass": true
+        },
+        {
+          "name": "reopening reuses one audio panel",
+          "pass": true
+        },
+        {
+          "name": "menu exit closes settings and restores Tab action",
+          "pass": true
+        },
+        {
+          "name": "world time advances while settings are open",
+          "pass": true
+        },
+        {
+          "name": "closing menu releases input capture",
+          "pass": true
+        }
+      ],
+      "recommendedSettingsRetained": true
+    }
+  }
+}

@@ -1,0 +1,913 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "done": true,
+      "error": "",
+      "checks": [
+        {
+          "name": "真实库存装备已有射击器",
+          "pass": true,
+          "detail": {
+            "Reason": null,
+            "definition": "vc02.magazine-shooter"
+          }
+        },
+        {
+          "name": "LT真实弹仓能力受理",
+          "pass": true,
+          "detail": {
+            "before": 0,
+            "after": 7,
+            "result": "拒绝：Rejected: main-not-ready"
+          }
+        },
+        {
+          "name": "真实子弹降低敌方HP",
+          "pass": true,
+          "detail": {
+            "before": 600,
+            "after": 448
+          }
+        },
+        {
+          "name": "普通射击使用枪声且未借挥刀",
+          "pass": true,
+          "detail": null
+        },
+        {
+          "name": "自动装填完成发出机械声",
+          "pass": true,
+          "detail": null
+        },
+        {
+          "name": "枪声变体真实调用不连续重复",
+          "pass": true,
+          "detail": {
+            "clips": [
+              0,
+              1,
+              0,
+              1,
+              0,
+              1,
+              0
+            ]
+          }
+        },
+        {
+          "name": "真实射击元数据区分实际Projectile",
+          "pass": true,
+          "detail": null
+        }
+      ],
+      "events": [
+        {
+          "eventId": "ui.control.switch",
+          "fact": "switch:1",
+          "accepted": true,
+          "clipIndex": 0,
+          "reason": "ACCEPTED",
+          "source": "sound-interface@170678",
+          "playIssued": true,
+          "time": 1.0282846999980393
+        },
+        {
+          "eventId": "ambience.torch",
+          "fact": "loop:one",
+          "accepted": true,
+          "clipIndex": 0,
+          "reason": "ACCEPTED",
+          "source": "DEVELOPMENT_ONLY:profile-first",
+          "playIssued": true,
+          "time": 3.038876499998878
+        },
+        {
+          "eventId": "ambience.fire",
+          "fact": "loop:two",
+          "accepted": true,
+          "clipIndex": 0,
+          "reason": "ACCEPTED",
+          "source": "DEVELOPMENT_ONLY:profile-second",
+          "playIssued": true,
+          "time": 3.0388772999976936
+        },
+        {
+          "eventId": "player.gun.fire",
+          "fact": "ability:60ed991db97d4d37bf5006f5250e0548:0:ranged-shot:release",
+          "accepted": true,
+          "clipIndex": 0,
+          "reason": "ACCEPTED",
+          "source": "temporary-b@170060",
+          "playIssued": true,
+          "time": 6.046768599997449
+        },
+        {
+          "eventId": "enemy.body.hurt",
+          "fact": "contact:48914ea25bf04c24bf9070b337028943:0:enemy-stationary-01",
+          "accepted": true,
+          "clipIndex": 0,
+          "reason": "ACCEPTED",
+          "source": "enemy-stationary-01@167902",
+          "playIssued": true,
+          "time": 6.151268199999322
+        },
+        {
+          "eventId": "player.blade.impact",
+          "fact": "ability:60ed991db97d4d37bf5006f5250e0548:0:ranged-shot:hit",
+          "accepted": true,
+          "clipIndex": 1,
+          "reason": "ACCEPTED",
+          "source": "temporary-b@170060",
+          "playIssued": true,
+          "time": 6.151270700000168
+        },
+        {
+          "eventId": "player.gun.fire",
+          "fact": "ability:6b82f74a353a4b8a97d1aec6542492b3:0:ranged-shot:release",
+          "accepted": true,
+          "clipIndex": 1,
+          "reason": "ACCEPTED",
+          "source": "temporary-b@170060",
+          "playIssued": true,
+          "time": 6.4401034000002255
+        },
+        {
+          "eventId": "enemy.footstep.dirt.walk",
+          "fact": "step:1",
+          "accepted": true,
+          "clipIndex": 1,
+          "reason": "ACCEPTED",
+          "source": "locomotion@167902",
+          "playIssued": true,
+          "time": 6.456419800000731
+        },
+        {
+          "eventId": "player.gun.fire",
+          "fact": "ability:aed67744599e4efbbc741095e40471d1:0:ranged-shot:release",
+          "accepted": true,
+          "clipIndex": 0,
+          "reason": "ACCEPTED",
+          "source": "temporary-b@170060",
+          "playIssued": true,
+          "time": 6.841711599998234
+        },
+        {
+          "eventId": "enemy.footstep.dirt.walk",
+          "fact": "step:2",
+          "accepted": true,
+          "clipIndex": 0,
+          "reason": "ACCEPTED",
+          "source": "locomotion@167902",
+          "playIssued": true,
+          "time": 6.898682600000029
+        },
+        {
+          "eventId": "companion.footstep.stone.run",
+          "fact": "step:1",
+          "accepted": true,
+          "clipIndex": 0,
+          "reason": "ACCEPTED",
+          "source": "locomotion@174314",
+          "playIssued": true,
+          "time": 6.937232599997515
+        },
+        {
+          "eventId": "player.gun.fire",
+          "fact": "ability:063f870671ba416b846b081b4c25ea92:0:ranged-shot:release",
+          "accepted": true,
+          "clipIndex": 1,
+          "reason": "ACCEPTED",
+          "source": "temporary-b@170060",
+          "playIssued": true,
+          "time": 7.2398933000004035
+        },
+        {
+          "eventId": "enemy.footstep.dirt.walk",
+          "fact": "step:3",
+          "accepted": true,
+          "clipIndex": 1,
+          "reason": "ACCEPTED",
+          "source": "locomotion@167902",
+          "playIssued": true,
+          "time": 7.345197499998903
+        },
+        {
+          "eventId": "companion.blade.swing.1",
+          "fact": "release:2f1537d7bb0740e087a00df94cb3c494",
+          "accepted": true,
+          "clipIndex": 0,
+          "reason": "ACCEPTED",
+          "source": "temporary-a@174314",
+          "playIssued": true,
+          "time": 7.357408799998666
+        },
+        {
+          "eventId": "companion.impact.flesh",
+          "fact": "contact:2f1537d7bb0740e087a00df94cb3c494:0:enemy-stationary-01",
+          "accepted": true,
+          "clipIndex": 1,
+          "reason": "ACCEPTED",
+          "source": "temporary-a@174314",
+          "playIssued": true,
+          "time": 7.3574097999990045
+        },
+        {
+          "eventId": "enemy.body.hurt",
+          "fact": "contact:2f1537d7bb0740e087a00df94cb3c494:0:enemy-stationary-01",
+          "accepted": true,
+          "clipIndex": 2,
+          "reason": "ACCEPTED",
+          "source": "enemy-stationary-01@167902",
+          "playIssued": true,
+          "time": 7.357411199998751
+        },
+        {
+          "eventId": "enemy.attack",
+          "fact": "release:fc52065ef246400d99ed5056b21ac1ec",
+          "accepted": true,
+          "clipIndex": 0,
+          "reason": "ACCEPTED",
+          "source": "enemy-stationary-01@167902",
+          "playIssued": true,
+          "time": 8.098430499998358
+        },
+        {
+          "eventId": "enemy.impact.flesh",
+          "fact": "contact:fc52065ef246400d99ed5056b21ac1ec:0:temporary-a",
+          "accepted": true,
+          "clipIndex": 1,
+          "reason": "ACCEPTED",
+          "source": "enemy-stationary-01@167902",
+          "playIssued": true,
+          "time": 8.09843180000098
+        },
+        {
+          "eventId": "companion.body.hurt",
+          "fact": "contact:fc52065ef246400d99ed5056b21ac1ec:0:temporary-a",
+          "accepted": true,
+          "clipIndex": 4,
+          "reason": "ACCEPTED",
+          "source": "temporary-a@174314",
+          "playIssued": true,
+          "time": 8.098432099999627
+        },
+        {
+          "eventId": "enemy.impact.flesh",
+          "fact": "contact:fc52065ef246400d99ed5056b21ac1ec:0:temporary-b",
+          "accepted": false,
+          "clipIndex": -1,
+          "reason": "CONTENT_INTERVAL",
+          "source": "enemy-stationary-01@167902",
+          "playIssued": false,
+          "time": 8.098432399998273
+        },
+        {
+          "eventId": "player.body.hurt",
+          "fact": "contact:fc52065ef246400d99ed5056b21ac1ec:0:temporary-b",
+          "accepted": true,
+          "clipIndex": 2,
+          "reason": "ACCEPTED",
+          "source": "temporary-b@170060",
+          "playIssued": true,
+          "time": 8.098432700000558
+        },
+        {
+          "eventId": "player.gun.reload",
+          "fact": "ability:00000000000000000000000000000000:-1::reload:1",
+          "accepted": true,
+          "clipIndex": 1,
+          "reason": "ACCEPTED",
+          "source": "temporary-b@170060",
+          "playIssued": true,
+          "time": 8.545471599998564
+        },
+        {
+          "eventId": "player.gun.fire",
+          "fact": "ability:d9520e1382e94b75b37179408e9fa982:0:ranged-shot:release",
+          "accepted": true,
+          "clipIndex": 0,
+          "reason": "ACCEPTED",
+          "source": "temporary-b@170060",
+          "playIssued": true,
+          "time": 8.579676299999846
+        },
+        {
+          "eventId": "enemy.body.hurt",
+          "fact": "contact:3429dbc9fe494ff7bf62a663867ca298:0:enemy-stationary-01",
+          "accepted": true,
+          "clipIndex": 1,
+          "reason": "ACCEPTED",
+          "source": "enemy-stationary-01@167902",
+          "playIssued": true,
+          "time": 8.610187199999928
+        },
+        {
+          "eventId": "player.blade.impact",
+          "fact": "ability:d9520e1382e94b75b37179408e9fa982:0:ranged-shot:hit",
+          "accepted": true,
+          "clipIndex": 0,
+          "reason": "ACCEPTED",
+          "source": "temporary-b@170060",
+          "playIssued": true,
+          "time": 8.610188200000266
+        },
+        {
+          "eventId": "companion.blade.swing.1",
+          "fact": "release:96e022e4e8934b16829c4d830c943130",
+          "accepted": true,
+          "clipIndex": 0,
+          "reason": "ACCEPTED",
+          "source": "temporary-a@174314",
+          "playIssued": true,
+          "time": 8.657953899997665
+        },
+        {
+          "eventId": "companion.impact.flesh",
+          "fact": "contact:96e022e4e8934b16829c4d830c943130:0:enemy-stationary-01",
+          "accepted": true,
+          "clipIndex": 0,
+          "reason": "ACCEPTED",
+          "source": "temporary-a@174314",
+          "playIssued": true,
+          "time": 8.657954899998003
+        },
+        {
+          "eventId": "enemy.body.hurt",
+          "fact": "contact:96e022e4e8934b16829c4d830c943130:0:enemy-stationary-01",
+          "accepted": false,
+          "clipIndex": -1,
+          "reason": "CONTENT_INTERVAL",
+          "source": "enemy-stationary-01@167902",
+          "playIssued": false,
+          "time": 8.657955299997411
+        },
+        {
+          "eventId": "player.gun.fire",
+          "fact": "ability:c6408fe9b34d44bfa75e3af372b067e3:0:ranged-shot:release",
+          "accepted": true,
+          "clipIndex": 1,
+          "reason": "ACCEPTED",
+          "source": "temporary-b@170060",
+          "playIssued": true,
+          "time": 8.982886800000415
+        },
+        {
+          "eventId": "enemy.body.hurt",
+          "fact": "contact:f054657dc3bf41d19f0642f0124d7f16:0:enemy-stationary-01",
+          "accepted": true,
+          "clipIndex": 2,
+          "reason": "ACCEPTED",
+          "source": "enemy-stationary-01@167902",
+          "playIssued": true,
+          "time": 9.014203700000508
+        },
+        {
+          "eventId": "player.blade.impact",
+          "fact": "ability:c6408fe9b34d44bfa75e3af372b067e3:0:ranged-shot:hit",
+          "accepted": true,
+          "clipIndex": 1,
+          "reason": "ACCEPTED",
+          "source": "temporary-b@170060",
+          "playIssued": true,
+          "time": 9.014204700000846
+        },
+        {
+          "eventId": "player.gun.fire",
+          "fact": "ability:ddf153502b764e49a81838e7186caeaa:0:ranged-shot:release",
+          "accepted": true,
+          "clipIndex": 0,
+          "reason": "ACCEPTED",
+          "source": "temporary-b@170060",
+          "playIssued": true,
+          "time": 9.384522699998342
+        },
+        {
+          "eventId": "enemy.body.hurt",
+          "fact": "contact:454a635c726b465caeb66f1afadd59ab:0:enemy-stationary-01",
+          "accepted": true,
+          "clipIndex": 1,
+          "reason": "ACCEPTED",
+          "source": "enemy-stationary-01@167902",
+          "playIssued": true,
+          "time": 9.414352699997835
+        },
+        {
+          "eventId": "player.blade.impact",
+          "fact": "ability:ddf153502b764e49a81838e7186caeaa:0:ranged-shot:hit",
+          "accepted": true,
+          "clipIndex": 0,
+          "reason": "ACCEPTED",
+          "source": "temporary-b@170060",
+          "playIssued": true,
+          "time": 9.414354000000458
+        },
+        {
+          "eventId": "enemy.attack",
+          "fact": "release:8773217020494e488837566082f103a0",
+          "accepted": true,
+          "clipIndex": 0,
+          "reason": "ACCEPTED",
+          "source": "enemy-stationary-01@167902",
+          "playIssued": true,
+          "time": 9.906251799999154
+        },
+        {
+          "eventId": "enemy.impact.flesh",
+          "fact": "contact:8773217020494e488837566082f103a0:0:temporary-a",
+          "accepted": true,
+          "clipIndex": 0,
+          "reason": "ACCEPTED",
+          "source": "enemy-stationary-01@167902",
+          "playIssued": true,
+          "time": 9.906255800000508
+        },
+        {
+          "eventId": "companion.body.hurt",
+          "fact": "contact:8773217020494e488837566082f103a0:0:temporary-a",
+          "accepted": true,
+          "clipIndex": 2,
+          "reason": "ACCEPTED",
+          "source": "temporary-a@174314",
+          "playIssued": true,
+          "time": 9.906256700000085
+        },
+        {
+          "eventId": "enemy.impact.flesh",
+          "fact": "contact:8773217020494e488837566082f103a0:0:temporary-b",
+          "accepted": false,
+          "clipIndex": -1,
+          "reason": "CONTENT_INTERVAL",
+          "source": "enemy-stationary-01@167902",
+          "playIssued": false,
+          "time": 9.906256999998732
+        },
+        {
+          "eventId": "player.body.hurt",
+          "fact": "contact:8773217020494e488837566082f103a0:0:temporary-b",
+          "accepted": true,
+          "clipIndex": 3,
+          "reason": "ACCEPTED",
+          "source": "temporary-b@170060",
+          "playIssued": true,
+          "time": 9.906257299997378
+        },
+        {
+          "eventId": "companion.blade.swing.1",
+          "fact": "release:ad7db5642dde4c56bca2de9fc7ea279e",
+          "accepted": true,
+          "clipIndex": 0,
+          "reason": "ACCEPTED",
+          "source": "temporary-a@174314",
+          "playIssued": true,
+          "time": 11.25903919999837
+        },
+        {
+          "eventId": "companion.impact.flesh",
+          "fact": "contact:ad7db5642dde4c56bca2de9fc7ea279e:0:enemy-stationary-01",
+          "accepted": true,
+          "clipIndex": 1,
+          "reason": "ACCEPTED",
+          "source": "temporary-a@174314",
+          "playIssued": true,
+          "time": 11.25904040000023
+        },
+        {
+          "eventId": "enemy.body.hurt",
+          "fact": "contact:ad7db5642dde4c56bca2de9fc7ea279e:0:enemy-stationary-01",
+          "accepted": true,
+          "clipIndex": 0,
+          "reason": "ACCEPTED",
+          "source": "enemy-stationary-01@167902",
+          "playIssued": true,
+          "time": 11.259040599998116
+        },
+        {
+          "eventId": "enemy.footstep.dirt.walk",
+          "fact": "step:4",
+          "accepted": true,
+          "clipIndex": 1,
+          "reason": "ACCEPTED",
+          "source": "locomotion@167902",
+          "playIssued": true,
+          "time": 12.30260249999992
+        },
+        {
+          "eventId": "enemy.footstep.dirt.walk",
+          "fact": "step:5",
+          "accepted": true,
+          "clipIndex": 0,
+          "reason": "ACCEPTED",
+          "source": "locomotion@167902",
+          "playIssued": true,
+          "time": 12.745825800000603
+        },
+        {
+          "eventId": "player.gun.reload",
+          "fact": "ability:00000000000000000000000000000000:-1::reload:2",
+          "accepted": true,
+          "clipIndex": 0,
+          "reason": "ACCEPTED",
+          "source": "temporary-b@170060",
+          "playIssued": true,
+          "time": 13.18253840000034
+        },
+        {
+          "eventId": "enemy.footstep.dirt.walk",
+          "fact": "step:6",
+          "accepted": true,
+          "clipIndex": 1,
+          "reason": "ACCEPTED",
+          "source": "locomotion@167902",
+          "playIssued": true,
+          "time": 13.190909099997953
+        },
+        {
+          "eventId": "enemy.attack",
+          "fact": "release:0a8c4a809fa2493ea59bb9672977a856",
+          "accepted": true,
+          "clipIndex": 0,
+          "reason": "ACCEPTED",
+          "source": "enemy-stationary-01@167902",
+          "playIssued": true,
+          "time": 13.743151799997577
+        },
+        {
+          "eventId": "enemy.impact.flesh",
+          "fact": "contact:0a8c4a809fa2493ea59bb9672977a856:0:temporary-a",
+          "accepted": true,
+          "clipIndex": 1,
+          "reason": "ACCEPTED",
+          "source": "enemy-stationary-01@167902",
+          "playIssued": true,
+          "time": 13.7431531000002
+        },
+        {
+          "eventId": "companion.body.hurt",
+          "fact": "contact:0a8c4a809fa2493ea59bb9672977a856:0:temporary-a",
+          "accepted": true,
+          "clipIndex": 0,
+          "reason": "ACCEPTED",
+          "source": "temporary-a@174314",
+          "playIssued": true,
+          "time": 13.743153299998085
+        },
+        {
+          "eventId": "companion.blade.swing.1",
+          "fact": "release:5b39817e517e44418a98359e9792ed13",
+          "accepted": true,
+          "clipIndex": 0,
+          "reason": "ACCEPTED",
+          "source": "temporary-a@174314",
+          "playIssued": true,
+          "time": 13.884320299999672
+        },
+        {
+          "eventId": "companion.impact.flesh",
+          "fact": "contact:5b39817e517e44418a98359e9792ed13:0:enemy-stationary-01",
+          "accepted": true,
+          "clipIndex": 0,
+          "reason": "ACCEPTED",
+          "source": "temporary-a@174314",
+          "playIssued": true,
+          "time": 13.884321199999249
+        },
+        {
+          "eventId": "enemy.body.hurt",
+          "fact": "contact:5b39817e517e44418a98359e9792ed13:0:enemy-stationary-01",
+          "accepted": true,
+          "clipIndex": 2,
+          "reason": "ACCEPTED",
+          "source": "enemy-stationary-01@167902",
+          "playIssued": true,
+          "time": 13.884321499997895
+        }
+      ],
+      "abilityFacts": [
+        {
+          "kind": "accepted",
+          "id": "magazine-shot",
+          "execution": "60ed991d-b97d-4d37-bf50-06f5250e0548",
+          "emission": -1,
+          "channel": "",
+          "mode": "Sector",
+          "time": 6.0248252999990655
+        },
+        {
+          "kind": "release",
+          "id": "magazine-shot",
+          "execution": "60ed991d-b97d-4d37-bf50-06f5250e0548",
+          "emission": 0,
+          "channel": "ranged-shot",
+          "mode": "Projectile",
+          "time": 6.0413533999999345
+        },
+        {
+          "kind": "hit",
+          "id": "magazine-shot",
+          "execution": "60ed991d-b97d-4d37-bf50-06f5250e0548",
+          "emission": 0,
+          "channel": "ranged-shot",
+          "mode": "Projectile",
+          "time": 6.146998299998813
+        },
+        {
+          "kind": "cancel",
+          "id": "magazine-shot",
+          "execution": "60ed991d-b97d-4d37-bf50-06f5250e0548",
+          "emission": -1,
+          "channel": "",
+          "mode": "Sector",
+          "time": 6.4043075000008685
+        },
+        {
+          "kind": "accepted",
+          "id": "magazine-shot",
+          "execution": "6b82f74a-353a-4b8a-97d1-aec6542492b3",
+          "emission": -1,
+          "channel": "",
+          "mode": "Sector",
+          "time": 6.404965899997478
+        },
+        {
+          "kind": "end",
+          "id": "magazine-shot",
+          "execution": "60ed991d-b97d-4d37-bf50-06f5250e0548",
+          "emission": -1,
+          "channel": "",
+          "mode": "Sector",
+          "time": 6.405252000000473
+        },
+        {
+          "kind": "release",
+          "id": "magazine-shot",
+          "execution": "6b82f74a-353a-4b8a-97d1-aec6542492b3",
+          "emission": 0,
+          "channel": "ranged-shot",
+          "mode": "Projectile",
+          "time": 6.436470000000554
+        },
+        {
+          "kind": "miss",
+          "id": "magazine-shot",
+          "execution": "6b82f74a-353a-4b8a-97d1-aec6542492b3",
+          "emission": 0,
+          "channel": "ranged-shot",
+          "mode": "Projectile",
+          "time": 6.597167799998715
+        },
+        {
+          "kind": "cancel",
+          "id": "magazine-shot",
+          "execution": "6b82f74a-353a-4b8a-97d1-aec6542492b3",
+          "emission": -1,
+          "channel": "",
+          "mode": "Sector",
+          "time": 6.8064029999986815
+        },
+        {
+          "kind": "accepted",
+          "id": "magazine-shot",
+          "execution": "aed67744-599e-4efb-bc74-1095e40471d1",
+          "emission": -1,
+          "channel": "",
+          "mode": "Sector",
+          "time": 6.8067219000004116
+        },
+        {
+          "kind": "end",
+          "id": "magazine-shot",
+          "execution": "6b82f74a-353a-4b8a-97d1-aec6542492b3",
+          "emission": -1,
+          "channel": "",
+          "mode": "Sector",
+          "time": 6.806767999998556
+        },
+        {
+          "kind": "release",
+          "id": "magazine-shot",
+          "execution": "aed67744-599e-4efb-bc74-1095e40471d1",
+          "emission": 0,
+          "channel": "ranged-shot",
+          "mode": "Projectile",
+          "time": 6.836720699997386
+        },
+        {
+          "kind": "miss",
+          "id": "magazine-shot",
+          "execution": "aed67744-599e-4efb-bc74-1095e40471d1",
+          "emission": 0,
+          "channel": "ranged-shot",
+          "mode": "Projectile",
+          "time": 6.987159899999824
+        },
+        {
+          "kind": "cancel",
+          "id": "magazine-shot",
+          "execution": "aed67744-599e-4efb-bc74-1095e40471d1",
+          "emission": -1,
+          "channel": "",
+          "mode": "Sector",
+          "time": 7.206930699998338
+        },
+        {
+          "kind": "accepted",
+          "id": "magazine-shot",
+          "execution": "063f8706-71ba-416b-846b-081b4c25ea92",
+          "emission": -1,
+          "channel": "",
+          "mode": "Sector",
+          "time": 7.207456399999501
+        },
+        {
+          "kind": "end",
+          "id": "magazine-shot",
+          "execution": "aed67744-599e-4efb-bc74-1095e40471d1",
+          "emission": -1,
+          "channel": "",
+          "mode": "Sector",
+          "time": 7.207511699998577
+        },
+        {
+          "kind": "release",
+          "id": "magazine-shot",
+          "execution": "063f8706-71ba-416b-846b-081b4c25ea92",
+          "emission": 0,
+          "channel": "ranged-shot",
+          "mode": "Projectile",
+          "time": 7.237176399998134
+        },
+        {
+          "kind": "miss",
+          "id": "magazine-shot",
+          "execution": "063f8706-71ba-416b-846b-081b4c25ea92",
+          "emission": 0,
+          "channel": "ranged-shot",
+          "mode": "Projectile",
+          "time": 7.3908207999993465
+        },
+        {
+          "kind": "end",
+          "id": "magazine-shot",
+          "execution": "063f8706-71ba-416b-846b-081b4c25ea92",
+          "emission": -1,
+          "channel": "",
+          "mode": "Sector",
+          "time": 7.740758100000676
+        },
+        {
+          "kind": "reload",
+          "id": "",
+          "execution": "00000000-0000-0000-0000-000000000000",
+          "emission": -1,
+          "channel": "",
+          "mode": "",
+          "time": 8.542862700000114
+        },
+        {
+          "kind": "accepted",
+          "id": "magazine-shot",
+          "execution": "d9520e13-82e9-4b75-b371-79408e9fa982",
+          "emission": -1,
+          "channel": "",
+          "mode": "Sector",
+          "time": 8.54616199999873
+        },
+        {
+          "kind": "release",
+          "id": "magazine-shot",
+          "execution": "d9520e13-82e9-4b75-b371-79408e9fa982",
+          "emission": 0,
+          "channel": "ranged-shot",
+          "mode": "Projectile",
+          "time": 8.576681999998982
+        },
+        {
+          "kind": "hit",
+          "id": "magazine-shot",
+          "execution": "d9520e13-82e9-4b75-b371-79408e9fa982",
+          "emission": 0,
+          "channel": "ranged-shot",
+          "mode": "Projectile",
+          "time": 8.606544800000847
+        },
+        {
+          "kind": "cancel",
+          "id": "magazine-shot",
+          "execution": "d9520e13-82e9-4b75-b371-79408e9fa982",
+          "emission": -1,
+          "channel": "",
+          "mode": "Sector",
+          "time": 8.94838339999842
+        },
+        {
+          "kind": "accepted",
+          "id": "magazine-shot",
+          "execution": "c6408fe9-b34d-44bf-a75e-3af372b067e3",
+          "emission": -1,
+          "channel": "",
+          "mode": "Sector",
+          "time": 8.948695399998542
+        },
+        {
+          "kind": "end",
+          "id": "magazine-shot",
+          "execution": "d9520e13-82e9-4b75-b371-79408e9fa982",
+          "emission": -1,
+          "channel": "",
+          "mode": "Sector",
+          "time": 8.948741699998209
+        },
+        {
+          "kind": "release",
+          "id": "magazine-shot",
+          "execution": "c6408fe9-b34d-44bf-a75e-3af372b067e3",
+          "emission": 0,
+          "channel": "ranged-shot",
+          "mode": "Projectile",
+          "time": 8.979941300000064
+        },
+        {
+          "kind": "hit",
+          "id": "magazine-shot",
+          "execution": "c6408fe9-b34d-44bf-a75e-3af372b067e3",
+          "emission": 0,
+          "channel": "ranged-shot",
+          "mode": "Projectile",
+          "time": 9.01092989999961
+        },
+        {
+          "kind": "cancel",
+          "id": "magazine-shot",
+          "execution": "c6408fe9-b34d-44bf-a75e-3af372b067e3",
+          "emission": -1,
+          "channel": "",
+          "mode": "Sector",
+          "time": 9.350021999998717
+        },
+        {
+          "kind": "accepted",
+          "id": "magazine-shot",
+          "execution": "ddf15350-2b76-4e49-a818-38e7186caeaa",
+          "emission": -1,
+          "channel": "",
+          "mode": "Sector",
+          "time": 9.350343399997655
+        },
+        {
+          "kind": "end",
+          "id": "magazine-shot",
+          "execution": "c6408fe9-b34d-44bf-a75e-3af372b067e3",
+          "emission": -1,
+          "channel": "",
+          "mode": "Sector",
+          "time": 9.350390999999945
+        },
+        {
+          "kind": "release",
+          "id": "magazine-shot",
+          "execution": "ddf15350-2b76-4e49-a818-38e7186caeaa",
+          "emission": 0,
+          "channel": "ranged-shot",
+          "mode": "Projectile",
+          "time": 9.381466399998317
+        },
+        {
+          "kind": "hit",
+          "id": "magazine-shot",
+          "execution": "ddf15350-2b76-4e49-a818-38e7186caeaa",
+          "emission": 0,
+          "channel": "ranged-shot",
+          "mode": "Projectile",
+          "time": 9.411381800000527
+        },
+        {
+          "kind": "end",
+          "id": "magazine-shot",
+          "execution": "ddf15350-2b76-4e49-a818-38e7186caeaa",
+          "emission": -1,
+          "channel": "",
+          "mode": "Sector",
+          "time": 9.882498899998609
+        },
+        {
+          "kind": "reload",
+          "id": "",
+          "execution": "00000000-0000-0000-0000-000000000000",
+          "emission": -1,
+          "channel": "",
+          "mode": "",
+          "time": 13.179462399999466
+        }
+      ],
+      "devicesRemaining": 0,
+      "equipmentTransactionsAreReal": true
+    }
+  }
+}

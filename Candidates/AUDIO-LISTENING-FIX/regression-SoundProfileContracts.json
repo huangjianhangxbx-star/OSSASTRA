@@ -1,0 +1,73 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "passed": 14,
+      "failed": 0,
+      "results": [
+        {
+          "name": "有效配置",
+          "passed": true
+        },
+        {
+          "name": "第4段覆盖通用配置",
+          "passed": true
+        },
+        {
+          "name": "第1段可用默认",
+          "passed": true
+        },
+        {
+          "name": "枪声严格匹配通道",
+          "passed": true
+        },
+        {
+          "name": "其他通道不能误鸣枪声",
+          "passed": true
+        },
+        {
+          "name": "未知能力不冒充挥刀",
+          "passed": true
+        },
+        {
+          "name": "未匹配格挡不响诊断音",
+          "passed": true
+        },
+        {
+          "name": "受伤是独立公共语义",
+          "passed": true
+        },
+        {
+          "name": "同通道不同实际投递分声",
+          "passed": true
+        },
+        {
+          "name": "未提供实际投递不猜枪种",
+          "passed": true
+        },
+        {
+          "name": "敌人不借人类呼痛重复叠声",
+          "passed": true
+        },
+        {
+          "name": "玩家受伤配置可独立存在",
+          "passed": true
+        },
+        {
+          "name": "重复键明确拒绝",
+          "passed": true
+        },
+        {
+          "name": "空声音配置不假成功",
+          "passed": true
+        }
+      ]
+    }
+  }
+}

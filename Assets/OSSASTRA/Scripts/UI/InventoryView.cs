@@ -1,7 +1,7 @@
 /* 脚本：InventoryView
  * 功能：冻结原型四个独立背包表面、详情/拆分、真实uGUI拖放与有限整理；所有落点用实际RectTransform。
  * 边界：不保存第二库存；不以UI创建装备/治疗。开包捕获战斗而世界继续，数字栏只引用。
- * 协作：InventorySession复核访问与本体，Ledger原子提交；保持HUD原六区。
+ * 协作：InventorySession复核访问与本体，Ledger原子提交；保持HUD原六区；声音设置复用非暂停菜单。
  */
 using System;
 using System.Linq;
@@ -13,7 +13,7 @@ using UnityEngine.InputSystem;
 using Ossastra.Inventory;
 namespace Ossastra.UserInterface
 {
-    public sealed class InventoryView:MonoBehaviour
+    public sealed partial class InventoryView:MonoBehaviour
     {
         [SerializeField] private InventorySession session;
         [SerializeField] private InventorySkinSO skin;
@@ -25,13 +25,15 @@ namespace Ossastra.UserInterface
             if(windows==null||session==null)return;
             if(menuPanel==null)
             {
-                menuPanel=Window("SystemMenu",new Rect(565,180,350,180));
+                menuPanel=Window("SystemMenu",new Rect(565,180,350,230));
                 Header(menuPanel,"菜单",350,()=>ToggleMenu());
                 Button(menuPanel,"Continue",new Rect(20,65,310,36),"继续游戏",()=>ToggleMenu());
                 Button(menuPanel,"Inventory",new Rect(20,115,310,36),"背包",()=>{ToggleMenu();SetOpen(true);});
+                Button(menuPanel,"AudioSettings",new Rect(20,165,310,36),"声音设置",OpenAudioSettings);
                 menuPanel.gameObject.SetActive(false);
             }
             bool open=!menuPanel.gameObject.activeSelf;
+            if(!open)CloseAudioSettings(false);
             if(open){SetOpen(false);windows.gameObject.SetActive(true);player.gameObject.SetActive(false);safe.gameObject.SetActive(false);detail.gameObject.SetActive(false);external.gameObject.SetActive(false);}else{player.gameObject.SetActive(true);safe.gameObject.SetActive(true);windows.gameObject.SetActive(IsOpen);}
             menuPanel.gameObject.SetActive(open);
             SetCharacterCapture(menuPanel,open,true);
@@ -318,7 +320,7 @@ namespace Ossastra.UserInterface
             }
         }
         private void OnApplicationFocus(bool focused){if(!focused){if(menuPanel!=null&&menuPanel.gameObject.activeSelf)ToggleMenu();SetOpen(false);}}
-        private void OnDisable(){if(menuPanel!=null&&menuPanel.gameObject.activeSelf)ToggleMenu();SetOpen(false);toggleAction.Disable();cancelAction.Disable();}
+        private void OnDisable(){CloseAudioSettings(false);if(menuPanel!=null&&menuPanel.gameObject.activeSelf)ToggleMenu();SetOpen(false);toggleAction.Disable();cancelAction.Disable();}
         private void OnDestroy(){if(session!=null)session.Changed-=OnChanged;toggleAction.Dispose();cancelAction.Dispose();if(font!=null)Destroy(font);if(serif!=null)Destroy(serif);}
     }
 }

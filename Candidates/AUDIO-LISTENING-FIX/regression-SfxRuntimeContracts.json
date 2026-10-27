@@ -1,0 +1,147 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "failed": 0,
+      "passed": 32,
+      "rows": [
+        {
+          "name": "旧完整增益仍为.24x.75",
+          "result": true
+        },
+        {
+          "name": "共享路由本地音乐增益不含两个用户因子",
+          "result": true
+        },
+        {
+          "name": "修改用户设置不会污染本地音乐增益",
+          "result": true
+        },
+        {
+          "name": "mute在共享Mixer拥有但旧API仍报告零",
+          "result": true
+        },
+        {
+          "name": "对话与失焦仅降低音乐局部增益",
+          "result": true
+        },
+        {
+          "name": "精确归还对话保留失焦与用户值",
+          "result": true
+        },
+        {
+          "name": "两种显式平滑最终各自趋于目标",
+          "result": true
+        },
+        {
+          "name": "安全dB零静音下限",
+          "result": true
+        },
+        {
+          "name": "安全dB非有限输入",
+          "result": true
+        },
+        {
+          "name": "安全dB半音量",
+          "result": true
+        },
+        {
+          "name": "缺Mixer不冒报统一混音成功",
+          "result": true
+        },
+        {
+          "name": "全部统一参数配置可写",
+          "result": true
+        },
+        {
+          "name": "Master只在组乘.2而非平方",
+          "result": true
+        },
+        {
+          "name": "BGM用户值只在组乘.5",
+          "result": true
+        },
+        {
+          "name": "SFX与Enemy各自用户组可独立写",
+          "result": true
+        },
+        {
+          "name": "独立组最终目标不串音",
+          "result": true
+        },
+        {
+          "name": "只改BGM不影响短音有效增益",
+          "result": true
+        },
+        {
+          "name": "共同Master mute控制音乐与短音",
+          "result": true
+        },
+        {
+          "name": "播放器使用真实Player总线",
+          "result": true
+        },
+        {
+          "name": "有效许可真正启动声源",
+          "result": true
+        },
+        {
+          "name": "真实源路由音量与2D政策",
+          "result": true
+        },
+        {
+          "name": "SourceStarted是实际isPlaying而不是Accepted",
+          "result": true
+        },
+        {
+          "name": "重用许可不叠第二声音",
+          "result": true
+        },
+        {
+          "name": "另一来源可独立播放",
+          "result": true
+        },
+        {
+          "name": "高优先许可抢占回收且不超池",
+          "result": true
+        },
+        {
+          "name": "停止A来源不切B来源",
+          "result": true
+        },
+        {
+          "name": "到期音源与许可一起归还",
+          "result": true
+        },
+        {
+          "name": "重复Tick不双重归还",
+          "result": true
+        },
+        {
+          "name": "世界关闭前可播放",
+          "result": true
+        },
+        {
+          "name": "世界关闭撤许可且旧许可不能补响",
+          "result": true
+        },
+        {
+          "name": "多轮播放对象数仍固定",
+          "result": true
+        },
+        {
+          "name": "路由缺失不能假成功且归还许可",
+          "result": true
+        }
+      ],
+      "sourceOnly": true,
+      "outputWaveformNotMeasured": true
+    }
+  }
+}

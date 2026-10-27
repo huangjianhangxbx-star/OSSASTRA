@@ -1,0 +1,31 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "checks": [
+        {
+          "name": "disabled root restores enabled native listening",
+          "pass": true
+        },
+        {
+          "name": "reenabled root has exactly one active listener",
+          "pass": true
+        },
+        {
+          "name": "real control handoff moves hearing to current actor",
+          "pass": true
+        },
+        {
+          "name": "no available character retains last hearing point for tails",
+          "pass": false
+        }
+      ]
+    }
+  }
+}

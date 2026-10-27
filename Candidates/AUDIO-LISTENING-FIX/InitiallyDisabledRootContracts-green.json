@@ -1,0 +1,24 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "checks": [
+        {
+          "name": "initially disabled audio root leaves native listener state unchanged",
+          "pass": true
+        },
+        {
+          "name": "explicitly enabling root acquires one listener",
+          "pass": true
+        }
+      ],
+      "requiresFreshPlay": true
+    }
+  }
+}

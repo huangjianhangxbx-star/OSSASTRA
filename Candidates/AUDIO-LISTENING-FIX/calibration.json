@@ -1,0 +1,1318 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "changed": 216,
+      "alreadyCalibrated": 0,
+      "removedBoundaryMarkers": 4,
+      "changes": [
+        {
+          "eventId": "companion.blade.fast",
+          "mode": "A2",
+          "before": 0.208,
+          "after": 0.416
+        },
+        {
+          "eventId": "companion.blade.heavy",
+          "mode": "A2",
+          "before": 0.208,
+          "after": 0.416
+        },
+        {
+          "eventId": "companion.blade.impact",
+          "mode": "A2",
+          "before": 0.273,
+          "after": 0.546
+        },
+        {
+          "eventId": "companion.blade.impact.heavy",
+          "mode": "A2",
+          "before": 0.273,
+          "after": 0.546
+        },
+        {
+          "eventId": "companion.blade.swing.1",
+          "mode": "A2",
+          "before": 0.208,
+          "after": 0.416
+        },
+        {
+          "eventId": "companion.blade.swing.2",
+          "mode": "A2",
+          "before": 0.208,
+          "after": 0.416
+        },
+        {
+          "eventId": "companion.blade.swing.3",
+          "mode": "A2",
+          "before": 0.208,
+          "after": 0.416
+        },
+        {
+          "eventId": "companion.blade.swing.4",
+          "mode": "A2",
+          "before": 0.208,
+          "after": 0.416
+        },
+        {
+          "eventId": "companion.blast.small",
+          "mode": "A2",
+          "before": 0.247,
+          "after": 0.494
+        },
+        {
+          "eventId": "companion.body.death",
+          "mode": "A2",
+          "before": 0.2275,
+          "after": 0.455
+        },
+        {
+          "eventId": "companion.body.hurt",
+          "mode": "A2",
+          "before": 0.143,
+          "after": 0.286
+        },
+        {
+          "eventId": "companion.footstep.dirt.run",
+          "mode": "A2",
+          "before": 0.104,
+          "after": 0.208
+        },
+        {
+          "eventId": "companion.footstep.dirt.walk",
+          "mode": "A2",
+          "before": 0.104,
+          "after": 0.208
+        },
+        {
+          "eventId": "companion.footstep.generic.run",
+          "mode": "A2",
+          "before": 0.104,
+          "after": 0.208
+        },
+        {
+          "eventId": "companion.footstep.generic.walk",
+          "mode": "A2",
+          "before": 0.104,
+          "after": 0.208
+        },
+        {
+          "eventId": "companion.footstep.metal.run",
+          "mode": "A2",
+          "before": 0.104,
+          "after": 0.208
+        },
+        {
+          "eventId": "companion.footstep.metal.walk",
+          "mode": "A2",
+          "before": 0.104,
+          "after": 0.208
+        },
+        {
+          "eventId": "companion.footstep.stone.run",
+          "mode": "A2",
+          "before": 0.104,
+          "after": 0.208
+        },
+        {
+          "eventId": "companion.footstep.stone.walk",
+          "mode": "A2",
+          "before": 0.104,
+          "after": 0.208
+        },
+        {
+          "eventId": "companion.footstep.wood.run",
+          "mode": "A2",
+          "before": 0.104,
+          "after": 0.208
+        },
+        {
+          "eventId": "companion.footstep.wood.walk",
+          "mode": "A2",
+          "before": 0.104,
+          "after": 0.208
+        },
+        {
+          "eventId": "companion.guard.metal",
+          "mode": "A2",
+          "before": 0.208,
+          "after": 0.416
+        },
+        {
+          "eventId": "companion.gun.fire",
+          "mode": "A2",
+          "before": 0.208,
+          "after": 0.416
+        },
+        {
+          "eventId": "companion.gun.reload",
+          "mode": "A2",
+          "before": 0.208,
+          "after": 0.416
+        },
+        {
+          "eventId": "companion.impact.flesh",
+          "mode": "A2",
+          "before": 0.273,
+          "after": 0.546
+        },
+        {
+          "eventId": "companion.impact.metal",
+          "mode": "A2",
+          "before": 0.273,
+          "after": 0.546
+        },
+        {
+          "eventId": "companion.impact.stone",
+          "mode": "A2",
+          "before": 0.273,
+          "after": 0.546
+        },
+        {
+          "eventId": "companion.impact.wood",
+          "mode": "A2",
+          "before": 0.273,
+          "after": 0.546
+        },
+        {
+          "eventId": "companion.item.food",
+          "mode": "A2",
+          "before": 0.208,
+          "after": 0.416
+        },
+        {
+          "eventId": "companion.item.heal",
+          "mode": "A2",
+          "before": 0.208,
+          "after": 0.416
+        },
+        {
+          "eventId": "companion.launcher.fire",
+          "mode": "A2",
+          "before": 0.208,
+          "after": 0.416
+        },
+        {
+          "eventId": "companion.movement.dodge",
+          "mode": "A2",
+          "before": 0.208,
+          "after": 0.416
+        },
+        {
+          "eventId": "companion.skill.electric",
+          "mode": "A2",
+          "before": 0.208,
+          "after": 0.416
+        },
+        {
+          "eventId": "companion.skill.fire",
+          "mode": "A2",
+          "before": 0.208,
+          "after": 0.416
+        },
+        {
+          "eventId": "enemy.attack",
+          "mode": "A2",
+          "before": 0.25,
+          "after": 0.5
+        },
+        {
+          "eventId": "enemy.blade.fast",
+          "mode": "A2",
+          "before": 0.192,
+          "after": 0.384
+        },
+        {
+          "eventId": "enemy.blade.heavy",
+          "mode": "A2",
+          "before": 0.192,
+          "after": 0.384
+        },
+        {
+          "eventId": "enemy.blade.impact",
+          "mode": "A2",
+          "before": 0.252,
+          "after": 0.504
+        },
+        {
+          "eventId": "enemy.blade.impact.heavy",
+          "mode": "A2",
+          "before": 0.252,
+          "after": 0.504
+        },
+        {
+          "eventId": "enemy.blade.swing.1",
+          "mode": "A2",
+          "before": 0.192,
+          "after": 0.384
+        },
+        {
+          "eventId": "enemy.blade.swing.2",
+          "mode": "A2",
+          "before": 0.192,
+          "after": 0.384
+        },
+        {
+          "eventId": "enemy.blade.swing.3",
+          "mode": "A2",
+          "before": 0.192,
+          "after": 0.384
+        },
+        {
+          "eventId": "enemy.blade.swing.4",
+          "mode": "A2",
+          "before": 0.192,
+          "after": 0.384
+        },
+        {
+          "eventId": "enemy.blast.small",
+          "mode": "A2",
+          "before": 0.228,
+          "after": 0.456
+        },
+        {
+          "eventId": "enemy.body.death",
+          "mode": "A2",
+          "before": 0.21,
+          "after": 0.42
+        },
+        {
+          "eventId": "enemy.body.hurt",
+          "mode": "A2",
+          "before": 0.132,
+          "after": 0.264
+        },
+        {
+          "eventId": "enemy.footstep.dirt.run",
+          "mode": "A2",
+          "before": 0.096,
+          "after": 0.192
+        },
+        {
+          "eventId": "enemy.footstep.dirt.walk",
+          "mode": "A2",
+          "before": 0.096,
+          "after": 0.192
+        },
+        {
+          "eventId": "enemy.footstep.generic.run",
+          "mode": "A2",
+          "before": 0.096,
+          "after": 0.192
+        },
+        {
+          "eventId": "enemy.footstep.generic.walk",
+          "mode": "A2",
+          "before": 0.096,
+          "after": 0.192
+        },
+        {
+          "eventId": "enemy.footstep.metal.run",
+          "mode": "A2",
+          "before": 0.096,
+          "after": 0.192
+        },
+        {
+          "eventId": "enemy.footstep.metal.walk",
+          "mode": "A2",
+          "before": 0.096,
+          "after": 0.192
+        },
+        {
+          "eventId": "enemy.footstep.stone.run",
+          "mode": "A2",
+          "before": 0.096,
+          "after": 0.192
+        },
+        {
+          "eventId": "enemy.footstep.stone.walk",
+          "mode": "A2",
+          "before": 0.096,
+          "after": 0.192
+        },
+        {
+          "eventId": "enemy.footstep.wood.run",
+          "mode": "A2",
+          "before": 0.096,
+          "after": 0.192
+        },
+        {
+          "eventId": "enemy.footstep.wood.walk",
+          "mode": "A2",
+          "before": 0.096,
+          "after": 0.192
+        },
+        {
+          "eventId": "enemy.guard.metal",
+          "mode": "A2",
+          "before": 0.192,
+          "after": 0.384
+        },
+        {
+          "eventId": "enemy.gun.fire",
+          "mode": "A2",
+          "before": 0.192,
+          "after": 0.384
+        },
+        {
+          "eventId": "enemy.gun.reload",
+          "mode": "A2",
+          "before": 0.192,
+          "after": 0.384
+        },
+        {
+          "eventId": "enemy.impact.flesh",
+          "mode": "A2",
+          "before": 0.252,
+          "after": 0.504
+        },
+        {
+          "eventId": "enemy.impact.metal",
+          "mode": "A2",
+          "before": 0.252,
+          "after": 0.504
+        },
+        {
+          "eventId": "enemy.impact.stone",
+          "mode": "A2",
+          "before": 0.252,
+          "after": 0.504
+        },
+        {
+          "eventId": "enemy.impact.wood",
+          "mode": "A2",
+          "before": 0.252,
+          "after": 0.504
+        },
+        {
+          "eventId": "enemy.item.food",
+          "mode": "A2",
+          "before": 0.192,
+          "after": 0.384
+        },
+        {
+          "eventId": "enemy.item.heal",
+          "mode": "A2",
+          "before": 0.192,
+          "after": 0.384
+        },
+        {
+          "eventId": "enemy.launcher.fire",
+          "mode": "A2",
+          "before": 0.192,
+          "after": 0.384
+        },
+        {
+          "eventId": "enemy.movement.dodge",
+          "mode": "A2",
+          "before": 0.192,
+          "after": 0.384
+        },
+        {
+          "eventId": "enemy.skill.electric",
+          "mode": "A2",
+          "before": 0.192,
+          "after": 0.384
+        },
+        {
+          "eventId": "enemy.skill.fire",
+          "mode": "A2",
+          "before": 0.192,
+          "after": 0.384
+        },
+        {
+          "eventId": "interaction.container.close",
+          "mode": "A2",
+          "before": 0.22,
+          "after": 0.44
+        },
+        {
+          "eventId": "interaction.container.open",
+          "mode": "A2",
+          "before": 0.22,
+          "after": 0.44
+        },
+        {
+          "eventId": "player.blade.fast",
+          "mode": "A2",
+          "before": 0.32,
+          "after": 0.64
+        },
+        {
+          "eventId": "player.blade.heavy",
+          "mode": "A2",
+          "before": 0.32,
+          "after": 0.64
+        },
+        {
+          "eventId": "player.blade.impact",
+          "mode": "A2",
+          "before": 0.42,
+          "after": 0.84
+        },
+        {
+          "eventId": "player.blade.impact.heavy",
+          "mode": "A2",
+          "before": 0.42,
+          "after": 0.84
+        },
+        {
+          "eventId": "player.blade.swing.1",
+          "mode": "A2",
+          "before": 0.32,
+          "after": 0.64
+        },
+        {
+          "eventId": "player.blade.swing.2",
+          "mode": "A2",
+          "before": 0.32,
+          "after": 0.64
+        },
+        {
+          "eventId": "player.blade.swing.3",
+          "mode": "A2",
+          "before": 0.32,
+          "after": 0.64
+        },
+        {
+          "eventId": "player.blade.swing.4",
+          "mode": "A2",
+          "before": 0.32,
+          "after": 0.64
+        },
+        {
+          "eventId": "player.blast.small",
+          "mode": "A2",
+          "before": 0.38,
+          "after": 0.76
+        },
+        {
+          "eventId": "player.body.death",
+          "mode": "A2",
+          "before": 0.35,
+          "after": 0.7
+        },
+        {
+          "eventId": "player.body.hurt",
+          "mode": "A2",
+          "before": 0.22,
+          "after": 0.44
+        },
+        {
+          "eventId": "player.footstep.dirt.run",
+          "mode": "A2",
+          "before": 0.16,
+          "after": 0.32
+        },
+        {
+          "eventId": "player.footstep.dirt.walk",
+          "mode": "A2",
+          "before": 0.16,
+          "after": 0.32
+        },
+        {
+          "eventId": "player.footstep.generic.run",
+          "mode": "A2",
+          "before": 0.16,
+          "after": 0.32
+        },
+        {
+          "eventId": "player.footstep.generic.walk",
+          "mode": "A2",
+          "before": 0.16,
+          "after": 0.32
+        },
+        {
+          "eventId": "player.footstep.metal.run",
+          "mode": "A2",
+          "before": 0.16,
+          "after": 0.32
+        },
+        {
+          "eventId": "player.footstep.metal.walk",
+          "mode": "A2",
+          "before": 0.16,
+          "after": 0.32
+        },
+        {
+          "eventId": "player.footstep.stone.run",
+          "mode": "A2",
+          "before": 0.16,
+          "after": 0.32
+        },
+        {
+          "eventId": "player.footstep.stone.walk",
+          "mode": "A2",
+          "before": 0.16,
+          "after": 0.32
+        },
+        {
+          "eventId": "player.footstep.wood.run",
+          "mode": "A2",
+          "before": 0.16,
+          "after": 0.32
+        },
+        {
+          "eventId": "player.footstep.wood.walk",
+          "mode": "A2",
+          "before": 0.16,
+          "after": 0.32
+        },
+        {
+          "eventId": "player.guard.metal",
+          "mode": "A2",
+          "before": 0.32,
+          "after": 0.64
+        },
+        {
+          "eventId": "player.gun.fire",
+          "mode": "A2",
+          "before": 0.32,
+          "after": 0.64
+        },
+        {
+          "eventId": "player.gun.reload",
+          "mode": "A2",
+          "before": 0.32,
+          "after": 0.64
+        },
+        {
+          "eventId": "player.impact.flesh",
+          "mode": "A2",
+          "before": 0.42,
+          "after": 0.84
+        },
+        {
+          "eventId": "player.impact.metal",
+          "mode": "A2",
+          "before": 0.42,
+          "after": 0.84
+        },
+        {
+          "eventId": "player.impact.stone",
+          "mode": "A2",
+          "before": 0.42,
+          "after": 0.84
+        },
+        {
+          "eventId": "player.impact.wood",
+          "mode": "A2",
+          "before": 0.42,
+          "after": 0.84
+        },
+        {
+          "eventId": "player.item.food",
+          "mode": "A2",
+          "before": 0.32,
+          "after": 0.64
+        },
+        {
+          "eventId": "player.item.heal",
+          "mode": "A2",
+          "before": 0.32,
+          "after": 0.64
+        },
+        {
+          "eventId": "player.launcher.fire",
+          "mode": "A2",
+          "before": 0.32,
+          "after": 0.64
+        },
+        {
+          "eventId": "player.movement.dodge",
+          "mode": "A2",
+          "before": 0.32,
+          "after": 0.64
+        },
+        {
+          "eventId": "player.skill.electric",
+          "mode": "A2",
+          "before": 0.32,
+          "after": 0.64
+        },
+        {
+          "eventId": "player.skill.fire",
+          "mode": "A2",
+          "before": 0.32,
+          "after": 0.64
+        },
+        {
+          "eventId": "ui.control.switch",
+          "mode": "A2",
+          "before": 0.18,
+          "after": 0.36
+        },
+        {
+          "eventId": "ui.inventory.close",
+          "mode": "A2",
+          "before": 0.18,
+          "after": 0.36
+        },
+        {
+          "eventId": "ui.inventory.open",
+          "mode": "A2",
+          "before": 0.18,
+          "after": 0.36
+        },
+        {
+          "eventId": "companion.blade.fast",
+          "mode": "A3",
+          "before": 0.208,
+          "after": 0.416
+        },
+        {
+          "eventId": "companion.blade.heavy",
+          "mode": "A3",
+          "before": 0.208,
+          "after": 0.416
+        },
+        {
+          "eventId": "companion.blade.impact",
+          "mode": "A3",
+          "before": 0.273,
+          "after": 0.546
+        },
+        {
+          "eventId": "companion.blade.impact.heavy",
+          "mode": "A3",
+          "before": 0.273,
+          "after": 0.546
+        },
+        {
+          "eventId": "companion.blade.swing.1",
+          "mode": "A3",
+          "before": 0.208,
+          "after": 0.416
+        },
+        {
+          "eventId": "companion.blade.swing.2",
+          "mode": "A3",
+          "before": 0.208,
+          "after": 0.416
+        },
+        {
+          "eventId": "companion.blade.swing.3",
+          "mode": "A3",
+          "before": 0.208,
+          "after": 0.416
+        },
+        {
+          "eventId": "companion.blade.swing.4",
+          "mode": "A3",
+          "before": 0.208,
+          "after": 0.416
+        },
+        {
+          "eventId": "companion.blast.small",
+          "mode": "A3",
+          "before": 0.247,
+          "after": 0.494
+        },
+        {
+          "eventId": "companion.body.death",
+          "mode": "A3",
+          "before": 0.2275,
+          "after": 0.455
+        },
+        {
+          "eventId": "companion.body.hurt",
+          "mode": "A3",
+          "before": 0.143,
+          "after": 0.286
+        },
+        {
+          "eventId": "companion.footstep.dirt.run",
+          "mode": "A3",
+          "before": 0.104,
+          "after": 0.208
+        },
+        {
+          "eventId": "companion.footstep.dirt.walk",
+          "mode": "A3",
+          "before": 0.104,
+          "after": 0.208
+        },
+        {
+          "eventId": "companion.footstep.generic.run",
+          "mode": "A3",
+          "before": 0.104,
+          "after": 0.208
+        },
+        {
+          "eventId": "companion.footstep.generic.walk",
+          "mode": "A3",
+          "before": 0.104,
+          "after": 0.208
+        },
+        {
+          "eventId": "companion.footstep.metal.run",
+          "mode": "A3",
+          "before": 0.104,
+          "after": 0.208
+        },
+        {
+          "eventId": "companion.footstep.metal.walk",
+          "mode": "A3",
+          "before": 0.104,
+          "after": 0.208
+        },
+        {
+          "eventId": "companion.footstep.stone.run",
+          "mode": "A3",
+          "before": 0.104,
+          "after": 0.208
+        },
+        {
+          "eventId": "companion.footstep.stone.walk",
+          "mode": "A3",
+          "before": 0.104,
+          "after": 0.208
+        },
+        {
+          "eventId": "companion.footstep.wood.run",
+          "mode": "A3",
+          "before": 0.104,
+          "after": 0.208
+        },
+        {
+          "eventId": "companion.footstep.wood.walk",
+          "mode": "A3",
+          "before": 0.104,
+          "after": 0.208
+        },
+        {
+          "eventId": "companion.guard.metal",
+          "mode": "A3",
+          "before": 0.208,
+          "after": 0.416
+        },
+        {
+          "eventId": "companion.gun.fire",
+          "mode": "A3",
+          "before": 0.208,
+          "after": 0.416
+        },
+        {
+          "eventId": "companion.gun.reload",
+          "mode": "A3",
+          "before": 0.208,
+          "after": 0.416
+        },
+        {
+          "eventId": "companion.impact.flesh",
+          "mode": "A3",
+          "before": 0.273,
+          "after": 0.546
+        },
+        {
+          "eventId": "companion.impact.metal",
+          "mode": "A3",
+          "before": 0.273,
+          "after": 0.546
+        },
+        {
+          "eventId": "companion.impact.stone",
+          "mode": "A3",
+          "before": 0.273,
+          "after": 0.546
+        },
+        {
+          "eventId": "companion.impact.wood",
+          "mode": "A3",
+          "before": 0.273,
+          "after": 0.546
+        },
+        {
+          "eventId": "companion.item.food",
+          "mode": "A3",
+          "before": 0.208,
+          "after": 0.416
+        },
+        {
+          "eventId": "companion.item.heal",
+          "mode": "A3",
+          "before": 0.208,
+          "after": 0.416
+        },
+        {
+          "eventId": "companion.launcher.fire",
+          "mode": "A3",
+          "before": 0.208,
+          "after": 0.416
+        },
+        {
+          "eventId": "companion.movement.dodge",
+          "mode": "A3",
+          "before": 0.208,
+          "after": 0.416
+        },
+        {
+          "eventId": "companion.skill.electric",
+          "mode": "A3",
+          "before": 0.208,
+          "after": 0.416
+        },
+        {
+          "eventId": "companion.skill.fire",
+          "mode": "A3",
+          "before": 0.208,
+          "after": 0.416
+        },
+        {
+          "eventId": "enemy.attack",
+          "mode": "A3",
+          "before": 0.25,
+          "after": 0.5
+        },
+        {
+          "eventId": "enemy.blade.fast",
+          "mode": "A3",
+          "before": 0.192,
+          "after": 0.384
+        },
+        {
+          "eventId": "enemy.blade.heavy",
+          "mode": "A3",
+          "before": 0.192,
+          "after": 0.384
+        },
+        {
+          "eventId": "enemy.blade.impact",
+          "mode": "A3",
+          "before": 0.252,
+          "after": 0.504
+        },
+        {
+          "eventId": "enemy.blade.impact.heavy",
+          "mode": "A3",
+          "before": 0.252,
+          "after": 0.504
+        },
+        {
+          "eventId": "enemy.blade.swing.1",
+          "mode": "A3",
+          "before": 0.192,
+          "after": 0.384
+        },
+        {
+          "eventId": "enemy.blade.swing.2",
+          "mode": "A3",
+          "before": 0.192,
+          "after": 0.384
+        },
+        {
+          "eventId": "enemy.blade.swing.3",
+          "mode": "A3",
+          "before": 0.192,
+          "after": 0.384
+        },
+        {
+          "eventId": "enemy.blade.swing.4",
+          "mode": "A3",
+          "before": 0.192,
+          "after": 0.384
+        },
+        {
+          "eventId": "enemy.blast.small",
+          "mode": "A3",
+          "before": 0.228,
+          "after": 0.456
+        },
+        {
+          "eventId": "enemy.body.death",
+          "mode": "A3",
+          "before": 0.21,
+          "after": 0.42
+        },
+        {
+          "eventId": "enemy.body.hurt",
+          "mode": "A3",
+          "before": 0.132,
+          "after": 0.264
+        },
+        {
+          "eventId": "enemy.footstep.dirt.run",
+          "mode": "A3",
+          "before": 0.096,
+          "after": 0.192
+        },
+        {
+          "eventId": "enemy.footstep.dirt.walk",
+          "mode": "A3",
+          "before": 0.096,
+          "after": 0.192
+        },
+        {
+          "eventId": "enemy.footstep.generic.run",
+          "mode": "A3",
+          "before": 0.096,
+          "after": 0.192
+        },
+        {
+          "eventId": "enemy.footstep.generic.walk",
+          "mode": "A3",
+          "before": 0.096,
+          "after": 0.192
+        },
+        {
+          "eventId": "enemy.footstep.metal.run",
+          "mode": "A3",
+          "before": 0.096,
+          "after": 0.192
+        },
+        {
+          "eventId": "enemy.footstep.metal.walk",
+          "mode": "A3",
+          "before": 0.096,
+          "after": 0.192
+        },
+        {
+          "eventId": "enemy.footstep.stone.run",
+          "mode": "A3",
+          "before": 0.096,
+          "after": 0.192
+        },
+        {
+          "eventId": "enemy.footstep.stone.walk",
+          "mode": "A3",
+          "before": 0.096,
+          "after": 0.192
+        },
+        {
+          "eventId": "enemy.footstep.wood.run",
+          "mode": "A3",
+          "before": 0.096,
+          "after": 0.192
+        },
+        {
+          "eventId": "enemy.footstep.wood.walk",
+          "mode": "A3",
+          "before": 0.096,
+          "after": 0.192
+        },
+        {
+          "eventId": "enemy.guard.metal",
+          "mode": "A3",
+          "before": 0.192,
+          "after": 0.384
+        },
+        {
+          "eventId": "enemy.gun.fire",
+          "mode": "A3",
+          "before": 0.192,
+          "after": 0.384
+        },
+        {
+          "eventId": "enemy.gun.reload",
+          "mode": "A3",
+          "before": 0.192,
+          "after": 0.384
+        },
+        {
+          "eventId": "enemy.impact.flesh",
+          "mode": "A3",
+          "before": 0.252,
+          "after": 0.504
+        },
+        {
+          "eventId": "enemy.impact.metal",
+          "mode": "A3",
+          "before": 0.252,
+          "after": 0.504
+        },
+        {
+          "eventId": "enemy.impact.stone",
+          "mode": "A3",
+          "before": 0.252,
+          "after": 0.504
+        },
+        {
+          "eventId": "enemy.impact.wood",
+          "mode": "A3",
+          "before": 0.252,
+          "after": 0.504
+        },
+        {
+          "eventId": "enemy.item.food",
+          "mode": "A3",
+          "before": 0.192,
+          "after": 0.384
+        },
+        {
+          "eventId": "enemy.item.heal",
+          "mode": "A3",
+          "before": 0.192,
+          "after": 0.384
+        },
+        {
+          "eventId": "enemy.launcher.fire",
+          "mode": "A3",
+          "before": 0.192,
+          "after": 0.384
+        },
+        {
+          "eventId": "enemy.movement.dodge",
+          "mode": "A3",
+          "before": 0.192,
+          "after": 0.384
+        },
+        {
+          "eventId": "enemy.skill.electric",
+          "mode": "A3",
+          "before": 0.192,
+          "after": 0.384
+        },
+        {
+          "eventId": "enemy.skill.fire",
+          "mode": "A3",
+          "before": 0.192,
+          "after": 0.384
+        },
+        {
+          "eventId": "interaction.container.close",
+          "mode": "A3",
+          "before": 0.22,
+          "after": 0.44
+        },
+        {
+          "eventId": "interaction.container.open",
+          "mode": "A3",
+          "before": 0.22,
+          "after": 0.44
+        },
+        {
+          "eventId": "player.blade.fast",
+          "mode": "A3",
+          "before": 0.32,
+          "after": 0.64
+        },
+        {
+          "eventId": "player.blade.heavy",
+          "mode": "A3",
+          "before": 0.32,
+          "after": 0.64
+        },
+        {
+          "eventId": "player.blade.impact",
+          "mode": "A3",
+          "before": 0.42,
+          "after": 0.84
+        },
+        {
+          "eventId": "player.blade.impact.heavy",
+          "mode": "A3",
+          "before": 0.42,
+          "after": 0.84
+        },
+        {
+          "eventId": "player.blade.swing.1",
+          "mode": "A3",
+          "before": 0.32,
+          "after": 0.64
+        },
+        {
+          "eventId": "player.blade.swing.2",
+          "mode": "A3",
+          "before": 0.32,
+          "after": 0.64
+        },
+        {
+          "eventId": "player.blade.swing.3",
+          "mode": "A3",
+          "before": 0.32,
+          "after": 0.64
+        },
+        {
+          "eventId": "player.blade.swing.4",
+          "mode": "A3",
+          "before": 0.32,
+          "after": 0.64
+        },
+        {
+          "eventId": "player.blast.small",
+          "mode": "A3",
+          "before": 0.38,
+          "after": 0.76
+        },
+        {
+          "eventId": "player.body.death",
+          "mode": "A3",
+          "before": 0.35,
+          "after": 0.7
+        },
+        {
+          "eventId": "player.body.hurt",
+          "mode": "A3",
+          "before": 0.22,
+          "after": 0.44
+        },
+        {
+          "eventId": "player.footstep.dirt.run",
+          "mode": "A3",
+          "before": 0.16,
+          "after": 0.32
+        },
+        {
+          "eventId": "player.footstep.dirt.walk",
+          "mode": "A3",
+          "before": 0.16,
+          "after": 0.32
+        },
+        {
+          "eventId": "player.footstep.generic.run",
+          "mode": "A3",
+          "before": 0.16,
+          "after": 0.32
+        },
+        {
+          "eventId": "player.footstep.generic.walk",
+          "mode": "A3",
+          "before": 0.16,
+          "after": 0.32
+        },
+        {
+          "eventId": "player.footstep.metal.run",
+          "mode": "A3",
+          "before": 0.16,
+          "after": 0.32
+        },
+        {
+          "eventId": "player.footstep.metal.walk",
+          "mode": "A3",
+          "before": 0.16,
+          "after": 0.32
+        },
+        {
+          "eventId": "player.footstep.stone.run",
+          "mode": "A3",
+          "before": 0.16,
+          "after": 0.32
+        },
+        {
+          "eventId": "player.footstep.stone.walk",
+          "mode": "A3",
+          "before": 0.16,
+          "after": 0.32
+        },
+        {
+          "eventId": "player.footstep.wood.run",
+          "mode": "A3",
+          "before": 0.16,
+          "after": 0.32
+        },
+        {
+          "eventId": "player.footstep.wood.walk",
+          "mode": "A3",
+          "before": 0.16,
+          "after": 0.32
+        },
+        {
+          "eventId": "player.guard.metal",
+          "mode": "A3",
+          "before": 0.32,
+          "after": 0.64
+        },
+        {
+          "eventId": "player.gun.fire",
+          "mode": "A3",
+          "before": 0.32,
+          "after": 0.64
+        },
+        {
+          "eventId": "player.gun.reload",
+          "mode": "A3",
+          "before": 0.32,
+          "after": 0.64
+        },
+        {
+          "eventId": "player.impact.flesh",
+          "mode": "A3",
+          "before": 0.42,
+          "after": 0.84
+        },
+        {
+          "eventId": "player.impact.metal",
+          "mode": "A3",
+          "before": 0.42,
+          "after": 0.84
+        },
+        {
+          "eventId": "player.impact.stone",
+          "mode": "A3",
+          "before": 0.42,
+          "after": 0.84
+        },
+        {
+          "eventId": "player.impact.wood",
+          "mode": "A3",
+          "before": 0.42,
+          "after": 0.84
+        },
+        {
+          "eventId": "player.item.food",
+          "mode": "A3",
+          "before": 0.32,
+          "after": 0.64
+        },
+        {
+          "eventId": "player.item.heal",
+          "mode": "A3",
+          "before": 0.32,
+          "after": 0.64
+        },
+        {
+          "eventId": "player.launcher.fire",
+          "mode": "A3",
+          "before": 0.32,
+          "after": 0.64
+        },
+        {
+          "eventId": "player.movement.dodge",
+          "mode": "A3",
+          "before": 0.32,
+          "after": 0.64
+        },
+        {
+          "eventId": "player.skill.electric",
+          "mode": "A3",
+          "before": 0.32,
+          "after": 0.64
+        },
+        {
+          "eventId": "player.skill.fire",
+          "mode": "A3",
+          "before": 0.32,
+          "after": 0.64
+        },
+        {
+          "eventId": "ui.control.switch",
+          "mode": "A3",
+          "before": 0.18,
+          "after": 0.36
+        },
+        {
+          "eventId": "ui.inventory.close",
+          "mode": "A3",
+          "before": 0.18,
+          "after": 0.36
+        },
+        {
+          "eventId": "ui.inventory.open",
+          "mode": "A3",
+          "before": 0.18,
+          "after": 0.36
+        }
+      ],
+      "scene": "Assets/OSSASTRA/Scenes/SC_AUDIO_BB_Fusion.unity",
+      "dirty": false,
+      "pcmUnchanged": true,
+      "userPreferencesUnchanged": true
+    }
+  }
+}

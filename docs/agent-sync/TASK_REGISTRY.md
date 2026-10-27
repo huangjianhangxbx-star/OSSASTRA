@@ -998,3 +998,7 @@ active/unity-writer；用户明确要求一轮修整：共享脚本去M01标签�
 2026-10-27 AUDIO-BB-FUSION technical-complete/docs-writer：Unity/源码租约释放，仅本任务文档/.gitignore/定向GitHub发布收口；原36dirty保留，严格CONTENT_INCOMPLETE+PENDING_HUMAN；Player旧插件14错，详见任务记录/交接。
 
 2026-10-27 AUDIO-BB-FUSION complete/read-only：产品765fea102/tree2c0fc859远端main精确核验；全部Unity/源码/文档writer释放，36原dirty/本机受限音频保留。仅本次纯文档回执闭环与用户要求最终S3睡眠，无后续迁移。
+
+2026-10-27 AUDIO-LISTENING-FIX active/unity-writer：root唯一Unity writer；独占Audio/必要现有音量UI/自有Fusion场与本机音频配置/本任务文档Candidates，修整体音量、位置浑浊和不适循环。原36dirty/旧场/角色输入/规则/源库保护。详见tasks/2026-10-27-audio-listening-fix.md。
+
+2026-10-27 AUDIO-LISTENING-FIX complete/read-only：全部Unity/源码/文档writer释放。用户确认不适循环消失，音量菜单/实控听点/声学与增益修正已定向验证，最终实机0削波；原36dirty保护。仅本次GitHub发布收口，不Gitee、不电源动作。

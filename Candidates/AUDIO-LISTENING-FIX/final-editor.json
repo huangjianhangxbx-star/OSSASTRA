@@ -1,0 +1,33 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "scene": "Assets/OSSASTRA/Scenes/SC_AUDIO_BB_Fusion.unity",
+      "dirty": false,
+      "playing": false,
+      "compiling": false,
+      "privateDependencies": [],
+      "nativeListeners": [
+        {
+          "name": "M01_Camera",
+          "enabled": true
+        }
+      ],
+      "temporaryOwnedListeners": 0,
+      "testDevices": [],
+      "master": 1.0,
+      "bgm": 0.65,
+      "sfx": 1.0,
+      "ambience": 0.0,
+      "globalListenerVolume": 1.0,
+      "mute": false,
+      "timeScale": 1.0
+    }
+  }
+}

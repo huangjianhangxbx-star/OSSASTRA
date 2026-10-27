@@ -566,3 +566,6 @@ T7A3独立RendererFeature/密度场/最多2个AtmosphereLight/8-16步积分/Dept
 F00–F10工程实施/定向验证完成：原唯一音频根/Transport/32短音池与Mixer保留，A0–A3原子切档；本机参考67媒体、117绑定/111事件，3音乐/3区域环境。实际四档同事实Mixer捕获无削波、峰5/5/9/9；主输入20/21、枪7/7、世界8/9保留真实未过。跨场6/附加5/晚Host4/死亡3/原创替换3通过。36原dirty/67源目录项/5FSB/67派生保持；新场SC_AUDIO_BB_Fusion Edit clean、418依赖无私有内容、零测试设备/对象/缺脚本。Player既有收藏插件14错，人工NEEDS_LISTENING，真冰等CONTENT_INCOMPLETE。详见docs/ossastra/AUDIO-BB-FUSION-handoff.md。Unity/源码writer已释放；仅文档/选择性GitHub发布收口，不Gitee。
 
 2026-10-27 AUDIO-BB-FUSION complete：GitHub产品765fea102638cb329a45867a74dee471da0574a8/tree2c0fc859已精确核验main，158路径操作不含私有媒体/SO；4旧孤立meta仅撤销跟踪保留本机。36原dirty不变，新场Edit clean，全部writer释放。人工/内容缺口与Player旧插件阻断另列，回执见docs/ossastra/AUDIO-BB-FUSION-publication-receipt.md。本轮不启动新迁移；按用户要求最终安排现有S3睡眠。
+
+## 2026-10-27 AUDIO-LISTENING-FIX complete
+已修整体低音量/下缘浑浊/持续不适声：运行期唯一听点跟随实控(.8u)并精确恢复原相机Listener，四地图边界不作声学墙、disabled marker不遮挡、遮挡不自动Room；原Esc/Select菜单新增保存的Master/BGM/SFX/Ambience/mute/推荐，当前1/.65/1/0。环境默认关闭并释放实际loop，用户确认持续声消失。私有A2/A3一次声净×1.6，最终真实28.096s枪械7/7/峰.749935/0削波，初始超限结果保留；UI14、可用性4、遮挡3、生命周期4、初始禁用2、位置2、跨场6与SFX32/语义14/档案14通过。36原dirty/PCM/源库保持，最终Edit clean、原相机Listener恢复、临时设备/听点0；全部writer释放，仅定向GitHub发布收口，无电源动作。交接docs/ossastra/AUDIO-LISTENING-FIX-handoff.md；不代签全部音色/旧Player插件或其它内容缺口。

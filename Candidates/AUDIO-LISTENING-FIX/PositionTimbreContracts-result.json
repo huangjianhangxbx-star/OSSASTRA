@@ -1,0 +1,41 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "checks": [
+        {
+          "name": "upper and lower self sounds stay dry and clear",
+          "pass": true
+        },
+        {
+          "name": "self source gain is invariant across screen position",
+          "pass": true
+        }
+      ],
+      "rows": [
+        {
+          "z": 3.0,
+          "accepted": true,
+          "gain": 0.64,
+          "cutoff": 22000.0,
+          "reverb": false,
+          "listener": 0.8199998
+        },
+        {
+          "z": -4.6,
+          "accepted": true,
+          "gain": 0.64,
+          "cutoff": 22000.0,
+          "reverb": false,
+          "listener": 0.8199998
+        }
+      ]
+    }
+  }
+}

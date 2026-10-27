@@ -1,0 +1,27 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "checks": [
+        {
+          "name": "real enabled acoustic wall still filters",
+          "pass": true
+        },
+        {
+          "name": "occlusion alone does not invent indoor reverb",
+          "pass": true
+        },
+        {
+          "name": "disabled acoustic obstacle cannot filter sound",
+          "pass": true
+        }
+      ]
+    }
+  }
+}

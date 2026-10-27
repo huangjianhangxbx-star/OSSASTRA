@@ -45,6 +45,9 @@ namespace Ossastra.Audio
             var root = GameAudioRoot.Instance;
             if (!Application.isPlaying || root == null || !root.SfxAvailable || !root.WorldAudioEnabled)
             { Release(); IsInside = false; Status = "当前内容档案未启用世界声音"; return; }
+            // 关闭环境音必须真正归还持续声部，不能只静音却永久占用预算；脚步和UI不受此开关影响。
+            if (root.UnifiedMix.GetBusVolume(SfxBus.Ambience) <= 0)
+            { Release(); IsInside = false; Status = "环境声已关闭（声音设置）"; return; }
             if (audioRoot != root || world != root.WorldScopeId || source != null && source.IsDisposed)
             { Release(); audioRoot = root; world = root.WorldScopeId; nextRetry = 0; }
             if (coordinator == null || Time.unscaledTime >= nextDiscovery) DiscoverListener();

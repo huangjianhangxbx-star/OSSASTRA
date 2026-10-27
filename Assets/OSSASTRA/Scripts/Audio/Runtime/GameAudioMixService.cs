@@ -17,7 +17,7 @@ namespace Ossastra.Audio
         private static readonly string[] busParameters =
             { "PlayerGain", "CompanionGain", "EnemyGain", "UIGain", "InteractionGain", "VoiceGain", "AmbienceGain" };
         private readonly BgmMixController bgm;
-        private readonly float[] busVolumes = { 1, 1, 1, 1, 1, 1, 1 };
+        private readonly float[] busVolumes = { 1, 1, 1, 1, 1, 1, 0 };
         private readonly Dictionary<string, float> applied = new Dictionary<string, float>(StringComparer.Ordinal);
         private float sfxVolume = 1;
 
@@ -55,7 +55,8 @@ namespace Ossastra.Audio
         {
             SfxVolume = PlayerPrefs.GetFloat("ossastra.audio.sfx", 1);
             for (int index = 0; index < busVolumes.Length; index++)
-                busVolumes[index] = Clamp(PlayerPrefs.GetFloat(BusPreference(index), 1));
+                // 测试场未布置实际环境发声物；持续环境层默认关闭，明确开启后的选择继续持久化。
+                busVolumes[index] = Clamp(PlayerPrefs.GetFloat(BusPreference(index), index == (int)SfxBus.Ambience ? 0 : 1));
         }
 
         public void SaveUserSettings()

@@ -1,0 +1,322 @@
+{
+  "scope": "staged candidate before audit evidence file itself is added; final commit tree verified separately",
+  "files": 52,
+  "bytes": 1319590,
+  "originalDirtyStaged": [],
+  "privateTracked": "",
+  "violations": [],
+  "filesReviewed": [
+    {
+      "status": "M",
+      "path": ".gitignore",
+      "bytes": 9120,
+      "sha256": "a2a4dc1fdad6dfa5cadb477c63884d4a6e52cb0c2ba69b9740a625966d49209c"
+    },
+    {
+      "status": "M",
+      "path": "Assets/OSSASTRA/Scenes/SC_AUDIO_BB_Fusion.unity",
+      "bytes": 707903,
+      "sha256": "18b72b4b1b3a746e93dc247bdc89f75287602e88755546a767f54767595e9d68"
+    },
+    {
+      "status": "M",
+      "path": "Assets/OSSASTRA/Scripts/Audio/Integration/AudioEnvironmentZone.cs",
+      "bytes": 6174,
+      "sha256": "31f07bbb44a361d14ad1292244b9352840dd7c3e5fb6542ca6f027af24635c7e"
+    },
+    {
+      "status": "A",
+      "path": "Assets/OSSASTRA/Scripts/Audio/Integration/GameplayAudioListener.cs",
+      "bytes": 4893,
+      "sha256": "89f9f887275ce7774bef2224dee34b8dffdb824a6a5db77454602fc655473747"
+    },
+    {
+      "status": "A",
+      "path": "Assets/OSSASTRA/Scripts/Audio/Integration/GameplayAudioListener.cs.meta",
+      "bytes": 267,
+      "sha256": "fbc3c985fb97e67555602609f140759e3ba4f5477bc16fba7cff12085936edf0"
+    },
+    {
+      "status": "M",
+      "path": "Assets/OSSASTRA/Scripts/Audio/Runtime/GameAudioMixService.cs",
+      "bytes": 5611,
+      "sha256": "4ebe6e2867336dc41514049d95bd15fc3002b3632430a93da058cae132e794e3"
+    },
+    {
+      "status": "M",
+      "path": "Assets/OSSASTRA/Scripts/Audio/Runtime/GameAudioRoot.cs",
+      "bytes": 19300,
+      "sha256": "4006cd7f603f8c3d39578c36fbe39f27420883b67b65f2d19062408335947c58"
+    },
+    {
+      "status": "M",
+      "path": "Assets/OSSASTRA/Scripts/Audio/Runtime/SfxVoicePlayer.cs",
+      "bytes": 12589,
+      "sha256": "85b0a9ed0fca06de5dd338f00412a37b156d51c966227d267d4ddd9ce91aaf54"
+    },
+    {
+      "status": "A",
+      "path": "Assets/OSSASTRA/Scripts/UI/InventoryAudioSettings.cs",
+      "bytes": 12514,
+      "sha256": "3e442910f271ec0368a60d91e033275161e2d90b952c80997371f37fcc192e53"
+    },
+    {
+      "status": "A",
+      "path": "Assets/OSSASTRA/Scripts/UI/InventoryAudioSettings.cs.meta",
+      "bytes": 267,
+      "sha256": "04e5803ca4ba386bb961dcbf2661e4d78b453ea2d94149f3612d07dc4e91ae1b"
+    },
+    {
+      "status": "M",
+      "path": "Assets/OSSASTRA/Scripts/UI/InventoryView.cs",
+      "bytes": 32955,
+      "sha256": "fc60f26ff9cc347cff46709ea32c4ff0249f72b33ddff2fb7b0889852d284191"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-LISTENING-FIX/AuditPublicIndex.mjs",
+      "bytes": 2117,
+      "sha256": "8ab0fc0db640d639fada2d3be2cc0e459659b43576b1d59e3e564b079aebc635"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-LISTENING-FIX/CalibrateLocalMix.cs.txt",
+      "bytes": 2364,
+      "sha256": "e078fde55dabe327812a3d69a21e6794a424447b2fc2aef4629150a272911480"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-LISTENING-FIX/GunStory-final.json",
+      "bytes": 35833,
+      "sha256": "ae8551946a57ec9d812eb4c2b3dd5e2f9b939c7ac75f173e9522b6db03477477"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-LISTENING-FIX/GunStory-warmup.json",
+      "bytes": 29031,
+      "sha256": "664cd14b38d32fe4de630a274d57d7326f2f0305ef327900a035008433663a9d"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-LISTENING-FIX/InitiallyDisabledRootContracts-green.json",
+      "bytes": 530,
+      "sha256": "ba0772634fab3222a04454914b1fadd2117d0c47e38dc4eb0c46cf5f3b61e5cb"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-LISTENING-FIX/InitiallyDisabledRootContracts-red.json",
+      "bytes": 531,
+      "sha256": "4917c4162b144936ca9a0ca62854363a531c769e26b56e077994c318a3427592"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-LISTENING-FIX/InitiallyDisabledRootContracts.cs.txt",
+      "bytes": 1400,
+      "sha256": "3c6d12c7e358c6f23d7875ff14ed09d46abad396876b81df014578d864eb083a"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-LISTENING-FIX/ListenerLifecycleContracts-final.json",
+      "bytes": 725,
+      "sha256": "ffec6643ed1cc06880d0f1172607cb0fdfca25d72268f6199e0a6f72f56df4ce"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-LISTENING-FIX/ListenerLifecycleContracts-green.json",
+      "bytes": 726,
+      "sha256": "4b974f693a20fa2ce41a1b06000f2f0045dbf13a552fc426d9805a69bbb80cc1"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-LISTENING-FIX/ListenerLifecycleContracts-red.json",
+      "bytes": 726,
+      "sha256": "8e491a1915685c71fe087670a39771be45ff439ad061177a8919b4ddadbb500d"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-LISTENING-FIX/ListenerLifecycleContracts.cs.txt",
+      "bytes": 2259,
+      "sha256": "b0e7824c9a0e21a053bce5edb62f983b9cf511028c554501ea2d7756662c3f64"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-LISTENING-FIX/ListeningCapture.cs.txt",
+      "bytes": 6590,
+      "sha256": "7acbffa0f5aca081b9804b8b5d9c07dea3f93c04b4bc2cc3a88ba07ec87b4895"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-LISTENING-FIX/ListeningUsabilityContracts-green.json",
+      "bytes": 794,
+      "sha256": "cb2de91d2dc9f0b9de97ae3fdef5a3fada877dadccc037d90dad5fbe4dbe7e4f"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-LISTENING-FIX/ListeningUsabilityContracts-red.json",
+      "bytes": 805,
+      "sha256": "772d949338469936aae376dbb7c5ab76c765edf6e17524e933ecd7ed483ae7c2"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-LISTENING-FIX/ListeningUsabilityContracts.cs.txt",
+      "bytes": 2014,
+      "sha256": "b1985c171d9cc5c7c0020f11a36265b299f2664e9b594e0c8f92d906f6d9c618"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-LISTENING-FIX/OcclusionContracts-green.json",
+      "bytes": 583,
+      "sha256": "8fe81f594fb34936669f4b36e71ddd72ee95e3c18277204ff8a2bcf1c4e7fd16"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-LISTENING-FIX/OcclusionContracts-red.json",
+      "bytes": 585,
+      "sha256": "b8fa2f3113317966e29dd4be96ad8726503cd2d6ded1caec5c94571e9566e671"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-LISTENING-FIX/OcclusionContracts.cs.txt",
+      "bytes": 1963,
+      "sha256": "e628887d10b0cd43e5194089d243fdc92fe760f0d495f52cafd4f77b97a1af28"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-LISTENING-FIX/PositionTimbreContracts-result.json",
+      "bytes": 885,
+      "sha256": "bc0ea46d44a35e2f363f3ee161e2afede53e9c62c07d6e77992ba20192d09a16"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-LISTENING-FIX/PositionTimbreContracts.cs.txt",
+      "bytes": 2065,
+      "sha256": "85612b3dfaa68e15c9aa1e3271d1e85d6a7f79dc359adef5441f302632627786"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-LISTENING-FIX/README.md",
+      "bytes": 2627,
+      "sha256": "ce39cb002e41bb90a17702e2c38677f366d9456f79c8fc79cb3fb11866142c03"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-LISTENING-FIX/SaveListeningCapture.cs.txt",
+      "bytes": 1499,
+      "sha256": "bafa154e0221a191097c6b45c4292e5b31d2630714a4ce7961501356f8f70174"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-LISTENING-FIX/SettingsInteractionStory-complete.json",
+      "bytes": 1900,
+      "sha256": "79164d19488ebd92205b4683e24f82c9e4f61f5be9ad5ea13225c35f60f3e834"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-LISTENING-FIX/SettingsInteractionStory-result.json",
+      "bytes": 259,
+      "sha256": "e3d262b32d70a8ce52d7255722a2dfed3849bfbdeba557f4581ec9e0746e50fb"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-LISTENING-FIX/SettingsInteractionStory.cs.txt",
+      "bytes": 5196,
+      "sha256": "6d8d404aa38abf9fb95514e08f4f7acdad7cb79a6839261d7908831434c96751"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-LISTENING-FIX/VerifySources.mjs",
+      "bytes": 1469,
+      "sha256": "633fd80385631b8d15dcf7fd661f453fd207693e4700eee5ff0851be05e99b05"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-LISTENING-FIX/calibration-final.json",
+      "bytes": 36502,
+      "sha256": "bafbe9ed9711c5d03560629edc250f9ddd82f8cb3df6f477395f5640830b3341"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-LISTENING-FIX/calibration.json",
+      "bytes": 32551,
+      "sha256": "7863f2abccc7e72994eac0f07e81647cb88d52b9259427ef6b4f0a3c6667f570"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-LISTENING-FIX/final-editor.json",
+      "bytes": 741,
+      "sha256": "7bb99ac67733661a2492a467b43c717819f7a8fd463523a7f5a7b7b19828e6f1"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-LISTENING-FIX/output-metrics-final.json",
+      "bytes": 770,
+      "sha256": "c0aab43c1e5ae2c1bd6a56e9e58291c089d9915a6681f212bb9cbb37920fdd33"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-LISTENING-FIX/output-metrics.json",
+      "bytes": 766,
+      "sha256": "a478253f549d883ce5eaa585106673c13a3c9043c3eae2f3e074925accc6cac1"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-LISTENING-FIX/protection.json",
+      "bytes": 61,
+      "sha256": "6ff4aebfb136906aa1fbc215e7d6915ec50fe310cedc73b2da80958117b24e49"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-LISTENING-FIX/regression-ProfileLifecycleContracts.json",
+      "bytes": 1813,
+      "sha256": "8ac959be93fb8f9bdea15f897801e44b9b0597082bf3f15bc2b8393d5a239b81"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-LISTENING-FIX/regression-SfxRuntimeContracts.json",
+      "bytes": 3747,
+      "sha256": "d149051612f34685c1994ee4b51fe7b3a6e80f991a4ba9046884c098b9b19710"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-LISTENING-FIX/regression-SoundProfileContracts.json",
+      "bytes": 1669,
+      "sha256": "c12fc5e90bb623ad84aec81cd59018488ea23210e767f72f74de920c54992b68"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-LISTENING-FIX/scene-cycle.json",
+      "bytes": 2419,
+      "sha256": "f3cd6bc1ee9a6c28b88125fd4698c238cce4cccc54d5f0dd03a02940440e1de1"
+    },
+    {
+      "status": "A",
+      "path": "Candidates/AUDIO-LISTENING-FIX/source-protection.json",
+      "bytes": 236,
+      "sha256": "4fb01ae7e6b49d967e786ff1512a49c95e0cda7b8ae6b97cec38e98b2d5e9422"
+    },
+    {
+      "status": "M",
+      "path": "docs/agent-sync/PROJECT_STATE.md",
+      "bytes": 163611,
+      "sha256": "ea7114980e0756b6a758fdd3f6e3e68d1cb411e2f01b52c0c59fdd0dab7f79c6"
+    },
+    {
+      "status": "M",
+      "path": "docs/agent-sync/TASK_REGISTRY.md",
+      "bytes": 153284,
+      "sha256": "418ee2355bdba404108e277b289025c5c3ff2d99c61f544057f4d354b945bd08"
+    },
+    {
+      "status": "A",
+      "path": "docs/agent-sync/tasks/2026-10-27-audio-listening-fix.md",
+      "bytes": 1763,
+      "sha256": "a030460d5bd1ef5a667da821d2030f56abd6720d7192c83cae7e83c598100a1f"
+    },
+    {
+      "status": "A",
+      "path": "docs/ossastra/AUDIO-LISTENING-FIX-handoff.md",
+      "bytes": 2588,
+      "sha256": "5553e6cec01b03d7e13f8f5a7a99b0e588e9a71b61511458c91031953e3b1bca"
+    }
+  ]
+}

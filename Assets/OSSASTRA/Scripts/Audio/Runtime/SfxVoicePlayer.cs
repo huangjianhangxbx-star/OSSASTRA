@@ -167,11 +167,17 @@ namespace Ossastra.Audio
             if(distance>.05f)
             {
                 int count=Physics.RaycastNonAlloc(from,delta/distance,acousticHits,distance,~0,QueryTriggerInteraction.Ignore);
-                for(int i=0;i<count;i++)if(acousticHits[i].collider!=null&&acousticHits[i].collider.GetComponentInParent<AudioAcousticObstacle>()!=null){blocked=true;break;}
+                for(int i=0;i<count;i++)
+                {
+                    if(acousticHits[i].collider==null)continue;
+                    var obstacle=acousticHits[i].collider.GetComponentInParent<AudioAcousticObstacle>();
+                    if(obstacle!=null&&obstacle.isActiveAndEnabled){blocked=true;break;}
+                }
             }
-            // 仅作者明确标记的墙体产生遮挡；低通/混响在预分配声部内，不新增全局混音所有者。
+            // 只有启用的作者声学墙产生直达声遮挡；使用预分配低通，不新增混音所有者。
             voice.LowPass.enabled=true;voice.LowPass.cutoffFrequency=blocked?2800:22000;
-            voice.Reverb.enabled=blocked;voice.Reverb.reverbPreset=AudioReverbPreset.Room;
+            // 遮挡只负责直达声衰减。碰到一面墙不等于进入室内，不能凭此凭空叠加Room混响。
+            voice.Reverb.enabled=false;
             voice.acousticGain=blocked?.68f:1;
             voice.Source.volume=record.Definition.volume*voice.gain*voice.acousticGain;
         }
