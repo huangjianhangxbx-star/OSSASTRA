@@ -22,6 +22,8 @@ namespace Ossastra.Inventory
             Id=id;Width=width;Height=height;MaxStack=maxStack;Hand=hand;WeightGrams=weightGrams;this.owners=owners==null?Array.Empty<string>():(string[])owners.Clone();
         }
         public bool AllowsOwner(string id)=>owners.Length==0||Array.IndexOf(owners,id)>=0;
+        /// <summary>纯交易指纹包含装备拥有资格；不暴露可修改的定义数组。</summary>
+        internal string[] AllowedOwners=>(string[])owners.Clone();
     }
     public sealed class InventoryContainer
     {
@@ -34,7 +36,7 @@ namespace Ossastra.Inventory
         public long Revision {get;internal set;}
         public InventoryContainer(string id,int columns,int rows,bool slots=false,string owner=null,InventoryHand hand=InventoryHand.None)
         {
-            if(string.IsNullOrWhiteSpace(id)||columns<1||rows<1||!Enum.IsDefined(typeof(InventoryHand),hand)||hand!=InventoryHand.None&&(!slots||columns*rows!=1||string.IsNullOrWhiteSpace(owner)))throw new ArgumentException("Invalid inventory container");
+            if(string.IsNullOrWhiteSpace(id)||columns<1||rows<1||!Enum.IsDefined(typeof(InventoryHand),hand)||hand!=InventoryHand.None&&(!slots||(long)columns*rows!=1||string.IsNullOrWhiteSpace(owner)))throw new ArgumentException("Invalid inventory container");
             Id=id;Columns=columns;Rows=rows;Slots=slots;Owner=owner;Hand=hand;
         }
     }

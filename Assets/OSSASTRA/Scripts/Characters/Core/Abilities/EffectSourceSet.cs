@@ -2,6 +2,7 @@
  * 功能：实例化来源、按原型优先级/阶段/互斥点求值，并冻结每次接受动作的效果快照。
  * 边界：不执行伤害、不保存SO或HP；移除来源改变活体登记，不追改已经接受的快照。
  * 协作：装备payload拥有登记；专职能力消费冻结修饰，延迟副作用另查Contains验证来源仍持有。
+ * 持久化：Inventory/EquipmentPersistentSnapshot中的partial只导出/校验恢复字段，不改变下方能力算法。
  */
 using System;
 using System.Linq;
@@ -72,7 +73,7 @@ namespace Ossastra.CharacterCore.Abilities
         internal EffectSourceRow(string id,EffectSourceDefinition definition,int priority,EffectSourceStatus status)
         {InstanceId=id;Definition=definition;Priority=priority;Status=status;}
     }
-    public sealed class EffectSourceSet
+    public sealed partial class EffectSourceSet
     {
         private readonly Dictionary<string,EffectSourceRow> grants=new Dictionary<string,EffectSourceRow>(StringComparer.Ordinal);
         public int Revision {get;private set;}

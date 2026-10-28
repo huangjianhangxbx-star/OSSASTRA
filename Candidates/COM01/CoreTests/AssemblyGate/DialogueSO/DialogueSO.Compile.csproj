@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>net9.0</TargetFramework><EnableDefaultCompileItems>false</EnableDefaultCompileItems><Nullable>disable</Nullable></PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../CommerceCore/CommerceCore.Compile.csproj"/>
+    <Reference Include="UnityEngine.CoreModule"><HintPath>E:/unity/Tuanjie Hub/2022.3.62t16/Editor/Data/Managed/UnityEngine/UnityEngine.CoreModule.dll</HintPath></Reference>
+    <Reference Include="UnityEditor.CoreModule"><HintPath>E:/unity/Tuanjie Hub/2022.3.62t16/Editor/Data/Managed/UnityEngine/UnityEditor.CoreModule.dll</HintPath></Reference>
+    <Compile Include="../../../../../Assets/OSSASTRA/Scripts/Commerce/Runtime/CommerceDialogueSO.cs"/>
+    <Compile Include="../../../../../Assets/OSSASTRA/Scripts/Commerce/Editor/CommerceSampleDialogueInstaller.cs"/>
+  </ItemGroup>
+</Project>

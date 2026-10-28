@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>net9.0</TargetFramework><AssemblyName>Ossastra.CharacterCore</AssemblyName><EnableDefaultCompileItems>false</EnableDefaultCompileItems><Nullable>disable</Nullable></PropertyGroup>
+  <ItemGroup><Compile Include="../../../../../Assets/OSSASTRA/Scripts/Characters/Core/**/*.cs"/></ItemGroup>
+</Project>

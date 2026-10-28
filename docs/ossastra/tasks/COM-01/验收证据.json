@@ -1,0 +1,94 @@
+{
+  "task": "COM-01",
+  "date": "2026-10-29",
+  "unity": "2022.3.62t16 / Tuanjie 1.10.4",
+  "pureTests": {
+    "commerceCore": 45,
+    "originalInventory": 37,
+    "persistence": 41,
+    "session": 28,
+    "ui": 22,
+    "productionCodec": 12
+  },
+  "runtimeCompile": {
+    "exitCode": 0,
+    "warnings": 0,
+    "errors": 0
+  },
+  "normalTrade": {
+    "initialTeamCoin": 300,
+    "buy2Cost": 20,
+    "afterBuy": 280,
+    "sell1Return": 4,
+    "afterSale": 284,
+    "personalBuyCost": 10,
+    "finalTeamCoin": 274,
+    "externalCoin": 20
+  },
+  "roundtrip": {
+    "allExistingItemsSame": true,
+    "beforeItems": 35,
+    "afterItems": 37,
+    "newMapItems": [
+      {
+        "Id": "04f5b42ff3fe49f3a709e987d2e633a1",
+        "DefinitionId": "magic-0",
+        "Quantity": 2,
+        "container": "box:com01-supplies-b-transit"
+      },
+      {
+        "Id": "8e4580d3b8b04e618f72056c45f699fc",
+        "DefinitionId": "food-0",
+        "Quantity": 4,
+        "container": "box:com01-supplies-a-transit"
+      }
+    ],
+    "boxAEmpty": true,
+    "boxBEmpty": true,
+    "priorityUnchanged": true,
+    "hotbarUnchanged": true
+  },
+  "realEditorRestart": {
+    "oldPid": 46240,
+    "newPid": 60612,
+    "all37ItemIdentityQuantityLocationSame": true,
+    "worldRecordsSame": true,
+    "dialogueFlagsSame": true,
+    "merchantsSame": true,
+    "wearAndDurabilitySame": true,
+    "cooldownDeadlinesSame": true,
+    "effectSourcesSame": true,
+    "enhancementsSame": false,
+    "simulationAdvance": 11.814920500852168,
+    "enhancementsPolicyValid": true,
+    "enhancementExplanation": "原有5秒限时rocket-speed到期1913.2025767662562；新进程Play实际推进到1920.0174972671084，正常过期。跨图冻结时限时值完整保持；不是离线时长补算。"
+  },
+  "disableBoundary": {
+    "before": true,
+    "disabled": true,
+    "after": true,
+    "move": true,
+    "Reason": null,
+    "saveFailure": false
+  },
+  "foreignCapture": {
+    "opened": true,
+    "foreignOwnerRetained": true,
+    "testOwnerReleased": true
+  },
+  "publishConfig": {
+    "active": "Assets/OSSASTRA/Scenes/SC_CommerceIntegration.unity",
+    "clean": true,
+    "profiles": "commerce-main",
+    "saveDirectory": "",
+    "proofScenesAbsent": true,
+    "timeScale": 1
+  },
+  "referenceLimits": [
+    "未进入原作无法安全隔离的玩家存档；未声称动态UI高度还原",
+    "未代签实体手柄、物理拖拽手感与用户审美/架构验收",
+    "装备特殊状态使用既有定义的显式领域夹具；时钟冻结仅为外部验收，不是游戏暂停功能",
+    "非完整Player构建认证；旧第三方编译问题独立保留"
+  ],
+  "rawEvidence": "本机 work/OSSASTRA/COM01-20261028 JSON回执；仅发布本脱敏汇总，不发布存档、媒体、用户目录或原作内容"
+}

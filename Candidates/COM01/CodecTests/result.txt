@@ -1,0 +1,13 @@
+PASS full_production_codec_preserves_every_public_dto_field
+PASS ordinary_items_keep_null_equipment_and_null_hotbar
+PASS broken_equipment_magazine_cooldown_resources_restore_without_refill
+PASS decoded_mutations_do_not_change_original_or_encoded_bytes
+PASS invalid_payload_schema_and_null_rejected
+PASS root_metadata_$type_rejected
+PASS nested_metadata_$type_rejected
+PASS root_metadata_$ref_rejected
+PASS nested_metadata_$ref_rejected
+PASS root_metadata_$id_rejected
+PASS nested_metadata_$id_rejected
+PASS unknown_root_and_nested_fields_rejected
+Production codec: 12 passed, 0 failed

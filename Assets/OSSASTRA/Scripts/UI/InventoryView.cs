@@ -1,7 +1,7 @@
 /* 脚本：InventoryView
  * 功能：冻结原型四个独立背包表面、详情/拆分、真实uGUI拖放与有限整理；所有落点用实际RectTransform。
  * 边界：不保存第二库存；不以UI创建装备/治疗。开包捕获战斗而世界继续，数字栏只引用。
- * 协作：InventorySession复核访问与本体，Ledger原子提交；保持HUD原六区；声音设置复用非暂停菜单。
+ * 协作：InventorySession复核访问与本体，Ledger原子提交；贸易partial复用同一团队网格与选物事件，声音设置复用原菜单。
  */
 using System;
 using System.Linq;
@@ -23,6 +23,9 @@ namespace Ossastra.UserInterface
         public void ToggleMenu()
         {
             if(windows==null||session==null)return;
+            // Installer(-500)早于交易UI更新。Esc仍被贸易持有或刚用于关闭时，不再打开第二个系统菜单。
+            if(!commerceMenuGate.AllowsMenu(Time.frameCount))return;
+            if(menuPanel!=null&&menuPanel.gameObject.activeSelf){CloseSystemMenu();return;}
             if(menuPanel==null)
             {
                 menuPanel=Window("SystemMenu",new Rect(565,180,350,230));
@@ -32,13 +35,22 @@ namespace Ossastra.UserInterface
                 Button(menuPanel,"AudioSettings",new Rect(20,165,310,36),"声音设置",OpenAudioSettings);
                 menuPanel.gameObject.SetActive(false);
             }
-            bool open=!menuPanel.gameObject.activeSelf;
-            if(!open)CloseAudioSettings(false);
-            if(open){SetOpen(false);windows.gameObject.SetActive(true);player.gameObject.SetActive(false);safe.gameObject.SetActive(false);detail.gameObject.SetActive(false);external.gameObject.SetActive(false);}else{player.gameObject.SetActive(true);safe.gameObject.SetActive(true);windows.gameObject.SetActive(IsOpen);}
-            menuPanel.gameObject.SetActive(open);
-            SetCharacterCapture(menuPanel,open,true);
-            if(session.Coordinator!=null)session.Coordinator.SetInputCapture(menuPanel,open);
-            if(open&&EventSystem.current!=null)EventSystem.current.SetSelectedGameObject(menuPanel.Find("Continue").gameObject);
+            SetOpen(false);windows.gameObject.SetActive(true);player.gameObject.SetActive(false);safe.gameObject.SetActive(false);detail.gameObject.SetActive(false);external.gameObject.SetActive(false);
+            menuPanel.gameObject.SetActive(true);
+            SetCharacterCapture(menuPanel,true,true);
+            if(session.Coordinator!=null)session.Coordinator.SetInputCapture(menuPanel,true);
+            if(EventSystem.current!=null)EventSystem.current.SetSelectedGameObject(menuPanel.Find("Continue").gameObject);
+        }
+        /// <summary>生命周期清理不走Toggle门禁。即使父Windows被隐藏，也精确释放自己SystemMenu的owner。</summary>
+        public void CloseSystemMenu()
+        {
+            if(ReferenceEquals(menuPanel,null))return;
+            CloseAudioSettings(false);
+            if(menuPanel!=null)menuPanel.gameObject.SetActive(false);
+            SetCharacterCapture(menuPanel,false,true);
+            if(session!=null&&session.Coordinator!=null)session.Coordinator.SetInputCapture(menuPanel,false);
+            if(player!=null)player.gameObject.SetActive(true);if(safe!=null)safe.gameObject.SetActive(true);
+            if(windows!=null)windows.gameObject.SetActive(IsOpen);
         }
         private Canvas canvas;
         private RectTransform surface,windows,player,safe,detail,external,teamGrid,externalGrid,reserve,ghost,preview;
@@ -49,7 +61,6 @@ namespace Ossastra.UserInterface
         private Font font,serif;
         private string selected,openedExternal;
         private bool dirty=true,reserveExpanded;
-        private int externalRows=8;
         private readonly Dictionary<string,InventoryPointerTarget> cells=new Dictionary<string,InventoryPointerTarget>();
         private readonly Dictionary<string,InventoryPointerTarget> itemViews=new Dictionary<string,InventoryPointerTarget>();
         private readonly List<(Text text,int size)> typography=new List<(Text,int)>();
@@ -109,6 +120,8 @@ namespace Ossastra.UserInterface
             external=Window("External",new Rect(1043,92,365,217));externalName=Header(external,"试验物资箱",365,()=>OpenExternal(null));
             externalGrid=ScrollGrid(external,"ExternalScroll",new Rect(12,47,341,132),67.8f);
             Button(external,"SortExternal",new Rect(247,184,105,22),"整理箱子",()=>Sort(openedExternal));
+            Button(external,"TakeAll",new Rect(12,184,105,22),"取出全部",()=>Feedback(session.TakeAll().Reason));
+            Button(external,"StoreAll",new Rect(130,184,105,22),"存入全部",()=>Feedback(session.StoreAll().Reason));
             ghost=Node(surface,"DragGhost",new Rect(0,0,180,34));Image(ghost,"Fill",new Rect(0,0,180,34),new Color32(24,8,16,245));ghostText=Label(ghost,"Name",new Rect(8,0,164,34),"",13,gold);
             preview=Node(surface,"DropPreview",new Rect(0,0,80,80));Image(preview,"Fill",new Rect(0,0,80,80),new Color32(133,183,170,50));
             session.Changed+=OnChanged;windows.gameObject.SetActive(false);ghost.gameObject.SetActive(false);preview.gameObject.SetActive(false);
@@ -156,10 +169,11 @@ namespace Ossastra.UserInterface
         public void SetOpen(bool value)
         {
             if(value&&(windows==null||session==null||session.Coordinator==null||!session.Ready||session.Coordinator.Current==null||!session.Coordinator.Current.CanSimulateIntent))return;
+            if(!value)NotifyCommerceInventoryClosing();
             CancelDrag();IsOpen=value;if(windows!=null)windows.gameObject.SetActive(value);
             if(session!=null&&session.Coordinator!=null)session.Coordinator.SetInventoryCapture(this,value);
             SetCharacterCapture(this,value);
-            if(!value){selected=null;openedExternal=null;}dirty=true;
+            if(!value){selected=null;openedExternal=null;session?.SetActiveExternal(null);}dirty=true;
         }
         private void SetCharacterCapture(object captureOwner,bool captured,bool movement=false)
         {
@@ -173,12 +187,18 @@ namespace Ossastra.UserInterface
             }
         }
         public void OpenExternal(string id)
-        {if(id!=null&&!session.CanAccessContainer(id)){Feedback("靠近同层容器后打开");return;}if(id!=null&&!IsOpen)SetOpen(true);CancelDrag();openedExternal=id;selected=null;dirty=true;}
+        {
+            if(id!=null&&!session.CanAccessContainer(id)){Feedback("靠近同层容器后打开");return;}
+            if(id!=null&&!IsOpen)SetOpen(true);
+            if(id!=null&&!IsOpen||!session.SetActiveExternal(id)){Feedback("容器当前不可打开");return;}
+            CancelDrag();openedExternal=id;Select(null);dirty=true;
+        }
         public void Select(string id)
         {
             // 同一选中物品的再次按下是拖动开始，必须保留已经填写的拆分数量。
             if(selected!=id)quantity.text="";
-            selected=id;dirty=true;
+            var changed=selected!=id;selected=id;dirty=true;
+            if(changed)CommerceSelectionChanged?.Invoke(id);
         }
         public void Feedback(string message){if(feedback!=null)feedback.text=message??"";dirty=true;}
         private void Notify(InventoryResult result){Feedback(result.Ok?session.LastResult:result.Reason);}
@@ -186,7 +206,7 @@ namespace Ossastra.UserInterface
         {value=0;if(string.IsNullOrWhiteSpace(quantity.text))return true;if(int.TryParse(quantity.text,out value)&&value>0)return true;Feedback("转移数量必须是正整数");return false;}
         private void TransferSelected(string to,int amount=0){if(selected==null||amount==0&&!Quantity(out amount))return;Notify(session.Move(session.Ledger.Plan(selected,to,amount)));}
         private void Sort(string id)
-        {if(id==null||!session.CanAccessContainer(id)){Feedback("容器不可访问");return;}var plan=session.Ledger.PlanSort(id,4000);var q=session.Ledger.CommitSort(plan);Feedback(q.Ok?"整理完成 · 可行布局，未证明最优":q.Reason);}
+        {if(id==null||!session.CanAccessContainer(id)){Feedback("容器不可访问");return;}var q=session.Sort(id,4000);Feedback(q.Ok?"整理完成 · 可行布局，未证明最优":q.Reason);}
         public void PointerDown(InventoryPointerTarget target,PointerEventData data)
         {
             if(target.Hotbar>=0){if(IsOpen)Notify(session.BindHotbar(target.Hotbar,selected));else {session.SelectHotbar(target.Hotbar);Feedback(session.LastResult);}return;}
@@ -195,7 +215,7 @@ namespace Ossastra.UserInterface
             if(target.ItemId==null){if(target.Hotbar<0&&!target.Priority)Select(null);return;}
             var item=session.Ledger.Find(target.ItemId);if(item==null||!session.CanAccessContainer(item.Location.ContainerId)){Feedback("靠近道具后操作");return;}
             Select(item.Id);
-            if(Keyboard.current?.ctrlKey.isPressed==true){Notify(session.QuickTransfer(item.Id));return;}
+            if(Keyboard.current?.ctrlKey.isPressed==true){if(IsCommerceOpen){Feedback("商店中请在交易详情确认出售；不会快捷转移货架库存");return;}Notify(session.QuickTransfer(item.Id));return;}
             var c=session.Ledger.Container(item.Location.ContainerId);var offset=Vector2.zero;
             if(!c.Slots&&target.Grid!=null&&RectTransformUtility.ScreenPointToLocalPointInRectangle(target.Grid,data.position,null,out var local))offset=new Vector2(Mathf.FloorToInt(local.x/target.Pitch)-item.Location.X,Mathf.FloorToInt(-local.y/target.Pitch)-item.Location.Y);
             drag=new DragState{id=item.Id,from=item.Location.ContainerId,revision=c.Revision,generation=session.Ledger.AccessGeneration,offset=offset,down=data.position,pointer=data.pointerId,revisions=session.Ledger.Containers.ToDictionary(x=>x.Id,x=>x.Revision)};
@@ -246,13 +266,14 @@ namespace Ossastra.UserInterface
         {
             if(canvas==null||!session.Ready)return;
             var scale=Mathf.Min(Screen.width/1434f,Screen.height/804f);if(!Mathf.Approximately(scale,canvas.scaleFactor)){CancelDrag();canvas.scaleFactor=scale;dirty=true;}
-            external.anchoredPosition=new Vector2(Screen.width/scale-391,-92);
-            if(toggleAction.WasPressedThisFrame()&&!(EventSystem.current?.currentSelectedGameObject?.GetComponent<InputField>()?.isFocused??false))SetOpen(!IsOpen);
-            if(IsOpen&&cancelAction.WasPressedThisFrame()){if(drag!=null)CancelDrag();else SetOpen(false);}
+            if(!IsCommerceOpen)external.anchoredPosition=new Vector2(Screen.width/scale-391,-92);
+            // 角色菜单和对话尚未进入贸易布局，但已持有输入；普通背包不能在其下层响应Tab/Esc。
+            if(!HasCommerceCapture&&toggleAction.WasPressedThisFrame()&&!(EventSystem.current?.currentSelectedGameObject?.GetComponent<InputField>()?.isFocused??false))SetOpen(!IsOpen);
+            if(!HasCommerceCapture&&IsOpen&&cancelAction.WasPressedThisFrame()){if(drag!=null)CancelDrag();else SetOpen(false);}
             if(IsOpen&&(session.Coordinator.Current==null||!session.Coordinator.Current.IsAlive)){SetOpen(false);return;}
             if(IsOpen)
             {
-                var editing=quantity.isFocused;SetCharacterCapture(this,true,editing);
+                var editing=quantity.isFocused||commerceEditingQuantity;SetCharacterCapture(this,true,editing);
                 if(openedExternal!=null&&!session.CanAccessContainer(openedExternal)){OpenExternal(null);Feedback("已离开容器访问范围");}
                 if(selected!=null&&(session.Ledger.Find(selected)==null||!session.CanAccessContainer(session.Ledger.Find(selected).Location.ContainerId))){Select(null);CancelDrag();}
                 if(drag!=null&&drag.generation!=session.Ledger.AccessGeneration)CancelDrag();
@@ -289,14 +310,15 @@ namespace Ossastra.UserInterface
             RefreshGrid("team",teamGrid,82.8f);external.gameObject.SetActive(openedExternal!=null);
             if(openedExternal!=null)
             {
-                externalName.text=openedExternal=="external"?"试验物资箱":"掉落包";var c=session.Ledger.Container(openedExternal);
+                externalName.text=session.ContainerDisplayName(openedExternal);var c=session.Ledger.Container(openedExternal);
                 externalGrid.GetComponent<InventoryPointerTarget>().ContainerId=openedExternal;
-                for(var y=externalRows;y<c.Rows;y++)for(var x=0;x<c.Columns;x++)
-                {var cell=Image(externalGrid,"Cell"+x+"_"+y,new Rect(x*67.8f,y*67.8f,67.8f,67.8f),edge,skin.slotEdge);cell.transform.SetAsFirstSibling();}
-                externalRows=Math.Max(externalRows,c.Rows);
+                for(var y=0;y<c.Rows;y++)for(var x=0;x<c.Columns;x++)
+                {if(externalGrid.Find("Cell"+x+"_"+y)!=null)continue;var cell=Image(externalGrid,"Cell"+x+"_"+y,new Rect(x*67.8f,y*67.8f,67.8f,67.8f),edge,skin.slotEdge);cell.transform.SetAsFirstSibling();}
                 foreach(Transform child in externalGrid)if(child.name.StartsWith("Cell",StringComparison.Ordinal))
-                {var row=int.Parse(child.name.Substring(child.name.IndexOf('_')+1));child.gameObject.SetActive(row<c.Rows);}
-                externalGrid.sizeDelta=new Vector2(339,Mathf.Max(132,c.Rows*67.8f));RefreshGrid(openedExternal,externalGrid,67.8f);
+                {var coordinates=child.name.Substring(4).Split('_');child.gameObject.SetActive(int.Parse(coordinates[0])<c.Columns&&int.Parse(coordinates[1])<c.Rows);}
+                externalGrid.sizeDelta=new Vector2(Mathf.Max(339,c.Columns*67.8f),Mathf.Max(132,c.Rows*67.8f));
+                var externalScroll=external.Find("ExternalScroll")?.GetComponent<ScrollRect>();if(externalScroll!=null)externalScroll.horizontal=c.Columns*67.8f>341;
+                RefreshGrid(openedExternal,externalGrid,67.8f);
             }
             var selectedItem=session.Ledger.Find(selected);detail.gameObject.SetActive(selectedItem!=null);
             if(selectedItem!=null)
@@ -306,6 +328,7 @@ namespace Ossastra.UserInterface
                 unload.gameObject.SetActive(selectedItem.Location.ContainerId.StartsWith("hand:"));give.gameObject.SetActive(selectedItem.Location.ContainerId=="team"&&d.equipment==null&&d.category!="food");reclaim.gameObject.SetActive(selectedItem.Location.ContainerId=="reserve");priority.gameObject.SetActive(selectedItem.Location.ContainerId=="reserve");use.gameObject.SetActive(d.useKind!=Ossastra.Characters.InventoryUseKind.None&&new[]{"team","safe","reserve"}.Contains(selectedItem.Location.ContainerId));
             }
             var ids=new[]{"team","safe","reserve"}.Concat(session.Coordinator.Characters.SelectMany(r=>new[]{InventorySession.HandId(r.ActorId,InventoryHand.Left),InventorySession.HandId(r.ActorId,InventoryHand.Right)})).ToArray();var grams=session.Ledger.WeightGrams(ids);weight.text=(grams/1000f).ToString("0.00")+" / 30.00 kg"+(grams>30000?" · 超重":"");weightFill.rectTransform.sizeDelta=new Vector2(230*Mathf.Clamp01(grams/30000f),8);
+            if(IsCommerceOpen)ApplyCommerceLayout();
         }
         private void RefreshGrid(string id,RectTransform grid,float pitch)
         {
@@ -319,8 +342,8 @@ namespace Ossastra.UserInterface
                 var rt=(RectTransform)target.transform;rt.anchoredPosition=new Vector2(rect.x,-rect.y);rt.sizeDelta=rect.size;target.ContainerId=id;Paint(target,item);
             }
         }
-        private void OnApplicationFocus(bool focused){if(!focused){if(menuPanel!=null&&menuPanel.gameObject.activeSelf)ToggleMenu();SetOpen(false);}}
-        private void OnDisable(){CloseAudioSettings(false);if(menuPanel!=null&&menuPanel.gameObject.activeSelf)ToggleMenu();SetOpen(false);toggleAction.Disable();cancelAction.Disable();}
+        private void OnApplicationFocus(bool focused){if(!focused){CloseSystemMenu();SetOpen(false);}}
+        private void OnDisable(){CloseSystemMenu();SetOpen(false);toggleAction.Disable();cancelAction.Disable();}
         private void OnDestroy(){if(session!=null)session.Changed-=OnChanged;toggleAction.Dispose();cancelAction.Dispose();if(font!=null)Destroy(font);if(serif!=null)Destroy(serif);}
     }
 }

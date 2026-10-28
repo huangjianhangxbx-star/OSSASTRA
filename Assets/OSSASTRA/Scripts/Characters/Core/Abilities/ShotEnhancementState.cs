@@ -2,6 +2,7 @@
  * 功能：装备实例的装填增益、一次命中暴击和落地限时射速。
  * 边界：不发弹、不扣HP；接受时冻结射击数值，命中回执才消费暴击。
  * 协作：来源撤回清理尚在实例上的效果，已接受的射击快照保持不变。
+ * 持久化：Inventory/EquipmentPersistentSnapshot中的partial只导出/校验恢复字段，不改变下方能力算法。
  */
 using System;
 using System.Linq;
@@ -14,7 +15,7 @@ namespace Ossastra.CharacterCore.Abilities
         public readonly double DamageMultiplier,Rate;
         public ShotEnhancementSnapshot(string source,double damage,double rate){CriticalSource=source;DamageMultiplier=damage;Rate=rate;}
     }
-    public sealed class ShotEnhancementState
+    public sealed partial class ShotEnhancementState
     {
         private sealed class Bonus {public string source;public bool speed;public int phase;public double value,at;}
         private readonly List<Bonus> reload=new List<Bonus>();

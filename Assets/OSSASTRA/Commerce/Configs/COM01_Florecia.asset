@@ -1,0 +1,32 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b99c9d835b337c84e98245f611717077, type: 3}
+  m_Name: COM01_Florecia
+  m_EditorClassIdentifier: 
+  definitionId: sample-florecia
+  refreshSeconds: 300
+  goods:
+  - item: {fileID: 11400000, guid: d6dff9d99d4de044393836b5fa7335a8, type: 2}
+    buyPrice: 10
+    sellPrice: 4
+    targetStock: 5
+    allowZeroPrice: 0
+  - item: {fileID: 11400000, guid: 1e2828159e5b14f43b7bebcdb4843317, type: 2}
+    buyPrice: 13
+    sellPrice: 5
+    targetStock: 5
+    allowZeroPrice: 0
+  - item: {fileID: 11400000, guid: 77b562a95723c7745b5a91582070041d, type: 2}
+    buyPrice: 16
+    sellPrice: 6
+    targetStock: 5
+    allowZeroPrice: 0

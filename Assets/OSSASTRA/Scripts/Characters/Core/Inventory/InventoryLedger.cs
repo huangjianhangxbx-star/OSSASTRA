@@ -2,6 +2,7 @@
  * 功能：唯一物品注册/数量/位置权威；试算副本、校验修订后一次提交，失败保持原账本。
  * 边界：不读设备或世界、不创建能力；Unity访问适配在提交门检查身份/距离/LOS。
  * 协作：装备payload引用原实例，预留锁定来源堆，释放只消费一次；全灭是同场原子批次。
+ * 经济扩展：InventoryEconomicBatch partial仅向Commerce友元开放共同提交，预留/容器变化推进事务修订。
  */
 using System;
 using System.Collections.Generic;
@@ -9,13 +10,13 @@ using System.Linq;
 using Ossastra.CharacterCore;
 namespace Ossastra.Inventory
 {
-    public sealed class InventoryLedger
+    public sealed partial class InventoryLedger
     {
         private readonly Dictionary<string,InventoryDefinition> definitions=new Dictionary<string,InventoryDefinition>(StringComparer.Ordinal);
-        private readonly Dictionary<string,InventoryContainer> containers=new Dictionary<string,InventoryContainer>(StringComparer.Ordinal);
+        private Dictionary<string,InventoryContainer> containers=new Dictionary<string,InventoryContainer>(StringComparer.Ordinal);
         private Dictionary<string,InventoryItem> items=new Dictionary<string,InventoryItem>(StringComparer.Ordinal);
-        private readonly HashSet<Guid> requests=new HashSet<Guid>();
-        private readonly HashSet<Guid> wipes=new HashSet<Guid>();
+        private HashSet<Guid> requests=new HashSet<Guid>();
+        private HashSet<Guid> wipes=new HashSet<Guid>();
         private sealed class Reservation {public string item;public int quantity;}
         private readonly Dictionary<Guid,Reservation> reservations=new Dictionary<Guid,Reservation>();
         public long AccessGeneration {get;private set;}
@@ -29,12 +30,12 @@ namespace Ossastra.Inventory
             =>items.Values.FirstOrDefault(i=>i.Location.ContainerId==containerId)?.Equipment;
         public InventoryContainer Container(string id)=>id!=null&&containers.TryGetValue(id,out var c)?c:null;
         public void Register(InventoryDefinition definition)
-        {if(definition==null||definitions.ContainsKey(definition.Id))throw new ArgumentException("Duplicate/missing item definition");definitions.Add(definition.Id,definition);}
+        {if(definition==null||definitions.ContainsKey(definition.Id))throw new ArgumentException("Duplicate/missing item definition");definitions.Add(definition.Id,definition);mutationRevision++;}
         public void AddContainer(InventoryContainer container)
-        {if(container==null||containers.ContainsKey(container.Id))throw new ArgumentException("Duplicate/missing container");containers.Add(container.Id,container);}
+        {if(container==null||containers.ContainsKey(container.Id))throw new ArgumentException("Duplicate/missing container");containers.Add(container.Id,container);mutationRevision++;}
         public bool RemoveEmptyContainer(string id)
-        {if(id==null||items.Values.Any(i=>i.Location.ContainerId==id))return false;return containers.Remove(id);}
-        public void InvalidateAccess(){AccessGeneration++;Changed?.Invoke();}
+        {if(id==null||items.Values.Any(i=>i.Location.ContainerId==id))return false;var removed=containers.Remove(id);if(removed)mutationRevision++;return removed;}
+        public void InvalidateAccess(){AccessGeneration++;mutationRevision++;NotifyEconomicCommit();}
         public long WeightGrams(params string[] ids)=>items.Values.Where(i=>ids.Contains(i.Location.ContainerId)).Sum(i=>(long)definitions[i.DefinitionId].WeightGrams*i.Quantity);
         private Dictionary<string,InventoryItem> Copy()=>items.ToDictionary(p=>p.Key,p=>p.Value.Copy(),StringComparer.Ordinal);
         private bool Locked(string id)=>reservations.Values.Any(r=>r.item==id);
@@ -44,15 +45,16 @@ namespace Ossastra.Inventory
             if(c==null||d==null||item.Quantity<1||item.Quantity>d.MaxStack||item.Equipment!=null&&(item.Quantity!=1||item.Equipment.DefinitionId!=d.Id||item.Equipment.Id!=item.Id)||d.Hand!=InventoryHand.None&&item.Equipment==null)return false;
             if(c.Hand!=InventoryHand.None&&(d.Hand!=c.Hand||!d.AllowsOwner(c.Owner)||item.Equipment==null))return false;
             int w=c.Slots?1:d.Width,h=c.Slots?1:d.Height;var l=item.Location;
-            if(l.X<0||l.Y<0||l.X+w>c.Columns||l.Y+h>c.Rows)return false;
+            // 存档/显式落点可带任意int；端点用long计算，避免正溢出绕过越界与相交检查。
+            if(l.X<0||l.Y<0||(long)l.X+w>c.Columns||(long)l.Y+h>c.Rows)return false;
             return !state.Values.Any(other=>other.Id!=item.Id&&Intersects(item,other,c));
         }
         private bool Intersects(InventoryItem a,InventoryItem b,InventoryContainer c)
         {
             if(a.Location.ContainerId!=b.Location.ContainerId)return false;
             var da=definitions[a.DefinitionId];var db=definitions[b.DefinitionId];
-            return a.Location.X<b.Location.X+(c.Slots?1:db.Width)&&a.Location.X+(c.Slots?1:da.Width)>b.Location.X&&
-                a.Location.Y<b.Location.Y+(c.Slots?1:db.Height)&&a.Location.Y+(c.Slots?1:da.Height)>b.Location.Y;
+            return (long)a.Location.X<(long)b.Location.X+(c.Slots?1:db.Width)&&(long)a.Location.X+(c.Slots?1:da.Width)>b.Location.X&&
+                (long)a.Location.Y<(long)b.Location.Y+(c.Slots?1:db.Height)&&(long)a.Location.Y+(c.Slots?1:da.Height)>b.Location.Y;
         }
         private bool Place(Dictionary<string,InventoryItem> state,InventoryItem item,string to,int? x=null,int? y=null)
         {
@@ -64,7 +66,7 @@ namespace Ossastra.Inventory
             return false;
         }
         private void Commit(Dictionary<string,InventoryItem> state,params string[] changed)
-        {items=state;foreach(var id in changed.Distinct())containers[id].Revision++;Changed?.Invoke();}
+        {items=state;foreach(var id in changed.Distinct())containers[id].Revision++;mutationRevision++;NotifyEconomicCommit();}
         public InventoryResult Grant(string to,string definitionId,int quantity,EquipmentItemState equipment=null)
         {
             var d=Definition(definitionId);if(d==null||Container(to)==null||quantity<1||equipment!=null&&(quantity!=1||equipment.DefinitionId!=definitionId||items.ContainsKey(equipment.Id))||d.Hand!=InventoryHand.None&&equipment==null)return InventoryResult.Reject("物品定义或数量无效");
@@ -101,12 +103,13 @@ namespace Ossastra.Inventory
             var target=containers[command.To];var d=definitions[moving.DefinitionId];
             moving.Location=new InventoryLocation(command.To,command.X??0,command.Y??0);
             var explicitTarget=command.X.HasValue?state.Values.FirstOrDefault(i=>Intersects(moving,i,target)):null;
-            var merge=command.X.HasValue?explicitTarget:state.Values.OrderBy(i=>i.Id).FirstOrDefault(i=>i.Location.ContainerId==command.To&&i.Equipment==null&&moving.Equipment==null&&i.DefinitionId==moving.DefinitionId&&i.Quantity+moving.Quantity<=d.MaxStack&&!Locked(i.Id));
+            var merge=command.X.HasValue?explicitTarget:state.Values.OrderBy(i=>i.Id).FirstOrDefault(i=>i.Location.ContainerId==command.To&&i.Equipment==null&&moving.Equipment==null&&i.DefinitionId==moving.DefinitionId&&(long)i.Quantity+moving.Quantity<=d.MaxStack&&!Locked(i.Id));
             if(merge!=null&&(merge.Equipment!=null||moving.Equipment!=null||merge.DefinitionId!=moving.DefinitionId))merge=null;
             if(merge!=null)
             {
-                if(Locked(merge.Id)||merge.Quantity+moving.Quantity>d.MaxStack)return InventoryResult.Reject("超过合法堆叠上限或目标已预留");
-                merge.Quantity+=moving.Quantity;moving.Quantity=0;
+                // MaxStack允许int上限；先以long验完整合并，自动转移仍可跳过满堆寻找空位。
+                if(Locked(merge.Id)||(long)merge.Quantity+moving.Quantity>d.MaxStack)return InventoryResult.Reject("超过合法堆叠上限或目标已预留");
+                merge.Quantity=checked(merge.Quantity+moving.Quantity);moving.Quantity=0;
             }
             else
             {
@@ -132,7 +135,7 @@ namespace Ossastra.Inventory
         public InventoryResult Reserve(string id,int quantity,Guid execution)
         {
             if(execution==Guid.Empty||reservations.ContainsKey(execution)||!items.TryGetValue(id??"",out var item)||item.Equipment!=null||quantity<1||quantity>item.Quantity||Locked(id))return InventoryResult.Reject("道具来源不可用");
-            reservations.Add(execution,new Reservation{item=id,quantity=quantity});return InventoryResult.Success(id);
+            reservations.Add(execution,new Reservation{item=id,quantity=quantity});mutationRevision++;return InventoryResult.Success(id);
         }
         public InventoryResult CommitConsumption(Guid execution)
         {
@@ -140,7 +143,7 @@ namespace Ossastra.Inventory
             reservations.Remove(execution);var state=Copy();var consumed=state[item.Id];consumed.Quantity-=reservation.quantity;if(consumed.Quantity==0)state.Remove(item.Id);
             Commit(state,item.Location.ContainerId);return InventoryResult.Success(item.Id);
         }
-        public void CancelReservation(Guid execution)=>reservations.Remove(execution);
+        public void CancelReservation(Guid execution){if(reservations.Remove(execution))mutationRevision++;}
         public InventoryResult DropAll(Guid wipe,string[] sources,string dropId)
         {
             if(wipe==Guid.Empty||wipes.Contains(wipe)||Container(dropId)!=null||sources==null||sources.Any(s=>Container(s)==null))return InventoryResult.Reject("无效或重复全灭事件");

@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net9.0</TargetFramework><EnableDefaultCompileItems>false</EnableDefaultCompileItems><Nullable>disable</Nullable><NoWarn>CS0649</NoWarn></PropertyGroup>
+  <ItemGroup><Compile Include="SessionTests.cs"/><Compile Include="HostStubs.cs"/><Compile Include="../../../Assets/OSSASTRA/Scripts/Inventory/InventorySession*.cs"/><Compile Include="../../../Assets/OSSASTRA/Scripts/Inventory/IInventoryStartupAdapter.cs"/><Compile Include="../../../Assets/OSSASTRA/Scripts/Characters/Core/**/*.cs"/></ItemGroup>
+</Project>

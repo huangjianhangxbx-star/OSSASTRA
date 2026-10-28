@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>net9.0</TargetFramework><AssemblyName>Ossastra.Commerce.Core</AssemblyName><EnableDefaultCompileItems>false</EnableDefaultCompileItems><Nullable>disable</Nullable></PropertyGroup>
+  <ItemGroup><ProjectReference Include="../CharacterCore/CharacterCore.Compile.csproj"/><Compile Include="../../../../../Assets/OSSASTRA/Scripts/Commerce/Core/**/*.cs"/></ItemGroup>
+</Project>

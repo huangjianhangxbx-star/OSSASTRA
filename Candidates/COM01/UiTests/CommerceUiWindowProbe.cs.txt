@@ -1,0 +1,47 @@
+/* 验证：在root已经通过正式入口打开自有商店后，检查实际uGUI选择、数量、捕获释放与原背包布局。
+ * 限制：本探针调用真实Button/InputField事件但不执行购买；不是正常输入故事、视觉截图或持久化证明。
+ * 使用：root通过Funplay execute_code读取此完整源码；要求Play及当前CommerceUIRoot.IsTrading。
+ */
+using System;
+using System.Linq;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.UI;
+using Funplay.Editor.Tools.Scripting;
+using Ossastra.Commerce.Presentation;
+using Ossastra.UserInterface;
+public sealed class CommerceUiWindowProbe:IFunplayCommand
+{
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext context)
+    {
+        var ui=UnityEngine.Object.FindObjectsOfType<CommerceUIRoot>().SingleOrDefault();
+        var view=UnityEngine.Object.FindObjectsOfType<InventoryView>().SingleOrDefault();
+        if(!Application.isPlaying||ui==null||view==null||!ui.IsTrading)throw new Exception("先在自有Play场通过正常入口打开一个非空商店");
+        var checks=new List<object>();Action<string,bool> check=(name,pass)=>checks.Add(new{name,pass});
+        var foreignOwner=new object();
+        try
+        {
+            var cards=ui.GetComponentsInChildren<Button>(true).Where(b=>b.name.StartsWith("Goods_",StringComparison.Ordinal)&&b.gameObject.activeInHierarchy).ToArray();
+            check("非空货架有实际uGUI条目",cards.Length>0);
+            if(cards.Length==0)throw new Exception("本探针需要非空目录");
+            cards[0].onClick.Invoke();
+            var field=ui.GetComponentsInChildren<InputField>(true).Single(x=>x.name=="Quantity");
+            var confirm=ui.GetComponentsInChildren<Button>(true).Single(x=>x.name=="ConfirmTrade");
+            check("货架条目点击切换到买入详情",ui.SelectedId!=null&&ui.GetComponentsInChildren<RectTransform>(true).Any(r=>r.name=="TradeDetail"&&r.gameObject.activeInHierarchy));
+            foreach(var invalid in new[]{"","-1","99999999999999999999","４"})
+            {
+                field.SetTextWithoutNotify(invalid);field.onValueChanged.Invoke(invalid);
+                check("无效数量不能继续使用旧报价: "+(invalid==""?"空白":invalid),!confirm.interactable&&!string.IsNullOrEmpty(ui.Notice));
+            }
+            field.SetTextWithoutNotify("1");field.onValueChanged.Invoke("1");
+            check("恢复合法数量会重新取得有效报价",confirm.interactable);
+            view.SetCommerceInputCapture(foreignOwner,true,false);
+            ui.Close();
+            check("关闭商店恢复同一背包表面",!ui.IsOpen&&!view.IsCommerceOpen&&!view.IsOpen&&Mathf.Abs(view.TeamGrid.anchoredPosition.y+263)<.01f);
+            var input=view.Session.Coordinator.Current.GetComponent<Ossastra.Characters.CharacterInputHandler>();
+            check("关闭商店没有清除其他owner的捕获",input.InventoryCaptured);
+        }
+        finally {ui.Close();view.SetCommerceInputCapture(foreignOwner,false,false);}
+        context.ReturnValue=new{scope="ACTUAL_UGUI_EVENTS_NO_PURCHASE",checks,passed=checks.Count(row=>(bool)row.GetType().GetProperty("pass").GetValue(row)),count=checks.Count};
+    }
+}

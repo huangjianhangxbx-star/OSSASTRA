@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net9.0</TargetFramework><EnableDefaultCompileItems>false</EnableDefaultCompileItems><Nullable>disable</Nullable></PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Reference Include="RuntimeCompileCheck"><HintPath>../bin/Release/net9.0/RuntimeCompileCheck.dll</HintPath></Reference>
+    <Reference Include="Ossastra.CharacterCore"><HintPath>../CoreTests/AssemblyGate/CharacterCore/bin/Release/net9.0/Ossastra.CharacterCore.dll</HintPath></Reference>
+    <Reference Include="Ossastra.Commerce.Core"><HintPath>../CoreTests/AssemblyGate/CommerceCore/bin/Release/net9.0/Ossastra.Commerce.Core.dll</HintPath></Reference>
+    <Reference Include="Newtonsoft.Json"><HintPath>../../../Library/PackageCache/com.unity.nuget.newtonsoft-json@3.2.2/Runtime/Newtonsoft.Json.dll</HintPath></Reference>
+  </ItemGroup>
+</Project>

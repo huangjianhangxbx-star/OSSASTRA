@@ -2,13 +2,14 @@
  * 功能：同一装备实例的实际弹序列与普通/特殊装填提交；释放弹药与完成装填各自去重。
  * 边界：不发弹/扣体力/播放动画；取消不生成弹药，挪槽/换装不重建本对象。
  * 协作：执行器在释放消费当前首弹；装填使用本体模拟到期时间，立即提交与延时提交互斥。
+ * 持久化：Inventory/EquipmentPersistentSnapshot中的partial只导出/校验恢复字段，不改变下方能力算法。
  */
 using System;
 using System.Collections.Generic;
 namespace Ossastra.CharacterCore.Abilities
 {
     public enum AmmoKind { Normal, Mortar }
-    public sealed class MagazineState
+    public sealed partial class MagazineState
     {
         private readonly Queue<AmmoKind> rounds=new Queue<AmmoKind>();
         private readonly HashSet<Guid> shots=new HashSet<Guid>(),reloads=new HashSet<Guid>();

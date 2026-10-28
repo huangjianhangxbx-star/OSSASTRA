@@ -2,11 +2,12 @@
  * 功能：本武器实例的霜寒余额、支付后恢复延迟及有效来源容量/恢复修饰。
  * 边界：只读本体传入的绝对模拟钟，不读设备/SO，不改变HP或另一角色资源。
  * 协作：支付及首次命中恢复由实际能力收据调用；容量来源变化沿冻结原型的增量/夹紧规则。
+ * 持久化：Inventory/EquipmentPersistentSnapshot中的partial只导出/校验恢复字段，不改变下方能力算法。
  */
 using System;
 namespace Ossastra.CharacterCore.Abilities
 {
-    public sealed class FrostReserveState
+    public sealed partial class FrostReserveState
     {
         public double Current {get;private set;}=3;
         public double Capacity {get;private set;}=3;

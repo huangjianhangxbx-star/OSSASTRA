@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net9.0</TargetFramework><EnableDefaultCompileItems>false</EnableDefaultCompileItems><Nullable>disable</Nullable></PropertyGroup>
+  <ItemGroup><Compile Include="CommerceTests.cs"/><Compile Include="DialogueTests.cs"/><Compile Include="EconomicProcessProof.cs"/><Compile Include="../../../Assets/OSSASTRA/Scripts/Commerce/Persistence/*.cs"/><ProjectReference Include="AssemblyGate/CommerceCore/CommerceCore.Compile.csproj"/></ItemGroup>
+</Project>

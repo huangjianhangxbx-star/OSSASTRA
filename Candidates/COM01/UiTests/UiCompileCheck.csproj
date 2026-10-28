@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>net9.0</TargetFramework><EnableDefaultCompileItems>false</EnableDefaultCompileItems><Nullable>disable</Nullable><NoWarn>CS0436;CS0649</NoWarn><IntermediateOutputPath>obj/compile/</IntermediateOutputPath><OutputPath>bin/compile/</OutputPath></PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../../Assets/OSSASTRA/Scripts/Commerce/Presentation/*.cs" />
+    <Compile Include="../../../Assets/OSSASTRA/Scripts/UI/InventoryView.cs" />
+    <Compile Include="../../../Assets/OSSASTRA/Scripts/UI/InventoryCommerceView.cs" />
+    <Compile Include="../../../Assets/OSSASTRA/Scripts/UI/InventoryAudioSettings.cs" />
+    <Compile Include="../../../Assets/OSSASTRA/Scripts/UI/InventoryPointerTarget.cs" />
+    <Compile Include="../../../Assets/OSSASTRA/Scripts/Inventory/InventorySession*.cs" />
+    <Compile Include="../../../Assets/OSSASTRA/Scripts/Inventory/IInventoryStartupAdapter.cs" />
+    <Reference Include="E:/unity/Tuanjie Hub/2022.3.62t16/Editor/Data/Managed/UnityEngine/*.dll" />
+    <Reference Include="../../../Library/ScriptAssemblies/*.dll" Exclude="../../../Library/ScriptAssemblies/Ossastra.CharacterCore.dll;../../../Library/ScriptAssemblies/Ossastra.Commerce.Core.dll" />
+    <Reference Include="../CoreTests/AssemblyGate/CharacterCore/bin/Release/net9.0/Ossastra.CharacterCore.dll" />
+  </ItemGroup>
+</Project>

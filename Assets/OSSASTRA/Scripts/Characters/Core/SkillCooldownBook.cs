@@ -1,12 +1,13 @@
 /* 脚本：SkillCooldownBook
  * 功能：本体技能实例的冷却账本；用稳定定义ID跨槽位保留冷却。
  * 边界：只记录已接受的执行；不读取SO、设备或推进另一条动作时钟。
+ * 持久化：Inventory/EquipmentPersistentSnapshot中的partial只导出/校验恢复字段，不改变下方能力算法。
  */
 using System;
 using System.Collections.Generic;
 namespace Ossastra.CharacterCore
 {
-    public sealed class SkillCooldownBook
+    public sealed partial class SkillCooldownBook
     {
         private readonly Dictionary<string,double> deadlines=new Dictionary<string,double>();
         private readonly HashSet<Guid> accepted=new HashSet<Guid>();

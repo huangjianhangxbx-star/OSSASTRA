@@ -2,12 +2,13 @@
  * 功能：同一装备实例持有的能力资源payload：CD账本、弹仓、霜寒及按政策过滤的模拟时间。
  * 边界：不持有HP/体力，不读Time.time；换槽/卸装不重建，源未装备时由调用者停止推进。
  * 协作：CharacterAbilities以Root已推进的delta调用一次；受控时间只在实际玩家控制时增长。
+ * 持久化：Inventory/EquipmentPersistentSnapshot中的partial只导出/校验恢复字段，不改变下方能力算法。
  */
 using System;
 namespace Ossastra.CharacterCore.Abilities
 {
     public enum AbilityCooldownPolicy { WhileEquipped, WhilePlayerControlled }
-    public sealed class EquipmentAbilityState
+    public sealed partial class EquipmentAbilityState
     {
         public SkillCooldownBook Cooldowns {get;}=new SkillCooldownBook();
         public MagazineState Magazine {get;}=new MagazineState();
