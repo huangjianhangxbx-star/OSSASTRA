@@ -1,0 +1,250 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [
+      "-14158"
+    ],
+    "modified": [],
+    "destroyed": [
+      "-14158"
+    ],
+    "returnValue": {
+      "passed": 24,
+      "failed": 0,
+      "complete": true,
+      "verification": "Actual MapResearchCameraInput with virtual device state events; post-implementation contract verification, not TDD",
+      "originalDeviceCount": 4,
+      "cleanupDeviceCount": 4,
+      "originalDeviceIds": [
+        1,
+        2,
+        3,
+        14
+      ],
+      "remainingDeviceIds": [
+        1,
+        2,
+        3,
+        14
+      ],
+      "unrelatedQeEnabledAfterOwnerEnd": true,
+      "results": [
+        {
+          "name": "default-map-actions-do-not-bind-character-QE-or-movement",
+          "passed": true,
+          "reason": ""
+        },
+        {
+          "name": "null-owner-rejected-without-enabling",
+          "passed": true,
+          "reason": ""
+        },
+        {
+          "name": "first-owner-enables-all-nine-actions",
+          "passed": true,
+          "reason": ""
+        },
+        {
+          "name": "foreign-owner-cannot-steal-live-session",
+          "passed": true,
+          "reason": ""
+        },
+        {
+          "name": "same-owner-begin-is-idempotent",
+          "passed": true,
+          "reason": ""
+        },
+        {
+          "name": "wheel-positive120-is-one-sector",
+          "passed": true,
+          "reason": ""
+        },
+        {
+          "name": "wheel-read-consumes-current-sampling-window",
+          "passed": true,
+          "reason": ""
+        },
+        {
+          "name": "wheel-does-not-repeat-on-next-input-update",
+          "passed": true,
+          "reason": ""
+        },
+        {
+          "name": "wheel-negative120-is-one-negative-sector",
+          "passed": true,
+          "reason": ""
+        },
+        {
+          "name": "three-positive-notches-in-one-update-coalesce",
+          "passed": true,
+          "reason": ""
+        },
+        {
+          "name": "opposite-wheel-samples-balance-without-duplicate-subscription",
+          "passed": true,
+          "reason": ""
+        },
+        {
+          "name": "blocked-frame-discards-wheel-instead-of-delaying",
+          "passed": true,
+          "reason": ""
+        },
+        {
+          "name": "explicit-discard-drops-pending-wheel",
+          "passed": true,
+          "reason": ""
+        },
+        {
+          "name": "foreign-end-preserves-owner-and-pending-input",
+          "passed": true,
+          "reason": ""
+        },
+        {
+          "name": "gamepad-dpad-left-is-negative-sector",
+          "passed": true,
+          "reason": ""
+        },
+        {
+          "name": "gamepad-held-dpad-does-not-auto-repeat",
+          "passed": true,
+          "reason": ""
+        },
+        {
+          "name": "gamepad-dpad-right-is-positive-sector",
+          "passed": true,
+          "reason": ""
+        },
+        {
+          "name": "gamepad-opposite-dpad-presses-cancel",
+          "passed": true,
+          "reason": ""
+        },
+        {
+          "name": "owner-end-disables-only-owned-actions",
+          "passed": true,
+          "reason": ""
+        },
+        {
+          "name": "repeated-owner-end-is-idempotent",
+          "passed": true,
+          "reason": ""
+        },
+        {
+          "name": "three-begin-end-cycles-keep-single-wheel-handler",
+          "passed": true,
+          "reason": ""
+        },
+        {
+          "name": "owner-ended-unrelated-QE-still-enabled-and-identical",
+          "passed": true,
+          "reason": ""
+        },
+        {
+          "name": "cleanup-device-count-and-identities-match-original",
+          "passed": true,
+          "reason": ""
+        },
+        {
+          "name": "transient-gameobject-destroyed",
+          "passed": true,
+          "reason": ""
+        }
+      ],
+      "observations": [
+        {
+          "operation": "virtual-mouse-wheel",
+          "delta": 120,
+          "rawActionValue": 120
+        },
+        {
+          "operation": "virtual-mouse-wheel",
+          "delta": -120,
+          "rawActionValue": -120
+        },
+        {
+          "operation": "virtual-mouse-wheel",
+          "delta": 120,
+          "rawActionValue": 120
+        },
+        {
+          "operation": "virtual-mouse-wheel",
+          "delta": -120,
+          "rawActionValue": -120
+        },
+        {
+          "operation": "virtual-mouse-wheel",
+          "delta": 120,
+          "rawActionValue": 120
+        },
+        {
+          "operation": "virtual-mouse-wheel",
+          "delta": -120,
+          "rawActionValue": -120
+        },
+        {
+          "operation": "virtual-mouse-wheel",
+          "delta": 120,
+          "rawActionValue": 120
+        },
+        {
+          "operation": "virtual-mouse-wheel",
+          "delta": -120,
+          "rawActionValue": -120
+        },
+        {
+          "operation": "virtual-mouse-wheel",
+          "delta": 120,
+          "rawActionValue": 0
+        },
+        {
+          "operation": "virtual-mouse-wheel",
+          "delta": 120,
+          "rawActionValue": 120
+        },
+        {
+          "operation": "virtual-mouse-wheel",
+          "delta": 120,
+          "rawActionValue": 120
+        },
+        {
+          "operation": "virtual-mouse-wheel",
+          "delta": -120,
+          "rawActionValue": -120
+        },
+        {
+          "operation": "virtual-mouse-wheel",
+          "delta": 120,
+          "rawActionValue": 120
+        },
+        {
+          "operation": "virtual-mouse-wheel",
+          "delta": 120,
+          "rawActionValue": 120
+        },
+        {
+          "operation": "virtual-mouse-wheel",
+          "delta": -120,
+          "rawActionValue": -120
+        },
+        {
+          "operation": "virtual-mouse-wheel",
+          "delta": 120,
+          "rawActionValue": 120
+        },
+        {
+          "operation": "virtual-mouse-wheel",
+          "delta": 120,
+          "rawActionValue": 120
+        },
+        {
+          "operation": "virtual-mouse-wheel",
+          "delta": -120,
+          "rawActionValue": -120
+        }
+      ]
+    }
+  }
+}

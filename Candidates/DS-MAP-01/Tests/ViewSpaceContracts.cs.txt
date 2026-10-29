@@ -1,0 +1,62 @@
+/* 视角适配契约验证：通过真实程序集反射运行；缺失能力报告失败，不用编译错误充当RED。 */
+using System;
+using System.Linq;
+using System.Reflection;
+using System.Collections.Generic;
+using UnityEngine;
+using Funplay.Editor.Tools.Scripting;
+public sealed class ViewSpaceContracts : IFunplayCommand
+{
+    private readonly List<string> passed = new List<string>();
+    private readonly List<string> failed = new List<string>();
+    private static Type Find(string name) => AppDomain.CurrentDomain.GetAssemblies().Select(a => a.GetType(name, false)).FirstOrDefault(t => t != null);
+    private void Check(string name, bool valid) { if (valid) passed.Add(name); else failed.Add(name); }
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+    {
+        var context = Find("Ossastra.Characters.ViewSpace.ICharacterViewContext");
+        var participant = Find("Ossastra.Characters.ViewSpace.ICharacterViewParticipant");
+        var math = Find("Ossastra.Characters.ViewSpace.CharacterViewSpaceMath");
+        var adapter = Find("Ossastra.Characters.ViewSpace.CharacterViewSpaceAdapter");
+        Check("shared view-context contract exists", context != null);
+        Check("shared participant contract exists", participant != null);
+        Check("optional adapter exists", adapter != null);
+        Check("projection math exists", math != null);
+        if (context != null)
+            foreach (var name in new[] { "GameplayCamera", "IsValid", "ViewRight", "ViewForward", "ViewRotation", "FreezePresentation" })
+                Check("context." + name, context.GetProperty(name) != null);
+        if (participant != null)
+        {
+            var root = Find("Ossastra.Characters.CharacterRoot");
+            Check("existing CharacterRoot implements participant", root != null && participant.IsAssignableFrom(root));
+            foreach (var name in new[] { "BindViewContext", "ReleaseViewContext", "SetViewInputCapture" }) Check("participant." + name, participant.GetMethod(name) != null);
+        }
+        if (adapter != null)
+        {
+            Check("adapter has no second Update", adapter.GetMethod("Update", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly) == null);
+            Check("adapter has no second LateUpdate", adapter.GetMethod("LateUpdate", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly) == null);
+        }
+        var map = math?.GetMethod("MapInput", BindingFlags.Public | BindingFlags.Static);
+        var view = math?.GetMethod("ToPresentation", BindingFlags.Public | BindingFlags.Static);
+        Check("world input projection API", map != null);
+        Check("view direction projection API", view != null);
+        if (map != null && view != null)
+        {
+            for (int sector = 0; sector < 8; sector++)
+            {
+                var rotation = Quaternion.Euler(0, sector * 45, 0);
+                var right = rotation * Vector3.right;
+                var forward = rotation * Vector3.forward;
+                foreach (var input in new[] { Vector2.up, Vector2.right, Vector2.down, Vector2.left, new Vector2(.3f, .4f), Vector2.zero })
+                {
+                    var world = (Vector2)map.Invoke(null, new object[] { input, right, forward });
+                    var expected = right * input.x + forward * input.y;
+                    var recovered = (Vector3)view.Invoke(null, new object[] { new Vector3(world.x, 0, world.y), right, forward });
+                    Check("sector " + sector + " input " + input + " maps once", (world - new Vector2(expected.x, expected.z)).sqrMagnitude < .000001f);
+                    Check("sector " + sector + " input " + input + " preserves amplitude", Mathf.Abs(world.magnitude - input.magnitude) < .0001f);
+                    Check("sector " + sector + " input " + input + " round trip", (recovered - new Vector3(input.x, 0, input.y)).sqrMagnitude < .000001f);
+                }
+            }
+        }
+        ctx.ReturnValue = new { passed = passed.Count, failed = failed.Count, passedCases = passed.ToArray(), failedCases = failed.ToArray(), complete = failed.Count == 0 };
+    }
+}

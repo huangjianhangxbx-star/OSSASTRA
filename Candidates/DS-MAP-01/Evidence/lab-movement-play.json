@@ -1,0 +1,902 @@
+{
+  "Done": true,
+  "Passed": 91,
+  "Failed": 0,
+  "rows": [
+    {
+      "name": "first-Play binds original actor",
+      "passed": true,
+      "data": {
+        "enabled": true,
+        "HasPlayerInput": true
+      }
+    },
+    {
+      "name": "screen direction 0 W",
+      "passed": true,
+      "data": {
+        "yaw": 45,
+        "delta": [
+          0.3532756,
+          -5.96046448e-8,
+          0.353275537
+        ],
+        "dot": 0.99999994,
+        "face": "正常输入；实际相机基已采样\n世界(0.71,0.71)→观察(0.00,1.00) 面:back 动作:无 段:0 相:无",
+        "anim": "_move"
+      }
+    },
+    {
+      "name": "screen direction 0 S",
+      "passed": true,
+      "data": {
+        "yaw": 45,
+        "delta": [
+          -0.340438217,
+          5.96046448e-8,
+          -0.340438157
+        ],
+        "dot": 0.99999994,
+        "face": "正常输入；实际相机基已采样\n世界(-0.71,-0.71)→观察(0.00,-1.00) 面:front 动作:无 段:0 相:无",
+        "anim": "_move"
+      }
+    },
+    {
+      "name": "screen direction 0 A",
+      "passed": true,
+      "data": {
+        "yaw": 45,
+        "delta": [
+          -0.340156019,
+          0,
+          0.340156078
+        ],
+        "dot": 0.99999994,
+        "face": "正常输入；实际相机基已采样\n世界(-0.71,0.71)→观察(-1.00,0.00) 面:left 动作:无 段:0 相:无",
+        "anim": "_move"
+      }
+    },
+    {
+      "name": "screen direction 0 D",
+      "passed": true,
+      "data": {
+        "yaw": 45,
+        "delta": [
+          0.3395141,
+          5.96046448e-8,
+          -0.339514166
+        ],
+        "dot": 1,
+        "face": "正常输入；实际相机基已采样\n世界(0.71,-0.71)→观察(1.00,0.00) 面:left 镜像 动作:无 段:0 相:无",
+        "anim": "_move"
+      }
+    },
+    {
+      "name": "one wheel step 0",
+      "passed": true,
+      "data": {
+        "ActualYaw": 90,
+        "TargetYaw": 90
+      }
+    },
+    {
+      "name": "idle orbit preserves world direction 0",
+      "passed": true,
+      "data": {
+        "before": [
+          0.7071067,
+          0,
+          -0.7071068
+        ],
+        "after": [
+          0.7071067,
+          0,
+          -0.7071068
+        ]
+      }
+    },
+    {
+      "name": "screen direction 1 W",
+      "passed": true,
+      "data": {
+        "yaw": 90,
+        "delta": [
+          0.4872792,
+          1.1920929e-7,
+          -6.519258e-8
+        ],
+        "dot": 1,
+        "face": "正常输入；实际相机基已采样\n世界(1.00,0.00)→观察(0.00,1.00) 面:back 动作:无 段:0 相:无",
+        "anim": "_move"
+      }
+    },
+    {
+      "name": "screen direction 1 S",
+      "passed": true,
+      "data": {
+        "yaw": 90,
+        "delta": [
+          -0.4832412,
+          5.96046448e-8,
+          6.426126e-8
+        ],
+        "dot": 1,
+        "face": "正常输入；实际相机基已采样\n世界(-1.00,0.00)→观察(0.00,-1.00) 面:front 动作:无 段:0 相:无",
+        "anim": "_move"
+      }
+    },
+    {
+      "name": "screen direction 1 A",
+      "passed": true,
+      "data": {
+        "yaw": 90,
+        "delta": [
+          6.519258e-8,
+          1.1920929e-7,
+          0.486575127
+        ],
+        "dot": 1,
+        "face": "正常输入；实际相机基已采样\n世界(0.00,1.00)→观察(-1.00,0.00) 面:left 动作:无 段:0 相:无",
+        "anim": "_move"
+      }
+    },
+    {
+      "name": "screen direction 1 D",
+      "passed": true,
+      "data": {
+        "yaw": 90,
+        "delta": [
+          -6.519258e-8,
+          5.96046448e-8,
+          -0.482195437
+        ],
+        "dot": 1,
+        "face": "正常输入；实际相机基已采样\n世界(0.00,-1.00)→观察(1.00,0.00) 面:left 镜像 动作:无 段:0 相:无",
+        "anim": "_move"
+      }
+    },
+    {
+      "name": "one wheel step 1",
+      "passed": true,
+      "data": {
+        "ActualYaw": 135,
+        "TargetYaw": 135
+      }
+    },
+    {
+      "name": "idle orbit preserves world direction 1",
+      "passed": true,
+      "data": {
+        "before": [
+          -1.34110437e-7,
+          0,
+          -1
+        ],
+        "after": [
+          -1.34110437e-7,
+          0,
+          -1
+        ]
+      }
+    },
+    {
+      "name": "screen direction 2 W",
+      "passed": true,
+      "data": {
+        "yaw": 135,
+        "delta": [
+          0.342379183,
+          1.1920929e-7,
+          -0.342379153
+        ],
+        "dot": 1,
+        "face": "正常输入；实际相机基已采样\n世界(0.71,-0.71)→观察(0.00,1.00) 面:back 动作:无 段:0 相:无",
+        "anim": "_move"
+      }
+    },
+    {
+      "name": "screen direction 2 S",
+      "passed": true,
+      "data": {
+        "yaw": 135,
+        "delta": [
+          -0.339985073,
+          5.96046448e-8,
+          0.339985043
+        ],
+        "dot": 1,
+        "face": "正常输入；实际相机基已采样\n世界(-0.71,0.71)→观察(0.00,-1.00) 面:front 动作:无 段:0 相:无",
+        "anim": "_move"
+      }
+    },
+    {
+      "name": "screen direction 2 A",
+      "passed": true,
+      "data": {
+        "yaw": 135,
+        "delta": [
+          0.339653939,
+          5.96046448e-8,
+          0.3396539
+        ],
+        "dot": 1,
+        "face": "正常输入；实际相机基已采样\n世界(0.71,0.71)→观察(-1.00,0.00) 面:left 动作:无 段:0 相:无",
+        "anim": "_move"
+      }
+    },
+    {
+      "name": "screen direction 2 D",
+      "passed": true,
+      "data": {
+        "yaw": 135,
+        "delta": [
+          -0.339962363,
+          1.1920929e-7,
+          -0.339962363
+        ],
+        "dot": 0.99999994,
+        "face": "正常输入；实际相机基已采样\n世界(-0.71,-0.71)→观察(1.00,0.00) 面:left 镜像 动作:无 段:0 相:无",
+        "anim": "_move"
+      }
+    },
+    {
+      "name": "one wheel step 2",
+      "passed": true,
+      "data": {
+        "ActualYaw": 180,
+        "TargetYaw": 180
+      }
+    },
+    {
+      "name": "idle orbit preserves world direction 2",
+      "passed": true,
+      "data": {
+        "before": [
+          -0.707106769,
+          0,
+          -0.707106769
+        ],
+        "after": [
+          -0.707106769,
+          0,
+          -0.707106769
+        ]
+      }
+    },
+    {
+      "name": "screen direction 3 W",
+      "passed": true,
+      "data": {
+        "yaw": 180,
+        "delta": [
+          -4.09781933e-8,
+          1.78813934e-7,
+          -0.48566398
+        ],
+        "dot": 1,
+        "face": "正常输入；实际相机基已采样\n世界(0.00,-1.00)→观察(0.00,1.00) 面:back 动作:无 段:0 相:无",
+        "anim": "_move"
+      }
+    },
+    {
+      "name": "screen direction 3 S",
+      "passed": true,
+      "data": {
+        "yaw": 180,
+        "delta": [
+          4.09781933e-8,
+          1.78813934e-7,
+          0.4805463
+        ],
+        "dot": 1,
+        "face": "正常输入；实际相机基已采样\n世界(0.00,1.00)→观察(0.00,-1.00) 面:front 动作:无 段:0 相:无",
+        "anim": "_move"
+      }
+    },
+    {
+      "name": "screen direction 3 A",
+      "passed": true,
+      "data": {
+        "yaw": 180,
+        "delta": [
+          0.4810326,
+          1.1920929e-7,
+          -4.19095159e-8
+        ],
+        "dot": 1,
+        "face": "正常输入；实际相机基已采样\n世界(1.00,0.00)→观察(-1.00,0.00) 面:left 动作:无 段:0 相:无",
+        "anim": "_move"
+      }
+    },
+    {
+      "name": "screen direction 3 D",
+      "passed": true,
+      "data": {
+        "yaw": 180,
+        "delta": [
+          -0.4797264,
+          1.1920929e-7,
+          4.19095159e-8
+        ],
+        "dot": 1,
+        "face": "正常输入；实际相机基已采样\n世界(-1.00,0.00)→观察(1.00,0.00) 面:left 镜像 动作:无 段:0 相:无",
+        "anim": "_move"
+      }
+    },
+    {
+      "name": "one wheel step 3",
+      "passed": true,
+      "data": {
+        "ActualYaw": 225,
+        "TargetYaw": 225
+      }
+    },
+    {
+      "name": "idle orbit preserves world direction 3",
+      "passed": true,
+      "data": {
+        "before": [
+          -1,
+          0,
+          8.742277e-8
+        ],
+        "after": [
+          -1,
+          0,
+          8.742277e-8
+        ]
+      }
+    },
+    {
+      "name": "screen direction 4 W",
+      "passed": true,
+      "data": {
+        "yaw": 225,
+        "delta": [
+          -0.3405281,
+          5.96046448e-8,
+          -0.3405282
+        ],
+        "dot": 1,
+        "face": "正常输入；实际相机基已采样\n世界(-0.71,-0.71)→观察(0.00,1.00) 面:back 动作:无 段:0 相:无",
+        "anim": "_move"
+      }
+    },
+    {
+      "name": "screen direction 4 S",
+      "passed": true,
+      "data": {
+        "yaw": 225,
+        "delta": [
+          0.340619951,
+          1.1920929e-7,
+          0.340620041
+        ],
+        "dot": 1,
+        "face": "正常输入；实际相机基已采样\n世界(0.71,0.71)→观察(0.00,-1.00) 面:front 动作:无 段:0 相:无",
+        "anim": "_move"
+      }
+    },
+    {
+      "name": "screen direction 4 A",
+      "passed": true,
+      "data": {
+        "yaw": 225,
+        "delta": [
+          0.340319,
+          1.1920929e-7,
+          -0.3403189
+        ],
+        "dot": 0.99999994,
+        "face": "正常输入；实际相机基已采样\n世界(0.71,-0.71)→观察(-1.00,0.00) 面:left 动作:无 段:0 相:无",
+        "anim": "_move"
+      }
+    },
+    {
+      "name": "screen direction 4 D",
+      "passed": true,
+      "data": {
+        "yaw": 225,
+        "delta": [
+          -0.3411054,
+          1.78813934e-7,
+          0.341105253
+        ],
+        "dot": 0.99999994,
+        "face": "正常输入；实际相机基已采样\n世界(-0.71,0.71)→观察(1.00,0.00) 面:left 镜像 动作:无 段:0 相:无",
+        "anim": "_move"
+      }
+    },
+    {
+      "name": "one wheel step 4",
+      "passed": true,
+      "data": {
+        "ActualYaw": 270,
+        "TargetYaw": 270
+      }
+    },
+    {
+      "name": "idle orbit preserves world direction 4",
+      "passed": true,
+      "data": {
+        "before": [
+          -0.707106948,
+          0,
+          0.70710665
+        ],
+        "after": [
+          -0.707106948,
+          0,
+          0.70710665
+        ]
+      }
+    },
+    {
+      "name": "screen direction 5 W",
+      "passed": true,
+      "data": {
+        "yaw": 270,
+        "delta": [
+          -0.482833177,
+          1.1920929e-7,
+          -6.519258e-8
+        ],
+        "dot": 1,
+        "face": "正常输入；实际相机基已采样\n世界(-1.00,0.00)→观察(0.00,1.00) 面:back 动作:无 段:0 相:无",
+        "anim": "_move"
+      }
+    },
+    {
+      "name": "screen direction 5 S",
+      "passed": true,
+      "data": {
+        "yaw": 270,
+        "delta": [
+          0.4841832,
+          0,
+          6.519258e-8
+        ],
+        "dot": 1,
+        "face": "正常输入；实际相机基已采样\n世界(1.00,0.00)→观察(0.00,-1.00) 面:front 动作:无 段:0 相:无",
+        "anim": "_move"
+      }
+    },
+    {
+      "name": "screen direction 5 A",
+      "passed": true,
+      "data": {
+        "yaw": 270,
+        "delta": [
+          6.519258e-8,
+          5.96046448e-8,
+          -0.4854474
+        ],
+        "dot": 1,
+        "face": "正常输入；实际相机基已采样\n世界(0.00,-1.00)→观察(-1.00,0.00) 面:left 动作:无 段:0 相:无",
+        "anim": "_move"
+      }
+    },
+    {
+      "name": "screen direction 5 D",
+      "passed": true,
+      "data": {
+        "yaw": 270,
+        "delta": [
+          -6.519258e-8,
+          1.1920929e-7,
+          0.4804197
+        ],
+        "dot": 1,
+        "face": "正常输入；实际相机基已采样\n世界(0.00,1.00)→观察(1.00,0.00) 面:left 镜像 动作:无 段:0 相:无",
+        "anim": "_move"
+      }
+    },
+    {
+      "name": "one wheel step 5",
+      "passed": true,
+      "data": {
+        "ActualYaw": 315,
+        "TargetYaw": 315
+      }
+    },
+    {
+      "name": "idle orbit preserves world direction 5",
+      "passed": true,
+      "data": {
+        "before": [
+          -1.34110437e-7,
+          0,
+          1
+        ],
+        "after": [
+          -1.34110437e-7,
+          0,
+          1
+        ]
+      }
+    },
+    {
+      "name": "screen direction 6 W",
+      "passed": true,
+      "data": {
+        "yaw": 315,
+        "delta": [
+          -0.342381179,
+          1.1920929e-7,
+          0.34238106
+        ],
+        "dot": 0.99999994,
+        "face": "正常输入；实际相机基已采样\n世界(-0.71,0.71)→观察(0.00,1.00) 面:back 动作:无 段:0 相:无",
+        "anim": "_move"
+      }
+    },
+    {
+      "name": "screen direction 6 S",
+      "passed": true,
+      "data": {
+        "yaw": 315,
+        "delta": [
+          0.340904951,
+          5.96046448e-8,
+          -0.340904832
+        ],
+        "dot": 0.99999994,
+        "face": "正常输入；实际相机基已采样\n世界(0.71,-0.71)→观察(0.00,-1.00) 面:front 动作:无 段:0 相:无",
+        "anim": "_move"
+      }
+    },
+    {
+      "name": "screen direction 6 A",
+      "passed": true,
+      "data": {
+        "yaw": 315,
+        "delta": [
+          -0.340140939,
+          5.96046448e-8,
+          -0.340141028
+        ],
+        "dot": 1,
+        "face": "正常输入；实际相机基已采样\n世界(-0.71,-0.71)→观察(-1.00,0.00) 面:left 动作:无 段:0 相:无",
+        "anim": "_move"
+      }
+    },
+    {
+      "name": "screen direction 6 D",
+      "passed": true,
+      "data": {
+        "yaw": 315,
+        "delta": [
+          0.341540158,
+          1.1920929e-7,
+          0.341540247
+        ],
+        "dot": 0.99999994,
+        "face": "正常输入；实际相机基已采样\n世界(0.71,0.71)→观察(1.00,0.00) 面:left 镜像 动作:无 段:0 相:无",
+        "anim": "_move"
+      }
+    },
+    {
+      "name": "one wheel step 6",
+      "passed": true,
+      "data": {
+        "ActualYaw": 0,
+        "TargetYaw": 0
+      }
+    },
+    {
+      "name": "idle orbit preserves world direction 6",
+      "passed": true,
+      "data": {
+        "before": [
+          0.70710665,
+          0,
+          0.7071069
+        ],
+        "after": [
+          0.70710665,
+          0,
+          0.7071069
+        ]
+      }
+    },
+    {
+      "name": "screen direction 7 W",
+      "passed": true,
+      "data": {
+        "yaw": 0,
+        "delta": [
+          0,
+          0,
+          0.4817466
+        ],
+        "dot": 1,
+        "face": "正常输入；实际相机基已采样\n世界(0.00,1.00)→观察(0.00,1.00) 面:back 动作:无 段:0 相:无",
+        "anim": "_move"
+      }
+    },
+    {
+      "name": "screen direction 7 S",
+      "passed": true,
+      "data": {
+        "yaw": 0,
+        "delta": [
+          0,
+          1.1920929e-7,
+          -0.4844805
+        ],
+        "dot": 1,
+        "face": "正常输入；实际相机基已采样\n世界(0.00,-1.00)→观察(0.00,-1.00) 面:front 动作:无 段:0 相:无",
+        "anim": "_move"
+      }
+    },
+    {
+      "name": "screen direction 7 A",
+      "passed": true,
+      "data": {
+        "yaw": 0,
+        "delta": [
+          -0.4820469,
+          1.1920929e-7,
+          0
+        ],
+        "dot": 1,
+        "face": "正常输入；实际相机基已采样\n世界(-1.00,0.00)→观察(-1.00,0.00) 面:left 动作:无 段:0 相:无",
+        "anim": "_move"
+      }
+    },
+    {
+      "name": "screen direction 7 D",
+      "passed": true,
+      "data": {
+        "yaw": 0,
+        "delta": [
+          0.4834707,
+          0,
+          0
+        ],
+        "dot": 1,
+        "face": "正常输入；实际相机基已采样\n世界(1.00,0.00)→观察(1.00,0.00) 面:left 镜像 动作:无 段:0 相:无",
+        "anim": "_move"
+      }
+    },
+    {
+      "name": "one wheel step 7",
+      "passed": true,
+      "data": {
+        "ActualYaw": 45,
+        "TargetYaw": 45
+      }
+    },
+    {
+      "name": "idle orbit preserves world direction 7",
+      "passed": true,
+      "data": {
+        "before": [
+          1,
+          0,
+          0
+        ],
+        "after": [
+          1,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "name": "eight steps return",
+      "passed": true,
+      "data": {
+        "ActualYaw": 45
+      }
+    },
+    {
+      "name": "static-world-prop 0",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "static-world-prop 1",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "static-world-prop 2",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "static-world-prop 3",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "static-world-prop 4",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "static-world-prop 5",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "static-world-prop 6",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "static-world-prop 7",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "static-world-prop 8",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "static-world-prop 9",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "static-world-prop 10",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "static-world-prop 11",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "static-world-prop 12",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "static-world-prop 13",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "static-world-prop 14",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "static-world-prop 15",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "static-world-prop 16",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "static-world-prop 17",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "static-world-prop 18",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "static-world-prop 19",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "static-world-prop 20",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "static-world-prop 21",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "static-world-prop 22",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "static-world-prop 23",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "static-world-prop 24",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "static-world-prop 25",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "static-world-prop 26",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "static-world-prop 27",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "static-world-prop 28",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "static-world-prop 29",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "static-world-prop 30",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "static-world-prop 31",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "static-world-prop 32",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "static-world-prop 33",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "static-world-prop 34",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "static-world-prop 35",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "static-world-prop 36",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "static-world-prop 37",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "static-world-prop 38",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "static-world-prop 39",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "camera and movement do not release attacks",
+      "passed": true,
+      "data": {
+        "before": 0,
+        "after": 0
+      }
+    }
+  ]
+}

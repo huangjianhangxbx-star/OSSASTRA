@@ -1,0 +1,29 @@
+/* 测试：真实物件帧钟按每帧duration推进；防止按贴图个数/固定FPS丢失时长与循环末帧。 */
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using Funplay.Editor.Tools.Scripting;
+using UnityEngine;
+public sealed class PropClockContracts : IFunplayCommand
+{
+    public void Execute(ExecutionContext ctx)
+    {
+        var frameType = AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType("Ossastra.MapResearch.ScenePropFrame",false)).FirstOrDefault(t=>t!=null);
+        var clockType = AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType("Ossastra.MapResearch.ScenePropFrameClock",false)).FirstOrDefault(t=>t!=null);
+        if(frameType==null||clockType==null){ctx.ReturnValue=new{passed=0,failed=1,reason="ScenePropFrameClock duration resolver missing"};return;}
+        var frames=Array.CreateInstance(frameType,3);
+        float[] duration={0.1f,0.3f,0.1f};
+        for(int i=0;i<3;i++){var value=Activator.CreateInstance(frameType);frameType.GetField("durationSeconds").SetValue(value,duration[i]);frameType.GetField("uv").SetValue(value,new Rect(i/3f,0,1/3f,1));frames.SetValue(value,i);}
+        var method=clockType.GetMethod("ResolveFrame");
+        var results=new List<object>();
+        double[] times={0,0.15,0.35,0.45,0.55,8, double.NaN};
+        int[] want={0,1,1,2,0,2,0};
+        for(int i=0;i<times.Length;i++)
+        {
+            bool loop=i!=5;int actual=(int)method.Invoke(null,new object[]{frames,times[i],loop});
+            results.Add(new{time=times[i].ToString(),loop,want=want[i],actual,passed=want[i]==actual});
+        }
+        int passed=results.Count(x=>(bool)x.GetType().GetProperty("passed").GetValue(x));
+        ctx.ReturnValue=new{passed,failed=results.Count-passed,results};
+    }
+}

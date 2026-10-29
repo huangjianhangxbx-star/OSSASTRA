@@ -2,7 +2,7 @@
  * 脚本：CharacterSpineView
  * 功能：Root运动后采集只读语义，经公共仲裁和配置映射，单次提交Spine主轨；合法恢复移动后让出攻击姿势。
  * 边界：不定义战斗时钟、不监听Complete扣血；死亡仍由Vitals立即隐藏。
- * 协作：旧idle/move/attack序列化引用保留；SO配置与接受时冻结方案优先；catalog和旧三片段仅为旧资产兼容。
+ * 协作：旧idle/move/attack引用保留；SO与接受时冻结方案优先；可选观察镜像只读Bus派生值，旧三片段保留兼容。
  */
 using System;
 using System.Collections.Generic;
@@ -130,7 +130,7 @@ namespace Ossastra.Characters
                     rate=binding.sourceDuration/motion.Duration;
             }            if(string.IsNullOrEmpty(clip)||skeleton.Skeleton.Data.FindAnimation(clip)==null)
             {FallbackReason="片段缺失："+clip+"，回退Idle";clip=idle;loop=true;}
-            skeleton.Skeleton.ScaleX=originalScaleX*dataBus.VisualFacingX;
+            skeleton.Skeleton.ScaleX=originalScaleX*dataBus.ViewFacingX;
             if(identity.ShouldCommit(clip,intent))
             {var track=skeleton.AnimationState.SetAnimation(0,clip,loop);track.MixDuration=mix;track.TimeScale=rate;CommitCount++;}
             CurrentClip=clip;CurrentSemantic=intent.Semantic;CurrentSource=intent.Source;CurrentReplayId=intent.ReplayId;

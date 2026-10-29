@@ -252,7 +252,40 @@
 /Candidates/AUDIO-BB-FUSION/**/*.ogg
 
 # AUDIO-LISTENING-FIX public code and text evidence only.
+# DS-MAP-01: installed-game media and derived geometry stay local.
+/Assets/OSSASTRA/Art/DontStarveReferenceLocal/
+/Assets/OSSASTRA/Art/DontStarveReferenceLocal.meta
+/Assets/OSSASTRA/MapResearch/LocalGenerated/
+/Assets/OSSASTRA/MapResearch/LocalGenerated.meta
 !/Candidates/AUDIO-LISTENING-FIX/
 !/docs/ossastra/AUDIO-LISTENING-FIX-*
 /Candidates/AUDIO-LISTENING-FIX/**/*.wav
 /Candidates/AUDIO-LISTENING-FIX/**/*.ogg
+
+# DS-MAP-01: own code/configuration and text evidence; no game-derived media/meshes.
+!/Assets/OSSASTRA/MapResearch.meta
+!/Assets/OSSASTRA/MapResearch/
+/Assets/OSSASTRA/MapResearch/*
+!/Assets/OSSASTRA/MapResearch/Materials.meta
+!/Assets/OSSASTRA/MapResearch/Materials/
+!/Assets/OSSASTRA/MapResearch/Prefabs.meta
+!/Assets/OSSASTRA/MapResearch/Prefabs/
+!/Assets/OSSASTRA/Scenes/Research.meta
+!/Assets/OSSASTRA/Scenes/Research/
+/Assets/OSSASTRA/Scenes/Research/*
+!/Assets/OSSASTRA/Scenes/Research/SC_DontStarveMapLab.unity
+!/Assets/OSSASTRA/Scenes/Research/SC_DontStarveMapLab.unity.meta
+!/docs/ossastra/DS-MAP-01/
+!/docs/agent-sync/
+/docs/agent-sync/*
+!/docs/agent-sync/tasks/
+/docs/agent-sync/tasks/*
+!/docs/agent-sync/tasks/2026-10-29-ds-map-01.md
+!/Candidates/DS-MAP-01/
+/Candidates/DS-MAP-01/*
+!/Candidates/DS-MAP-01/Tests/
+!/Candidates/DS-MAP-01/Evidence/
+!/Candidates/DS-MAP-01/Tools/
+/Candidates/DS-MAP-01/Tools/__pycache__/
+/Candidates/DS-MAP-01/**/*.png
+/Candidates/DS-MAP-01/**/*.mp4

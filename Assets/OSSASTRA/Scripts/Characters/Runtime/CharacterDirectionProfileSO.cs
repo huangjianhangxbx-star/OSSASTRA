@@ -1,5 +1,5 @@
 /* 脚本：CharacterDirectionProfileSO
- * 功能：声明模型方向面、XZ坐标变换、闭区间优先表和每实例显隐来源；具体动画仍在原Mapping中。
+ * 功能：声明模型方向面、XZ方向扇区、闭区间优先表和每实例显隐来源；具体动画仍在原Mapping中。
  * 边界：SO不保存当前面/镜像；零输入沿用调用者的合法结果，不量化玩法方向。
  * 协作：DirectionPresentation消费已筛选事实；Composer只允许此Profile声明的结构逻辑与轨道。
  */
@@ -37,7 +37,7 @@ namespace Ossastra.Characters
         [Tooltip("默认保留小蓝的裁切边界；无裁切附件的独立多面模型可按互不嵌套的面根分支显隐。")]
         public CharacterDirectionVisibilityMode visibilityMode;
         [Min(1)] public int contentVersion=1,structureTrack=9;
-        [Tooltip("世界XZ角度：atan2(x,z)，再加此偏移；不是屏幕坐标。")]
+        [Tooltip("模型方向XZ角度：atan2(x,z)再加此偏移；默认来自世界方向，可选ViewSpace先转为观察相对方向。")]
         public float yawOffset;
         public string initialFace,boundarySlot;
         public CharacterDirectionFace[] faces=Array.Empty<CharacterDirectionFace>();

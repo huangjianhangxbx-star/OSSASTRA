@@ -1,0 +1,100 @@
+/* 视角生命周期验证：使用真实可选适配器和瞬态相机；不写资产，不执行角色玩法。 */
+using System;
+using System.Reflection;
+using System.Collections.Generic;
+using UnityEngine;
+using Funplay.Editor.Tools.Scripting;
+using Ossastra.Characters.ViewSpace;
+public sealed class ViewSpaceLifecycleContracts : IFunplayCommand
+{
+    private sealed class ViewContext : ICharacterViewContext
+    {
+        public Camera camera;
+        public bool valid = true, frozen;
+        public float yaw;
+        public Camera GameplayCamera => camera;
+        public bool IsValid => valid;
+        public Vector3 ViewRight => Quaternion.Euler(0, yaw, 0) * Vector3.right;
+        public Vector3 ViewForward => Quaternion.Euler(0, yaw, 0) * Vector3.forward;
+        public Quaternion ViewRotation => Quaternion.Euler(35, yaw, 0);
+        public bool FreezePresentation => frozen;
+    }
+    private readonly List<string> passed = new List<string>(), failed = new List<string>();
+    private void Check(string name, bool valid) { if (valid) passed.Add(name); else failed.Add(name); }
+    private static bool Near(Vector2 a, Vector2 b) => (a - b).sqrMagnitude < .000001f;
+    private static bool Near(Vector3 a, Vector3 b) => (a - b).sqrMagnitude < .000001f;
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+    {
+        GameObject root = null, cameraObject = null;
+        try
+        {
+            root = new GameObject("ViewSpaceContractTransient");
+            root.transform.position = new Vector3(3, 4, 5);
+            var visual = new GameObject("Visual").transform;
+            visual.SetParent(root.transform, false);
+            visual.localPosition = new Vector3(.1f, .2f, .3f);
+            visual.localRotation = Quaternion.Euler(12, 13, 14);
+            var originalRotation = visual.localRotation;
+            var adapter = root.AddComponent<CharacterViewSpaceAdapter>();
+            typeof(CharacterViewSpaceAdapter).GetField("visualRoot", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(adapter, root.transform);
+            Check("reject rotating character root", !adapter.Initialize(root.transform));
+            typeof(CharacterViewSpaceAdapter).GetField("visualRoot", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(adapter, visual);
+            Check("explicit visual child initializes", adapter.Initialize(root.transform));
+            cameraObject = new GameObject("ViewSpaceContractCamera");
+            var context = new ViewContext { camera = cameraObject.AddComponent<Camera>(), yaw = 180 };
+            var owner = new object(); var stranger = new object();
+            Check("owner binds", adapter.Bind(owner, context));
+            Check("different live owner cannot steal", !adapter.Bind(stranger, context));
+            Check("stranger cannot capture input", !adapter.SetInputCapture(stranger, true));
+            Check("owner can capture input", adapter.SetInputCapture(owner, true));
+            adapter.Tick();
+            Check("valid actual context effective", adapter.IsEffective);
+            Check("180 degree player maps once", Near(adapter.MapPlayerInput(new Vector2(.3f, .4f)), new Vector2(-.3f, -.4f)));
+            Check("180 degree world direction only projected", Near(adapter.ToPresentation(Vector3.right), Vector3.left));
+            Check("visual matches camera plane", Quaternion.Angle(visual.rotation, context.ViewRotation) < .001f);
+            Check("world position untouched", Near(root.transform.position, new Vector3(3, 4, 5)));
+            Check("world rotation untouched", Quaternion.Angle(root.transform.rotation, Quaternion.identity) < .001f);
+            Check("visual foot offset untouched", Near(visual.localPosition, new Vector3(.1f, .2f, .3f)));
+            adapter.ResolvePresentation(Vector3.right, 1);
+            Check("single-face mirror uses view projection", adapter.PresentationFacing == -1);
+            var frozenRotation = visual.rotation;
+            context.frozen = true; context.yaw = 90;
+            adapter.Tick();
+            Check("structure mode freezes plane", Quaternion.Angle(visual.rotation, frozenRotation) < .001f);
+            Check("structure mode freezes direction basis", Near(adapter.MapPlayerInput(Vector2.up), Vector2.down));
+            Check("same owner binding is idempotent", adapter.Bind(owner, context));
+            adapter.Tick();
+            Check("idempotent bind preserves frozen basis", Near(adapter.MapPlayerInput(Vector2.up), Vector2.down));
+            adapter.enabled = false;
+            // Edit夹具不假定普通MonoBehaviour会收到Play生命周期；Root在禁用路径明确调用此契约。
+            adapter.Suspend();
+            Check("disable restores original visual", Quaternion.Angle(visual.localRotation, originalRotation) < .001f);
+            Check("disabled input falls back unchanged", Near(adapter.MapPlayerInput(Vector2.up), Vector2.up));
+            Check("disabled direction falls back unchanged", Near(adapter.ToPresentation(Vector3.right), Vector3.right));
+            adapter.enabled = true; adapter.Tick();
+            Check("re-enable while frozen restores matching plane", Quaternion.Angle(visual.rotation, frozenRotation) < .001f);
+            context.valid = false; adapter.Tick();
+            Check("invalid context is optional fallback", !adapter.IsEffective && Near(adapter.MapPlayerInput(Vector2.up), Vector2.up));
+            Check("invalid context restores visual", Quaternion.Angle(visual.localRotation, originalRotation) < .001f);
+            context.valid = true; adapter.Tick();
+            Check("valid frozen recovery restores matching plane", Quaternion.Angle(visual.rotation, frozenRotation) < .001f);
+            Check("stranger cannot release owner", !adapter.Release(stranger) && adapter.IsEffective);
+            Check("owner releases", adapter.Release(owner) && !adapter.IsEffective && adapter.ContextOwner == null);
+            Check("release restores original visual", Quaternion.Angle(visual.localRotation, originalRotation) < .001f);
+            Check("released input falls back unchanged", Near(adapter.MapPlayerInput(new Vector2(.3f, .4f)), new Vector2(.3f, .4f)));
+            context.frozen = false;
+            Check("next owner can bind", adapter.Bind(stranger, context)); adapter.Tick();
+            Check("90 degree fresh owner uses new actual basis", Near(adapter.MapPlayerInput(Vector2.up), Vector2.right));
+            adapter.Dispose();
+            Check("dispose restores visual and clears context", adapter.ContextOwner == null && !adapter.IsEffective && Quaternion.Angle(visual.localRotation, originalRotation) < .001f);
+            Check("reject zero basis", !CharacterViewSpaceMath.IsValidBasis(Vector3.zero, Vector3.forward, Quaternion.identity));
+            Check("reject non-orthogonal basis", !CharacterViewSpaceMath.IsValidBasis(Vector3.forward, Vector3.forward, Quaternion.identity));
+            Check("reject left handed basis", !CharacterViewSpaceMath.IsValidBasis(Vector3.left, Vector3.forward, Quaternion.identity));
+            Check("reject invalid quaternion", !CharacterViewSpaceMath.IsValidBasis(Vector3.right, Vector3.forward, new Quaternion(0, 0, 0, 0)));
+            Check("reject NaN basis", !CharacterViewSpaceMath.IsValidBasis(new Vector3(float.NaN, 0, 0), Vector3.forward, Quaternion.identity));
+        }
+        catch (Exception error) { failed.Add("unexpected fixture error: " + error); }
+        finally { if (root != null) UnityEngine.Object.DestroyImmediate(root); if (cameraObject != null) UnityEngine.Object.DestroyImmediate(cameraObject); }
+        ctx.ReturnValue = new { passed = passed.Count, failed = failed.Count, passedCases = passed.ToArray(), failedCases = failed.ToArray(), complete = failed.Count == 0 };
+    }
+}

@@ -1,5 +1,5 @@
 /* 脚本：CharacterDirectionPresentation
- * 功能：消费Bus的统一显示朝向，提交原式结构动画意图，并在4.3姿态流水线执行每实例显隐。
+ * 功能：消费Bus的只读观察方向（缺省保持原世界方向），提交结构动画意图，并在4.3姿态流水线执行每实例显隐。
  * 边界：无Update/设备采样/玩法计时器/SetAnimation；不改动作向量、碰撞、费用或共享骨架数据。
  * 协作：Controller先提交动作再提交方向并唯一Commit；BeforeApply恢复mask及拥有的根平移，UpdateComplete求显隐，网格后还原alpha。
  */
@@ -64,7 +64,7 @@ namespace Ossastra.Characters
         public Vector3 ReadGameplayDirection()
         {
             var bus=owner?.DataBus;if(bus==null){DirectionSource="initial";return Vector3.zero;}
-            DirectionSource=bus.DirectionReason;return bus.PresentationDirection;
+            DirectionSource=bus.DirectionReason;return bus.ViewPresentationDirection;
         }
         public void SubmitDirection(A.CharacterAnimationComposer target,Vector3 direction,int generation)
         {

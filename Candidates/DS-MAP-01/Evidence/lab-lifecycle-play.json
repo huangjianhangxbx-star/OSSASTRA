@@ -1,0 +1,195 @@
+{
+  "Done": true,
+  "Passed": 31,
+  "Failed": 0,
+  "rows": [
+    {
+      "name": "real click combo stage 1",
+      "passed": true,
+      "data": {
+        "AttackStage": 1,
+        "anim": "a1"
+      }
+    },
+    {
+      "name": "real click combo stage 2",
+      "passed": true,
+      "data": {
+        "AttackStage": 2,
+        "anim": "a2"
+      }
+    },
+    {
+      "name": "real click combo stage 3",
+      "passed": true,
+      "data": {
+        "AttackStage": 3,
+        "anim": "a3"
+      }
+    },
+    {
+      "name": "real click combo stage 4",
+      "passed": true,
+      "data": {
+        "AttackStage": 4,
+        "anim": "a4"
+      }
+    },
+    {
+      "name": "four click combo releases once per stage",
+      "passed": true,
+      "data": {
+        "releases": 4,
+        "stages": [
+          1,
+          2,
+          3,
+          4
+        ]
+      }
+    },
+    {
+      "name": "original dodge accepts mapped screen forward",
+      "passed": true,
+      "data": {
+        "stamina": 64.21673799399287,
+        "after": 42.216737993992865,
+        "dodgeId": "aa3e03f4-5ffd-4969-9f56-4577c82ba0b3"
+      }
+    },
+    {
+      "name": "orbit preserves dodge snapshot",
+      "passed": true,
+      "data": {
+        "ActionId": "aa3e03f4-5ffd-4969-9f56-4577c82ba0b3"
+      }
+    },
+    {
+      "name": "enter structure owns input capture",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "structure keeps gameplay basis and plane frozen",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "structure blocks movement and new attack",
+      "passed": true,
+      "data": {
+        "delta": 0,
+        "before": 13,
+        "after": 13
+      }
+    },
+    {
+      "name": "exit structure restores original input owner",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "exit does not replay input",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "map disable releases exact capture 0",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "map reenable rebinds once 0",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "root disable restores visual plane 0",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "root reenable resumes managed view 0",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "adapter disable takes optional fallback 0",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "adapter reenable restores real view 0",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "map disable releases exact capture 1",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "map reenable rebinds once 1",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "root disable restores visual plane 1",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "root reenable resumes managed view 1",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "adapter disable takes optional fallback 1",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "adapter reenable restores real view 1",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "map disable releases exact capture 2",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "map reenable rebinds once 2",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "root disable restores visual plane 2",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "root reenable resumes managed view 2",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "adapter disable takes optional fallback 2",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "adapter reenable restores real view 2",
+      "passed": true,
+      "data": null
+    },
+    {
+      "name": "lifecycle creates no runtime material instances",
+      "passed": true,
+      "data": {
+        "before": 1193,
+        "after": 1193
+      }
+    }
+  ]
+}

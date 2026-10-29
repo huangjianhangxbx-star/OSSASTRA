@@ -1,0 +1,463 @@
+{
+  "Done": true,
+  "Passed": 48,
+  "Failed": 1,
+  "rows": [
+    {
+      "name": "original attack accepted sector 0",
+      "passed": true,
+      "data": {
+        "yaw": 45,
+        "id": "b4daed50-59b1-417b-9cb8-2366d1a640da",
+        "stage": 1,
+        "anim": "a1",
+        "beforeStamina": 100,
+        "afterStamina": 90
+      }
+    },
+    {
+      "name": "orbit keeps action identity 0",
+      "passed": true,
+      "data": {
+        "id": "b4daed50-59b1-417b-9cb8-2366d1a640da",
+        "after": "b4daed50-59b1-417b-9cb8-2366d1a640da",
+        "yaw": 56.6463432
+      }
+    },
+    {
+      "name": "same phase keeps main Spine track 0",
+      "passed": true,
+      "data": {
+        "samePhase": true,
+        "beforeTime": 0.0417160653,
+        "afterTime": 0.08485067
+      }
+    },
+    {
+      "name": "orbit does not pay second acceptance 0",
+      "passed": true,
+      "data": {
+        "afterStamina": 90,
+        "afterOrbit": 90
+      }
+    },
+    {
+      "name": "single original release sector 0",
+      "passed": true,
+      "data": {
+        "beforeRelease": 0,
+        "after": 1,
+        "matchingFacts": 1
+      }
+    },
+    {
+      "name": "actual contact damages enemy target 0",
+      "passed": true,
+      "data": {
+        "beforeHp": 10000,
+        "after": 9988,
+        "last": "temporary-a → ds-owned-hit-fixture 10000→9988 Applied #b4daed5059b1417b9cb82366d1a640da"
+      }
+    },
+    {
+      "name": "original attack accepted sector 1",
+      "passed": true,
+      "data": {
+        "yaw": 90,
+        "id": "a4e28ca0-1fbc-4238-a86f-1faf5b99391e",
+        "stage": 1,
+        "anim": "a1",
+        "beforeStamina": 94.65155600570142,
+        "afterStamina": 84.65155600570142
+      }
+    },
+    {
+      "name": "orbit keeps action identity 1",
+      "passed": true,
+      "data": {
+        "id": "a4e28ca0-1fbc-4238-a86f-1faf5b99391e",
+        "after": "a4e28ca0-1fbc-4238-a86f-1faf5b99391e",
+        "yaw": 100.836319
+      }
+    },
+    {
+      "name": "same phase keeps main Spine track 1",
+      "passed": true,
+      "data": {
+        "samePhase": true,
+        "beforeTime": 0.0419024676,
+        "afterTime": 0.0820369944
+      }
+    },
+    {
+      "name": "orbit does not pay second acceptance 1",
+      "passed": true,
+      "data": {
+        "afterStamina": 84.65155600570142,
+        "afterOrbit": 84.65155600570142
+      }
+    },
+    {
+      "name": "single original release sector 1",
+      "passed": true,
+      "data": {
+        "beforeRelease": 1,
+        "after": 2,
+        "matchingFacts": 1
+      }
+    },
+    {
+      "name": "actual contact damages enemy target 1",
+      "passed": true,
+      "data": {
+        "beforeHp": 9988,
+        "after": 9976,
+        "last": "temporary-a → ds-owned-hit-fixture 9988→9976 Applied #a4e28ca01fbc4238a86f1faf5b99391e"
+      }
+    },
+    {
+      "name": "original attack accepted sector 2",
+      "passed": true,
+      "data": {
+        "yaw": 135,
+        "id": "0e816c30-2b6e-4771-b940-15faf7278892",
+        "stage": 1,
+        "anim": "a1",
+        "beforeStamina": 89.12678999593481,
+        "afterStamina": 79.12678999593481
+      }
+    },
+    {
+      "name": "orbit keeps action identity 2",
+      "passed": true,
+      "data": {
+        "id": "0e816c30-2b6e-4771-b940-15faf7278892",
+        "after": "0e816c30-2b6e-4771-b940-15faf7278892",
+        "yaw": 145.91658
+      }
+    },
+    {
+      "name": "same phase keeps main Spine track 2",
+      "passed": true,
+      "data": {
+        "samePhase": true,
+        "beforeTime": 0.0406087972,
+        "afterTime": 0.08104059
+      }
+    },
+    {
+      "name": "orbit does not pay second acceptance 2",
+      "passed": true,
+      "data": {
+        "afterStamina": 79.12678999593481,
+        "afterOrbit": 79.12678999593481
+      }
+    },
+    {
+      "name": "single original release sector 2",
+      "passed": true,
+      "data": {
+        "beforeRelease": 2,
+        "after": 3,
+        "matchingFacts": 1
+      }
+    },
+    {
+      "name": "actual contact damages enemy target 2",
+      "passed": true,
+      "data": {
+        "beforeHp": 9976,
+        "after": 9964,
+        "last": "temporary-a → ds-owned-hit-fixture 9976→9964 Applied #0e816c302b6e4771b94015faf7278892"
+      }
+    },
+    {
+      "name": "original attack accepted sector 3",
+      "passed": true,
+      "data": {
+        "yaw": 180,
+        "id": "001961a6-32c8-4845-bc81-7b88fe75895b",
+        "stage": 1,
+        "anim": "a1",
+        "beforeStamina": 83.59726798254997,
+        "afterStamina": 73.59726798254997
+      }
+    },
+    {
+      "name": "orbit keeps action identity 3",
+      "passed": true,
+      "data": {
+        "id": "001961a6-32c8-4845-bc81-7b88fe75895b",
+        "after": "001961a6-32c8-4845-bc81-7b88fe75895b",
+        "yaw": 190.8986
+      }
+    },
+    {
+      "name": "same phase keeps main Spine track 3",
+      "passed": true,
+      "data": {
+        "samePhase": true,
+        "beforeTime": 0.0408595949,
+        "afterTime": 0.08122486
+      }
+    },
+    {
+      "name": "orbit does not pay second acceptance 3",
+      "passed": true,
+      "data": {
+        "afterStamina": 73.59726798254997,
+        "afterOrbit": 73.59726798254997
+      }
+    },
+    {
+      "name": "single original release sector 3",
+      "passed": true,
+      "data": {
+        "beforeRelease": 3,
+        "after": 4,
+        "matchingFacts": 1
+      }
+    },
+    {
+      "name": "actual contact damages enemy target 3",
+      "passed": true,
+      "data": {
+        "beforeHp": 9964,
+        "after": 9952,
+        "last": "temporary-a → ds-owned-hit-fixture 9964→9952 Applied #001961a632c84845bc817b88fe75895b"
+      }
+    },
+    {
+      "name": "original attack accepted sector 4",
+      "passed": true,
+      "data": {
+        "yaw": 225,
+        "id": "7af1b423-049f-4867-bccd-7501c8be1721",
+        "stage": 1,
+        "anim": "a1",
+        "beforeStamina": 78.07633998105302,
+        "afterStamina": 68.07633998105302
+      }
+    },
+    {
+      "name": "orbit keeps action identity 4",
+      "passed": true,
+      "data": {
+        "id": "7af1b423-049f-4867-bccd-7501c8be1721",
+        "after": "7af1b423-049f-4867-bccd-7501c8be1721",
+        "yaw": 235.8196
+      }
+    },
+    {
+      "name": "same phase keeps main Spine track 4",
+      "passed": true,
+      "data": {
+        "samePhase": true,
+        "beforeTime": 0.0411150642,
+        "afterTime": 0.08118779
+      }
+    },
+    {
+      "name": "orbit does not pay second acceptance 4",
+      "passed": true,
+      "data": {
+        "afterStamina": 68.07633998105302,
+        "afterOrbit": 68.07633998105302
+      }
+    },
+    {
+      "name": "single original release sector 4",
+      "passed": true,
+      "data": {
+        "beforeRelease": 4,
+        "after": 5,
+        "matchingFacts": 1
+      }
+    },
+    {
+      "name": "actual contact damages enemy target 4",
+      "passed": true,
+      "data": {
+        "beforeHp": 9952,
+        "after": 9940,
+        "last": "temporary-a → ds-owned-hit-fixture 9952→9940 Applied #7af1b423049f4867bccd7501c8be1721"
+      }
+    },
+    {
+      "name": "original attack accepted sector 5",
+      "passed": true,
+      "data": {
+        "yaw": 270,
+        "id": "9788bad7-77cf-4b38-844c-9c344bf6232e",
+        "stage": 1,
+        "anim": "a1",
+        "beforeStamina": 72.59703196585178,
+        "afterStamina": 62.597031965851784
+      }
+    },
+    {
+      "name": "orbit keeps action identity 5",
+      "passed": true,
+      "data": {
+        "id": "9788bad7-77cf-4b38-844c-9c344bf6232e",
+        "after": "9788bad7-77cf-4b38-844c-9c344bf6232e",
+        "yaw": 280.992371
+      }
+    },
+    {
+      "name": "same phase keeps main Spine track 5",
+      "passed": true,
+      "data": {
+        "samePhase": true,
+        "beforeTime": 0.04198533,
+        "afterTime": 0.0826978
+      }
+    },
+    {
+      "name": "orbit does not pay second acceptance 5",
+      "passed": true,
+      "data": {
+        "afterStamina": 62.597031965851784,
+        "afterOrbit": 62.597031965851784
+      }
+    },
+    {
+      "name": "single original release sector 5",
+      "passed": true,
+      "data": {
+        "beforeRelease": 5,
+        "after": 6,
+        "matchingFacts": 1
+      }
+    },
+    {
+      "name": "actual contact damages enemy target 5",
+      "passed": true,
+      "data": {
+        "beforeHp": 9940,
+        "after": 9928,
+        "last": "temporary-a → ds-owned-hit-fixture 9940→9928 Applied #9788bad777cf4b38844c9c344bf6232e"
+      }
+    },
+    {
+      "name": "original attack accepted sector 6",
+      "passed": true,
+      "data": {
+        "yaw": 315,
+        "id": "f5cae5e9-246d-4922-82d2-76eef3c0b29d",
+        "stage": 1,
+        "anim": "a1",
+        "beforeStamina": 67.14302396401763,
+        "afterStamina": 57.14302396401763
+      }
+    },
+    {
+      "name": "orbit keeps action identity 6",
+      "passed": true,
+      "data": {
+        "id": "f5cae5e9-246d-4922-82d2-76eef3c0b29d",
+        "after": "f5cae5e9-246d-4922-82d2-76eef3c0b29d",
+        "yaw": 326.081055
+      }
+    },
+    {
+      "name": "same phase keeps main Spine track 6",
+      "passed": true,
+      "data": {
+        "samePhase": true,
+        "beforeTime": 0.0408955961,
+        "afterTime": 0.08193674
+      }
+    },
+    {
+      "name": "orbit does not pay second acceptance 6",
+      "passed": true,
+      "data": {
+        "afterStamina": 57.14302396401763,
+        "afterOrbit": 57.14302396401763
+      }
+    },
+    {
+      "name": "single original release sector 6",
+      "passed": true,
+      "data": {
+        "beforeRelease": 6,
+        "after": 7,
+        "matchingFacts": 1
+      }
+    },
+    {
+      "name": "actual contact damages enemy target 6",
+      "passed": true,
+      "data": {
+        "beforeHp": 9928,
+        "after": 9916,
+        "last": "temporary-a → ds-owned-hit-fixture 9928→9916 Applied #f5cae5e9246d492282d276eef3c0b29d"
+      }
+    },
+    {
+      "name": "original attack accepted sector 7",
+      "passed": true,
+      "data": {
+        "yaw": 0,
+        "id": "e8245a47-0402-405c-9b12-92c57ae96afa",
+        "stage": 1,
+        "anim": "a1",
+        "beforeStamina": 61.63909394759685,
+        "afterStamina": 51.63909394759685
+      }
+    },
+    {
+      "name": "orbit keeps action identity 7",
+      "passed": true,
+      "data": {
+        "id": "e8245a47-0402-405c-9b12-92c57ae96afa",
+        "after": "e8245a47-0402-405c-9b12-92c57ae96afa",
+        "yaw": 11.1173754
+      }
+    },
+    {
+      "name": "same phase keeps main Spine track 7",
+      "passed": true,
+      "data": {
+        "samePhase": true,
+        "beforeTime": 0.0417937264,
+        "afterTime": 0.0829691961
+      }
+    },
+    {
+      "name": "orbit does not pay second acceptance 7",
+      "passed": true,
+      "data": {
+        "afterStamina": 51.63909394759685,
+        "afterOrbit": 51.63909394759685
+      }
+    },
+    {
+      "name": "single original release sector 7",
+      "passed": true,
+      "data": {
+        "beforeRelease": 7,
+        "after": 8,
+        "matchingFacts": 1
+      }
+    },
+    {
+      "name": "actual contact damages enemy target 7",
+      "passed": true,
+      "data": {
+        "beforeHp": 9916,
+        "after": 9904,
+        "last": "temporary-a → ds-owned-hit-fixture 9916→9904 Applied #e8245a470402405c9b1292c57ae96afa"
+      }
+    },
+    {
+      "name": "original held combo remains live",
+      "passed": false,
+      "data": {
+        "accepted": 1,
+        "released": 1
+      }
+    }
+  ]
+}

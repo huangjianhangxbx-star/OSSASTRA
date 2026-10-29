@@ -1,0 +1,64 @@
+/*
+ * 测试：公开场景壳打开前识别具体缺失的本机依赖；不删除/移动任何真实素材。
+ * 捕获错误：漏查PNG/私有Prefab/Mesh、只报第一项、错误计数、真实完整环境误报。
+ * 假predicate只替代磁盘/AssetDatabase可用性，真实生产清单与检查逻辑仍执行。
+ */
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using Funplay.Editor.Tools.Scripting;
+using UnityEditor;
+
+public sealed class DependencyPreflightContracts : IFunplayCommand
+{
+    public void Execute(ExecutionContext ctx)
+    {
+        Type type = AppDomain.CurrentDomain.GetAssemblies().Select(a => a.GetType("Ossastra.MapResearch.Editor.MapResearchSceneBuilder", false)).FirstOrDefault(x => x != null);
+        MethodInfo method = type != null ? type.GetMethod("FindMissingLocalDependencies", BindingFlags.Public | BindingFlags.Static) : null;
+        if (method == null)
+        {
+            ctx.ReturnValue = new { passed = 0, failed = 1, reason = "FindMissingLocalDependencies preflight is missing" };
+            return;
+        }
+
+        var results = new List<object>();
+        Action<string, Action> check = (name, body) =>
+        {
+            try { body(); results.Add(new { name, passed = true, reason = "" }); }
+            catch (Exception error) { results.Add(new { name, passed = false, reason = (error.InnerException ?? error).ToString() }); }
+        };
+        Func<Func<string, bool>, string[]> missing = predicate => ((IEnumerable<string>)method.Invoke(null, new object[] { predicate })).ToArray();
+        Action<string> oneMissing = path =>
+        {
+            string[] actual = missing(p => p != path);
+            if (actual.Length != 1 || actual[0] != path) throw new Exception("Expected exactly " + path + "; actual=" + string.Join(";", actual));
+        };
+        check("complete-predicate-has-no-missing", () => { if (missing(p => true).Length != 0) throw new Exception("Complete set misreported"); });
+        check("missing-prop-png-is-named", () => oneMissing("Assets/OSSASTRA/Art/DontStarveReferenceLocal/Props/evergreen_tall.png"));
+        check("missing-ground-png-is-named", () => oneMissing("Assets/OSSASTRA/Art/DontStarveReferenceLocal/Ground/grass-mask7.png"));
+        check("missing-forest-base-is-named", () => oneMissing("Assets/OSSASTRA/Art/DontStarveReferenceLocal/Ground/forest-mask15.png"));
+        check("missing-private-prop-prefab-is-named", () => oneMissing("Assets/OSSASTRA/MapResearch/LocalGenerated/Prefabs/PF_grass.prefab"));
+        check("missing-private-prop-mesh-is-named", () => oneMissing("Assets/OSSASTRA/MapResearch/LocalGenerated/Meshes/rock.asset"));
+        check("missing-ground-mesh-is-named", () => oneMissing("Assets/OSSASTRA/MapResearch/LocalGenerated/Meshes/Ground4.asset"));
+        check("reports-every-missing-instead-of-first-only", () =>
+        {
+            string png = "Assets/OSSASTRA/Art/DontStarveReferenceLocal/Props/grass.png";
+            string prefab = "Assets/OSSASTRA/MapResearch/LocalGenerated/Prefabs/PF_chest.prefab";
+            string[] actual = missing(p => p != png && p != prefab);
+            if (actual.Length != 2 || !actual.Contains(png) || !actual.Contains(prefab)) throw new Exception("Both missing paths must be returned");
+        });
+        check("whole-local-set-is-59-unique-dependencies", () =>
+        {
+            string[] actual = missing(p => false);
+            if (actual.Length != 59 || actual.Distinct().Count() != 59) throw new Exception("Expected 40 textures + 9 prefabs + 10 meshes, no duplicates; actual=" + actual.Length);
+        });
+        check("real-current-local-assets-are-complete", () =>
+        {
+            string[] actual = missing(p => AssetDatabase.LoadMainAssetAtPath(p) != null);
+            if (actual.Length != 0) throw new Exception("Actual local missing: " + string.Join(";", actual));
+        });
+        int passed = results.Count(x => (bool)x.GetType().GetProperty("passed").GetValue(x));
+        ctx.ReturnValue = new { passed, failed = results.Count - passed, results };
+    }
+}

@@ -2,7 +2,7 @@
  * 脚本：CharacterRoot
  * 功能：角色组装与明确调度；注册仲裁器/状态机拥有动作组织，接受费用沿原协调器。
  * 边界：主动作运行时由战斗状态机唯一持有；只读生命资格，不实现HP写入、设备绑定或开发GUI。
- * 协作：初始化可选Follow/Posture与定义驱动能力；显式按输入、架势、朝向、原动作事实、投递、运动、表现推进。
+ * 协作：初始化可选Follow/Posture/ViewSpace与定义驱动能力；先缓存实际观察基，再按输入、架势、朝向、动作、运动、表现推进。
  * 兼容：没有能力控制端口的历史场继续旧Skills/Guard/Offhand路径，新候选与旧路径互斥。
  */
 using System;
@@ -10,13 +10,14 @@ using Ossastra.CharacterCore;
 using Ossastra.Combat;
 using UnityEngine;
 using UnityEngine.Serialization;
+using Ossastra.Characters.ViewSpace;
 
 namespace Ossastra.Characters
 {
     [DefaultExecutionOrder(-100)]
     [RequireComponent(typeof(CharacterMovement), typeof(CombatMeleeHit), typeof(CharacterInputHandler))]
     [RequireComponent(typeof(CharacterOrientation),typeof(StateArbitrator))]
-    public sealed class CharacterRoot : MonoBehaviour
+    public sealed class CharacterRoot : MonoBehaviour, ICharacterViewParticipant
     {
         [SerializeField] private CharacterDefinitionSO characterDefinition;
         public CharacterDefinitionSO Definition=>characterDefinition;
@@ -27,6 +28,27 @@ namespace Ossastra.Characters
         [SerializeField] private CombatMeleeHit melee;
         [SerializeField] private CharacterInputHandler input;
         [SerializeField] private Camera viewCamera;
+        private CharacterViewSpaceAdapter viewSpace;
+        private object viewContextOwner;
+        private Camera viewCameraBeforeContext;
+        public Transform CharacterTransform => transform;
+        public Vector3 LogicalDirection => orientation != null ? orientation.PresentationDirection : Vector3.right;
+        public string ViewDiagnostics
+        {
+            get
+            {
+                var world = LogicalDirection;
+                var observed = viewSpace != null ? viewSpace.ToPresentation(world) : world;
+                var direction = view != null ? view.GetComponent<CharacterDirectionPresentation>() : null;
+                var controller = presentation as Ossastra.CharacterAnimation.CharacterAnimationController;
+                var action = DataBus != null && DataBus.ActionActive ? DataBus.ActionId.ToString("N").Substring(0, 8) : "无";
+                var phase = DataBus != null && DataBus.ActionActive && controller != null && controller.CapturedActionId == DataBus.ActionId && controller.CapturedPhaseId != Guid.Empty
+                    ? controller.CapturedPhaseId.ToString("N").Substring(0, 8) : "无";
+                return (viewSpace != null ? viewSpace.Diagnostics : "未装配观察模块；沿原路径") + "\n世界(" + world.x.ToString("F2") + "," + world.z.ToString("F2") +
+                    ")→观察(" + observed.x.ToString("F2") + "," + observed.z.ToString("F2") + ") 面:" + (direction != null ? direction.FaceId : "单面") +
+                    (direction != null && direction.Mirrored ? " 镜像" : "") + " 动作:" + action + " 段:" + AttackStage + " 相:" + phase;
+            }
+        }
         [SerializeField] private CharacterFollow follow;
         [SerializeField] private CombatVitals vitals;
         [SerializeField] private CombatPosture posture;
@@ -129,6 +151,58 @@ namespace Ossastra.Characters
         public CharacterFollow Follow => follow;
         public CharacterIntentKind EffectiveIntentKind => intentSelector == null ? CharacterIntentKind.Neutral : intentSelector.EffectiveKind;
 
+        /// <summary>角色与可选模块启用后，由场景显式注入游戏相机，不依赖多个Camera.main碰运气。</summary>
+        public bool BindViewContext(object owner, ICharacterViewContext context)
+        {
+            if (viewSpace == null) viewSpace = GetComponent<CharacterViewSpaceAdapter>();
+            if (viewSpace == null || !viewSpace.Initialize(transform) || !viewSpace.Bind(owner, context)) return false;
+            if (viewContextOwner == null) viewCameraBeforeContext = viewCamera != null ? viewCamera : Camera.main;
+            viewContextOwner = owner;
+            viewCamera = context.GameplayCamera;
+            return true;
+        }
+
+        /// <summary>复用原输入捕获的Held/Released与手势代际规则；不制造第二套角色输入过滤器。</summary>
+        public bool SetViewInputCapture(object owner, bool captured)
+        {
+            if (viewSpace == null || !viewSpace.SetInputCapture(owner, captured)) return false;
+            if (input == null) input = GetComponent<CharacterInputHandler>();
+            if (input != null) input.SetInventoryCapture(owner, captured, true);
+            return true;
+        }
+
+        public bool ReleaseViewContext(object owner)
+        {
+            if (viewContextOwner == null || !ReferenceEquals(viewContextOwner, owner)) return false;
+            if (input != null) input.SetInventoryCapture(owner, false, true);
+            if (viewSpace != null) viewSpace.Release(owner);
+            viewCamera = viewCameraBeforeContext;
+            viewCameraBeforeContext = null;
+            viewContextOwner = null;
+            return true;
+        }
+
+        // 唯一转换点由选择器Player分支调用；AI/跟随的世界向量不会经过此处。
+        internal CharacterInputFrame MapPlayerFrame(CharacterInputFrame frame)
+        {
+            if (viewSpace == null || !viewSpace.IsEffective) return frame;
+            frame.move = viewSpace.MapPlayerInput(frame.move);
+            // 键鼠无合法指针时，InputHandler已从Bus取世界攻击方向，不得再次旋转。
+            if (frame.hasDirectionalAim && frame.aimSource == PlayerInputSource.Gamepad)
+            {
+                // LastAimDirection属于玩家会话的屏幕输入记忆；空闲转镜头不能把它再次旋转成新世界历史。
+                // 只有当帧实际手柄移动才转新意图；空闲沿本体已有世界历史（新生命已由Orientation重置出生方向）。
+                if (frame.moveSource == PlayerInputSource.Gamepad && frame.move.sqrMagnitude >= .0001f)
+                    frame.aimDirection = viewSpace.MapPlayerInput(frame.aimDirection);
+                else if (orientation != null)
+                {
+                    var rememberedWorld = orientation.LastMoveDirection;
+                    frame.aimDirection = new Vector2(rememberedWorld.x, rememberedWorld.z);
+                }
+            }
+            return frame;
+        }
+
         public bool CanBindCompanionIntent(ICharacterControlSession session, ICompanionIntentSource source)
             => ready && follow != null && ReferenceEquals(source,follow) && intentSelector != null && intentSelector.CanBind(session,source);
         public bool BindCompanionIntent(ICharacterControlSession session, ICompanionIntentSource source)
@@ -171,6 +245,8 @@ namespace Ossastra.Characters
         private void Awake()
         {
             if (viewCamera == null) viewCamera = Camera.main;
+            if (viewSpace == null) viewSpace = GetComponent<CharacterViewSpaceAdapter>();
+            if (viewSpace != null) viewSpace.Initialize(transform);
             if (vitals!=null)
             {
                 if (!vitals.Initialize(actorId)) { Debug.LogError("Character vitals identity/configuration invalid",this); enabled=false; return; }
@@ -199,7 +275,7 @@ namespace Ossastra.Characters
             }
             catch (ArgumentException error) { Debug.LogError("Character configuration: " + error.Message, this); enabled = false; return; }
             // 每角色独立Bus只读取原所有者；只有确需Bus的运动和表现执行初始化。
-            DataBus = new CharacterDataBus(actorId, inputSource, mover, orienter, runtime, authority);
+            DataBus = new CharacterDataBus(actorId, inputSource, mover, orienter, runtime, authority, viewSpace);
             statusEffects=GetComponent<CombatStatusEffects>();if(statusEffects!=null)statusEffects.ControlChanged+=OnStatusControlChanged;
             stamina=GetComponent<CharacterStamina>();if(stamina!=null)stamina.Initialize();
             dodge=GetComponent<CharacterDodge>();if(dodge!=null)dodge.Initialize(this,stamina);
@@ -236,7 +312,10 @@ namespace Ossastra.Characters
         private void Update()
         {
             if(!ready)return;
+            // 场景先发布实际镜头姿态；本根缓存一次，输入映射与同帧换面使用同一观察基。
+            viewSpace?.Tick();
             stateArbitrator.ManagedUpdate(Time.deltaTime);
+            viewSpace?.ResolvePresentation(orienter.PresentationDirection, orienter.VisualFacingX);
             CommitPresentation();
         }
 
@@ -252,7 +331,7 @@ namespace Ossastra.Characters
         }
         private Vector3? PointerGroundPoint(CharacterInputFrame frame)
         {
-            if(!frame.hasPointer)return null; var plane=new Plane(Vector3.up,transform.position);
+            if(!frame.hasPointer || viewCamera == null)return null; var plane=new Plane(Vector3.up,transform.position);
             var ray=viewCamera.ScreenPointToRay(frame.pointer); return plane.Raycast(ray,out var distance)?ray.GetPoint(distance):(Vector3?)null;
         }
         /// <summary>鼠标必须有合法世界点；方向输入按当前执行器实际射程生成，绝不统一猜投掷距离。</summary>
@@ -265,7 +344,7 @@ namespace Ossastra.Characters
         internal bool ChangeAbilityPhase(Guid id,ConfiguredActionSnapshot phase)=>stateArbitrator.Combat.ChangeAbilityPhase(id,phase);
         private Vector3? PointerDirection(CharacterInputFrame frame)
         {
-            if (!frame.hasPointer) return null;
+            if (!frame.hasPointer || viewCamera == null) return null;
             var plane = new Plane(Vector3.up, transform.position);
             var ray = viewCamera.ScreenPointToRay(frame.pointer);
             if (!plane.Raycast(ray, out var distance)) return null;
@@ -336,9 +415,11 @@ namespace Ossastra.Characters
         private void OnApplicationPause(bool value)
           { applicationPaused = value; if(value)stateArbitrator?.Combat?.ClearBuffer(); if (follow != null) follow.ResetIntent(); if (value) stateArbitrator?.Combat?.SuppressInput(); }
         private void OnEnable() { stateArbitrator?.Combat?.SuppressInput(); if (intentSelector != null) intentSelector.Clear(); }
-        private void OnDisable() { stateArbitrator?.StopMovement();transientItems?.Hide();statusEffects?.Clear();mainAction?.ResetState();equipmentView?.Hide();equipmentSpineView?.Hide();skills?.Clear();offhand?.CancelAll(); CancelAction("disabled"); if (posture != null) posture.ResetState(); authority.Release(posture); if (follow != null) follow.ResetIntent(); if (intentSelector != null) intentSelector.Clear(); if (ready && presentation != null) presentation.SetPaused(false); }
+        private void OnDisable() { viewSpace?.Suspend();stateArbitrator?.StopMovement();transientItems?.Hide();statusEffects?.Clear();mainAction?.ResetState();equipmentView?.Hide();equipmentSpineView?.Hide();skills?.Clear();offhand?.CancelAll(); CancelAction("disabled"); if (posture != null) posture.ResetState(); authority.Release(posture); if (follow != null) follow.ResetIntent(); if (intentSelector != null) intentSelector.Clear(); if (ready && presentation != null) presentation.SetPaused(false); }
         private void OnDestroy()
         {
+            if (viewContextOwner != null) ReleaseViewContext(viewContextOwner);
+            viewSpace?.Dispose();
             if(mainAction!=null)mainAction.Resolved-=OnHitReceipt;
             if(statusEffects!=null)statusEffects.ControlChanged-=OnStatusControlChanged;
             if (vitals!=null) vitals.Died-=OnDied;

@@ -1,0 +1,268 @@
+/*
+ * 测试：研究相机真实InputAction的owner租约、滚轮采样、手柄十字键和退出清理。
+ * 范围：只创建瞬态组件与自己的虚拟Mouse/Gamepad；不采样WASD、不发布角色Frame、不改资产。
+ * 说明：这是生产代码之后的合同验证，不冒称先红后绿。由root在自有Play场景执行并清理场景。
+ * 输入：QueueStateEvent + InputSystem.Update走安装包1.14.4-t1的真实Action管线；不是直接调用OnWheel。
+ */
+using System;
+using System.Linq;
+
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.LowLevel;
+using Ossastra.MapResearch;
+using Funplay.Editor.Tools.Scripting;
+
+public sealed class CameraInputContracts : IFunplayCommand
+{
+    private readonly List<object> results = new List<object>();
+    private readonly List<object> observations = new List<object>();
+    private Mouse mouse;
+    private Gamepad gamepad;
+    private MapResearchCameraInput input;
+    private readonly object owner = new object();
+    private readonly object foreign = new object();
+
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+    {
+        if (!Application.isPlaying)
+        {
+            ctx.ReturnValue = new { passed = 0, failed = 1, reason = "Root-owned Play fixture scene required; no mutation performed" };
+            return;
+        }
+        int[] originalDeviceIds = InputSystem.devices.Select(x => x.deviceId).OrderBy(x => x).ToArray();
+        var originalMouse = Mouse.current;
+        var originalGamepad = Gamepad.current;
+        GameObject fixture = null;
+        InputAction unrelated = null;
+        InputAction[] createdActions = null;
+        string unrelatedBindings = null;
+        bool unrelatedAfterEnd = false;
+        try
+        {
+            fixture = new GameObject("DSMapCameraInputContractTransient");
+            ctx.RegisterObjectCreation(fixture);
+            input = fixture.AddComponent<MapResearchCameraInput>();
+            createdActions = Actions(input);
+            Check("default-map-actions-do-not-bind-character-QE-or-movement", () =>
+            {
+                var forbidden = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    "<Keyboard>/q", "<Keyboard>/e", "<Keyboard>/w", "<Keyboard>/a", "<Keyboard>/s", "<Keyboard>/d",
+                    "<Keyboard>/upArrow", "<Keyboard>/downArrow", "<Keyboard>/leftArrow", "<Keyboard>/rightArrow", "<Mouse>/leftButton", "<Mouse>/rightButton"
+                };
+                Require(!createdActions.SelectMany(a => a.bindings).Any(b => forbidden.Contains(b.effectivePath)), "Map action captured a forbidden character control");
+                Equal("<Mouse>/scroll/y", input.rotateWheel.bindings[0].effectivePath);
+            });
+            // 仅替换本夹具组件的可配置绑定，限定自己的虚拟设备；不禁用或改写用户设备。
+            mouse = InputSystem.AddDevice<Mouse>("DSMapContractMouse");
+            gamepad = InputSystem.AddDevice<Gamepad>("DSMapContractGamepad");
+            InputSystem.SetDeviceUsage(mouse, "DSMapContractMouse");
+            InputSystem.SetDeviceUsage(gamepad, "DSMapContractGamepad");
+            input.rotateWheel.ChangeBinding(0).WithPath("<Mouse>{DSMapContractMouse}/scroll/y");
+            input.rotateLeft.ChangeBinding(0).WithPath("<Gamepad>{DSMapContractGamepad}/dpad/left");
+            input.rotateRight.ChangeBinding(0).WithPath("<Gamepad>{DSMapContractGamepad}/dpad/right");
+            unrelated = new InputAction("DSMapUnrelatedQESkillContract", InputActionType.Button, "<Keyboard>/q");
+            unrelated.AddBinding("<Keyboard>/e");
+            unrelated.Enable();
+            unrelatedBindings = BindingSnapshot(unrelated);
+
+            Check("null-owner-rejected-without-enabling", () =>
+            {
+                Require(!input.Begin(null), "Null owner accepted");
+                Require(createdActions.All(a => !a.enabled), "Null owner enabled an action");
+            });
+            Check("first-owner-enables-all-nine-actions", () =>
+            {
+                Require(input.Begin(owner), "Begin failed");
+                Require(createdActions.Length == 9 && createdActions.All(a => a.enabled), "Not all nine owned actions enabled");
+                Require(input.rotateWheel.controls.Any(c => c.device == mouse), "Fixture Mouse binding did not resolve");
+                Require(input.rotateLeft.controls.Any(c => c.device == gamepad), "Fixture Gamepad binding did not resolve");
+            });
+            Check("foreign-owner-cannot-steal-live-session", () =>
+            {
+                Require(!input.Begin(foreign), "Foreign owner stole session");
+                Require(createdActions.All(a => a.enabled), "Foreign Begin damaged live session");
+            });
+            Check("same-owner-begin-is-idempotent", () =>
+            {
+                Require(input.Begin(owner) && input.Begin(owner), "Same owner Begin not idempotent");
+            });
+            Neutral();
+            Check("wheel-positive120-is-one-sector", () =>
+            {
+                Wheel(120f);
+                Equal(1, Read().rotation);
+            });
+            Check("wheel-read-consumes-current-sampling-window", () => Equal(0, Read().rotation));
+            Check("wheel-does-not-repeat-on-next-input-update", () =>
+            {
+                InputSystem.Update();
+                Equal(0, Read().rotation);
+            });
+            Check("wheel-negative120-is-one-negative-sector", () =>
+            {
+                Wheel(-120f);
+                Equal(-1, Read().rotation);
+            });
+            Check("three-positive-notches-in-one-update-coalesce", () =>
+            {
+                InputSystem.QueueStateEvent(mouse, new MouseState { scroll = new Vector2(0, 120) });
+                InputSystem.QueueStateEvent(mouse, new MouseState { scroll = new Vector2(0, 120) });
+                InputSystem.QueueStateEvent(mouse, new MouseState { scroll = new Vector2(0, 120) });
+                InputSystem.Update();
+                Equal(1, Read().rotation);
+                Equal(0, Read().rotation);
+            });
+            Check("opposite-wheel-samples-balance-without-duplicate-subscription", () =>
+            {
+                // 两次真实输入更新在一次业务采样之前；重复订阅会把+1,+1,-1,-1夹紧为-1。
+                Wheel(120f); Wheel(-120f);
+                Equal(0, Read().rotation);
+            });
+            Check("blocked-frame-discards-wheel-instead-of-delaying", () =>
+            {
+                Wheel(120f);
+                var blocked = input.ReadFrame(true);
+                Equal(0, blocked.rotation);
+                Require(!blocked.reset && !blocked.structure && !blocked.side && !blocked.top && blocked.zoom == 0f, "Blocked frame leaked another intent");
+                Equal(0, Read().rotation);
+            });
+            Check("explicit-discard-drops-pending-wheel", () =>
+            {
+                Wheel(-120f);
+                input.DiscardPending();
+                Equal(0, Read().rotation);
+            });
+            Check("foreign-end-preserves-owner-and-pending-input", () =>
+            {
+                Wheel(120f);
+                input.End(foreign);
+                Require(createdActions.All(a => a.enabled), "Foreign End disabled owner actions");
+                Equal(1, Read().rotation);
+                Wheel(-120f);
+                Equal(-1, Read().rotation);
+            });
+            Check("gamepad-dpad-left-is-negative-sector", () =>
+            {
+                Neutral(); Pad(new GamepadState().WithButton(GamepadButton.DpadLeft));
+                Equal(-1, Read().rotation);
+            });
+            Check("gamepad-held-dpad-does-not-auto-repeat", () =>
+            {
+                InputSystem.Update();
+                Equal(0, Read().rotation);
+            });
+            Check("gamepad-dpad-right-is-positive-sector", () =>
+            {
+                Neutral(); Pad(new GamepadState().WithButton(GamepadButton.DpadRight));
+                Equal(1, Read().rotation);
+            });
+            Check("gamepad-opposite-dpad-presses-cancel", () =>
+            {
+                Neutral();
+                Pad(new GamepadState().WithButton(GamepadButton.DpadLeft).WithButton(GamepadButton.DpadRight));
+                Equal(0, Read().rotation);
+            });
+            Neutral();
+            Check("owner-end-disables-only-owned-actions", () =>
+            {
+                input.End(owner);
+                Require(createdActions.All(a => !a.enabled), "Owned action left enabled");
+                unrelatedAfterEnd = unrelated.enabled;
+                Require(unrelatedAfterEnd && BindingSnapshot(unrelated) == unrelatedBindings, "Unrelated Q/E skill action changed");
+                Wheel(120f);
+                Equal(0, Read().rotation);
+            });
+            Check("repeated-owner-end-is-idempotent", () =>
+            {
+                input.End(owner); input.End(foreign);
+                Require(createdActions.All(a => !a.enabled), "Repeated End enabled owned action");
+                Require(unrelated.enabled && BindingSnapshot(unrelated) == unrelatedBindings, "Repeated End touched Q/E action");
+            });
+            Check("three-begin-end-cycles-keep-single-wheel-handler", () =>
+            {
+                for (int cycle = 0; cycle < 3; cycle++)
+                {
+                    Require(input.Begin(owner) && input.Begin(owner), "Cycle Begin failed " + cycle);
+                    Wheel(120f); Equal(1, Read().rotation);
+                    Wheel(120f); Wheel(-120f); Equal(0, Read().rotation);
+                    input.End(foreign);
+                    Require(createdActions.All(a => a.enabled), "Foreign End in cycle damaged session");
+                    input.End(owner);
+                    Require(createdActions.All(a => !a.enabled), "Cycle End failed " + cycle);
+                    InputSystem.Update();
+                }
+            });
+            Check("owner-ended-unrelated-QE-still-enabled-and-identical", () =>
+            {
+                Require(unrelated.enabled, "Q/E action disabled by MapInput lifetime");
+                Equal(unrelatedBindings, BindingSnapshot(unrelated));
+            });
+        }
+        catch (Exception error)
+        {
+            results.Add(new { name = "unexpected-fixture-error", passed = false, reason = error.ToString() });
+        }
+        finally
+        {
+            // 只清理夹具所有者和夹具设备。不禁用/移除物理设备；OnDestroy后重复Dispose是安装版API支持的幂等清理。
+            Cleanup("owned-input-end-cleanup", () => { if (input != null) { input.End(owner); input.End(foreign); } });
+            Cleanup("owned-object-cleanup", () => { if (fixture != null) ctx.DestroyObject(fixture); });
+            if (createdActions != null) foreach (var action in createdActions) if (action != null) Cleanup("owned-action-dispose", action.Dispose);
+            Cleanup("unrelated-fixture-action-dispose", () => { if (unrelated != null) unrelated.Dispose(); });
+            Cleanup("owned-virtual-mouse-remove", () => { if (mouse != null && mouse.added) InputSystem.RemoveDevice(mouse); });
+            Cleanup("owned-virtual-gamepad-remove", () => { if (gamepad != null && gamepad.added) InputSystem.RemoveDevice(gamepad); });
+            Cleanup("original-current-mouse-restore", () => { if (originalMouse != null && originalMouse.added) originalMouse.MakeCurrent(); });
+            Cleanup("original-current-gamepad-restore", () => { if (originalGamepad != null && originalGamepad.added) originalGamepad.MakeCurrent(); });
+        }
+        int[] remainingDeviceIds = InputSystem.devices.Select(x => x.deviceId).OrderBy(x => x).ToArray();
+        Check("cleanup-device-count-and-identities-match-original", () =>
+        {
+            Require(originalDeviceIds.SequenceEqual(remainingDeviceIds), "Original=" + string.Join(",", originalDeviceIds) + " remaining=" + string.Join(",", remainingDeviceIds));
+        });
+        Check("transient-gameobject-destroyed", () => Require(fixture == null, "Fixture GameObject remains alive"));
+        var counts = results.Select(r => (bool)r.GetType().GetProperty("passed").GetValue(r)).ToArray();
+        ctx.ReturnValue = new
+        {
+            passed = counts.Count(x => x), failed = counts.Count(x => !x), complete = counts.All(x => x),
+            verification = "Actual MapResearchCameraInput with virtual device state events; post-implementation contract verification, not TDD",
+            originalDeviceCount = originalDeviceIds.Length, cleanupDeviceCount = remainingDeviceIds.Length,
+            originalDeviceIds, remainingDeviceIds, unrelatedQeEnabledAfterOwnerEnd = unrelatedAfterEnd,
+            results, observations
+        };
+    }
+    private static InputAction[] Actions(MapResearchCameraInput x) => new[]
+    {
+        x.rotateWheel, x.rotateLeft, x.rotateRight, x.zoomIn, x.zoomOut, x.resetView, x.toggleStructure, x.sideView, x.topView
+    };
+    private static string BindingSnapshot(InputAction a) => string.Join("|", a.bindings.Select(b => b.id + ":" + b.path + ":" + b.overridePath + ":" + b.interactions + ":" + b.processors));
+    private MapResearchCameraInput.Frame Read() => input.ReadFrame(false);
+    private void Wheel(float y)
+    {
+        InputSystem.QueueStateEvent(mouse, new MouseState { scroll = new Vector2(0f, y) });
+        InputSystem.Update();
+        observations.Add(new { operation = "virtual-mouse-wheel", delta = y, rawActionValue = input.rotateWheel.enabled ? input.rotateWheel.ReadValue<float>() : 0f });
+    }
+    private void Pad(GamepadState state) { InputSystem.QueueStateEvent(gamepad, state); InputSystem.Update(); }
+    private void Neutral()
+    {
+        InputSystem.QueueStateEvent(mouse, new MouseState());
+        InputSystem.QueueStateEvent(gamepad, new GamepadState());
+        InputSystem.Update(); input.DiscardPending();
+    }
+    private void Cleanup(string name, Action cleanup)
+    {
+        try { cleanup(); }
+        catch (Exception error) { results.Add(new { name, passed = false, reason = error.ToString() }); }
+    }
+    private void Check(string name, Action assertion)
+    {
+        try { assertion(); results.Add(new { name, passed = true, reason = "" }); }
+        catch (Exception error) { results.Add(new { name, passed = false, reason = error.ToString() }); }
+    }
+    private static void Require(bool valid, string why) { if (!valid) throw new Exception(why); }
+    private static void Equal(int expected, int actual) { if (expected != actual) throw new Exception("Expected " + expected + ", actual " + actual); }
+    private static void Equal(string expected, string actual) { if (expected != actual) throw new Exception("Expected " + expected + ", actual " + actual); }
+}

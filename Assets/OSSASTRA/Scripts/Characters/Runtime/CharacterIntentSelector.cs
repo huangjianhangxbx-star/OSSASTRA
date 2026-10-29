@@ -2,7 +2,7 @@
  * 脚本：CharacterIntentSelector
  * 功能：在Root惰性采样时，只从玩家、伙伴、空意图中选择一个有效Frame。
  * 边界：不决定距离、不采InputAction、不写运动/动作；未绑定跟随时委托原玩家输入。
- * 协作：Root与Bus共用同一选择器；会话代际或当帧变化立刻使旧快照失效。
+ * 协作：Root与Bus共用同一选择器；Player分支仅此一处做可选视角转换，伙伴世界向量原样；代际变化使旧快照失效。
  */
 using Ossastra.CharacterCore;
 using UnityEngine;
@@ -54,7 +54,7 @@ namespace Ossastra.Characters
             if (character == null || !character.IsAlive || !character.isActiveAndEnabled) return default;
             var selectedKind=CharacterIntentPolicy.Select(managed, Alive(session) && session.IsIntentSamplingAllowed,
                 Alive(session) && session.Current == character, Alive(companion) && companion.IsAvailable);
-            if (selectedKind == CharacterIntentKind.Player) frame=player.Read();
+            if (selectedKind == CharacterIntentKind.Player) frame=character.MapPlayerFrame(player.Read());
             else if (selectedKind == CharacterIntentKind.Companion)
             {
                 // 伙伴即使给了其它字段，也只准传递move；不能借AI帧自动攻击、取消或暂停。

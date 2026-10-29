@@ -1,0 +1,32 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "passed": 13,
+      "failed": 0,
+      "passedCases": [
+        "real optional module initialized",
+        "real optional module bound",
+        "live gamepad move records world forward",
+        "idle rotation preserves last world move",
+        "idle rotation preserves gamepad world attack",
+        "birth without movement history keeps configured world right",
+        "idle gamepad handoff retains existing world movement history",
+        "fresh live move follows actual rotated camera",
+        "fresh live move updates world history",
+        "keyboard pointer fallback is already world space",
+        "live analog amplitude remains unchanged",
+        "companion binds same original selector",
+        "companion world vector is not rotated"
+      ],
+      "failedCases": [],
+      "complete": true
+    }
+  }
+}

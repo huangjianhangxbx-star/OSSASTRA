@@ -1,0 +1,116 @@
+/* 根输入历史验证：真实选择器→Root一次转换→Orientation；只使用瞬态组件与受控输入源，不采设备或写资产。 */
+using System;
+using System.Reflection;
+using System.Collections.Generic;
+using UnityEngine;
+using Funplay.Editor.Tools.Scripting;
+using Ossastra.Characters.ViewSpace;
+using C = Ossastra.Characters;
+public sealed class RootFrameHistoryContracts : IFunplayCommand
+{
+    private sealed class ViewContext : ICharacterViewContext
+    {
+        public Camera camera;
+        public float yaw;
+        public Camera GameplayCamera => camera;
+        public bool IsValid => true;
+        public Vector3 ViewRight => Quaternion.Euler(0, yaw, 0) * Vector3.right;
+        public Vector3 ViewForward => Quaternion.Euler(0, yaw, 0) * Vector3.forward;
+        public Quaternion ViewRotation => Quaternion.Euler(35, yaw, 0);
+        public bool FreezePresentation => false;
+    }
+    private sealed class Player : C.ICharacterInputSource
+    {
+        public C.CharacterInputFrame frame;
+        public C.CharacterInputFrame CurrentFrame => frame;
+        public bool IsConfigured => true;
+        public C.CharacterInputFrame Read() => frame;
+    }
+    private sealed class Companion : C.ICompanionIntentSource
+    {
+        public bool IsAvailable => true;
+        public C.CharacterInputFrame ReadCompanionIntent(C.CharacterRoot character, float delta) => new C.CharacterInputFrame { move = new Vector2(.2f, .4f) };
+    }
+    private sealed class Session : C.ICharacterControlSession
+    {
+        public C.CharacterRoot Current => null;
+        public IReadOnlyList<C.CharacterRoot> Characters => Array.Empty<C.CharacterRoot>();
+        public bool IsIntentSamplingAllowed => true;
+        public int ControlRevision => 0;
+    }
+    private readonly List<string> passed = new List<string>(), failed = new List<string>();
+    private void Check(string name, bool valid) { if (valid) passed.Add(name); else failed.Add(name); }
+    private static bool Near(Vector3 a, Vector3 b) => (a - b).sqrMagnitude < .000001f;
+    private static void Set(object target, string name, object value) => target.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic).SetValue(target, value);
+    private static C.CharacterInputFrame Pad(Vector2 move, Vector2 screenMemory) => new C.CharacterInputFrame
+    { move = move, moveSource = move.sqrMagnitude > 0 ? C.PlayerInputSource.Gamepad : C.PlayerInputSource.None,
+        aimSource = C.PlayerInputSource.Gamepad, hasDirectionalAim = true, aimDirection = screenMemory };
+    private static C.CharacterInputFrame Resolve(C.CharacterIntentSelector selector, C.CharacterOrientation orientation)
+    {
+        var result = selector.Read();
+        orientation.ResolveDirections(result, null, true, true);
+        return result;
+    }
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+    {
+        GameObject rootObject = null, cameraObject = null;
+        try
+        {
+            rootObject = new GameObject("RootFrameHistoryTransient");
+            var root = rootObject.AddComponent<C.CharacterRoot>();
+            var orientation = rootObject.GetComponent<C.CharacterOrientation>();
+            var adapter = rootObject.AddComponent<CharacterViewSpaceAdapter>();
+            var visual = new GameObject("Visual").transform;
+            visual.SetParent(rootObject.transform, false);
+            Set(adapter, "visualRoot", visual);
+            Set(root, "viewSpace", adapter);
+            Set(root, "orientation", orientation);
+            Check("real optional module initialized", adapter.Initialize(rootObject.transform));
+            cameraObject = new GameObject("RootFrameHistoryCamera");
+            var context = new ViewContext { camera = cameraObject.AddComponent<Camera>() };
+            Check("real optional module bound", adapter.Bind(this, context));
+            var player = new Player();
+            var selector = new C.CharacterIntentSelector(root, player);
+
+            context.yaw = 0; adapter.Tick();
+            player.frame = Pad(Vector2.up, Vector2.up); Resolve(selector, orientation);
+            Check("live gamepad move records world forward", Near(orientation.LastMoveDirection, Vector3.forward));
+            context.yaw = 90; adapter.Tick();
+            player.frame = Pad(Vector2.zero, Vector2.up); Resolve(selector, orientation);
+            Check("idle rotation preserves last world move", Near(orientation.LastMoveDirection, Vector3.forward));
+            Check("idle rotation preserves gamepad world attack", Near(orientation.AttackDirection, Vector3.forward));
+
+            orientation.ResetOrientation();
+            context.yaw = 90; adapter.Tick();
+            player.frame = Pad(Vector2.zero, Vector2.right); Resolve(selector, orientation);
+            Check("birth without movement history keeps configured world right", Near(orientation.LastMoveDirection, Vector3.right));
+
+            orientation.ResetOrientation();
+            orientation.ResolveDirections(new C.CharacterInputFrame { move = Vector2.left }, null, true, true);
+            context.yaw = 225; adapter.Tick();
+            player.frame = Pad(Vector2.zero, Vector2.up); Resolve(selector, orientation);
+            Check("idle gamepad handoff retains existing world movement history", Near(orientation.LastMoveDirection, Vector3.left));
+
+            context.yaw = 90; adapter.Tick();
+            player.frame = Pad(Vector2.up, Vector2.up);
+            var live = Resolve(selector, orientation);
+            Check("fresh live move follows actual rotated camera", Near(new Vector3(live.move.x, 0, live.move.y), Vector3.right));
+            Check("fresh live move updates world history", Near(orientation.LastMoveDirection, Vector3.right));
+
+            player.frame = new C.CharacterInputFrame { aimSource = C.PlayerInputSource.KeyboardMouse, hasDirectionalAim = true, aimDirection = Vector2.up };
+            var fallback = selector.Read();
+            Check("keyboard pointer fallback is already world space", Near(new Vector3(fallback.aimDirection.x, 0, fallback.aimDirection.y), Vector3.forward));
+            player.frame = Pad(new Vector2(.3f, .4f), new Vector2(.3f, .4f));
+            var analog = selector.Read();
+            Check("live analog amplitude remains unchanged", Mathf.Abs(analog.move.magnitude - .5f) < .0001f);
+
+            var companion = new C.CharacterIntentSelector(root, player);
+            Check("companion binds same original selector", companion.Bind(new Session(), new Companion()));
+            var ai = companion.Read();
+            Check("companion world vector is not rotated", Near(new Vector3(ai.move.x, 0, ai.move.y), new Vector3(.2f, 0, .4f)));
+        }
+        catch (Exception error) { failed.Add("unexpected fixture error: " + error); }
+        finally { if (rootObject != null) UnityEngine.Object.DestroyImmediate(rootObject); if (cameraObject != null) UnityEngine.Object.DestroyImmediate(cameraObject); }
+        ctx.ReturnValue = new { passed = passed.Count, failed = failed.Count, passedCases = passed.ToArray(), failedCases = failed.ToArray(), complete = failed.Count == 0 };
+    }
+}

@@ -571,3 +571,7 @@ F00–F10工程实施/定向验证完成：原唯一音频根/Transport/32短音
 
 ## 2026-10-27 AUDIO-LISTENING-FIX complete
 已修整体低音量/下缘浑浊/持续不适声：运行期唯一听点跟随实控(.8u)并精确恢复原相机Listener，四地图边界不作声学墙、disabled marker不遮挡、遮挡不自动Room；原Esc/Select菜单新增保存的Master/BGM/SFX/Ambience/mute/推荐，当前1/.65/1/0。环境默认关闭并释放实际loop，用户确认持续声消失。私有A2/A3一次声净×1.6，最终真实28.096s枪械7/7/峰.749935/0削波，初始超限结果保留；UI14、可用性4、遮挡3、生命周期4、初始禁用2、位置2、跨场6与SFX32/语义14/档案14通过。36原dirty/PCM/源库保持，最终Edit clean、原相机Listener恢复、临时设备/听点0；全部writer释放，仅定向GitHub发布收口，无电源动作。交接docs/ossastra/AUDIO-LISTENING-FIX-handoff.md；不代签全部音色/旧Player插件或其它内容缺口。
+
+
+## 2026-10-29 DS-MAP-01 technical-complete / publishing
+独立SC_DontStarveMapLab、原Blue完整控制链Variant及Root管理的optional ViewSpace完成；滚轮/十字键45度旋转，Q/E/方向移动保留，WorldRoot/碰撞固定。三地表/40物件/结构侧俯视，本机素材隔离。119/162/37/13/10/7/24/91/48/31/25/10分层检查及原Commerce移动普攻、三轮重开通过；错误长按连招夹具预期、全Editor隐藏管线材质增长、原作OBSERVATION_BLOCKED与真实OS焦点/实体手柄/用户视觉未代验均单列。42保护项/40源SHA保持，最终Edit clean/Missing0；全部Unity/源码租约释放，仅自有文档/选择性GitHub发布。详见ossastra/DS-MAP-01/handoff.md。无电源动作。

@@ -1,0 +1,145 @@
+/*
+ * 测试：MapOrbitState 的真实角度行为；先于生产类型运行，缺失类型应明确红测。
+ * 捕获错误：连续目标无限累积、0/360绕远、快速反转继续旧方向、过冲与坏时钟污染。
+ * 本夹具不操作相机、场景或角色；测试期望由手算常量提供。
+ */
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using Funplay.Editor.Tools.Scripting;
+
+public sealed class OrbitContracts : IFunplayCommand
+{
+    private readonly List<object> results = new List<object>();
+    private Type stateType;
+
+    public void Execute(ExecutionContext ctx)
+    {
+        stateType = AppDomain.CurrentDomain.GetAssemblies()
+            .Select(a => a.GetType("Ossastra.MapResearch.MapOrbitState", false))
+            .FirstOrDefault(t => t != null);
+        if (stateType == null)
+        {
+            results.Add(new { name = "orbit-runtime-exists", passed = false, reason = "MapOrbitState is not implemented" });
+            ctx.ReturnValue = new { passed = 0, failed = 1, results };
+            return;
+        }
+
+        Check("eight-steps-return-same-view", () =>
+        {
+            var state = New(0f);
+            for (int i = 0; i < 8; i++) Call(state, "RequestStep", 1);
+            Near(0f, Value(state, "TargetYaw"));
+            Equal(0, Convert.ToInt32(Property(state, "TargetSector")));
+            Call(state, "Tick", 0.2f, 180f);
+            Near(0f, Value(state, "ActualYaw"));
+        });
+        Check("counterclockwise-crosses-zero-short-way", () =>
+        {
+            var state = New(0f);
+            Call(state, "RequestStep", -1);
+            Call(state, "Tick", 0.1f, 90f);
+            Near(315f, Value(state, "TargetYaw"));
+            Near(351f, Value(state, "ActualYaw"));
+        });
+        Check("clockwise-crosses-360-short-way", () =>
+        {
+            var state = New(350f);
+            Call(state, "RequestStep", 1);
+            Call(state, "Tick", 0.2f, 90f);
+            Near(35f, Value(state, "TargetYaw"));
+            Near(8f, Value(state, "ActualYaw"));
+        });
+        Check("reverse-request-reverses-current-motion", () =>
+        {
+            var state = New(0f);
+            Call(state, "RequestStep", 1);
+            Call(state, "RequestStep", 1);
+            Call(state, "Tick", 0.1f, 90f);
+            Near(9f, Value(state, "ActualYaw"));
+            Call(state, "RequestStep", -1);
+            Call(state, "RequestStep", -1);
+            Call(state, "Tick", 0.05f, 90f);
+            Near(4.5f, Value(state, "ActualYaw"));
+        });
+        Check("tick-cannot-overshoot-target", () =>
+        {
+            var state = New(0f);
+            Call(state, "RequestStep", 1);
+            Call(state, "Tick", 10f, 90f);
+            Near(45f, Value(state, "ActualYaw"));
+        });
+        Check("one-request-is-one-sector-regardless-magnitude", () =>
+        {
+            var state = New(0f);
+            Call(state, "RequestStep", 120);
+            Near(45f, Value(state, "TargetYaw"));
+            Call(state, "RequestStep", -120);
+            Near(0f, Value(state, "TargetYaw"));
+        });
+        Check("simultaneous-opposites-are-zero-request", () =>
+        {
+            var state = New(0f);
+            Call(state, "RequestStep", 0);
+            Call(state, "Tick", 1f, 90f);
+            Near(0f, Value(state, "TargetYaw"));
+            Near(0f, Value(state, "ActualYaw"));
+        });
+        Check("bad-clock-and-speed-do-not-poison-yaw", () =>
+        {
+            var state = New(0f);
+            Call(state, "RequestStep", 1);
+            Call(state, "Tick", float.NaN, 90f);
+            Call(state, "Tick", float.PositiveInfinity, 90f);
+            Call(state, "Tick", -1f, 90f);
+            Call(state, "Tick", 1f, float.NaN);
+            Call(state, "Tick", 1f, -1f);
+            Near(0f, Value(state, "ActualYaw"));
+            Call(state, "Tick", 0.1f, 90f);
+            Near(9f, Value(state, "ActualYaw"));
+        });
+        Check("many-requests-keep-bounded-sector", () =>
+        {
+            var state = New(0f);
+            for (int i = 0; i < 8001; i++) Call(state, "RequestStep", 1);
+            Equal(1, Convert.ToInt32(Property(state, "TargetSector")));
+            Near(45f, Value(state, "TargetYaw"));
+        });
+        Check("reset-restores-initial-angle-and-sector", () =>
+        {
+            var state = New(30f);
+            Call(state, "RequestStep", 1);
+            Call(state, "Tick", 0.1f, 90f);
+            Call(state, "Reset");
+            Near(30f, Value(state, "ActualYaw"));
+            Near(30f, Value(state, "TargetYaw"));
+            Equal(0, Convert.ToInt32(Property(state, "TargetSector")));
+        });
+
+        int passed = results.Count(x => (bool)x.GetType().GetProperty("passed").GetValue(x));
+        ctx.ReturnValue = new { passed, failed = results.Count - passed, results };
+    }
+
+    private object New(float yaw) => Activator.CreateInstance(stateType, new object[] { yaw });
+    private object Property(object state, string name) => stateType.GetProperty(name).GetValue(state);
+    private float Value(object state, string name) => Convert.ToSingle(Property(state, name));
+    private object Call(object state, string name, params object[] args) => stateType.GetMethod(name).Invoke(state, args);
+    private void Check(string name, Action check)
+    {
+        try { check(); results.Add(new { name, passed = true, reason = "" }); }
+        catch (Exception error)
+        {
+            results.Add(new { name, passed = false, reason = (error.InnerException ?? error).ToString() });
+        }
+    }
+    private static void Near(float want, float actual)
+    {
+        if (float.IsNaN(actual) || Math.Abs(want - actual) > 0.001f)
+            throw new Exception("Expected " + want + ", actual " + actual);
+    }
+    private static void Equal(int want, int actual)
+    {
+        if (want != actual) throw new Exception("Expected " + want + ", actual " + actual);
+    }
+}

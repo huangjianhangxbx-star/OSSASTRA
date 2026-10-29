@@ -2,11 +2,12 @@
  * 脚本：CharacterDataBus
  * 功能：为单个角色提供输入、运动、朝向、动作和权限的只读访问门面。
  * 边界：状态仍由原模块唯一写入；不复制可写HP、动作时钟或全局控制状态。
- * 协作：Root创建；Movement／Spine及消费者实时读取接口拥有者。
+ * 协作：Root创建；Movement／Spine实时读取接口拥有者；观察方向只读投影，世界方向保持原所有权。
  */
 using System;
 using Ossastra.CharacterCore;
 using UnityEngine;
+using Ossastra.Characters.ViewSpace;
 
 namespace Ossastra.Characters
 {
@@ -18,6 +19,7 @@ namespace Ossastra.Characters
         private readonly ICharacterOrientation orientation;
         private readonly BasicActionRuntime actionRuntime;
         private readonly ControlAuthority controlAuthority;
+        private readonly CharacterViewSpaceAdapter viewSpace;
 
         public string ActorId { get; }
         public CharacterInputFrame Input => input.CurrentFrame;
@@ -25,11 +27,13 @@ namespace Ossastra.Characters
         public Vector3 Velocity => movement.Velocity;
         public Vector3 AttackDirection => orientation.AttackDirection;
         public Vector3 PresentationDirection => orientation.PresentationDirection;
+        public Vector3 ViewPresentationDirection => viewSpace != null ? viewSpace.ToPresentation(PresentationDirection) : PresentationDirection;
         public Vector3 LastMoveDirection => orientation.LastMoveDirection;
         public string DirectionReason => orientation.DirectionReason;
         public bool UsesMovementAim => orientation.UsesMovementAim;
         public Vector3 ResolveDeliveryDirection(Vector3 acceptedDirection,bool frozenMotion) => orientation.ResolveDeliveryDirection(acceptedDirection,frozenMotion);
         public float VisualFacingX => orientation.VisualFacingX;
+        public float ViewFacingX => viewSpace != null && viewSpace.IsEffective ? viewSpace.PresentationFacing : VisualFacingX;
         public bool ActionActive => actionRuntime.IsActive;
         public Guid ActionId => actionRuntime.ActionId;
         public bool MoveReady => actionRuntime.MoveReady;
@@ -46,7 +50,7 @@ namespace Ossastra.Characters
         internal void BindMainMotion(ICharacterMotionOverride motion){mainMotion=motion;}
 
         public CharacterDataBus(string actorId, ICharacterInputSource input, ICharacterMovement movement,
-            ICharacterOrientation orientation, BasicActionRuntime actionRuntime, ControlAuthority controlAuthority)
+            ICharacterOrientation orientation, BasicActionRuntime actionRuntime, ControlAuthority controlAuthority, CharacterViewSpaceAdapter viewSpace = null)
         {
             if (string.IsNullOrWhiteSpace(actorId)) throw new ArgumentException("Actor identity required", nameof(actorId));
             if (input == null) throw new ArgumentNullException(nameof(input));
@@ -60,6 +64,7 @@ namespace Ossastra.Characters
             this.orientation = orientation;
             this.actionRuntime = actionRuntime;
             this.controlAuthority = controlAuthority;
+            this.viewSpace = viewSpace;
         }
     }
 }

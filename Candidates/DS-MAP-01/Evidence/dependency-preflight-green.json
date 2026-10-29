@@ -1,0 +1,67 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "passed": 10,
+      "failed": 0,
+      "results": [
+        {
+          "name": "complete-predicate-has-no-missing",
+          "passed": true,
+          "reason": ""
+        },
+        {
+          "name": "missing-prop-png-is-named",
+          "passed": true,
+          "reason": ""
+        },
+        {
+          "name": "missing-ground-png-is-named",
+          "passed": true,
+          "reason": ""
+        },
+        {
+          "name": "missing-forest-base-is-named",
+          "passed": true,
+          "reason": ""
+        },
+        {
+          "name": "missing-private-prop-prefab-is-named",
+          "passed": true,
+          "reason": ""
+        },
+        {
+          "name": "missing-private-prop-mesh-is-named",
+          "passed": true,
+          "reason": ""
+        },
+        {
+          "name": "missing-ground-mesh-is-named",
+          "passed": true,
+          "reason": ""
+        },
+        {
+          "name": "reports-every-missing-instead-of-first-only",
+          "passed": true,
+          "reason": ""
+        },
+        {
+          "name": "whole-local-set-is-59-unique-dependencies",
+          "passed": true,
+          "reason": ""
+        },
+        {
+          "name": "real-current-local-assets-are-complete",
+          "passed": true,
+          "reason": ""
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,66 @@
+{
+  "success": true,
+  "message": "Command executed.",
+  "data": {
+    "compiler": "Roslyn",
+    "logs": [],
+    "created": [],
+    "modified": [],
+    "destroyed": [],
+    "returnValue": {
+      "passed": 7,
+      "failed": 0,
+      "results": [
+        {
+          "time": "0",
+          "loop": true,
+          "want": 0,
+          "actual": 0,
+          "passed": true
+        },
+        {
+          "time": "0.15",
+          "loop": true,
+          "want": 1,
+          "actual": 1,
+          "passed": true
+        },
+        {
+          "time": "0.35",
+          "loop": true,
+          "want": 1,
+          "actual": 1,
+          "passed": true
+        },
+        {
+          "time": "0.45",
+          "loop": true,
+          "want": 2,
+          "actual": 2,
+          "passed": true
+        },
+        {
+          "time": "0.55",
+          "loop": true,
+          "want": 0,
+          "actual": 0,
+          "passed": true
+        },
+        {
+          "time": "8",
+          "loop": false,
+          "want": 2,
+          "actual": 2,
+          "passed": true
+        },
+        {
+          "time": "NaN",
+          "loop": true,
+          "want": 0,
+          "actual": 0,
+          "passed": true
+        }
+      ]
+    }
+  }
+}

@@ -1,5 +1,5 @@
 /* 角色事实适配器：Root的既有表现端口→原式Intent/配置/Composer/Handle。
- * 不拥有玩法状态、动作钟或伤害。正式片段只在SO中配置；可选方向端口提交结构层，保持单一Composer/Handle。
+ * 不拥有玩法状态、动作钟或伤害。正式片段只在SO中配置；可选方向端口提交结构层，观察镜像只读Bus派生值，保持单一Composer/Handle。
  */
 using System;
 using System.Linq;
@@ -183,7 +183,7 @@ namespace Ossastra.CharacterAnimation
                 direction.SubmitDirection(composer,direction.ReadGameplayDirection(),generation);
                 skeleton.Skeleton.ScaleX=scaleX*(direction.Mirrored?-1:1);
             }
-            else skeleton.Skeleton.ScaleX=scaleX*bus.VisualFacingX;
+            else skeleton.Skeleton.ScaleX=scaleX*bus.ViewFacingX;
             composer.Commit(generation);
             var selected=composer.CurrentBodyIntent;
             if(selected!=null){CurrentSemantic=AnimationSemanticTranslation.ToShared(selected.semantic);CurrentSource=selected.oneShot&&selected.actionId==bus.ActionId&&selected.priority==20?"action":selected.intentSourceStateMatine.ToString();CurrentReplayId=selected.phaseId!=Guid.Empty?selected.phaseId:selected.actionId;}
