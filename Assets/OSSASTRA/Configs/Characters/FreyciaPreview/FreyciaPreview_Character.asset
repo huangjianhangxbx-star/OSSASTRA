@@ -1,0 +1,30 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 69b810481f9b3074490f0f6860469531, type: 3}
+  m_Name: FreyciaPreview_Character
+  m_EditorClassIdentifier: 
+  definitionId: freycia-preview
+  displayName: "\u8299\u857E\u831C\u5A05 \xB7 \u72EC\u7ACB\u6A21\u578B\u8BD5\u73A9"
+  animationProfile: {fileID: 0}
+  rigProfile: {fileID: 0}
+  directionProfile: {fileID: 11400000, guid: a666cb7883f06aa43b5e1b16e19c9402, type: 2}
+  basicAttacks:
+  - {fileID: 11400000, guid: d7c49c94601e8ab429ce3cca26eb792e, type: 2}
+  dodgeDuration: 0.45
+  dodgeDistance: 2.4
+  dodgeCost: 22
+  invulnerableFrom: 0.12
+  invulnerableTo: 0.32
+  preInput: 0.12
+  bufferLifetime: 0.17
+  continuationWindow: 0.45
+  requireHitForContinuation: 0

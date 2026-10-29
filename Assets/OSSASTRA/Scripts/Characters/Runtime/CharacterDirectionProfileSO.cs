@@ -10,6 +10,7 @@ using A=Ossastra.CharacterAnimation;
 namespace Ossastra.Characters
 {
     public enum CharacterDirectionMode { SingleFlip, MultiFace }
+    public enum CharacterDirectionVisibilityMode { ClippingBoundary, FaceBranches }
     public enum CharacterWeaponDisplayMode { SourceReference, IndependentEquipment }
     [Serializable] public sealed class CharacterDirectionFace
     {
@@ -33,6 +34,8 @@ namespace Ossastra.Characters
     public sealed class CharacterDirectionProfileSO:ScriptableObject
     {
         public CharacterDirectionMode mode;
+        [Tooltip("默认保留小蓝的裁切边界；无裁切附件的独立多面模型可按互不嵌套的面根分支显隐。")]
+        public CharacterDirectionVisibilityMode visibilityMode;
         [Min(1)] public int contentVersion=1,structureTrack=9;
         [Tooltip("世界XZ角度：atan2(x,z)，再加此偏移；不是屏幕坐标。")]
         public float yawOffset;
@@ -75,7 +78,7 @@ namespace Ossastra.Characters
         public void Validate(Spine.SkeletonData data,A.CharacterAnimationConfigManager config)
         {
             if(!Enabled)return;
-            if(data==null||config?.baseMap==null||contentVersion<1||structureTrack<1||!Finite(yawOffset)||faces==null||sectors==null||builtInWeaponSlots==null||faces.Length==0||sectors.Length==0)
+            if(data==null||config?.baseMap==null||contentVersion<1||structureTrack<1||!Finite(yawOffset)||!Enum.IsDefined(typeof(CharacterDirectionVisibilityMode),visibilityMode)||faces==null||sectors==null||builtInWeaponSlots==null||faces.Length==0||sectors.Length==0)
                 throw new ArgumentException(name+": invalid direction profile/model");
             if(faces.Any(f=>f==null||string.IsNullOrEmpty(f.faceId)||data.FindBone(f.rootBone)==null)||faces.Select(f=>f.faceId).Distinct().Count()!=faces.Length||faces.Select(f=>f.rootBone).Distinct().Count()!=faces.Length)
                 throw new ArgumentException(name+".faces: duplicate id/root or missing bone");
@@ -87,7 +90,15 @@ namespace Ossastra.Characters
                 if(clip==null||clip.track!=structureTrack||clip.mixDuration!=0||clip.scalesWithAction||data.FindAnimation(clip.animaName)?.Duration!=0||plan.queuedClips.Count!=0||plan.clearTracks.Count!=0)
                     throw new ArgumentException(name+".faces: structural mapping must have one zero-duration discrete clip: "+face.faceId);
             }
-            if(data.FindSlot(boundarySlot)==null)throw new ArgumentException(name+".boundarySlot missing: "+boundarySlot);
+            if(visibilityMode==CharacterDirectionVisibilityMode.ClippingBoundary)
+            {if(data.FindSlot(boundarySlot)==null)throw new ArgumentException(name+".boundarySlot missing: "+boundarySlot);}
+            else
+            {
+                // 一个槽只能属于一个面；祖孙面根会让归属产生歧义，必须在接线时拒绝。
+                var roots=faces.Select(f=>data.FindBone(f.rootBone)).ToArray();
+                foreach(var root in roots)for(var parent=root.Parent;parent!=null;parent=parent.Parent)
+                    if(roots.Contains(parent))throw new ArgumentException(name+".faces: nested face roots");
+            }
             foreach(var slot in builtInWeaponSlots)if(data.FindSlot(slot)==null)throw new ArgumentException(name+".builtInWeaponSlots missing: "+slot);
             Select(Vector3.zero,default);
             for(int i=0;i<3600;i++)Select(new Vector3(Mathf.Sin(i*.1f*Mathf.Deg2Rad),0,Mathf.Cos(i*.1f*Mathf.Deg2Rad)),default);

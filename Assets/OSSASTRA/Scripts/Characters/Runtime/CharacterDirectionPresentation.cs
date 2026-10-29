@@ -51,7 +51,15 @@ namespace Ossastra.Characters
         {
             visibility?.Restore();boundSkeleton=body.Skeleton;
             roots=profile.faces.Select(f=>boundSkeleton.FindBone(f.rootBone)).ToArray();
-            visibility=new CharacterSlotVisibility(boundSkeleton,profile.boundarySlot,profile.builtInWeaponSlots);Revision++;
+            visibility=profile.visibilityMode==CharacterDirectionVisibilityMode.FaceBranches?
+                new CharacterSlotVisibility(boundSkeleton,profile.faces.Select(f=>f.rootBone).ToArray(),profile.builtInWeaponSlots):
+                new CharacterSlotVisibility(boundSkeleton,profile.boundarySlot,profile.builtInWeaponSlots);
+            selection=profile.Select(Vector3.zero,selection);SelectVisibleFace();Revision++;
+        }
+        private void SelectVisibleFace()
+        {
+            if(profile.visibilityMode!=CharacterDirectionVisibilityMode.FaceBranches)return;
+            visibility.SelectFace(profile.faces.Single(f=>f.faceId==selection.FaceId).rootBone);
         }
         public Vector3 ReadGameplayDirection()
         {
@@ -65,7 +73,7 @@ namespace Ossastra.Characters
             if(!ReferenceEquals(boundSkeleton,body.Skeleton))CacheSkeleton();
             if(profileVersion!=profile.contentVersion){profile.Validate(body.Skeleton.Data,config);profileVersion=profile.contentVersion;CacheSkeleton();}
             var next=profile.Select(direction,selection);
-            if(next.FaceId!=selection.FaceId||next.Mirrored!=selection.Mirrored){selection=next;Revision++;}
+            if(next.FaceId!=selection.FaceId||next.Mirrored!=selection.Mirrored){selection=next;SelectVisibleFace();Revision++;}
             target.SubmitIntent(new A.AnimationIntent{root=owner,actorId=owner.ActorId,target="body",lifeGeneration=owner.LifeGeneration,presentationGeneration=generation,
                 intentSourceStateMatine=A.AnimationIntentSourceStateMachine.StructuralDirection,layer=A.AnimationLayer.StructuralModel,semantic=A.EAnimSemantic.ModelDirection,
                 logicId=selection.LogicId,structureProfile=profile,priority=100,replayId=Revision,configurationVersion=unchecked(config.ConfigurationVersion*31+profileVersion)});

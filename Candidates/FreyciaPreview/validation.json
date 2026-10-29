@@ -1,0 +1,453 @@
+{
+  "date": "2026-10-29",
+  "scope": "FREYCIA independent model preview",
+  "unityVisibility": {
+    "passed": 66,
+    "failed": 0,
+    "samples": 40,
+    "rows": [
+      {
+        "name": "实际版本4.3.26与五面根/居中/Move均存在",
+        "ok": true,
+        "reason": ""
+      },
+      {
+        "name": "提供子树构造器与SelectFace行为能力",
+        "ok": true,
+        "reason": "missing APIs => feature-not-implemented，不能当作测试跳过"
+      },
+      {
+        "name": "五面×镜像×Move阶段 侧正面/0/0",
+        "ok": true,
+        "reason": "hidden=True,selectedPreserved=True,attachmentsSame=True,Contains=True,restore=True"
+      },
+      {
+        "name": "五面×镜像×Move阶段 侧正面/0/1",
+        "ok": true,
+        "reason": "hidden=True,selectedPreserved=True,attachmentsSame=True,Contains=True,restore=True"
+      },
+      {
+        "name": "五面×镜像×Move阶段 侧正面/0/2",
+        "ok": true,
+        "reason": "hidden=True,selectedPreserved=True,attachmentsSame=True,Contains=True,restore=True"
+      },
+      {
+        "name": "五面×镜像×Move阶段 侧正面/0/3",
+        "ok": true,
+        "reason": "hidden=True,selectedPreserved=True,attachmentsSame=True,Contains=True,restore=True"
+      },
+      {
+        "name": "五面×镜像×Move阶段 侧正面/1/0",
+        "ok": true,
+        "reason": "hidden=True,selectedPreserved=True,attachmentsSame=True,Contains=True,restore=True"
+      },
+      {
+        "name": "五面×镜像×Move阶段 侧正面/1/1",
+        "ok": true,
+        "reason": "hidden=True,selectedPreserved=True,attachmentsSame=True,Contains=True,restore=True"
+      },
+      {
+        "name": "五面×镜像×Move阶段 侧正面/1/2",
+        "ok": true,
+        "reason": "hidden=True,selectedPreserved=True,attachmentsSame=True,Contains=True,restore=True"
+      },
+      {
+        "name": "五面×镜像×Move阶段 侧正面/1/3",
+        "ok": true,
+        "reason": "hidden=True,selectedPreserved=True,attachmentsSame=True,Contains=True,restore=True"
+      },
+      {
+        "name": "五面×镜像×Move阶段 侧面/0/0",
+        "ok": true,
+        "reason": "hidden=True,selectedPreserved=True,attachmentsSame=True,Contains=True,restore=True"
+      },
+      {
+        "name": "五面×镜像×Move阶段 侧面/0/1",
+        "ok": true,
+        "reason": "hidden=True,selectedPreserved=True,attachmentsSame=True,Contains=True,restore=True"
+      },
+      {
+        "name": "五面×镜像×Move阶段 侧面/0/2",
+        "ok": true,
+        "reason": "hidden=True,selectedPreserved=True,attachmentsSame=True,Contains=True,restore=True"
+      },
+      {
+        "name": "五面×镜像×Move阶段 侧面/0/3",
+        "ok": true,
+        "reason": "hidden=True,selectedPreserved=True,attachmentsSame=True,Contains=True,restore=True"
+      },
+      {
+        "name": "五面×镜像×Move阶段 侧面/1/0",
+        "ok": true,
+        "reason": "hidden=True,selectedPreserved=True,attachmentsSame=True,Contains=True,restore=True"
+      },
+      {
+        "name": "五面×镜像×Move阶段 侧面/1/1",
+        "ok": true,
+        "reason": "hidden=True,selectedPreserved=True,attachmentsSame=True,Contains=True,restore=True"
+      },
+      {
+        "name": "五面×镜像×Move阶段 侧面/1/2",
+        "ok": true,
+        "reason": "hidden=True,selectedPreserved=True,attachmentsSame=True,Contains=True,restore=True"
+      },
+      {
+        "name": "五面×镜像×Move阶段 侧面/1/3",
+        "ok": true,
+        "reason": "hidden=True,selectedPreserved=True,attachmentsSame=True,Contains=True,restore=True"
+      },
+      {
+        "name": "五面×镜像×Move阶段 正面/0/0",
+        "ok": true,
+        "reason": "hidden=True,selectedPreserved=True,attachmentsSame=True,Contains=True,restore=True"
+      },
+      {
+        "name": "五面×镜像×Move阶段 正面/0/1",
+        "ok": true,
+        "reason": "hidden=True,selectedPreserved=True,attachmentsSame=True,Contains=True,restore=True"
+      },
+      {
+        "name": "五面×镜像×Move阶段 正面/0/2",
+        "ok": true,
+        "reason": "hidden=True,selectedPreserved=True,attachmentsSame=True,Contains=True,restore=True"
+      },
+      {
+        "name": "五面×镜像×Move阶段 正面/0/3",
+        "ok": true,
+        "reason": "hidden=True,selectedPreserved=True,attachmentsSame=True,Contains=True,restore=True"
+      },
+      {
+        "name": "五面×镜像×Move阶段 正面/1/0",
+        "ok": true,
+        "reason": "hidden=True,selectedPreserved=True,attachmentsSame=True,Contains=True,restore=True"
+      },
+      {
+        "name": "五面×镜像×Move阶段 正面/1/1",
+        "ok": true,
+        "reason": "hidden=True,selectedPreserved=True,attachmentsSame=True,Contains=True,restore=True"
+      },
+      {
+        "name": "五面×镜像×Move阶段 正面/1/2",
+        "ok": true,
+        "reason": "hidden=True,selectedPreserved=True,attachmentsSame=True,Contains=True,restore=True"
+      },
+      {
+        "name": "五面×镜像×Move阶段 正面/1/3",
+        "ok": true,
+        "reason": "hidden=True,selectedPreserved=True,attachmentsSame=True,Contains=True,restore=True"
+      },
+      {
+        "name": "五面×镜像×Move阶段 侧背面/0/0",
+        "ok": true,
+        "reason": "hidden=True,selectedPreserved=True,attachmentsSame=True,Contains=True,restore=True"
+      },
+      {
+        "name": "五面×镜像×Move阶段 侧背面/0/1",
+        "ok": true,
+        "reason": "hidden=True,selectedPreserved=True,attachmentsSame=True,Contains=True,restore=True"
+      },
+      {
+        "name": "五面×镜像×Move阶段 侧背面/0/2",
+        "ok": true,
+        "reason": "hidden=True,selectedPreserved=True,attachmentsSame=True,Contains=True,restore=True"
+      },
+      {
+        "name": "五面×镜像×Move阶段 侧背面/0/3",
+        "ok": true,
+        "reason": "hidden=True,selectedPreserved=True,attachmentsSame=True,Contains=True,restore=True"
+      },
+      {
+        "name": "五面×镜像×Move阶段 侧背面/1/0",
+        "ok": true,
+        "reason": "hidden=True,selectedPreserved=True,attachmentsSame=True,Contains=True,restore=True"
+      },
+      {
+        "name": "五面×镜像×Move阶段 侧背面/1/1",
+        "ok": true,
+        "reason": "hidden=True,selectedPreserved=True,attachmentsSame=True,Contains=True,restore=True"
+      },
+      {
+        "name": "五面×镜像×Move阶段 侧背面/1/2",
+        "ok": true,
+        "reason": "hidden=True,selectedPreserved=True,attachmentsSame=True,Contains=True,restore=True"
+      },
+      {
+        "name": "五面×镜像×Move阶段 侧背面/1/3",
+        "ok": true,
+        "reason": "hidden=True,selectedPreserved=True,attachmentsSame=True,Contains=True,restore=True"
+      },
+      {
+        "name": "五面×镜像×Move阶段 背面/0/0",
+        "ok": true,
+        "reason": "hidden=True,selectedPreserved=True,attachmentsSame=True,Contains=True,restore=True"
+      },
+      {
+        "name": "五面×镜像×Move阶段 背面/0/1",
+        "ok": true,
+        "reason": "hidden=True,selectedPreserved=True,attachmentsSame=True,Contains=True,restore=True"
+      },
+      {
+        "name": "五面×镜像×Move阶段 背面/0/2",
+        "ok": true,
+        "reason": "hidden=True,selectedPreserved=True,attachmentsSame=True,Contains=True,restore=True"
+      },
+      {
+        "name": "五面×镜像×Move阶段 背面/0/3",
+        "ok": true,
+        "reason": "hidden=True,selectedPreserved=True,attachmentsSame=True,Contains=True,restore=True"
+      },
+      {
+        "name": "五面×镜像×Move阶段 背面/1/0",
+        "ok": true,
+        "reason": "hidden=True,selectedPreserved=True,attachmentsSame=True,Contains=True,restore=True"
+      },
+      {
+        "name": "五面×镜像×Move阶段 背面/1/1",
+        "ok": true,
+        "reason": "hidden=True,selectedPreserved=True,attachmentsSame=True,Contains=True,restore=True"
+      },
+      {
+        "name": "五面×镜像×Move阶段 背面/1/2",
+        "ok": true,
+        "reason": "hidden=True,selectedPreserved=True,attachmentsSame=True,Contains=True,restore=True"
+      },
+      {
+        "name": "五面×镜像×Move阶段 背面/1/3",
+        "ok": true,
+        "reason": "hidden=True,selectedPreserved=True,attachmentsSame=True,Contains=True,restore=True"
+      },
+      {
+        "name": "共享SkeletonData的第二实例不受第一实例遮蔽",
+        "ok": true,
+        "reason": ""
+      },
+      {
+        "name": "两实例独立面选择不反向污染第一实例",
+        "ok": true,
+        "reason": ""
+      },
+      {
+        "name": "第二实例恢复完整",
+        "ok": true,
+        "reason": ""
+      },
+      {
+        "name": "showAll恢复已隐藏alpha",
+        "ok": true,
+        "reason": ""
+      },
+      {
+        "name": "重建Skeleton后新缓存仍有效",
+        "ok": true,
+        "reason": ""
+      },
+      {
+        "name": "重建实例可逆恢复",
+        "ok": true,
+        "reason": ""
+      },
+      {
+        "name": "全部操作后共享定义与time line数据保持不变",
+        "ok": true,
+        "reason": ""
+      },
+      {
+        "name": "FaceBranches配置允许无boundary且保留5个结构映射验证",
+        "ok": true,
+        "reason": ""
+      },
+      {
+        "name": "FaceBranches仍拒绝不存在的面根",
+        "ok": true,
+        "reason": ""
+      },
+      {
+        "name": "Profile拒绝祖孙嵌套面根",
+        "ok": true,
+        "reason": ""
+      },
+      {
+        "name": "Profile拒绝重复面根",
+        "ok": true,
+        "reason": ""
+      },
+      {
+        "name": "Profile拒绝未知显隐策略枚举",
+        "ok": true,
+        "reason": ""
+      },
+      {
+        "name": "子树构造拒绝空面根数组",
+        "ok": true,
+        "reason": ""
+      },
+      {
+        "name": "子树构造拒绝缺失面根",
+        "ok": true,
+        "reason": ""
+      },
+      {
+        "name": "子树构造拒绝重复面根",
+        "ok": true,
+        "reason": ""
+      },
+      {
+        "name": "子树构造拒绝祖孙嵌套面根",
+        "ok": true,
+        "reason": ""
+      },
+      {
+        "name": "未选择面时Apply明确拒绝而非意外展示阵列",
+        "ok": true,
+        "reason": ""
+      },
+      {
+        "name": "未知SelectFace明确拒绝并保留原合法选择",
+        "ok": true,
+        "reason": ""
+      },
+      {
+        "name": "共同根slot不属于任一面而保持原alpha",
+        "ok": true,
+        "reason": ""
+      },
+      {
+        "name": "Contains共同骨为真且仍区分所选和其他面",
+        "ok": true,
+        "reason": ""
+      },
+      {
+        "name": "独立装备模式仍可隐藏共同根和所选面内置武器slot",
+        "ok": true,
+        "reason": ""
+      },
+      {
+        "name": "共同/所选/其他面slot全部精确恢复",
+        "ok": true,
+        "reason": ""
+      },
+      {
+        "name": "旧Blue默认boundary模式仍隐藏边界外slot且保留Attachment",
+        "ok": true,
+        "reason": ""
+      },
+      {
+        "name": "旧Blue恢复0.37原alpha及共享定义不变",
+        "ok": true,
+        "reason": ""
+      }
+    ],
+    "assetsWritten": false,
+    "sceneChanged": false
+  },
+  "realInput": [
+    {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\"success\":true,\"message\":\"Executed (legacy Run()).\",\"data\":{\"result\":\"{\\\"scene\\\":\\\"Assets/OSSASTRA/Scenes/SC_FreyciaPreview.unity\\\",\\\"rootCount\\\":1,\\\"bodyCount\\\":1,\\\"name\\\":\\\"FreyciaPreview\\\",\\\"canSimulate\\\":true,\\\"suspended\\\":false,\\\"focus\\\":true,\\\"position\\\":[0.0,0.01999991,2.084654],\\\"scale\\\":0.001,\\\"visualScale\\\":\\\"(1.00, 1.00, 1.00)\\\",\\\"face\\\":\\\"back\\\",\\\"mirror\\\":false,\\\"hidden\\\":89,\\\"actionActive\\\":false,\\\"releases\\\":0,\\\"moving\\\":true,\\\"move\\\":\\\"(0.00, 0.00, 3.00)\\\",\\\"direction\\\":\\\"(0.00, 0.00, 1.00)\\\",\\\"source\\\":\\\"键鼠移动\\\",\\\"allowsAttack\\\":false,\\\"track0\\\":\\\"Move\\\",\\\"track9\\\":\\\"居中/背面\\\"}\",\"compiler\":\"Roslyn\"}}"
+        }
+      ]
+    },
+    {
+      "keys": "Key.W,Key.D",
+      "expectedFace": "backSide",
+      "expectedMirror": false,
+      "read": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"message\":\"Executed (legacy Run()).\",\"data\":{\"result\":\"{\\\"scene\\\":\\\"Assets/OSSASTRA/Scenes/SC_FreyciaPreview.unity\\\",\\\"rootCount\\\":1,\\\"bodyCount\\\":1,\\\"name\\\":\\\"FreyciaPreview\\\",\\\"canSimulate\\\":true,\\\"suspended\\\":false,\\\"focus\\\":true,\\\"position\\\":[1.22665656,0.0199999511,1.22665656],\\\"scale\\\":0.001,\\\"visualScale\\\":\\\"(1.00, 1.00, 1.00)\\\",\\\"face\\\":\\\"backSide\\\",\\\"mirror\\\":false,\\\"hidden\\\":86,\\\"actionActive\\\":false,\\\"releases\\\":0,\\\"moving\\\":true,\\\"move\\\":\\\"(2.12, 0.00, 2.12)\\\",\\\"direction\\\":\\\"(0.71, 0.00, 0.71)\\\",\\\"source\\\":\\\"键鼠移动\\\",\\\"allowsAttack\\\":false,\\\"track0\\\":\\\"Move\\\",\\\"track9\\\":\\\"居中/测背面\\\"}\",\"compiler\":\"Roslyn\"}}"
+          }
+        ]
+      }
+    },
+    {
+      "keys": "Key.D",
+      "expectedFace": "side",
+      "expectedMirror": false,
+      "read": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"message\":\"Executed (legacy Run()).\",\"data\":{\"result\":\"{\\\"scene\\\":\\\"Assets/OSSASTRA/Scenes/SC_FreyciaPreview.unity\\\",\\\"rootCount\\\":1,\\\"bodyCount\\\":1,\\\"name\\\":\\\"FreyciaPreview\\\",\\\"canSimulate\\\":true,\\\"suspended\\\":false,\\\"focus\\\":true,\\\"position\\\":[1.70073068,0.0199999511,0.0],\\\"scale\\\":0.001,\\\"visualScale\\\":\\\"(1.00, 1.00, 1.00)\\\",\\\"face\\\":\\\"side\\\",\\\"mirror\\\":false,\\\"hidden\\\":77,\\\"actionActive\\\":false,\\\"releases\\\":0,\\\"moving\\\":true,\\\"move\\\":\\\"(3.00, 0.00, 0.00)\\\",\\\"direction\\\":\\\"(1.00, 0.00, 0.00)\\\",\\\"source\\\":\\\"键鼠移动\\\",\\\"allowsAttack\\\":false,\\\"track0\\\":\\\"Move\\\",\\\"track9\\\":\\\"居中/侧面\\\"}\",\"compiler\":\"Roslyn\"}}"
+          }
+        ]
+      }
+    },
+    {
+      "keys": "Key.S,Key.D",
+      "expectedFace": "frontSide",
+      "expectedMirror": false,
+      "read": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"message\":\"Executed (legacy Run()).\",\"data\":{\"result\":\"{\\\"scene\\\":\\\"Assets/OSSASTRA/Scenes/SC_FreyciaPreview.unity\\\",\\\"rootCount\\\":1,\\\"bodyCount\\\":1,\\\"name\\\":\\\"FreyciaPreview\\\",\\\"canSimulate\\\":true,\\\"suspended\\\":false,\\\"focus\\\":true,\\\"position\\\":[1.21970081,0.01999998,-1.21970081],\\\"scale\\\":0.001,\\\"visualScale\\\":\\\"(1.00, 1.00, 1.00)\\\",\\\"face\\\":\\\"frontSide\\\",\\\"mirror\\\":false,\\\"hidden\\\":76,\\\"actionActive\\\":false,\\\"releases\\\":0,\\\"moving\\\":true,\\\"move\\\":\\\"(2.12, 0.00, -2.12)\\\",\\\"direction\\\":\\\"(0.71, 0.00, -0.71)\\\",\\\"source\\\":\\\"键鼠移动\\\",\\\"allowsAttack\\\":false,\\\"track0\\\":\\\"Move\\\",\\\"track9\\\":\\\"居中/侧正面\\\"}\",\"compiler\":\"Roslyn\"}}"
+          }
+        ]
+      }
+    },
+    {
+      "keys": "Key.S",
+      "expectedFace": "front",
+      "expectedMirror": false,
+      "read": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"message\":\"Executed (legacy Run()).\",\"data\":{\"result\":\"{\\\"scene\\\":\\\"Assets/OSSASTRA/Scenes/SC_FreyciaPreview.unity\\\",\\\"rootCount\\\":1,\\\"bodyCount\\\":1,\\\"name\\\":\\\"FreyciaPreview\\\",\\\"canSimulate\\\":true,\\\"suspended\\\":false,\\\"focus\\\":true,\\\"position\\\":[0.0,0.0199999213,-1.69538832],\\\"scale\\\":0.001,\\\"visualScale\\\":\\\"(1.00, 1.00, 1.00)\\\",\\\"face\\\":\\\"front\\\",\\\"mirror\\\":false,\\\"hidden\\\":80,\\\"actionActive\\\":false,\\\"releases\\\":0,\\\"moving\\\":true,\\\"move\\\":\\\"(0.00, 0.00, -3.00)\\\",\\\"direction\\\":\\\"(0.00, 0.00, -1.00)\\\",\\\"source\\\":\\\"键鼠移动\\\",\\\"allowsAttack\\\":false,\\\"track0\\\":\\\"Move\\\",\\\"track9\\\":\\\"居中/正面\\\"}\",\"compiler\":\"Roslyn\"}}"
+          }
+        ]
+      }
+    },
+    {
+      "keys": "Key.S,Key.A",
+      "expectedFace": "frontSide",
+      "expectedMirror": true,
+      "read": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"message\":\"Executed (legacy Run()).\",\"data\":{\"result\":\"{\\\"scene\\\":\\\"Assets/OSSASTRA/Scenes/SC_FreyciaPreview.unity\\\",\\\"rootCount\\\":1,\\\"bodyCount\\\":1,\\\"name\\\":\\\"FreyciaPreview\\\",\\\"canSimulate\\\":true,\\\"suspended\\\":false,\\\"focus\\\":true,\\\"position\\\":[-1.20047,0.0199999511,-1.20047],\\\"scale\\\":0.001,\\\"visualScale\\\":\\\"(1.00, 1.00, 1.00)\\\",\\\"face\\\":\\\"frontSide\\\",\\\"mirror\\\":true,\\\"hidden\\\":76,\\\"actionActive\\\":false,\\\"releases\\\":0,\\\"moving\\\":true,\\\"move\\\":\\\"(-2.12, 0.00, -2.12)\\\",\\\"direction\\\":\\\"(-0.71, 0.00, -0.71)\\\",\\\"source\\\":\\\"键鼠移动\\\",\\\"allowsAttack\\\":false,\\\"track0\\\":\\\"Move\\\",\\\"track9\\\":\\\"居中/侧正面\\\"}\",\"compiler\":\"Roslyn\"}}"
+          }
+        ]
+      }
+    },
+    {
+      "keys": "Key.A",
+      "expectedFace": "side",
+      "expectedMirror": true,
+      "read": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"message\":\"Executed (legacy Run()).\",\"data\":{\"result\":\"{\\\"scene\\\":\\\"Assets/OSSASTRA/Scenes/SC_FreyciaPreview.unity\\\",\\\"rootCount\\\":1,\\\"bodyCount\\\":1,\\\"name\\\":\\\"FreyciaPreview\\\",\\\"canSimulate\\\":true,\\\"suspended\\\":false,\\\"focus\\\":true,\\\"position\\\":[-1.69141841,0.0199999511,0.0],\\\"scale\\\":0.001,\\\"visualScale\\\":\\\"(1.00, 1.00, 1.00)\\\",\\\"face\\\":\\\"side\\\",\\\"mirror\\\":true,\\\"hidden\\\":77,\\\"actionActive\\\":false,\\\"releases\\\":0,\\\"moving\\\":true,\\\"move\\\":\\\"(-3.00, 0.00, 0.00)\\\",\\\"direction\\\":\\\"(-1.00, 0.00, 0.00)\\\",\\\"source\\\":\\\"键鼠移动\\\",\\\"allowsAttack\\\":false,\\\"track0\\\":\\\"Move\\\",\\\"track9\\\":\\\"居中/侧面\\\"}\",\"compiler\":\"Roslyn\"}}"
+          }
+        ]
+      }
+    },
+    {
+      "keys": "Key.W,Key.A",
+      "expectedFace": "backSide",
+      "expectedMirror": true,
+      "read": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"message\":\"Executed (legacy Run()).\",\"data\":{\"result\":\"{\\\"scene\\\":\\\"Assets/OSSASTRA/Scenes/SC_FreyciaPreview.unity\\\",\\\"rootCount\\\":1,\\\"bodyCount\\\":1,\\\"name\\\":\\\"FreyciaPreview\\\",\\\"canSimulate\\\":true,\\\"suspended\\\":false,\\\"focus\\\":true,\\\"position\\\":[-1.18999636,0.0199999511,1.18999636],\\\"scale\\\":0.001,\\\"visualScale\\\":\\\"(1.00, 1.00, 1.00)\\\",\\\"face\\\":\\\"backSide\\\",\\\"mirror\\\":true,\\\"hidden\\\":86,\\\"actionActive\\\":false,\\\"releases\\\":0,\\\"moving\\\":true,\\\"move\\\":\\\"(-2.12, 0.00, 2.12)\\\",\\\"direction\\\":\\\"(-0.71, 0.00, 0.71)\\\",\\\"source\\\":\\\"键鼠移动\\\",\\\"allowsAttack\\\":false,\\\"track0\\\":\\\"Move\\\",\\\"track9\\\":\\\"居中/测背面\\\"}\",\"compiler\":\"Roslyn\"}}"
+          }
+        ]
+      }
+    }
+  ],
+  "reopenedScene": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"success\":true,\"message\":\"Executed (legacy Run()).\",\"data\":{\"result\":\"{\\\"scene\\\":\\\"Assets/OSSASTRA/Scenes/SC_FreyciaPreview.unity\\\",\\\"rootCount\\\":1,\\\"bodyCount\\\":1,\\\"name\\\":\\\"FreyciaPreview\\\",\\\"canSimulate\\\":true,\\\"suspended\\\":false,\\\"focus\\\":true,\\\"position\\\":[0.0,0.01999991,-0.883884549],\\\"scale\\\":0.001,\\\"visualScale\\\":\\\"(1.00, 1.00, 1.00)\\\",\\\"face\\\":\\\"front\\\",\\\"mirror\\\":false,\\\"hidden\\\":80,\\\"actionActive\\\":false,\\\"releases\\\":0,\\\"moving\\\":true,\\\"move\\\":\\\"(0.00, 0.00, -3.00)\\\",\\\"direction\\\":\\\"(0.00, 0.00, -1.00)\\\",\\\"source\\\":\\\"键鼠移动\\\",\\\"allowsAttack\\\":false,\\\"track0\\\":\\\"Move\\\",\\\"track9\\\":\\\"居中/正面\\\"}\",\"compiler\":\"Roslyn\"}}"
+      }
+    ]
+  },
+  "note": "Real Editor/PlayerLoop checks; no claim of physical gamepad or user art review."
+}

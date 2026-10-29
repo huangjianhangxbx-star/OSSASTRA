@@ -1,0 +1,262 @@
+/* 作者脚本：BuildFreyciaPreview
+ * 功能：仅首次创建FREYCIA专属配置、单角色Prefab和独立试玩场。
+ * 边界：不保存旧场、不改源媒体或全局渲染、不映射素材中不存在的攻击动画；已存在目标拒绝覆盖。
+ * 协作：由唯一Unity writer在Edit/ready且当前场景clean时显式执行。
+ */
+using System;
+using System.Linq;
+using UnityEngine;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+using UnityEngine.SceneManagement;
+using UnityEngine.InputSystem;
+using Spine.Unity;
+using TMPro;
+using Funplay.Editor.Tools.Scripting;
+using C = Ossastra.Characters;
+using A = Ossastra.CharacterAnimation;
+
+public sealed class BuildFreyciaPreview : IFunplayCommand
+{
+    private const string ConfigFolder = "Assets/OSSASTRA/Configs/Characters/FreyciaPreview";
+    private const string PrefabFolder = "Assets/OSSASTRA/Prefabs/Characters/FreyciaPreview";
+    private const string ScenePath = "Assets/OSSASTRA/Scenes/SC_FreyciaPreview.unity";
+    private const string PrefabPath = PrefabFolder + "/FreyciaPreview.prefab";
+    private const string ModelPath = "Assets/OSSASTRA/LocalMedia/FreyciaPreview/FREYCIA_SkeletonData.asset";
+
+    private static void Folder(string path)
+    {
+        if (AssetDatabase.IsValidFolder(path)) return;
+        int slash = path.LastIndexOf('/');
+        if (slash < 0) throw new InvalidOperationException("Invalid asset folder: " + path);
+        Folder(path.Substring(0, slash));
+        AssetDatabase.CreateFolder(path.Substring(0, slash), path.Substring(slash + 1));
+    }
+
+    private static void Assign(UnityEngine.Object component, string field, UnityEngine.Object value)
+    {
+        var serialized = new SerializedObject(component);
+        var property = serialized.FindProperty(field);
+        if (property == null) throw new InvalidOperationException(component.GetType().Name + "." + field + " missing");
+        property.objectReferenceValue = value;
+        serialized.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    private static void AssignString(UnityEngine.Object component, string field, string value)
+    {
+        var serialized = new SerializedObject(component);
+        var property = serialized.FindProperty(field);
+        if (property == null) throw new InvalidOperationException(component.GetType().Name + "." + field + " missing");
+        property.stringValue = value;
+        serialized.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    private static void AddPlan(A.AnimationPlanMappingSO map, SkeletonDataAsset model,
+        A.EAnimationLogicState logic, string clip, int track, bool loop)
+    {
+        var plan = new A.CharacterAnimationPlan();
+        plan.clips.Add(new A.CharacterAnimationClip
+        {
+            animaName = clip, skeletonDataAsset = model, track = track, loop = loop,
+            playbackRate = 1, mixDuration = 0, scalesWithAction = false
+        });
+        map.plansOther.Add(new A.AnimationPlanMappingSO.Entry { logicID = logic, plan = plan });
+    }
+
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+    {
+        if (Application.isPlaying || EditorApplication.isCompiling || EditorApplication.isUpdating)
+            throw new InvalidOperationException("Requires Edit mode and ready assemblies");
+        var previous = SceneManager.GetActiveScene();
+        if (!previous.IsValid() || previous.isDirty)
+            throw new InvalidOperationException("Preserve current scene; a clean saved scene is required");
+        string previousPath = previous.path;
+
+        var targets = new[] { ScenePath, PrefabPath, ConfigFolder + "/FreyciaPreview_Animation.asset",
+            ConfigFolder + "/FreyciaPreview_Direction.asset", ConfigFolder + "/FreyciaPreview_Character.asset",
+            ConfigFolder + "/FreyciaPreview_InitializationAction.asset", ConfigFolder + "/FreyciaPreview_Floor.mat" };
+        foreach (var target in targets)
+            if (!string.IsNullOrEmpty(AssetDatabase.AssetPathToGUID(target, AssetPathToGUIDOptions.OnlyExistingAssets)))
+                throw new InvalidOperationException("Author asset exists; refusing regeneration: " + target);
+
+        var model = AssetDatabase.LoadAssetAtPath<SkeletonDataAsset>(ModelPath);
+        if (model == null || Math.Abs(model.scale - .001f) > .00000001f)
+            throw new InvalidOperationException("Expected imported FREYCIA SkeletonDataAsset.scale=0.001: " + ModelPath);
+        var data = model.GetSkeletonData(false);
+        if (data == null || data.Version != "4.3.26")
+            throw new InvalidOperationException("Expected readable Spine 4.3.26 FREYCIA data");
+        var faceRoots = new[] { "侧面", "侧正面", "侧背面", "正面", "背面" };
+        var faceClips = new[] { "居中/侧面", "居中/侧正面", "居中/测背面", "居中/正面", "居中/背面" };
+        foreach (var root in faceRoots)
+            if (data.FindBone(root) == null) throw new InvalidOperationException("Missing verified face root: " + root);
+        foreach (var clip in faceClips)
+            if (data.FindAnimation(clip) == null || data.FindAnimation(clip).Duration != 0)
+                throw new InvalidOperationException("Missing zero-duration structural clip: " + clip);
+        if (data.FindAnimation("animation") == null || data.FindAnimation("animation").Duration != 0 ||
+            data.FindAnimation("Move") == null || Math.Abs(data.FindAnimation("Move").Duration - .766666651f) > .00001f)
+            throw new InvalidOperationException("Verified idle/Move clips changed; inspect source instead of guessing");
+
+        var sourceDefinition = AssetDatabase.LoadAssetAtPath<C.CharacterDefinitionSO>("Assets/OSSASTRA/VC02B/Character_temporary-a.asset");
+        var sourceAction = sourceDefinition?.basicAttacks?.FirstOrDefault();
+        if (sourceAction == null) throw new InvalidOperationException("Missing existing legal initialization timeline");
+        sourceAction.Freeze();
+        var floorShader = Shader.Find("Universal Render Pipeline/Unlit");
+        if (floorShader == null) throw new InvalidOperationException("Expected project URP Unlit shader");
+        var font = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>("Assets/SiYuanHeiTi-ExtraLight/SourceHanSansSC-ExtraLight-2 SDF.asset");
+        if (font == null) throw new InvalidOperationException("Expected existing Chinese TMP font");
+
+        Folder(ConfigFolder); Folder(PrefabFolder);
+        var map = ScriptableObject.CreateInstance<A.AnimationPlanMappingSO>();
+        ctx.RegisterObjectCreation(map); map.name = "FreyciaPreview_Animation"; map.skeletonDataAsset = model;
+        AddPlan(map, model, A.EAnimationLogicState.Idle, "animation", 0, true);
+        AddPlan(map, model, A.EAnimationLogicState.Jog, "Move", 0, true);
+        var logics = new[] { A.EAnimationLogicState.DirectionFace1, A.EAnimationLogicState.DirectionFace2,
+            A.EAnimationLogicState.DirectionFace3, A.EAnimationLogicState.DirectionFace4, A.EAnimationLogicState.DirectionFace5 };
+        for (int i = 0; i < logics.Length; i++) AddPlan(map, model, logics[i], faceClips[i], 9, true);
+        AssetDatabase.CreateAsset(map, ConfigFolder + "/FreyciaPreview_Animation.asset");
+
+        var direction = ScriptableObject.CreateInstance<C.CharacterDirectionProfileSO>();
+        ctx.RegisterObjectCreation(direction); direction.name = "FreyciaPreview_Direction";
+        direction.mode = C.CharacterDirectionMode.MultiFace;
+        direction.visibilityMode = C.CharacterDirectionVisibilityMode.FaceBranches;
+        direction.initialFace = "front"; direction.structureTrack = 9; direction.contentVersion = 1;
+        direction.boundarySlot = ""; direction.builtInWeaponSlots = Array.Empty<string>();
+        var ids = new[] { "side", "frontSide", "backSide", "front", "back" };
+        direction.faces = Enumerable.Range(0, 5).Select(i => new C.CharacterDirectionFace
+            { faceId = ids[i], rootBone = faceRoots[i], logicId = logics[i] }).ToArray();
+        direction.sectors = new[]
+        {
+            new C.CharacterDirectionSector { from = 67.5f, to = 112.5f, faceId = "side" },
+            new C.CharacterDirectionSector { from = 112.5f, to = 157.5f, faceId = "frontSide" },
+            new C.CharacterDirectionSector { from = 157.5f, to = 202.5f, faceId = "front" },
+            new C.CharacterDirectionSector { from = 202.5f, to = 247.5f, faceId = "frontSide", mirrored = true },
+            new C.CharacterDirectionSector { from = 247.5f, to = 292.5f, faceId = "side", mirrored = true },
+            new C.CharacterDirectionSector { from = 292.5f, to = 337.5f, faceId = "backSide", mirrored = true },
+            new C.CharacterDirectionSector { from = 337.5f, to = 22.5f, faceId = "back" },
+            new C.CharacterDirectionSector { from = 22.5f, to = 67.5f, faceId = "backSide" }
+        };
+        direction.evidence = "FREYCIA 4.3.26：五个同级面根，无裁切附件；骨骼数据scale=0.001。原生侧面朝右，正世界X不镜像。侧背面结构片段实际拼作居中/测背面，保留源名。";
+        AssetDatabase.CreateAsset(direction, ConfigFolder + "/FreyciaPreview_Direction.asset");
+
+        // 仅满足原Root初始化时间线约束。未提供攻击片段，也不把Move或idle冒充攻击。
+        var action = UnityEngine.Object.Instantiate(sourceAction);
+        ctx.RegisterObjectCreation(action); action.name = "FreyciaPreview_InitializationAction";
+        action.definitionId = "freycia-preview.initialization-only";
+        action.timingEvidence = "仅供原Root初始化的合法时间线副本；独立预览owner禁止攻击，动画Map中没有攻击项。";
+        action.Freeze();
+        AssetDatabase.CreateAsset(action, ConfigFolder + "/FreyciaPreview_InitializationAction.asset");
+        var definition = ScriptableObject.CreateInstance<C.CharacterDefinitionSO>();
+        ctx.RegisterObjectCreation(definition); definition.name = "FreyciaPreview_Character";
+        definition.definitionId = "freycia-preview"; definition.displayName = "芙蕾茜娅 · 独立模型试玩";
+        definition.basicAttacks = new[] { action }; definition.directionProfile = direction;
+        definition.rigProfile = null; definition.animationProfile = null;
+        AssetDatabase.CreateAsset(definition, ConfigFolder + "/FreyciaPreview_Character.asset");
+
+        var floorMaterial = new Material(floorShader);
+        ctx.RegisterObjectCreation(floorMaterial); floorMaterial.name = "FreyciaPreview_Floor";
+        floorMaterial.SetColor("_BaseColor", new Color(.22f, .28f, .32f, 1));
+        AssetDatabase.CreateAsset(floorMaterial, ConfigFolder + "/FreyciaPreview_Floor.mat");
+
+        // 仅打开新的空白场；到此之前已确认原场clean，不触及原场保存。
+        foreach (var created in new UnityEngine.Object[] { map, direction, action, definition, floorMaterial })
+            AssetDatabase.SaveAssetIfDirty(created);
+        var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+        // Single切场会卸载未被场景引用的SO和资源；必须按持久路径重取，不能继续使用已失效的托管包装。
+        map = AssetDatabase.LoadAssetAtPath<A.AnimationPlanMappingSO>(ConfigFolder + "/FreyciaPreview_Animation.asset");
+        direction = AssetDatabase.LoadAssetAtPath<C.CharacterDirectionProfileSO>(ConfigFolder + "/FreyciaPreview_Direction.asset");
+        definition = AssetDatabase.LoadAssetAtPath<C.CharacterDefinitionSO>(ConfigFolder + "/FreyciaPreview_Character.asset");
+        floorMaterial = AssetDatabase.LoadAssetAtPath<Material>(ConfigFolder + "/FreyciaPreview_Floor.mat");
+        model = AssetDatabase.LoadAssetAtPath<SkeletonDataAsset>(ModelPath);
+        font = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>("Assets/SiYuanHeiTi-ExtraLight/SourceHanSansSC-ExtraLight-2 SDF.asset");
+        if (map == null || direction == null || definition == null || floorMaterial == null || model == null || font == null)
+            throw new InvalidOperationException("Persisted preview assets could not be reloaded after scene creation");
+        data = model.GetSkeletonData(false);
+        if (data == null || Math.Abs(model.scale - .001f) > .00000001f || map.skeletonDataAsset != model ||
+            definition.directionProfile != direction || definition.basicAttacks == null || definition.basicAttacks.Length != 1 || definition.basicAttacks[0] == null)
+            throw new InvalidOperationException("Persisted preview asset wiring failed readback after scene creation");
+        definition.basicAttacks[0].Freeze();
+        var actor = new GameObject("FreyciaPreview"); ctx.RegisterObjectCreation(actor);
+        actor.transform.position = new Vector3(0, .05f, 0);
+        var rootComponent = actor.AddComponent<C.CharacterRoot>();
+        var capsule = actor.GetComponent<CharacterController>();
+        capsule.height = .85f; capsule.center = new Vector3(0, .425f, 0); capsule.radius = .15f;
+        capsule.skinWidth = .02f; capsule.stepOffset = .12f; capsule.minMoveDistance = 0;
+        var movement = actor.GetComponent<C.CharacterMovement>();
+        var input = actor.GetComponent<C.CharacterInputHandler>();
+        input.inputLayout = null;
+        input.movementAction.Dispose();
+        input.movementAction = new InputAction("Move", InputActionType.Value, expectedControlType: "Vector2");
+        input.movementAction.AddCompositeBinding("2DVector").With("Up", "<Keyboard>/w").With("Down", "<Keyboard>/s").With("Left", "<Keyboard>/a").With("Right", "<Keyboard>/d");
+        input.movementAction.AddCompositeBinding("2DVector").With("Up", "<Keyboard>/upArrow").With("Down", "<Keyboard>/downArrow").With("Left", "<Keyboard>/leftArrow").With("Right", "<Keyboard>/rightArrow");
+        input.movementAction.AddBinding("<Gamepad>/leftStick");
+        input.mouseAction.Dispose(); input.mouseAction = new InputAction("Pointer", InputActionType.Value, "<Mouse>/position", expectedControlType: "Vector2");
+        input.gamepadAimAction.Dispose(); input.gamepadAimAction = new InputAction("Aim", InputActionType.Value, "<Gamepad>/rightStick", expectedControlType: "Vector2");
+        input.rightHandAction.Dispose(); input.rightHandAction = new InputAction("RightHandAction", InputActionType.Button, "<Mouse>/leftButton");
+
+        var bodyObject = new GameObject("MainBody"); ctx.RegisterObjectCreation(bodyObject); bodyObject.transform.SetParent(actor.transform, false);
+        bodyObject.transform.localRotation = Quaternion.Euler(60, 0, 0); bodyObject.transform.localScale = Vector3.one;
+        // 4.3的Editor旧组件升级会转移legacy字段；先建空组件，再交给Renderer正式数据，避免工厂初始化被空legacy字段覆盖。
+        var renderer = bodyObject.AddComponent<SkeletonRenderer>();
+        var body = bodyObject.AddComponent<SkeletonAnimation>();
+        renderer.skeletonDataAsset = model; renderer.initialSkinName = ""; renderer.Animation = body;
+        body.AnimationName = ""; body.loop = true;
+        body.UpdateTiming = UpdateTiming.InUpdate; body.timeScale = 1; body.Initialize(true);
+        bodyObject.GetComponent<MeshRenderer>().sortingOrder = 10;
+        var controller = bodyObject.AddComponent<A.CharacterAnimationController>();
+        var config = bodyObject.GetComponent<A.CharacterAnimationConfigManager>();
+        config.baseMap = map; config.logicRouter = null; config.itemOverrides.Clear(); config.modelOverrides.Clear(); config.statusOverrides = null;
+        bodyObject.AddComponent<C.CharacterDirectionPresentation>();
+        Assign(controller, "skeleton", body);
+        Assign(rootComponent, "characterDefinition", definition); AssignString(rootComponent, "actorId", "freycia-preview");
+        Assign(rootComponent, "movement", movement); Assign(rootComponent, "orientation", actor.GetComponent<C.CharacterOrientation>());
+        Assign(rootComponent, "view", controller); Assign(rootComponent, "melee", actor.GetComponent<Ossastra.Combat.CombatMeleeHit>());
+        Assign(rootComponent, "input", input); Assign(rootComponent, "stateArbitrator", actor.GetComponent<C.StateArbitrator>());
+        actor.AddComponent<Ossastra.Development.CharacterModelPreview>();
+        direction.Validate(data, config);
+        if (!input.IsConfigured) throw new InvalidOperationException("Preview input configuration failed");
+        var prefab = PrefabUtility.SaveAsPrefabAssetAndConnect(actor, PrefabPath, InteractionMode.AutomatedAction, out bool prefabSaved);
+        if (!prefabSaved || prefab == null) throw new InvalidOperationException("New standalone preview prefab save failed");
+
+        var cameraObject = new GameObject("PreviewCamera"); ctx.RegisterObjectCreation(cameraObject); cameraObject.tag = "MainCamera";
+        cameraObject.transform.position = new Vector3(0, 7, -4); cameraObject.transform.rotation = Quaternion.Euler(60, 0, 0);
+        var camera = cameraObject.AddComponent<Camera>(); camera.orthographic = true; camera.orthographicSize = 4.3f;
+        camera.nearClipPlane = .05f; camera.farClipPlane = 50; camera.clearFlags = CameraClearFlags.SolidColor;
+        camera.backgroundColor = new Color(.075f, .10f, .13f, 1);
+        Assign(rootComponent, "viewCamera", camera); PrefabUtility.RecordPrefabInstancePropertyModifications(rootComponent);
+
+        var floor = GameObject.CreatePrimitive(PrimitiveType.Cube); ctx.RegisterObjectCreation(floor); floor.name = "PreviewFloor";
+        floor.transform.position = new Vector3(0, -.15f, 0); floor.transform.localScale = new Vector3(12, .3f, 10);
+        floor.GetComponent<Renderer>().sharedMaterial = floorMaterial;
+        var lightObject = new GameObject("PreviewLight"); ctx.RegisterObjectCreation(lightObject);
+        lightObject.transform.rotation = Quaternion.Euler(50, -30, 0); var light = lightObject.AddComponent<Light>(); light.type = LightType.Directional; light.intensity = 1;
+        RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat; RenderSettings.ambientLight = new Color(.55f, .55f, .55f);
+
+        var canvasObject = new GameObject("PreviewInstructions", typeof(RectTransform), typeof(Canvas), typeof(UnityEngine.UI.CanvasScaler), typeof(UnityEngine.UI.GraphicRaycaster));
+        ctx.RegisterObjectCreation(canvasObject); var canvas = canvasObject.GetComponent<Canvas>(); canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        var scaler = canvasObject.GetComponent<UnityEngine.UI.CanvasScaler>(); scaler.uiScaleMode = UnityEngine.UI.CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.referenceResolution = new Vector2(1440, 900); scaler.matchWidthOrHeight = .5f;
+        var panelObject = new GameObject("Header", typeof(RectTransform), typeof(UnityEngine.UI.Image)); ctx.RegisterObjectCreation(panelObject); panelObject.transform.SetParent(canvasObject.transform, false);
+        var panel = (RectTransform)panelObject.transform; panel.anchorMin = new Vector2(0, 1); panel.anchorMax = Vector2.one; panel.pivot = new Vector2(.5f, 1);
+        panel.anchoredPosition = Vector2.zero; panel.sizeDelta = new Vector2(0, 108);
+        var panelImage = panelObject.GetComponent<UnityEngine.UI.Image>(); panelImage.color = new Color(.025f, .04f, .06f, .92f); panelImage.raycastTarget = false;
+        var textObject = new GameObject("Instructions", typeof(RectTransform), typeof(TextMeshProUGUI)); ctx.RegisterObjectCreation(textObject); textObject.transform.SetParent(panel, false);
+        var textRect = (RectTransform)textObject.transform; textRect.anchorMin = Vector2.zero; textRect.anchorMax = Vector2.one;
+        textRect.offsetMin = new Vector2(26, 12); textRect.offsetMax = new Vector2(-26, -12);
+        var text = textObject.GetComponent<TextMeshProUGUI>(); text.font = font; text.fontSize = 24; text.color = new Color(.88f, .94f, .98f, 1);
+        text.alignment = TextAlignmentOptions.MidlineLeft; text.raycastTarget = false; text.enableWordWrapping = true;
+        text.text = "芙蕾茜娅 · 独立模型试玩\nWASD／方向键／左摇杆：移动与五面切换　　骨骼数据缩放：0.001\nIdle = setup pose   |   Move = source animation";
+
+        var roots = UnityEngine.Object.FindObjectsOfType<C.CharacterRoot>(true);
+        if (roots.Length != 1 || roots[0] != rootComponent || actor.GetComponentsInChildren<SkeletonAnimation>(true).Length != 1)
+            throw new InvalidOperationException("Preview must contain exactly one new root and one body");
+        EditorSceneManager.MarkSceneDirty(scene);
+        if (!EditorSceneManager.SaveScene(scene, ScenePath)) throw new InvalidOperationException("New preview scene save failed");
+        ctx.ReturnValue = new
+        {
+            scene = ScenePath, prefab = PrefabPath, model = ModelPath, skeletonScale = model.scale,
+            rootCount = roots.Length, bodyCount = 1, visualScale = 1, mapEntries = map.plansOther.Count,
+            sourceScene = previousPath, previousSceneSaved = false, buildSettingsChanged = false,
+            instruction = "Single FREYCIA model, no existing player bodies, no attack mapping or old equipment systems"
+        };
+    }
+}

@@ -1,5 +1,7 @@
 # ANKALUTE 共享项目状态
 
+> 2026-10-29 FREYCIA独立预览已验证：SC_FreyciaPreview仅新角色一Root/一身体，SkeletonDataAsset.scale=0.001、Transform=1；复用原Root/仲裁器/动画SO，静止setup pose与Move、五面+镜像。无ClippingAttachment模型显式选FaceBranches，默认0的ClippingBoundary及小蓝仍保留；66/66真实显隐夹具与实际8向键盘输入、保存重开后移动通过。当前预览无攻击/装备/技能，不替换现有两角色或SC_CommerceIntegration，模型媒体仅本机。入口及边界见docs/ossastra/FREYCIA-preview.md，任务tasks/2026-10-29-freycia-preview.md；Unity与路径租约已释放。
+
 > 2026-10-22装备约束：副手能力/短按长按由SO与映射决定；投掷来源和投递方式分离；正式装备为独立Spine模型+SO骨骼/插槽跟随+语义动画联动。当前盾防/炸弹/Sprite为过渡，未完成通用化；见OSSASTRA_RULES R29-R32及tasks/2026-10-22-equipment-boundaries.md。
 
 > OSSASTRA接手必读：[用户规则](../../OSSASTRA_RULES.md)及[最新角色基础与DataBus](../ossastra/character-foundation.md)。旧代码已按用户要求解除禁编，共享脚本已去M01命名；下方较早迁移记录属于历史。

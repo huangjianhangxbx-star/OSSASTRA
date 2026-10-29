@@ -1,0 +1,193 @@
+/* 验收夹具：FREYCIA真实数据五面子树显隐与旧Blue裁切边界隔离。
+ * 边界：只创建瞬态Skeleton/SO/GameObject，不写资产、不改现有场景、不采样设备。
+ * 缺少新增能力时给出显式RED；由root唯一Unity writer执行，不在子任务执行。
+ */
+using System;
+using System.Linq;
+using System.Collections.Generic;
+using System.Reflection;
+using UnityEngine;
+using UnityEditor;
+using Spine;
+using Spine.Unity;
+using Newtonsoft.Json;
+using A=Ossastra.CharacterAnimation;
+using C=Ossastra.Characters;
+using Funplay.Editor.Tools.Scripting;
+public sealed class FreyciaVisibilityContracts:IFunplayCommand
+{
+ const string FreyciaPath="Assets/OSSASTRA/LocalMedia/FreyciaPreview/FREYCIA_SkeletonData.asset";
+ const string BluePath="Assets/OSSASTRA/LocalMedia/DIR02Blue/Blue43_SkeletonData.asset";
+ readonly string[] roots={"侧正面","侧面","正面","侧背面","背面"};
+ readonly string[] clips={"居中/侧正面","居中/侧面","居中/正面","居中/测背面","居中/背面"};
+ readonly List<object> rows=new List<object>();
+ void Check(string name,bool ok,string reason=""){rows.Add(new{name,ok,reason});}
+ string Branch(BoneData bone){while(bone.Parent!=null&&bone.Parent.Name!="root")bone=bone.Parent;return bone.Name;}
+ float[] Rgba(Color c)=>new[]{c.r,c.g,c.b,c.a};
+ string Shared(SkeletonData d)
+ {
+  return JsonConvert.SerializeObject(new{
+   bones=d.Bones.Select(b=>new{b.Name,parent=b.Parent?.Name,x=b.GetSetupPose().X,y=b.GetSetupPose().Y,r=b.GetSetupPose().Rotation,sx=b.GetSetupPose().ScaleX,sy=b.GetSetupPose().ScaleY}),
+   slots=d.Slots.Select(s=>new{s.Name,bone=s.BoneData.Name,s.AttachmentName,color=Rgba(s.GetSetupPose().GetColor())}),
+   attachments=d.Skins.SelectMany(s=>s.Attachments).Select(e=>new{e.SlotIndex,e.Placeholder,e.Attachment.Name,type=e.Attachment.GetType().Name,vertices=(e.Attachment as VertexAttachment)?.Vertices,bones=(e.Attachment as VertexAttachment)?.Bones}),
+   animations=d.Animations.Select(a=>new{a.Name,a.Duration,timelines=a.Timelines.Select(t=>new{type=t.GetType().Name,frames=t.Frames})})
+  });
+ }
+ float[] Alphas(Skeleton s)=>s.Slots.Select(slot=>slot.AppliedPose.GetColor().a).ToArray();
+ bool Same(float[] a,float[] b)=>a.Length==b.Length&&a.Select((x,i)=>Mathf.Abs(x-b[i])<.00001f).All(x=>x);
+ void Pose(Skeleton s,SkeletonData d,int face,bool mirror,float time)
+ {
+  s.SetupPose();s.ScaleX=mirror?-1:1;
+  d.FindAnimation("Move").Apply(s,-1,time,false,null,1,true,false,false,false);
+  d.FindAnimation(clips[face]).Apply(s,-1,0,false,null,1,true,false,false,false);
+  s.UpdateWorldTransform(Spine.Physics.Pose);
+ }
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+ {
+  var asset=AssetDatabase.LoadAssetAtPath<SkeletonDataAsset>(FreyciaPath);
+  if(asset==null){Check("FREYCIA真实SkeletonDataAsset存在",false,FreyciaPath);Finish(ctx);return;}
+  var data=asset.GetSkeletonData(false);
+  if(data==null){Check("FREYCIA真实SkeletonData可读取",false,FreyciaPath);Finish(ctx);return;}
+  Check("实际版本4.3.26与五面根/居中/Move均存在",data.Version=="4.3.26"&&roots.All(r=>data.FindBone(r)!=null)&&clips.All(c=>data.FindAnimation(c)?.Duration==0)&&data.FindAnimation("Move")!=null);
+  var type=typeof(C.CharacterSlotVisibility);
+  var ctor=type.GetConstructor(new[]{typeof(Skeleton),typeof(string[]),typeof(string[])});
+  var select=type.GetMethod("SelectFace",new[]{typeof(string)});
+  var apply=type.GetMethod("Apply",new[]{typeof(bool),typeof(bool)});
+  var restore=type.GetMethod("Restore",Type.EmptyTypes);
+  var contains=type.GetMethod("Contains",new[]{typeof(Bone)});
+  Check("提供子树构造器与SelectFace行为能力",ctor!=null&&select!=null&&apply!=null&&restore!=null&&contains!=null,"missing APIs => feature-not-implemented，不能当作测试跳过");
+  if(ctor==null||select==null||apply==null||restore==null||contains==null){Legacy(type);Finish(ctx);return;}
+  string before=Shared(data);
+  var one=new Skeleton(data);var two=new Skeleton(data);
+  var mask=ctor.Invoke(new object[]{one,roots,new string[0]});
+  var other=ctor.Invoke(new object[]{two,roots,new string[0]});
+  int samples=0;
+  for(int face=0;face<roots.Length;face++)for(int mirrored=0;mirrored<2;mirrored++)for(int phase=0;phase<4;phase++)
+  {
+   restore.Invoke(mask,null);
+   Pose(one,data,face,mirrored==1,data.FindAnimation("Move").Duration*phase/4f);
+   // 原始合法半透明度必须被保留；选中的第一个slot不许硬设为1。
+   var selected=one.Slots.First(s=>Branch(s.Data.BoneData)==roots[face]);
+   var tint=selected.AppliedPose.GetColor();tint.a=.37f;selected.AppliedPose.SetColor(tint);
+   var alpha=Alphas(one);var attachments=one.Slots.Select(s=>s.AppliedPose.Attachment).ToArray();
+   select.Invoke(mask,new object[]{roots[face]});apply.Invoke(mask,new object[]{false,false});
+   bool hidden=true,kept=true,unchanged=true;
+   for(int i=0;i<one.Slots.Count;i++)
+   {
+    var s=one.Slots.Items[i];if(!(s.AppliedPose.Attachment is RegionAttachment)&&!(s.AppliedPose.Attachment is MeshAttachment))continue;
+    if(Branch(s.Data.BoneData)==roots[face])kept&=Mathf.Abs(s.AppliedPose.GetColor().a-alpha[i])<.00001f;
+    else hidden&=s.AppliedPose.GetColor().a==0;
+    unchanged&=ReferenceEquals(s.AppliedPose.Attachment,attachments[i]);
+   }
+   bool membership=(bool)contains.Invoke(mask,new object[]{one.FindBone(roots[face])})&&roots.Where(r=>r!=roots[face]).All(r=>!(bool)contains.Invoke(mask,new object[]{one.FindBone(r)}));
+   restore.Invoke(mask,null);bool reversible=Same(alpha,Alphas(one));
+   Check("五面×镜像×Move阶段 "+roots[face]+"/"+mirrored+"/"+phase,hidden&&kept&&unchanged&&membership&&reversible,
+    "hidden="+hidden+",selectedPreserved="+kept+",attachmentsSame="+unchanged+",Contains="+membership+",restore="+reversible);
+   samples++;
+  }
+  Pose(one,data,0,false,.1f);Pose(two,data,4,true,.3f);var twoBefore=Alphas(two);
+  select.Invoke(mask,new object[]{roots[0]});apply.Invoke(mask,new object[]{false,false});
+  Check("共享SkeletonData的第二实例不受第一实例遮蔽",Same(twoBefore,Alphas(two)));
+  var oneWhileMasked=Alphas(one);select.Invoke(other,new object[]{roots[4]});apply.Invoke(other,new object[]{false,false});
+  Check("两实例独立面选择不反向污染第一实例",Same(oneWhileMasked,Alphas(one)));
+  restore.Invoke(other,null);Check("第二实例恢复完整",Same(twoBefore,Alphas(two)));restore.Invoke(mask,null);
+  // ShowAll只恢复并展示完整阵列，不得保留上一次隐藏色。
+  Pose(one,data,1,false,.2f);var full=Alphas(one);select.Invoke(mask,new object[]{roots[1]});apply.Invoke(mask,new object[]{false,false});apply.Invoke(mask,new object[]{false,true});
+  Check("showAll恢复已隐藏alpha",Same(full,Alphas(one)));restore.Invoke(mask,null);
+  var rebuilt=new Skeleton(data);Pose(rebuilt,data,3,true,.4f);var newMask=ctor.Invoke(new object[]{rebuilt,roots,new string[0]});select.Invoke(newMask,new object[]{roots[3]});var rebuiltBefore=Alphas(rebuilt);apply.Invoke(newMask,new object[]{false,false});
+  Check("重建Skeleton后新缓存仍有效",(bool)contains.Invoke(newMask,new object[]{rebuilt.FindBone(roots[3])})&&rebuilt.Slots.Where(s=>Branch(s.Data.BoneData)!=roots[3]).All(s=>s.AppliedPose.GetColor().a==0));restore.Invoke(newMask,null);
+  Check("重建实例可逆恢复",Same(rebuiltBefore,Alphas(rebuilt)));
+  Check("全部操作后共享定义与time line数据保持不变",before==Shared(data));
+  ProfileValidation(data);
+  ConstructorBoundaries(type,data);
+  CommonSlots(type);
+  Legacy(type);
+  ctx.ReturnValue=new{passed=rows.Count(r=>(bool)r.GetType().GetProperty("ok").GetValue(r)),failed=rows.Count(r=>!(bool)r.GetType().GetProperty("ok").GetValue(r)),samples,rows,assetsWritten=false,sceneChanged=false};
+ }
+ void ProfileValidation(SkeletonData data)
+ {
+  var field=typeof(C.CharacterDirectionProfileSO).GetField("visibilityMode",BindingFlags.Public|BindingFlags.Instance);
+  if(field==null||!field.FieldType.IsEnum||!Enum.GetNames(field.FieldType).Contains("FaceBranches")){Check("Profile提供FaceBranches可选策略",false,"feature-not-implemented");return;}
+  GameObject go=null;C.CharacterDirectionProfileSO profile=null;A.AnimationPlanMappingSO map=null;
+  try
+  {
+   go=new GameObject("Freycia_Transient_Profile_Contract"){hideFlags=HideFlags.HideAndDontSave};
+   var config=go.AddComponent<A.CharacterAnimationConfigManager>();map=ScriptableObject.CreateInstance<A.AnimationPlanMappingSO>();map.hideFlags=HideFlags.HideAndDontSave;
+   profile=ScriptableObject.CreateInstance<C.CharacterDirectionProfileSO>();profile.hideFlags=HideFlags.HideAndDontSave;
+   profile.mode=C.CharacterDirectionMode.MultiFace;profile.initialFace="face0";profile.boundarySlot="";profile.structureTrack=9;
+   field.SetValue(profile,Enum.Parse(field.FieldType,"FaceBranches"));
+   var ids=new[]{A.EAnimationLogicState.DirectionFace1,A.EAnimationLogicState.DirectionFace2,A.EAnimationLogicState.DirectionFace3,A.EAnimationLogicState.DirectionFace4,A.EAnimationLogicState.DirectionFace5};
+   profile.faces=roots.Select((r,i)=>new C.CharacterDirectionFace{faceId="face"+i,rootBone=r,logicId=ids[i]}).ToArray();
+   profile.sectors=new[]{new C.CharacterDirectionSector{from=0,to=360,faceId="face0"}};
+   map.skeletonDataAsset=AssetDatabase.LoadAssetAtPath<SkeletonDataAsset>(FreyciaPath);
+   for(int i=0;i<ids.Length;i++){var p=new A.CharacterAnimationPlan();p.clips.Add(new A.CharacterAnimationClip{animaName=clips[i],skeletonDataAsset=map.skeletonDataAsset,track=9,loop=true,mixDuration=0,scalesWithAction=false});map.plansOther.Add(new A.AnimationPlanMappingSO.Entry{logicID=ids[i],plan=p});}
+   config.baseMap=map;
+   try{profile.Validate(data,config);Check("FaceBranches配置允许无boundary且保留5个结构映射验证",true);}catch(Exception e){Check("FaceBranches配置允许无boundary且保留5个结构映射验证",false,e.GetType().Name+": "+e.Message);}
+   profile.faces[4].rootBone="__missing_freycia_face__";
+   bool rejected=false;try{profile.Validate(data,config);}catch(ArgumentException){rejected=true;}Check("FaceBranches仍拒绝不存在的面根",rejected);
+   profile.faces[4].rootBone=data.Bones.First(b=>b.Parent?.Name==roots[0]).Name;
+   rejected=false;try{profile.Validate(data,config);}catch(ArgumentException){rejected=true;}Check("Profile拒绝祖孙嵌套面根",rejected);
+   profile.faces[4].rootBone=roots[0];
+   rejected=false;try{profile.Validate(data,config);}catch(ArgumentException){rejected=true;}Check("Profile拒绝重复面根",rejected);
+   profile.faces[4].rootBone=roots[4];field.SetValue(profile,Enum.ToObject(field.FieldType,999));
+   rejected=false;try{profile.Validate(data,config);}catch(ArgumentException){rejected=true;}Check("Profile拒绝未知显隐策略枚举",rejected);
+  }
+  finally{if(go!=null)UnityEngine.Object.DestroyImmediate(go);if(profile!=null)UnityEngine.Object.DestroyImmediate(profile);if(map!=null)UnityEngine.Object.DestroyImmediate(map);}
+ }
+ bool Rejected(Action action,Type expected)
+ {
+  try{action();return false;}catch(TargetInvocationException e){return e.InnerException!=null&&expected.IsInstanceOfType(e.InnerException);}catch(Exception e){return expected.IsInstanceOfType(e);}
+ }
+ void ConstructorBoundaries(Type type,SkeletonData data)
+ {
+  var ctor=type.GetConstructor(new[]{typeof(Skeleton),typeof(string[]),typeof(string[])});var select=type.GetMethod("SelectFace",new[]{typeof(string)});var apply=type.GetMethod("Apply",new[]{typeof(bool),typeof(bool)});var restore=type.GetMethod("Restore",Type.EmptyTypes);var contains=type.GetMethod("Contains",new[]{typeof(Bone)});
+  var s=new Skeleton(data);s.UpdateWorldTransform(Spine.Physics.Pose);
+  Check("子树构造拒绝空面根数组",Rejected(()=>ctor.Invoke(new object[]{s,new string[0],new string[0]}),typeof(ArgumentException)));
+  Check("子树构造拒绝缺失面根",Rejected(()=>ctor.Invoke(new object[]{s,new[]{roots[0],"__missing_face__"},new string[0]}),typeof(ArgumentException)));
+  Check("子树构造拒绝重复面根",Rejected(()=>ctor.Invoke(new object[]{s,new[]{roots[0],roots[0]},new string[0]}),typeof(ArgumentException)));
+  var child=data.Bones.First(b=>b.Parent?.Name==roots[0]).Name;
+  Check("子树构造拒绝祖孙嵌套面根",Rejected(()=>ctor.Invoke(new object[]{s,new[]{roots[0],child},new string[0]}),typeof(ArgumentException)));
+  var mask=ctor.Invoke(new object[]{s,roots,new string[0]});
+  Check("未选择面时Apply明确拒绝而非意外展示阵列",Rejected(()=>apply.Invoke(mask,new object[]{false,false}),typeof(InvalidOperationException)));
+  select.Invoke(mask,new object[]{roots[0]});
+  bool rejected=Rejected(()=>select.Invoke(mask,new object[]{"__unknown_face__"}),typeof(ArgumentException));
+  apply.Invoke(mask,new object[]{false,false});
+  Check("未知SelectFace明确拒绝并保留原合法选择",rejected&&(bool)contains.Invoke(mask,new object[]{s.FindBone(roots[0])})&&!(bool)contains.Invoke(mask,new object[]{s.FindBone(roots[1])}));restore.Invoke(mask,null);
+ }
+ void CommonSlots(Type type)
+ {
+  // 仅构造最小瞬态runtime定义；不增改真实FREYCIA的共享定义。
+  var d=new SkeletonData();var root=new BoneData(0,"shared-root",null);var a=new BoneData(1,"face-a",root);var b=new BoneData(2,"face-b",root);d.Bones.Add(root);d.Bones.Add(a);d.Bones.Add(b);
+  var skin=new Skin("default");d.DefaultSkin=skin;d.Skins.Add(skin);var names=new[]{"shared-slot","a-slot","b-slot"};var bones=new[]{root,a,b};
+  for(int i=0;i<3;i++)
+  {
+   var slot=new SlotData(i,names[i],bones[i]);slot.AttachmentName=names[i];d.Slots.Add(slot);
+   // Spine4.3即使静态region也要求有效Sequence；提供完整单帧region并初始化UV/offset缓存。
+   var sequence=new Sequence(1,false);sequence.Regions[0]=new TextureRegion{width=1,height=1,u=0,v=0,u2=1,v2=1};
+   var attachment=new RegionAttachment(names[i],sequence){Width=1,Height=1};attachment.UpdateSequence();
+   skin.SetAttachment(i,names[i],attachment);
+  }
+  var s=new Skeleton(d);s.UpdateWorldTransform(Spine.Physics.Pose);float[] values={.2f,.37f,.6f};
+  for(int i=0;i<3;i++){var c=s.Slots.Items[i].AppliedPose.GetColor();c.a=values[i];s.Slots.Items[i].AppliedPose.SetColor(c);}
+  var ctor=type.GetConstructor(new[]{typeof(Skeleton),typeof(string[]),typeof(string[])});var select=type.GetMethod("SelectFace",new[]{typeof(string)});var apply=type.GetMethod("Apply",new[]{typeof(bool),typeof(bool)});var restore=type.GetMethod("Restore",Type.EmptyTypes);var contains=type.GetMethod("Contains",new[]{typeof(Bone)});
+  var mask=ctor.Invoke(new object[]{s,new[]{"face-a","face-b"},new[]{"shared-slot","a-slot"}});select.Invoke(mask,new object[]{"face-a"});apply.Invoke(mask,new object[]{false,false});
+  Check("共同根slot不属于任一面而保持原alpha",Mathf.Abs(s.Slots.Items[0].AppliedPose.GetColor().a-.2f)<.00001f&&Mathf.Abs(s.Slots.Items[1].AppliedPose.GetColor().a-.37f)<.00001f&&s.Slots.Items[2].AppliedPose.GetColor().a==0);
+  Check("Contains共同骨为真且仍区分所选和其他面",(bool)contains.Invoke(mask,new object[]{s.FindBone("shared-root")})&&(bool)contains.Invoke(mask,new object[]{s.FindBone("face-a")})&&!(bool)contains.Invoke(mask,new object[]{s.FindBone("face-b")}));
+  apply.Invoke(mask,new object[]{true,false});Check("独立装备模式仍可隐藏共同根和所选面内置武器slot",Alphas(s).All(x=>x==0));restore.Invoke(mask,null);
+  Check("共同/所选/其他面slot全部精确恢复",Same(values,Alphas(s)));
+ }
+ void Legacy(Type type)
+ {
+  var asset=AssetDatabase.LoadAssetAtPath<SkeletonDataAsset>(BluePath);
+  if(asset==null){Check("旧Blue真实数据裁切策略回归",false,"missing existing asset: "+BluePath);return;}
+  var data=asset.GetSkeletonData(false);var s=new Skeleton(data);s.UpdateWorldTransform(Spine.Physics.Pose);
+  var ctor=type.GetConstructor(new[]{typeof(Skeleton),typeof(string),typeof(string[])});
+  if(ctor==null){Check("旧boundary构造器保持兼容",false,"missing original constructor");return;}
+  string before=Shared(data);var mask=ctor.Invoke(new object[]{s,"遮罩",new string[0]});var apply=type.GetMethod("Apply",new[]{typeof(bool),typeof(bool)});var restore=type.GetMethod("Restore",Type.EmptyTypes);
+  var outside=s.FindSlot("头盔");if(outside==null){Check("旧Blue外部slot存在",false,"头盔");return;}
+  var color=outside.Pose.GetColor();color.a=.37f;outside.Pose.SetColor(color);s.UpdateWorldTransform(Spine.Physics.Pose);var original=Alphas(s);var attachments=s.Slots.Select(x=>x.AppliedPose.Attachment).ToArray();
+  apply.Invoke(mask,new object[]{false,false});Check("旧Blue默认boundary模式仍隐藏边界外slot且保留Attachment",outside.AppliedPose.GetColor().a==0&&s.Slots.Select((slot,i)=>ReferenceEquals(slot.AppliedPose.Attachment,attachments[i])).All(x=>x));
+  restore.Invoke(mask,null);Check("旧Blue恢复0.37原alpha及共享定义不变",Same(original,Alphas(s))&&before==Shared(data));
+ }
+ void Finish(Funplay.Editor.Tools.Scripting.ExecutionContext ctx){ctx.ReturnValue=new{passed=rows.Count(r=>(bool)r.GetType().GetProperty("ok").GetValue(r)),failed=rows.Count(r=>!(bool)r.GetType().GetProperty("ok").GetValue(r)),rows,assetsWritten=false,sceneChanged=false};}
+}

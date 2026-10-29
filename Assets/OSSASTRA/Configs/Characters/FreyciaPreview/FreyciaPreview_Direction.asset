@@ -1,0 +1,72 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 96f8afc8b511d7545b935181bf2f86c4, type: 3}
+  m_Name: FreyciaPreview_Direction
+  m_EditorClassIdentifier: 
+  mode: 1
+  visibilityMode: 1
+  contentVersion: 1
+  structureTrack: 9
+  yawOffset: 0
+  initialFace: front
+  boundarySlot: 
+  faces:
+  - faceId: side
+    rootBone: "\u4FA7\u9762"
+    logicId: 1201
+  - faceId: frontSide
+    rootBone: "\u4FA7\u6B63\u9762"
+    logicId: 1202
+  - faceId: backSide
+    rootBone: "\u4FA7\u80CC\u9762"
+    logicId: 1203
+  - faceId: front
+    rootBone: "\u6B63\u9762"
+    logicId: 1204
+  - faceId: back
+    rootBone: "\u80CC\u9762"
+    logicId: 1205
+  sectors:
+  - from: 67.5
+    to: 112.5
+    faceId: side
+    mirrored: 0
+  - from: 112.5
+    to: 157.5
+    faceId: frontSide
+    mirrored: 0
+  - from: 157.5
+    to: 202.5
+    faceId: front
+    mirrored: 0
+  - from: 202.5
+    to: 247.5
+    faceId: frontSide
+    mirrored: 1
+  - from: 247.5
+    to: 292.5
+    faceId: side
+    mirrored: 1
+  - from: 292.5
+    to: 337.5
+    faceId: backSide
+    mirrored: 1
+  - from: 337.5
+    to: 22.5
+    faceId: back
+    mirrored: 0
+  - from: 22.5
+    to: 67.5
+    faceId: backSide
+    mirrored: 0
+  builtInWeaponSlots: []
+  evidence: "FREYCIA 4.3.26\uFF1A\u4E94\u4E2A\u540C\u7EA7\u9762\u6839\uFF0C\u65E0\u88C1\u5207\u9644\u4EF6\uFF1B\u9AA8\u9ABC\u6570\u636Escale=0.001\u3002\u539F\u751F\u4FA7\u9762\u671D\u53F3\uFF0C\u6B63\u4E16\u754CX\u4E0D\u955C\u50CF\u3002\u4FA7\u80CC\u9762\u7ED3\u6784\u7247\u6BB5\u5B9E\u9645\u62FC\u4F5C\u5C45\u4E2D/\u6D4B\u80CC\u9762\uFF0C\u4FDD\u7559\u6E90\u540D\u3002"
