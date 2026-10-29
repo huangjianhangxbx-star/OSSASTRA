@@ -1,6 +1,6 @@
 # KT-GROUND-02 验证记录
 
-状态：本轮范围内技术交付与三次试玩往返已关联，83文件原生包/源码ZIP已导出并核验，保护指纹18/18保持。当前正在定向发布收口；本记录不提前声明远端发布或共享租约释放完成。
+状态：本轮范围内技术交付与三次试玩往返已关联，83文件原生包/源码ZIP已导出并核验，保护指纹18/18保持。产品8cba9ffcd4de3e4ac566131d0094ad218326f8a8已推送并与GitHub main精确核对；全部writer/路径租约已释放。
 
 实施基线为 `19ea13bdfd56b1f79f371441c739cbc607b6b950`。本轮开始的37项dirty与18条保护指纹按原清单保护，不把新增文件混算为原dirty。原始Native回执位于本机研究目录的 `01-evidence/`；含私有参考媒体或可逆源表的资料不复制到公开仓库。
 
@@ -100,7 +100,7 @@ PublicGuide冻结payload为21文件、1,655,482字节：原11份自有文字/图
 | A22 跟做教程 | 八章、拆层/mask/边缘/原创换材7真实帧，本机参考图；10视口HTML QA | Editor主窗口实拍与物理操作未验证 |
 | A23 绘制规范 | 底纹/mask/Sprite规范、SVG/透明PNG、原创256CSV、实际32PNG+3×3下载与错误检查 | 技术样本不是正式美术或用户绘制验收 |
 | A24 自有包 | 原创无foreign依赖、指南21/SHA、25源独立Editor编译；Native83数据与metadata归档复核、实际两Shader渲染 | 空工程实际导入/Player/其他渲染管线未测；独立Editor编译不代替这些验证 |
-| A25 交接发布 | 真实本机入口与指南链接、失败历史、83文件两种终包/实际SHA，18指纹保持 | 定向提交/远端SHA、精确stage审计与租约释放待root，不以本地文件推定推送成功 |
+| A25 交接发布 | 真实本机入口与指南链接、失败历史、83文件两种终包/实际SHA，18指纹保持 | 产品8cba9ffcd4de3e4ac566131d0094ad218326f8a8已远端精确核验；281文件allowlist审计通过，原37dirty与Registry17行隔离，全部租约释放 |
 
 ## M8 最终填写区
 
@@ -111,8 +111,8 @@ PublicGuide冻结payload为21文件、1,655,482字节：原11份自有文字/图
 | 最终场景/Edit ready/dirty/Stage/MissingScript | final-editor-checkpoint.json：SC_GroundWorkshopLab，Edit/ready/clean/非Stage、MissingScript0、Window1、预览/Session/临时资产0 |
 | 37原dirty与18保护指纹终核 | protected-final.json 18/18相同；37原dirty路径/status保留，精确stage审计另附发布回执 |
 | 实际交付包、字节数与SHA256 | Native83文件，2,157,793 bytes，SHA36b662d0586c72fc28849877ab4177579231b60de27047c5223dba172a461740；SourceZIP2,043,911 bytes，SHAea1866d3b70bd7c816da66681277280714837ad008dda4530145884391cae8db |
-| 定向本机提交与远端ref/SHA | 待root完成后填写，不以本地提交推定推送成功 |
-| 共享sync租约释放 | 待root完成 |
+| 定向本机提交与远端ref/SHA | 产品8cba9ffcd4de3e4ac566131d0094ad218326f8a8；git push成功后ls-remote origin refs/heads/main相同 |
+| 共享sync租约释放 | complete/read-only，全部writer及路径租约释放 |
 
 **UI_PHYSICAL_UNVERIFIED**：真实桌面工具初始化/reset报kernel assets error3，物理鼠标流程与Editor主窗口截图未取得。相机渲染、Game View抓取、自动SceneView事件和合同分别记录。审美、手感、正式美术适配与制作体验待用户；本轮不关机或休眠。
 

@@ -11,9 +11,9 @@
 - 活动任务不得拥有重叠路径；同一时刻最多一个 `unity-writer`。
 - 暂停、阻塞或完成时，将记录移到历史并释放路径。
 
-## KT-GROUND-02 活动任务（2026-10-30）
+## KT-GROUND-02 完成交接（2026-10-30）
 
-- `kt-ground-02` active/code-writer：M0—M7和83文件Core包/源码ZIP技术核验已完成，当前只做定向发布；Unity与Assets租约已释放、生产冻结。root独占 `Candidates/KT-GROUND-02/`、`docs/ossastra/KT-GROUND-02/`、本任务同步记录与外部研究KT-GROUND-02。18保护SHA未变；原37dirty/媒体/角色/全局管线保护。实体UI/空工程/Player未验，详见 `tasks/2026-10-30-kt-ground-02.md`。
+- `kt-ground-02` complete/read-only：M0—M8完成，产品8cba9ffcd4de3e4ac566131d0094ad218326f8a8已GitHub main精确核验；83文件Core包/源码ZIP、600项本机图鉴、两工坊场与教材交付。18保护SHA未变，原37dirty及Registry17行保留；全部writer/路径租约释放，最终参考场Edit/ready/clean、预览/会话/临时资产0。实体UI/空工程/Player未验，见 `tasks/2026-10-30-kt-ground-02.md`。
 
 ## KT-GROUND-01 完成交接（2026-10-30）
 

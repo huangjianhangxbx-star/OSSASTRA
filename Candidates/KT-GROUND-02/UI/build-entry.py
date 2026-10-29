@@ -13,6 +13,13 @@ def main():
     parser.add_argument('--summary', default='制作工具与资料已接线，最新Native批次仍由root复验；本页不提前宣称整轮通过。')
     args = parser.parse_args()
     root = args.root.resolve()
+    remote = None
+    remote_path = root / '06-delivery/product-remote.json'
+    if remote_path.is_file():
+        candidate = json.loads(remote_path.read_text(encoding='utf-8-sig'))
+        product = candidate.get('product', '')
+        if candidate.get('verified') is True and candidate.get('remote') == product and len(product) == 40 and all(c in '0123456789abcdef' for c in product):
+            remote = candidate
     links = [
         ('素材图鉴', '02-catalog/场景素材图鉴.html', '按名称、用途与assetId查找；兼容状态与来源分开标记。'),
         ('地面组合教程', '03-tutorial/地面组合逻辑教程.html', '八章跟做：从组成拆解到保存、原创替换和试玩。'),
@@ -52,13 +59,16 @@ def main():
     if verified_packages:
         package_cards = ''.join('<article><h3>' + html.escape(label) + '</h3><p>' + f'{size:,}' + ' bytes</p><p><code>SHA256 ' + sha + '</code></p><a class="button" href="' + relative + '" download>打开本机交付文件 →</a></article>' for label, relative, size, sha in verified_packages)
         markup += '<section><h2>自有技术交付包</h2><div class="cards">' + package_cards + '</div><p>Core包含25份源、2 Shader、原创样板与21份自有教材内容；参考图鉴、参考媒体、旧样板Builder/旧刷地窗口与可选角色试玩适配不随包。原生包为83个自有文件，源码ZIP直接取原生导出内容。</p><p>验证依赖为Tuanjie 2022.3.62t16、URP14.2、2D Tilemap/Extras3.1.3与Newtonsoft3.2.2。独立Editor Core编译25源0error/1warning；空工程实际导入、Player、其他渲染管线与物理鼠标流程仍未验证。包存在及SHA核对不等于GitHub远端发布成功。</p></section>'
-    progress_link = '<a href="03-tutorial/验收进展_实际回执草稿.md">实际回执进展记录</a>；' if (root / '03-tutorial/验收进展_实际回执草稿.md').is_file() else ''
+    if remote:
+        markup += '<section><h2>已核验发布</h2><p>产品提交 <a href="https://github.com/huangjianhangxbx-star/OSSASTRA/commit/' + remote['product'] + '">' + remote['product'] + '</a> 已与GitHub main精确核对。物理UI和空工程导入仍未验。</p></section>'
+    progress_link = '<a href="03-tutorial/最终验收报告.md">最终技术交接记录</a>；' if (root / '03-tutorial/最终验收报告.md').is_file() else ''
+    progress_link += '<a href="03-tutorial/验收进展_实际回执草稿.md">历史实际回执进展记录</a>；' if (root / '03-tutorial/验收进展_实际回执草稿.md').is_file() else ''
     markup += '<section><h2>实际证据与收口记录</h2><p>' + progress_link + '<a href="03-tutorial/最终验收报告_模板.md">验收报告填写模板</a> 逐项对应A01—A25。历史阶段稿和未填写模板不作为最终结论；以最新验证与交接记录为准，保留首次失败和修复轮次。</p><ul>' + ''.join(receipts) + '</ul><p>八章教程已嵌完整原创地图、边缘、图层拆解、mask与换材前后共7张真实NativeCamera.Render帧，附32×32底纹与3×3下载练习。参考Game View与旋转图仅本机。相机渲染、自动SceneView事件、合同与物理鼠标验证分别记录；教材SVG不顶替现场证据。</p></section>'
     markup += '''<footer>本页与资料离线可读。网页不启动任意shell、不运行Unity命令；复制不可用时会选中路径，请Ctrl+C。任务完成后退出Play停在自有保存场，本轮不关机或休眠。<div id="copy-result" role="status"></div></footer></main><script>async function copyMenu(button){const input=button.previousElementSibling;try{if(!navigator.clipboard)throw new Error();await navigator.clipboard.writeText(input.value);document.getElementById('copy-result').textContent='已复制Unity菜单路径。'}catch(error){input.focus();input.select();document.getElementById('copy-result').textContent='已选中菜单路径，请Ctrl+C复制。'}}</script></body></html>'''
     (root / '开始使用.html').write_text(markup, encoding='utf-8')
-    status = {'stage': args.stage, 'summary': args.summary, 'physicalUI': 'UI_PHYSICAL_UNVERIFIED', 'emptyProjectImport': 'UNVERIFIED', 'claimsWholeTaskOrRemotePublicationComplete': False, 'verifiedDeliveryFiles': [relative for _, relative, _, _ in verified_packages]}
+    status = {'stage': args.stage, 'summary': args.summary, 'physicalUI': 'UI_PHYSICAL_UNVERIFIED', 'emptyProjectImport': 'UNVERIFIED', 'claimsWholeTaskPhysicalAcceptance': False, 'remoteProductVerified': bool(remote), 'remoteProduct': remote['product'] if remote else None, 'verifiedDeliveryFiles': [relative for _, relative, _, _ in verified_packages]}
     (root / '03-tutorial' / 'entry-status.json').write_text(json.dumps(status, ensure_ascii=False, indent=2), encoding='utf-8')
-    print('Built local start page with four working entries and ' + str(len(verified_packages)) + ' SHA-verified delivery links; physical input, empty-project import and remote publication are not asserted.')
+    print('Built local start page; packages=' + str(len(verified_packages)) + '; verified remote receipt=' + str(bool(remote)) + '; physical input and empty-project import remain unverified.')
 
 
 if __name__ == '__main__':
