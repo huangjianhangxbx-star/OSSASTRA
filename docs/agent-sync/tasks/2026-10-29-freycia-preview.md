@@ -1,7 +1,7 @@
 # FREYCIA 独立模型试玩接入
 
 - 任务 ID：`freycia-preview`
-- 状态：`complete`（本机接入与验证完成，定向发布回执补在下方）
+- 状态：`complete`（本机接入、验证与GitHub定向发布完成）
 - 写入模式：已释放；root唯一操作Unity，子代理核对素材、作者工具与文档。
 - 日期：2026-10-29
 - 独占：新 `Assets/OSSASTRA/LocalMedia/FreyciaPreview/`、`Assets/OSSASTRA/Configs/Characters/FreyciaPreview/`、`Assets/OSSASTRA/Prefabs/Characters/FreyciaPreview/`、`Assets/OSSASTRA/Scenes/SC_FreyciaPreview.unity`及meta；必要的独立作者工具/说明和本任务同步。
@@ -18,7 +18,7 @@
 - [x] 核对FREYCIA版本、五面根/居中/Move及图集。
 - [x] 导入独立资源，SkeletonDataAsset.scale=0.001，创建专用方向/动画配置与单模型试玩入口。
 - [x] 实际Play验证移动、朝向、五面/镜像、动画播放、离屏分支隐藏、缩放与重载；保存回读。
-- [x] 写清入口/现有动画范围与保护审计并释放租约；定向GitHub发布回执在收尾写入。
+- [x] 写清入口/现有动画范围与保护审计、定向GitHub发布并释放租约。
 
 ## 证据
 
@@ -35,3 +35,7 @@
 - 代码、配置、预制体、场景与说明定向提交；LocalMedia原图/骨骼/图集及派生媒体资产不公开。既有37项dirty不混入提交。
 
 详见 `docs/ossastra/FREYCIA-preview.md`。用户美术观感与实体手柄验收仍由实际试玩确认。
+
+## 发布回执
+
+实现提交 `d99c48a6db7d3b08d889d56c0786c402ace05a4b` 已推送至 GitHub `huangjianhangxbx-star/OSSASTRA` 的 `main`，推送后远端SHA与本地一致。28个定向文件，不含LocalMedia媒体或接手37项旧dirty；本记录收尾只补发布事实。
