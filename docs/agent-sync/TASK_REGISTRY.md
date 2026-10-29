@@ -11,6 +11,10 @@
 - 活动任务不得拥有重叠路径；同一时刻最多一个 `unity-writer`。
 - 暂停、阻塞或完成时，将记录移到历史并释放路径。
 
+## DS-MAP-02 完成交接（2026-10-29）
+
+- `ds-map-02` complete/read-only：产品 ba94f58f447c248d14e57f3c74396535b3714312 已GitHub精确核验；双角色单敌共享观察、真实实战35/35、原场11/15、研究共面深度缺陷修复，用户全部独立装备动态关联待验。原37dirty与媒体保护，全部租约释放。见 `tasks/2026-10-29-ds-map-02.md`。
+
 ## 最新完成
 
 - `xinghai-2d-atmosphere-v22` complete/read-only；2026-10-08 2D Atmosphere v2.2执行完成，整体Visual PARTIAL/技术当前场核心实测PASS，停本轮不做第三路线/户外/v2.3/2.5D。独立SC_2D_AtmosphereV22_Dungeon与5档Profile；首因原生Surface Lighting Visibility楔形、旧有限遮挡散射放大。24样本SDF软可见性+地面灯光信号局部过滤，保留几何楔形表达；实际实体终点遗漏红→绿，27318固体内GPU暖散射0、门洞空气与有限散射保留。Stable旧v21D4，BestVisual候选新Balanced/用户Pending。9主图、5档/消融、DB/DC滑块、55.007s原生2930帧、时间戳平均53.263fps；编码块状限制不认证细边动态。1440唯一FrameTiming样本、GPU零值剔除，当前整帧中位D4 0.293→Balanced 0.574ms，非单Pass/低端认证。20交错自有2RT/11Mat/52Mask数量稳定、Restore归0；全EditorRT/bytes有短暂波动，原严格false保留，未认证全引擎无泄漏。3304冻结含2879旧文件零变更、59完整TRS/Sprite/order/metadata/原灯参数/相机保持；新/旧保存重开精确，窗口最大1/255差。最终V22 Edit ready/clean/Balanced，Probe/自有RT/Mat0、5Shader和材质错误0，默认Renderer0/15项保持。报告docs/render-research/2D-Atmosphere-v22.md，比较artifacts/xinghai-2d-atmosphere-v22/comparison.html，本地8861。禁区未读取，无PNG/3D/角色/全局管线/提交推送。Unity与全部路径租约释放；用户明确要求完成后关机，交付保存后执行正常关机。

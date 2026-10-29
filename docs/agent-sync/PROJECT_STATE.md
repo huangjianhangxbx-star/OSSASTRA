@@ -1,5 +1,7 @@
 # ANKALUTE 共享项目状态
 
+> 2026-10-29 DS-MAP-02已交付：独立SC_DontStarvePartyCombatLab复用双原角色/1原敌、共享yaw/zoom与平滑中心；真实实战35/35、旧单人11/11/Commerce15/15通过。研究DepthPlane共面局部条纹已因果修复及真实bounds修正，用户全部独立装备动态关联仍待验；不声称全部技能/实体手柄/Player验收。产品 ba94f58f447c248d14e57f3c74396535b3714312 已GitHub精确核验；新场Edit clean，原场/基础Prefab/管线及37dirty保护，所有租约释放，受限媒体仅本机。报告docs/ossastra/DS-MAP-02/validation.md，入口user-guide.md。
+
 > 2026-10-29 FREYCIA独立预览已验证：SC_FreyciaPreview仅新角色一Root/一身体，SkeletonDataAsset.scale=0.001、Transform=1；复用原Root/仲裁器/动画SO，静止setup pose与Move、五面+镜像。无ClippingAttachment模型显式选FaceBranches，默认0的ClippingBoundary及小蓝仍保留；66/66真实显隐夹具与实际8向键盘输入、保存重开后移动通过。当前预览无攻击/装备/技能，不替换现有两角色或SC_CommerceIntegration，模型媒体仅本机。入口及边界见docs/ossastra/FREYCIA-preview.md，任务tasks/2026-10-29-freycia-preview.md；Unity与路径租约已释放。
 
 > 2026-10-22装备约束：副手能力/短按长按由SO与映射决定；投掷来源和投递方式分离；正式装备为独立Spine模型+SO骨骼/插槽跟随+语义动画联动。当前盾防/炸弹/Sprite为过渡，未完成通用化；见OSSASTRA_RULES R29-R32及tasks/2026-10-22-equipment-boundaries.md。
