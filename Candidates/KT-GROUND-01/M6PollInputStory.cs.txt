@@ -1,0 +1,12 @@
+using System;
+using System.Linq;
+using Funplay.Editor.Tools.Scripting;
+public sealed class GroundM6PollInputStory : IFunplayCommand
+{
+    public void Execute(ExecutionContext ctx)
+    {
+        var type = AppDomain.CurrentDomain.GetAssemblies().Select(a => a.GetType("GroundM6InputStory", false)).Where(t => t != null)
+            .OrderByDescending(t => (long)t.GetField("RunId").GetValue(null)).FirstOrDefault();
+        ctx.ReturnValue = type == null ? (object)new { error = "No M6 input story assembly loaded." } : type.GetField("Report").GetValue(null);
+    }
+}

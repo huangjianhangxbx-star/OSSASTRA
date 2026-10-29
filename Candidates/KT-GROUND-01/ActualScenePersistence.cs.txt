@@ -1,0 +1,422 @@
+/* 原生持久性故事；仅root在SC_FrontierGroundLab的Edit执行，root已明确批准测试后重置自有Demo。
+ * 不直接调用Paint/Erase/BoxFill；SendEvent是否消费不算通过，必须实际Tile/GetSprite变化。
+ * 约10秒异步执行，超时30秒。通过反射轮询FrontierActualScenePersistence.ResultJson。
+ * 实际GUI拖刷/擦除Undo后保存同一scene，两次Close/Open按sourceId重绑，再重建显示/重置自有Demo并保存；不对旧引用执行Undo回退。
+ * 实际菜单/UIToolkit的物理鼠标命中仍由root另外验；本候选只证明原生GUI事件与同源持久性。
+ */
+using System;
+using System.Linq;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.Tilemaps;
+using UnityEditor;
+using UnityEditor.EditorTools;
+using UnityEditor.SceneManagement;
+using UnityEditor.Tilemaps;
+using UnityEngine.SceneManagement;
+using Ossastra.GroundResearch;
+using Ossastra.GroundResearch.Editor;
+using Funplay.Editor.Tools.Scripting;
+
+public sealed class FrontierActualScenePersistence : IFunplayCommand
+{
+    public static string ResultJson = "NOT_STARTED";
+    static Runner active;
+    static string PureJson(object value, Newtonsoft.Json.Formatting formatting = Newtonsoft.Json.Formatting.None)
+    {
+        var serializer = Newtonsoft.Json.JsonSerializer.Create(new Newtonsoft.Json.JsonSerializerSettings {
+            Formatting = formatting, TypeNameHandling = Newtonsoft.Json.TypeNameHandling.None,
+            PreserveReferencesHandling = Newtonsoft.Json.PreserveReferencesHandling.None,
+            ContractResolver = new Newtonsoft.Json.Serialization.DefaultContractResolver()
+        });
+        using(var writer=new System.IO.StringWriter(System.Globalization.CultureInfo.InvariantCulture)) { serializer.Serialize(writer,value); return writer.ToString(); }
+    }
+    public void Execute(ExecutionContext ctx)
+    {
+        if (active != null) { ctx.ReturnValue = new { status = "ALREADY_RUNNING", pollType = "FrontierActualScenePersistence", pollField = "ResultJson" }; return; }
+        active = new Runner();
+        try { active.Start(); }
+        catch (Exception e) { active.End("ACTUAL_SCENEVIEW_BRUSH_SETUP_FAILED", e.ToString()); }
+        ctx.ReturnValue = new { status = active == null ? "FINISHED_OR_SETUP_FAILED" : "ACTUAL_SCENEVIEW_BRUSH_STARTED", pollType = "FrontierActualScenePersistence", pollField = "ResultJson", assembly = typeof(FrontierActualScenePersistence).Assembly.FullName, result = ResultJson };
+    }
+
+    [Serializable] sealed class Row { public string name; public bool passed; public string evidence; }
+    [Serializable] sealed class Dispatch { public string type, modifiers; public int button; public Vector2 point; public bool consumed; }
+    [Serializable] sealed class Receipt
+    {
+        public string status, error, phase, scene, layer, boundary;
+        public int passed, failed; public bool initialDirty, finalDirty;
+        public Vector3Int[] route; public string[] paintedSprites;
+        public Row[] rows; public Dispatch[] dispatches;
+    }
+    sealed class MapSnapshot
+    {
+        public Tilemap map; public BoundsInt bounds; public TileBase[] tiles;
+        public bool Matches() => map != null && tiles.SequenceEqual(map.GetTilesBlock(bounds));
+    }
+    sealed class PoseSnapshot
+    {
+        public Transform target; public Vector3 position, scale; public Quaternion rotation; public bool activeSelf;
+        public bool Matches() => target != null && target.localPosition == position && target.localRotation == rotation && target.localScale == scale && target.gameObject.activeSelf == activeSelf;
+    }
+    sealed class Step { public string name; public Action run; public bool awaitCoordinates; }
+    sealed class Runner
+    {
+        readonly List<Row> rows = new List<Row>();
+        readonly List<Dispatch> dispatches = new List<Dispatch>(); readonly List<object> calibrations = new List<object>(); string lastPublicRayCell="not-observed"; float lastReceivedX,lastReceivedY; bool nativeCalibrated;
+        readonly List<Dictionary<string, object>> guiStates = new List<Dictionary<string, object>>();
+        readonly Dictionary<string,int> guiSamplesPerPhase = new Dictionary<string,int>();
+        string lastGuiPhase;
+        readonly Queue<Step> steps = new Queue<Step>();
+        readonly HashSet<int> previousWindows = new HashSet<int>();
+        GroundResearchSurface surface; GroundLayer layer; Tilemap map, wrongMap;
+        Scene scene; SceneView view, originalView; EditorWindow priorFocus, palette; bool ownsView;
+        FrontierGroundBrush brush; GridBrushBase priorBrush; GameObject priorTarget;
+        UnityEngine.Object[] priorSelection; Type priorTool;
+        Vector3 priorPivot; Quaternion priorRotation; float priorSize; bool priorOrtho, prior2D, priorDocked; string priorViewRect;
+        MapSnapshot[] initialMaps; PoseSnapshot[] initialPoses;
+        Vector3Int[] path; Vector2[] gui; string[] sprites;
+        int fixtureGroup = -1; bool stateCaptured, initialDirty, coordinatesReady, ending;
+        double started, nextTick; string phase = "setup", guiError;
+        float priorTimeScale; string expectedSourceId, expectedTilePath, priorCustomLayerId, chunkBefore, chunkAfter; int priorCustomDiameter=1, oldMapInstance, reopenCycles; bool persisted,reopened,demoRestored,sceneSwitching; Scene lifeboat; GlobalObjectId priorTargetId; GlobalObjectId[] priorSelectionIds;
+        public void Start()
+        {
+            if (Application.isPlaying || EditorApplication.isCompiling || PrefabStageUtility.GetCurrentPrefabStage() != null) throw new InvalidOperationException("Requires Edit, no compilation, no PrefabStage.");
+            scene = SceneManager.GetActiveScene();
+            if (scene.name != "SC_FrontierGroundLab") throw new InvalidOperationException("Refusing another scene: " + scene.name);
+            surface = scene.GetRootGameObjects().SelectMany(x => x.GetComponentsInChildren<GroundResearchSurface>(true)).Single();
+            for (int i = surface.layers.Length - 1; i >= 0; i--)
+            {
+                var candidate = surface.layers[i];
+                if (candidate == null || candidate.paintTile == null || !surface.Owns(candidate.tilemap)) continue;
+                var route = EmptyHorizontalRoute(candidate.tilemap, surface.EditableCells);
+                if (route == null) continue;
+                layer = candidate; map = candidate.tilemap; path = route; break;
+            }
+            if (map == null) throw new InvalidOperationException("No seven-cell empty authored route; refusing to clear existing user data for a test.");
+            wrongMap = surface.layers.Where(x => x != null && x.tilemap != null && x.tilemap != map).Select(x => x.tilemap).FirstOrDefault();
+            if (wrongMap == null) throw new InvalidOperationException("A distinct native Tilemap is required for wrong-target rejection.");
+            originalView = SceneView.lastActiveSceneView; view = originalView;
+            if (view == null) throw new InvalidOperationException("No existing SceneView; root should open it normally first.");
+            priorFocus = EditorWindow.focusedWindow; priorSelection = Selection.objects; priorTool = ToolManager.activeToolType;
+            priorBrush = GridPaintingState.gridBrush; priorTarget = GridPaintingState.scenePaintTarget;
+            priorTargetId=priorTarget==null?default:GlobalObjectId.GetGlobalObjectIdSlow(priorTarget);
+            priorSelectionIds=priorSelection.Where(o=>o!=null).Select(GlobalObjectId.GetGlobalObjectIdSlow).ToArray();
+            if(priorBrush is FrontierGroundBrush custom && custom.Surface!=null && custom.Surface.gameObject.scene==scene) { priorCustomLayerId=custom.Layer==null?null:custom.Layer.sourceId; priorCustomDiameter=custom.size.x; }
+            priorPivot = view.pivot; priorRotation = view.rotation; priorSize = view.size; priorOrtho = view.orthographic; prior2D = view.in2DMode; priorDocked = view.docked; priorViewRect = view.position.ToString();
+            initialDirty = scene.isDirty; priorTimeScale = Time.timeScale;
+            foreach (var w in Resources.FindObjectsOfTypeAll<EditorWindow>()) previousWindows.Add(w.GetInstanceID());
+            initialMaps = surface.layers.Where(x => x != null && x.tilemap != null).Select(x => x.tilemap).Distinct().Select(x => new MapSnapshot { map = x, bounds = surface.EditableCells, tiles = x.GetTilesBlock(surface.EditableCells) }).ToArray();
+            initialPoses = scene.GetRootGameObjects().SelectMany(x => x.GetComponentsInChildren<Transform>(true)).Select(x => new PoseSnapshot { target = x, position = x.localPosition, rotation = x.localRotation, scale = x.localScale, activeSelf = x.gameObject.activeSelf }).ToArray();
+            stateCaptured = true;
+            view = ScriptableObject.CreateInstance<SceneView>(); ownsView = true;
+            view.titleContent = new GUIContent("KT 临时真实刷地验证"); view.position = new Rect(100, 100, 1100, 800); view.Show(); view.Focus();
+            Undo.IncrementCurrentGroup(); fixtureGroup = Undo.GetCurrentGroup(); Undo.SetCurrentGroupName("KT actual SceneView fixture");
+            brush = ScriptableObject.CreateInstance<FrontierGroundBrush>(); brush.name = "KT actual SceneView fixture brush"; brush.hideFlags = HideFlags.HideAndDontSave;
+            int index = Array.IndexOf(surface.layers, layer);
+            if (!brush.Configure(surface, index, 1)) throw new InvalidOperationException("Actual brush refused current native surface.");
+            EditorApplication.ExecuteMenuItem("Window/2D/Tile Palette");
+            palette = Resources.FindObjectsOfTypeAll<EditorWindow>().FirstOrDefault(x => x.GetType().FullName == "UnityEditor.Tilemaps.GridPaintPaletteWindow");
+            GridPaintingState.gridBrush = brush; GridPaintingState.scenePaintTarget = map.gameObject;
+            Selection.activeGameObject = map.gameObject;
+            TilemapEditorTool.SetActiveEditorTool(typeof(PaintTool));
+            FrameRoute();
+            Step("native-public-state-ready",()=>Require("native-state-and-scene-focus-ready",GridPaintingState.isEditing&&GridPaintingState.gridBrush==brush&&GridPaintingState.scenePaintTarget==map.gameObject&&EditorWindow.focusedWindow==view),true);
+            Step("actual-native-author-stroke",()=>
+            {
+                Enter();Send(EventType.MouseDown,gui[0]);Require("real-down-writes-before-save",map.GetTile(path[0])==layer.paintTile&&brush.IsStrokeActive);
+                Send(EventType.MouseDrag,gui[1],0,EventModifiers.None,gui[1]-gui[0]);Send(EventType.MouseDrag,gui[2],0,EventModifiers.None,gui[2]-gui[1]);
+                Require("all-seven-native-cells-written-before-release",RouteCells().All(c=>map.GetTile(c)==layer.paintTile)&&brush.IsStrokeActive);
+                Send(EventType.MouseUp,gui[2]);Require("native-stroke-ended-before-save",!brush.IsStrokeActive);
+                expectedSourceId=layer.sourceId;expectedTilePath=AssetDatabase.GetAssetPath(layer.paintTile);oldMapInstance=map.GetInstanceID();
+                chunkBefore=map.GetComponent<TilemapRenderer>().chunkSize.ToString();
+                if(string.IsNullOrEmpty(expectedSourceId)||string.IsNullOrEmpty(expectedTilePath))throw new InvalidOperationException("Stable sourceId and actual Tile asset are required for reopen.");
+                sprites=RouteCells().Select(c=>map.GetSprite(c)==null?null:map.GetSprite(c).name).ToArray();
+                Require("native-sprite-data-exists-before-save",sprites.All(s=>!string.IsNullOrEmpty(s)));
+            },true);
+            Step("actual-native-eraser-and-one-undo",()=>
+            {
+                TilemapEditorTool.SetActiveEditorTool(typeof(EraseTool));Enter();
+                var second=gui[1]+(gui[2]-gui[1])/3f;var secondCell=path[1]+Vector3Int.right;
+                Send(EventType.MouseDown,gui[1]);Send(EventType.MouseDrag,second,0,EventModifiers.None,second-gui[1]);Send(EventType.MouseUp,second);
+                Require("real-eraser-clears-exact-two-middle-cells",map.GetTile(path[1])==null&&map.GetTile(secondCell)==null&&RouteCells().Where(c=>c!=path[1]&&c!=secondCell).All(c=>map.GetTile(c)==layer.paintTile));
+                Require("real-eraser-leaves-other-native-layers-unchanged",initialMaps.Where(m=>m.map!=map).All(m=>m.Matches()));
+                Undo.PerformUndo();Require("one-undo-restores-real-erased-native-stroke",RouteCells().All(c=>map.GetTile(c)==layer.paintTile&&map.GetSprite(c)!=null));
+                TilemapEditorTool.SetActiveEditorTool(typeof(PaintTool));
+            });
+            Step("save-same-native-author-scene",()=>
+            {
+                Require("save-scene-succeeds",EditorSceneManager.SaveScene(scene,FrontierGroundSceneBuilder.ScenePath));persisted=true;
+                Require("saved-scene-is-clean",!scene.isDirty);
+            });
+            Step("close-and-open-same-scene-with-fresh-objects",()=>ReopenAndBind());
+            Step("read-persistent-native-author-and-sprites",()=>
+            {
+                var expectedTile=AssetDatabase.LoadAssetAtPath<TileBase>(expectedTilePath);
+                Require("save-reopen-retains-seven-real-author-tiles",expectedTile!=null&&RouteCells().All(c=>map.GetTile(c)==expectedTile));
+                Require("save-reopen-retains-seven-real-sprites",RouteCells().All(c=>map.GetSprite(c)!=null));
+                Require("save-reopen-keeps-correct-layer-source-id",layer.sourceId==expectedSourceId&&AssetDatabase.GetAssetPath(layer.paintTile)==expectedTilePath);
+                chunkAfter=map.GetComponent<TilemapRenderer>().chunkSize.ToString();
+                Require("native-renderer-chunk-setting-survives-save-reopen",chunkBefore==chunkAfter,"Before="+chunkBefore+"; after="+chunkAfter);
+                FrontierGroundSceneBuilder.RebuildDisplay(surface);
+                Require("rebuild-display-keeps-saved-stroke",RouteCells().All(c=>map.GetTile(c)==expectedTile&&map.GetSprite(c)!=null));
+            });
+            Step("second-save-close-and-open-cycle",()=>{Require("second-cycle-save",EditorSceneManager.SaveScene(scene,FrontierGroundSceneBuilder.ScenePath));ReopenAndBind();});
+            Step("second-cycle-retains-native-stroke-and-rebuild",()=>
+            {
+                var expected=AssetDatabase.LoadAssetAtPath<TileBase>(expectedTilePath);
+                Require("second-reopen-retains-seven-real-cells",expected!=null&&RouteCells().All(c=>map.GetTile(c)==expected&&map.GetSprite(c)!=null));
+                FrontierGroundSceneBuilder.RebuildDisplay(surface);
+                Require("second-rebuild-keeps-real-stroke",RouteCells().All(c=>map.GetTile(c)==expected&&map.GetSprite(c)!=null));
+                Require("two-real-close-open-cycles-observed",reopenCycles==2);
+            });
+            Step("explicit-root-fixture-restore-demo-and-save",()=>RestoreDemo());
+            started = EditorApplication.timeSinceStartup; nextTick = started + 0.3;
+            SceneView.duringSceneGui += DuringSceneGui; EditorApplication.update += Tick;
+            ResultJson = PureJson(new { status = "RUNNING", phase = "waiting-for-real-scene-repaint", scene = scene.name });
+            view.Repaint();
+        }
+        static Vector3Int[] EmptyHorizontalRoute(Tilemap target, BoundsInt bounds)
+        {
+            if (bounds.size.x < 9 || bounds.size.y < 3) return null;
+            for (int y = bounds.yMin + 1; y < bounds.yMax - 1; y++)
+                for (int x = bounds.xMin + 1; x + 6 < bounds.xMax - 1; x++)
+                    if (Enumerable.Range(0, 7).All(k => target.GetTile(new Vector3Int(x + k, y, 0)) == null))
+                        return new[] { new Vector3Int(x, y, 0), new Vector3Int(x + 3, y, 0), new Vector3Int(x + 6, y, 0) };
+            return null;
+        }
+        Vector3Int[] RouteCells() => Enumerable.Range(path[0].x, 7).Select(x => new Vector3Int(x, path[0].y, 0)).ToArray();
+        void Step(string name, Action run, bool awaitCoordinates = false) => steps.Enqueue(new Step { name = name, run = run, awaitCoordinates = awaitCoordinates });
+        void Check(string name, bool pass, string evidence = "") => rows.Add(new Row { name = name, passed = pass, evidence = evidence });
+        void Require(string name, bool pass, string evidence = "") { Check(name, pass, evidence); if (!pass) throw new InvalidOperationException(name + ": " + evidence); }
+        void FrameRoute()
+        {
+            coordinatesReady = false; guiError = null; nativeCalibrated=false;
+            view.in2DMode = false;
+            view.orthographic = true;
+            view.LookAtDirect(map.GetCellCenterWorld(path[1]), Quaternion.Euler(90f, 0, 0), Mathf.Max(10f, surface.WorldBounds.size.magnitude * 0.6f));
+            view.Focus(); view.Repaint();
+            TilemapEditorTool.SetActiveEditorTool(typeof(PaintTool));
+        }
+        Vector2 WindowPoint(Vector3 world)
+        {
+            var camera = view.camera; var pixel = camera.WorldToScreenPoint(world); float pp = EditorGUIUtility.pixelsPerPoint;
+            float viewportTop = view.position.height - (camera.pixelRect.y + camera.pixelRect.height) / pp;
+            return new Vector2(pixel.x / pp, viewportTop + (camera.pixelRect.y + camera.pixelRect.height - pixel.y) / pp);
+        }
+        void DuringSceneGui(SceneView current)
+        {
+            if (current != view) return;
+            if(Event.current!=null)
+            {
+                lastReceivedX=Event.current.mousePosition.x;lastReceivedY=Event.current.mousePosition.y;
+                var plane=new Plane(-map.transform.up,map.transform.position);var ray=HandleUtility.GUIPointToWorldRay(Event.current.mousePosition);
+                if(plane.Raycast(ray,out float distance))lastPublicRayCell=map.WorldToCell(ray.GetPoint(distance)).ToString();
+            }
+            guiSamplesPerPhase.TryGetValue(phase,out int phaseSamples);
+            if (phaseSamples < 6)
+            { guiStates.Add(Observe("actual-scene-gui", true)); guiSamplesPerPhase[phase]=phaseSamples+1; lastGuiPhase = phase; }
+            if (Event.current.type != EventType.Repaint) return;
+            try
+            {
+                // HandleUtility坐标属于Scene相机的GUI clip；SendEvent要求EditorWindow根坐标。
+                if(!nativeCalibrated)gui = path.Select(x => WindowPoint(map.GetCellCenterWorld(x))).ToArray();
+                var safe = new Rect(35, 45, view.position.width - 70, view.position.height - 90);
+                if (!gui.All(x => !float.IsNaN(x.x) && !float.IsNaN(x.y) && safe.Contains(x))) { guiError = "Native GUI projection outside safe scene area: " + string.Join(";", gui.Select(x => x.ToString()).ToArray()); return; }
+                coordinatesReady = true;
+            }
+            catch (Exception e) { guiError = e.ToString(); }
+        }
+        void Enter()
+        {
+            view.Focus();
+            var originalTool=ToolManager.activeToolType; var calibrationBefore=initialMaps.Select(m=>new MapSnapshot{map=m.map,bounds=m.bounds,tiles=m.map.GetTilesBlock(m.bounds)}).ToArray();
+            bool eligible=brush.CanPaintTarget(GridPaintingState.scenePaintTarget);
+            if(eligible)TilemapEditorTool.SetActiveEditorTool(typeof(PaintTool));
+            bool success=!eligible;
+            if(eligible)
+            {
+                // Native OnMouseLeave会清预览但不清hash；公开MouseMove到相邻格再回来，让Native正常刷新。
+                var from=view.camera.WorldToScreenPoint(map.GetCellCenterWorld(path[0]));var to=view.camera.WorldToScreenPoint(map.GetCellCenterWorld(path[0]+Vector3Int.right));
+                float pp=EditorGUIUtility.pixelsPerPoint;var nudge=new Vector2((to.x-from.x)/pp,-(to.y-from.y)/pp);
+                Send(EventType.MouseEnterWindow,gui[0]);Send(EventType.MouseMove,gui[0]+nudge);Send(EventType.Layout,gui[0]+nudge);
+            }
+            for(int attempt=0;attempt<4;attempt++)
+            {
+                var sent=gui[0];Send(EventType.MouseEnterWindow,sent);Send(EventType.MouseMove,sent);Send(EventType.Layout,sent);
+                var preview=new List<Vector3Int>();foreach(var cell in surface.EditableCells.allPositionsWithin)if(map.GetEditorPreviewTile(cell)==layer.paintTile)preview.Add(cell);
+                var observed=preview.Count==1?preview[0]:new Vector3Int(int.MinValue,int.MinValue,0);
+                calibrations.Add(new{phase,attempt,eligible,sentWindowX=sent.x,sentWindowY=sent.y,receivedGuiX=lastReceivedX,receivedGuiY=lastReceivedY,publicRayCell=lastPublicRayCell,
+                    previewCount=preview.Count,nativePreviewX=observed.x,nativePreviewY=observed.y,wantX=path[0].x,wantY=path[0].y,
+                    actualAuthorDataUnchanged=calibrationBefore.All(x=>x.Matches()),cameraPixelWidth=view.camera.pixelRect.width,cameraPixelHeight=view.camera.pixelRect.height,windowHeight=view.position.height,pp=EditorGUIUtility.pixelsPerPoint});
+                if(!eligible){success=true;break;}
+                Require("calibration-received-unique-native-paint-preview",preview.Count==1,"attempt="+attempt+"; preview count="+preview.Count+"; publicRay="+lastPublicRayCell);
+                if(observed==path[0]){success=true;nativeCalibrated=true;break;}
+                var wantedPixel=view.camera.WorldToScreenPoint(map.GetCellCenterWorld(path[0]));var observedPixel=view.camera.WorldToScreenPoint(map.GetCellCenterWorld(observed));
+                float pp=EditorGUIUtility.pixelsPerPoint;var correction=new Vector2((wantedPixel.x-observedPixel.x)/pp,-(wantedPixel.y-observedPixel.y)/pp);
+                for(int i=0;i<gui.Length;i++)gui[i]+=correction;
+                nativeCalibrated=true;
+            }
+            Require("calibration-native-preview-matches-author-target",success,"Public Ray is diagnostic only; actual native preview must match before MouseDown.");
+            Require("calibration-never-writes-author-data",calibrationBefore.All(x=>x.Matches()));
+            if(originalTool!=null&&originalTool!=typeof(PaintTool))TilemapEditorTool.SetActiveEditorTool(originalTool);
+            Send(EventType.MouseMove,gui[0]);Send(EventType.Layout,gui[0]);
+        }
+        void Send(EventType type, Vector2 point, int button = 0, EventModifiers modifiers = EventModifiers.None, Vector2 delta = default)
+        {
+            var e = new Event { type = type, mousePosition = point, button = button, modifiers = modifiers, delta = delta, clickCount = type == EventType.MouseDown ? 1 : 0 };
+            bool used = view.SendEvent(e);
+            dispatches.Add(new Dispatch { type = type.ToString(), button = button, modifiers = modifiers.ToString(), point = point, consumed = used });
+            if (guiStates.Count < 180) guiStates.Add(Observe("immediately-after-SendEvent-" + type));
+        }
+        static string WindowName(EditorWindow window) => window == null ? "null" : window.GetType().FullName + " :: " + window.titleContent.text;
+        Dictionary<string, object> Observe(string when, bool inSceneGui = false)
+        {
+            var facts = new Dictionary<string, object>();
+            facts["when"] = when; facts["phase"] = phase; facts["time"] = EditorApplication.timeSinceStartup;
+            facts["focusedWindow"] = WindowName(EditorWindow.focusedWindow); facts["mouseOverWindow"] = WindowName(EditorWindow.mouseOverWindow);
+            facts["isSceneFocused"] = EditorWindow.focusedWindow == view; facts["isMouseOverScene"] = EditorWindow.mouseOverWindow == view;
+            facts["nativeEditing"] = GridPaintingState.isEditing; facts["activeTool"] = ToolManager.activeToolType == null ? "null" : ToolManager.activeToolType.FullName;
+            facts["activeBrush"] = GridPaintingState.gridBrush == null ? "null" : GridPaintingState.gridBrush.GetType().FullName;
+            facts["isOurBrush"] = GridPaintingState.gridBrush == brush;
+            facts["nativeBrushEditor"] = GridPaintingState.activeBrushEditor == null ? "null" : GridPaintingState.activeBrushEditor.GetType().FullName;
+            facts["nativeEditorTargetsOurBrush"] = GridPaintingState.activeBrushEditor != null && GridPaintingState.activeBrushEditor.target == brush;
+            facts["nativeTarget"] = GridPaintingState.scenePaintTarget == null ? "null" : GridPaintingState.scenePaintTarget.name;
+            facts["brushCanPaintActualTarget"] = brush != null && brush.CanPaintTarget(GridPaintingState.scenePaintTarget);
+            facts["isStrokeActive"] = brush != null && brush.IsStrokeActive;
+            facts["lastObservedPublicRayCell"] = lastPublicRayCell;
+            facts["lastReceivedGuiX"] = lastReceivedX; facts["lastReceivedGuiY"] = lastReceivedY;
+            facts["originActualTile"] = map == null || map.GetTile(path[0]) == null ? "null" : map.GetTile(path[0]).name;
+            facts["originHasExpectedTile"] = map != null && map.GetTile(path[0]) == layer.paintTile;
+            facts["originPreviewHasExpectedTile"] = map != null && map.GetEditorPreviewTile(path[0]) == layer.paintTile;
+            facts["previewMeaning"] = "Preview at the projected cell is observable output of the custom PaintPreview called by native OnPaintSceneGUI; absence alone is not proof the callback was never called.";
+            facts["sceneWindowRect"] = view == null ? "null" : view.position.ToString(); facts["docked"] = view != null && view.docked;
+            facts["gridSwizzle"] = surface.grid.cellSwizzle.ToString(); facts["tilemapSwizzle"] = map.cellSwizzle.ToString(); facts["tilemapOrientation"] = map.orientation.ToString();
+            facts["guiRoute"] = gui == null ? null : gui.Select(p => new[] { p.x, p.y }).ToArray();
+            if (view != null && view.camera != null)
+            {
+                facts["cameraPixelRect"] = view.camera.pixelRect.ToString();
+                facts["nativeGridViewDot"] = Mathf.Abs(Vector3.Dot(view.camera.transform.forward, Grid.Swizzle(map.cellSwizzle, map.transform.forward)));
+            }
+            var baseline = initialMaps == null ? null : initialMaps.FirstOrDefault(x => x.map == map);
+            if (baseline != null)
+            {
+                var changes = new List<string>(); var previews = new List<string>(); int index = 0;
+                foreach (var cell in baseline.bounds.allPositionsWithin)
+                {
+                    if (map.GetTile(cell) != baseline.tiles[index]) changes.Add(cell + "=" + (map.GetTile(cell) == null ? "null" : map.GetTile(cell).name));
+                    if (map.GetEditorPreviewTile(cell) != null) previews.Add(cell.ToString()); index++;
+                }
+                facts["actualChangedCellCount"] = changes.Count; facts["actualChangedCellsFirst16"] = changes.Take(16).ToArray();
+                facts["previewCellsFirst16"] = previews.Take(16).ToArray();
+            }
+            if (inSceneGui && Event.current != null)
+            {
+                var e = Event.current; facts["eventType"] = e.type.ToString(); facts["rawEventType"] = e.rawType.ToString(); facts["button"] = e.button;
+                facts["modifiers"] = e.modifiers.ToString(); facts["mousePosition"] = new[] { e.mousePosition.x, e.mousePosition.y };
+                facts["nearestControl"] = HandleUtility.nearestControl; facts["hotControl"] = GUIUtility.hotControl; facts["keyboardControl"] = GUIUtility.keyboardControl;
+                var plane = new Plane(-map.transform.up, map.transform.position); var ray = HandleUtility.GUIPointToWorldRay(e.mousePosition);
+                facts["nativePlaneRayHits"] = plane.Raycast(ray, out float distance);
+                if (distance >= 0f) facts["publicRayWorldToCell"] = map.WorldToCell(ray.GetPoint(distance)).ToString();
+            }
+            return facts;
+        }
+        void Navigation(string name, int button, EventModifiers modifiers)
+        {
+            Step(name + "-frame", () => FrameRoute());
+            Step(name + "-enter", () => Enter(), true);
+            Step(name + "-down", () => Send(EventType.MouseDown, gui[0], button, modifiers));
+            Step(name + "-drag", () => Send(EventType.MouseDrag, gui[1], button, modifiers, gui[1] - gui[0]));
+            Step(name + "-up", () => Send(EventType.MouseUp, gui[1], button, modifiers));
+            Step(name + "-check", () => Require(name + "-navigation-does-not-write-author-data", initialMaps.All(x => x.Matches()) && !brush.IsStrokeActive));
+        }
+        void Tick()
+        {
+            if (ending || sceneSwitching) return;
+            try
+            {
+                double now = EditorApplication.timeSinceStartup;
+                if (now - started > 30) throw new TimeoutException("SceneView events/projection timed out at " + phase + "; " + guiError);
+                if (Application.isPlaying || EditorApplication.isCompiling || scene != SceneManager.GetActiveScene()) throw new InvalidOperationException("Editor lifecycle changed during fixture.");
+                if (now < nextTick) return;
+                if (steps.Count == 0) { End("ACTUAL_SCENEVIEW_BRUSH_COMPLETE", null); return; }
+                var step = steps.Peek(); phase = step.name;
+                ResultJson = PureJson(new { status = "RUNNING", phase = phase, scene = scene.name, passed = rows.Count(x => x.passed), failed = rows.Count(x => !x.passed) });
+                if (step.awaitCoordinates && EditorWindow.focusedWindow != view) { view.Show(); view.Focus(); view.Repaint(); return; }
+                if (step.awaitCoordinates && !coordinatesReady) { view.Repaint(); return; }
+                steps.Dequeue(); step.run(); nextTick = now + 0.12;
+            }
+            catch (Exception e) { End("ACTUAL_SCENEVIEW_BRUSH_FAILED", e.ToString()); }
+        }
+        void ReopenAndBind()
+        {
+            sceneSwitching=true;SceneView.duringSceneGui-=DuringSceneGui;oldMapInstance=map.GetInstanceID();
+            try
+            {
+                GridPaintingState.scenePaintTarget=null;ToolManager.RestorePreviousTool();
+                // 空内存scene只为合法关闭最后一个scene，不保存第二个场景文件。
+                lifeboat=EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Additive);SceneManager.SetActiveScene(lifeboat);
+                Require("actually-closes-saved-native-scene-cycle-"+(reopenCycles+1),EditorSceneManager.CloseScene(scene,true));
+                scene=EditorSceneManager.OpenScene(FrontierGroundSceneBuilder.ScenePath,OpenSceneMode.Single);
+                surface=scene.GetRootGameObjects().SelectMany(o=>o.GetComponentsInChildren<GroundResearchSurface>(true)).Single();
+                layer=surface.layers.Single(l=>l!=null&&l.sourceId==expectedSourceId);map=layer.tilemap;reopened=true;reopenCycles++;
+                Require("reopened-map-new-instance-cycle-"+reopenCycles,map!=null&&map.GetInstanceID()!=oldMapInstance);
+                Require("reopened-surface-same-owned-path-cycle-"+reopenCycles,scene.path==FrontierGroundSceneBuilder.ScenePath&&surface.Owns(map));
+                brush.Configure(surface,Array.IndexOf(surface.layers,layer),1);GridPaintingState.gridBrush=brush;GridPaintingState.scenePaintTarget=map.gameObject;
+            }
+            finally{sceneSwitching=false;SceneView.duringSceneGui+=DuringSceneGui;}
+        }
+        void RestoreDemo()
+        {
+            if(surface==null||!surface.gameObject.scene.IsValid()||surface.gameObject.scene.path!=FrontierGroundSceneBuilder.ScenePath)throw new InvalidOperationException("Refusing reset outside owned Lab.");
+            FrontierGroundSceneBuilder.ResetDemonstration(surface);
+            Require("root-owned-fixture-demo-restored-and-saved",EditorSceneManager.SaveScene(surface.gameObject.scene,FrontierGroundSceneBuilder.ScenePath));
+            demoRestored=true;
+        }
+        public void End(string status,string error)
+        {
+            if(ending)return;ending=true;EditorApplication.update-=Tick;SceneView.duringSceneGui-=DuringSceneGui;
+            try
+            {
+                if(brush!=null)brush.FinishStroke(false);
+                if(fixtureGroup>=0&&!demoRestored&&!EditorApplication.isPlayingOrWillChangePlaymode&&!EditorApplication.isCompiling)
+                {
+                    if((surface==null||!surface.gameObject.scene.IsValid())&&persisted&&SceneManager.GetActiveScene()==lifeboat)
+                    {
+                        scene=EditorSceneManager.OpenScene(FrontierGroundSceneBuilder.ScenePath,OpenSceneMode.Single);
+                        surface=scene.GetRootGameObjects().SelectMany(o=>o.GetComponentsInChildren<GroundResearchSurface>(true)).Single();
+                    }
+                    RestoreDemo();
+                }
+                // 不对已Close/Open的旧对象执行Undo回退；只重新解析已保存GlobalObjectId。
+                if(stateCaptured)
+                {
+                    var restoredTarget=priorTargetId.Equals(default(GlobalObjectId))?null:GlobalObjectId.GlobalObjectIdentifierToObjectSlow(priorTargetId) as GameObject;
+                    var restoredSelection=priorSelectionIds.Select(GlobalObjectId.GlobalObjectIdentifierToObjectSlow).Where(o=>o!=null).ToArray();
+                    if(priorBrush is FrontierGroundBrush custom && !string.IsNullOrEmpty(priorCustomLayerId)&&surface!=null)
+                    {
+                        int index=Array.FindIndex(surface.layers,l=>l!=null&&l.sourceId==priorCustomLayerId);
+                        if(index>=0)custom.Configure(surface,index,priorCustomDiameter);
+                    }
+                    GridPaintingState.gridBrush=priorBrush==null?null:priorBrush;GridPaintingState.scenePaintTarget=restoredTarget;Selection.objects=restoredSelection;
+                    if(priorTool!=null)ToolManager.SetActiveTool(priorTool);else ToolManager.RestorePreviousTool();
+                    Check("prior-target-restored-by-global-id-not-destroyed-reference",restoredTarget==null||restoredTarget.scene.IsValid()||EditorUtility.IsPersistent(restoredTarget));
+                    if(ownsView&&view!=null)view.Close();
+                    if(palette!=null&&!previousWindows.Contains(palette.GetInstanceID()))palette.Close();
+                    if(priorFocus!=null)priorFocus.Focus();
+                }
+            }
+            catch(Exception e){Check("persistence-cleanup-exception",false,e.ToString());if(error==null)error=e.ToString();}
+            finally
+            {
+                if(brush!=null)UnityEngine.Object.DestroyImmediate(brush);
+                if(status=="ACTUAL_SCENEVIEW_BRUSH_COMPLETE")status=rows.Any(r=>!r.passed)?"ACTUAL_SCENEVIEW_PERSISTENCE_FAILED":"ACTUAL_SCENEVIEW_PERSISTENCE_GREEN";
+                ResultJson=PureJson(new{status,error,phase,scene=scene.IsValid()?scene.path:"closed",sourceId=expectedSourceId,tilePath=expectedTilePath,persisted,reopened,reopenCycles,demoRestored,chunkBefore,chunkAfter,
+                    route=path==null?null:path.Select(p=>new[]{p.x,p.y,p.z}).ToArray(),calibration=calibrations.ToArray(),
+                    rows=rows.Select(r=>new{r.name,r.passed,r.evidence}).ToArray(),passed=rows.Count(r=>r.passed),failed=rows.Count(r=>!r.passed),
+                    boundary="Actual native GUI-created stroke saved/closed/reopened in the same Lab; new references resolved by sourceId/GlobalObjectId; no direct Paint/SetTile, no duplicate scene file, no stale-reference Undo. Root explicitly authorizes restoring its own demo after verification."},Newtonsoft.Json.Formatting.Indented);
+                active=null;
+            }
+        }
+    }
+}

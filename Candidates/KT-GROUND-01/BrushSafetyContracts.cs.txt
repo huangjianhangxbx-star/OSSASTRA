@@ -1,0 +1,103 @@
+/* 纯原生Preview安全合同；只由root在Edit运行，不操作真实SceneView或保存资产。
+ * 这里直接调用实际Brush公开事务API，专门证明Undo组边界；不代签SceneView输入。
+ * Window使用官方SerializedObject配置自己新建的临时窗口；全局原生Undo触发真实回调，
+ * 不反射/直接调用私有OnGUI或OnAuthorUndoRedo。预期旧实现对foreign group及Preview上下文为RED。
+ */
+using System; using System.Linq; using System.Collections.Generic;
+using UnityEngine; using UnityEngine.Tilemaps; using UnityEngine.SceneManagement;
+using UnityEditor; using UnityEditor.SceneManagement;
+using Ossastra.GroundResearch; using Ossastra.GroundResearch.Editor;
+using Funplay.Editor.Tools.Scripting;
+public sealed class FrontierBrushSafetyContracts : IFunplayCommand
+{
+    readonly List<object> rows = new List<object>();
+    readonly List<string> warnings = new List<string>(), windowErrors = new List<string>();
+    void Check(string name, bool passed, string evidence = "") => rows.Add(new { name, passed, evidence });
+    public void Execute(ExecutionContext ctx)
+    {
+        if (Application.isPlaying || EditorApplication.isCompiling) { ctx.ReturnValue = new { status = "EDIT_REQUIRED", failed = 1 }; return; }
+        Scene preview = default; FrontierGroundBrush brush = null; FrontierGroundBrushWindow window = null;
+        Tile tile = null; int fixtureGroup = -1; bool observeWindow = false;
+        void Logs(string message, string stack, LogType type)
+        {
+            if (type == LogType.Warning && (message.Contains("Undo") || message.Contains("撤销") || message.Contains("外部"))) warnings.Add(message);
+            if (observeWindow && (type == LogType.Error || type == LogType.Exception)) windowErrors.Add(message + "\n" + stack);
+        }
+        Application.logMessageReceived += Logs;
+        try
+        {
+            Undo.IncrementCurrentGroup(); fixtureGroup = Undo.GetCurrentGroup();
+            preview = EditorSceneManager.NewPreviewScene();
+            var root = new GameObject("KT owned native safety fixture"); SceneManager.MoveGameObjectToScene(root, preview);
+            var grid = root.AddComponent<Grid>(); grid.cellSwizzle = GridLayout.CellSwizzle.XZY;
+            var surface = root.AddComponent<GroundResearchSurface>(); surface.grid = grid; surface.editableCells = new BoundsInt(-2, -2, 0, 4, 4, 1);
+            var mapGo = new GameObject("Owned author map"); mapGo.transform.SetParent(root.transform); var map = mapGo.AddComponent<Tilemap>();
+            var sentinelGo = new GameObject("Owned foreign-undo stand-in"); sentinelGo.transform.SetParent(root.transform); var sentinel = sentinelGo.transform;
+            tile = ScriptableObject.CreateInstance<Tile>(); tile.name = "Owned safety tile";
+            surface.layers = new[] { new GroundLayer { displayName = "契约道路", tilemap = map, paintTile = tile } };
+            brush = ScriptableObject.CreateInstance<FrontierGroundBrush>();
+            if (!brush.Configure(surface, 0, 1)) throw new InvalidOperationException("Actual native fixture could not configure the production brush.");
+            void SetSentinel(int value)
+            {
+                Undo.IncrementCurrentGroup(); Undo.SetCurrentGroupName("KT owned stand-in external Undo");
+                Undo.RecordObject(sentinel, "KT owned stand-in external Undo"); sentinel.localPosition = new Vector3(value, 0, 0); Undo.FlushUndoRecordObjects();
+            }
+            void PaintOne()
+            {
+                if (!brush.BeginStroke(map)) throw new InvalidOperationException("Actual production BeginStroke rejected owned Preview.");
+                brush.Paint(grid, mapGo, Vector3Int.zero);
+                if (map.GetTile(Vector3Int.zero) != tile || !brush.IsStrokeActive) throw new InvalidOperationException("Native paint precondition failed.");
+            }
+            void ResetCase()
+            {
+                brush.FinishStroke(false); Undo.RevertAllDownToGroup(fixtureGroup); Undo.IncrementCurrentGroup();
+                if (map.GetTile(Vector3Int.zero) != null || sentinel.localPosition.x != 0) throw new InvalidOperationException("Owned case cleanup did not restore native data.");
+            }
+            SetSentinel(1); Undo.PerformUndo(); Check("native-sentinel-undo-is-real", sentinel.localPosition.x == 0);
+            Undo.PerformRedo(); Check("native-sentinel-redo-is-real", sentinel.localPosition.x == 1); ResetCase();
+
+            SetSentinel(1); PaintOne(); brush.FinishStroke(true);
+            Check("normal-escape-cancels-own-stroke-and-keeps-older-history", map.GetTile(Vector3Int.zero) == null && sentinel.localPosition.x == 1 && !brush.IsStrokeActive);
+            ResetCase();
+
+            SetSentinel(1); PaintOne(); SetSentinel(2); int beforeWarning = warnings.Count;
+            brush.FinishStroke(true);
+            Check("escape-must-not-revert-foreign-undo-group", sentinel.localPosition.x == 2, "Owned stand-in expected 2, actual " + sentinel.localPosition.x);
+            Check("group-drift-keeps-already-painted-data-and-ends-stroke", map.GetTile(Vector3Int.zero) == tile && !brush.IsStrokeActive);
+            Check("unsafe-cancel-gives-explicit-warning", warnings.Count > beforeWarning, string.Join("\n", warnings.Skip(beforeWarning).ToArray()));
+            ResetCase();
+
+            SetSentinel(1); PaintOne(); SetSentinel(2); brush.FinishStroke(false); Undo.PerformUndo();
+            Check("commit-does-not-collapse-another-editor-undo-group", sentinel.localPosition.x == 1 && map.GetTile(Vector3Int.zero) == tile,
+                "Undo foreign stand-in only: sentinel=" + sentinel.localPosition.x + "; brush tile=" + (map.GetTile(Vector3Int.zero) == null ? "null" : map.GetTile(Vector3Int.zero).name));
+            ResetCase();
+
+            // 只创建自己的窗口，不Show、不动已有dock；以真实全局Undo触发它的生命周期回调。
+            window = ScriptableObject.CreateInstance<FrontierGroundBrushWindow>();
+            var serialized = new SerializedObject(window); var field = serialized.FindProperty("surface");
+            if (field == null) throw new InvalidOperationException("Window serialized target field is absent; cannot exercise actual context handling.");
+            field.objectReferenceValue = surface; serialized.ApplyModifiedPropertiesWithoutUndo();
+            observeWindow = true;
+            try { SetSentinel(1); Undo.PerformUndo(); }
+            catch (Exception e) { windowErrors.Add(e.ToString()); }
+            observeWindow = false;
+            Check("window-global-undo-ignores-non-lab-preview-context", windowErrors.Count == 0,
+                windowErrors.Count == 0 ? "Actual native Undo fired; invalid Preview target must be ignored before Builder." : string.Join("\n", windowErrors.ToArray()));
+            Check("invalid-window-context-does-not-write-author-map", map.GetTile(Vector3Int.zero) == null);
+        }
+        catch (Exception e) { Check("unexpected-fixture-exception", false, e.ToString()); }
+        finally
+        {
+            observeWindow = false;
+            if (window != null) UnityEngine.Object.DestroyImmediate(window);
+            Application.logMessageReceived -= Logs;
+            if (brush != null) { brush.FinishStroke(false); UnityEngine.Object.DestroyImmediate(brush); }
+            if (fixtureGroup >= 0) { Undo.RevertAllDownToGroup(fixtureGroup); Undo.IncrementCurrentGroup(); }
+            if (preview.IsValid()) EditorSceneManager.ClosePreviewScene(preview);
+            if (tile != null) UnityEngine.Object.DestroyImmediate(tile);
+        }
+        int passed = rows.Count(x => (bool)x.GetType().GetProperty("passed").GetValue(x));
+        ctx.ReturnValue = new { status = passed == rows.Count ? "BRUSH_SAFETY_CONTRACTS_GREEN" : "BRUSH_SAFETY_CONTRACTS_RED", passed, failed = rows.Count - passed, rows, warnings, windowErrors,
+            boundary = "Native Preview author data and Undo; direct public Brush transaction seam. Actual global Undo callback on own unshown Window; no private-method invocation. Not real SceneView/focus/PrefabStage/GPU/save-reopen proof." };
+    }
+}

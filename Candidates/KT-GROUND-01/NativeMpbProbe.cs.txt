@@ -1,0 +1,32 @@
+/* Narrow engine characterization: no View, no scene asset, no Mesh/Material creation. */
+using UnityEngine;
+using UnityEngine.Tilemaps;
+using Funplay.Editor.Tools.Scripting;
+public sealed class NativeMpbProbe : IFunplayCommand
+{
+    private static object Read(Renderer renderer)
+    {
+        bool before = renderer.HasPropertyBlock();
+        var block = new MaterialPropertyBlock(); renderer.GetPropertyBlock(block);
+        return new { hasBeforeGet=before, hasAfterGet=renderer.HasPropertyBlock(), empty=block.isEmpty,
+            hasDebug=block.HasProperty(Shader.PropertyToID("_DebugMask")), debug=block.GetFloat("_DebugMask") };
+    }
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+    {
+        GameObject root = null;
+        try
+        {
+            root=new GameObject("NativeMpbProbeTransient",typeof(Grid));root.hideFlags=HideFlags.HideAndDontSave;
+            var child=new GameObject("nativeTilemap",typeof(Tilemap),typeof(TilemapRenderer));child.transform.SetParent(root.transform,false);
+            var renderer=child.GetComponent<TilemapRenderer>();
+            var before=Read(renderer);
+            var original=new MaterialPropertyBlock();renderer.GetPropertyBlock(original);
+            renderer.SetPropertyBlock(null);var afterNull=Read(renderer);
+            var debug=new MaterialPropertyBlock();debug.SetFloat("_DebugMask",1);renderer.SetPropertyBlock(debug);var temporary=Read(renderer);
+            renderer.SetPropertyBlock(null);var afterNullAgain=Read(renderer);
+            renderer.SetPropertyBlock(original.isEmpty?null:original);var afterRestore=Read(renderer);
+            ctx.ReturnValue=new { before,afterNull,temporary,afterNullAgain,afterRestore };
+        }
+        finally { if(root!=null)Object.DestroyImmediate(root); }
+    }
+}

@@ -1,0 +1,17 @@
+using System;using System.Linq;using System.Collections.Generic;using UnityEngine;using UnityEditor;using UnityEngine.Tilemaps;using Funplay.Editor.Tools.Scripting;
+public class FrontierImportContracts:IFunplayCommand {
+public void Execute(ExecutionContext ctx){var ok=new List<string>();var bad=new List<string>();Action<string,bool>check=(n,v)=>{if(v)ok.Add(n);else bad.Add(n);};
+const string source="Assets/OSSASTRA/Art/FrontierTaleReferenceLocal/";const string local="Assets/OSSASTRA/GroundResearch/LocalGenerated/";
+var rule=AssetDatabase.LoadAssetAtPath<RuleTile>(local+"OriginalNeighborRules.asset");if(rule==null){check("Imported native source data exists",false);ctx.ReturnValue=new{passed=ok.Count,failed=bad.Count,passedCases=ok,failedCases=bad};return;}
+check("Native RuleTile preserves fourteen source rules",rule.m_TilingRules.Count==14);
+var sprites=rule.m_TilingRules.SelectMany(r=>r.m_Sprites).Concat(new[]{rule.m_DefaultSprite}).Distinct().ToArray();
+check("Fifteen unique source masks",sprites.Length==15);
+check("All masks share original single atlas texture",sprites.Select(s=>s.texture).Distinct().Count()==1);
+check("Source PPU99/pivots and full sprite dimensions",sprites.All(s=>Mathf.Approximately(s.pixelsPerUnit,99)&&s.rect.width==128&&s.rect.height==128&&(s.pivot-new Vector2(64,64)).sqrMagnitude<.0001f));
+var maskImporter=AssetImporter.GetAtPath(AssetDatabase.GetAssetPath(sprites[0])) as TextureImporter;
+check("Atlas multiple import, linear clamp and no mip bleed",maskImporter!=null&&maskImporter.spriteImportMode==SpriteImportMode.Multiple&&!maskImporter.sRGBTexture&&!maskImporter.mipmapEnabled&&maskImporter.wrapMode==TextureWrapMode.Clamp);
+var baseTile=AssetDatabase.LoadAssetAtPath<Tile>(local+"FullCoverageBase.asset");check("Base is fully covered mask zero",baseTile!=null&&baseTile.sprite.name=="mask_0"&&baseTile.colliderType==Tile.ColliderType.None);
+check("No gameplay colliders embedded into source rule tiles",rule.m_DefaultColliderType==Tile.ColliderType.None&&rule.m_TilingRules.All(r=>r.m_ColliderType==Tile.ColliderType.None));
+var shader=Shader.Find("Ossastra/GroundResearch/MaskWorldTile");check("URP adaptation shader compiles",shader!=null&&shader.isSupported&&!UnityEditor.ShaderUtil.GetShaderMessages(shader).Any(m=>m.severity==UnityEditor.Rendering.ShaderCompilerMessageSeverity.Error));
+foreach(string id in new[]{"2","3","6","8","9","10","45"}){var mat=AssetDatabase.LoadAssetAtPath<Material>(local+"Ground_"+id+".mat");var importer=AssetImporter.GetAtPath(source+"textures/ground_"+id+".png")as TextureImporter;check("Source material/Repeat texture "+id,mat!=null&&mat.shader==shader&&mat.GetTexture("_SecondTex")!=null&&importer!=null&&importer.wrapMode==TextureWrapMode.Repeat);}
+ctx.ReturnValue=new{passed=ok.Count,failed=bad.Count,passedCases=ok,failedCases=bad};return;}}

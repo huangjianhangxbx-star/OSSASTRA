@@ -1,0 +1,2 @@
+using System.Linq;using UnityEngine;using UnityEngine.Tilemaps;using Funplay.Editor.Tools.Scripting;using G=Ossastra.GroundResearch;
+public class GroundChunkInformation:IFunplayCommand{public void Execute(ExecutionContext ctx){var s=Object.FindObjectOfType<G.GroundResearchSurface>();var rs=s.GetComponentsInChildren<TilemapRenderer>();var p=typeof(TilemapRenderer).GetProperty("chunkSize");ctx.ReturnValue=new{nativeChunkSizeExposed=p!=null,values=rs.Select(r=>new{name=r.name,mode=r.mode.ToString(),chunkSize=p==null?"not exposed":p.GetValue(r).ToString()}).ToArray()};}}

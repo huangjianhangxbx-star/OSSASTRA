@@ -1,0 +1,81 @@
+/* 本轮受限笔刷合同：真实Grid/Tilemap及原生Undo，不注入画面缓存，不改现有场景。
+ * 缺失实现时反射返回预期RED。SceneView真实拖刷/鼠标让权另外由root执行，不能拿本夹具代签。
+ * 不清空全局Undo；仅退回本夹具自己的起始group，再销毁自有PreviewScene。
+ */
+using System;using System.Linq;using System.Reflection;using System.Collections.Generic;
+using UnityEngine;using UnityEngine.Tilemaps;using UnityEditor;using UnityEditor.Tilemaps;
+using UnityEditor.SceneManagement;using UnityEngine.SceneManagement;using Funplay.Editor.Tools.Scripting;
+public sealed class FrontierBrushContracts:IFunplayCommand
+{
+    readonly List<object> rows=new List<object>();
+    void Check(string name,bool pass,string reason=""){rows.Add(new{name,passed=pass,reason});}
+    static Type Find(string full)=>AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType(full)).FirstOrDefault(t=>t!=null);
+    static void Field(object target,string name,object value)=>target.GetType().GetField(name).SetValue(target,value);
+    static object Call(object target,string name,params object[] args)=>target.GetType().GetMethod(name,BindingFlags.Instance|BindingFlags.Public).Invoke(target,args);
+    public void Execute(ExecutionContext ctx)
+    {
+        var brushType=Find("Ossastra.GroundResearch.Editor.FrontierGroundBrush");
+        var surfaceType=Find("Ossastra.GroundResearch.GroundResearchSurface");
+        var layerType=Find("Ossastra.GroundResearch.GroundLayer");
+        if(brushType==null||surfaceType==null||layerType==null)
+        {ctx.ReturnValue=new{status="BRUSH_CONTRACTS_RED_MISSING_IMPLEMENTATION",passed=0,failed=1,missing=new[]{brushType==null?"FrontierGroundBrush":null,surfaceType==null?"GroundResearchSurface":null,layerType==null?"GroundLayer":null}.Where(x=>x!=null).ToArray()};return;}
+        Scene preview=default;ScriptableObject brush=null;Tile tile=null,baseTile=null;int fixtureGroup=-1;
+        try
+        {
+            Undo.IncrementCurrentGroup();fixtureGroup=Undo.GetCurrentGroup();
+            preview=EditorSceneManager.NewPreviewScene();
+            var root=new GameObject("KT Brush Contract Surface");SceneManager.MoveGameObjectToScene(root,preview);
+            var grid=root.AddComponent<Grid>();grid.cellSwizzle=GridLayout.CellSwizzle.XZY;var surface=root.AddComponent(surfaceType);
+            Field(surface,"grid",grid);Field(surface,"editableCells",new BoundsInt(-2,-2,0,4,4,1));
+            Tilemap Make(string name){var go=new GameObject(name);go.transform.SetParent(root.transform);return go.AddComponent<Tilemap>();}
+            var map=Make("Allowed Overlay");var other=Make("Unowned Native Tilemap");
+            tile=ScriptableObject.CreateInstance<Tile>();baseTile=ScriptableObject.CreateInstance<Tile>();
+            tile.name="契约道路";baseTile.name="契约基础地面";
+            var layer=Activator.CreateInstance(layerType);Field(layer,"displayName","道路");Field(layer,"tilemap",map);Field(layer,"paintTile",tile);Field(layer,"eraseReplacement",null);
+            var layers=Array.CreateInstance(layerType,1);layers.SetValue(layer,0);Field(surface,"layers",layers);
+            brush=ScriptableObject.CreateInstance(brushType);
+            bool configured=(bool)Call(brush,"Configure",surface,0,1);
+            Check("explicit-owned-surface-can-configure-native-brush",configured&&brush is GridBrush);
+            var native=(GridBrush)brush;
+            Check("unowned-native-tilemap-is-rejected",!(bool)Call(brush,"CanPaintTarget",other.gameObject));
+            native.Paint(grid,other.gameObject,Vector3Int.zero);
+            Check("rejected-target-has-no-author-data-write",other.GetTile(Vector3Int.zero)==null);
+            Call(brush,"BeginStroke",map);
+            native.Paint(grid,map.gameObject,new Vector3Int(0,0,0));native.Paint(grid,map.gameObject,new Vector3Int(1,0,0));
+            Check("paint-is-visible-in-native-data-before-mouse-up",map.GetTile(Vector3Int.zero)==tile&&map.GetTile(Vector3Int.right)==tile);
+            Call(brush,"FinishStroke",false);Undo.FlushUndoRecordObjects();Undo.PerformUndo();
+            Check("single-native-undo-restores-whole-two-stamp-stroke",map.GetTile(Vector3Int.zero)==null&&map.GetTile(Vector3Int.right)==null);
+            Undo.PerformRedo();
+            Check("single-native-redo-restores-whole-stroke",map.GetTile(Vector3Int.zero)==tile&&map.GetTile(Vector3Int.right)==tile);
+            Call(brush,"BeginStroke",map);native.Erase(grid,map.gameObject,Vector3Int.zero);
+            Check("erase-removes-only-the-selected-overlay-cell",map.GetTile(Vector3Int.zero)==null&&map.GetTile(Vector3Int.right)==tile);
+            Call(brush,"FinishStroke",true);
+            Check("cancel-rolls-back-the-active-stroke-to-author-data",map.GetTile(Vector3Int.zero)==tile&&map.GetTile(Vector3Int.right)==tile);
+            Call(brush,"BeginStroke",map);native.Paint(grid,map.gameObject,new Vector3Int(9,9,0));Call(brush,"FinishStroke",false);
+            Check("out-of-bounds-center-cannot-expand-author-map",map.GetTile(new Vector3Int(9,9,0))==null);
+            Call(brush,"Configure",surface,0,3);Call(brush,"BeginStroke",map);native.Paint(grid,map.gameObject,new Vector3Int(-2,-2,0));Call(brush,"FinishStroke",false);
+            Check("brush-footprint-is-clipped-at-real-author-bounds",map.GetTile(new Vector3Int(-2,-2,0))==tile&&map.GetTile(new Vector3Int(-1,-1,0))==tile&&map.GetTile(new Vector3Int(-3,-2,0))==null&&map.GetTile(new Vector3Int(-2,-3,0))==null);
+            Call(brush,"Configure",surface,0,1);Call(brush,"BeginStroke",map);native.BoxFill(grid,map.gameObject,new BoundsInt(0,1,0,8,1,1));Call(brush,"FinishStroke",false);
+            Check("rectangle-fill-clips-boundaries-and-writes-same-native-source",map.GetTile(new Vector3Int(0,1,0))==tile&&map.GetTile(new Vector3Int(1,1,0))==tile&&map.GetTile(new Vector3Int(2,1,0))==null);
+            Field(layer,"eraseReplacement",baseTile);layers.SetValue(layer,0);Field(surface,"layers",layers);
+            Call(brush,"Configure",surface,0,1);Call(brush,"BeginStroke",map);native.Erase(grid,map.gameObject,Vector3Int.zero);Call(brush,"FinishStroke",false);
+            Check("base-layer-erase-restores-explicit-base-tile",map.GetTile(Vector3Int.zero)==baseTile);
+            var foreignRoot=new GameObject("Foreign Surface");SceneManager.MoveGameObjectToScene(foreignRoot,preview);var foreign=foreignRoot.AddComponent<Tilemap>();
+            Check("foreign-scene-object-without-selected-surface-is-not-a-target",!(bool)Call(brush,"CanPaintTarget",foreign.gameObject));
+            Call(brush,"BeginStroke",map);native.Paint(grid,map.gameObject,new Vector3Int(-1,1,0));Call(brush,"FinishStroke",false);
+            Check("focus-policy-commit-keeps-complete-native-data",map.GetTile(new Vector3Int(-1,1,0))==tile);
+            Undo.PerformUndo();Check("committed-interrupted-stroke-is-one-undo",map.GetTile(new Vector3Int(-1,1,0))==null);
+            Check("map-transform-and-world-grid-were-not-rewritten",root.transform.position==Vector3.zero&&root.transform.rotation==Quaternion.identity&&root.transform.localScale==Vector3.one);
+        }
+        catch(Exception e){Check("unexpected-exception",false,(e.InnerException??e).ToString());}
+        finally
+        {
+            if(brush!=null){try{Call(brush,"FinishStroke",true);}catch{}UnityEngine.Object.DestroyImmediate(brush);}
+            if(fixtureGroup>=0){Undo.RevertAllDownToGroup(fixtureGroup);Undo.IncrementCurrentGroup();}
+            if(preview.IsValid())EditorSceneManager.ClosePreviewScene(preview);
+            if(tile!=null)UnityEngine.Object.DestroyImmediate(tile);if(baseTile!=null)UnityEngine.Object.DestroyImmediate(baseTile);
+        }
+        int passed=rows.Count(r=>(bool)r.GetType().GetProperty("passed").GetValue(r));
+        ctx.ReturnValue=new{status="BRUSH_CONTRACTS_COMPLETE",passed,failed=rows.Count-passed,rows,boundary="native PreviewScene Tilemap and Undo; does not substitute for actual SceneView drag/UI/navigation/focus or persistent save/reopen"};
+    }
+}

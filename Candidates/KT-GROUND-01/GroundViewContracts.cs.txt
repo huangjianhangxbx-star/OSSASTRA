@@ -1,0 +1,156 @@
+/* RED/green candidate: real TilemapRenderer state, opaque property blocks, and existing input regions.
+ * Breaks caught: forcing disabled layers on restoration; dropping unrelated MPB values; keeping a
+ * temporary debug block on a previously empty renderer; choosing array[0] as base; leaking UI capture.
+ * Reflection lets the first RED report the missing feature rather than fail snippet compilation.
+ */
+using System;
+using System.Collections.Generic;
+using System.Reflection;
+using UnityEngine;
+using UnityEngine.Tilemaps;
+using Funplay.Editor.Tools.Scripting;
+using Ossastra.GroundResearch;
+using C = Ossastra.Characters;
+using E = Ossastra.Enemies;
+
+public sealed class GroundViewContracts : IFunplayCommand
+{
+    private readonly List<string> passed = new List<string>(), failed = new List<string>();
+    private readonly List<object> diagnostics = new List<object>();
+    private void Check(string label, bool value) { if (value) passed.Add(label); else failed.Add(label); }
+    private static object Call(Component target, string name, params object[] args)
+    {
+        var method = target.GetType().GetMethod(name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        if (method == null) throw new InvalidOperationException("Missing view behavior: " + name);
+        return method.Invoke(target, args);
+    }
+    private static void Set(Component target, string name, object value)
+    {
+        var field = target.GetType().GetField(name, BindingFlags.Instance | BindingFlags.Public);
+        if (field == null) throw new InvalidOperationException("Missing view author field: " + name);
+        field.SetValue(target, value);
+    }
+    private static Tilemap Layer(Transform parent, string name, int order, bool visible)
+    {
+        var go = new GameObject(name, typeof(Tilemap), typeof(TilemapRenderer));
+        go.transform.SetParent(parent, false);
+        var renderer = go.GetComponent<TilemapRenderer>(); renderer.sortingOrder = order; renderer.enabled = visible;
+        return go.GetComponent<Tilemap>();
+    }
+    private static MaterialPropertyBlock Read(Renderer renderer)
+    {
+        var block = new MaterialPropertyBlock(); renderer.GetPropertyBlock(block); return block;
+    }
+    private void Record(string phase, Renderer renderer)
+    {
+        bool before=renderer.HasPropertyBlock(); var block=Read(renderer);
+        diagnostics.Add(new {phase,hasBeforeGet=before,hasAfterGet=renderer.HasPropertyBlock(),empty=block.isEmpty,
+            hasDebug=block.HasProperty(Shader.PropertyToID("_DebugMask")),debug=block.GetFloat("_DebugMask")});
+    }
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+    {
+        GameObject root = null, outside = null, inputObject = null, enemyObject = null;
+        try
+        {
+            Type viewType = null;
+            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                viewType = assembly.GetType("Ossastra.GroundResearch.GroundResearchView");
+                if (viewType != null) break;
+            }
+            Check("research view feature exists", viewType != null);
+            if (viewType != null)
+            {
+                root = new GameObject("GroundViewContractTransient", typeof(Grid)); root.hideFlags = HideFlags.HideAndDontSave;
+                var grid = root.GetComponent<Grid>(); grid.cellSize = new Vector3(4,4,0); grid.cellSwizzle = GridLayout.CellSwizzle.XZY;
+                var surface = root.AddComponent<GroundResearchSurface>(); surface.grid = grid; surface.editableCells = new BoundsInt(0,0,0,16,12,1);
+                var upper = Layer(root.transform, "upper", 9, false);
+                var lower = Layer(root.transform, "lower", -2, true);
+                var middle = Layer(root.transform, "middle", 5, true);
+                outside = new GameObject("ForeignGroundTransient", typeof(Grid)); outside.hideFlags = HideFlags.HideAndDontSave;
+                var foreign = Layer(outside.transform, "foreign", -99, true);
+                surface.layers = new[] {
+                    new GroundLayer { displayName="upper", tilemap=upper },
+                    new GroundLayer { displayName="lower", tilemap=lower },
+                    new GroundLayer { displayName="middle", tilemap=middle },
+                    new GroundLayer { displayName="foreign", tilemap=foreign }
+                };
+                var a=upper.GetComponent<TilemapRenderer>(); var b=lower.GetComponent<TilemapRenderer>(); var c=middle.GetComponent<TilemapRenderer>();
+                var originalMaterial=a.sharedMaterial;
+                int unrelated=Shader.PropertyToID("_ViewContractSentinel"), mask=Shader.PropertyToID("_DebugMask");
+                var original=new MaterialPropertyBlock(); original.SetVector(unrelated,new Vector4(1,2,3,4)); original.SetFloat(mask,.375f); a.SetPropertyBlock(original);
+                // Native probe proved new TilemapRenderer starts with an engine-owned nonempty block.
+                // Establish the genuinely empty branch explicitly; do not weaken the restoration checks.
+                Record("native before explicit empty setup",c);
+                c.SetPropertyBlock(null);
+                Record("explicit empty before View",c);
+                bool nativeBHas=b.HasPropertyBlock(); var nativeB=Read(b);
+                Check("fixture includes initially empty property block", !c.HasPropertyBlock());
+                inputObject = new GameObject("GroundViewInputTransient"); inputObject.SetActive(false); inputObject.hideFlags = HideFlags.HideAndDontSave;
+                var input = inputObject.AddComponent<C.CharacterInputHandler>();
+                var anotherOwner = new object(); input.RegisterPointerRegion(anotherOwner,new Rect(0,0,4,4));
+                enemyObject = new GameObject("GroundViewEnemyTransient"); enemyObject.SetActive(false); enemyObject.hideFlags = HideFlags.HideAndDontSave;
+                var enemy = enemyObject.AddComponent<E.EnemyRoot>(); enemy.AttacksEnabled = true;
+                var view = root.AddComponent(viewType);
+                Set(view,"surface",surface); Set(view,"encounterEnemy",enemy); Set(view,"playerInputs",new[]{input});
+                float previousTimeScale=Time.timeScale;
+                Call(view,"BeginObservation");
+                Check("default observation disables attacks through existing enemy",!enemy.AttacksEnabled);
+                Check("observation does not pause world",Time.timeScale==previousTimeScale);
+                var panel=(Rect)viewType.GetProperty("PanelRect").GetValue(view);
+                var blocked=typeof(C.CharacterInputHandler).GetMethod("IsPointerBlocked",BindingFlags.Instance|BindingFlags.NonPublic);
+                var point=new Vector2(panel.center.x,Screen.height-panel.center.y);
+                Check("collapsed research button blocks real character pointer",(bool)blocked.Invoke(input,new object[]{point}));
+                Call(view,"SetMaskDebug",true);
+                Check("debug mask applied through renderer block",Read(a).GetFloat(mask)==1f);
+                Check("unrelated property block values survive debug",Read(a).GetVector(unrelated)==new Vector4(1,2,3,4));
+                Check("shared material reference is never instantiated or replaced",a.sharedMaterial==originalMaterial);
+                Call(view,"ShowAllLayers");
+                Check("all view includes originally disabled owned layer",a.enabled&&b.enabled&&c.enabled);
+                Check("foreign layer untouched by all view",foreign.GetComponent<TilemapRenderer>().enabled);
+                Call(view,"ShowBaseLayer");
+                Check("base layer follows sorting order rather than array index",!a.enabled&&b.enabled&&!c.enabled);
+                Check("invalid single layer selection rejected",!(bool)Call(view,"ShowSingleLayer",99));
+                Check("invalid selection leaves current view intact",!a.enabled&&b.enabled&&!c.enabled);
+                Check("foreign layer toggle refused",!(bool)Call(view,"SetLayerVisible",3,false)&&foreign.GetComponent<TilemapRenderer>().enabled);
+                Call(view,"ShowSingleLayer",2);
+                Check("single layer display is exclusive",!a.enabled&&!b.enabled&&c.enabled);
+                Call(view,"SetLayerVisible",0,true);
+                Check("individual layer toggle leaves others unchanged",a.enabled&&!b.enabled&&c.enabled);
+                Call(view,"SetEnemyAttacksAllowed",true);
+                Check("explicit opt in enables existing attack entry",enemy.AttacksEnabled);
+                // Invoke actual lifecycle callback: Edit fixtures must not assume a Play lifecycle was dispatched.
+                ((Behaviour)view).enabled=false; Call(view,"OnDisable");
+                Record("after View OnDisable",c);
+                Check("disable restores every original enabled value",!a.enabled&&b.enabled&&c.enabled);
+                Check("disable restores opaque property vector",Read(a).GetVector(unrelated)==new Vector4(1,2,3,4));
+                Check("disable restores original nonbinary mask value",Read(a).GetFloat(mask)==.375f);
+                Check("disable removes temporary block from originally empty renderer",!c.HasPropertyBlock());
+                var restoredB=Read(b);
+                Check("disable preserves native renderer block baseline",b.HasPropertyBlock()==nativeBHas&&restoredB.isEmpty==nativeB.isEmpty&&restoredB.HasProperty(mask)==nativeB.HasProperty(mask)&&restoredB.GetFloat(mask)==nativeB.GetFloat(mask));
+                Check("disable restores original enemy attack permission",enemy.AttacksEnabled);
+                Check("disable releases own pointer region",!(bool)blocked.Invoke(input,new object[]{point}));
+                Check("disable preserves another pointer region",(bool)blocked.Invoke(input,new object[]{new Vector2(2,Screen.height-2)}));
+                enemy.AttacksEnabled=false;
+                Call(view,"BeginObservation"); Call(view,"SetMaskDebug",true); Call(view,"ShowSingleLayer",0);
+                Call(view,"OnDestroy");
+                Record("after View OnDestroy",c);
+                Check("destroy restores original display and mask",!a.enabled&&b.enabled&&c.enabled&&Read(a).GetFloat(mask)==.375f&&!c.HasPropertyBlock());
+                restoredB=Read(b);
+                Check("destroy preserves native renderer block baseline",b.HasPropertyBlock()==nativeBHas&&restoredB.isEmpty==nativeB.isEmpty&&restoredB.HasProperty(mask)==nativeB.HasProperty(mask)&&restoredB.GetFloat(mask)==nativeB.GetFloat(mask));
+                Check("destroy preserves an originally attack-disabled enemy",!enemy.AttacksEnabled);
+                Call(view,"RestoreView");
+                Check("repeated cleanup is harmless",!a.enabled&&b.enabled&&c.enabled&&Read(a).GetFloat(mask)==.375f&&!enemy.AttacksEnabled);
+            }
+        }
+        catch(Exception error) { failed.Add("unexpected fixture error: "+error); }
+        finally
+        {
+            if(root!=null)UnityEngine.Object.DestroyImmediate(root);
+            if(outside!=null)UnityEngine.Object.DestroyImmediate(outside);
+            if(inputObject!=null)UnityEngine.Object.DestroyImmediate(inputObject);
+            if(enemyObject!=null)UnityEngine.Object.DestroyImmediate(enemyObject);
+        }
+        ctx.ReturnValue=new {passed=passed.Count,failed=failed.Count,passedCases=passed.ToArray(),failedCases=failed.ToArray(),diagnostics=diagnostics.ToArray(),complete=failed.Count==0};
+    }
+}

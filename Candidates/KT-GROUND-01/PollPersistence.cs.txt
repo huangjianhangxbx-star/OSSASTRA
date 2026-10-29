@@ -1,0 +1,2 @@
+using System;using System.Linq;using Funplay.Editor.Tools.Scripting;
+public class PollGroundPersistence:IFunplayCommand{public void Execute(ExecutionContext ctx){var t=AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType("FrontierActualScenePersistence")).LastOrDefault(v=>v!=null);ctx.ReturnValue=t==null?"MISSING":t.GetField("ResultJson").GetValue(null);}}
