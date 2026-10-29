@@ -8,6 +8,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 867457913940229902, guid: 2a4baec8ecf42fe48aa87131ff25476b, type: 3}
+      propertyPath: m_Materials.Array.data[0]
+      value: 
+      objectReference: {fileID: 2100000, guid: ecf8fcf357bd8d749902d35618c4f431, type: 2}
     - target: {fileID: 1229315862591467711, guid: 2a4baec8ecf42fe48aa87131ff25476b, type: 3}
       propertyPath: m_Mesh
       value: 
@@ -141,6 +145,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 6192985685758481215, guid: 2a4baec8ecf42fe48aa87131ff25476b, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1411051093071844742}
+    - targetCorrespondingSourceObject: {fileID: 6192985685758481215, guid: 2a4baec8ecf42fe48aa87131ff25476b, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1482614747522524026}
   m_SourcePrefab: {fileID: 100100000, guid: 2a4baec8ecf42fe48aa87131ff25476b, type: 3}
 --- !u!1 &429696829775739064 stripped
 GameObject:
@@ -167,6 +174,20 @@ MonoBehaviour:
     replacementMaterial: {fileID: 2100000, guid: ecf8fcf357bd8d749902d35618c4f431, type: 2}
   previousSkeletonRenderer: {fileID: 0}
   wasUpgradedTo43: 1
+--- !u!114 &1482614747522524026
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 429696829775739064}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 969d2eeeee0340d4695689a87012ce09, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  sourceRenderer: {fileID: 8720455089152761852}
+  layerSpacing: -0.0001
 --- !u!4 &796833518220900729 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 6559944253093188350, guid: 2a4baec8ecf42fe48aa87131ff25476b, type: 3}

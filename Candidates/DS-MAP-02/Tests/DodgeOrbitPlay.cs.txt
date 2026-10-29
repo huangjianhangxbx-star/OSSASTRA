@@ -1,0 +1,150 @@
+/* DS02/V10既有闪避转镜头真实Play：W+原Dodge绑定→自然PlayerLoop接受→一格鼠标滚轮。
+ * 边界：仅新Party研究场；Root先PrepareIsolated。无Dodge.Request、HP写入、手工Move/Advance/输入Update。
+ * 判定：只在原Dodge活动区间采样其身份/世界速度方向与实际相机yaw，不要求碰撞后的位移严格相等。
+ */
+using System;
+using System.Linq;
+using System.Reflection;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.Controls;
+using UnityEngine.InputSystem.LowLevel;
+using Ossastra.MapResearch;
+using C = Ossastra.Characters;
+using Funplay.Editor.Tools.Scripting;
+
+[DefaultExecutionOrder(930)]
+public sealed class Ds02DodgeOrbitPlay : MonoBehaviour
+{
+    public static object Result;
+    public static string Status = "not-started";
+    private readonly List<string> passed = new List<string>(), failed = new List<string>();
+    private readonly List<object> samples = new List<object>();
+    private MapResearchRoot map;
+    private C.CharacterControlCoordinator coordinator;
+    private C.CharacterRoot actor;
+    private C.CharacterDodge dodge;
+    private C.CharacterMovement movement;
+    private Keyboard keyboard;
+    private Mouse mouse;
+    private Key dodgeKey;
+    private Guid acceptedId;
+    private Vector3 frozenDirection, acceptedVelocity, startPosition;
+    private Quaternion rootRotation;
+    private object originalRuntime;
+    private int phase, enteredFrame, activeSamples, initialReleases;
+    private double began, enteredAt;
+    private float acceptedYaw, acceptedTarget, maximumActiveYawChange, minimumDirectionDot = 1;
+    private bool finished, disposed, stableIdentity = true, stableWorldDirection = true, yawChangedWhileActive;
+    private static float[] V(Vector3 value)=>new[]{value.x,value.y,value.z};
+    private static T[] InScene<T>(Scene scene) where T:Component=>UnityEngine.Object.FindObjectsOfType<T>(true).Where(x=>x.gameObject.scene==scene&&x.gameObject.activeInHierarchy).ToArray();
+    private void Check(string label,bool value){if(value)passed.Add(label);else failed.Add(label);}
+    private int Frames=>Time.frameCount-enteredFrame;
+    private double Elapsed=>Time.timeAsDouble-enteredAt;
+    private void Enter(int value){phase=value;enteredFrame=Time.frameCount;enteredAt=Time.timeAsDouble;Status="running-phase-"+phase;}
+    private void Keys(params Key[] values){if(keyboard!=null&&keyboard.added)InputSystem.QueueStateEvent(keyboard,new KeyboardState(values));}
+    private void MouseState(float scroll)
+    {
+        if(mouse!=null&&mouse.added)InputSystem.QueueStateEvent(mouse,new UnityEngine.InputSystem.LowLevel.MouseState
+            {position=new Vector2(Screen.width*.65f,Screen.height*.45f),scroll=new Vector2(0,scroll)});
+    }
+    private void Sample(string label)=>samples.Add(new
+    {
+        label,phase,frame=Time.frameCount,dt=Time.deltaTime,time=actor.SimulationTime,current=coordinator.Current?.ActorId,
+        dodgeActive=dodge.IsActive,dodgeId=dodge.ActionId.ToString("N"),velocity=V(dodge.MotionVelocity),position=V(actor.transform.position),
+        requestedVelocity=V(movement.RequestedVelocity),actualVelocity=V(movement.Velocity),
+        yaw=map.ActualYaw,targetYaw=map.TargetYaw,move=V(new Vector3(actor.DataBus.Input.move.x,0,actor.DataBus.Input.move.y)),
+        dodgeResult=dodge.LastResult,hasPlayerInput=actor.HasPlayerInput,rootRotationChange=Quaternion.Angle(rootRotation,actor.transform.rotation)
+    });
+    private void Start(){Result=null;began=Time.realtimeSinceStartupAsDouble;Enter(0);}
+    private void Update()
+    {
+        if(finished)return;
+        try
+        {
+            if(Time.realtimeSinceStartupAsDouble-began>20){failed.Add("20秒超时；未观察到的活动闪避/转镜头不计为通过");Finish();return;}
+            if(phase==0){if(Frames>=6)InitializeStory();return;}
+            if(phase==1)
+            {
+                if((Frames<8||!actor.HasPlayerInput||!actor.CanSimulateIntent||dodge.IsActive)&&Elapsed<3)return;
+                Check("prepared original Current is alive and lawfully ready for Dodge",actor.IsAlive&&actor.HasPlayerInput&&actor.CanSimulateIntent&&!dodge.IsActive);
+                if(failed.Count>0){Sample("blocked-precondition");Finish();return;}
+                Keys(Key.W,dodgeKey);Enter(2);Sample("real-w-plus-configured-dodge-queued");
+            }
+            else if(phase==2)
+            {
+                if(!dodge.IsActive&&Elapsed<1.5)return;
+                Check("real queued W plus configured binding starts original Dodge",dodge.IsActive&&dodge.ActionId!=Guid.Empty&&dodge.MotionVelocity.sqrMagnitude>.0001f);
+                if(!dodge.IsActive){Sample("dodge-not-started");Finish();return;}
+                acceptedId=dodge.ActionId;acceptedVelocity=dodge.MotionVelocity;frozenDirection=acceptedVelocity.normalized;
+                acceptedYaw=map.ActualYaw;acceptedTarget=map.TargetYaw;startPosition=actor.transform.position;
+                Keys(Key.W);MouseState(120);Enter(3);Sample("original-dodge-accepted-and-one-wheel-step-queued");
+            }
+            else if(phase==3)
+            {
+                if(dodge.IsActive)
+                {
+                    activeSamples++;
+                    stableIdentity&=dodge.ActionId==acceptedId;
+                    var velocity=dodge.MotionVelocity;
+                    var dot=velocity.sqrMagnitude>.0001f?Vector3.Dot(velocity.normalized,frozenDirection):-1;
+                    minimumDirectionDot=Mathf.Min(minimumDirectionDot,dot);stableWorldDirection&=dot>.9999f;
+                    var yawChange=Mathf.Abs(Mathf.DeltaAngle(acceptedYaw,map.ActualYaw));
+                    maximumActiveYawChange=Mathf.Max(maximumActiveYawChange,yawChange);yawChangedWhileActive|=yawChange>.5f;
+                    Sample("active-dodge-with-live-camera");
+                    if(Elapsed<dodge.Duration+1)return;
+                }
+                Keys();MouseState(0);
+                Check("one actual wheel request changes target by exactly 45 degrees",Mathf.Abs(Mathf.Abs(Mathf.DeltaAngle(acceptedTarget,map.TargetYaw))-45)<.01f);
+                Check("actual gameplay camera yaw changes during active Dodge",activeSamples>0&&yawChangedWhileActive);
+                Check("original Dodge ActionId is not restarted by orbit input",activeSamples>0&&stableIdentity&&dodge.ActionId==acceptedId);
+                Check("accepted world MotionVelocity direction stays frozen while camera turns",activeSamples>0&&stableWorldDirection&&minimumDirectionDot>.9999f);
+                Check("original finite Dodge finishes naturally",!dodge.IsActive);
+                Check("orbit preserves original action runtime and physical root orientation",ReferenceEquals(originalRuntime,actor.StateArbitrator.Combat.Runtime)&&Quaternion.Angle(rootRotation,actor.transform.rotation)<.001f);
+                Check("Dodge and orbit produce no synthetic main-action release",actor.ReleaseCount==initialReleases);
+                Sample("dodge-finished");Finish();
+            }
+        }
+        catch(Exception error){failed.Add("unexpected probe error: "+error);Finish();}
+    }
+    private void InitializeStory()
+    {
+        var scene=SceneManager.GetActiveScene();map=InScene<MapResearchRoot>(scene).Single();coordinator=InScene<C.CharacterControlCoordinator>(scene).Single();actor=coordinator.Current;
+        Check("prepared Party scene has original lawful Current and view",actor!=null&&actor.IsAlive&&actor.DataBus!=null&&map.IsValid&&!map.IsStructureMode&&Application.isFocused);
+        if(failed.Count>0){Finish();return;}
+        dodge=actor.GetComponent<C.CharacterDodge>();movement=actor.GetComponent<C.CharacterMovement>();
+        Check("existing original Dodge and motor are enabled",dodge!=null&&dodge.isActiveAndEnabled&&movement!=null&&movement.isActiveAndEnabled);
+        if(failed.Count>0){Finish();return;}
+        originalRuntime=actor.StateArbitrator.Combat.Runtime;initialReleases=actor.ReleaseCount;rootRotation=actor.transform.rotation;
+        keyboard=InputSystem.AddDevice<Keyboard>();mouse=InputSystem.AddDevice<Mouse>();Keys();MouseState(0);
+        var input=actor.GetComponent<C.CharacterInputHandler>();
+        var control=input.dodgeAction.controls.OfType<KeyControl>().FirstOrDefault(x=>x.device==keyboard);
+        Check("Dodge key is read from actual configured keyboard controls",control!=null&&input.movementAction.controls.OfType<KeyControl>().Any(x=>x.device==keyboard&&x.keyCode==Key.W));
+        if(control==null){Finish();return;}
+        dodgeKey=control.keyCode;Enter(1);Sample("initialized");
+    }
+    private void Finish()
+    {
+        if(finished)return;finished=true;Cleanup();Status=failed.Count==0?"PASSED":"FAILED";
+        Result=new{finished=true,status=Status,passed=passed.Count,failed=failed.Count,passedCases=passed.ToArray(),failedCases=failed.ToArray(),
+            elapsedRealSeconds=Time.realtimeSinceStartupAsDouble-began,configuredDodgeKey=dodgeKey.ToString(),acceptedId=acceptedId.ToString("N"),acceptedVelocity=V(acceptedVelocity),
+            activeSamples,minimumDirectionDot,maximumActiveYawChange,acceptedYaw,acceptedTarget,positionAtAccept=V(startPosition),samples=samples.ToArray(),
+            boundary="V10 existing Dodge only; samples original accepted world MotionVelocity and identity during actual orbit; collision displacement deliberately not required to equal requested travel",
+            inputMethod="W + actual configured Dodge keyboard key, then W held and one virtual Mouse scroll=120 event, consumed by natural PlayerLoop; no Dodge.Request, Move, Advance or InputSystem.Update calls"};
+        enabled=false;
+    }
+    private void Cleanup(){if(disposed)return;disposed=true;if(keyboard!=null&&keyboard.added)InputSystem.RemoveDevice(keyboard);if(mouse!=null&&mouse.added)InputSystem.RemoveDevice(mouse);}
+    private void OnDestroy(){if(!finished){failed.Add("probe destroyed before story completed");Finish();}else Cleanup();}
+}
+public sealed class StartDs02DodgeOrbitPlay:IFunplayCommand
+{
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+    {
+        if(!Application.isPlaying||SceneManager.GetActiveScene().path!="Assets/OSSASTRA/Scenes/Research/SC_DontStarvePartyCombatLab.unity")throw new InvalidOperationException("仅限已PrepareIsolated的新Party场Play。");
+        if(UnityEngine.Object.FindObjectsOfType<MonoBehaviour>(true).Any(x=>x!=null&&x.GetType().FullName==typeof(Ds02DodgeOrbitPlay).FullName&&x.isActiveAndEnabled))throw new InvalidOperationException("已有活动Dodge/Orbit探针");
+        var host=new GameObject("DS02_DodgeOrbitPlayProbe");host.hideFlags=HideFlags.DontSaveInEditor|HideFlags.DontSaveInBuild;ctx.RegisterObjectCreation(host);host.AddComponent<Ds02DodgeOrbitPlay>();
+        ctx.ReturnValue=new{installed=true,pollType="Ds02DodgeOrbitPlay",resultField="Result",statusField="Status",scope="V10实际Dodge身份/冻结世界速度与45度镜头自然时序；通常约2秒，20秒硬超时"};
+    }
+}

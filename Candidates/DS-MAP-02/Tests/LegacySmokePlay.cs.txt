@@ -1,0 +1,239 @@
+/* DS02/V20旧场最小真实Play回归：原输入→Root移动/一次普攻事实，Commerce另测原切控/世界跟随。
+ * 边界：精确路径白名单；无HP写入、合成Release、手工Advance/InputSystem.Update、文件IO或资产改写。
+ * 隔离：暂关敌攻击和交战观察，调用原Cancel/输入重武装清理安装前手势；结束还原开关、移除虚拟设备。
+ * 不重置生命；初始死亡/失焦会明确拒绝。真实位移/动作属于Play现场，结束应退出重开已存旧场。
+ */
+using System;
+using System.Linq;
+using System.Reflection;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.Controls;
+using UnityEngine.InputSystem.LowLevel;
+using Ossastra.CharacterCore;
+using Ossastra.Combat;
+using Ossastra.MapResearch;
+using Ossastra.Characters.ViewSpace;
+using C = Ossastra.Characters;
+using E = Ossastra.Enemies;
+using Funplay.Editor.Tools.Scripting;
+
+[DefaultExecutionOrder(920)]
+public sealed class Ds02LegacySmokePlay : MonoBehaviour
+{
+    public static object Result;
+    public static string Status = "not-started";
+    private const string MapPath = "Assets/OSSASTRA/Scenes/Research/SC_DontStarveMapLab.unity";
+    private const string CommercePath = "Assets/OSSASTRA/Scenes/SC_CommerceIntegration.unity";
+    private readonly List<string> passed = new List<string>(), failed = new List<string>(), notApplicable = new List<string>();
+    private readonly List<object> samples = new List<object>(), actionFacts = new List<object>();
+    private readonly Dictionary<Guid,int> accepted = new Dictionary<Guid,int>(), released = new Dictionary<Guid,int>();
+    private readonly List<EnemyState> enemyBefore = new List<EnemyState>();
+    private readonly List<EngagementState> engagementBefore = new List<EngagementState>();
+    private sealed class EnemyState { public E.EnemyRoot root; public bool attacks; }
+    private sealed class EngagementState { public CombatEngagementSession value; public bool enabled; }
+    private C.CharacterRoot a,b;
+    private C.CharacterControlCoordinator coordinator;
+    private C.CompanionFollowDirector follow;
+    private MapResearchRoot map;
+    private Keyboard keyboard;
+    private Mouse mouse;
+    private Camera gameplayCamera;
+    private Key switchKey;
+    private Scene scene;
+    private Vector3 startA, startB, expected, aimWorld;
+    private Quaternion originalRootRotation;
+    private Health originalHealth;
+    private object originalBus, originalRuntime;
+    private int phase, enteredFrame, samplesCount, startReleases, keyboardPressFrame = -1, mousePressFrame = -1;
+    private double began, enteredAt;
+    private bool finished, disposed, subscribed, mouseDown, commerce, followMoved, solePlayer = true;
+    private object initial;
+    private static float[] V(Vector3 value) => new[] { value.x,value.y,value.z };
+    private static T[] InScene<T>(Scene value) where T:Component => UnityEngine.Object.FindObjectsOfType<T>(true).Where(x=>x.gameObject.scene==value&&x.gameObject.activeInHierarchy).ToArray();
+    private void Check(string label,bool value) { if(value)passed.Add(label);else failed.Add(label); }
+    private int Frames=>Time.frameCount-enteredFrame;
+    private double Elapsed=>Time.timeAsDouble-enteredAt;
+    private void Enter(int value){phase=value;enteredFrame=Time.frameCount;enteredAt=Time.timeAsDouble;Status="running-phase-"+phase;}
+    private void Keys(params Key[] values){if(keyboard!=null&&keyboard.added)InputSystem.QueueStateEvent(keyboard,new KeyboardState(values));}
+    private void QueueMouse()
+    {
+        if(mouse==null||!mouse.added)return;
+        var point=gameplayCamera!=null?gameplayCamera.WorldToScreenPoint(aimWorld):new Vector3(Screen.width*.55f,Screen.height*.5f,1);
+        InputSystem.QueueStateEvent(mouse,new MouseState{position=new Vector2(point.x,point.y),buttons=mouseDown?(ushort)1:(ushort)0});
+    }
+    private void OnFact(ActionFact fact)
+    {
+        actionFacts.Add(new{frame=Time.frameCount,phase,kind=fact.Kind.ToString(),id=fact.ActionId.ToString("N"),fact.Source,fact.At,fact.Reason});
+        if(fact.Kind==ActionFactKind.Accepted){accepted.TryGetValue(fact.ActionId,out var count);accepted[fact.ActionId]=count+1;}
+        if(fact.Kind==ActionFactKind.Released){released.TryGetValue(fact.ActionId,out var count);released[fact.ActionId]=count+1;}
+    }
+    private void Sample(string label)
+    {
+        var adapter=a.GetComponent<CharacterViewSpaceAdapter>();
+        samples.Add(new{label,phase,frame=Time.frameCount,current=coordinator==null?a.ActorId:coordinator.Current?.ActorId,
+            a=V(a.transform.position),b=b==null?null:V(b.transform.position),aHp=a.Vitals?.Health?.Current,bHp=b?.Vitals?.Health?.Current,
+            aInput=a.HasPlayerInput,bInput=b!=null&&b.HasPlayerInput,aKind=a.EffectiveIntentKind.ToString(),bKind=b?.EffectiveIntentKind.ToString(),
+            aLast=a.LastFact,aRelease=a.ReleaseCount,aAction=a.DataBus.ActionId.ToString("N"),aAttackBlocked=a.GetComponent<C.CharacterInputHandler>().CurrentFrame.attackPointerBlocked,
+            mapPresent=map!=null,mapValid=map!=null&&map.IsValid,viewEffective=adapter!=null&&adapter.IsEffective,
+            direction=V(a.LogicalDirection),viewDirection=V(a.DataBus.ViewPresentationDirection),yaw=map==null?(float?)null:map.ActualYaw,
+            followReason=b?.Follow?.Observe().Reason});
+    }
+    private void Start(){Result=null;began=Time.realtimeSinceStartupAsDouble;Enter(0);}
+    private void Update()
+    {
+        if(finished)return;
+        try
+        {
+            if(Time.realtimeSinceStartupAsDouble-began>20){failed.Add("20秒前置/输入故事超时，未完成阶段不算通过");Finish();return;}
+            if(mouseDown&&Time.frameCount>mousePressFrame)mouseDown=false;
+            if(keyboardPressFrame>=0&&Time.frameCount>keyboardPressFrame){Keys();keyboardPressFrame=-1;}
+            if(phase>0)
+            {
+                samplesCount++;
+                if(coordinator!=null)solePlayer&=coordinator.Characters.Count(x=>x!=null&&x.HasPlayerInput)<=1;
+            }
+            TickStory();
+        }
+        catch(Exception error){failed.Add("unexpected probe error: "+error);Finish();}
+        finally{if(!finished)QueueMouse();}
+    }
+    private void TickStory()
+    {
+        if(phase==0){if(Frames>=6)InitializeStory();return;}
+        if(phase==1)
+        {
+            if((!a.CanSimulateIntent||!a.HasPlayerInput||Frames<8)&&Elapsed<4)return;
+            Check("original current is alive, focused and has lawful input",a.IsAlive&&a.CanSimulateIntent&&a.HasPlayerInput);
+            if(failed.Count>0){Sample("blocked-initial-precondition");Finish();return;}
+            startA=a.transform.position;startB=b==null?Vector3.zero:b.transform.position;
+            expected=map!=null&&a.GetComponent<CharacterViewSpaceAdapter>()?.IsEffective==true?map.ViewForward:Vector3.forward;
+            Keys(Key.W);Enter(2);Sample("movement-start");
+        }
+        else if(phase==2)
+        {
+            if(b!=null)
+            {
+                var move=b.DataBus.Input.move;var velocity=b.DataBus.Velocity;
+                if(move.sqrMagnitude>.01f&&velocity.sqrMagnitude>.01f)
+                    followMoved|=b.EffectiveIntentKind==CharacterIntentKind.Companion&&Vector3.Dot(new Vector3(move.x,0,move.y).normalized,velocity.normalized)>.8f;
+            }
+            if(Elapsed<.5)return;
+            var delta=a.transform.position-startA;delta.y=0;
+            Check("actual configured W moves original Root through its motor",delta.magnitude>.05f&&Vector3.Dot(delta.normalized,expected)>.8f);
+            if(commerce)
+            {
+                Check("original companion director remains available",follow!=null&&follow.IsAvailable&&b.Follow!=null);
+                Check("non-current uses original world-space follow and actually travels",followMoved&&!b.HasPlayerInput&&Vector3.Distance(startB,b.transform.position)>.05f);
+            }
+            Keys();Enter(3);Sample("movement-end");
+        }
+        else if(phase==3&&Frames>=5)
+        {
+            startReleases=a.ReleaseCount;aimWorld=a.transform.position+Vector3.right*1.2f;
+            a.ActionObserved+=OnFact;subscribed=true;mouseDown=true;mousePressFrame=Time.frameCount;
+            Enter(4);Sample("actual-click-queued");
+        }
+        else if(phase==4)
+        {
+            if(released.Count==0&&Elapsed<3)return;
+            Check("one real click yields one original Accepted and Released identity",accepted.Count==1&&released.Count==1&&accepted.Single().Value==1&&released.Single().Value==1&&accepted.Single().Key!=Guid.Empty&&accepted.Single().Key==released.Single().Key);
+            Check("original release counter increments once",a.ReleaseCount-startReleases==1);
+            a.ActionObserved-=OnFact;subscribed=false;
+            if(map!=null)
+            {
+                var adapter=a.GetComponent<CharacterViewSpaceAdapter>();
+                Check("legacy single participant map remains correctly registered and effective",map.IsValid&&map.sessionComponent==null&&map.participantComponent==a&&adapter!=null&&adapter.IsEffective&&ReferenceEquals(adapter.ContextOwner,map));
+            }
+            Sample("attack-observed");
+            if(!commerce){CompleteChecks();Finish();return;}
+            var control=coordinator.switchAction.controls.OfType<KeyControl>().FirstOrDefault(x=>x.device==keyboard);
+            if(control==null)throw new InvalidOperationException("原SwitchCharacter Action没有虚拟键盘绑定");
+            switchKey=control.keyCode;keyboardPressFrame=Time.frameCount;Keys(switchKey);Enter(5);
+        }
+        else if(phase==5)
+        {
+            if(coordinator.Current!=b&&Elapsed<2)return;
+            Check("actual original switch binding transfers Current to second root",coordinator.Current==b);
+            Enter(6);Sample("switch-observed");
+        }
+        else if(phase==6&&Frames>=5)
+        {
+            Check("switch leaves exactly one lawful original player input",coordinator.Current==b&&b.HasPlayerInput&&!a.HasPlayerInput&&coordinator.IsIntentSamplingAllowed&&solePlayer);
+            Check("second original Root is initialized and capable after handover",b.DataBus!=null&&b.StateArbitrator?.Combat?.Runtime!=null&&b.CanSimulateIntent);
+            Sample("handover-settled");CompleteChecks();Finish();
+        }
+    }
+    private void CompleteChecks()
+    {
+        Check("smoke retains original Health, DataBus and action runtime",ReferenceEquals(originalHealth,a.Vitals?.Health)&&ReferenceEquals(originalBus,a.DataBus)&&ReferenceEquals(originalRuntime,a.StateArbitrator.Combat.Runtime));
+        Check("view/input regression does not rotate physical root",Quaternion.Angle(originalRootRotation,a.transform.rotation)<.001f);
+        Check("sampled frames never grant two player owners",solePlayer);
+    }
+    private void InitializeStory()
+    {
+        scene=SceneManager.GetActiveScene();commerce=scene.path==CommercePath;
+        if(scene.path!=MapPath&&!commerce)throw new InvalidOperationException("拒绝非旧场精确白名单："+scene.path);
+        var roots=InScene<C.CharacterRoot>(scene);var groups=InScene<C.CharacterControlCoordinator>(scene);var maps=InScene<MapResearchRoot>(scene);
+        Check("legacy source has its expected original actor/control arrangement",commerce?roots.Length==2&&groups.Length==1:roots.Length==1&&maps.Length==1);
+        if(failed.Count>0){Finish();return;}
+        coordinator=groups.SingleOrDefault();map=maps.SingleOrDefault();a=coordinator!=null?coordinator.Current:roots[0];
+        b=coordinator==null?null:coordinator.Characters.FirstOrDefault(x=>x!=a);
+        initial=new{scene=scene.path,frame=Time.frameCount,focus=Application.isFocused,current=coordinator==null?a?.ActorId:coordinator.Current?.ActorId,
+            actors=roots.Select(x=>new{x.ActorId,alive=x.IsAlive,hp=x.Vitals?.Health?.Current,ready=x.DataBus!=null}).ToArray(),mapPresent=map!=null,
+            originalSwitchBinding=coordinator?.switchAction?.GetBindingDisplayString()};
+        Check("initial original actors are alive with registered data and real focus",Application.isFocused&&a!=null&&a.IsAlive&&a.DataBus!=null&&(!commerce||b!=null&&b.IsAlive&&b.DataBus!=null));
+        if(failed.Count>0){Finish();return;}
+        if(map==null)notApplicable.Add("此旧场未装Map：单参与者Map/ViewSpace有效性不适用；移动仍检验原世界输入路径");
+        if(!commerce)notApplicable.Add("原单人Map场无双人切控要求；Commerce专门检验原切控与伙伴跟随");
+        if(map!=null&&map.IsStructureMode)map.SetStructureMode(false);
+        foreach(var foe in InScene<E.EnemyRoot>(scene)){enemyBefore.Add(new EnemyState{root=foe,attacks=foe.AttacksEnabled});foe.AttacksEnabled=false;}
+        foreach(var value in InScene<CombatEngagementSession>(scene)){engagementBefore.Add(new EngagementState{value=value,enabled=value.enabled});value.enabled=false;}
+        foreach(var root in roots){root.CancelAction("legacy-smoke-setup");root.GetComponent<C.CharacterInputHandler>().ResetPlayerInput(true);}
+        originalHealth=a.Vitals?.Health;originalBus=a.DataBus;originalRuntime=a.StateArbitrator.Combat.Runtime;originalRootRotation=a.transform.rotation;
+        gameplayCamera=map!=null?map.gameplayCamera:FieldCamera(a)??Camera.main;
+        keyboard=InputSystem.AddDevice<Keyboard>();mouse=InputSystem.AddDevice<Mouse>();Keys();
+        var input=a.GetComponent<C.CharacterInputHandler>();
+        Check("actual legacy input actions bind W and Mouse.leftButton on test devices",input.movementAction.controls.OfType<KeyControl>().Any(x=>x.device==keyboard&&x.keyCode==Key.W)&&input.rightHandAction.controls.Any(x=>x==mouse.leftButton));
+        if(commerce)
+        {
+            follow=InScene<C.CompanionFollowDirector>(scene).SingleOrDefault(x=>x.Coordinator==coordinator);
+            if(b.Follow!=null)b.GetComponent<C.CharacterMovement>().Teleport(a.transform.position-Vector3.right*(b.Follow.StartDistance+1));
+        }
+        aimWorld=a.transform.position+Vector3.right*1.2f;Enter(1);Sample("initialized");
+    }
+    private static Camera FieldCamera(C.CharacterRoot root)=>typeof(C.CharacterRoot).GetField("viewCamera",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(root)as Camera;
+    private void Finish()
+    {
+        if(finished)return;finished=true;Cleanup();Status=failed.Count==0?"PASSED":"FAILED";
+        Result=new{finished=true,status=Status,scene=scene.path,passed=passed.Count,failed=failed.Count,passedCases=passed.ToArray(),failedCases=failed.ToArray(),notApplicable=notApplicable.ToArray(),
+            initial,sampledFrames=samplesCount,elapsedRealSeconds=Time.realtimeSinceStartupAsDouble-began,samples=samples.ToArray(),facts=actionFacts.ToArray(),requiresSceneReload=true,
+            boundary="V20 shared-character compatibility smoke only; not full commerce/economy, enemy AI, UI or multi-skill regression; no HP restore/write; optional Map absent is explicitly not applicable",
+            setup="cached/restored enemy attacks and engagement; original CancelAction/input-neutral setup; Commerce original Movement.Teleport places follower beyond its original follow threshold; real queued Keyboard/Mouse only"};
+        enabled=false;
+    }
+    private void Cleanup()
+    {
+        if(disposed)return;disposed=true;
+        if(subscribed&&a!=null){a.ActionObserved-=OnFact;subscribed=false;}
+        if(keyboard!=null&&keyboard.added)InputSystem.RemoveDevice(keyboard);
+        if(mouse!=null&&mouse.added)InputSystem.RemoveDevice(mouse);
+        foreach(var item in engagementBefore)if(item.value!=null)item.value.enabled=item.enabled;
+        foreach(var item in enemyBefore)if(item.root!=null)item.root.AttacksEnabled=item.attacks;
+    }
+    private void OnDestroy(){if(!finished){failed.Add("probe destroyed before completing smoke");Finish();}else Cleanup();}
+}
+public sealed class StartDs02LegacySmokePlay:IFunplayCommand
+{
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+    {
+        string path=SceneManager.GetActiveScene().path;
+        if(!Application.isPlaying||(path!="Assets/OSSASTRA/Scenes/Research/SC_DontStarveMapLab.unity"&&path!="Assets/OSSASTRA/Scenes/SC_CommerceIntegration.unity"))
+            throw new InvalidOperationException("只允许已存旧DontStarveMapLab或CommerceIntegration进入Play后运行，保持真实焦点。");
+        if(UnityEngine.Object.FindObjectsOfType<MonoBehaviour>(true).Any(x=>x!=null&&x.GetType().FullName==typeof(Ds02LegacySmokePlay).FullName&&x.isActiveAndEnabled))throw new InvalidOperationException("已有活动旧场探针");
+        var host=new GameObject("DS02_LegacySmokePlayProbe");host.hideFlags=HideFlags.DontSaveInEditor|HideFlags.DontSaveInBuild;ctx.RegisterObjectCreation(host);host.AddComponent<Ds02LegacySmokePlay>();
+        ctx.ReturnValue=new{installed=true,pollType="Ds02LegacySmokePlay",resultField="Result",statusField="Status",scope="移动/一次原普攻；Commerce加切控和世界跟随；可选Map按实际装配报告",requiresSceneReload=true};
+    }
+}

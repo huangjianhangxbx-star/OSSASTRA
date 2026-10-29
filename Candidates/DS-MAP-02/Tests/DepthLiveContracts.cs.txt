@@ -1,0 +1,259 @@
+/* 研究深度策略真实生命周期/有限整场性能合同；只由自然LateUpdate推进。
+ * 不Advance/Move/Render、不创建Mesh/Material、不写盘/资产；仅临时切换非Current的本研究policy。
+ * 时序包含本夹具和整个Editor场景开销，不能解读为单组件成本或目标硬件性能认证。
+ */
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using Funplay.Editor.Tools.Scripting;
+using Ossastra.MapResearchIntegration;
+using Ossastra.MapResearchIntegration.Diagnostics;
+using Ossastra.MapResearchIntegration.Rendering;
+using Spine.Unity;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+
+public sealed class StartDepthLiveContracts : IFunplayCommand
+{
+    public void Execute(ExecutionContext ctx)
+    {
+        if (!Application.isPlaying) { ctx.ReturnValue = "requires Play"; return; }
+        if (UnityEngine.Object.FindObjectsOfType<DepthLiveContractsProbe>(true).Length != 0)
+        { ctx.ReturnValue = "probe already running; inspect DepthLiveContractsProbe.Result"; return; }
+        DepthLiveContractsProbe.Result = null;
+        var go = new GameObject("DS02_DepthLiveContracts_Transient"); ctx.RegisterObjectCreation(go);
+        go.AddComponent<DepthLiveContractsProbe>().Initialize();
+        ctx.ReturnValue = "Started 200 natural LateUpdate frames plus bounded policy lifecycle; read DepthLiveContractsProbe.Result";
+    }
+}
+
+[DefaultExecutionOrder(2100)]
+public sealed class DepthLiveContractsProbe : MonoBehaviour
+{
+    public static object Result;
+    private sealed class Body
+    {
+        public MapResearchSpineDepth policy;
+        public SkeletonRenderer renderer;
+        public MeshFilter filter;
+        public string name;
+        public int events, invalidBounds, outOfBounds, sampled;
+        public readonly List<Vector3> vertices = new List<Vector3>(1024);
+        public float[] lastCenter, lastExtents;
+    }
+    private Body[] bodies;
+    private Body selected;
+    private MapResearchPartyBridge bridge;
+    private MapFlickerTraceRecorder[] recorders;
+    private Scene scene;
+    private readonly List<string> passed = new List<string>(), failed = new List<string>();
+    private readonly List<GameObject> roots = new List<GameObject>(64);
+    private readonly List<Renderer> renderers = new List<Renderer>(256);
+    private readonly List<Material> materials = new List<Material>(16);
+    private readonly HashSet<int> currentRenderers = new HashSet<int>(), currentMaterials = new HashSet<int>();
+    private readonly HashSet<int> baselineRenderers = new HashSet<int>(), baselineMaterials = new HashSet<int>();
+    private readonly HashSet<int> addedRenderers = new HashSet<int>(), addedMaterials = new HashSet<int>();
+    private readonly double[] dtMs = new double[200];
+    private int stage, enteredFrame, measured, eventsBefore;
+    private double beganAt, sampleStart, sampleEnd;
+    private bool initialized, disposed, touched, originalEnabled, cleanupRestored, traceStayedOff = true;
+    private string lifecycleActorId, lifecycleCurrentId;
+    private const float Spacing = -.0001f;
+    private const float ForeignSpacing = .0002f;
+
+    public void Initialize()
+    {
+        beganAt = Time.realtimeSinceStartupAsDouble;
+        try
+        {
+            bridge = UnityEngine.Object.FindObjectsOfType<MapResearchPartyBridge>().Single(); scene = bridge.gameObject.scene;
+            if (bridge.coordinator == null || bridge.coordinator.Current == null) throw new InvalidOperationException("Original coordinator/current missing");
+            var policies = UnityEngine.Object.FindObjectsOfType<MapResearchSpineDepth>(true).Where(x => x.gameObject.scene == scene).ToArray();
+            if (policies.Length != 3) throw new InvalidOperationException("Expected exactly three explicit body policies; actual=" + policies.Length);
+            recorders = UnityEngine.Object.FindObjectsOfType<MapFlickerTraceRecorder>(true).Where(x => x.gameObject.scene == scene).ToArray();
+            if (recorders.Any(x => x.IsTracing))
+                throw new InvalidOperationException("Recorder must already be off; fixture will not revoke another owner's tracing");
+            bodies = policies.Select(policy => new Body
+            {
+                policy = policy, renderer = policy.sourceRenderer, filter = policy.GetComponent<MeshFilter>(),
+                name = Label(policy)
+            }).ToArray();
+            foreach (var body in bodies)
+            {
+                if (!body.policy.isActiveAndEnabled || body.renderer == null || body.renderer.gameObject != body.policy.gameObject || body.filter == null)
+                    throw new InvalidOperationException("Policy must be active and explicitly reference same-GO renderer: " + body.name);
+                if (!body.policy.IsBound || !Near(body.policy.layerSpacing, Spacing) || !Near(body.renderer.zSpacing, Spacing))
+                    throw new InvalidOperationException("Policy spacing/binding not ready: " + body.name);
+                body.renderer.OnMeshAndMaterialsUpdated += MeshReady;
+            }
+            Check("three explicit same-GO body policies bound at candidate spacing", true);
+            Check("trace is off before finite timing sample", true);
+            initialized = true; Enter(0);
+        }
+        catch (Exception error) { failed.Add("precondition: " + error.Message); Finish(); }
+    }
+
+    private static bool Near(float a, float b) => Mathf.Abs(a - b) < .0000001f;
+    private static float[] V(Vector3 value) => new[] { value.x, value.y, value.z };
+    private static string Label(MapResearchSpineDepth policy)
+    {
+        var character = policy.GetComponentInParent<Ossastra.Characters.CharacterRoot>();
+        var enemy = policy.GetComponentInParent<Ossastra.Enemies.EnemyRoot>();
+        return (character != null ? character.ActorId : enemy != null ? enemy.ActorId : policy.transform.root.name) + "/" + policy.name;
+    }
+    private void Check(string label, bool value) { if (value) passed.Add(label); else failed.Add(label); }
+    private void Enter(int value) { stage = value; enteredFrame = Time.frameCount; }
+    private void MeshReady(ISkeletonRenderer renderer)
+    { if (bodies != null) foreach (var body in bodies) if (ReferenceEquals(body.renderer, renderer)) { body.events++; return; } }
+
+    private void LateUpdate()
+    {
+        if (!initialized || disposed) return;
+        try
+        {
+            if (Time.realtimeSinceStartupAsDouble - beganAt > 30) throw new TimeoutException("Natural-frame test exceeded 30 realtime seconds");
+            if (stage == 0)
+            {
+                if (Time.frameCount - enteredFrame < 3) return;
+                ReadSceneIds(); baselineRenderers.UnionWith(currentRenderers); baselineMaterials.UnionWith(currentMaterials); Enter(1);
+                return;
+            }
+            if (stage == 1)
+            {
+                if (measured == 0) sampleStart = Time.realtimeSinceStartupAsDouble;
+                sampleEnd = Time.realtimeSinceStartupAsDouble;
+                dtMs[measured++] = Time.unscaledDeltaTime * 1000.0;
+                foreach (var recorder in recorders) if (recorder != null && recorder.IsTracing) traceStayedOff = false;
+                foreach (var body in bodies) ValidateBounds(body);
+                ReadSceneIds();
+                foreach (int id in currentRenderers) if (!baselineRenderers.Contains(id)) addedRenderers.Add(id);
+                foreach (int id in currentMaterials) if (!baselineMaterials.Contains(id)) addedMaterials.Add(id);
+                if (measured < 200) return;
+                foreach (var body in bodies)
+                {
+                    Check(body.name + " native bounds remain nonnegative through 200 frames", body.invalidBounds == 0 && body.sampled == 200);
+                    Check(body.name + " native bounds contain every actual mesh vertex", body.outOfBounds == 0 && body.sampled == 200);
+                    Check(body.name + " receives natural formal mesh events", body.events > 0);
+                }
+                Check("scene-owned renderer IDs do not grow during 200 frames", addedRenderers.Count == 0);
+                Check("scene-owned shared material IDs do not grow during 200 frames", addedMaterials.Count == 0);
+                Check("tracing stays off during 200-frame timing sample", traceStayedOff);
+                var nonCurrent = bridge.characters.FirstOrDefault(x => x != null && x.IsAlive && x != bridge.coordinator.Current);
+                if (nonCurrent == null) throw new InvalidOperationException("No live non-current body for lifecycle; reset encounter before retrying");
+                selected = bodies.Single(x => x.policy.transform.IsChildOf(nonCurrent.transform)); originalEnabled = selected.policy.enabled;
+                lifecycleActorId = nonCurrent.ActorId; lifecycleCurrentId = bridge.coordinator.Current == null ? "none" : bridge.coordinator.Current.ActorId;
+                touched = true; eventsBefore = selected.events; selected.policy.enabled = false;
+                Check("non-current policy disable releases binding", !selected.policy.IsBound);
+                Check("non-current policy disable restores original zero spacing", Near(selected.renderer.zSpacing, 0));
+                Enter(2); return;
+            }
+            if (Time.frameCount - enteredFrame < 3) return;
+            if (stage == 2)
+            {
+                Check("disabled policy leaves natural skeleton mesh generation running", selected.events > eventsBefore);
+                Check("disabled policy leaves original zero spacing", Near(selected.renderer.zSpacing, 0));
+                eventsBefore = selected.events; selected.policy.enabled = true;
+                Check("reenable binds and reapplies tiny spacing", selected.policy.IsBound && Near(selected.renderer.zSpacing, Spacing));
+                Enter(3); return;
+            }
+            if (stage == 3)
+            {
+                Check("reenabled policy sees newly generated mesh", selected.events > eventsBefore);
+                Check("reenabled policy repairs actual native bounds", BoundsValid(selected));
+                selected.renderer.zSpacing = ForeignSpacing; selected.policy.enabled = false;
+                Check("disable does not overwrite another writer's different spacing", Near(selected.renderer.zSpacing, ForeignSpacing) && !selected.policy.IsBound);
+                // 本场Renderer序列化原值为0；重新启用时让policy重新取得同一运行期所有权。
+                selected.renderer.zSpacing = 0; selected.policy.enabled = originalEnabled; eventsBefore = selected.events;
+                Enter(4); return;
+            }
+            if (stage == 4)
+            {
+                Check("restored original enable state rebinds at tiny spacing", selected.policy.enabled == originalEnabled && selected.policy.IsBound && Near(selected.renderer.zSpacing, Spacing));
+                Check("restored policy has natural mesh and valid bounds", selected.events > eventsBefore && BoundsValid(selected));
+                Finish();
+            }
+        }
+        catch (Exception error) { failed.Add("runtime: " + error); Finish(); }
+    }
+
+    private void ValidateBounds(Body body)
+    {
+        BoundsValid(body); body.sampled++;
+    }
+    private bool BoundsValid(Body body)
+    {
+        body.vertices.Clear();
+        var mesh = body.filter == null ? null : body.filter.sharedMesh;
+        if (mesh == null || mesh.vertexCount == 0) { body.invalidBounds++; return false; }
+        Bounds bounds = mesh.bounds; body.lastCenter = V(bounds.center); body.lastExtents = V(bounds.extents);
+        Vector3 extents = bounds.extents;
+        if (!Finite(bounds.center.x) || !Finite(bounds.center.y) || !Finite(bounds.center.z) || !Finite(extents.x) || !Finite(extents.y) || !Finite(extents.z) || extents.x < 0 || extents.y < 0 || extents.z < 0)
+        { body.invalidBounds++; return false; }
+        mesh.GetVertices(body.vertices);
+        foreach (Vector3 vertex in body.vertices)
+        {
+            Vector3 offset = vertex - bounds.center;
+            if (!Finite(vertex.x) || !Finite(vertex.y) || !Finite(vertex.z) || Mathf.Abs(offset.x) > extents.x + .0001f || Mathf.Abs(offset.y) > extents.y + .0001f || Mathf.Abs(offset.z) > extents.z + .0001f)
+            { body.outOfBounds++; return false; }
+        }
+        return true;
+    }
+    private static bool Finite(float value) => !float.IsNaN(value) && !float.IsInfinity(value);
+    private void ReadSceneIds()
+    {
+        roots.Clear(); scene.GetRootGameObjects(roots); currentRenderers.Clear(); currentMaterials.Clear();
+        foreach (var root in roots)
+        {
+            renderers.Clear(); root.GetComponentsInChildren(true, renderers);
+            foreach (var renderer in renderers)
+            {
+                if (renderer == null) continue; currentRenderers.Add(renderer.GetInstanceID());
+                materials.Clear(); renderer.GetSharedMaterials(materials);
+                foreach (var material in materials) if (material != null) currentMaterials.Add(material.GetInstanceID());
+            }
+        }
+    }
+    private void Finish()
+    {
+        Cleanup();
+        double[] sorted = dtMs.Take(measured).OrderBy(x => x).ToArray();
+        double elapsed = sampleEnd - sampleStart;
+        Result = new
+        {
+            finished = true, status = failed.Count == 0 ? "DEPTH_LIVE_CONTRACTS_PASSED" : "DEPTH_LIVE_CONTRACTS_FAILED",
+            passed = passed.Count, failed = failed.Count, passedCases = passed, failedCases = failed,
+            naturalLateUpdateFrames = measured, timingScope = "whole Editor/scene frame including this fixture; not isolated policy cost, no GPU timing or hardware certification",
+            dtMedianMs = measured == 0 ? 0 : measured % 2 == 0 ? (sorted[measured / 2 - 1] + sorted[measured / 2]) * .5 : sorted[measured / 2],
+            dtP95Ms = measured == 0 ? 0 : sorted[(int)Math.Ceiling(measured * .95) - 1], dtMaxMs = measured == 0 ? 0 : sorted[measured - 1],
+            observedIntervalSeconds = elapsed, actualFps = measured > 1 && elapsed > 0 ? (measured - 1) / elapsed : 0,
+            initialRendererIds = baselineRenderers.OrderBy(x => x).ToArray(), initialSharedMaterialIds = baselineMaterials.OrderBy(x => x).ToArray(),
+            addedRendererIds = addedRenderers.OrderBy(x => x).ToArray(), addedMaterialIds = addedMaterials.OrderBy(x => x).ToArray(), cleanupRestored,
+            lifecycleActorId, lifecycleCurrentId,
+            bodies = bodies == null ? null : bodies.Select(x => new { x.name, meshEvents = x.events, measuredFrames = x.sampled, x.invalidBounds, x.outOfBounds, x.lastCenter, x.lastExtents }).ToArray(),
+            boundary = "Runtime-only policy toggles and foreign spacing write; no extra animation advance/controller move/render/mesh or material creation/disk writes; all modified enable/spacing state restored."
+        };
+        Destroy(gameObject);
+    }
+    private void Cleanup()
+    {
+        if (disposed) return; disposed = true;
+        if (bodies != null) foreach (var body in bodies) if (body.renderer != null) body.renderer.OnMeshAndMaterialsUpdated -= MeshReady;
+        try
+        {
+            if (touched && selected != null && selected.policy != null && selected.renderer != null)
+            {
+                if (selected.policy.enabled != originalEnabled || !selected.policy.IsBound || !Near(selected.renderer.zSpacing, Spacing))
+                {
+                    selected.policy.enabled = false;
+                    selected.renderer.zSpacing = 0;
+                    selected.policy.enabled = originalEnabled;
+                }
+                cleanupRestored = selected.policy.enabled == originalEnabled && (!originalEnabled || selected.policy.IsBound && Near(selected.renderer.zSpacing, Spacing));
+            }
+            else cleanupRestored = true;
+        }
+        catch (Exception error) { cleanupRestored = false; failed.Add("cleanup: " + error); }
+    }
+    private void OnDisable() => Cleanup();
+    private void OnDestroy() => Cleanup();
+}

@@ -1,0 +1,120 @@
+/* 诊断新功能先红后绿合同：容量/快照/手动报告，以及真实Spine正式mesh事件订阅与停止清理。
+ * 不推进角色或Spine、不改方向/材质；只由root在研究场执行。缺生产类型时明确RED，不假装原闪烁已复现。 */
+using System;
+using System.Linq;
+using System.Reflection;
+using System.Collections.Generic;
+using Newtonsoft.Json.Linq;
+using UnityEngine;
+using Funplay.Editor.Tools.Scripting;
+using C = Ossastra.Characters;
+using Ossastra.MapResearch;
+public sealed class DiagnosticContracts : IFunplayCommand
+{
+    public static object Result;
+    public void Execute(ExecutionContext ctx)
+    {
+        var results = new List<object>();
+        Type sample = Find("Ossastra.MapResearchIntegration.Diagnostics.MapFlickerTraceSample");
+        Type buffer = Find("Ossastra.MapResearchIntegration.Diagnostics.MapFlickerTraceBuffer");
+        Type recorder = Find("Ossastra.MapResearchIntegration.Diagnostics.MapFlickerTraceRecorder");
+        if (sample == null || buffer == null || recorder == null)
+        {
+            Result = new {status="RED_MISSING_DIAGNOSTIC_RUNTIME",passed=0,failed=1,missing=new[]{sample==null?"sample":null,buffer==null?"buffer":null,recorder==null?"recorder":null}.Where(x=>x!=null).ToArray()};
+            ctx.ReturnValue=Result;return;
+        }
+        Action<string,Action> check=(name,test)=>{try{test();results.Add(new{name,passed=true,reason=""});}catch(Exception e){results.Add(new{name,passed=false,reason=(e.InnerException??e).ToString()});}};
+        object ring=Activator.CreateInstance(buffer,new object[]{3});
+        Func<int,object> point = frame => {var s=Activator.CreateInstance(sample);sample.GetField("frame").SetValue(s,frame);sample.GetField("actorId").SetValue(s,"contract-actor");return s;};
+        check("bounded-ring-keeps-newest-in-chronological-order",()=>{for(int i=1;i<=5;i++)buffer.GetMethod("Append").Invoke(ring,new[]{point(i)});var a=(Array)buffer.GetMethod("Snapshot").Invoke(ring,null);Require(a.Length==3,"capacity not bounded");for(int i=0;i<3;i++)Require((int)sample.GetField("frame").GetValue(a.GetValue(i))==i+3,"wrong ring order");});
+        check("overflow-count-is-exact",()=>{Require((int)buffer.GetProperty("Count").GetValue(ring)==3,"count");Require(Convert.ToInt64(buffer.GetProperty("Dropped").GetValue(ring))==2,"dropped");});
+        check("snapshot-does-not-expose-ring-storage",()=>{var a=(Array)buffer.GetMethod("Snapshot").Invoke(ring,null);a.SetValue(point(999),0);var b=(Array)buffer.GetMethod("Snapshot").Invoke(ring,null);Require((int)sample.GetField("frame").GetValue(b.GetValue(0))==3,"snapshot aliases ring");});
+        check("capacity-is-defensively-clamped",()=>{var small=Activator.CreateInstance(buffer,new object[]{0});var big=Activator.CreateInstance(buffer,new object[]{int.MaxValue});Require((int)buffer.GetProperty("Capacity").GetValue(small)==1,"minimum capacity");Require((int)buffer.GetProperty("Capacity").GetValue(big)==4096,"maximum capacity");});
+        check("clear-removes-samples-and-overflow-history",()=>{buffer.GetMethod("Clear").Invoke(ring,null);Require((int)buffer.GetProperty("Count").GetValue(ring)==0&&Convert.ToInt64(buffer.GetProperty("Dropped").GetValue(ring))==0,"clear");});
+        check("idle-and-foreign-action-cannot-inherit-old-phase",()=>{
+            var resolve=recorder.GetMethod("AssociatedPhase",BindingFlags.NonPublic|BindingFlags.Static);
+            Require(resolve!=null,"missing action/phase association rule");
+            var action=Guid.NewGuid();var foreign=Guid.NewGuid();var phase=Guid.NewGuid();
+            Func<bool,Guid,Guid,Guid,Guid> read=(active,id,captured,candidate)=>(Guid)resolve.Invoke(null,new object[]{active,id,captured,candidate});
+            Require(read(true,action,action,phase)==phase,"accepted matching action lost phase");
+            Require(read(false,action,action,phase)==Guid.Empty,"idle reused stale phase");
+            Require(read(true,action,foreign,phase)==Guid.Empty,"foreign action reused stale phase");
+            Require(read(true,Guid.Empty,Guid.Empty,phase)==Guid.Empty,"empty action identity reused phase");
+        });
+        check("sample-carries-original-session-identity-fields",()=>{Require(sample.GetField("currentActorId")!=null&&sample.GetField("controlRevision")!=null&&sample.GetField("controlSessionKind")!=null,"missing original control session provenance");});
+        var go=new GameObject("DS02_DiagnosticContractTransient");ctx.RegisterObjectCreation(go);
+        var component=go.AddComponent(recorder);
+        check("diagnostic-is-off-by-default-with-no-hooks",()=>{Require(!(bool)recorder.GetProperty("IsTracing").GetValue(component),"default on");Require((int)recorder.GetProperty("HookedBodyCount").GetValue(component)==0,"default subscribed");Require(Convert.ToInt64(recorder.GetProperty("ExportCount").GetValue(component))==0,"default IO");});
+        check("empty-report-does-not-claim-flicker-fixed-or-GPU-pass",()=>{string json=(string)recorder.GetMethod("CreateReportJson").Invoke(component,null);Require(json.Contains("UNREPRODUCED_CPU_TRACE")&&json.Contains("gpuVisibilityVerified"),"missing honest status");Require(!json.Contains("CONFIRMED_ROOT_CAUSE"),"unearned root cause");Require(Convert.ToInt64(recorder.GetProperty("ExportCount").GetValue(component))==0,"report generation wrote disk");});
+        if(!Application.isPlaying){ctx.DestroyObject(go);Result=new{status="PURE_CONTRACTS_ONLY_LIVE_REQUIRES_PLAY",results};ctx.ReturnValue=Result;return;}
+        var map=UnityEngine.Object.FindObjectsOfType<MapResearchRoot>(true).SingleOrDefault();
+        var actors=UnityEngine.Object.FindObjectsOfType<C.CharacterRoot>(true).Where(x=>x.isActiveAndEnabled).ToArray();
+        if(map==null||actors.Length==0){ctx.DestroyObject(go);results.Add(new{name="actual-renderer-precondition",passed=false,reason="root-owned map/actor missing"});Result=new{status="LIVE_PRECONDITION_FAILED",results};ctx.ReturnValue=Result;return;}
+        recorder.GetMethod("Configure").Invoke(component,new object[]{map,actors});
+        var live=go.AddComponent<DiagnosticContractsLiveCheck>();live.recorder=component;live.recorderType=recorder;live.results=results;live.startFrame=Time.frameCount;
+        bool started=(bool)recorder.GetMethod("BeginTracing").Invoke(component,null);
+        check("actual-target-begin-is-idempotent",()=>{Require(started,"Begin failed");int count=(int)recorder.GetProperty("HookedBodyCount").GetValue(component);Require(count>0,"no real Spine body hooked");Require((bool)recorder.GetMethod("BeginTracing").Invoke(component,null),"second Begin failed");Require((int)recorder.GetProperty("HookedBodyCount").GetValue(component)==count,"duplicate hooks");});
+        Result=new{status="WAITING_FOR_ACTUAL_SPINE_MESH_EVENTS",results};ctx.ReturnValue=Result;
+    }
+    public static Type Find(string name)=>AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType(name,false)).FirstOrDefault(x=>x!=null);
+    public static void Require(bool test,string why){if(!test)throw new Exception(why);}
+}
+public sealed class DiagnosticContractsLiveCheck:MonoBehaviour
+{
+    public Component recorder;public Type recorderType;public List<object> results;public int startFrame;
+    private int stoppedAt=-1;private long stoppedEvents;private bool done;
+    private void Add(string name,bool good,string reason=""){results.Add(new{name,passed=good,reason});}
+    private void LateUpdate()
+    {
+        if(done||Time.frameCount-startFrame<5)return;
+        if(stoppedAt<0)
+        {
+            long events=Convert.ToInt64(recorderType.GetProperty("MeshEventCount").GetValue(recorder));
+            Add("real-OnMeshAndMaterialsUpdated-events-observed",events>0,"events="+events);
+            int count=(int)recorderType.GetProperty("SampleCount").GetValue(recorder);
+            Add("real-events-enter-bounded-buffer",count>0&&count<=4096,"samples="+count);
+            string json=(string)recorderType.GetMethod("CreateReportJson").Invoke(recorder,null);
+            Add("real-report-carries-mesh-and-camera-provenance",json.Contains("mesh")&&json.Contains("actorId")&&json.Contains("vertexCount")&&json.Contains("expectedCameraId"));
+            JArray sampleTokens=null;string parseError="";
+            try{sampleTokens=JObject.Parse(json)["samples"] as JArray;}
+            catch(Exception error){parseError=error.GetType().Name+": "+error.Message;}
+            var samples=sampleTokens==null?new JObject[0]:sampleTokens.OfType<JObject>().ToArray();
+            string sampleReason="declaredSampleCount="+count+"; jsonSamples="+(sampleTokens==null?-1:sampleTokens.Count)+"; objectSamples="+samples.Length+"; jsonChars="+json.Length+"; parseError="+parseError;
+            var map=UnityEngine.Object.FindObjectsOfType<MapResearchRoot>(true).SingleOrDefault();
+            var bridge=map==null?null:map.sessionComponent as Ossastra.MapResearchIntegration.MapResearchPartyBridge;
+            var session=bridge==null?null:bridge.coordinator;
+            var current=session==null||session.Current==null?"":session.Current.ActorId;
+            bool hasSamples=sampleTokens!=null&&samples.Length>0&&samples.Length==sampleTokens.Count;
+            var expectedKind=bridge==null?"single":"party";
+            var expectedCurrent=bridge==null?"single":current;
+            int expectedRevision=session==null?-1:session.ControlRevision;
+            var identityErrors=samples.Where(s=>(string)s["controlSessionKind"]!=expectedKind||(string)s["currentActorId"]!=expectedCurrent||
+                (int?)s["controlRevision"]!=expectedRevision).ToArray();
+            Func<JObject,string> identity=s=>"frame="+(string)s["frame"]+",actor="+(string)s["actorId"]+",kind="+(string)s["controlSessionKind"]+",current="+(string)s["currentActorId"]+",revision="+(string)s["controlRevision"];
+            Add("samples-match-original-control-session-not-a-copy",hasSamples&&identityErrors.Length==0,
+                sampleReason+"; expected="+expectedKind+"/"+expectedCurrent+"/"+expectedRevision+"; identityErrors="+identityErrors.Length+"; examples="+string.Join(" | ",identityErrors.Take(2).Select(identity)));
+            var missingPhaseFields=samples.Count(s=>s.Property("actionActive")==null||s.Property("phaseId")==null);
+            var idle=samples.Where(s=>(bool?)s["actionActive"]==false).ToArray();
+            var stale=idle.Where(s=>!string.IsNullOrEmpty((string)s["phaseId"])).ToArray();
+            Add("idle-live-samples-have-no-stale-phase",hasSamples&&missingPhaseFields==0&&stale.Length==0,
+                sampleReason+"; missingPhaseFields="+missingPhaseFields+"; idleSamples="+idle.Length+"; stale="+stale.Length+"; examples="+
+                string.Join(" | ",stale.Take(2).Select(s=>identity(s)+",action="+(string)s["actionId"]+",phase="+(string)s["phaseId"])));
+            var errors=samples.Where(s=>!string.IsNullOrEmpty((string)s["samplingError"])).ToArray();
+            Add("actual-body-samples-have-no-read-error",hasSamples&&errors.Length==0,
+                sampleReason+"; samplingErrors="+errors.Length+"; examples="+string.Join(" | ",errors.Take(2).Select(s=>identity(s)+",source="+(string)s["provenance"]+",error="+(string)s["samplingError"])));
+            Add("tracing-did-not-write-disk",Convert.ToInt64(recorderType.GetProperty("ExportCount").GetValue(recorder))==0);
+            recorderType.GetMethod("Mark").Invoke(recorder,new object[]{"contract-marker"});
+            json=(string)recorderType.GetMethod("CreateReportJson").Invoke(recorder,null);
+            Add("manual-marker-is-in-memory-until-explicit-export",json.Contains("contract-marker")&&Convert.ToInt64(recorderType.GetProperty("ExportCount").GetValue(recorder))==0);
+            recorderType.GetMethod("StopTracing").Invoke(recorder,null);
+            stoppedEvents=Convert.ToInt64(recorderType.GetProperty("MeshEventCount").GetValue(recorder));stoppedAt=Time.frameCount;return;
+        }
+        if(Time.frameCount-stoppedAt<3)return;
+        done=true;
+        Add("stopped-recorder-unhooks-real-renderer-events",(int)recorderType.GetProperty("HookedBodyCount").GetValue(recorder)==0&&Convert.ToInt64(recorderType.GetProperty("MeshEventCount").GetValue(recorder))==stoppedEvents);
+        Add("stop-remains-off",!(bool)recorderType.GetProperty("IsTracing").GetValue(recorder));
+        int passed=results.Count(x=>(bool)x.GetType().GetProperty("passed").GetValue(x));
+        DiagnosticContracts.Result=new{status="DIAGNOSTIC_CONTRACTS_COMPLETE",passed,failed=results.Count-passed,results};
+        Destroy(gameObject);
+    }
+}

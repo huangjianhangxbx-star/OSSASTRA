@@ -1,0 +1,111 @@
+/* 多人镜头契约：使用真实MapRoot/Orbit/Input及受控会话边界，在独立PreviewScene验证目标切换不重置镜头。 */
+using System;
+using System.Reflection;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEditor.SceneManagement;
+using UnityEngine.SceneManagement;
+using Funplay.Editor.Tools.Scripting;
+using Ossastra.MapResearch;
+using Ossastra.Characters.ViewSpace;
+
+public sealed class DsPartySessionProbe : MonoBehaviour, IMapResearchSession, ICharacterViewParticipant
+{
+    public Transform target;
+    public bool captured;
+    public int bindings, releases;
+    public Transform FollowTarget => target;
+    public Transform CharacterTransform => target;
+    public Vector3 LogicalDirection => Vector3.right;
+    public string ViewDiagnostics => "受控会话输入；不模拟人物运动";
+    public bool BindViewContext(object owner, ICharacterViewContext context) { bindings++; return true; }
+    void IMapResearchSession.ReleaseViewContext(object owner) { releases++; captured = false; }
+    public bool ReleaseViewContext(object owner) { releases++; captured = false; return true; }
+    public bool SetViewInputCapture(object owner, bool value) { captured = value; return true; }
+}
+
+public sealed class PartyCameraContracts : IFunplayCommand
+{
+    private readonly List<string> passed = new List<string>(), failed = new List<string>();
+    private static FieldInfo Field(string name) => typeof(MapResearchRoot).GetField(name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+    private static object Read(MapResearchRoot root, string name) => Field(name).GetValue(root);
+    private static void Call(MapResearchRoot root, string name, params object[] args) => typeof(MapResearchRoot).GetMethod(name, BindingFlags.NonPublic | BindingFlags.Instance).Invoke(root, args);
+    private void Check(string name, bool valid) { if (valid) passed.Add(name); else failed.Add(name); }
+    private static Vector3 Center(MapResearchRoot root) => root.gameplayCamera.transform.position + root.gameplayCamera.transform.forward * (float)Read(root, "zoom");
+    private static GameObject New(Scene scene, string name) { var go = new GameObject(name); SceneManager.MoveGameObjectToScene(go, scene); return go; }
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+    {
+        var order = (DefaultExecutionOrder)Attribute.GetCustomAttribute(typeof(MapResearchRoot), typeof(DefaultExecutionOrder));
+        Check("control handover precedes camera and character sampling", order != null && order.order == -150);
+        Check("optional party-session entry exists", Field("sessionComponent") != null);
+        if (Field("sessionComponent") == null)
+        {
+            ctx.ReturnValue = new { passed = passed.Count, failed = failed.Count, passedCases = passed, failedCases = failed, complete = false };
+            return;
+        }
+        Scene preview = default;
+        MapResearchRoot root = null, legacy = null;
+        try
+        {
+            preview = EditorSceneManager.NewPreviewScene();
+            var a = New(preview, "A").transform;
+            var b = New(preview, "B").transform; b.position = new Vector3(12, 0, 0);
+            var probe = New(preview, "Session").AddComponent<DsPartySessionProbe>(); probe.target = a;
+            root = New(preview, "SharedCamera").AddComponent<MapResearchRoot>();
+            root.gameplayCamera = New(preview, "NormalCamera").AddComponent<Camera>();
+            root.observerCamera = New(preview, "ObserverCamera").AddComponent<Camera>();
+            Field("sessionComponent").SetValue(root, probe);
+            root.initialYaw = 0; root.targetOffset = Vector3.up; root.distance = 16;
+            Call(root, "Start");
+            Check("session binds once for scene lifetime", probe.bindings == 1);
+            Check("initial follow center uses legal current", (Center(root) - Vector3.up).sqrMagnitude < .00001f);
+            var orbit = (MapOrbitState)Read(root, "orbit");
+            orbit.RequestStep(1); orbit.Tick(.05f, 180);
+            Call(root, "ApplyGameplayCamera");
+            var actual = root.ActualYaw; var target = root.TargetYaw; var zoom = (float)Read(root, "zoom");
+            probe.target = b;
+            Call(root, "AdvanceFollowCenter", .05f); Call(root, "ApplyGameplayCamera");
+            var switchedCenter = Center(root);
+            Check("changing Current does not recreate orbit", ReferenceEquals(orbit, Read(root, "orbit")));
+            Check("mid-turn switch preserves actual and target yaw", Mathf.Abs(Mathf.DeltaAngle(actual, root.ActualYaw)) < .001f && Mathf.Abs(Mathf.DeltaAngle(target, root.TargetYaw)) < .001f);
+            Check("mid-turn switch preserves zoom", Mathf.Abs(zoom - (float)Read(root, "zoom")) < .001f);
+            Check("center follows new Current smoothly instead of snapping", switchedCenter.x > 0 && switchedCenter.x < 12);
+            Check("switching target does not bind observers again", probe.bindings == 1);
+            probe.target = null;
+            Call(root, "AdvanceFollowCenter", .05f); Call(root, "ApplyGameplayCamera");
+            Check("no legal Current keeps last actual center", (Center(root) - switchedCenter).sqrMagnitude < .00001f);
+            probe.target = a;
+            for (int i = 0; i < 50; i++) Call(root, "AdvanceFollowCenter", .05f);
+            Call(root, "ApplyGameplayCamera");
+            Check("rapid target replacement converges to latest Current", (Center(root) - Vector3.up).sqrMagnitude < .0001f);
+            var normal = root.gameplayCamera.transform.position;
+            Check("structure mode captures through session", root.SetStructureMode(true) && probe.captured && root.FreezePresentation);
+            probe.target = b;
+            Call(root, "AdvanceFollowCenter", .2f); Call(root, "ApplyGameplayCamera");
+            Check("structure mode keeps normal center and plane frozen", (root.gameplayCamera.transform.position - normal).sqrMagnitude < .00001f);
+            Check("structure exit releases only own session capture", root.SetStructureMode(false) && !probe.captured);
+            Check("structure exit does not snap to changed Current", (root.gameplayCamera.transform.position - normal).sqrMagnitude < .00001f);
+            Check("session observation lease survives switches and structure", probe.bindings == 1 && probe.releases == 0);
+            Call(root, "Release");
+            Check("scene release returns session lease and action ownership", probe.releases == 1 && !root.cameraInput.rotateWheel.enabled);
+
+            legacy = New(preview, "LegacySingleCamera").AddComponent<MapResearchRoot>();
+            legacy.gameplayCamera = New(preview, "LegacyNormal").AddComponent<Camera>();
+            legacy.observerCamera = New(preview, "LegacyObserver").AddComponent<Camera>();
+            legacy.participantComponent = probe; probe.target = a;
+            Call(legacy, "Start");
+            Check("old single-participant scene still binds", probe.bindings == 2);
+            Check("old single-participant structure still captures", legacy.SetStructureMode(true) && probe.captured);
+            legacy.SetStructureMode(false); Call(legacy, "Release");
+            Check("old single-participant releases its lease", probe.releases == 2);
+        }
+        catch (Exception error) { failed.Add("unexpected fixture error: " + error); }
+        finally
+        {
+            if (root != null) Call(root, "Release");
+            if (legacy != null) Call(legacy, "Release");
+            if (preview.IsValid()) EditorSceneManager.ClosePreviewScene(preview);
+        }
+        ctx.ReturnValue = new { passed = passed.Count, failed = failed.Count, passedCases = passed, failedCases = failed, complete = failed.Count == 0 };
+    }
+}

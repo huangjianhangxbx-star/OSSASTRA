@@ -19,14 +19,21 @@ namespace Ossastra.Characters.ViewSpace
         bool FreezePresentation { get; }
     }
 
-    /// <summary>场景只绑定观察上下文与输入捕获；不能借此移动角色、受理动作或播放动画。</summary>
-    public interface ICharacterViewParticipant
+    /// <summary>只绑定观察上下文；敌人可消费共同观察基，无须伪造玩家输入捕获能力。</summary>
+    public interface ICharacterViewConsumer
     {
+        bool BindViewContext(object owner, ICharacterViewContext context);
+        bool ReleaseViewContext(object owner);
+    }
+
+    public interface ICharacterViewParticipant : ICharacterViewConsumer
+    {
+        // 保留旧接口直接声明的反射入口；运行行为仍由同一实现承担。
+        new bool BindViewContext(object owner, ICharacterViewContext context);
+        new bool ReleaseViewContext(object owner);
         Transform CharacterTransform { get; }
         Vector3 LogicalDirection { get; }
         string ViewDiagnostics { get; }
-        bool BindViewContext(object owner, ICharacterViewContext context);
-        bool ReleaseViewContext(object owner);
         bool SetViewInputCapture(object owner, bool captured);
     }
 }

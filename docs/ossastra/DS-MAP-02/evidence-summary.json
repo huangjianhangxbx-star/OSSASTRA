@@ -1,0 +1,947 @@
+{
+  "baseCommit": "5adcbdf9915333f826930ef3b389f7d2db7d5ea7",
+  "testedWithExistingDirty": 37,
+  "unit": [
+    {
+      "receipt": "party-camera-green.json",
+      "passed": 20,
+      "failed": 0
+    },
+    {
+      "receipt": "enemy-idle-green.json",
+      "passed": 10,
+      "failed": 0
+    },
+    {
+      "receipt": "bridge-capture-green.json",
+      "passed": 9,
+      "failed": 0
+    },
+    {
+      "receipt": "party-scene-green.json",
+      "passed": 8,
+      "failed": 0
+    },
+    {
+      "receipt": "spine-depth-green.json",
+      "passed": 7,
+      "failed": 0
+    }
+  ],
+  "input": {
+    "status": "PASSED",
+    "passed": 22,
+    "failed": 0,
+    "passedCases": [
+      "new scene contains two player roots and one independent enemy root",
+      "new scene contains one map and one control coordinator",
+      "party scene uses explicit aggregate view session",
+      "both original actor instances initialized independently",
+      "game view has real application focus",
+      "current moves through original input and motor",
+      "non-current never acquires physical input",
+      "companion follows through world-space intent and real movement",
+      "configured switch action selects second original character",
+      "switch retains same shared orbit object",
+      "switch retains target angle and zoom",
+      "rotation continues without reset to initial angle",
+      "follow center smooths rather than snapping on switch",
+      "held movement transfers using current actual camera basis",
+      "camera-only and movement story does not add releases",
+      "configured structure action enters frozen observation",
+      "structure captures both player input ports",
+      "structure does not set enemy pause flag (combat disabled in this story)",
+      "manual switching is blocked while captured",
+      "observer rotation leaves gameplay camera frozen",
+      "structure exit releases session capture",
+      "sampled frames never contain double player ownership"
+    ],
+    "failedCases": [],
+    "checks": null,
+    "rows": null,
+    "deaths": null,
+    "initialEvidence": null,
+    "naturalLateUpdateFrames": null,
+    "dtMedianMs": null,
+    "dtP95Ms": null,
+    "dtMaxMs": null,
+    "actualFps": null,
+    "addedRendererIds": null,
+    "addedMaterialIds": null,
+    "cleanupRestored": null,
+    "bodies": null,
+    "sourceMeshMatchesGeneratedA": null,
+    "sourceHadNonzeroSpacing": null,
+    "spacingA": null,
+    "spacingB": null,
+    "interiorPixels": null,
+    "worstA": null,
+    "worstB": null,
+    "metricsA": null,
+    "metricsB": null
+  },
+  "battle": {
+    "status": "PASSED",
+    "passed": 35,
+    "failed": 0,
+    "passedCases": [
+      "new scene has two independently ready roots and original enemy chase brain",
+      "real application focus permits original action clocks",
+      "original companion combat modules are available for genuine AI story",
+      "both actual right-hand actions bind virtual Mouse.leftButton",
+      "configured real input starts original Dodge before reset",
+      "development reset cancels active original Dodge",
+      "development reset leaves no stale Dodge displacement",
+      "first controlled character actual click releases and damages enemy",
+      "actual configured switch transfers control for second attack",
+      "second controlled character actual click releases and damages enemy",
+      "non-current original CompanionCombatBrain accepts and really hits",
+      "companion attack retains original non-player authority",
+      "enemy killed by original player or companion contact",
+      "encounter was engaged by real accepted actions before clear",
+      "dead enemy has no new accepted attacks or live target",
+      "cleared encounter exits original engagement window",
+      "post-clear empty attack cannot resurrect enemy target or engagement",
+      "original EnemyBrain chases through original EnemyMovement",
+      "original enemy released contact really lowers current A HP",
+      "structure capture blocks manual switch while combat continues",
+      "current A dies through original enemy damage",
+      "death transfers to living B despite structure capture",
+      "death handover keeps actual frozen camera and shared orbit",
+      "original enemy really hits second actor B",
+      "all actors die through original enemy releases",
+      "all-wipe revokes unique Current",
+      "normal camera holds last center after all-wipe",
+      "enemy relinquishes dead targets and pending attack",
+      "development restore returns same living actors and legal Current",
+      "all gameplay identities, buses and original action runtimes remain owned",
+      "camera and gameplay world root rotations were not reset",
+      "each original body action has one accept and at most one release",
+      "actual body release counters agree with observed original facts",
+      "accepted player/companion actions retain original payment token identity",
+      "no actual release applies HP twice to same target"
+    ],
+    "failedCases": [],
+    "checks": null,
+    "rows": null,
+    "deaths": [
+      {
+        "frame": 9235,
+        "stage": 11,
+        "victim": "enemy-stationary-01",
+        "source": "temporary-b",
+        "release": "2a9342742f3b4e35a3ebaf0aa95bd41a",
+        "hpBefore": 12,
+        "hpAfter": 0,
+        "current": "temporary-b"
+      },
+      {
+        "frame": 10907,
+        "stage": 15,
+        "victim": "temporary-a",
+        "source": "enemy-stationary-01",
+        "release": "342f18d374944e69a7c9c467fe774a26",
+        "hpBefore": 20,
+        "hpAfter": 0,
+        "current": "temporary-b"
+      },
+      {
+        "frame": 11694,
+        "stage": 16,
+        "victim": "temporary-b",
+        "source": "enemy-stationary-01",
+        "release": "befef73b87e34526a5abf0478213f917",
+        "hpBefore": 20,
+        "hpAfter": 0,
+        "current": "none"
+      }
+    ],
+    "initialEvidence": null,
+    "naturalLateUpdateFrames": null,
+    "dtMedianMs": null,
+    "dtP95Ms": null,
+    "dtMaxMs": null,
+    "actualFps": null,
+    "addedRendererIds": null,
+    "addedMaterialIds": null,
+    "cleanupRestored": null,
+    "bodies": null,
+    "sourceMeshMatchesGeneratedA": null,
+    "sourceHadNonzeroSpacing": null,
+    "spacingA": null,
+    "spacingB": null,
+    "interiorPixels": null,
+    "worstA": null,
+    "worstB": null,
+    "metricsA": null,
+    "metricsB": null
+  },
+  "lifecycle": {
+    "status": null,
+    "passed": 20,
+    "failed": 0,
+    "passedCases": null,
+    "failedCases": null,
+    "checks": null,
+    "rows": [
+      {
+        "name": "precondition-both-original-actors-alive",
+        "passed": true
+      },
+      {
+        "name": "precondition-current-is-original-first-actor",
+        "passed": true
+      },
+      {
+        "name": "structure-enter-0",
+        "passed": true
+      },
+      {
+        "name": "release-all-observation-owners-0",
+        "passed": true
+      },
+      {
+        "name": "rebind-all-three-consumers-0",
+        "passed": true
+      },
+      {
+        "name": "rebind-preserves-camera-state-0",
+        "passed": true
+      },
+      {
+        "name": "structure-enter-1",
+        "passed": true
+      },
+      {
+        "name": "release-all-observation-owners-1",
+        "passed": true
+      },
+      {
+        "name": "rebind-all-three-consumers-1",
+        "passed": true
+      },
+      {
+        "name": "rebind-preserves-camera-state-1",
+        "passed": true
+      },
+      {
+        "name": "structure-enter-2",
+        "passed": true
+      },
+      {
+        "name": "release-all-observation-owners-2",
+        "passed": true
+      },
+      {
+        "name": "rebind-all-three-consumers-2",
+        "passed": true
+      },
+      {
+        "name": "rebind-preserves-camera-state-2",
+        "passed": true
+      },
+      {
+        "name": "capture-before-member-removal",
+        "passed": true
+      },
+      {
+        "name": "exit-after-member-removal",
+        "passed": true
+      },
+      {
+        "name": "surviving-input-can-be-reselected",
+        "passed": true
+      },
+      {
+        "name": "surviving-character-still-bound",
+        "passed": true
+      },
+      {
+        "name": "survivor-is-current",
+        "passed": true
+      },
+      {
+        "name": "remaining-observers-retained",
+        "passed": true
+      }
+    ],
+    "deaths": null,
+    "initialEvidence": {
+      "before": {
+        "frame": 76929,
+        "current": "temporary-a",
+        "characters": [
+          {
+            "ActorId": "temporary-a",
+            "alive": true,
+            "hp": 100
+          },
+          {
+            "ActorId": "temporary-b",
+            "alive": true,
+            "hp": 100
+          }
+        ],
+        "enemies": [
+          {
+            "ActorId": "enemy-stationary-01",
+            "alive": true,
+            "attacksEnabled": false
+          }
+        ]
+      },
+      "after": {
+        "frame": 76929,
+        "current": "temporary-a",
+        "characters": [
+          {
+            "ActorId": "temporary-a",
+            "alive": true,
+            "hp": 100
+          },
+          {
+            "ActorId": "temporary-b",
+            "alive": true,
+            "hp": 100
+          }
+        ],
+        "enemies": [
+          {
+            "ActorId": "enemy-stationary-01",
+            "alive": true,
+            "attacksEnabled": false
+          }
+        ]
+      },
+      "precondition": "explicit original encounter reset; enemy attacks disabled; member removal still requires saved-scene reload afterwards"
+    },
+    "naturalLateUpdateFrames": null,
+    "dtMedianMs": null,
+    "dtP95Ms": null,
+    "dtMaxMs": null,
+    "actualFps": null,
+    "addedRendererIds": null,
+    "addedMaterialIds": null,
+    "cleanupRestored": null,
+    "bodies": null,
+    "sourceMeshMatchesGeneratedA": null,
+    "sourceHadNonzeroSpacing": null,
+    "spacingA": null,
+    "spacingB": null,
+    "interiorPixels": null,
+    "worstA": null,
+    "worstB": null,
+    "metricsA": null,
+    "metricsB": null
+  },
+  "diagnostic": {
+    "status": "DIAGNOSTIC_CONTRACTS_COMPLETE",
+    "passed": 20,
+    "failed": 0,
+    "passedCases": null,
+    "failedCases": null,
+    "checks": null,
+    "rows": null,
+    "deaths": null,
+    "initialEvidence": null,
+    "naturalLateUpdateFrames": null,
+    "dtMedianMs": null,
+    "dtP95Ms": null,
+    "dtMaxMs": null,
+    "actualFps": null,
+    "addedRendererIds": null,
+    "addedMaterialIds": null,
+    "cleanupRestored": null,
+    "bodies": null,
+    "sourceMeshMatchesGeneratedA": null,
+    "sourceHadNonzeroSpacing": null,
+    "spacingA": null,
+    "spacingB": null,
+    "interiorPixels": null,
+    "worstA": null,
+    "worstB": null,
+    "metricsA": null,
+    "metricsB": null
+  },
+  "destroyedDiagnostic": {
+    "status": "DIAGNOSTIC_DESTROYED_BODY_COMPLETE",
+    "passed": 8,
+    "failed": 0,
+    "passedCases": null,
+    "failedCases": null,
+    "checks": [
+      {
+        "name": "real-body-generated-mesh-before-destruction",
+        "passed": true,
+        "reason": "body=-46474; events=1; samples=3"
+      },
+      {
+        "name": "destroyed-body-observed-with-real-camera-continuation",
+        "passed": true,
+        "reason": "cameraEnds=3; queuedFrame=42462"
+      },
+      {
+        "name": "camera-does-not-append-destroyed-body-as-new-samples",
+        "passed": true,
+        "reason": "staleSamples=0; body=-46474; removalFrame=42462"
+      },
+      {
+        "name": "destroyed-binding-stop-clears-owned-hooks",
+        "passed": true,
+        "reason": ""
+      },
+      {
+        "name": "recorder-rebinds-surviving-real-body",
+        "passed": true,
+        "reason": ""
+      },
+      {
+        "name": "rebound-live-body-produces-real-mesh-events",
+        "passed": true,
+        "reason": "events=1"
+      },
+      {
+        "name": "stop-unhooks-while-survivor-and-camera-continue",
+        "passed": true,
+        "reason": "cameraEndsAfterStop=3; meshBefore=1; meshNow=1; samplesBefore=3; samplesNow=3"
+      },
+      {
+        "name": "destructive-diagnostic-story-does-no-file-IO",
+        "passed": true,
+        "reason": ""
+      }
+    ],
+    "rows": null,
+    "deaths": null,
+    "initialEvidence": null,
+    "naturalLateUpdateFrames": null,
+    "dtMedianMs": null,
+    "dtP95Ms": null,
+    "dtMaxMs": null,
+    "actualFps": null,
+    "addedRendererIds": null,
+    "addedMaterialIds": null,
+    "cleanupRestored": null,
+    "bodies": null,
+    "sourceMeshMatchesGeneratedA": null,
+    "sourceHadNonzeroSpacing": null,
+    "spacingA": null,
+    "spacingB": null,
+    "interiorPixels": null,
+    "worstA": null,
+    "worstB": null,
+    "metricsA": null,
+    "metricsB": null
+  },
+  "dodge": {
+    "status": "PASSED",
+    "passed": 12,
+    "failed": 0,
+    "passedCases": [
+      "prepared Party scene has original lawful Current and view",
+      "existing original Dodge and motor are enabled",
+      "Dodge key is read from actual configured keyboard controls",
+      "prepared original Current is alive and lawfully ready for Dodge",
+      "real queued W plus configured binding starts original Dodge",
+      "one actual wheel request changes target by exactly 45 degrees",
+      "actual gameplay camera yaw changes during active Dodge",
+      "original Dodge ActionId is not restarted by orbit input",
+      "accepted world MotionVelocity direction stays frozen while camera turns",
+      "original finite Dodge finishes naturally",
+      "orbit preserves original action runtime and physical root orientation",
+      "Dodge and orbit produce no synthetic main-action release"
+    ],
+    "failedCases": [],
+    "checks": null,
+    "rows": null,
+    "deaths": null,
+    "initialEvidence": null,
+    "naturalLateUpdateFrames": null,
+    "dtMedianMs": null,
+    "dtP95Ms": null,
+    "dtMaxMs": null,
+    "actualFps": null,
+    "addedRendererIds": null,
+    "addedMaterialIds": null,
+    "cleanupRestored": null,
+    "bodies": null,
+    "sourceMeshMatchesGeneratedA": null,
+    "sourceHadNonzeroSpacing": null,
+    "spacingA": null,
+    "spacingB": null,
+    "interiorPixels": null,
+    "worstA": null,
+    "worstB": null,
+    "metricsA": null,
+    "metricsB": null
+  },
+  "depth": {
+    "status": "DEPTH_LIVE_CONTRACTS_PASSED",
+    "passed": 24,
+    "failed": 0,
+    "passedCases": [
+      "three explicit same-GO body policies bound at candidate spacing",
+      "trace is off before finite timing sample",
+      "enemy-stationary-01/MainBody native bounds remain nonnegative through 200 frames",
+      "enemy-stationary-01/MainBody native bounds contain every actual mesh vertex",
+      "enemy-stationary-01/MainBody receives natural formal mesh events",
+      "temporary-a/MainBody native bounds remain nonnegative through 200 frames",
+      "temporary-a/MainBody native bounds contain every actual mesh vertex",
+      "temporary-a/MainBody receives natural formal mesh events",
+      "temporary-b/MainBody native bounds remain nonnegative through 200 frames",
+      "temporary-b/MainBody native bounds contain every actual mesh vertex",
+      "temporary-b/MainBody receives natural formal mesh events",
+      "scene-owned renderer IDs do not grow during 200 frames",
+      "scene-owned shared material IDs do not grow during 200 frames",
+      "tracing stays off during 200-frame timing sample",
+      "non-current policy disable releases binding",
+      "non-current policy disable restores original zero spacing",
+      "disabled policy leaves natural skeleton mesh generation running",
+      "disabled policy leaves original zero spacing",
+      "reenable binds and reapplies tiny spacing",
+      "reenabled policy sees newly generated mesh",
+      "reenabled policy repairs actual native bounds",
+      "disable does not overwrite another writer's different spacing",
+      "restored original enable state rebinds at tiny spacing",
+      "restored policy has natural mesh and valid bounds"
+    ],
+    "failedCases": [],
+    "checks": null,
+    "rows": null,
+    "deaths": null,
+    "initialEvidence": null,
+    "naturalLateUpdateFrames": 200,
+    "dtMedianMs": 2.507649944163859,
+    "dtP95Ms": 3.2585998997092247,
+    "dtMaxMs": 5.051199812442064,
+    "actualFps": 383.76160035146455,
+    "addedRendererIds": [],
+    "addedMaterialIds": [],
+    "cleanupRestored": true,
+    "bodies": [
+      {
+        "name": "enemy-stationary-01/MainBody",
+        "meshEvents": 212,
+        "measuredFrames": 200,
+        "invalidBounds": 0,
+        "outOfBounds": 0,
+        "lastCenter": [
+          0.222967848,
+          0.716830969,
+          -0.000499999966
+        ],
+        "lastExtents": [
+          0.60441345,
+          0.7343129,
+          0.0004
+        ]
+      },
+      {
+        "name": "temporary-a/MainBody",
+        "meshEvents": 212,
+        "measuredFrames": 200,
+        "invalidBounds": 0,
+        "outOfBounds": 0,
+        "lastCenter": [
+          0.00405539572,
+          0.666822731,
+          -0.01785
+        ],
+        "lastExtents": [
+          0.4939664,
+          0.784511745,
+          0.00185000058
+        ]
+      },
+      {
+        "name": "temporary-b/MainBody",
+        "meshEvents": 212,
+        "measuredFrames": 200,
+        "invalidBounds": 0,
+        "outOfBounds": 0,
+        "lastCenter": [
+          0.044498086,
+          1.04840863,
+          -0.00404999964
+        ],
+        "lastExtents": [
+          0.483635128,
+          1.07620823,
+          0.00395
+        ]
+      }
+    ],
+    "sourceMeshMatchesGeneratedA": null,
+    "sourceHadNonzeroSpacing": null,
+    "spacingA": null,
+    "spacingB": null,
+    "interiorPixels": null,
+    "worstA": null,
+    "worstB": null,
+    "metricsA": null,
+    "metricsB": null
+  },
+  "legacyMap": {
+    "status": "PASSED",
+    "passed": 11,
+    "failed": 0,
+    "passedCases": [
+      "legacy source has its expected original actor/control arrangement",
+      "initial original actors are alive with registered data and real focus",
+      "actual legacy input actions bind W and Mouse.leftButton on test devices",
+      "original current is alive, focused and has lawful input",
+      "actual configured W moves original Root through its motor",
+      "one real click yields one original Accepted and Released identity",
+      "original release counter increments once",
+      "legacy single participant map remains correctly registered and effective",
+      "smoke retains original Health, DataBus and action runtime",
+      "view/input regression does not rotate physical root",
+      "sampled frames never grant two player owners"
+    ],
+    "failedCases": [],
+    "checks": null,
+    "rows": null,
+    "deaths": null,
+    "initialEvidence": null,
+    "naturalLateUpdateFrames": null,
+    "dtMedianMs": null,
+    "dtP95Ms": null,
+    "dtMaxMs": null,
+    "actualFps": null,
+    "addedRendererIds": null,
+    "addedMaterialIds": null,
+    "cleanupRestored": null,
+    "bodies": null,
+    "sourceMeshMatchesGeneratedA": null,
+    "sourceHadNonzeroSpacing": null,
+    "spacingA": null,
+    "spacingB": null,
+    "interiorPixels": null,
+    "worstA": null,
+    "worstB": null,
+    "metricsA": null,
+    "metricsB": null
+  },
+  "legacyCommerce": {
+    "status": "PASSED",
+    "passed": 15,
+    "failed": 0,
+    "passedCases": [
+      "legacy source has its expected original actor/control arrangement",
+      "initial original actors are alive with registered data and real focus",
+      "actual legacy input actions bind W and Mouse.leftButton on test devices",
+      "original current is alive, focused and has lawful input",
+      "actual configured W moves original Root through its motor",
+      "original companion director remains available",
+      "non-current uses original world-space follow and actually travels",
+      "one real click yields one original Accepted and Released identity",
+      "original release counter increments once",
+      "actual original switch binding transfers Current to second root",
+      "switch leaves exactly one lawful original player input",
+      "second original Root is initialized and capable after handover",
+      "smoke retains original Health, DataBus and action runtime",
+      "view/input regression does not rotate physical root",
+      "sampled frames never grant two player owners"
+    ],
+    "failedCases": [],
+    "checks": null,
+    "rows": null,
+    "deaths": null,
+    "initialEvidence": null,
+    "naturalLateUpdateFrames": null,
+    "dtMedianMs": null,
+    "dtP95Ms": null,
+    "dtMaxMs": null,
+    "actualFps": null,
+    "addedRendererIds": null,
+    "addedMaterialIds": null,
+    "cleanupRestored": null,
+    "bodies": null,
+    "sourceMeshMatchesGeneratedA": null,
+    "sourceHadNonzeroSpacing": null,
+    "spacingA": null,
+    "spacingB": null,
+    "interiorPixels": null,
+    "worstA": null,
+    "worstB": null,
+    "metricsA": null,
+    "metricsB": null
+  },
+  "gpuBefore": {
+    "status": "MODEL_SNAPSHOT_DEPTH_CANDIDATE",
+    "passed": null,
+    "failed": null,
+    "passedCases": null,
+    "failedCases": null,
+    "checks": null,
+    "rows": null,
+    "deaths": null,
+    "initialEvidence": null,
+    "naturalLateUpdateFrames": null,
+    "dtMedianMs": null,
+    "dtP95Ms": null,
+    "dtMaxMs": null,
+    "actualFps": null,
+    "addedRendererIds": null,
+    "addedMaterialIds": null,
+    "cleanupRestored": null,
+    "bodies": null,
+    "sourceMeshMatchesGeneratedA": true,
+    "sourceHadNonzeroSpacing": null,
+    "spacingA": 0.0,
+    "spacingB": -0.0001,
+    "interiorPixels": 22558,
+    "worstA": 5124,
+    "worstB": 0,
+    "metricsA": [
+      {
+        "sample": 1,
+        "changed": 5124,
+        "maxDifference": 254,
+        "offset": -0.01,
+        "meanDifference": 28.96068
+      },
+      {
+        "sample": 2,
+        "changed": 1987,
+        "maxDifference": 254,
+        "offset": -0.001,
+        "meanDifference": 12.5477438
+      },
+      {
+        "sample": 3,
+        "changed": 1843,
+        "maxDifference": 253,
+        "offset": 0.001,
+        "meanDifference": 11.6851673
+      },
+      {
+        "sample": 4,
+        "changed": 4379,
+        "maxDifference": 254,
+        "offset": 0.01,
+        "meanDifference": 30.4614773
+      },
+      {
+        "sample": 5,
+        "changed": 0,
+        "maxDifference": 0,
+        "offset": 0.0,
+        "meanDifference": 0.0
+      }
+    ],
+    "metricsB": [
+      {
+        "sample": 1,
+        "changed": 0,
+        "maxDifference": 12,
+        "offset": -0.01,
+        "meanDifference": 0.08945829
+      },
+      {
+        "sample": 2,
+        "changed": 0,
+        "maxDifference": 5,
+        "offset": -0.001,
+        "meanDifference": 0.0119691463
+      },
+      {
+        "sample": 3,
+        "changed": 0,
+        "maxDifference": 3,
+        "offset": 0.001,
+        "meanDifference": 0.0116145052
+      },
+      {
+        "sample": 4,
+        "changed": 0,
+        "maxDifference": 11,
+        "offset": 0.01,
+        "meanDifference": 0.08892632
+      },
+      {
+        "sample": 5,
+        "changed": 0,
+        "maxDifference": 0,
+        "offset": 0.0,
+        "meanDifference": 0.0
+      }
+    ]
+  },
+  "gpuAfter": {
+    "status": "MODEL_SNAPSHOT_STABLE",
+    "passed": null,
+    "failed": null,
+    "passedCases": null,
+    "failedCases": null,
+    "checks": null,
+    "rows": null,
+    "deaths": null,
+    "initialEvidence": null,
+    "naturalLateUpdateFrames": null,
+    "dtMedianMs": null,
+    "dtP95Ms": null,
+    "dtMaxMs": null,
+    "actualFps": null,
+    "addedRendererIds": null,
+    "addedMaterialIds": null,
+    "cleanupRestored": null,
+    "bodies": null,
+    "sourceMeshMatchesGeneratedA": true,
+    "sourceHadNonzeroSpacing": true,
+    "spacingA": -0.0001,
+    "spacingB": -0.0001,
+    "interiorPixels": 22459,
+    "worstA": 0,
+    "worstB": 0,
+    "metricsA": [
+      {
+        "sample": 1,
+        "changed": 0,
+        "maxDifference": 17,
+        "offset": -0.01,
+        "meanDifference": 0.08940736
+      },
+      {
+        "sample": 2,
+        "changed": 0,
+        "maxDifference": 3,
+        "offset": -0.001,
+        "meanDifference": 0.0171868745
+      },
+      {
+        "sample": 3,
+        "changed": 0,
+        "maxDifference": 5,
+        "offset": 0.001,
+        "meanDifference": 0.0172314
+      },
+      {
+        "sample": 4,
+        "changed": 0,
+        "maxDifference": 16,
+        "offset": 0.01,
+        "meanDifference": 0.09096576
+      },
+      {
+        "sample": 5,
+        "changed": 0,
+        "maxDifference": 0,
+        "offset": 0.0,
+        "meanDifference": 0.0
+      }
+    ],
+    "metricsB": [
+      {
+        "sample": 1,
+        "changed": 0,
+        "maxDifference": 17,
+        "offset": -0.01,
+        "meanDifference": 0.08940736
+      },
+      {
+        "sample": 2,
+        "changed": 0,
+        "maxDifference": 3,
+        "offset": -0.001,
+        "meanDifference": 0.0171868745
+      },
+      {
+        "sample": 3,
+        "changed": 0,
+        "maxDifference": 5,
+        "offset": 0.001,
+        "meanDifference": 0.0172314
+      },
+      {
+        "sample": 4,
+        "changed": 0,
+        "maxDifference": 16,
+        "offset": 0.01,
+        "meanDifference": 0.09096576
+      },
+      {
+        "sample": 5,
+        "changed": 0,
+        "maxDifference": 0,
+        "offset": 0.0,
+        "meanDifference": 0.0
+      }
+    ]
+  },
+  "protected": [
+    {
+      "path": "Assets/OSSASTRA/Scenes/SC_CharacterVerticalSlice.unity",
+      "expected": "5882E0123BBFF7F07F59755EE44B2EF6B205BC1038AC36C062CB55C48316764A",
+      "actual": "5882E0123BBFF7F07F59755EE44B2EF6B205BC1038AC36C062CB55C48316764A",
+      "match": true
+    },
+    {
+      "path": "Assets/OSSASTRA/Scenes/SC_VC02B_IntegrationReady.unity",
+      "expected": "D2FEB8319FA146CB3B197DF05CCB7828737A44D190872A16C4FEAE01B0A26179",
+      "actual": "D2FEB8319FA146CB3B197DF05CCB7828737A44D190872A16C4FEAE01B0A26179",
+      "match": true
+    },
+    {
+      "path": "Assets/OSSASTRA/Scripts/Characters/Runtime/CharacterEquipmentView.cs",
+      "expected": "A19B5C9A99C923189B3B96B4E15B93CDC21F1B85F5AA06A936E6BE2F1F2DC18D",
+      "actual": "A19B5C9A99C923189B3B96B4E15B93CDC21F1B85F5AA06A936E6BE2F1F2DC18D",
+      "match": true
+    },
+    {
+      "path": "Assets/OSSASTRA/Scripts/Development/Combat/CharacterDebugControls.cs",
+      "expected": "CC5CD265CD3BE37E3C9A7AAAE00B233A88DBE1E3405E5F7728F7542938619773",
+      "actual": "CC5CD265CD3BE37E3C9A7AAAE00B233A88DBE1E3405E5F7728F7542938619773",
+      "match": true
+    },
+    {
+      "path": "Assets/OSSASTRA/VC02B/PlayerInputLayout.asset",
+      "expected": "03DEA71E5AA1B98F066F3248759D7318FB1C3D52FCAEF049052EA042D972EE3D",
+      "actual": "03DEA71E5AA1B98F066F3248759D7318FB1C3D52FCAEF049052EA042D972EE3D",
+      "match": true
+    },
+    {
+      "path": "Assets/OSSASTRA/Scenes/SC_CommerceIntegration.unity",
+      "expected": "18AC6B88EDCB5E90B809A5742D3950FB77EC850E31AE54FF291E1B96EE075B5D",
+      "actual": "18AC6B88EDCB5E90B809A5742D3950FB77EC850E31AE54FF291E1B96EE075B5D",
+      "match": true
+    },
+    {
+      "path": "Assets/OSSASTRA/Scenes/Research/SC_DontStarveMapLab.unity",
+      "expected": "8D35A7BEE156E7DEF4A6184277CE60F3318DC2BF8DB99068E5FD13137A52B976",
+      "actual": "8D35A7BEE156E7DEF4A6184277CE60F3318DC2BF8DB99068E5FD13137A52B976",
+      "match": true
+    },
+    {
+      "path": "ProjectSettings/GraphicsSettings.asset",
+      "expected": "4AE92D7000656A94226CE8DAEE511AE9AB996B7ED952875C01F458784D3E9902",
+      "actual": "4AE92D7000656A94226CE8DAEE511AE9AB996B7ED952875C01F458784D3E9902",
+      "match": true
+    },
+    {
+      "path": "ProjectSettings/QualitySettings.asset",
+      "expected": "D722F501EEAFA993E7F99E155D5CB66E23E28605CA389C9B5A08495E5B1BEEB1",
+      "actual": "D722F501EEAFA993E7F99E155D5CB66E23E28605CA389C9B5A08495E5B1BEEB1",
+      "match": true
+    },
+    {
+      "path": "AGENTS.md",
+      "expected": "B1DCD6934509C81A5EDDEB09651CC3CA3CA336DC7806812CB2272251E811283A",
+      "actual": "B1DCD6934509C81A5EDDEB09651CC3CA3CA336DC7806812CB2272251E811283A",
+      "match": true
+    },
+    {
+      "path": "OSSASTRA_RULES.md",
+      "expected": "06A602049D220551CB10313C6A9457DE7C27644F3D1D8D14DF872808AD16B47A",
+      "actual": "06A602049D220551CB10313C6A9457DE7C27644F3D1D8D14DF872808AD16B47A",
+      "match": true
+    }
+  ],
+  "publicContainsMedia": false,
+  "boundaries": [
+    "Fixed-pose GPU regression does not certify all dynamic or independent equipment frames.",
+    "Editor and virtual inputs only.",
+    "Old dirty files were protected and excluded.",
+    "Raw snapshots, recordings and source media remain local."
+  ]
+}

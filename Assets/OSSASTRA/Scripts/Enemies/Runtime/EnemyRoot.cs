@@ -2,7 +2,7 @@
  * 脚本：EnemyRoot
  * 功能：敌方唯一组合根，组织身份、生命、决策与单一动作推进/释放。
  * 边界：无玩家Root/Input/Bus/Current，不选最近目标、不直接扣HP。
- * 协作：Brain提交并验证目标；根独占动作和可选架势推进，破势/生命周期撤销未释放动作。
+ * 协作：Brain提交并验证目标；根独占动作和可选架势推进，破势/生命周期撤销未释放动作；LateUpdate组织可选观察后再呈现。
  */
 using System;
 using Ossastra.CharacterCore;
@@ -49,14 +49,25 @@ namespace Ossastra.Enemies
         public int PresentationGeneration { get; private set; }
         public bool IsSimulationSuspended => !focused || applicationPaused || paused;
         private Ossastra.AnimationPresentation.IEntityPresentation presentation;
-        private void LateUpdate() { presentation?.Present(); }
+        private EnemyViewSpaceAdapter viewSpace;
+        private EnemyMovement viewMovement;
+        private void LateUpdate()
+        {
+            // 可选观察仅更新纯视觉，原决策/动作/命中仍在唯一Update中推进。
+            if(viewSpace!=null)viewSpace.TickView(ActionActive?AttackDirection:viewMovement==null?Vector3.zero:viewMovement.Velocity);
+            presentation?.Present();
+        }
         private void Awake()
         {
             presentation=GetComponent<EnemySpineView>();
+            viewSpace=GetComponent<EnemyViewSpaceAdapter>();
+            if(viewSpace!=null&&!viewSpace.Initialize(transform))
+            {Debug.LogError("敌人观察适配缺少合法视觉子层。",this);viewSpace.enabled=false;}
             vitals=GetComponent<CombatVitals>(); melee=GetComponent<CombatMeleeHit>(); hitShape=GetComponent<CombatMeleeHit>();
             var chase=GetComponent<ChaseEnemyBrain>();
             brain=chase!=null&&chase.enabled?(IEnemyBrain)chase:GetComponent<StationaryEnemyBrain>();
             movement=GetComponent<EnemyMovement>();
+            viewMovement=movement as EnemyMovement;
             statusEffects=GetComponent<CombatStatusEffects>();if(statusEffects!=null)statusEffects.ControlChanged+=OnStatusControlChanged;
             try { attack=new BasicAttackDefinition(releaseAt,moveReadyAt,attackReadyAt,finishAt,damage,postureImpact); runtime=new BasicActionRuntime(actorId); }
             catch(ArgumentException e) { Debug.LogError("Enemy configuration: "+e.Message,this); enabled=false; return; }

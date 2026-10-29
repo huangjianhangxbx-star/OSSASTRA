@@ -1,0 +1,126 @@
+/* 自有PartyPlay遮挡人工观察姿态：每次执行依次0树后/树前、1交换、2无树同轴、3恢复。
+ * root须先隔离AI/输入使人物不自行离位。只调用原Teleport与研究镜头的fixedTarget/followParticipant。
+ * 不改树/材质/Shader/碰撞/alpha，不Render/Advance；跨Snippet通过场景命名组件的反射复用原缓存。
+ */
+using System;
+using System.Linq;
+using UnityEngine;
+using Funplay.Editor.Tools.Scripting;
+using Ossastra.MapResearch;
+using Ossastra.MapResearchIntegration;
+using C = Ossastra.Characters;
+using A = Ossastra.CharacterAnimation;
+
+public sealed class VisualOcclusionPose : IFunplayCommand
+{
+    public void Execute(ExecutionContext ctx)
+    {
+        if (!Application.isPlaying) { ctx.ReturnValue = "requires isolated owned PartyPlay"; return; }
+        const string probeName = "DS02_VisualOcclusionPose";
+        var existing = GameObject.Find(probeName);
+        if (existing != null)
+        {
+            var component = existing.GetComponents<MonoBehaviour>().Single(c => c != null && c.GetType().Name == "Ds02VisualOcclusionPoseProbe");
+            ctx.ReturnValue = component.GetType().GetMethod("AdvancePose").Invoke(component, null); return;
+        }
+        var map = UnityEngine.Object.FindObjectsOfType<MapResearchRoot>(true).SingleOrDefault();
+        var bridge = map == null ? null : map.sessionComponent as MapResearchPartyBridge;
+        if (map == null || !map.gameObject.scene.path.EndsWith("/SC_DontStarvePartyCombatLab.unity", StringComparison.OrdinalIgnoreCase) ||
+            map.IsStructureMode || bridge == null || bridge.characters == null || bridge.characters.Length != 2)
+            throw new InvalidOperationException("需要唯一已保存PartyCombatLab的正常观察模式与两个原角色。");
+        var tree = (map.props ?? new ScenePropView[0]).Where(p => p != null && p.isActiveAndEnabled && p.displayRenderer != null &&
+            ((p.stableId + " " + p.name + " " + p.sourceEntry).ToLowerInvariant().Contains("evergreen")) &&
+            ((p.stableId + " " + p.name + " " + p.sourceEntry).ToLowerInvariant().Contains("tall")))
+            .OrderBy(p => new Vector2(p.transform.position.x, p.transform.position.z).sqrMagnitude).FirstOrDefault();
+        if (tree == null) throw new InvalidOperationException("本场props没有来源名匹配evergreen/tall的真实树。");
+        var go = new GameObject(probeName); ctx.RegisterObjectCreation(go);
+        try
+        {
+            var probe = go.AddComponent<Ds02VisualOcclusionPoseProbe>();
+            probe.Capture(map, tree, bridge.characters[0], bridge.characters[1]);
+            ctx.ReturnValue = probe.AdvancePose();
+        }
+        catch { UnityEngine.Object.Destroy(go); throw; }
+    }
+}
+
+public sealed class Ds02VisualOcclusionPoseProbe : MonoBehaviour
+{
+    private MapResearchRoot map;
+    private ScenePropView tree;
+    private C.CharacterRoot a, b;
+    private C.CharacterMovement moveA, moveB;
+    private bool originalFollow;
+    private Vector3 originalTarget, originalA, originalB;
+    private int nextPose;
+    public void Capture(MapResearchRoot research, ScenePropView selectedTree, C.CharacterRoot first, C.CharacterRoot second)
+    {
+        if (first == null || second == null || first.DataBus == null || second.DataBus == null) throw new InvalidOperationException("两角色未ready。");
+        moveA = first.GetComponent<C.CharacterMovement>(); moveB = second.GetComponent<C.CharacterMovement>();
+        if (moveA == null || moveB == null) throw new InvalidOperationException("缺少原Movement.Teleport端口。");
+        map = research; tree = selectedTree; a = first; b = second;
+        originalFollow = map.followParticipant; originalTarget = map.fixedTarget;
+        originalA = a.transform.position; originalB = b.transform.position;
+    }
+    public object AdvancePose()
+    {
+        if (nextPose >= 3) return Restore();
+        if (map == null || tree == null || a == null || b == null || map.IsStructureMode) throw new InvalidOperationException("研究对象失效或已进入结构模式；请恢复或退出Play重开。");
+        int pose = nextPose++;
+        Vector3 forward = Vector3.ProjectOnPlane(map.ViewForward, Vector3.up).normalized;
+        Vector3 right = Vector3.ProjectOnPlane(map.ViewRight, Vector3.up).normalized;
+        if (forward.sqrMagnitude < .5f || right.sqrMagnitude < .5f) throw new InvalidOperationException("正常观察基无效。");
+        Vector3 center = tree.transform.position;
+        if (pose == 2)
+        {
+            // 本研究样地32x32地面内，取观察侧边缘空区；为±1.4位移和原碰撞边界留余量。
+            center = new Vector3(Mathf.Abs(right.x) < .001f ? 0 : -Mathf.Sign(right.x) * (15f - 1.4f * Mathf.Abs(forward.x)),
+                tree.transform.position.y, Mathf.Abs(right.z) < .001f ? 0 : -Mathf.Sign(right.z) * (15f - 1.4f * Mathf.Abs(forward.z)));
+        }
+        Vector3 behind = center + forward * 1.4f, front = center - forward * 1.4f;
+        Vector3 targetA = pose == 1 ? front : behind, targetB = pose == 1 ? behind : front;
+        targetA.y = originalA.y; targetB.y = originalB.y;
+        map.followParticipant = false; map.fixedTarget = center;
+        moveA.Teleport(targetA); moveB.Teleport(targetB);
+        return Report(pose, forward, right);
+    }
+    public object Restore()
+    {
+        if (moveA != null) moveA.Teleport(originalA);
+        if (moveB != null) moveB.Teleport(originalB);
+        if (map != null) { map.followParticipant = originalFollow; map.fixedTarget = originalTarget; }
+        var result = new { status = "RESTORED", followParticipant = originalFollow, fixedTarget = V(originalTarget), a = V(originalA), b = V(originalB), note = "若中途退出/发生域重载，必须退出Play重开已保存研究场；无磁盘修改。" };
+        UnityEngine.Object.Destroy(gameObject); return result;
+    }
+    public object Inspect() => Report(Math.Max(0, nextPose - 1), map.ViewForward, map.ViewRight);
+    private object Report(int pose, Vector3 forward, Vector3 right)
+    {
+        return new
+        {
+            status = "VISUAL_POSE_READY_FOR_NORMAL_PLAYERLOOP", pose, frame = Time.frameCount,
+            placement = pose == 0 ? "A树后/B树前" : pose == 1 ? "A树前/B树后" : "无树侧边空区，A后/B前同轴",
+            actualYaw = map.ActualYaw, targetYaw = map.TargetYaw, viewForward = V(forward), viewRight = V(right),
+            followParticipant = map.followParticipant, fixedTarget = V(map.fixedTarget),
+            normalCamera = new { id = map.GameplayCamera.GetInstanceID(), enabled = map.GameplayCamera.enabled, position = V(map.GameplayCamera.transform.position) },
+            tree = new { name = tree.name, id = tree.stableId, source = tree.sourceEntry, position = V(tree.transform.position), renderer = RendererInfo(tree.displayRenderer) },
+            a = ActorInfo(a), b = ActorInfo(b),
+            note = "镜头仍由原PlayerLoop按原smoothTime收敛；稍等取景稳定后截图并可反射调用Inspect读取实际bounds。不是遮挡自动通过。第四次执行恢复；也可显式Restore，未恢复则退出Play重开。"
+        };
+    }
+    private static object ActorInfo(C.CharacterRoot actor)
+    {
+        var controller = actor.GetComponentsInChildren<A.CharacterAnimationController>(true).FirstOrDefault(c => c.GetComponentInParent<C.CharacterRoot>() == actor && c.Skeleton != null);
+        return new { actorId = actor.ActorId, position = V(actor.transform.position), renderer = RendererInfo(controller == null ? null : controller.Skeleton.GetComponent<MeshRenderer>()) };
+    }
+    private static object RendererInfo(Renderer renderer)
+    {
+        if (renderer == null) return null;
+        var box = renderer.bounds;
+        return new
+        {
+            id = renderer.GetInstanceID(), enabled = renderer.enabled, bounds = new { center = V(box.center), extents = V(box.extents), min = V(box.min), max = V(box.max) },
+            sharedMaterials = renderer.sharedMaterials.Select(m => m == null ? null : new { name = m.name, id = m.GetInstanceID(), shader = m.shader == null ? "" : m.shader.name, queue = m.renderQueue }).ToArray()
+        };
+    }
+    private static float[] V(Vector3 value) => new[] { value.x, value.y, value.z };
+}

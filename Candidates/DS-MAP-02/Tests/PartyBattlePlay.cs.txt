@@ -1,0 +1,393 @@
+/* 双角色Play后半故事：虚拟鼠标/键盘经下一真实PlayerLoop驱动原Root、原Brain与原接触网关。
+ * 边界：仅新研究场；不直写HP、不创建AttackRelease、不手工Advance、不改SO或文件IO。
+ * 前置：显式遭遇复位、原Movement.Teleport和有限AI开关用于隔离；结束恢复并复位为可玩状态。
+ * 结果：静态Result记录真实动作事实、原网关逐目标回执、死亡/控制交接及实际镜头，不把点击算作命中。
+ * 夹具修订：前两次真实31/4有效发现B被放在敌人返家走廊，接触距约.57令原直线ReturnHome无法到家。
+ * 保留V13原有限AI受阻局限，本故事只把B放到返家线侧方，不改变生产目标选择或回家政策。
+ */
+using System;
+using System.Linq;
+using System.Reflection;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.Controls;
+using UnityEngine.InputSystem.LowLevel;
+using Ossastra.CharacterCore;
+using Ossastra.Combat;
+using Ossastra.MapResearch;
+using Ossastra.MapResearchIntegration;
+using C = Ossastra.Characters;
+using E = Ossastra.Enemies;
+using Funplay.Editor.Tools.Scripting;
+
+[DefaultExecutionOrder(910)]
+public sealed class Ds02PartyBattlePlay : MonoBehaviour
+{
+    public static object Result;
+    public static string Status = "not-started";
+    private readonly List<string> passed = new List<string>(), failed = new List<string>();
+    private readonly List<object> samples = new List<object>(), requests = new List<object>(), contacts = new List<object>(), deaths = new List<object>();
+    private readonly Dictionary<string, FactLedger> facts = new Dictionary<string, FactLedger>();
+    private readonly HashSet<string> applied = new HashSet<string>();
+    private readonly List<BehaviourState> enabledBefore = new List<BehaviourState>();
+    private readonly HashSet<Guid> aHits = new HashSet<Guid>(), bHits = new HashSet<Guid>(), aiHits = new HashSet<Guid>();
+    private C.CharacterRoot a, b;
+    private E.EnemyRoot enemy;
+    private E.ChaseEnemyBrain enemyBrain;
+    private MapResearchRoot map;
+    private MapResearchEncounterDev reset;
+    private C.CharacterControlCoordinator coordinator;
+    private CombatEngagementSession engagement;
+    private C.CompanionCombatBrain brainA, brainB;
+    private Keyboard keyboard;
+    private Mouse mouse;
+    private Key switchKey, dodgeKey;
+    private Health healthA, healthB, healthEnemy;
+    private object runtimeA, runtimeB, busA, busB, orbit;
+    private Vector3 home, setupPosition, enemyBeforeChase, heldCenter;
+    private Quaternion rootRotationA, rootRotationB, rootRotationEnemy;
+    private int stage, stageFrame, sampledFrames, mouseDownFrame = -1, keyDownFrame = -1;
+    private int startAReleases, startBReleases, startEnemyDeaths, startADeaths, startBDeaths, hpBefore, enemyAcceptedAtDeath;
+    private double stageAt, beganAt, lastClickAt = -100;
+    private float heldYaw, heldTarget, heldZoom;
+    private bool finished, disposed, subscribed, mouseHeld, aimAway, originalEnemyAttacks, enemyOverride;
+    private bool duplicateApplied, emptyIdentity, identitiesStable = true, singleOwner = true, chaseMoved, enemyHitA, enemyHitB, captureChecked;
+    private bool ownARecorded, ownBRecorded, aiRecorded;
+    private string currentActorAtCapture;
+
+    private sealed class BehaviourState { public Behaviour target; public bool enabled; }
+    private sealed class FactLedger
+    {
+        public string actor, id, source;
+        public int accepted, released, finished, cancelled;
+        public bool paidIdentity;
+        public double firstAt;
+    }
+    private static float[] V(Vector3 value) => new[] { value.x, value.y, value.z };
+    private static T[] InScene<T>(Scene scene) where T : Component => UnityEngine.Object.FindObjectsOfType<T>(true).Where(x => x.gameObject.scene == scene && x.gameObject.activeInHierarchy).ToArray();
+    private static object Field(object target, string name) => target.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic).GetValue(target);
+    private float Zoom => (float)Field(map, "zoom");
+    private Vector3 Center => map.gameplayCamera.transform.position + map.gameplayCamera.transform.forward * (map.orthographic ? map.distance : Zoom);
+    private double Elapsed => Time.timeAsDouble - stageAt;
+    private int Frames => Time.frameCount - stageFrame;
+    private void Check(string label, bool valid) { if (valid) passed.Add(label); else failed.Add(label); }
+    private void Enter(int value) { stage = value; stageFrame = Time.frameCount; stageAt = Time.timeAsDouble; Status = "running-stage-" + stage; }
+    private void Remember(Behaviour value) { if (value != null && !enabledBefore.Any(x => x.target == value)) enabledBefore.Add(new BehaviourState { target = value, enabled = value.enabled }); }
+    private void Keys(params Key[] values) { if (keyboard != null && keyboard.added) InputSystem.QueueStateEvent(keyboard, new KeyboardState(values)); }
+    private void PulseKey(Key value) { keyDownFrame = Time.frameCount; Keys(value); }
+    private Key BoundKey(InputAction action)
+    {
+        var control = action?.controls.OfType<KeyControl>().FirstOrDefault(x => x.device == keyboard);
+        if (control == null) throw new InvalidOperationException("Action无虚拟键盘绑定：" + action?.name);
+        return control.keyCode;
+    }
+    private void MouseStateForNextLoop()
+    {
+        if (mouse == null || !mouse.added || map == null || enemy == null) return;
+        var target = aimAway && coordinator.Current != null ? coordinator.Current.transform.position + Vector3.back * 4 : enemy.transform.position;
+        var screen = map.gameplayCamera.WorldToScreenPoint(target);
+        InputSystem.QueueStateEvent(mouse, new MouseState { position = new Vector2(screen.x, screen.y), buttons = mouseHeld ? (ushort)1 : (ushort)0 });
+    }
+    private void Click(string purpose)
+    {
+        mouseHeld = true; mouseDownFrame = Time.frameCount; lastClickAt = Time.timeAsDouble;
+        requests.Add(new { frame = Time.frameCount, stage, purpose, actor = coordinator.Current?.ActorId ?? "none", input = "configured RightHandAction virtual Mouse.leftButton", target = V(aimAway ? coordinator.Current.transform.position + Vector3.back * 4 : enemy.transform.position) });
+    }
+    private void OnFact(C.CharacterRoot root, ActionFact fact) => ObserveFact(root.ActorId, fact, root.GetComponent<C.CharacterStamina>());
+    private void OnA(ActionFact fact) => OnFact(a, fact);
+    private void OnB(ActionFact fact) => OnFact(b, fact);
+    private void OnEnemy(ActionFact fact) => ObserveFact(enemy.ActorId, fact, null);
+    private void ObserveFact(string actor, ActionFact fact, C.CharacterStamina stamina)
+    {
+        if (fact.ActionId == Guid.Empty) emptyIdentity = true;
+        var key = actor + ":" + fact.ActionId.ToString("N");
+        if (!facts.TryGetValue(key, out var item)) facts.Add(key, item = new FactLedger { actor = actor, id = fact.ActionId.ToString("N"), source = fact.Source, firstAt = fact.At, paidIdentity = true });
+        if (fact.Kind == ActionFactKind.Accepted) { item.accepted++; item.paidIdentity &= stamina == null || stamina.LastToken == fact.ActionId; }
+        if (fact.Kind == ActionFactKind.Released) item.released++;
+        if (fact.Kind == ActionFactKind.Finished) item.finished++;
+        if (fact.Kind == ActionFactKind.Cancelled) item.cancelled++;
+    }
+    private void OnContact(CombatContactBatch batch)
+    {
+        if (batch.Source != a.Vitals && batch.Source != b.Vitals && batch.Source != enemy.Vitals) return;
+        foreach (var receipt in batch.Receipts)
+        {
+            if (receipt.Target != a.Vitals && receipt.Target != b.Vitals && receipt.Target != enemy.Vitals) continue;
+            var hit = receipt.Outcome;
+            contacts.Add(new { frame = Time.frameCount, stage, actor = batch.ActorId, parent = batch.ParentExecutionId.ToString("N"), release = batch.ActionId.ToString("N"), emission = batch.EmissionIndex, target = hit.TargetId, reason = hit.Reason.ToString(), hpBefore = hit.HpBefore, hpAfter = hit.HpAfter });
+            if (hit.Reason != HitReason.Applied) continue;
+            if (!applied.Add(batch.ActionId.ToString("N") + ":" + batch.EmissionIndex + ":" + hit.TargetId)) duplicateApplied = true;
+            if (batch.Source == a.Vitals && receipt.Target == enemy.Vitals)
+            {
+                aHits.Add(batch.ParentExecutionId);
+                if (facts.TryGetValue(a.ActorId + ":" + batch.ParentExecutionId.ToString("N"), out var entry) && entry.source.StartsWith("companion:", StringComparison.Ordinal)) aiHits.Add(batch.ParentExecutionId);
+            }
+            if (batch.Source == b.Vitals && receipt.Target == enemy.Vitals) bHits.Add(batch.ParentExecutionId);
+            if (batch.Source == enemy.Vitals && receipt.Target == a.Vitals) enemyHitA = true;
+            if (batch.Source == enemy.Vitals && receipt.Target == b.Vitals) enemyHitB = true;
+        }
+    }
+    private void Death(CombatVitals victim, HitOutcome hit) => deaths.Add(new { frame = Time.frameCount, stage, victim = victim.Health.Id, source = hit.ActorId, release = hit.ActionId.ToString("N"), hpBefore = hit.HpBefore, hpAfter = hit.HpAfter, current = coordinator.Current?.ActorId ?? "none" });
+    private void OnADeath(HitOutcome hit) => Death(a.Vitals, hit);
+    private void OnBDeath(HitOutcome hit) => Death(b.Vitals, hit);
+    private void OnEnemyDeath(HitOutcome hit) => Death(enemy.Vitals, hit);
+    private int EnemyAccepted => facts.Values.Where(x => x.actor == enemy.ActorId).Sum(x => x.accepted);
+    private void Sample(string label) => samples.Add(new
+    {
+        label, frame = Time.frameCount, stage, current = coordinator.Current?.ActorId ?? "none", revision = coordinator.ControlRevision,
+        aHp = healthA.Current, bHp = healthB.Current, enemyHp = healthEnemy.Current, a = V(a.transform.position), b = V(b.transform.position), enemy = V(enemy.transform.position),
+        aRelease = a.ReleaseCount, bRelease = b.ReleaseCount, enemyFact = enemy.LastFact, enemyTarget = enemyBrain.TargetId, enemyPhase = enemyBrain.Phase.ToString(),
+        companionDecision = brainA == null ? "none" : brainA.Decision.ToString(), companionReason = brainA?.Reason, engaged = engagement.Engaged,
+        aDodge = a.GetComponent<C.CharacterDodge>()?.LastResult,
+        yaw = map.ActualYaw, targetYaw = map.TargetYaw, zoom = Zoom, center = V(Center), structure = map.IsStructureMode,
+        aInput = a.HasPlayerInput, bInput = b.HasPlayerInput, aAction = a.DataBus.ActionId.ToString("N"), bAction = b.DataBus.ActionId.ToString("N")
+    });
+    private void Start() { Result = null; beganAt = Time.realtimeSinceStartupAsDouble; Enter(0); }
+    private void Update()
+    {
+        if (finished) return;
+        try
+        {
+            if (Time.realtimeSinceStartupAsDouble - beganAt > 100) { failed.Add("故事100秒超时；未完成阶段不算通过"); Finish(); return; }
+            if (mouseHeld && Time.frameCount > mouseDownFrame) mouseHeld = false;
+            if (keyDownFrame >= 0 && Time.frameCount > keyDownFrame) { Keys(); keyDownFrame = -1; }
+            if (stage > 0)
+            {
+                sampledFrames++;
+                singleOwner &= (a.HasPlayerInput ? 1 : 0) + (b.HasPlayerInput ? 1 : 0) <= 1;
+                identitiesStable &= ReferenceEquals(healthA, a.Vitals.Health) && ReferenceEquals(healthB, b.Vitals.Health) && ReferenceEquals(healthEnemy, enemy.Vitals.Health) &&
+                    ReferenceEquals(runtimeA, a.StateArbitrator.Combat.Runtime) && ReferenceEquals(runtimeB, b.StateArbitrator.Combat.Runtime) && ReferenceEquals(busA, a.DataBus) && ReferenceEquals(busB, b.DataBus) && ReferenceEquals(orbit, Field(map, "orbit"));
+            }
+            TickStory();
+        }
+        catch (Exception error) { failed.Add("unexpected probe error: " + error); Finish(); }
+        finally { if (!finished) MouseStateForNextLoop(); }
+    }
+    private void TickStory()
+    {
+        if (stage == 0) { if (Frames >= 6) InitializeStory(); return; }
+        if (stage == 1 && Frames >= 8)
+        {
+            switchKey = BoundKey(coordinator.switchAction); dodgeKey = BoundKey(a.GetComponent<C.CharacterInputHandler>().dodgeAction);
+            Keys(Key.W, dodgeKey); keyDownFrame = Time.frameCount; Enter(2);
+        }
+        else if (stage == 2)
+        {
+            var dodge = a.GetComponent<C.CharacterDodge>();
+            if (!dodge.IsActive && Elapsed < 1.5) return;
+            Check("configured real input starts original Dodge before reset", dodge.IsActive);
+            reset.ResetEncounter(); setupPosition = a.transform.position;
+            Check("development reset cancels active original Dodge", !dodge.IsActive && dodge.MotionVelocity.sqrMagnitude < .000001f);
+            Keys(); Enter(3); Sample("dodge-reset");
+        }
+        else if (stage == 3 && Frames >= 4)
+        {
+            var d = a.transform.position - setupPosition; d.y = 0;
+            Check("development reset leaves no stale Dodge displacement", d.sqrMagnitude < .0025f);
+            a.GetComponent<C.CharacterMovement>().Teleport(home - Vector3.right * 1.05f);
+            b.GetComponent<C.CharacterMovement>().Teleport(home + Vector3.back * 8);
+            hpBefore = healthEnemy.Current; aimAway = false; Enter(4); Sample("a-attack-setup");
+        }
+        else if (stage == 4 && Elapsed >= .4) { Click("A actual basic attack"); Enter(5); }
+        else if (stage == 5)
+        {
+            if (aHits.Count == 0 && Elapsed < 2.5) return;
+            ownARecorded = aHits.Count > 0 && healthEnemy.Current < hpBefore;
+            Check("first controlled character actual click releases and damages enemy", ownARecorded);
+            PulseKey(switchKey); Enter(6); Sample("a-real-hit");
+        }
+        else if (stage == 6)
+        {
+            if (coordinator.Current != b && Elapsed < 2) return;
+            Check("actual configured switch transfers control for second attack", coordinator.Current == b);
+            a.SetAttackRestriction(this, true, "battle-isolate-a"); b.SetAttackRestriction(this, false);
+            a.GetComponent<C.CharacterMovement>().Teleport(home + Vector3.back * 8);
+            b.GetComponent<C.CharacterMovement>().Teleport(home - Vector3.right * 1.05f);
+            hpBefore = healthEnemy.Current; Enter(7);
+        }
+        else if (stage == 7 && Elapsed >= .4) { Click("B actual basic attack"); Enter(8); }
+        else if (stage == 8)
+        {
+            if (bHits.Count == 0 && Elapsed < 2.5) return;
+            ownBRecorded = bHits.Count > 0 && healthEnemy.Current < hpBefore;
+            Check("second controlled character actual click releases and damages enemy", ownBRecorded);
+            if (!ownARecorded || !ownBRecorded || !enemy.Vitals.IsAlive) { failed.Add("原始普通攻击前置未满足或敌人已过早死亡，停止后半而不伪造恢复命中"); Finish(); return; }
+            a.CancelAction("battle-companion-stage-setup"); b.CancelAction("battle-companion-stage-setup");
+            a.SetAttackRestriction(this, false); b.SetAttackRestriction(this, false);
+            foreach (var item in enabledBefore) if (item.target != engagement && item.target != null) item.target.enabled = item.enabled;
+            engagement.enabled = true;
+            a.GetComponent<C.CharacterMovement>().Teleport(home + Vector3.right * 1.05f);
+            b.GetComponent<C.CharacterMovement>().Teleport(home + Vector3.back * 1.6f);
+            hpBefore = healthEnemy.Current; aimAway = true; Enter(9); Sample("companion-setup");
+        }
+        else if (stage == 9 && Elapsed >= .4) { Click("B empty swing legitimately engages companion AI"); Enter(10); }
+        else if (stage == 10)
+        {
+            if (aiHits.Count == 0 && Elapsed < 3.5) return;
+            aiRecorded = aiHits.Count > 0 && healthEnemy.Current < hpBefore;
+            Check("non-current original CompanionCombatBrain accepts and really hits", aiRecorded);
+            Check("companion attack retains original non-player authority", facts.Values.Any(x => x.actor == a.ActorId && x.source.StartsWith("companion:", StringComparison.Ordinal) && x.accepted == 1 && x.released == 1));
+            // 保留原伙伴协攻清理600HP原敌；两本体独立受理/命中已在前两段隔离证明。
+            b.CancelAction("battle-kill-setup"); aimAway = false; lastClickAt = -100; Enter(11); Sample("companion-real-hit");
+        }
+        else if (stage == 11)
+        {
+            if (!enemy.Vitals.IsAlive)
+            {
+                mouseHeld = false; enemy.AttacksEnabled = true; enemyAcceptedAtDeath = EnemyAccepted;
+                Check("enemy killed by original player or companion contact", enemy.Vitals.DeathCount == startEnemyDeaths + 1 && deaths.Count > 0 && contacts.Count > 0);
+                Check("encounter was engaged by real accepted actions before clear", engagement.Engaged);
+                Enter(12); Sample("enemy-killed"); return;
+            }
+            if (Elapsed > 40) { failed.Add("真实鼠标普通攻击与原伙伴未在40秒内击杀原敌人"); Finish(); return; }
+            if (b.CanSimulateIntent && b.DataBus.AttackReady && (b.GetComponent<C.CharacterMainAction>()?.AllowsBasicRequest ?? true) && Time.timeAsDouble - lastClickAt > .1)
+                Click("B clicks at original AttackReady while original companion assists");
+        }
+        else if (stage == 12)
+        {
+            if (engagement.Engaged && Elapsed < 6) return;
+            Check("dead enemy has no new accepted attacks or live target", !enemy.ActionActive && !enemy.HasCombatTarget && enemyBrain.TargetId == "none" && EnemyAccepted == enemyAcceptedAtDeath);
+            Check("cleared encounter exits original engagement window", !engagement.Engaged);
+            aimAway = false; Click("empty attack after clear must not re-enter engagement"); Enter(13); Sample("clear-calm");
+        }
+        else if (stage == 13 && Elapsed >= .8)
+        {
+            Check("post-clear empty attack cannot resurrect enemy target or engagement", !engagement.Engaged && !enemy.HasCombatTarget);
+            PrepareEnemyStory(); Enter(14); Sample("enemy-chase-setup");
+        }
+        else if (stage == 14)
+        {
+            chaseMoved |= enemy.GetComponent<E.EnemyMovement>().Velocity.sqrMagnitude > .01f && Vector3.Distance(enemyBeforeChase, enemy.transform.position) > .1f;
+            if (!enemyHitA && Elapsed < 6) return;
+            Check("original EnemyBrain chases through original EnemyMovement", chaseMoved);
+            Check("original enemy released contact really lowers current A HP", enemyHitA && healthA.Current < healthA.Maximum && healthA.Current > 0);
+            map.SetStructureMode(true); heldCenter = Center; heldYaw = map.ActualYaw; heldTarget = map.TargetYaw; heldZoom = Zoom;
+            currentActorAtCapture = coordinator.Current?.ActorId; PulseKey(switchKey); Enter(15); Sample("enemy-real-hit-a");
+        }
+        else if (stage == 15)
+        {
+            if (!captureChecked && Frames >= 3)
+            {
+                captureChecked = true;
+                Check("structure capture blocks manual switch while combat continues", map.IsStructureMode && currentActorAtCapture == a.ActorId && coordinator.Current == a && !a.HasPlayerInput && !b.HasPlayerInput && !enemy.IsSimulationSuspended);
+            }
+            if (a.IsAlive && Elapsed < 16) return;
+            Check("current A dies through original enemy damage", !a.IsAlive && a.Vitals.DeathCount == startADeaths + 1);
+            Check("death transfers to living B despite structure capture", coordinator.Current == b && b.IsAlive && map.IsStructureMode && !b.HasPlayerInput);
+            Check("death handover keeps actual frozen camera and shared orbit", Vector3.Distance(heldCenter, Center) < .0001f && Mathf.Abs(Mathf.DeltaAngle(heldYaw, map.ActualYaw)) < .0001f && Mathf.Abs(Mathf.DeltaAngle(heldTarget, map.TargetYaw)) < .0001f && Mathf.Abs(heldZoom - Zoom) < .0001f);
+            b.GetComponent<C.CharacterMovement>().Teleport(home + Vector3.back * 1.1f);
+            Enter(16); Sample("death-handover");
+        }
+        else if (stage == 16)
+        {
+            if (b.IsAlive && Elapsed < 18) return;
+            Check("original enemy really hits second actor B", enemyHitB && healthB.Current < healthB.Maximum);
+            Check("all actors die through original enemy releases", !a.IsAlive && !b.IsAlive && b.Vitals.DeathCount == startBDeaths + 1 && deaths.Count(x => x != null) >= 3);
+            Check("all-wipe revokes unique Current", coordinator.Current == null && !coordinator.IsIntentSamplingAllowed && !a.HasPlayerInput && !b.HasPlayerInput);
+            map.SetStructureMode(false); heldCenter = Center; Enter(17); Sample("all-wipe");
+        }
+        else if (stage == 17 && Frames >= 8)
+        {
+            Check("normal camera holds last center after all-wipe", !map.IsStructureMode && Vector3.Distance(heldCenter, Center) < .001f && Mathf.Abs(Mathf.DeltaAngle(heldYaw, map.ActualYaw)) < .001f && Mathf.Abs(heldZoom - Zoom) < .001f);
+            Check("enemy relinquishes dead targets and pending attack", !enemy.ActionActive && !enemy.HasCombatTarget && enemyBrain.TargetId == "none");
+            reset.ResetEncounter(); Enter(18); Sample("development-restore");
+        }
+        else if (stage == 18 && Frames >= 5)
+        {
+            Check("development restore returns same living actors and legal Current", a.IsAlive && b.IsAlive && enemy.Vitals.IsAlive && coordinator.Current == a && coordinator.IsIntentSamplingAllowed);
+            Check("all gameplay identities, buses and original action runtimes remain owned", identitiesStable && !emptyIdentity && singleOwner);
+            Check("camera and gameplay world root rotations were not reset", Quaternion.Angle(rootRotationA, a.transform.rotation) < .001f && Quaternion.Angle(rootRotationB, b.transform.rotation) < .001f && Quaternion.Angle(rootRotationEnemy, enemy.transform.rotation) < .001f && Mathf.Abs(Mathf.DeltaAngle(heldYaw, map.ActualYaw)) < .001f && Mathf.Abs(heldZoom - Zoom) < .001f);
+            Check("each original body action has one accept and at most one release", facts.Values.All(x => x.accepted == 1 && x.released <= 1 && x.finished + x.cancelled <= 1));
+            Check("actual body release counters agree with observed original facts", a.ReleaseCount - startAReleases == facts.Values.Where(x => x.actor == a.ActorId).Sum(x => x.released) && b.ReleaseCount - startBReleases == facts.Values.Where(x => x.actor == b.ActorId).Sum(x => x.released));
+            Check("accepted player/companion actions retain original payment token identity", facts.Values.Where(x => x.actor == a.ActorId || x.actor == b.ActorId).All(x => x.paidIdentity));
+            Check("no actual release applies HP twice to same target", !duplicateApplied);
+            Sample("finished"); Finish();
+        }
+    }
+    private void InitializeStory()
+    {
+        var scene = SceneManager.GetActiveScene();
+        coordinator = InScene<C.CharacterControlCoordinator>(scene).Single(); map = InScene<MapResearchRoot>(scene).Single();
+        reset = InScene<MapResearchEncounterDev>(scene).Single(); enemy = InScene<E.EnemyRoot>(scene).Single();
+        engagement = InScene<CombatEngagementSession>(scene).Single(x => x.Coordinator == coordinator);
+        if (map.IsStructureMode) map.SetStructureMode(false);
+        reset.ResetEncounter(); a = coordinator.Current; b = coordinator.Characters.Single(x => x != a);
+        Check("new scene has two independently ready roots and original enemy chase brain", a != null && b != null && a.IsAlive && b.IsAlive && a.DataBus != null && b.DataBus != null && (enemyBrain = enemy.GetComponent<E.ChaseEnemyBrain>()) != null);
+        if (failed.Count > 0) { Finish(); return; }
+        Check("real application focus permits original action clocks", Application.isFocused && !a.IsSimulationSuspended && !b.IsSimulationSuspended && !enemy.IsSimulationSuspended);
+        brainA = a.GetComponent<C.CompanionCombatBrain>(); brainB = b.GetComponent<C.CompanionCombatBrain>();
+        Check("original companion combat modules are available for genuine AI story", brainA != null && brainB != null && brainA.enabled && brainB.enabled && engagement.enabled);
+        if (failed.Count > 0) { Finish(); return; }
+        healthA = a.Vitals.Health; healthB = b.Vitals.Health; healthEnemy = enemy.Vitals.Health;
+        runtimeA = a.StateArbitrator.Combat.Runtime; runtimeB = b.StateArbitrator.Combat.Runtime; busA = a.DataBus; busB = b.DataBus; orbit = Field(map, "orbit");
+        rootRotationA = a.transform.rotation; rootRotationB = b.transform.rotation; rootRotationEnemy = enemy.transform.rotation;
+        home = enemyBrain.Home; startAReleases = a.ReleaseCount; startBReleases = b.ReleaseCount;
+        startEnemyDeaths = enemy.Vitals.DeathCount; startADeaths = a.Vitals.DeathCount; startBDeaths = b.Vitals.DeathCount;
+        Remember(engagement); Remember(brainA); Remember(brainB); Remember(a.Follow); Remember(b.Follow);
+        foreach (var item in enabledBefore) item.target.enabled = false;
+        originalEnemyAttacks = enemy.AttacksEnabled; enemyOverride = true; enemy.AttacksEnabled = false;
+        a.SetAttackRestriction(this, false); b.SetAttackRestriction(this, true, "battle-initial-isolation");
+        a.ActionObserved += OnA; b.ActionObserved += OnB; enemy.ActionObserved += OnEnemy; CombatContactGateway.Resolved += OnContact;
+        a.Vitals.Died += OnADeath; b.Vitals.Died += OnBDeath; enemy.Vitals.Died += OnEnemyDeath; subscribed = true;
+        keyboard = InputSystem.AddDevice<Keyboard>(); mouse = InputSystem.AddDevice<Mouse>(); Keys();
+        Check("both actual right-hand actions bind virtual Mouse.leftButton", a.GetComponent<C.CharacterInputHandler>().rightHandAction.controls.Any(x => x == mouse.leftButton) && b.GetComponent<C.CharacterInputHandler>().rightHandAction.controls.Any(x => x == mouse.leftButton));
+        if (failed.Count > 0) { Finish(); return; }
+        Enter(1); Sample("initialized");
+    }
+    private void PrepareEnemyStory()
+    {
+        mouseHeld = false; Keys(); reset.ResetEncounter();
+        a.SetAttackRestriction(this, true, "battle-enemy-story-no-counterattack"); b.SetAttackRestriction(this, true, "battle-enemy-story-no-counterattack");
+        brainA.enabled = false; brainB.enabled = false; if (a.Follow != null) a.Follow.enabled = false; if (b.Follow != null) b.Follow.enabled = false;
+        engagement.enabled = true; enemy.AttacksEnabled = true;
+        a.GetComponent<C.CharacterMovement>().Teleport(home + Vector3.right * 3);
+        b.GetComponent<C.CharacterMovement>().Teleport(home + Vector3.back * 8);
+        enemyBeforeChase = enemy.transform.position;
+    }
+    private void Finish()
+    {
+        if (finished) return; finished = true;
+        // 先冻结账本快照；退出清理的具名取消/开发复位不混入这次故事事实。
+        var ledger = facts.Values.Select(x => new { x.actor, x.id, x.source, x.accepted, x.released, x.finished, x.cancelled, x.paidIdentity, x.firstAt }).ToArray();
+        var final = new { aHp = healthA?.Current, bHp = healthB?.Current, enemyHp = healthEnemy?.Current, current = coordinator?.Current?.ActorId, stage };
+        Cleanup(); Status = failed.Count == 0 ? "PASSED" : "FAILED";
+        Result = new { finished = true, status = Status, passed = passed.Count, failed = failed.Count, passedCases = passed.ToArray(), failedCases = failed.ToArray(),
+            elapsedRealSeconds = Time.realtimeSinceStartupAsDouble - beganAt, sampledFrames, final, samples = samples.ToArray(), requests = requests.ToArray(), facts = ledger, contacts = contacts.ToArray(), deaths = deaths.ToArray(),
+            preconditions = "original encounter reset and player Movement.Teleport only; early attack/AI phases disable enemy offense; selected follow/combat-brain and original attack-restriction ports isolate each phase; original enemy offense alone causes both actor deaths; all temporary switches restored and encounter reset at cleanup",
+            inputMethod = "virtual Keyboard/Mouse events consumed by next real PlayerLoop; no InputSystem.Update, HP assignment, synthetic release, manual runtime Advance or SO edits" };
+        enabled = false;
+    }
+    private void Cleanup()
+    {
+        if (disposed) return; disposed = true;
+        if (subscribed)
+        {
+            a.ActionObserved -= OnA; b.ActionObserved -= OnB; enemy.ActionObserved -= OnEnemy; CombatContactGateway.Resolved -= OnContact;
+            a.Vitals.Died -= OnADeath; b.Vitals.Died -= OnBDeath; enemy.Vitals.Died -= OnEnemyDeath; subscribed = false;
+        }
+        if (map != null && map.IsStructureMode) map.SetStructureMode(false);
+        if (keyboard != null && keyboard.added) InputSystem.RemoveDevice(keyboard);
+        if (mouse != null && mouse.added) InputSystem.RemoveDevice(mouse);
+        if (a != null) a.SetAttackRestriction(this, false); if (b != null) b.SetAttackRestriction(this, false);
+        foreach (var item in enabledBefore) if (item.target != null) item.target.enabled = item.enabled;
+        if (enemyOverride && enemy != null) enemy.AttacksEnabled = originalEnemyAttacks;
+        if (reset != null) reset.ResetEncounter();
+    }
+    private void OnDestroy() { if (!finished) { failed.Add("probe destroyed before story completed"); Finish(); } else Cleanup(); }
+}
+
+public sealed class StartDs02PartyBattlePlay : IFunplayCommand
+{
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+    {
+        if (!Application.isPlaying) throw new InvalidOperationException("先进入新双角色场Play。请保持Game View焦点。");
+        if (!SceneManager.GetActiveScene().path.EndsWith("SC_DontStarvePartyCombatLab.unity", StringComparison.Ordinal)) throw new InvalidOperationException("拒绝在非DS-MAP-02新研究场运行。");
+        if (UnityEngine.Object.FindObjectsOfType<MonoBehaviour>(true).Any(x => x != null && x.GetType().FullName == typeof(Ds02PartyBattlePlay).FullName && x.isActiveAndEnabled))
+            throw new InvalidOperationException("已有活动战斗探针，不重复创建虚拟设备。");
+        var host = new GameObject("DS02_PartyBattlePlayProbe"); host.hideFlags = HideFlags.DontSaveInEditor | HideFlags.DontSaveInBuild;
+        ctx.RegisterObjectCreation(host); host.AddComponent<Ds02PartyBattlePlay>();
+        ctx.ReturnValue = new { installed = true, pollType = "Ds02PartyBattlePlay", statusField = "Status", resultField = "Result", scope = "真实双角色攻击/伙伴AI/敌追击与击杀/死亡交接与全灭；原敌600HP保留，通常50–70秒，100秒硬超时" };
+    }
+}

@@ -1,0 +1,255 @@
+/* 双角色Play前半故事：真实输入设备事件→唯一控制会话→原角色/AI；不直写HP、不伪造释放、不做文件IO。
+ * 由root在新研究场Play后挂载Ds02PartyCameraAiPlay；静态Result用于后续读取。
+ * 本探针只验证场景/移动/切控/镜头/伙伴及结构捕获，敌人实战另跑独立故事，不把此结果当作战斗通过。
+ */
+using System;
+using System.Linq;
+using System.Reflection;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.Controls;
+using UnityEngine.InputSystem.LowLevel;
+using Ossastra.MapResearch;
+using Ossastra.MapResearchIntegration;
+using Ossastra.Combat;
+using C = Ossastra.Characters;
+using E = Ossastra.Enemies;
+using Funplay.Editor.Tools.Scripting;
+
+[DefaultExecutionOrder(900)]
+public sealed class Ds02PartyCameraAiPlay : MonoBehaviour
+{
+    public static object Result;
+    public static string Status = "not-started";
+    private readonly List<string> passed = new List<string>(), failed = new List<string>(), unverified = new List<string>();
+    private readonly List<object> samples = new List<object>();
+    private MapResearchRoot map;
+    private MapResearchPartyBridge bridge;
+    private C.CharacterControlCoordinator coordinator;
+    private C.CharacterRoot a, b;
+    private E.EnemyRoot enemy;
+    private CombatEngagementSession engagement;
+    private Keyboard keyboard;
+    private Mouse mouse;
+    private Key switchKey, structureKey;
+    private int stage, enteredFrame, sampledFrames;
+    private double enteredAt, beganAt;
+    private bool disposed, finished, enemyAttackOriginal, enemyOverride;
+    private bool engagementOriginal, engagementOverride;
+    private int originalARelease, originalBRelease;
+    private Vector3 playerBefore, companionBefore, expectedMove, centerBefore;
+    private float startYaw, targetYaw, zoomBefore;
+    private object orbitBefore;
+    private bool companionMovedInWorld, ownershipValid = true, companionOnlyAi = true, newPlayerMoved;
+    private C.CharacterRoot captureCurrent;
+
+    private static float[] V(Vector3 value) => new[] { value.x, value.y, value.z };
+    private static object Field(object target, string name) => target.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic).GetValue(target);
+    private static T[] InScene<T>(Scene scene) where T : Component => UnityEngine.Object.FindObjectsOfType<T>(true).Where(x => x.gameObject.scene == scene && x.gameObject.activeInHierarchy).ToArray();
+    private void Check(string name, bool valid) { if (valid) passed.Add(name); else failed.Add(name); }
+    private double Elapsed => Time.timeAsDouble - enteredAt;
+    private int Frames => Time.frameCount - enteredFrame;
+    private float Zoom => (float)Field(map, "zoom");
+    private Vector3 Center => map.gameplayCamera.transform.position + map.gameplayCamera.transform.forward * (map.orthographic ? map.distance : Zoom);
+    private void Enter(int value) { stage = value; enteredFrame = Time.frameCount; enteredAt = Time.timeAsDouble; Status = "running-stage-" + stage; }
+    private void Keys(params Key[] keys) { if (keyboard != null && keyboard.added) InputSystem.QueueStateEvent(keyboard, new KeyboardState(keys)); }
+    private void Wheel(float value)
+    {
+        if (mouse != null && mouse.added) InputSystem.QueueStateEvent(mouse, new MouseState
+            { position = new Vector2(Screen.width * .65f, Screen.height * .45f), scroll = new Vector2(0, value) });
+    }
+    private Key BoundKey(InputAction action)
+    {
+        var control = action == null ? null : action.controls.OfType<KeyControl>().FirstOrDefault(x => x.device == keyboard);
+        if (control == null) throw new InvalidOperationException("本探针未找到该Action的虚拟键盘绑定：" + action?.name);
+        return control.keyCode;
+    }
+    private void Sample(string label)
+    {
+        samples.Add(new
+        {
+            label, frame = Time.frameCount, dt = Time.deltaTime, current = coordinator.Current == null ? "none" : coordinator.Current.ActorId,
+            revision = coordinator.ControlRevision, yaw = map.ActualYaw, target = map.TargetYaw, zoom = Zoom, center = V(Center),
+            a = V(a.transform.position), b = V(b.transform.position), aKind = a.EffectiveIntentKind.ToString(), bKind = b.EffectiveIntentKind.ToString(),
+            aInput = a.HasPlayerInput, bInput = b.HasPlayerInput, aRelease = a.ReleaseCount, bRelease = b.ReleaseCount,
+            aAction = a.DataBus.ActionId.ToString("N"), bAction = b.DataBus.ActionId.ToString("N"),
+            enemyHp = enemy.Vitals.Health.Current, structure = map.IsStructureMode
+        });
+    }
+    private void Start()
+    {
+        Result = null; Status = "initializing"; beganAt = Time.realtimeSinceStartupAsDouble; Enter(0);
+    }
+    private void Update()
+    {
+        if (finished) return;
+        try
+        {
+            if (Time.realtimeSinceStartupAsDouble - beganAt > 45) { failed.Add("探针超时；未把未完成阶段计为通过"); Finish(); return; }
+            if (stage == 0) { if (Frames >= 6) InitializeStory(); return; }
+            sampledFrames++;
+            int owners = (a.HasPlayerInput ? 1 : 0) + (b.HasPlayerInput ? 1 : 0);
+            int playerFrames = (a.EffectiveIntentKind == Ossastra.CharacterCore.CharacterIntentKind.Player ? 1 : 0) +
+                (b.EffectiveIntentKind == Ossastra.CharacterCore.CharacterIntentKind.Player ? 1 : 0);
+            ownershipValid &= owners <= 1 && playerFrames <= 1;
+            if (stage == 1 && Frames >= 8)
+            {
+                switchKey = BoundKey(coordinator.switchAction); structureKey = BoundKey(map.cameraInput.toggleStructure);
+                playerBefore = a.transform.position; companionBefore = b.transform.position; expectedMove = map.ViewForward;
+                Keys(Key.W); Enter(2); Sample("move-start");
+            }
+            else if (stage == 2)
+            {
+                companionOnlyAi &= !b.HasPlayerInput;
+                var busMove = b.DataBus.Input.move;
+                if (busMove.sqrMagnitude > .01f && b.DataBus.Velocity.sqrMagnitude > .01f)
+                {
+                    var world = new Vector3(busMove.x, 0, busMove.y).normalized;
+                    companionMovedInWorld |= b.EffectiveIntentKind == Ossastra.CharacterCore.CharacterIntentKind.Companion &&
+                        Vector3.Dot(world, b.DataBus.Velocity.normalized) > .8f;
+                }
+                if (Elapsed < .45) return;
+                var displacement = a.transform.position - playerBefore; displacement.y = 0;
+                Check("current moves through original input and motor", displacement.magnitude > .05f && Vector3.Dot(displacement.normalized, expectedMove) > .8f);
+                Check("non-current never acquires physical input", companionOnlyAi);
+                Check("companion follows through world-space intent and real movement", companionMovedInWorld && Vector3.Distance(companionBefore, b.transform.position) > .05f);
+                Keys(); Enter(3); Sample("move-end");
+            }
+            else if (stage == 3 && Frames >= 5)
+            {
+                startYaw = map.ActualYaw; zoomBefore = Zoom; orbitBefore = Field(map, "orbit");
+                Wheel(120); Keys(Key.W); Enter(4); Sample("turn-request");
+            }
+            else if (stage == 4)
+            {
+                float turned = Mathf.Abs(Mathf.DeltaAngle(startYaw, map.ActualYaw));
+                if (turned <= .5f && Elapsed < 2) return;
+                if (turned >= 44.9f) unverified.Add("本次未采到旋转中间帧；切控角保持仍测试，但中途切控需另跑");
+                targetYaw = map.TargetYaw; centerBefore = Center; Keys(Key.W, switchKey); Enter(5); Sample("switch-queued");
+            }
+            else if (stage == 5)
+            {
+                if (Frames == 1) Keys(Key.W);
+                if (coordinator.Current != b && Elapsed < 2) return;
+                Check("configured switch action selects second original character", coordinator.Current == b);
+                Check("switch retains same shared orbit object", ReferenceEquals(orbitBefore, Field(map, "orbit")));
+                Check("switch retains target angle and zoom", Mathf.Abs(Mathf.DeltaAngle(targetYaw, map.TargetYaw)) < .001f && Mathf.Abs(Zoom - zoomBefore) < .001f);
+                Check("rotation continues without reset to initial angle", Mathf.Abs(Mathf.DeltaAngle(startYaw, map.ActualYaw)) > .5f);
+                var goal = b.transform.position + map.targetOffset;
+                if (Time.deltaTime < .15f && Vector3.Distance(centerBefore, goal) > .5f)
+                    Check("follow center smooths rather than snapping on switch", Vector3.Distance(Center, goal) > .02f && Vector3.Distance(Center, centerBefore) > .00001f);
+                else unverified.Add("切控帧间隔/中心距离不适合精确判定平滑首帧；纯契约另测");
+                Enter(6); Sample("switch-observed");
+            }
+            else if (stage == 6)
+            {
+                var movement = b.GetComponent<C.CharacterMovement>();
+                if (b.HasPlayerInput && movement.RequestedVelocity.sqrMagnitude > .01f)
+                    newPlayerMoved |= Vector3.Dot(movement.RequestedVelocity.normalized, map.ViewForward) > .9f;
+                if (Elapsed < .35) return;
+                Check("held movement transfers using current actual camera basis", newPlayerMoved && !a.HasPlayerInput);
+                Check("camera-only and movement story does not add releases", a.ReleaseCount == originalARelease && b.ReleaseCount == originalBRelease);
+                Keys(); Enter(7); Sample("handover-move-end");
+            }
+            else if (stage == 7 && Frames >= 5)
+            { Keys(structureKey); Enter(8); }
+            else if (stage == 8)
+            {
+                if (Frames == 1) Keys();
+                if (!map.IsStructureMode && Elapsed < 2) return;
+                Check("configured structure action enters frozen observation", map.IsStructureMode);
+                captureCurrent = coordinator.Current;
+                Check("structure captures both player input ports", !a.HasPlayerInput && !b.HasPlayerInput);
+                Check("structure does not set enemy pause flag (combat disabled in this story)", !enemy.IsSimulationSuspended);
+                playerBefore = map.gameplayCamera.transform.position; expectedMove = map.gameplayCamera.transform.forward;
+                Keys(switchKey); Wheel(120); Enter(9); Sample("structure-capture");
+            }
+            else if (stage == 9)
+            {
+                if (Frames == 1) Keys();
+                if (Frames < 5) return;
+                Check("manual switching is blocked while captured", coordinator.Current == captureCurrent);
+                Check("observer rotation leaves gameplay camera frozen", Vector3.Distance(playerBefore, map.gameplayCamera.transform.position) < .0001f && Vector3.Dot(expectedMove, map.gameplayCamera.transform.forward) > .9999f);
+                Keys(structureKey); Enter(10);
+            }
+            else if (stage == 10)
+            {
+                if (Frames == 1) Keys();
+                if (map.IsStructureMode && Elapsed < 2) return;
+                Check("structure exit releases session capture", !map.IsStructureMode && coordinator.Current != null && coordinator.IsIntentSamplingAllowed && a.HasPlayerInput != b.HasPlayerInput);
+                Check("sampled frames never contain double player ownership", ownershipValid);
+                Sample("finished"); Finish();
+            }
+        }
+        catch (Exception error) { failed.Add("unexpected probe error: " + error); Finish(); }
+    }
+    private void InitializeStory()
+    {
+        var scene = SceneManager.GetActiveScene();
+        var maps = InScene<MapResearchRoot>(scene); var groups = InScene<C.CharacterControlCoordinator>(scene); var roots = InScene<C.CharacterRoot>(scene); var foes = InScene<E.EnemyRoot>(scene);
+        Check("new scene contains two player roots and one independent enemy root", roots.Length == 2 && foes.Length == 1);
+        Check("new scene contains one map and one control coordinator", maps.Length == 1 && groups.Length == 1);
+        if (failed.Count > 0) { Finish(); return; }
+        map = maps[0]; coordinator = groups[0]; enemy = foes[0]; bridge = map.sessionComponent as MapResearchPartyBridge;
+        Check("party scene uses explicit aggregate view session", bridge != null && bridge.RegisteredCount == 3);
+        // 使用显式开发入口准备前置，不用HP赋值假造战斗；前半只隔离摄像/跟随，伤害另测。
+        var reset = InScene<MapResearchEncounterDev>(scene).SingleOrDefault();
+        if (reset != null) reset.ResetEncounter();
+        a = coordinator.Current; b = roots.FirstOrDefault(x => x != a);
+        Check("both original actor instances initialized independently", a != null && b != null && a.DataBus != null && b.DataBus != null &&
+            a.ActorId != b.ActorId && !ReferenceEquals(a.DataBus, b.DataBus) && !ReferenceEquals(a.StateArbitrator.Combat.Runtime, b.StateArbitrator.Combat.Runtime));
+        if (failed.Count > 0) { Finish(); return; }
+        Check("game view has real application focus", Application.isFocused && !a.IsSimulationSuspended && !b.IsSimulationSuspended);
+        if (failed.Count > 0) { Finish(); return; }
+        engagement = InScene<CombatEngagementSession>(scene).SingleOrDefault(x => x.Coordinator == coordinator);
+        if (engagement != null) { engagementOriginal = engagement.enabled; engagementOverride = true; engagement.enabled = false; }
+        enemyAttackOriginal = enemy.AttacksEnabled; enemyOverride = true; enemy.AttacksEnabled = false;
+        a.CancelAction("ds02-camera-story-setup"); b.CancelAction("ds02-camera-story-setup");
+        a.GetComponent<C.CharacterDodge>()?.Cancel(); b.GetComponent<C.CharacterDodge>()?.Cancel();
+        a.GetComponent<C.CharacterMovement>().Teleport(new Vector3(0, .05f, 0));
+        b.GetComponent<C.CharacterMovement>().Teleport(new Vector3(-5, .05f, 0));
+        originalARelease = a.ReleaseCount; originalBRelease = b.ReleaseCount;
+        keyboard = InputSystem.AddDevice<Keyboard>(); mouse = InputSystem.AddDevice<Mouse>();
+        Keys(); Wheel(0); Enter(1); Sample("initialized");
+    }
+    private void Finish()
+    {
+        if (finished) return;
+        finished = true; Cleanup();
+        Status = failed.Count > 0 ? "FAILED" : unverified.Count > 0 ? "PARTIAL" : "PASSED";
+        Result = new { finished = true, status = Status, scope = "scene-camera-player-input-companion-structure; not combat damage/death", passed = passed.Count, failed = failed.Count,
+            passedCases = passed.ToArray(), failedCases = failed.ToArray(), unverified = unverified.ToArray(), sampledFrames, samples = samples.ToArray(),
+            fixturePrecondition = "explicit encounter reset when available; original body action/dodge canceled for setup; enemy attacks and engagement temporarily disabled for isolated camera/follow story and restored on cleanup; combat/death require separate probe",
+            inputMethod = "InputSystem virtual Keyboard/Mouse queued for next real PlayerLoop; no manual InputSystem.Update" };
+        enabled = false;
+    }
+    private void Cleanup()
+    {
+        if (disposed) return; disposed = true;
+        if (map != null && map.IsStructureMode) map.SetStructureMode(false);
+        if (keyboard != null && keyboard.added) InputSystem.RemoveDevice(keyboard);
+        if (mouse != null && mouse.added) InputSystem.RemoveDevice(mouse);
+        if (enemyOverride && enemy != null) enemy.AttacksEnabled = enemyAttackOriginal;
+        if (engagementOverride && engagement != null) engagement.enabled = engagementOriginal;
+    }
+    private void OnDestroy() { Cleanup(); if (!finished) { failed.Add("probe destroyed before story completed"); Finish(); } }
+}
+
+public sealed class StartDs02PartyPlay : IFunplayCommand
+{
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+    {
+        if (!Application.isPlaying) throw new InvalidOperationException("先进入新双角色场Play再运行探针。");
+        var scene = SceneManager.GetActiveScene();
+        if (!scene.path.EndsWith("SC_DontStarvePartyCombatLab.unity", StringComparison.Ordinal)) throw new InvalidOperationException("拒绝在非DS-MAP-02新研究场运行。");
+        if (UnityEngine.Object.FindObjectsOfType<MonoBehaviour>(true).Any(x => x != null && x.GetType().FullName == typeof(Ds02PartyCameraAiPlay).FullName && x.isActiveAndEnabled))
+            throw new InvalidOperationException("已有活动探针，不重复创建虚拟设备。");
+        var host = new GameObject("DS02_PartyCameraAiPlayProbe");
+        host.hideFlags = HideFlags.DontSaveInEditor | HideFlags.DontSaveInBuild;
+        ctx.RegisterObjectCreation(host);
+        host.AddComponent<Ds02PartyCameraAiPlay>();
+        ctx.ReturnValue = new { installed = true, pollType = "Ds02PartyCameraAiPlay", statusField = "Status", resultField = "Result", scope = "前半：场景/摄像/移动/伙伴/结构；不含敌人伤害与击杀" };
+    }
+}

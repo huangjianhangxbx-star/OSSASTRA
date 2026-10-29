@@ -1,8 +1,8 @@
 /*
  * 脚本：MapResearchRoot
- * 功能：在独立样地组织镜头输入、八档平滑观察、物件显示与结构诊断。
+ * 功能：在独立样地组织共享镜头、八档观察、物件显示与结构诊断；观察集合由可选场景会话聚合。
  * 边界：不实现人物Motor/攻击，不改世界根/碰撞/TimeScale；仅通过角色窄契约注入正常观察基。
- * 协作：先于CharacterRoot发布本帧实际相机；结构相机只观察冻结的显示，不成为人物瞄准相机。
+ * 协作：控制协调者先提交切控，本根再发布实际相机基，随后各CharacterRoot推进；结构相机不成为瞄准相机。
  * 生命周期：首次在Start等各组件启用后精确绑定；随后重新启用由OnEnable绑定；失焦/禁用精确释放。
  */
 using Ossastra.Characters.ViewSpace;
@@ -10,7 +10,7 @@ using UnityEngine;
 
 namespace Ossastra.MapResearch
 {
-    [DefaultExecutionOrder(-300)]
+    [DefaultExecutionOrder(-150)]
     [DisallowMultipleComponent]
     [RequireComponent(typeof(MapResearchCameraInput))]
     public sealed class MapResearchRoot : MonoBehaviour, ICharacterViewContext
@@ -19,12 +19,16 @@ namespace Ossastra.MapResearch
         public Camera gameplayCamera;
         public Camera observerCamera;
         public MonoBehaviour participantComponent;
+        [Tooltip("可选多人会话：聚合观察消费者及玩家捕获；FollowTarget只读原控制协调者。缺省沿原单参与者入口。")]
+        public MonoBehaviour sessionComponent;
         public MapResearchCameraInput cameraInput;
         public ScenePropView[] props;
         public Collider[] collisionVolumes;
         public RectTransform overlayPointerBlocker;
         [Header("正常观察相机；世界物件与角色根不旋转")]
         public bool followParticipant = true;
+        [Min(0f), Tooltip("多人会话更换跟随中心的平滑时间；不修改镜头角度/缩放。旧单参与者仍沿原直接跟随。")]
+        public float followSmoothTime = .2f;
         public Vector3 fixedTarget;
         public Vector3 targetOffset = new Vector3(0f, 0.8f, 0f);
         public float initialYaw;
@@ -45,6 +49,7 @@ namespace Ossastra.MapResearch
         [Range(1, 32)] public int gridExtent = 8;
 
         private ICharacterViewParticipant participant;
+        private IMapResearchSession session;
         private MapOrbitState orbit, observerOrbit;
         private CameraState savedGameplay, savedObserver;
         private bool bound, inputOwned, structureMode, observerTop, hasFocus = true;
@@ -54,6 +59,8 @@ namespace Ossastra.MapResearch
         private Vector3 structureTarget;
         private Vector3 viewRight = Vector3.right, viewForward = Vector3.forward;
         private Quaternion viewRotation = Quaternion.identity;
+        private Vector3 followCenter, followVelocity;
+        private bool followCenterInitialized;
 
         public Camera GameplayCamera => gameplayCamera;
         public bool IsValid => isActiveAndEnabled && gameplayCamera != null && orbit != null;
@@ -90,7 +97,7 @@ namespace Ossastra.MapResearch
         private void OnEnable()
         {
             hasFocus = Application.isFocused;
-            // -300只用于每帧先发布相机基；首次OnEnable会早于默认顺序的角色适配器启用。
+            // -150负责在协调者-200之后、角色-100之前发布相机；首次绑定仍等各组件启用完成。
             // Start保证所有Awake/OnEnable已完成，不能靠放宽适配器isActiveAndEnabled约束抢先绑定。
             if (started) BindScene();
         }
@@ -104,17 +111,24 @@ namespace Ossastra.MapResearch
         private void BindScene()
         {
             if (cameraInput == null) cameraInput = GetComponent<MapResearchCameraInput>();
-            participant = participantComponent as ICharacterViewParticipant;
-            if (gameplayCamera == null || observerCamera == null || gameplayCamera == observerCamera || participant == null || cameraInput == null)
+            session = sessionComponent as IMapResearchSession;
+            participant = sessionComponent == null ? participantComponent as ICharacterViewParticipant : null;
+            if (gameplayCamera == null || observerCamera == null || gameplayCamera == observerCamera ||
+                (sessionComponent != null ? session == null : participant == null) || cameraInput == null)
             {
-                Debug.LogError("地图研究装配缺失：需要不同的正常/结构相机、角色视角端口及镜头Input组件。", this);
+                Debug.LogError("地图研究装配缺失：需要不同的正常/结构相机、有效场景会话或单角色视角端口，以及镜头Input组件。", this);
                 return;
             }
             savedGameplay = CameraState.Capture(gameplayCamera);
             savedObserver = CameraState.Capture(observerCamera);
-            orbit = new MapOrbitState(initialYaw);
-            zoom = Mathf.Clamp(orthographic ? orthographicSize : distance, minimumZoom, Mathf.Max(minimumZoom, maximumZoom));
-            bound = participant.BindViewContext(this, this);
+            // 多人会话的观察角只属于场景；切人不调用本方法，重新启用也不重建已有旋转过程。
+            // 单参与者旧场保留原绑定/恢复行为，避免把多人平滑政策推广到旧场。
+            if (session == null || orbit == null)
+            {
+                orbit = new MapOrbitState(initialYaw);
+                zoom = Mathf.Clamp(orthographic ? orthographicSize : distance, minimumZoom, Mathf.Max(minimumZoom, maximumZoom));
+            }
+            bound = session != null ? session.BindViewContext(this, this) : participant.BindViewContext(this, this);
             if (!bound)
             {
                 Debug.LogError("地图研究不能取得角色视角端口：已有其他owner或角色拒绝绑定。", this);
@@ -123,7 +137,7 @@ namespace Ossastra.MapResearch
             inputOwned = cameraInput.Begin(this);
             if (!inputOwned)
             {
-                participant.ReleaseViewContext(this);
+                if (session != null) session.ReleaseViewContext(this); else participant.ReleaseViewContext(this);
                 bound = false;
                 Debug.LogError("地图研究镜头输入已由其他owner持有或Action配置缺失。", this);
                 return;
@@ -131,6 +145,8 @@ namespace Ossastra.MapResearch
             structureMode = false;
             observerCamera.enabled = false;
             gameplayCamera.enabled = true;
+            if (session == null || !followCenterInitialized) InitializeFollowCenter();
+            followVelocity = Vector3.zero;
             ApplyGameplayCamera();
             PublishView();
             TickProps();
@@ -139,7 +155,8 @@ namespace Ossastra.MapResearch
 
         private void Update()
         {
-            if (!bound || !inputOwned || participantComponent == null || gameplayCamera == null || observerCamera == null) return;
+            if (!bound || !inputOwned || gameplayCamera == null || observerCamera == null) return;
+            if (session != null ? sessionComponent == null : participantComponent == null) { Release(); return; }
             // 本实验没有文本输入框；IMGUI拥有键盘/拖动时不把同一滚轮或快捷键再当镜头指令。
             bool blocked = !hasFocus || GUIUtility.keyboardControl != 0 || GUIUtility.hotControl != 0;
             MapResearchCameraInput.Frame frame = cameraInput.ReadFrame(blocked);
@@ -164,6 +181,7 @@ namespace Ossastra.MapResearch
                 orbit.RequestStep(frame.rotation);
                 orbit.Tick(delta, degreesPerSecond);
                 zoom = Mathf.Clamp(zoom + frame.zoom * zoomSpeed * delta, minimumZoom, maximum);
+                AdvanceFollowCenter(delta);
                 ApplyGameplayCamera();
                 PublishView();
             }
@@ -173,8 +191,35 @@ namespace Ossastra.MapResearch
 
         private Vector3 CurrentTarget()
         {
+            if (session != null) return followCenterInitialized ? followCenter : fixedTarget + targetOffset;
             Transform character = participant != null && participantComponent != null ? participant.CharacterTransform : null;
             return (followParticipant && character != null ? character.position : fixedTarget) + targetOffset;
+        }
+
+        private void InitializeFollowCenter()
+        {
+            Transform target = session != null && sessionComponent != null ? session.FollowTarget :
+                participant != null && participantComponent != null ? participant.CharacterTransform : null;
+            followCenter = (followParticipant && target != null ? target.position : fixedTarget) + targetOffset;
+            followCenterInitialized = true;
+        }
+
+        /// <summary>只平滑镜头中心。读取本帧已提交Current及上一轮角色位置，不再次推进角色或动画。</summary>
+        private void AdvanceFollowCenter(float delta)
+        {
+            if (structureMode) return;
+            if (!followCenterInitialized) InitializeFollowCenter();
+            if (session == null) { followCenter = CurrentTarget(); followVelocity = Vector3.zero; return; }
+            Transform target = sessionComponent != null ? session.FollowTarget : null;
+            if (followParticipant && target == null)
+            {
+                // 全灭/无合法主控时停在最后实际中心；不让SmoothDamp残余速度继续漂移或回初始点。
+                followVelocity = Vector3.zero;
+                return;
+            }
+            var desired = (followParticipant ? target.position : fixedTarget) + targetOffset;
+            if (followSmoothTime <= 0f) { followCenter = desired; followVelocity = Vector3.zero; }
+            else if (delta > 0f) followCenter = Vector3.SmoothDamp(followCenter, desired, ref followVelocity, followSmoothTime, Mathf.Infinity, delta);
         }
 
         private void ApplyGameplayCamera()
@@ -203,12 +248,12 @@ namespace Ossastra.MapResearch
 
         public bool SetStructureMode(bool enabled)
         {
-            if (!bound || participantComponent == null || gameplayCamera == null || observerCamera == null) return false;
+            if (!bound || (session != null ? sessionComponent == null : participantComponent == null) || gameplayCamera == null || observerCamera == null) return false;
             if (structureMode == enabled) return true;
             if (enabled)
             {
                 // 不停用Root：一次性已受理动作沿原钟结算；依赖Held的持续能力沿原UI捕获规则结束。
-                if (!participant.SetViewInputCapture(this, true)) return false;
+                if (!(session != null ? session.SetViewInputCapture(this, true) : participant.SetViewInputCapture(this, true))) return false;
                 structureTarget = CurrentTarget();
                 observerOrbit = new MapOrbitState(orbit.ActualYaw + 90f);
                 observerZoom = Mathf.Clamp(zoom, minimumZoom, Mathf.Max(minimumZoom, maximumZoom));
@@ -220,7 +265,7 @@ namespace Ossastra.MapResearch
             }
             else
             {
-                participant.SetViewInputCapture(this, false);
+                if (session != null) session.SetViewInputCapture(this, false); else participant.SetViewInputCapture(this, false);
                 structureMode = false;
                 observerCamera.enabled = false;
                 gameplayCamera.enabled = true;
@@ -267,7 +312,12 @@ namespace Ossastra.MapResearch
 
         private void Release()
         {
-            if (participantComponent != null && participant != null && bound)
+            if (sessionComponent != null && session != null && bound)
+            {
+                session.SetViewInputCapture(this, false);
+                session.ReleaseViewContext(this);
+            }
+            else if (participantComponent != null && participant != null && bound)
             {
                 participant.SetViewInputCapture(this, false);
                 participant.ReleaseViewContext(this);
@@ -275,6 +325,7 @@ namespace Ossastra.MapResearch
             if (cameraInput != null && inputOwned) cameraInput.End(this);
             if (bound) { savedGameplay.Restore(gameplayCamera); savedObserver.Restore(observerCamera); }
             structureMode = false; bound = false; inputOwned = false;
+            followVelocity = Vector3.zero;
             if (props != null) foreach (ScenePropView prop in props) if (prop != null) prop.RestoreView();
             if (overlayPointerBlocker != null) overlayPointerBlocker.gameObject.SetActive(false);
             uiToggle = uiSide = uiTop = uiReset = false;
@@ -295,7 +346,8 @@ namespace Ossastra.MapResearch
             if (!showOverlay || !bound) return;
             float width = Mathf.Min(750f, Screen.width - 24f);
             GUI.Box(new Rect(12, 12, width, structureMode ? 188f : 93f), GUIContent.none);
-            GUI.Label(new Rect(24, 20, width - 24, 22), "饥荒地图研究 · 现有角色控制链  |  观察角 " + ActualYaw.ToString("0.0") + "° → " + TargetYaw.ToString("0") + "°");
+            string current = session != null && sessionComponent != null ? "  主控：" + (session.FollowTarget != null ? session.FollowTarget.name : "无合法主控") : "";
+            GUI.Label(new Rect(24, 20, width - 24, 22), "饥荒地图研究 · 现有角色控制链  |  观察角 " + ActualYaw.ToString("0.0") + "° → " + TargetYaw.ToString("0") + "°" + current);
             GUI.Label(new Rect(24, 43, width - 24, 22), "滚轮/十字键左右：45°旋转　PageUp/Down：缩放　Home：恢复　Q/E技能与方向键移动保留");
             if (GUI.Button(new Rect(24, 68, 140, 22), structureMode ? "F6 返回正常游玩" : "F6 查看纸片结构")) uiToggle = true;
             if (GUI.Button(new Rect(170, 68, 90, 22), "F7 侧看")) uiSide = true;
@@ -303,8 +355,8 @@ namespace Ossastra.MapResearch
             if (GUI.Button(new Rect(362, 68, 90, 22), "恢复机位")) uiReset = true;
             if (!structureMode) return;
             GUI.Label(new Rect(24, 94, width - 24, 22), "正常相机与显示平面已冻结；滚轮只转结构相机。网格为参考；黄色脚点/占地，青色真实平面，红色碰撞包围框。");
-            GUI.Label(new Rect(24, 116, width - 24, 46), participant != null ? participant.ViewDiagnostics : "角色端口已失效");
-            GUI.Label(new Rect(24, 163, width - 24, 22), "紫色：人物真实世界方向　白色：正常相机方向；物件来源与比例见Inspector的Scene Prop View。");
+            GUI.Label(new Rect(24, 116, width - 24, 46), session != null ? session.ViewDiagnostics : participant != null ? participant.ViewDiagnostics : "角色端口已失效");
+            GUI.Label(new Rect(24, 163, width - 24, 22), "观察模式不暂停战斗；紫色：原单人世界方向，白色：相机方向；物件来源与比例见Inspector。");
             DrawStructure(observerCamera);
         }
 

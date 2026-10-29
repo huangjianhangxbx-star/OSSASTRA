@@ -1,0 +1,68 @@
+/* 原单人场真实网格/连续旋转反馈环；不修改资产，不直接推进角色或动画。 */
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using UnityEngine;
+using UnityEngine.Rendering;
+using Spine.Unity;
+using Ossastra.MapResearch;
+using Ossastra.Characters;
+using Funplay.Editor.Tools.Scripting;
+public sealed class Ds02StartOrbit : IFunplayCommand
+{
+    public void Execute(ExecutionContext ctx)
+    {
+        if(!Application.isPlaying){ctx.ReturnValue="requires Play";return;}
+        var root=UnityEngine.Object.FindObjectsOfType<MapResearchRoot>(true).SingleOrDefault();
+        var actor=UnityEngine.Object.FindObjectsOfType<Ossastra.Characters.CharacterRoot>(true).SingleOrDefault(a=>a.ActorId=="temporary-a");
+        if(root==null||actor==null){ctx.ReturnValue="missing map/actor";return;}
+        var go=new GameObject("DS02_BaselineProbe");ctx.RegisterObjectCreation(go);
+        var probe=go.AddComponent<Ds02OrbitProbe>();probe.map=root;probe.actor=actor;
+        probe.Initialize();ctx.ReturnValue="Started 18s orbit feedback loop; read Ds02OrbitProbe.Result and persist the receipt explicitly";
+    }
+}
+public sealed class Ds02OrbitProbe : MonoBehaviour
+{
+    public static object Result;
+    public MapResearchRoot map;public Ossastra.Characters.CharacterRoot actor;
+    private SkeletonAnimation body;private CharacterDirectionPresentation direction;private MeshFilter filter;
+    private double start;private int step,meshEvents,emptyMeshes,boundsFailures;private bool finished;
+    private readonly List<Vector3> vertices=new List<Vector3>();
+    private readonly List<object> samples=new List<object>();
+    public void Initialize()
+    {
+        body=actor.GetComponentInChildren<SkeletonAnimation>();direction=body.GetComponent<CharacterDirectionPresentation>();
+        filter=body.GetComponent<MeshFilter>();start=Time.realtimeSinceStartupAsDouble;
+        body.OnMeshAndMaterialsUpdated+=MeshReady;
+    }
+    private void Update()
+    {
+        double elapsed=Time.realtimeSinceStartupAsDouble-start;
+        if(step<16&&elapsed>1+step*.85)
+        {
+            var orbit=(MapOrbitState)typeof(MapResearchRoot).GetField("orbit",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(map);
+            orbit.RequestStep(step<8?1:-1);step++;
+        }
+        if(elapsed>17&&!finished)
+        {
+            finished=true;body.OnMeshAndMaterialsUpdated-=MeshReady;
+            Result=new {status=emptyMeshes>0?"EMPTY_MESH_DETECTED":"UNREPRODUCED_CPU_MESH",meshEvents,emptyMeshes,boundsFailures,samples};
+            Destroy(gameObject);
+        }
+    }
+    private void MeshReady(ISkeletonRenderer renderer)
+    {
+        var mesh=filter.sharedMesh;if(mesh==null)return;
+        var colors=mesh.colors32;int visible=colors.Count(c=>c.a>15);meshEvents++;
+        vertices.Clear();mesh.GetVertices(vertices);var bounds=mesh.bounds;var min=bounds.min-Vector3.one*.00001f;var max=bounds.max+Vector3.one*.00001f;
+        if(bounds.extents.x<0||bounds.extents.y<0||bounds.extents.z<0||vertices.Any(v=>v.x<min.x||v.x>max.x||v.y<min.y||v.y>max.y||v.z<min.z||v.z>max.z))boundsFailures++;
+        if(visible==0)emptyMeshes++;
+        var track=body.AnimationState.GetTrack(0);
+        samples.Add(new {frame=Time.frameCount,time=Time.realtimeSinceStartupAsDouble-start,actual=map.ActualYaw,target=map.TargetYaw,
+            face=direction==null?"none":direction.FaceId,mirror=direction!=null&&direction.Mirrored,
+            vertexCount=mesh.vertexCount,visible,mesh=mesh.GetInstanceID(),skeleton=body.GetInstanceID(),
+            enabled=body.enabled,bounds=filter.GetComponent<Renderer>().bounds.ToString(),track=track?.Animation?.Name,trackTime=track?.TrackTime});
+    }
+    private void OnDestroy(){if(body!=null)body.OnMeshAndMaterialsUpdated-=MeshReady;}
+}

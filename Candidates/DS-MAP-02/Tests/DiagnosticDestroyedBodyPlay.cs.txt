@@ -1,0 +1,171 @@
+/* 诊断生命周期实际Play回归：先取得正式mesh记录，再销毁真实非Current身体，检查相机不再伪造该实例的新样本。
+ * 只由root在可重开的研究Play场隔离执行；测试会销毁一个真实身体，完成后必须退出Play重开已保存场。
+ * 不注入LastMeshSample、不手动渲染/Advance、不写文件；自建Recorder及相机订阅在结束时释放。
+ */
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using Newtonsoft.Json.Linq;
+using UnityEngine;
+using UnityEngine.Rendering;
+using Funplay.Editor.Tools.Scripting;
+using Ossastra.MapResearch;
+using Ossastra.MapResearchIntegration;
+using Ossastra.MapResearchIntegration.Diagnostics;
+using C = Ossastra.Characters;
+using A = Ossastra.CharacterAnimation;
+using Spine.Unity;
+
+public sealed class DiagnosticDestroyedBodyPlay : IFunplayCommand
+{
+    public static object Result;
+    public void Execute(ExecutionContext ctx)
+    {
+        if (!Application.isPlaying) { ctx.ReturnValue = Result = new { status = "REQUIRES_OWNED_PARTY_PLAY" }; return; }
+        var map = UnityEngine.Object.FindObjectsOfType<MapResearchRoot>(true).SingleOrDefault();
+        var bridge = map == null ? null : map.sessionComponent as MapResearchPartyBridge;
+        var current = bridge == null || bridge.coordinator == null ? null : bridge.coordinator.Current;
+        var actors = bridge == null ? new C.CharacterRoot[0] : bridge.characters.Where(x => x != null && x.isActiveAndEnabled && x.IsAlive).ToArray();
+        var victim = actors.FirstOrDefault(x => x != current && Body(x) != null);
+        var survivor = actors.FirstOrDefault(x => x != victim && Body(x) != null);
+        if (map == null || current == null || victim == null || survivor == null)
+        { ctx.ReturnValue = Result = new { status = "LIVE_PRECONDITION_FAILED", reason = "需要唯一活动PartyMap、合法Current和两个存活且有正式身体的角色；不要并行运行切控/战斗故事。" }; return; }
+        var go = new GameObject("DS02_DestroyedBodyDiagnosticContract_Transient");
+        ctx.RegisterObjectCreation(go);
+        var recorder = go.AddComponent<MapFlickerTraceRecorder>();
+        recorder.Configure(map, new[] { victim });
+        var probe = go.AddComponent<DiagnosticDestroyedBodyProbe>();
+        probe.Configure(map, recorder, victim, Body(victim), survivor);
+        if (!recorder.BeginTracing())
+        {
+            ctx.ReturnValue = Result = new { status = "LIVE_BEGIN_FAILED", reason = recorder.LastError };
+            UnityEngine.Object.Destroy(go); return;
+        }
+        probe.SubscribeCamera();
+        ctx.ReturnValue = Result = new { status = "WAITING_FOR_REAL_MESH_THEN_DESTROY", actor = victim.ActorId, body = Body(victim).GetInstanceID(), requiresSceneReload = true };
+    }
+    internal static SkeletonAnimation Body(C.CharacterRoot actor)
+    {
+        foreach (var controller in actor.GetComponentsInChildren<A.CharacterAnimationController>(true))
+            if (controller.GetComponentInParent<C.CharacterRoot>() == actor && controller.Skeleton != null && controller.Skeleton.isActiveAndEnabled) return controller.Skeleton;
+        return null;
+    }
+}
+
+public sealed class DiagnosticDestroyedBodyProbe : MonoBehaviour
+{
+    private MapResearchRoot map;
+    private MapFlickerTraceRecorder recorder;
+    private C.CharacterRoot victim, survivor;
+    private SkeletonAnimation victimBody;
+    private int bodyId, stage, destroyQueuedFrame = -1, cameraAfterRemoval, cameraAfterStop;
+    private int beforeSamples, stoppedSampleCount;
+    private long beforeMeshEvents, stoppedMeshEvents;
+    private double deadline;
+    private bool cameraSubscribed, done;
+    private readonly List<object> checks = new List<object>();
+    private object[] staleExamples = new object[0];
+    private int staleCount;
+
+    public void Configure(MapResearchRoot map, MapFlickerTraceRecorder recorder, C.CharacterRoot victim, SkeletonAnimation body, C.CharacterRoot survivor)
+    {
+        this.map = map; this.recorder = recorder; this.victim = victim; this.victimBody = body; this.survivor = survivor;
+        bodyId = body.GetInstanceID(); deadline = Time.realtimeSinceStartupAsDouble + 12;
+    }
+    public void SubscribeCamera() { RenderPipelineManager.endCameraRendering += CameraEnded; cameraSubscribed = true; }
+    private void CameraEnded(ScriptableRenderContext context, Camera camera)
+    {
+        if (done || map == null || (camera != map.GameplayCamera && camera != map.observerCamera)) return;
+        if (destroyQueuedFrame >= 0 && victimBody == null && Time.frameCount > destroyQueuedFrame) cameraAfterRemoval++;
+        if (stage == 3) cameraAfterStop++;
+    }
+    private void Add(string name, bool passed, string reason = "") => checks.Add(new { name, passed, reason });
+    private JObject[] ReadSamples()
+    {
+        var array = JObject.Parse(recorder.CreateReportJson())["samples"] as JArray;
+        if (array == null) throw new Exception("diagnostic report has no samples array");
+        return array.OfType<JObject>().ToArray();
+    }
+    private void LateUpdate()
+    {
+        if (done) return;
+        try
+        {
+            if (Time.realtimeSinceStartupAsDouble > deadline)
+            { Add("live-story-completes-with-real-camera-events", false, "timeout stage=" + stage + "; mesh=" + recorder.MeshEventCount + "; afterRemovalCameras=" + cameraAfterRemoval); Finish(); return; }
+            if (stage == 0)
+            {
+                var initial = ReadSamples().Where(s => (string)s["provenance"] == "mesh" && (int?)s["bodyInstanceId"] == bodyId).ToArray();
+                if (initial.Length == 0 || recorder.MeshEventCount == 0) return;
+                beforeMeshEvents = recorder.MeshEventCount; beforeSamples = recorder.SampleCount;
+                Add("real-body-generated-mesh-before-destruction", true, "body=" + bodyId + "; events=" + beforeMeshEvents + "; samples=" + beforeSamples);
+                // 生命周期破坏故事在自有Play场进行：先停止该Root的业务更新，避免缺身体后继续调用旧表现器。
+                victim.enabled = false;
+                destroyQueuedFrame = Time.frameCount;
+                UnityEngine.Object.Destroy(victimBody.gameObject);
+                stage = 1; return;
+            }
+            if (stage == 1)
+            {
+                if (victimBody != null || cameraAfterRemoval < 3) return;
+                var stale = ReadSamples().Where(s => (int?)s["bodyInstanceId"] == bodyId && (int?)s["frame"] > destroyQueuedFrame).ToArray();
+                staleCount = stale.Length;
+                staleExamples = stale.Take(3).Select(s => (object)new
+                {
+                    frame = (int?)s["frame"], meshFrame = (int?)s["meshFrame"], provenance = (string)s["provenance"],
+                    body = (int?)s["bodyInstanceId"], actor = (string)s["actorId"], bodyEnabled = (bool?)s["bodyEnabled"]
+                }).ToArray();
+                Add("destroyed-body-observed-with-real-camera-continuation", true, "cameraEnds=" + cameraAfterRemoval + "; queuedFrame=" + destroyQueuedFrame);
+                Add("camera-does-not-append-destroyed-body-as-new-samples", staleCount == 0, "staleSamples=" + staleCount + "; body=" + bodyId + "; removalFrame=" + destroyQueuedFrame);
+                recorder.StopTracing();
+                Add("destroyed-binding-stop-clears-owned-hooks", recorder.HookedBodyCount == 0 && !recorder.IsTracing);
+                // 用另一仍存活的真实身体验证重新绑定与停止，不能仅靠已销毁对象不再回调来假证解绑。
+                recorder.Configure(map, new[] { survivor });
+                bool begun = recorder.BeginTracing();
+                Add("recorder-rebinds-surviving-real-body", begun && recorder.HookedBodyCount == 1, recorder.LastError);
+                if (!begun) { Finish(); return; }
+                stage = 2; return;
+            }
+            if (stage == 2)
+            {
+                if (recorder.MeshEventCount == 0) return;
+                Add("rebound-live-body-produces-real-mesh-events", true, "events=" + recorder.MeshEventCount);
+                recorder.StopTracing();
+                stoppedMeshEvents = recorder.MeshEventCount; stoppedSampleCount = recorder.SampleCount;
+                cameraAfterStop = 0; stage = 3; return;
+            }
+            if (stage == 3 && cameraAfterStop >= 3)
+            {
+                Add("stop-unhooks-while-survivor-and-camera-continue", !recorder.IsTracing && recorder.HookedBodyCount == 0 &&
+                    recorder.MeshEventCount == stoppedMeshEvents && recorder.SampleCount == stoppedSampleCount,
+                    "cameraEndsAfterStop=" + cameraAfterStop + "; meshBefore=" + stoppedMeshEvents + "; meshNow=" + recorder.MeshEventCount + "; samplesBefore=" + stoppedSampleCount + "; samplesNow=" + recorder.SampleCount);
+                Add("destructive-diagnostic-story-does-no-file-IO", recorder.ExportCount == 0);
+                Finish();
+            }
+        }
+        catch (Exception error) { Add("fixture-read-or-lifecycle-error", false, error.ToString()); Finish(); }
+    }
+    private void Finish()
+    {
+        if (done) return;
+        done = true; Cleanup();
+        int passed = checks.Count(x => (bool)x.GetType().GetProperty("passed").GetValue(x));
+        DiagnosticDestroyedBodyPlay.Result = new
+        {
+            status = "DIAGNOSTIC_DESTROYED_BODY_COMPLETE", passed, failed = checks.Count - passed, checks,
+            victimBodyId = bodyId, destroyQueuedFrame, beforeMeshEvents, beforeSamples,
+            cameraAfterRemoval, staleCount, staleExamples, cameraAfterStop,
+            requiresSceneReload = true,
+            boundary = "Actual formal mesh recorded, non-current Root disabled for teardown then real body destroyed in root-owned Play; exit Play/reopen saved scene before further acceptance. No synthetic samples/manual Advance/render/file IO."
+        };
+        UnityEngine.Object.Destroy(gameObject);
+    }
+    private void Cleanup()
+    {
+        if (cameraSubscribed) RenderPipelineManager.endCameraRendering -= CameraEnded;
+        cameraSubscribed = false;
+        if (recorder != null) recorder.StopTracing();
+    }
+    private void OnDisable() => Cleanup();
+    private void OnDestroy() => Cleanup();
+}

@@ -1,0 +1,11 @@
+using System;using System.Linq;using System.Reflection;using Funplay.Editor.Tools.Scripting;
+public sealed class Ds02ReadPlayResults:IFunplayCommand
+{
+    public void Execute(ExecutionContext ctx)
+    {
+        ctx.ReturnValue=new[]{"Ds02PartyCameraAiPlay","Ds02PartyBattlePlay","Ds02LifecycleProbe","DiagnosticContracts","DiagnosticDestroyedBodyPlay","PartialFlickerGpuProbe","Ds02LegacySmokePlay","Ds02DodgeOrbitPlay","DepthLiveContractsProbe"}.Select(name=>{
+            var types=AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType(name)).Where(t=>t!=null).ToArray();
+            return new{name,versions=types.Select(type=>new{assembly=type.Assembly.GetName().Name,result=type.GetField("Result",BindingFlags.Public|BindingFlags.Static)?.GetValue(null),status=type.GetField("Status",BindingFlags.Public|BindingFlags.Static)?.GetValue(null)}).ToArray()};
+        }).ToArray();
+    }
+}

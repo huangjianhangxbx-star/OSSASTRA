@@ -1,0 +1,81 @@
+/* 实际Play的owner退还/重绑/成员移除；仅owned研究场，结束后必须退出重开，不保存运行变化。
+ * 前置修订：首次16/2源于前次战斗结束后世界继续运行、安装时双方可能已死；不作为成员移除产品缺陷。
+ * 显式原遭遇复位并关闭敌攻击，只隔离本故事；会记录复位前后生命/Current，结束不伪造被删除对象。
+ */
+using System;using System.Linq;using System.Reflection;using System.Collections.Generic;using UnityEngine;
+using Ossastra.MapResearch;using Ossastra.MapResearchIntegration;using Ossastra.Characters.ViewSpace;
+using Funplay.Editor.Tools.Scripting;
+public sealed class Ds02StartLifecycle:IFunplayCommand
+{
+    public void Execute(ExecutionContext ctx)
+    {
+        var map=UnityEngine.Object.FindObjectsOfType<MapResearchRoot>(true).Single();
+        if(!Application.isPlaying||map.gameObject.scene.name!="SC_DontStarvePartyCombatLab"){ctx.ReturnValue="requires owned Party Play";return;}
+        var go=new GameObject("DS02_LifecycleProbe");ctx.RegisterObjectCreation(go);var p=go.AddComponent<Ds02LifecycleProbe>();p.map=map;p.Initialize();ctx.ReturnValue="bounded lifecycle started; scene reload required afterwards";
+    }
+}
+public sealed class Ds02LifecycleProbe:MonoBehaviour
+{
+    public static object Result;public MapResearchRoot map;
+    private MapResearchPartyBridge bridge;private int phase,waitUntil;private float yaw,target,zoom;
+    private readonly List<object> rows=new List<object>();
+    private object initialEvidence;
+    private object LifeSnapshot()=>new{frame=Time.frameCount,current=bridge.coordinator.Current==null?"none":bridge.coordinator.Current.ActorId,
+        characters=bridge.characters.Select(a=>a==null?null:new{a.ActorId,alive=a.IsAlive,hp=a.Vitals==null||a.Vitals.Health==null?(int?)null:a.Vitals.Health.Current}).ToArray(),
+        enemies=bridge.enemies.Select(e=>e==null?null:new{e.ActorId,alive=e.Vitals!=null&&e.Vitals.IsAlive,attacksEnabled=e.AttacksEnabled}).ToArray()};
+    public void Initialize()
+    {
+        Result=null;bridge=map.GetComponent<MapResearchPartyBridge>();var before=LifeSnapshot();
+        var encounter=map.GetComponent<MapResearchEncounterDev>();if(encounter==null)throw new InvalidOperationException("研究场缺少显式遭遇复位入口");
+        encounter.ResetEncounter();foreach(var enemy in bridge.enemies)if(enemy!=null)enemy.AttacksEnabled=false;
+        initialEvidence=new{before,after=LifeSnapshot(),precondition="explicit original encounter reset; enemy attacks disabled; member removal still requires saved-scene reload afterwards"};
+        bool alive=bridge.characters.Length==2&&bridge.characters.All(a=>a!=null&&a.IsAlive);
+        bool current=alive&&bridge.coordinator.Current==bridge.characters[0];
+        Check("precondition-both-original-actors-alive",alive);Check("precondition-current-is-original-first-actor",current);
+        if(!alive||!current){Result=new{passed=rows.Count(r=>(bool)r.GetType().GetProperty("passed").GetValue(r)),failed=rows.Count(r=>!(bool)r.GetType().GetProperty("passed").GetValue(r)),rows,initialEvidence,blockedByPrecondition=true,requiresSceneReload=true};enabled=false;Destroy(gameObject);return;}
+        yaw=map.ActualYaw;target=map.TargetYaw;zoom=(float)typeof(MapResearchRoot).GetField("zoom",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(map);waitUntil=Time.frameCount+3;
+    }
+    private void Check(string name,bool passed){rows.Add(new{name,passed});}
+    private void Update()
+    {
+        if(Time.frameCount<waitUntil)return;waitUntil=Time.frameCount+3;
+        try
+        {
+            if(phase<9)
+            {
+                int round=phase/3;
+                if(phase%3==0){Check("structure-enter-"+round,map.SetStructureMode(true));map.enabled=false;}
+                else if(phase%3==1)
+                {
+                    Check("release-all-observation-owners-"+round,bridge.RegisteredCount==0&&bridge.characters.All(a=>a.GetComponent<CharacterViewSpaceAdapter>().ContextOwner==null)&&bridge.enemies.All(e=>e.GetComponent<Ossastra.Enemies.EnemyViewSpaceAdapter>().ContextOwner==null));
+                    map.enabled=true;
+                }
+                else
+                {
+                    Check("rebind-all-three-consumers-"+round,bridge.RegisteredCount==3);
+                    Check("rebind-preserves-camera-state-"+round,Mathf.Abs(Mathf.DeltaAngle(yaw,map.ActualYaw))<.01f&&Mathf.Abs(Mathf.DeltaAngle(target,map.TargetYaw))<.01f&&Mathf.Abs(zoom-(float)typeof(MapResearchRoot).GetField("zoom",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(map))<.01f);
+                }
+            }
+            else if(phase==9)
+            {
+                Check("capture-before-member-removal",map.SetStructureMode(true));
+                Destroy(bridge.characters[0].gameObject);
+            }
+            else if(phase==10)
+            {
+                Check("exit-after-member-removal",map.SetStructureMode(false));
+                Check("surviving-input-can-be-reselected",bridge.coordinator.SwitchNext());
+            }
+            else
+            {
+                var survivor=bridge.characters[1];
+                Check("surviving-character-still-bound",survivor!=null&&ReferenceEquals(survivor.GetComponent<CharacterViewSpaceAdapter>().ContextOwner,map));
+                Check("survivor-is-current",bridge.coordinator.Current==survivor);
+                Check("remaining-observers-retained",bridge.RegisteredCount==2);
+                Result=new{passed=rows.Count(r=>(bool)r.GetType().GetProperty("passed").GetValue(r)),failed=rows.Count(r=>!(bool)r.GetType().GetProperty("passed").GetValue(r)),rows,initialEvidence,requiresSceneReload=true};Destroy(gameObject);
+            }
+            phase++;
+        }
+        catch(Exception e){Result=new{error=e.ToString(),rows,initialEvidence,requiresSceneReload=true};Destroy(gameObject);}
+    }
+}

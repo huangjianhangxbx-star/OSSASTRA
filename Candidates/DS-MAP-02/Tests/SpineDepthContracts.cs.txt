@@ -1,0 +1,101 @@
+/* 研究深度修复先红后绿合同：缺新组件明确RED；用真实Unity Mesh验证负Z bounds修正及绘制数据不变。
+ * 不创建角色/Spine，不推进动画，不操作场景相机。root在明确Edit ready时执行本候选。 */
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using UnityEngine;
+using Funplay.Editor.Tools.Scripting;
+
+public sealed class SpineDepthContracts : IFunplayCommand
+{
+    public static object Result;
+    public void Execute(ExecutionContext ctx)
+    {
+        const string name = "Ossastra.MapResearchIntegration.Rendering.MapResearchSpineDepth";
+        var type = AppDomain.CurrentDomain.GetAssemblies().Select(a => a.GetType(name, false)).FirstOrDefault(t => t != null);
+        if (type == null)
+        {
+            Result = new { status = "RED_MISSING_SPINE_DEPTH_COMPONENT", passed = 0, failed = 1, missing = name };
+            ctx.ReturnValue = Result;
+            return;
+        }
+        var repair = type.GetMethod("RepairMeshBounds", BindingFlags.Public | BindingFlags.Static, null, new[] { typeof(Mesh) }, null);
+        if (repair == null)
+        {
+            Result = new { status = "RED_MISSING_MESH_BOUNDS_REPAIR", passed = 0, failed = 1, missing = "public static void RepairMeshBounds(Mesh)" };
+            ctx.ReturnValue = Result;
+            return;
+        }
+        var results = new List<object>();
+        Action<string, Action> check = (label, body) =>
+        {
+            try { body(); results.Add(new { name = label, passed = true, reason = "" }); }
+            catch (Exception error) { results.Add(new { name = label, passed = false, reason = (error.InnerException ?? error).ToString() }); }
+        };
+        check("component-exposes-explicit-local-renderer-and-spacing", () =>
+        {
+            Need(type.IsSubclassOf(typeof(MonoBehaviour)), "not MonoBehaviour");
+            Need(type.GetField("sourceRenderer")?.FieldType.FullName == "Spine.Unity.SkeletonRenderer", "missing explicit renderer field");
+            Need(type.GetField("layerSpacing")?.FieldType == typeof(float), "missing spacing field");
+        });
+        var mesh = new Mesh { name = "DS02_DepthContract_Transient", hideFlags = HideFlags.HideAndDontSave };
+        try
+        {
+            var vertices = new[] { new Vector3(-2f, -1f, -.0494f), new Vector3(3f, 4f, -.001f), new Vector3(.5f, 2f, -.0252f) };
+            var uv = new[] { new Vector2(0f, 0f), new Vector2(.25f, .7f), new Vector2(1f, 1f) };
+            var colors = new[] { new Color32(1, 2, 3, 0), new Color32(25, 50, 75, 128), new Color32(254, 253, 252, 255) };
+            var triangles = new[] { 0, 1, 2 };
+            mesh.vertices = vertices; mesh.uv = uv; mesh.colors32 = colors; mesh.triangles = triangles;
+            // 本机Spine负spacing问题的缩小样例：Z的size为负，min/max倒置。
+            mesh.bounds = new Bounds(new Vector3(.5f, 1.5f, -.0252f), new Vector3(5f, 5f, -.0484f));
+            check("fixture-contains-real-negative-z-extents", () => Need(mesh.bounds.extents.z < 0, "input was not negative"));
+            repair.Invoke(null, new object[] { mesh });
+            var expectedMin = new Vector3(-2f, -1f, -.0494f);
+            var expectedMax = new Vector3(3f, 4f, -.001f);
+            check("repaired-bounds-match-hand-calculated-min-max", () =>
+            {
+                Near(mesh.bounds.min, expectedMin); Near(mesh.bounds.max, expectedMax);
+                Need(mesh.bounds.extents.x >= 0 && mesh.bounds.extents.y >= 0 && mesh.bounds.extents.z >= 0, "negative repaired extents");
+            });
+            check("repaired-bounds-contain-all-three-real-vertices", () =>
+            {
+                foreach (var v in mesh.vertices)
+                {
+                    var min = mesh.bounds.min; var max = mesh.bounds.max;
+                    Need(v.x >= min.x - 0.000001f && v.x <= max.x + 0.000001f &&
+                         v.y >= min.y - 0.000001f && v.y <= max.y + 0.000001f &&
+                         v.z >= min.z - 0.000001f && v.z <= max.z + 0.000001f, "bounds omit vertex " + v);
+                }
+            });
+            check("repair-preserves-exact-vertices-uv-colors-triangles", () =>
+            {
+                Need(mesh.vertices.SequenceEqual(vertices), "vertices changed");
+                Need(mesh.uv.SequenceEqual(uv), "UV changed");
+                Need(mesh.colors32.SequenceEqual(colors), "colors changed");
+                Need(mesh.triangles.SequenceEqual(triangles) && mesh.subMeshCount == 1, "triangle/submesh data changed");
+            });
+            var first = mesh.bounds;
+            repair.Invoke(null, new object[] { mesh });
+            check("repeated-repair-is-idempotent", () => { Need(mesh.bounds.Equals(first), "second call changed bounds"); Need(mesh.vertices.SequenceEqual(vertices), "second call changed vertices"); });
+            check("null-mesh-is-safe", () => repair.Invoke(null, new object[] { null }));
+            int passed = results.Count(r => (bool)r.GetType().GetProperty("passed").GetValue(r));
+            Result = new
+            {
+                status = "SPINE_DEPTH_CONTRACTS_COMPLETE", passed, failed = results.Count - passed, results,
+                fixture = new { vertexCount = mesh.vertexCount, expectedMin = new[] { expectedMin.x, expectedMin.y, expectedMin.z }, expectedMax = new[] { expectedMax.x, expectedMax.y, expectedMax.z },
+                    actualMin = new[] { mesh.bounds.min.x, mesh.bounds.min.y, mesh.bounds.min.z }, actualMax = new[] { mesh.bounds.max.x, mesh.bounds.max.y, mesh.bounds.max.z },
+                    tolerance = 0.000001f, nativeContainsAll = mesh.vertices.All(v => mesh.bounds.Contains(v)) },
+                boundary = "real Unity Mesh bounds only; component callback ownership/lifecycle and dynamic rendering require separate live checks"
+            };
+            ctx.ReturnValue = Result;
+        }
+        finally { UnityEngine.Object.DestroyImmediate(mesh); }
+    }
+    private static void Need(bool good, string reason) { if (!good) throw new Exception(reason); }
+    private static void Near(Vector3 actual, Vector3 expected)
+    {
+        Need(Mathf.Abs(actual.x - expected.x) <= .000001f && Mathf.Abs(actual.y - expected.y) <= .000001f && Mathf.Abs(actual.z - expected.z) <= .000001f,
+            "expected " + expected.ToString("F8") + " got " + actual.ToString("F8"));
+    }
+}

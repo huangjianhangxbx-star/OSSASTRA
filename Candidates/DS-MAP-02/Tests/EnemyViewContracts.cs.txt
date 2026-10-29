@@ -1,0 +1,52 @@
+/* 真正可选敌人表现适配：捕获屏幕水平投影/近零记忆/owner精确释放，不验证源码文本。 */
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using UnityEngine;
+using UnityEditor;
+using Ossastra.Characters.ViewSpace;
+using Funplay.Editor.Tools.Scripting;
+public sealed class Ds02EnemyViewContracts:IFunplayCommand
+{
+    private sealed class View:ICharacterViewContext
+    {
+        public Camera GameplayCamera{get;set;} public bool IsValid=>true;
+        public Vector3 right=Vector3.forward;public Quaternion rotation=Quaternion.Euler(35,-90,0);
+        public Vector3 ViewRight=>right; public Vector3 ViewForward=>Vector3.Cross(right,Vector3.up);
+        public Quaternion ViewRotation=>rotation;public bool FreezePresentation{get;set;}
+    }
+    public void Execute(ExecutionContext ctx)
+    {
+        var results=new List<object>();
+        var type=AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType("Ossastra.Enemies.EnemyViewSpaceAdapter")).FirstOrDefault(t=>t!=null);
+        if(type==null){ctx.ReturnValue=new{passed=0,failed=1,reason="enemy-observation-consumer absent"};return;}
+        var entity=new GameObject("test-enemy-view");var visual=new GameObject("visual");visual.transform.SetParent(entity.transform);
+        var camera=new GameObject("test-camera").AddComponent<Camera>();var adapter=entity.AddComponent(type);
+        try
+        {
+            var serialized=new SerializedObject(adapter);serialized.FindProperty("visualRoot").objectReferenceValue=visual.transform;serialized.ApplyModifiedPropertiesWithoutUndo();
+            var view=new View{GameplayCamera=camera};var owner=new object();
+            Func<string,object[],object> call=(name,args)=>type.GetMethod(name).Invoke(adapter,args);
+            Action<string,bool> check=(name,pass)=>results.Add(new{name,passed=pass});
+            check("initialize-visual-child",(bool)call("Initialize",new object[]{entity.transform}));
+            check("bind-owner",(bool)call("BindViewContext",new object[]{owner,view}));
+            call("TickView",new object[]{Vector3.back});
+            check("world-minus-z-is-screen-left",(float)type.GetProperty("Facing").GetValue(adapter)==-1);
+            check("camera-plane-matches",Quaternion.Angle(visual.transform.rotation,view.ViewRotation)<.001f);
+            call("TickView",new object[]{Vector3.right});
+            check("zero-projected-horizontal-retains",(float)type.GetProperty("Facing").GetValue(adapter)==-1);
+            view.right=Vector3.right;view.rotation=Quaternion.Euler(35,0,0);
+            call("TickView",new object[]{Vector3.right});
+            check("idle-stores-legal-world-facing",(float)type.GetProperty("Facing").GetValue(adapter)==1);
+            view.right=Vector3.left;view.rotation=Quaternion.Euler(35,180,0);
+            call("TickView",new object[]{Vector3.zero});
+            check("stationary-enemy-reprojects-when-camera-turns",(float)type.GetProperty("Facing").GetValue(adapter)==-1);
+            check("wrong-owner-cannot-release",!(bool)call("ReleaseViewContext",new object[]{new object()}));
+            check("correct-owner-release",(bool)call("ReleaseViewContext",new object[]{owner}));
+            check("release-restores-pose",Quaternion.Angle(visual.transform.localRotation,Quaternion.identity)<.001f);
+            ctx.ReturnValue=new{passed=results.Count(x=>(bool)x.GetType().GetProperty("passed").GetValue(x)),failed=results.Count(x=>!(bool)x.GetType().GetProperty("passed").GetValue(x)),results};
+        }
+        finally{UnityEngine.Object.DestroyImmediate(entity);UnityEngine.Object.DestroyImmediate(camera.gameObject);}
+    }
+}

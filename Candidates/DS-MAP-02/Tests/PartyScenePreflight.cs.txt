@@ -1,0 +1,52 @@
+/* 双角色样地装配前置合同：不切场、不删素材；假predicate只替代资产存在检查。 */
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using Funplay.Editor.Tools.Scripting;
+using UnityEditor;
+
+public sealed class PartyScenePreflight : IFunplayCommand
+{
+    public void Execute(ExecutionContext ctx)
+    {
+        Type type = AppDomain.CurrentDomain.GetAssemblies().Select(a => a.GetType("Ossastra.MapResearchIntegration.Editor.MapResearchPartySceneBuilder", false)).FirstOrDefault(t => t != null);
+        MethodInfo find = type == null ? null : type.GetMethod("FindMissingSourceAssets", BindingFlags.Public | BindingFlags.Static);
+        MethodInfo build = type == null ? null : type.GetMethod("BuildScene", BindingFlags.Public | BindingFlags.Static, null, Type.EmptyTypes, null);
+        if (find == null || build == null)
+        {
+            ctx.ReturnValue = new { passed = 0, failed = 1, reason = "PartySceneBuilder/preflight API is missing" };
+            return;
+        }
+        var results = new List<object>();
+        Action<string, Action> check = (name, body) =>
+        {
+            try { body(); results.Add(new { name, passed = true, reason = "" }); }
+            catch (Exception error) { results.Add(new { name, passed = false, reason = (error.InnerException ?? error).ToString() }); }
+        };
+        Func<Func<string, bool>, string[]> missing = predicate => ((IEnumerable<string>)find.Invoke(null, new object[] { predicate })).ToArray();
+        Action<string> oneMissing = path =>
+        {
+            string[] actual = missing(p => p != path);
+            if (actual.Length != 1 || actual[0] != path) throw new Exception("Expected only " + path + "; actual=" + string.Join(";", actual));
+        };
+        check("complete-source-set", () => { if (missing(p => true).Length != 0) throw new Exception("Complete set misreported"); });
+        check("saved-map-source-is-required", () => oneMissing("Assets/OSSASTRA/Scenes/Research/SC_DontStarveMapLab.unity"));
+        check("saved-commerce-source-is-required", () => oneMissing("Assets/OSSASTRA/Scenes/SC_CommerceIntegration.unity"));
+        check("blue-prefab-required", () => oneMissing("Assets/OSSASTRA/Prefabs/Characters/PlayerCharacter_BlueFiveFace.prefab"));
+        check("rozeul-base-prefab-required", () => oneMissing("Assets/OSSASTRA/Prefabs/Characters/PlayerCharacter.prefab"));
+        check("shared-local-prop-prefab-required", () => oneMissing("Assets/OSSASTRA/MapResearch/LocalGenerated/Prefabs/PF_grass.prefab"));
+        check("all-required-sources-are-unique-63", () =>
+        {
+            string[] actual = missing(p => false);
+            if (actual.Length != 63 || actual.Distinct().Count() != 63) throw new Exception("Expected four source assets + 59 shared local assets; actual=" + actual.Length);
+        });
+        check("actual-local-sources-present", () =>
+        {
+            string[] actual = missing(p => AssetDatabase.LoadMainAssetAtPath(p) != null);
+            if (actual.Length != 0) throw new Exception("Missing actual dependencies: " + string.Join(";", actual));
+        });
+        int passed = results.Count(r => (bool)r.GetType().GetProperty("passed").GetValue(r));
+        ctx.ReturnValue = new { passed, failed = results.Count - passed, results };
+    }
+}

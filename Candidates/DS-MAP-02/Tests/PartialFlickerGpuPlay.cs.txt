@@ -1,0 +1,328 @@
+/* 局部闪烁GPU反馈环（仅测试）：在真实显隐后的Pose及正式Mesh事件截取同一小蓝姿态。
+ * A用正式生成mesh克隆；B只改变独立MeshGenerator的zSpacing，不改真实Skeleton/材质/资产。
+ * 临时相机通过本机URP14.2 SingleCameraRequest真实绘制固定mesh；测腐蚀轮廓后的内部像素。
+ * 克隆显示不执行动画/角色逻辑；finally释放订阅、临时层级/mesh/RT/CPU纹理。结果不是用户现象根因认证。
+ */
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using Funplay.Editor.Tools.Scripting;
+using Ossastra.Characters;
+using Ossastra.MapResearch;
+using Spine.Unity;
+using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
+
+public sealed class StartPartialFlickerGpuPlay : IFunplayCommand
+{
+    public void Execute(ExecutionContext ctx)
+    {
+        if (!Application.isPlaying) { ctx.ReturnValue = "requires Play"; return; }
+        if (UnityEngine.Object.FindObjectsOfType<PartialFlickerGpuProbe>(true).Length != 0)
+        { ctx.ReturnValue = "probe already exists; inspect Result"; return; }
+        PartialFlickerGpuProbe.Result = null;
+        var go = new GameObject("DS02_PartialFlickerGPU_Transient");
+        ctx.RegisterObjectCreation(go);
+        var probe = go.AddComponent<PartialFlickerGpuProbe>();
+        probe.Initialize();
+        ctx.ReturnValue = "Started bounded snapshot GPU A/B. Read PartialFlickerGpuProbe.Result after natural PlayerLoop; does not alter source pose, gpuCamera, zSpacing, HP or assets.";
+    }
+}
+
+[DefaultExecutionOrder(1500)]
+public sealed class PartialFlickerGpuProbe : MonoBehaviour
+{
+    public static object Result;
+    private SkeletonAnimation body;
+    private SkeletonRenderer skeletonRenderer;
+    private ISkeletonRenderer hooked;
+    private CharacterDirectionPresentation direction;
+    private MapResearchRoot map;
+    private Mesh generatedA, meshA, meshB;
+    private Material[] materials;
+    private MaterialPropertyBlock propertyBlock;
+    private Transform sourceTransform;
+    private GameObject ownedRoot;
+    private RenderTexture rt;
+    private Texture2D readback;
+    private Camera gpuCamera;
+    private MeshFilter display;
+    private double started;
+    private bool poseTaken, ready, disposed;
+    private int poseFrame, meshFrame, instructionFrame;
+    private object meshDiagnostics;
+    private string generationBranch;
+    private string face;
+    private bool mirrored;
+    private float spacingA;
+    private const float SpacingB = -.0001f;
+    private const int Resolution = 512;
+    private readonly float[] offsets = { 0f, -.01f, -.001f, .001f, .01f, 0f };
+
+    public void Initialize()
+    {
+        started = Time.realtimeSinceStartupAsDouble;
+        try
+        {
+            map = UnityEngine.Object.FindObjectsOfType<MapResearchRoot>().Single();
+            direction = UnityEngine.Object.FindObjectsOfType<CharacterDirectionPresentation>()
+                .Single(x => x.IsConfigured && x.Profile != null && x.Profile.Enabled);
+            body = direction.GetComponent<SkeletonAnimation>();
+            if (body == null || body.Skeleton == null) throw new InvalidOperationException("Configured MainBody SkeletonAnimation missing");
+            skeletonRenderer = body.GetComponent<SkeletonRenderer>();
+            if (skeletonRenderer == null || map.gameplayCamera == null) throw new InvalidOperationException("Renderer/gameplay gpuCamera missing");
+            spacingA = skeletonRenderer.zSpacing;
+            if (float.IsNaN(spacingA) || float.IsInfinity(spacingA)) throw new InvalidOperationException("Actual source zSpacing is not finite");
+            hooked = body.Renderer;
+            hooked.UpdateComplete += PoseReady;
+            hooked.OnMeshAndMaterialsUpdated += MeshReady;
+            skeletonRenderer.OnInstructionsPrepared += InstructionsReady;
+        }
+        catch (Exception error) { Fail(error); }
+    }
+
+    private Mesh Generate(float spacing, SkeletonRendererInstruction instruction)
+    {
+        var original = skeletonRenderer.MeshSettings;
+        var generator = new MeshGenerator();
+        generator.settings = new MeshGenerator.Settings
+        {
+            useClipping = original.useClipping, zSpacing = spacing, tintBlack = original.tintBlack,
+            canvasGroupCompatible = original.canvasGroupCompatible, pmaVertexColors = original.pmaVertexColors,
+            addNormals = original.addNormals, calculateTangents = original.calculateTangents, immutableTriangles = false
+        };
+        var result = new Mesh { name = "DS02_GPU_Snapshot_z" + spacing, hideFlags = HideFlags.HideAndDontSave };
+        try
+        {
+            generator.Begin();
+            // 严格沿本机SkeletonRenderer.FillSingleBufferFromInstructions的正式分支，消费同一次正式instruction。
+            if (!instruction.hasActiveClipping) { generator.BuildMeshWithArrays(instruction, true); generationBranch = "BuildMeshWithArrays"; }
+            else if (skeletonRenderer.singleSubmesh) { generator.AddSubmesh(instruction.submeshInstructions.Items[0], true); generationBranch = "SingleSubmesh.AddSubmesh"; }
+            else { generator.BuildMesh(instruction, true); generationBranch = "BuildMesh"; }
+            generator.FillVertexData(result); generator.FillTriangles(result); generator.FillLateVertexData(result);
+            return result;
+        }
+        catch { DestroyImmediate(result); throw; }
+    }
+
+    private void PoseReady(ISkeletonRenderer source)
+    {
+        if (poseTaken || disposed) return;
+        try
+        {
+            // 与正式方向显隐同一次UpdateComplete；只读当前AppliedPose，不做Update/Advance。
+            poseFrame = Time.frameCount; face = direction.FaceId; mirrored = direction.Mirrored;
+            poseTaken = true;
+        }
+        catch (Exception error) { Fail(error); }
+    }
+    private void InstructionsReady(SkeletonRendererInstruction instruction)
+    {
+        if (!poseTaken || generatedA != null || disposed) return;
+        try
+        {
+            if (poseFrame != Time.frameCount) throw new InvalidOperationException("Formal instructions do not belong to captured pose frame");
+            instructionFrame = Time.frameCount;
+            generatedA = Generate(spacingA, instruction); meshB = Generate(SpacingB, instruction);
+        }
+        catch (Exception error) { Fail(error); }
+    }
+    private void MeshReady(ISkeletonRenderer source)
+    {
+        if (!poseTaken || ready || disposed) return;
+        try
+        {
+            if (poseFrame != Time.frameCount || face != direction.FaceId || mirrored != direction.Mirrored)
+                throw new InvalidOperationException("Pose/mesh frame or face changed; reject mixed-pose evidence");
+            var original = body.GetComponent<MeshFilter>().sharedMesh;
+            if (original == null || original.vertexCount == 0) throw new InvalidOperationException("Formal mesh unavailable");
+            meshDiagnostics = new { actual = MeshCounts(original), generatedA = MeshCounts(generatedA), generatedB = MeshCounts(meshB), settings = Settings(), instructionFrame, generationBranch };
+            if (generatedA == null || meshB == null) throw new InvalidOperationException("No formal OnInstructionsPrepared for captured pose; reject guessed instruction");
+            VerifyEquivalent(generatedA, original, true);
+            VerifyEquivalent(generatedA, meshB, false);
+            meshA = UnityEngine.Object.Instantiate(original); meshA.hideFlags = HideFlags.HideAndDontSave;
+            var renderer = body.GetComponent<MeshRenderer>(); materials = renderer.sharedMaterials;
+            if (materials.Length != original.subMeshCount || materials.Any(x => x == null || x.shader == null || x.shader.name != "Ossastra/MapResearch/DepthPlane"))
+                throw new InvalidOperationException("Expected actual research DepthPlane materials and matching submeshes");
+            propertyBlock = new MaterialPropertyBlock(); renderer.GetPropertyBlock(propertyBlock);
+            sourceTransform = body.transform; meshFrame = Time.frameCount; ready = true;
+            Detach();
+        }
+        catch (Exception error) { Fail(error); }
+    }
+    private static object MeshCounts(Mesh mesh)
+    {
+        if (mesh == null) return null;
+        int[] referenced = Enumerable.Range(0, mesh.subMeshCount).SelectMany(i => mesh.GetTriangles(i)).Distinct().ToArray();
+        return new
+        {
+            vertices = mesh.vertexCount, submeshes = mesh.subMeshCount,
+            triangleIndices = Enumerable.Range(0, mesh.subMeshCount).Select(i => mesh.GetIndexCount(i)).ToArray(),
+            uvCount = mesh.uv.Length, colorCount = mesh.colors32.Length,
+            referencedVertices = referenced.Length, maxReferencedIndex = referenced.Length == 0 ? -1 : referenced.Max(),
+            unreferencedVertices = mesh.vertexCount - referenced.Length,
+            boundsCenter = new[] { mesh.bounds.center.x, mesh.bounds.center.y, mesh.bounds.center.z },
+            boundsExtents = new[] { mesh.bounds.extents.x, mesh.bounds.extents.y, mesh.bounds.extents.z }
+        };
+    }
+    private object Settings()
+    {
+        var s = skeletonRenderer.MeshSettings;
+        return new { skeletonRenderer.singleSubmesh, s.useClipping, s.zSpacing, s.tintBlack, s.canvasGroupCompatible, s.pmaVertexColors, s.addNormals, s.calculateTangents, s.immutableTriangles, separatorCount = skeletonRenderer.separatorSlots.Count, skeletonRenderer.enableSeparatorSlots };
+    }
+    private static void VerifyEquivalent(Mesh a, Mesh b, bool compareZ)
+    {
+        if (a.subMeshCount != b.subMeshCount) throw new InvalidOperationException("Snapshot submesh topology mismatch");
+        // 本机FillVertexData直接提交vertexBuffer.Items容量（而非Count）；未引用尾部不参与绘制。
+        // 仍逐项严格比较全部三角索引，并校验每一个被引用的顶点/UV/颜色，绝不略过越界索引。
+        var referenced = new HashSet<int>();
+        for (int i = 0; i < a.subMeshCount; i++)
+        {
+            int[] indices = a.GetTriangles(i);
+            if (!indices.SequenceEqual(b.GetTriangles(i))) throw new InvalidOperationException("Snapshot triangle index order mismatch");
+            foreach (int index in indices) referenced.Add(index);
+        }
+        if (referenced.Count == 0) throw new InvalidOperationException("Snapshot contains no referenced vertices");
+        var av = a.vertices; var bv = b.vertices; var au = a.uv; var bu = b.uv; var ac = a.colors32; var bc = b.colors32;
+        foreach (int i in referenced)
+        {
+            if (i < 0 || i >= av.Length || i >= bv.Length || i >= au.Length || i >= bu.Length || i >= ac.Length || i >= bc.Length)
+                throw new InvalidOperationException("Referenced vertex/UV/color index is out of range: " + i);
+            if (Mathf.Abs(av[i].x - bv[i].x) > .0001f || Mathf.Abs(av[i].y - bv[i].y) > .0001f || compareZ && Mathf.Abs(av[i].z - bv[i].z) > .0001f)
+                throw new InvalidOperationException("Snapshot mesh pose mismatch at vertex " + i);
+            if ((au[i] - bu[i]).sqrMagnitude > .0000001f || Math.Abs(ac[i].a - bc[i].a) > 1 || Math.Abs(ac[i].r - bc[i].r) > 1 || Math.Abs(ac[i].g - bc[i].g) > 1 || Math.Abs(ac[i].b - bc[i].b) > 1)
+                throw new InvalidOperationException("Snapshot mesh UV/color mismatch at vertex " + i);
+        }
+    }
+
+    private void LateUpdate()
+    {
+        if (disposed) return;
+        if (!ready) { if (Time.realtimeSinceStartupAsDouble - started > 10) Fail(new TimeoutException("No matching natural pose/mesh within 10 seconds")); return; }
+        try { RunGpu(); }
+        catch (Exception error) { Result = new { status = "GPU_FIXTURE_ERROR", error = error.ToString(), meshDiagnostics, userFlickerClosed = false }; }
+        finally { Cleanup(); Destroy(gameObject); }
+    }
+    private void RunGpu()
+    {
+        int layer = -1;
+        var used = new HashSet<int>(UnityEngine.Object.FindObjectsOfType<Renderer>(true).Select(x => x.gameObject.layer));
+        for (int i = 31; i >= 0; i--) if (!used.Contains(i)) { layer = i; break; }
+        if (layer < 0) throw new InvalidOperationException("No unused renderer layer for isolated gpuCamera");
+        ownedRoot = new GameObject("DS02_GPU_OwnedResources") { hideFlags = HideFlags.HideAndDontSave };
+        Transform parent = ownedRoot.transform;
+        var chain = new Stack<Transform>(); for (Transform node = sourceTransform; node != null; node = node.parent) chain.Push(node);
+        while (chain.Count > 0)
+        {
+            var source = chain.Pop(); var clone = new GameObject(source.name + "_GPU_FIXED") { hideFlags = HideFlags.HideAndDontSave, layer = layer };
+            clone.transform.SetParent(parent, false); clone.transform.localPosition = source.localPosition; clone.transform.localRotation = source.localRotation; clone.transform.localScale = source.localScale; parent = clone.transform;
+        }
+        display = parent.gameObject.AddComponent<MeshFilter>(); display.sharedMesh = meshA;
+        var rendered = parent.gameObject.AddComponent<MeshRenderer>(); rendered.sharedMaterials = materials; rendered.SetPropertyBlock(propertyBlock);
+        rendered.shadowCastingMode = ShadowCastingMode.Off; rendered.receiveShadows = false;
+        var cameraObject = new GameObject("DS02_GPU_OnlyCamera") { hideFlags = HideFlags.HideAndDontSave };
+        cameraObject.transform.SetParent(ownedRoot.transform, false); gpuCamera = cameraObject.AddComponent<Camera>(); gpuCamera.CopyFrom(map.gameplayCamera);
+        gpuCamera.enabled = false; gpuCamera.tag = "Untagged"; gpuCamera.cullingMask = 1 << layer;
+        gpuCamera.clearFlags = CameraClearFlags.SolidColor; gpuCamera.backgroundColor = Color.clear; gpuCamera.rect = new Rect(0, 0, 1, 1); gpuCamera.aspect = 1;
+        gpuCamera.allowHDR = false; gpuCamera.allowMSAA = false;
+        var data = cameraObject.AddComponent<UniversalAdditionalCameraData>(); data.renderPostProcessing = false; data.antialiasing = AntialiasingMode.None;
+        // 本轮已核实正常相机使用默认3D renderer；缺少该前提时停止，不猜Renderer2D兼容。
+        var sourceData = map.gameplayCamera.GetComponent<UniversalAdditionalCameraData>();
+        if (sourceData != null && sourceData.scriptableRenderer != data.scriptableRenderer) throw new InvalidOperationException("Source uses a non-default renderer; reject renderer mismatch");
+        rt = new RenderTexture(Resolution, Resolution, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB) { name = "DS02_GPU_TemporaryRT", hideFlags = HideFlags.HideAndDontSave, antiAliasing = 1 };
+        rt.Create(); readback = new Texture2D(Resolution, Resolution, TextureFormat.RGBA32, false) { hideFlags = HideFlags.HideAndDontSave };
+        // 用两份真实bounds并集决定测试取景，不改任一mesh的bounds；缓冲尾部差异单独保留。
+        Bounds framing = rendered.bounds; display.sharedMesh = meshB; framing.Encapsulate(rendered.bounds); display.sharedMesh = meshA;
+        Vector3 center = framing.center; float radius = framing.extents.magnitude;
+        if (float.IsNaN(radius) || float.IsInfinity(radius) || radius <= 0) throw new InvalidOperationException("Invalid fixed mesh bounds");
+        float distance = Mathf.Max(4, Vector3.Distance(map.gameplayCamera.transform.position, center));
+        gpuCamera.fieldOfView = Mathf.Clamp(2 * Mathf.Atan(radius * 1.12f / distance) * Mathf.Rad2Deg, 1, 60); gpuCamera.orthographicSize = radius * 1.12f;
+        Quaternion baseRotation = map.gameplayCamera.transform.rotation;
+        string folder = Path.GetFullPath(Path.Combine(Application.dataPath, "../Candidates/DS-MAP-02/GPUFeedback", DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fff")));
+        Directory.CreateDirectory(folder);
+        var framesA = Capture(meshA, "A_original", center, distance, baseRotation, folder);
+        var framesB = Capture(meshB, "B_spacing_only", center, distance, baseRotation, folder);
+        bool[] mask = InteriorMask(framesA[0], framesB[0]); int core = mask.Count(x => x);
+        if (core < 100) throw new InvalidOperationException("Insufficient opaque interior; image cannot support local stability claim");
+        var metricsA = Metrics(framesA, mask); var metricsB = Metrics(framesB, mask);
+        int worstA = metricsA.Max(x => x.changed), worstB = metricsB.Max(x => x.changed);
+        var report = new
+        {
+            status = worstA == 0 && worstB == 0 ? "MODEL_SNAPSHOT_STABLE" :
+                worstA >= 10 && worstB * 4 < worstA ? "MODEL_SNAPSHOT_DEPTH_CANDIDATE" : "UNREPRODUCED_PARTIAL_GPU_SNAPSHOT",
+            userFlickerClosed = false, productionFixApplied = false,
+            fixtureModifiedSource = false, sourceHadNonzeroSpacing = Mathf.Abs(spacingA) > .0000001f,
+            boundary = "真实MainBody同一正式Pose/Mesh的孤立固定快照；B仅独立MeshGenerator zSpacing。不是游戏动态/装备复现，不证明用户现象根因，不证明全程无闪烁。相机仅为放大观察收窄FOV，未移动真实相机。",
+            source = body.name, actor = direction.GetComponentInParent<Ossastra.Characters.CharacterRoot>().ActorId,
+            poseFrame, meshFrame, instructionFrame, meshDiagnostics, face, mirrored, sourceMeshMatchesGeneratedA = true,
+            vertexCount = meshA.vertexCount, submeshCount = meshA.subMeshCount, spacingA, spacingB = SpacingB,
+            interiorPixels = core, interiorErosion = 3, changedThreshold = 32, resolution = Resolution,
+            near = gpuCamera.nearClipPlane, far = gpuCamera.farClipPlane, distance, fieldOfView = gpuCamera.fieldOfView,
+            offsets, worstA, worstB, metricsA, metricsB, capturesDirectory = folder
+        };
+        Result = report; File.WriteAllText(Path.Combine(folder, "result.json"), Newtonsoft.Json.JsonConvert.SerializeObject(report, Newtonsoft.Json.Formatting.Indented));
+    }
+    private Color32[][] Capture(Mesh mesh, string label, Vector3 center, float distance, Quaternion baseRotation, string folder)
+    {
+        display.sharedMesh = mesh; var frames = new Color32[offsets.Length][]; RenderTexture previous = RenderTexture.active;
+        try
+        {
+            for (int i = 0; i < offsets.Length; i++)
+            {
+                Quaternion rotation = Quaternion.AngleAxis(offsets[i], Vector3.up) * baseRotation;
+                gpuCamera.transform.SetPositionAndRotation(center - rotation * Vector3.forward * distance, rotation);
+                RenderPipeline.SubmitRenderRequest(gpuCamera, new UniversalRenderPipeline.SingleCameraRequest { destination = rt });
+                RenderTexture.active = rt; readback.ReadPixels(new Rect(0, 0, Resolution, Resolution), 0, 0, false); readback.Apply(false, false);
+                frames[i] = readback.GetPixels32(); File.WriteAllBytes(Path.Combine(folder, label + "_" + i + ".png"), readback.EncodeToPNG());
+            }
+        }
+        finally { RenderTexture.active = previous; }
+        return frames;
+    }
+    private static bool[] InteriorMask(Color32[] a, Color32[] b)
+    {
+        var mask = new bool[a.Length];
+        for (int y = 3; y < Resolution - 3; y++) for (int x = 3; x < Resolution - 3; x++)
+        {
+            bool inside = true;
+            for (int dy = -3; dy <= 3 && inside; dy++) for (int dx = -3; dx <= 3; dx++)
+            { int p = (y + dy) * Resolution + x + dx; if (Math.Max(a[p].a, b[p].a) < 220) { inside = false; break; } }
+            mask[y * Resolution + x] = inside;
+        }
+        return mask;
+    }
+    private sealed class Metric { public int sample, changed, maxDifference; public float offset, meanDifference; }
+    private Metric[] Metrics(Color32[][] frames, bool[] mask)
+    {
+        var metrics = new Metric[frames.Length - 1]; int count = mask.Count(x => x);
+        for (int f = 1; f < frames.Length; f++)
+        {
+            var result = new Metric { sample = f, offset = offsets[f] }; long total = 0;
+            for (int p = 0; p < mask.Length; p++) if (mask[p])
+            {
+                var a = frames[0][p]; var b = frames[f][p]; int delta = Math.Max(Math.Max(Math.Abs(a.r - b.r), Math.Abs(a.g - b.g)), Math.Max(Math.Abs(a.b - b.b), Math.Abs(a.a - b.a)));
+                total += delta; result.maxDifference = Math.Max(result.maxDifference, delta); if (delta >= 32) result.changed++;
+            }
+            result.meanDifference = (float)total / count; metrics[f - 1] = result;
+        }
+        return metrics;
+    }
+    private void Fail(Exception error)
+    { Result = new { status = "GPU_FIXTURE_ERROR", error = error.ToString(), meshDiagnostics, userFlickerClosed = false }; Cleanup(); Destroy(gameObject); }
+    private void Detach()
+    { if (skeletonRenderer != null) skeletonRenderer.OnInstructionsPrepared -= InstructionsReady; if (hooked == null) return; hooked.UpdateComplete -= PoseReady; hooked.OnMeshAndMaterialsUpdated -= MeshReady; hooked = null; }
+    private void Cleanup()
+    {
+        if (disposed) return; disposed = true; Detach();
+        if (ownedRoot != null) DestroyImmediate(ownedRoot);
+        if (rt != null) { rt.Release(); DestroyImmediate(rt); }
+        if (readback != null) DestroyImmediate(readback);
+        if (generatedA != null) DestroyImmediate(generatedA);
+        if (meshA != null) DestroyImmediate(meshA);
+        if (meshB != null) DestroyImmediate(meshB);
+    }
+    private void OnDisable() => Cleanup();
+    private void OnDestroy() => Cleanup();
+}

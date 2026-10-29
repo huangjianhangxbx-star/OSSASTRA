@@ -13,6 +13,7 @@ using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using Newtonsoft.Json.Linq;
 using Ossastra.Characters.ViewSpace;
+using Ossastra.MapResearchIntegration.Rendering;
 using Spine.Unity;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -275,6 +276,10 @@ namespace Ossastra.MapResearch.Editor
             var replacements = new Dictionary<Material, Material>();
             foreach (SkeletonRenderer renderer in actor.GetComponentsInChildren<SkeletonRenderer>(true))
             {
+                var depth = renderer.GetComponent<MapResearchSpineDepth>();
+                if (depth == null) depth = renderer.gameObject.AddComponent<MapResearchSpineDepth>();
+                depth.sourceRenderer = renderer; depth.layerSpacing = -.0001f;
+                PrefabUtility.RecordPrefabInstancePropertyModifications(depth);
                 if (renderer.skeletonDataAsset == null) continue;
                 Material[] originals = renderer.skeletonDataAsset.atlasAssets.SelectMany(x => x.Materials).Distinct().ToArray();
                 var custom = renderer.GetComponent<SkeletonRendererCustomMaterials>();

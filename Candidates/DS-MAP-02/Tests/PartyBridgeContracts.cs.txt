@@ -1,0 +1,44 @@
+/* 聚合绑定必须全部成功或精确回滚；不抢另一owner、不因一个成员解绑清其它成员。 */
+using System;using System.Linq;using System.Collections.Generic;using UnityEngine;using UnityEditor;
+using Ossastra.Characters.ViewSpace;using Funplay.Editor.Tools.Scripting;
+public sealed class Ds02BridgeContracts:IFunplayCommand
+{
+    private sealed class View:ICharacterViewContext
+    {public Camera GameplayCamera{get;set;}public bool IsValid=>true;public Vector3 ViewRight=>Vector3.right;public Vector3 ViewForward=>Vector3.forward;public Quaternion ViewRotation=>Quaternion.identity;public bool FreezePresentation=>false;}
+    public void Execute(ExecutionContext ctx)
+    {
+        var type=AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType("Ossastra.MapResearchIntegration.MapResearchPartyBridge")).FirstOrDefault(t=>t!=null);
+        if(type==null){ctx.ReturnValue=new{passed=0,failed=1,reason="party aggregation is absent"};return;}
+        var a=Actor("A");var b=Actor("B");var host=new GameObject("bridge-test");var camera=new GameObject("bridge-camera").AddComponent<Camera>();
+        var bridge=host.AddComponent(type);type.GetField("characters").SetValue(bridge,new[]{a,b});
+        var view=new View{GameplayCamera=camera};object owner=new object(),foreign=new object();
+        var aa=a.GetComponent<CharacterViewSpaceAdapter>();var bb=b.GetComponent<CharacterViewSpaceAdapter>();var rows=new List<object>();
+        Action<string,bool> check=(name,passed)=>rows.Add(new{name,passed});
+        Func<string,object[],object> call=(name,args)=>type.GetMethod(name).Invoke(bridge,args);
+        try
+        {
+            b.BindViewContext(foreign,view);
+            check("partial-bind-rejected",!(bool)call("BindViewContext",new object[]{owner,view}));
+            check("first-bind-rolled-back",aa.ContextOwner==null);
+            check("foreign-owner-preserved",ReferenceEquals(bb.ContextOwner,foreign));
+            b.ReleaseViewContext(foreign);
+            check("complete-bind",(bool)call("BindViewContext",new object[]{owner,view}));
+            check("both-bound",ReferenceEquals(aa.ContextOwner,owner)&&ReferenceEquals(bb.ContextOwner,owner));
+            check("capture-both-players",(bool)call("SetViewInputCapture",new object[]{owner,true}));
+            UnityEngine.Object.DestroyImmediate(bb);
+            check("release-capture-survives-removed-view-adapter",(bool)call("SetViewInputCapture",new object[]{owner,false}));
+            call("ReleaseViewContext",new object[]{foreign});
+            check("wrong-owner-no-release",ReferenceEquals(aa.ContextOwner,owner));
+            call("ReleaseViewContext",new object[]{owner});
+            check("all-owned-released",aa.ContextOwner==null&&(bb==null||bb.ContextOwner==null));
+            ctx.ReturnValue=new{passed=rows.Count(x=>(bool)x.GetType().GetProperty("passed").GetValue(x)),failed=rows.Count(x=>!(bool)x.GetType().GetProperty("passed").GetValue(x)),rows};
+        }
+        finally{UnityEngine.Object.DestroyImmediate(a.gameObject);UnityEngine.Object.DestroyImmediate(b.gameObject);UnityEngine.Object.DestroyImmediate(host);UnityEngine.Object.DestroyImmediate(camera.gameObject);}
+    }
+    private static Ossastra.Characters.CharacterRoot Actor(string name)
+    {
+        var go=new GameObject(name);var actor=go.AddComponent<Ossastra.Characters.CharacterRoot>();var visual=new GameObject("visual");visual.transform.SetParent(go.transform);
+        var adapter=go.AddComponent<CharacterViewSpaceAdapter>();var serialized=new SerializedObject(adapter);serialized.FindProperty("visualRoot").objectReferenceValue=visual.transform;serialized.ApplyModifiedPropertiesWithoutUndo();
+        return actor;
+    }
+}
