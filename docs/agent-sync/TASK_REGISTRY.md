@@ -11,9 +11,9 @@
 - 活动任务不得拥有重叠路径；同一时刻最多一个 `unity-writer`。
 - 暂停、阻塞或完成时，将记录移到历史并释放路径。
 
-## 活动任务 KT-GROUND-01（2026-10-29）
+## KT-GROUND-01 完成交接（2026-10-30）
 
-- `kt-ground-01` active/unity-writer：root唯一Unity；新GroundResearch模块/配置/本机参考资源与SC_FrontierGroundLab、Candidates/KT-GROUND-01及本任务docs。原MapResearch/角色/敌人/管线只读，37dirty保护；source代理仅隔离研究目录。见 `tasks/2026-10-29-kt-ground-01.md`。
+- `kt-ground-01` complete/read-only：产品e67d40bd408c7a6473565fce166f52d54b26689e已GitHub main精确核验；3072㎡原生Tilemap地表、实际拖刷/擦除/矩形/Undo及两轮保存重开通过，原17SHA/37dirty保护。连续闪烁录像/实体手感未代验，全部租约释放。见 `tasks/2026-10-29-kt-ground-01.md`。
 
 ## DS-MAP-02 完成交接（2026-10-29）
 

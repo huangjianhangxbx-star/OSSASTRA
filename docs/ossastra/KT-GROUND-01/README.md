@@ -41,3 +41,5 @@ Play中使用原有移动、滚轮/方向键旋转、PageUp/Down缩放、Z切控
 
 
 实际Scene View回归还覆盖擦除、连续矩形、Esc/焦点与外部Undo保护，以及跨原生块的7格笔画两次保存重开。当前只留下原示范布局，测试哨兵和临时chunk设置已清理。八角正常画面与实际道路mask/底纹对照已核看；连续视频级闪烁和用户手感仍未代验。
+
+产品已发布：[e67d40b](https://github.com/huangjianhangxbx-star/OSSASTRA/commit/e67d40bd408c7a6473565fce166f52d54b26689e)。旧场与原dirty未夹带，本任务租约已释放；本机媒资和派生配置继续按原边界保留。
