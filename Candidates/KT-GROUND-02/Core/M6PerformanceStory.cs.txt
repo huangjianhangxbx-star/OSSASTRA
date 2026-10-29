@@ -1,0 +1,303 @@
+/*
+ * KT02有限Editor性能：ReferenceScene或精确PreviewSession，同机位1024/3072m²、角色显隐，重复两轮。
+ * simulationStillActive=true：不是纯地面CPU，也不是独立设备/GPU认证；UnityStats为Editor当前帧统计。
+ * 仅临时裁原生Tilemap作者格与Renderer属性块；不创建Mesh/Material、不改sharedMaterial或保存资产。
+ * finally/Play退出/reload恢复原格子、颜色/变换/flags、范围和属性块；角色死亡等真实模拟结果不伪恢复。
+ */
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using Funplay.Editor.Tools.Scripting;
+using UnityEditor;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEngine.Tilemaps;
+using Ossastra.GroundResearch;
+using Ossastra.MapResearch;
+using C = Ossastra.Characters;
+using E = Ossastra.Enemies;
+
+public sealed class KT02M6Performance : IFunplayCommand
+{
+    public static bool Running;
+    public static long RunId;
+    public static object Report;
+    private static GroundResearchSurface surface;
+    private static MapResearchRoot map;
+    private static List<LayerState> layers;
+    private static List<ActorRenderer> actors;
+    private static List<object> rows;
+    private static List<float> milliseconds;
+    private static List<int> batches, triangles;
+    private static BoundsInt originalCells;
+    private static double started;
+    private static int state, frameInState, lastFrame;
+    private static bool captured, authorDataRestored;
+    private static string error;
+    private static Vector3 cameraPosition;
+    private static Quaternion cameraRotation;
+    private static float maximumCameraDrift, maximumCameraAngleDrift;
+    private static int[] originalMaterialIds;
+    private static string runScenePath;
+    private static bool AllowedScene(Scene scene)
+    {
+        string preview=Ossastra.GroundResearch.Editor.GroundWorkshopPlaygroundSession.PreviewScenePath;
+        return scene.path==Ossastra.GroundResearch.Editor.GroundWorkshopOwnership.ReferenceScene||
+            (!string.IsNullOrEmpty(preview)&&Ossastra.GroundResearch.Editor.GroundWorkshopPlaygroundSession.HasSession&&scene.path==preview);
+    }
+    private const int WarmupFrames = 30, MeasureFrames = 60;
+
+    private sealed class LayerState
+    {
+        public Tilemap map;
+        public TilemapRenderer renderer;
+        public BoundsInt bounds;
+        public Vector3Int origin, size;
+        public TileBase[] tiles;
+        public Color[] colors;
+        public Matrix4x4[] matrices;
+        public TileFlags[] flags;
+        public MaterialPropertyBlock original = new MaterialPropertyBlock();
+        public MaterialPropertyBlock working = new MaterialPropertyBlock();
+    }
+    private sealed class ActorRenderer
+    {
+        public Renderer renderer;
+        public bool enabled;
+        public C.CharacterRoot character;
+        public E.EnemyRoot enemy;
+        public bool OwnerAlive => character != null ? character.IsAlive : enemy != null && enemy.Vitals != null && enemy.Vitals.IsAlive;
+    }
+
+    public void Execute(ExecutionContext ctx)
+    {
+        foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
+        {
+            foreach (string name in new[] { "KT02M6Performance", "KT02M6InputStory", "KT02M6CombatOnlyStory" })
+            {
+                Type type = assembly.GetType(name, false);
+                if (type != null && type != typeof(KT02M6Performance) && (bool)type.GetField("Running").GetValue(null))
+                    throw new InvalidOperationException("Another M6 story is active; do not overlap native data or input stories.");
+            }
+        }
+        if (Running) throw new InvalidOperationException("Performance story already running.");
+        RunId = DateTime.UtcNow.Ticks; started = EditorApplication.timeSinceStartup;
+        Report = null; error = ""; captured = authorDataRestored = false;
+        rows = new List<object>(); layers = new List<LayerState>(); actors = new List<ActorRenderer>();
+        try
+        {
+            Scene scene = SceneManager.GetActiveScene();
+            runScenePath=scene.path;
+            if (!Application.isPlaying || EditorApplication.isPaused || Time.timeScale != 1f || !AllowedScene(scene))
+                throw new InvalidOperationException("ReferenceScene or exact PreviewSession, unpaused normal-time Play required.");
+            surface = InScene<GroundResearchSurface>(scene).Single();
+            map = InScene<MapResearchRoot>(scene).Single();
+            if (Mathf.Abs(surface.WorldArea - 3072f) > 0.01f || map.IsStructureMode || map.GameplayCamera == null)
+                throw new InvalidOperationException("Full 3072m² surface and normal game camera required.");
+            var enemy = InScene<E.EnemyRoot>(scene).Single();
+            if (enemy.AttacksEnabled) throw new InvalidOperationException("Choose existing observation mode first; performance story does not toggle combat/Root simulation.");
+            originalCells = surface.editableCells;
+            originalMaterialIds = GroundMaterialIds();
+            foreach (GroundLayer layer in surface.layers)
+            {
+                if (layer == null || !surface.Owns(layer.tilemap)) throw new InvalidOperationException("Invalid owned Tilemap.");
+                var snapshot = new LayerState { map = layer.tilemap, renderer = layer.tilemap.GetComponent<TilemapRenderer>(), bounds = layer.tilemap.cellBounds, origin = layer.tilemap.origin, size = layer.tilemap.size };
+                if (snapshot.renderer == null) throw new InvalidOperationException("Missing owned native TilemapRenderer.");
+                snapshot.renderer.GetPropertyBlock(snapshot.original);
+                if (snapshot.original.GetFloat("_DebugMask") != 0) throw new InvalidOperationException("Choose normal color display before comparison.");
+                snapshot.tiles = snapshot.map.GetTilesBlock(snapshot.bounds);
+                snapshot.colors = new Color[snapshot.tiles.Length]; snapshot.matrices = new Matrix4x4[snapshot.tiles.Length]; snapshot.flags = new TileFlags[snapshot.tiles.Length];
+                int index = 0;
+                foreach (Vector3Int cell in snapshot.bounds.allPositionsWithin)
+                {
+                    snapshot.colors[index] = snapshot.map.GetColor(cell);
+                    snapshot.matrices[index] = snapshot.map.GetTransformMatrix(cell);
+                    snapshot.flags[index] = snapshot.map.GetTileFlags(cell);
+                    index++;
+                }
+                layers.Add(snapshot);
+            }
+            C.CharacterRoot[] characters = InScene<C.CharacterRoot>(scene);
+            if (characters.Length != 2) throw new InvalidOperationException("Expected the original two player identities.");
+            foreach (C.CharacterRoot character in characters) foreach (Renderer renderer in character.GetComponentsInChildren<Renderer>(true))
+                actors.Add(new ActorRenderer { renderer = renderer, enabled = renderer.enabled, character = character });
+            foreach (Renderer renderer in enemy.GetComponentsInChildren<Renderer>(true))
+                actors.Add(new ActorRenderer { renderer = renderer, enabled = renderer.enabled, enemy = enemy });
+            cameraPosition = map.GameplayCamera.transform.position; cameraRotation = map.GameplayCamera.transform.rotation;
+            captured = true; state = 0; lastFrame = -1; Running = true;
+            ApplyState();
+            EditorApplication.update += Tick;
+            EditorApplication.playModeStateChanged += OnPlayState;
+            AssemblyReloadEvents.beforeAssemblyReload += OnReload;
+            Type gameView = typeof(EditorWindow).Assembly.GetType("UnityEditor.GameView", false);
+            if (gameView != null) EditorWindow.GetWindow(gameView).Focus();
+            Publish(false);
+            ctx.ReturnValue = new { started = true, RunId, configurations = 4, cycles = 2, WarmupFrames, MeasureFrames, simulationStillActive = true, limitSeconds = 120, note = "Keep input idle. Poll sparingly: MCP execution overhead may affect Editor frame intervals. GPU remains unknown." };
+        }
+        catch (Exception exception) { error = exception.ToString(); Cleanup(); ctx.ReturnValue = Report; }
+    }
+
+    private static void ApplyState()
+    {
+        bool small = state % 2 == 0;
+        bool showActors = state % 4 < 2;
+        if(originalCells.size.x<8||originalCells.size.y<8)throw new InvalidOperationException("1024m² crop requires eight logical cells per side.");
+        BoundsInt crop = new BoundsInt(originalCells.xMin+(originalCells.size.x-8)/2,originalCells.yMin+(originalCells.size.y-8)/2,0,8,8,1);
+        surface.editableCells = small ? crop : originalCells;
+        if(Mathf.Abs(surface.WorldArea-(small?1024f:3072f))>.01f)throw new InvalidOperationException("Actual world area differs from bounded 1024/3072 comparison.");
+        foreach (LayerState layer in layers) RestoreLayer(layer, small ? (BoundsInt?)crop : null);
+        Bounds world = surface.WorldBounds;
+        foreach (LayerState layer in layers)
+        {
+            layer.renderer.SetPropertyBlock(layer.original.isEmpty ? null : layer.original);
+            layer.renderer.GetPropertyBlock(layer.working);
+            layer.working.SetVector("_GroundBounds", new Vector4(world.min.x, world.min.z, world.max.x, world.max.z));
+            layer.renderer.SetPropertyBlock(layer.working);
+        }
+        foreach (ActorRenderer actor in actors)
+            if (actor.renderer != null) actor.renderer.enabled = showActors && actor.enabled && actor.OwnerAlive;
+        frameInState = 0; milliseconds = new List<float>(); batches = new List<int>(); triangles = new List<int>();
+        maximumCameraDrift = maximumCameraAngleDrift = 0;
+    }
+
+    private static void Tick()
+    {
+        if (!Running) return;
+        try
+        {
+            if (!Application.isPlaying || EditorApplication.isPaused || Time.timeScale != 1f || surface == null || map == null)
+                throw new InvalidOperationException("Owned normal-time Play was interrupted.");
+            if(SceneManager.GetActiveScene().path!=runScenePath||!AllowedScene(SceneManager.GetActiveScene()))throw new InvalidOperationException("Recorded allowed gameplay scene changed during story.");
+            if (EditorApplication.timeSinceStartup - started > 120) throw new TimeoutException("Finite performance window exceeded 120 seconds.");
+            if (Time.frameCount == lastFrame) return;
+            lastFrame = Time.frameCount;
+            frameInState++;
+            if (frameInState <= WarmupFrames) return;
+            maximumCameraDrift = Mathf.Max(maximumCameraDrift, Vector3.Distance(cameraPosition, map.GameplayCamera.transform.position));
+            maximumCameraAngleDrift = Mathf.Max(maximumCameraAngleDrift, Quaternion.Angle(cameraRotation, map.GameplayCamera.transform.rotation));
+            milliseconds.Add(Time.unscaledDeltaTime * 1000f);
+            batches.Add(UnityStats.batches); triangles.Add(UnityStats.triangles);
+            if (milliseconds.Count == MeasureFrames)
+            {
+                rows.Add(new
+                {
+                    cycle = state / 4 + 1,
+                    area = surface.WorldArea,
+                    mode = state % 4 < 2 ? "with-actor-renderers" : "terrain-and-decoration-renderers-only",
+                    simulationStillActive = true,
+                    frames = MeasureFrames,
+                    editorFrameMillisecondsMedian = Percentile(milliseconds, 0.5f),
+                    editorFrameMillisecondsP95 = Percentile(milliseconds, 0.95f),
+                    batchesMedian = Percentile(batches.Select(x => (float)x).ToList(), 0.5f),
+                    trianglesMedian = Percentile(triangles.Select(x => (float)x).ToList(), 0.5f),
+                    cameraPosition = map.GameplayCamera.transform.position.ToString("F3"),
+                    maximumCameraDrift, maximumCameraAngleDrift,
+                    comparableCamera = maximumCameraDrift < 0.05f && maximumCameraAngleDrift < 0.1f,
+                    resolution = new[] { Screen.width, Screen.height },
+                    orthographic = map.GameplayCamera.orthographic,
+                    fieldOfView = map.GameplayCamera.fieldOfView,
+                    groundMaterialIds = GroundMaterialIds(),
+                    sceneRenderers=InScene<Renderer>(surface.gameObject.scene).Length,
+                    enabledSceneRenderers=InScene<Renderer>(surface.gameObject.scene).Count(renderer=>renderer.enabled&&renderer.gameObject.activeInHierarchy),
+                    ownedGroundRenderers=layers.Count,
+                    actorRenderers=actors.Count,
+                    enabledActorRenderers=actors.Count(actor=>actor.renderer!=null&&actor.renderer.enabled&&actor.renderer.gameObject.activeInHierarchy),
+                    uniqueSceneSharedMaterials=InScene<Renderer>(surface.gameObject.scene).SelectMany(renderer=>renderer.sharedMaterials).Where(material=>material!=null).Select(material=>material.GetInstanceID()).Distinct().Count(),
+                    decorations=InScene<GroundDecorationInstance>(surface.gameObject.scene).Length,
+                    decorationRenderers=InScene<GroundDecorationInstance>(surface.gameObject.scene).SelectMany(instance=>instance.GetComponentsInChildren<SpriteRenderer>(true)).Count(),
+                    ownedGroundMeshFilters = surface.GetComponentsInChildren<MeshFilter>(true).Count(x => x.sharedMesh != null),
+                    globalEditorMaterials = Resources.FindObjectsOfTypeAll<Material>().Length,
+                    globalEditorMeshes = Resources.FindObjectsOfTypeAll<Mesh>().Length,
+                    nativeChunkMeshOwnership = "Not exposed as owned MeshFilter resources; global counts cannot attribute native Tilemap chunks.",
+                    aliveActors = InScene<C.CharacterRoot>(surface.gameObject.scene).Count(x => x.IsAlive) + InScene<E.EnemyRoot>(surface.gameObject.scene).Count(x => x.Vitals != null && x.Vitals.IsAlive),
+                    gpuMilliseconds = "UNKNOWN"
+                });
+                state++;
+                if (state == 8) Cleanup(); else ApplyState();
+            }
+            if (Running) Publish(false);
+        }
+        catch (Exception exception) { error = exception.ToString(); Cleanup(); }
+    }
+
+    private static void RestoreLayer(LayerState layer, BoundsInt? crop)
+    {
+        if (layer.map == null) throw new InvalidOperationException("Captured author Tilemap was destroyed.");
+        layer.map.ClearAllTiles();
+        if (layer.tiles.Length != 0) layer.map.SetTilesBlock(layer.bounds, layer.tiles);
+        if (crop.HasValue) foreach (Vector3Int cell in layer.bounds.allPositionsWithin)
+            if (!crop.Value.Contains(cell) && layer.map.HasTile(cell)) layer.map.SetTile(cell, null);
+        layer.map.RefreshAllTiles();
+        int index = 0;
+        foreach (Vector3Int cell in layer.bounds.allPositionsWithin)
+        {
+            if (layer.tiles[index] != null && (!crop.HasValue || crop.Value.Contains(cell)))
+            {
+                layer.map.SetTileFlags(cell, TileFlags.None);
+                layer.map.SetColor(cell, layer.colors[index]);
+                if (!crop.HasValue) layer.map.SetTransformMatrix(cell, layer.matrices[index]);
+                layer.map.SetTileFlags(cell, layer.flags[index]);
+            }
+            index++;
+        }
+        layer.map.origin = crop.HasValue ? crop.Value.min : layer.origin;
+        layer.map.size = crop.HasValue ? crop.Value.size : layer.size;
+    }
+
+    private static bool VerifyAuthorData()
+    {
+        if (surface == null || !surface.editableCells.Equals(originalCells)) return false;
+        foreach (LayerState layer in layers)
+        {
+            if (layer.map == null || layer.map.origin != layer.origin || layer.map.size != layer.size) return false;
+            int index = 0;
+            foreach (Vector3Int cell in layer.bounds.allPositionsWithin)
+            {
+                if (layer.map.GetTile(cell) != layer.tiles[index]) return false;
+                if (layer.tiles[index] != null)
+                {
+                    if (layer.map.GetTileFlags(cell) != layer.flags[index]) return false;
+                    Color color = layer.map.GetColor(cell);
+                    if (((Vector4)color - (Vector4)layer.colors[index]).sqrMagnitude > 0.00000001f) return false;
+                    Matrix4x4 matrix = layer.map.GetTransformMatrix(cell);
+                    for (int element = 0; element < 16; element++) if (Mathf.Abs(matrix[element] - layer.matrices[index][element]) > 0.00001f) return false;
+                }
+                index++;
+            }
+        }
+        return true;
+    }
+    private static int[] GroundMaterialIds() => surface.layers.Select(x => x.tilemap.GetComponent<TilemapRenderer>().sharedMaterial).Where(x => x != null).Select(x => x.GetInstanceID()).Distinct().OrderBy(x => x).ToArray();
+    private static float Percentile(List<float> values, float fraction) { var sorted = values.OrderBy(x => x).ToArray(); return sorted[Mathf.Clamp(Mathf.CeilToInt(sorted.Length * fraction) - 1, 0, sorted.Length - 1)]; }
+    private static T[] InScene<T>(Scene scene) where T : Component => scene.GetRootGameObjects().SelectMany(x => x.GetComponentsInChildren<T>(true)).ToArray();
+    private static void Publish(bool done) { Report = new { done,status=!done?"RUNNING":string.IsNullOrEmpty(error)&&authorDataRestored&&rows!=null&&rows.Count==8?"PASS":"FAILED", RunId, Running,scene=runScenePath, seconds = EditorApplication.timeSinceStartup - started, completedRows = rows == null ? 0 : rows.Count, error, authorDataRestored, simulationStillActive = true, noPersistentMaterialWrites = true, rows = rows == null ? null : rows.ToArray(), interpretation = "Editor finite render-cost comparison only; actor simulation remains active and may change poses/HP. Decorative renderers remain active when actor renderers are hidden. No pure-ground CPU, GPU, standalone build, device or leak certification." }; }
+    private static void OnPlayState(PlayModeStateChange state) { if (Running && state == PlayModeStateChange.ExitingPlayMode) Cancel("Play exit interrupted sampling"); }
+    private static void OnReload() { if (Running) Cancel("Assembly reload interrupted sampling"); }
+    public static void Cancel(string reason) { error = reason; Cleanup(); }
+    private static void Cleanup()
+    {
+        Running = false;
+        EditorApplication.update -= Tick; EditorApplication.playModeStateChanged -= OnPlayState; AssemblyReloadEvents.beforeAssemblyReload -= OnReload;
+        if (captured)
+        {
+            try
+            {
+                if (surface == null) throw new InvalidOperationException("Surface no longer exists; saved scene was not written by this story.");
+                surface.editableCells = originalCells;
+                foreach (LayerState layer in layers)
+                {
+                    RestoreLayer(layer, null);
+                    if (layer.renderer != null) layer.renderer.SetPropertyBlock(layer.original.isEmpty ? null : layer.original);
+                }
+                foreach (ActorRenderer actor in actors)
+                    if (actor.renderer != null) actor.renderer.enabled = actor.enabled && actor.OwnerAlive;
+                authorDataRestored = VerifyAuthorData();
+                if (!authorDataRestored) error += "\nNative author-data readback differs after restoration.";
+                if (!originalMaterialIds.SequenceEqual(GroundMaterialIds())) error += "\nOwned material identities changed.";
+            }
+            catch (Exception exception) { error += "\nRestoration: " + exception; }
+        }
+        Publish(true);
+    }
+}

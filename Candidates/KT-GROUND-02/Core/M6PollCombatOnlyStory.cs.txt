@@ -1,0 +1,12 @@
+using System;
+using System.Linq;
+using Funplay.Editor.Tools.Scripting;
+public sealed class KT02M6PollCombatOnlyStory : IFunplayCommand
+{
+    public void Execute(ExecutionContext ctx)
+    {
+        var type = AppDomain.CurrentDomain.GetAssemblies().Select(a => a.GetType("KT02M6CombatOnlyStory", false)).Where(t => t != null)
+            .OrderByDescending(t => (long)t.GetField("RunId").GetValue(null)).FirstOrDefault();
+        ctx.ReturnValue = type == null ? (object)new { error = "No M6 combat-only assembly loaded." } : type.GetField("Report").GetValue(null);
+    }
+}

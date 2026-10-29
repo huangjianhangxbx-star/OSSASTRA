@@ -1,0 +1,72 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>素材绘制规范 · 星骸地表工坊</title><style>
+:root{color-scheme:light;--ink:#263b33;--muted:#596c63;--paper:#f5f3eb;--line:#d3dad0;--accent:#386751}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.85 'Microsoft YaHei','PingFang SC',sans-serif}
+aside{position:fixed;inset:0 auto 0 0;width:260px;background:#213a30;color:#e5ede5;padding:36px 24px;overflow:auto}aside small{color:#b8cdbf;letter-spacing:.14em}aside h2{font-size:24px;line-height:1.4;margin:16px 0 25px}aside a{display:block;color:#dce9de;text-decoration:none;font-size:14px;margin:9px 0;padding:3px 0}aside a:hover{color:white;text-decoration:underline}aside .other{margin-top:26px;border-top:1px solid #4a6355;padding-top:18px}
+main{margin-left:260px;padding:48px 6vw 70px;max-width:1280px}h1{font-size:36px;letter-spacing:.03em;line-height:1.35;margin:8px 0 24px}h2{font-size:24px;margin:54px 0 18px;padding-top:18px;border-top:1px solid var(--line);scroll-margin-top:22px}p{margin:15px 0}strong{font-weight:700;color:#234b39}a{color:var(--accent);text-underline-offset:3px}li{padding-left:5px;margin:10px 0}figure{margin:25px 0;padding:18px;background:#e7ebe1;border:1px solid var(--line);border-radius:6px}figure img{display:block;width:100%;max-height:440px;object-fit:contain}figcaption{font-size:13px;color:var(--muted);margin-top:12px}code{font:14px/1.6 Consolas,monospace;background:#e8e9df;padding:2px 5px;overflow-wrap:anywhere}.table-wrap{overflow:auto;margin:22px 0}table{width:100%;border-collapse:collapse;font-size:14px;min-width:600px}td,th{padding:12px 14px;vertical-align:top;border:1px solid var(--line);text-align:left}th{background:#dce5d9}tr:nth-child(even){background:#eeefe6}.status{padding:12px 16px;border-left:4px solid #66846a;background:#e6ecdf;color:#415848;font-size:14px}.topline{font-size:12px;letter-spacing:.15em;color:var(--muted)}footer{margin-top:45px;padding-top:20px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)}
+figure img[src$="OriginalTechnical32.png"],figure img[src$="OriginalTechnical32_3x3.png"]{max-height:230px;image-rendering:pixelated}
+@media(max-width:920px){aside{position:relative;width:auto;padding:22px}aside h2{margin:8px 0;font-size:20px}aside nav{display:flex;flex-wrap:wrap;gap:4px 16px}aside a{margin:2px 0}aside .other{margin-top:10px;padding-top:10px}main{margin:0;padding:25px 22px 50px}h1{font-size:29px}}@media print{aside{display:none}main{margin:0;padding:0;max-width:none}body{font-size:11pt;background:white}.table-wrap{overflow:visible}h2{break-after:avoid}figure,table{break-inside:avoid}}
+</style></head><body><aside><small>KT–GROUND–02</small><h2>星骸地表工坊<br>制作手册</h2><nav><a href="#section-7">1　数字的身份</a><a href="#section-19">2　底纹：画连续内部</a><a href="#section-35">3　边缘：把轮廓画进alpha</a><a href="#section-55">4　独立Sprite：先确定脚点</a><a href="#section-71">5　最小自绘回接练习</a><a href="#section-88">6　错误对照</a><a href="#section-100">7　来源与交付边界</a></nav><div class="other"><a href="../03-tutorial/地面组合逻辑教程.html">另一份制作手册 →</a></div></aside><main><div class="topline">AUTHORING / 原创技术示意 / 离线可读</div><div class="status">本文说明实际接口与制作工作流。功能实测、实际截图和未测项请同时查阅交付入口；示意图不替代现场证据或人工验收。</div><h1 id="section-1">地表素材绘制规范与练习</h1>
+<p>先分清要画的是底纹、边缘alpha，还是独立Sprite。三者负责的东西不同，不需要每次重画一整套地图。本文的SVG/PNG练习图是独立几何技术示意，不含原作像素或规则表，不代表正式美术风格。</p>
+<p><strong>UI_PHYSICAL_UNVERIFIED</strong>　当前真实桌面输入工具不可用，本文没有以示意图替代编辑器主窗口截图或人工制作验收。实际Scene/Game渲染与程序合同需各自查证。</p>
+<h2 id="section-7">1　数字的身份</h2>
+<div class="table-wrap"><table><thead><tr><th>项目</th><th>SOURCE_VERIFIED 源参考事实</th><th>当前兼容或建议</th></tr></thead><tbody>
+<tr><td>地层</td><td>指定Starter七层</td><td>工坊支持有界槽位；原创样例三层，v1最多16层</td></tr>
+<tr><td>规则与切片</td><td>源族14条有序规则加默认，15个Sprite</td><td>选已验证边族；原创技术族独立定义，不能只按片数判断</td></tr>
+<tr><td>mask</td><td>源128×128、PPU99、居中pivot</td><td>同规格可减少回接变量；其他格式需独立验证</td></tr>
+<tr><td>图集</td><td>源1024×512、15切片、无旋转打包</td><td>自有布局可独立设计，Rect/pivot/透明安全区须明确</td></tr>
+<tr><td>逻辑格</td><td>源组合后4世界单位</td><td>不为贴图改角色和世界单位</td></tr>
+<tr><td>底纹</td><td>源材质有数值16的缩放参数，精确公式未知</td><td>当前16m世界周期为UNITY_ADAPTATION候选</td></tr>
+<tr><td>光照</td><td>源编译Shader有Lit/Ramp属性</td><td>当前自有Unlit，不自动获得法线、粗糙度、高度或原作阴影</td></tr>
+</tbody></table></div>
+<h2 id="section-19">2　底纹：画连续内部</h2>
+<p>下载 <a href="assets/OriginalTechnical32.png" download>32×32原创技术练习PNG</a> 后即可走导入流程；<a href="assets/OriginalTechnical32_3x3.png" download>对应3×3平铺PNG</a> 是96×96预览，不是另一种画布规格。原文件逐字节保留，Native演练验证受控副本Repeat/sRGB/noMip；15×15无效图被拒绝且没有半成品资产。</p>
+<figure><img src="assets/OriginalTechnical32.png" alt="实际练习底纹：原32×32画布"><figcaption>实际练习底纹：原32×32画布</figcaption></figure>
+<figure><img src="assets/OriginalTechnical32_3x3.png" alt="真实导入画布的3×3周期预览"><figcaption>真实导入画布的3×3周期预览</figcaption></figure>
+<p>底纹画草叶、碎石、泥土、色块和可以平铺的小细节；边缘轮廓交给mask。一个醒目的石头或花团会随整张纹理重复，密度和重复点要在常用游戏镜头下判断。</p>
+<p><strong>交付内容</strong>　保存自有PNG；当前导入向导接受16—4096像素，方形不是强制条件。保留创作原稿，工坊导入受控Repeat副本。没有PSD就不声称交付分层PSD。</p>
+<p><strong>画后检查</strong>　看3×3或更大拼接；看缩小后的明暗和可读性；以世界周期检查实际密度。RGB用于当前地面颜色，底纹alpha不会自动挖洞。方向强烈的木板和笔触不会沿弯路自动转向。</p>
+<p><strong>风格观察与工程规范分开</strong>　透明、采样和周期属于工程兼容；色阶、草叶密度、对比、色相和重复识别点是美术判断。参考的配色不是《星骸回廊》永久风格要求。</p>
+<h2 id="section-35">3　边缘：把轮廓画进alpha</h2>
+<p>白色RGB不等于遮罩。当前方案用alpha控制轮廓，因此“黑白画面但alpha全不透明”仍会显示矩形。绘制时保留透明背景；直边、凸角、凹角、孤立和窄段要在不同底纹上看。</p>
+<figure><img src="assets/原创边缘练习模板.svg" alt="原创单片练习：逻辑格与透明外框"><figcaption>原创单片练习：逻辑格与透明外框</figcaption></figure>
+<p>练习文件 <code>assets/原创边缘练习_孤岛128.png</code> 为透明PNG；同名SVG保留可编辑几何形状和说明。它只是单片练习，<strong>不能单独冒充完整边缘族导入</strong>。完整边族应从交付的已验证原创族开始，按其明确邻接语义修改，而不是猜某张图在15片或256片中对应哪一种情况。</p>
+<p><strong>模板标记</strong>　128像素画布，居中pivot；示意的99像素逻辑格位于画布中心，外框余量用于说明越格和安全区，不是额外占地。蓝线/标注只在SVG教学层，透明PNG不夹带这些线。</p>
+<p><strong>族级检查</strong>　孤立、满邻、缺邻、凹凸角、窄段、交叉、道路端点和跨chunk边界；远近各看一次。同一底纹换合法边族、同一边族换两种原创底纹，证明两种职责分离。</p>
+<figure><img src="../03-tutorial/assets/original-story/Original_Overlay_DebugMask.png" alt="原创族实际alpha调试：NativeCamera.Render完整1024×576帧"><figcaption>原创族实际alpha调试：NativeCamera.Render完整1024×576帧</figcaption></figure>
+<figure><img src="../03-tutorial/assets/original-story/Original_EdgeClose.png" alt="原创族实际边缘近景：原生相机临时拉近，未后期裁剪"><figcaption>原创族实际边缘近景：原生相机临时拉近，未后期裁剪</figcaption></figure>
+<p><strong>原创技术族的编号</strong>　交付的原创Rounded/Chamfered族使用独立八邻域256个精确状态，所有规则固定方向。打开<a href="assets/原创技术边缘族_编号图.svg">完整编号索引SVG</a>查看每片的同族/非同族邻格；<a href="assets/原创技术边缘族_编号表.csv">编号与Rect表CSV</a>记录八个方向、pivot、PPU和Unity左下角Rect。索引图按编号从上往下排，实际图集Rect的y从左下角计，不能照屏幕行数猜坐标。这是本工程原创技术族的明确语义，和原参考14规则/15片并列记录，不互相替代。</p>
+<p><strong>过滤边界</strong>　padding/extrusion取决于过滤和Mip。先复用已验证无Mip路径再测邻片污染，不承诺固定几个像素永远无渗色；不把安全外扩算入逻辑切片改变占地。</p>
+<h2 id="section-55">4　独立Sprite：先确定脚点</h2>
+<p>独立花草要说明原画布尺寸、pivot/脚点、裁切Rect、trim后的原画布偏移、PPU与世界显示尺寸。图片可见高度和玩法碰撞占地独立。</p>
+<figure><img src="../03-tutorial/assets/坐标与脚点.svg" alt="自有讲解图：逻辑脚点不随相机朝向移动"><figcaption>自有讲解图：逻辑脚点不随相机朝向移动</figcaption></figure>
+<p><strong>Flat</strong>　落叶、小石面或贴地装饰按地面平放。画图中的阴影属于素材本身，不自动变成世界光照。</p>
+<p><strong>UprightYaw</strong>　直立并只绕竖轴适配观察方向，脚点和地面根不动。适合经验证允许这样表现的单面花草；不是所有树石都默认采用。</p>
+<p><strong>FixedUpright</strong>　保持指定直立方向。单面素材的背面和侧面限制必须在八个正常观察角与中间角检查，不自动生成背面。</p>
+<p><strong>允许变体</strong>　缩放限在定义范围内，镜像须明确允许。不要为了随机多样性把一张方向光照很强的图任意旋转，导致手绘阴影与世界方向互相矛盾。</p>
+<p><strong>默认碰撞</strong>　花草不生成玩法碰撞。确有阻挡作用时使用单独明确的配置，不从alpha或颜色猜碰撞。角色仍沿现有连续3D地面移动，不新增Physics2D通道。</p>
+<h2 id="section-71">5　最小自绘回接练习</h2>
+<figure><img src="../03-tutorial/assets/original-story/Original_Before.png" alt="本轮原创练习替换前：19格连通分叉道路"><figcaption>本轮原创练习替换前：19格连通分叉道路</figcaption></figure>
+<figure><img src="../03-tutorial/assets/original-story/Original_AfterReplacement.png" alt="本轮原创练习替换后：只替换32格Overlay底纹"><figcaption>本轮原创练习替换后：只替换32格Overlay底纹</figcaption></figure>
+<p>该组真实相机帧使用192/32/19格基础、覆盖与道路，44个原创装饰保持原位。Native检查预览/取消/提交/Undo和产品磁盘SHA；它不是Editor窗口实拍，也不替代物理输入或审美验收。</p>
+<ol>
+<li>画一张可平铺底纹，在工坊导入PNG，选既有已验证原创边族，保存新配方。</li>
+<li>在一张有覆盖、道路和手摆花的地图上预检替换当前层已有同类格；确认旧布局与未来笔画一致，取消和Undo可恢复。</li>
+<li>将同一底纹换到另一合法原创边族，观察轮廓变化；再用同一边族换另一底纹，观察内部变化。</li>
+<li>做2—3张独立花草/地面装饰，逐张确认脚点、trim、PPU、摆放模式和允许缩放；保存成主题组合。</li>
+<li>用稳定种子撒布，确认道路避让、手摆/锁定保护。保存并真正关场重开，再进/出Play，位置不重新随机。</li>
+<li>仅用原创素材在原创场重复上述流程，确认没有原作图集、规则表、角色私有manifest或本机绝对路径依赖。</li>
+</ol>
+<p>技术样本的作用是证明这条接入链成立，不是替用户完成正式商业美术。</p>
+<h2 id="section-88">6　错误对照</h2>
+<div class="table-wrap"><table><thead><tr><th>错误</th><th>为什么</th><th>修正位置</th></tr></thead><tbody>
+<tr><td>遮罩RGB黑白但alpha全不透明</td><td>当前轮廓读alpha</td><td>图像编辑器透明通道；工坊alpha观察</td></tr>
+<tr><td>用Sprite外框当逻辑格</td><td>图片可越格，邻接仍按Grid</td><td>边族Rect/PPU/pivot与地图Grid</td></tr>
+<tr><td>贴图换了，已有格没变</td><td>草稿、画笔、提交、保存是不同步骤</td><td>新配方→已有格预检→提交→保存</td></tr>
+<tr><td>源15片直接套传统47块规则</td><td>数量不等于邻接语义</td><td>选择已验证族，不按数量猜映射</td></tr>
+<tr><td>花草变成一面薄片或背面消失</td><td>单面图视角/摆放策略不合适</td><td>Sprite定义与实际旋转检查</td></tr>
+<tr><td>大图被自动赋同样大碰撞</td><td>图像和玩法占地混淆</td><td>保持默认无碰撞，另做明确阻挡配置</td></tr>
+<tr><td>重新撒布改了手摆位置</td><td>所有权或生成分组处理错误</td><td>保留实例，记录问题；只作用生成且未锁项</td></tr>
+</tbody></table></div>
+<h2 id="section-100">7　来源与交付边界</h2>
+<p>图鉴条目的像素、切片、PPU/pivot、源容器、版本、hash和证据身份共同说明素材；同像素不同脚点不能只因内容hash一致而合并。只看到图片像草，不足以判定原作一定Billboard。</p>
+<p>源参考图、裁片、派生数据和含参考截图只本机。公开包使用自有代码、原创技术样本和上述独立SVG/PNG讲解图。未知资源可浏览但不能写“已验证可用”；复杂动画的首帧预览也不能写成动画已经接入。</p><footer>资料可离线阅读，无CDN、外部字体或网络脚本。来源事实、Unity适配、推断和未知须分别记录；自有技术示意不代表正式美术。</footer></main></body></html>

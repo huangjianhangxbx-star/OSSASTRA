@@ -1,0 +1,66 @@
+/* Root在Edit ready执行；只创建Candidates中的独立小HTML并精确删除，不打开浏览器、不改Unity资产。 */
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Reflection;
+using Funplay.Editor.Tools.Scripting;
+using UnityEditor;
+using UnityEngine;
+
+public sealed class GroundWorkshopHelpRoutingContracts : IFunplayCommand
+{
+    public void Execute(ExecutionContext ctx)
+    {
+        Type type = null;
+        foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
+        { type = assembly.GetType("Ossastra.GroundResearch.Editor.GroundWorkshopWindow", false); if (type != null) break; }
+        MethodInfo resolver = type == null ? null : type.GetMethod("TryResolveHelpPath", BindingFlags.Public | BindingFlags.Instance);
+        if (resolver == null) { ctx.ReturnValue = new { status = "RED", passed = 0, failed = 1, reason = "Window has no local-first/project-documentation fallback route." }; return; }
+        const string preference = "Ossastra.GroundWorkshop.HelpRoot";
+        bool hadPreference = EditorPrefs.HasKey(preference); string originalPreference = EditorPrefs.GetString(preference, "");
+        string allowed = Path.GetFullPath(Path.Combine(Application.dataPath, "../Candidates/KT-GROUND-02/UI"));
+        string folder = Path.Combine(allowed, "HelpFixture-" + Guid.NewGuid().ToString("N"));
+        string localDirectory = Path.Combine(folder, "03-tutorial"), localFile = Path.Combine(localDirectory, "地面组合逻辑教程.html");
+        ScriptableObject window = null; int passed = 0, failed = 0; var checks = new List<string>();
+        try
+        {
+            Directory.CreateDirectory(localDirectory); File.WriteAllText(localFile, "<!doctype html><title>Owned help fixture</title>");
+            window = ScriptableObject.CreateInstance(type);
+            EditorPrefs.SetString(preference, folder);
+            string path;
+            Check(Resolve(resolver, window, "03-tutorial/地面组合逻辑教程.html", out path) && path == localFile,
+                "an existing selected local guide takes priority over the packaged guide", checks, ref passed, ref failed);
+            EditorPrefs.SetString(preference, Path.Combine(folder, "MissingLocalRoot"));
+            string expected = Path.GetFullPath(Path.Combine(Application.dataPath, "OSSASTRA/GroundWorkshop/Documentation/03-tutorial/地面组合逻辑教程.html"));
+            Check(Resolve(resolver, window, "03-tutorial/地面组合逻辑教程.html", out path) && path == expected && File.Exists(expected),
+                "missing machine-specific root falls back to the real project Documentation guide", checks, ref passed, ref failed);
+            Check(Resolve(resolver, window, "04-art-guide/素材绘制规范.html", out path) && File.Exists(path),
+                "the packaged art guide remains navigable in another project", checks, ref passed, ref failed);
+            Check(!Resolve(resolver, window, "02-catalog/场景素材图鉴.html", out path) && path == null,
+                "a pure public package does not invent a private catalog link", checks, ref passed, ref failed);
+            Check(!Resolve(resolver, window, "../../ProjectSettings/ProjectVersion.txt", out path) && path == null,
+                "relative navigation cannot escape either documentation root", checks, ref passed, ref failed);
+            Check(!Resolve(resolver, window, localFile, out path) && path == null,
+                "an absolute requested path is rejected even when it exists", checks, ref passed, ref failed);
+            Check(!Resolve(resolver, window, null, out path) && path == null,
+                "an empty request never guesses a root or document", checks, ref passed, ref failed);
+        }
+        catch (Exception error) { failed++; checks.Add("FAIL " + error.GetBaseException()); }
+        finally
+        {
+            if (window != null) UnityEngine.Object.DestroyImmediate(window);
+            if (hadPreference) EditorPrefs.SetString(preference, originalPreference); else EditorPrefs.DeleteKey(preference);
+            if (Path.GetFullPath(folder).StartsWith(allowed + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+            {
+                if (File.Exists(localFile)) File.Delete(localFile);
+                if (Directory.Exists(localDirectory) && Directory.GetFileSystemEntries(localDirectory).Length == 0) Directory.Delete(localDirectory, false);
+                if (Directory.Exists(folder) && Directory.GetFileSystemEntries(folder).Length == 0) Directory.Delete(folder, false);
+            }
+        }
+        ctx.ReturnValue = new { status = failed == 0 ? "GREEN" : "RED", passed, failed, checks = checks.ToArray() };
+    }
+    private static bool Resolve(MethodInfo method, object window, string relative, out string full)
+    { object[] args = { relative, null }; bool result = (bool)method.Invoke(window, args); full = args[1] as string; return result; }
+    private static void Check(bool value, string text, List<string> checks, ref int passed, ref int failed)
+    { checks.Add((value ? "PASS " : "FAIL ") + text); if (value) passed++; else failed++; }
+}

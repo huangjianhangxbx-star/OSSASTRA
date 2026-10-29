@@ -1,0 +1,17 @@
+// 候选：注册边界的先行测试；缺失API按功能未实现失败，不因C#缺类型而编译中断。
+using System;
+using System.Linq;
+using System.Reflection;
+using UnityEngine;
+using Funplay.Editor.Tools.Scripting;
+public sealed class GroundWorkshopRegistrationRed : IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  var type=AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType("Ossastra.GroundResearch.Editor.GroundWorkshopAuthoring")).FirstOrDefault(t=>t!=null);
+  bool exists=type!=null;
+  bool rejectsNull=false;string message="注册作者服务尚未实现";
+  if(exists){var m=type.GetMethod("CanEdit",BindingFlags.Public|BindingFlags.Static);if(m!=null){object[] a={null,null};rejectsNull=!(bool)m.Invoke(null,a);message=Convert.ToString(a[1]);}}
+  ctx.ReturnValue=new {passed=exists&&rejectsNull&&!string.IsNullOrEmpty(message),checks=new[]{new{name="无注册地图必须拒绝并给原因",pass=exists&&rejectsNull&&!string.IsNullOrEmpty(message),actual=message}},apiPresent=exists};
+ }
+}

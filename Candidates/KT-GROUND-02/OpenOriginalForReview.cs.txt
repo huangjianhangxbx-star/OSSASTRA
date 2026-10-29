@@ -1,0 +1,10 @@
+using System;using UnityEditor.SceneManagement;using UnityEngine.SceneManagement;using Funplay.Editor.Tools.Scripting;using E=Ossastra.GroundResearch.Editor;
+public sealed class OpenOriginalForReview:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  if(!E.GroundWorkshopOwnership.ContextReady(out string reason)||E.GroundWorkshopPlaygroundSession.HasSession)throw new InvalidOperationException(reason??"存在试玩Session");
+  for(int i=0;i<SceneManager.sceneCount;i++)if(SceneManager.GetSceneAt(i).isDirty)throw new InvalidOperationException("保留未保存现场");
+  var scene=EditorSceneManager.OpenScene(E.GroundWorkshopOwnership.OriginalScene,OpenSceneMode.Single);ctx.ReturnValue=new{scene.path,scene.isDirty};
+ }
+}

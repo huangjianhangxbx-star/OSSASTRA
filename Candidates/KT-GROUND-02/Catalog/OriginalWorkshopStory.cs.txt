@@ -1,0 +1,297 @@
+/* M7故事B：自有技术PNG→受控导入→配方预检→Overlay预览/取消/提交/单次Undo，并捕获原生Camera帧。
+ * 不写保护源场，不保存作者Scene，不裁剪/调色/合成截图，不使用参考媒体。
+ * 作者变化只通过真实Core入口与其一次Undo恢复；新导入/配方/事务派生资产保留并返回精确账本。
+ */
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
+using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
+using Funplay.Editor.Tools.Scripting;
+using Newtonsoft.Json.Linq;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEngine.Tilemaps;
+using Ossastra.GroundResearch;
+using Ossastra.GroundResearch.Editor;
+
+public sealed class OriginalWorkshopStory : IFunplayCommand
+{
+    private readonly List<object> checks=new List<object>();
+    private readonly List<object> images=new List<object>();
+    private readonly List<string> renderFailures=new List<string>();
+    private string imageRoot;
+    private bool renderUnavailable;
+
+    public void Execute(ExecutionContext ctx)
+    {
+        if(!GroundWorkshopOwnership.ContextReady(out string reason))throw new InvalidOperationException(reason);
+        var scene=SceneManager.GetActiveScene();
+        if(scene.path!=GroundWorkshopOwnership.OriginalScene||scene.isDirty)throw new InvalidOperationException("请先打开干净OriginalLab；不自动保存或替换现场。");
+        if(SceneManager.sceneCount!=1)throw new InvalidOperationException("公开原创截图需要只装载OriginalLab，避免其他Scene参考对象进入Camera帧。");
+        string[] sourceDependencies=AssetDatabase.GetDependencies(scene.path,true);
+        Require(!sourceDependencies.Any(p=>p.Contains("/LocalReference/")||p.Contains("/LocalGenerated/")||p.Contains("/LocalMedia/")||p.Contains("/Characters/")),"原创场实际依赖无参考媒体/角色资源");
+        var maps=InScene<GroundWorkshopMap>(scene);if(maps.Length!=1)throw new InvalidOperationException("原创图身份不唯一。");
+        var map=maps[0];GroundWorkshopOwnership.Require(map);
+        int overlay=Array.FindIndex(map.theme.layers,s=>s.purpose==GroundLayerPurpose.Overlay);
+        int road=Array.FindIndex(map.theme.layers,s=>s.purpose==GroundLayerPurpose.Road);
+        Require(map.surface.layers.Length==3&&overlay==1&&road==2,"使用原生三层原创样板");
+        var known=KnownCells(map,overlay);
+        Require(KnownCells(map,0).Length==192&&known.Length==32&&KnownCells(map,road).Length==19,"已保存192 Base /32 Overlay /19 连通分叉Road布局");
+        Require(InScene<GroundDecorationInstance>(scene).Length==44,"44株自有装饰实际存在");
+        Require(!GroundWorkshopAuthoring.IsLayerLocked(map,overlay),"Overlay可编辑而其余锁状态保留");
+        string delivery=SessionState.GetString("GroundCore.DeliveryRoot","");
+        if(string.IsNullOrEmpty(delivery)||!Directory.Exists(delivery))throw new InvalidOperationException("缺明确外部DeliveryRoot。");
+        string research=Directory.GetParent(Path.GetFullPath(delivery)).FullName,id=Guid.NewGuid().ToString("N");
+        string parent=Path.Combine(research,"03-tutorial","images","Original");
+        imageRoot=Path.Combine(parent,"Story_"+id);if(Directory.Exists(imageRoot))throw new InvalidOperationException("新输出目录意外存在。");
+        Directory.CreateDirectory(imageRoot);
+        string receiptPath=Path.Combine(imageRoot,"story.json"),sceneSha=HashFile(scene.path);
+        string authorBefore=AuthorStamp(map),fullBefore=FullStamp(map);
+        var baselineCells=CaptureCells(map);
+        var baselineRenderers=InScene<Renderer>(scene).ToDictionary(r=>r,r=>r.enabled);
+        var baselineBlocks=baselineRenderers.Keys.ToDictionary(r=>r,r=>GetBlock(r));
+        var visuals=InScene<GroundDecorationInstance>(scene).Where(d=>d.visual!=null).Select(d=>new TransformSnapshot(d.visual)).ToArray();
+        var assetsBefore=SnapshotFiles(GroundWorkshopOwnership.Root+"/Palettes",map.registration.assetFolder);
+        var cameras=InScene<Camera>(scene).Where(c=>c.isActiveAndEnabled).ToArray();
+        if(cameras.Length!=1)throw new InvalidOperationException("Original场应只有一个活动原生Camera："+string.Join(",",cameras.Select(c=>c.name)));
+        var camera=cameras[0];var cameraTransform=new TransformSnapshot(camera.transform);
+        var backupObject=new GameObject("原生Camera临时完整配置快照"){hideFlags=HideFlags.HideAndDontSave};
+        var backup=backupObject.AddComponent<Camera>();backup.CopyFrom(camera);backup.enabled=false;
+        RenderTexture previousActive=RenderTexture.active;
+        bool needsUndo=false,logicPassed=false,restored=false;int ownedUndoGroup=-1;string failure=null;
+        string importedPath=null,recipePath=GroundWorkshopOwnership.Root+"/Palettes/OriginalReplacement_"+id+".asset";
+        try
+        {
+            string validPath=Path.Combine(imageRoot,"OriginalTechnical32.png"),invalidPath=Path.Combine(imageRoot,"InvalidTechnical15.png");
+            WriteTechnicalPng(validPath,32);WriteTechnicalPng(invalidPath,15);
+            var filesBeforeInvalid=SnapshotFiles(GroundWorkshopOwnership.Root+"/Palettes",map.registration.assetFolder);
+            bool invalidRefused=false;
+            try{GroundWorkshopAuthoring.ImportDetailTexture(invalidPath);}catch(InvalidOperationException){invalidRefused=true;}
+            Require(invalidRefused&&SameFiles(filesBeforeInvalid,SnapshotFiles(GroundWorkshopOwnership.Root+"/Palettes",map.registration.assetFolder)),"15×15被拒绝且无半成品资产");
+            var imported=GroundWorkshopAuthoring.ImportDetailTexture(validPath);importedPath=AssetDatabase.GetAssetPath(imported);
+            var importer=AssetImporter.GetAtPath(importedPath)as TextureImporter;
+            Require(imported!=null&&imported.width==32&&imported.height==32&&importer!=null&&importer.wrapMode==TextureWrapMode.Repeat&&
+                importer.sRGBTexture&&!importer.mipmapEnabled&&importer.npotScale==TextureImporterNPOTScale.None,"自有32×32经真实ImportDetailTexture导入/Repeat/sRGB/noMip");
+            Require(HashFile(validPath)==HashFile(importedPath),"受控副本PNG与自有技术源逐字节相同");
+            WriteThreeByThree(importedPath,Path.Combine(imageRoot,"OriginalTechnical32_3x3.png"));
+            string missingPath=GroundWorkshopOwnership.Root+"/Palettes/MissingFamily_"+id+".asset";
+            var filesBeforeMissing=SnapshotFiles(GroundWorkshopOwnership.Root+"/Palettes",map.registration.assetFolder);
+            bool missingRefused=false;
+            try{GroundWorkshopAuthoring.CreateRecipe("缺族拒绝样例",imported,null,8,.5f,missingPath);}catch(InvalidOperationException){missingRefused=true;}
+            Require(missingRefused&&!File.Exists(missingPath)&&!File.Exists(missingPath+".meta")&&SameFiles(filesBeforeMissing,SnapshotFiles(GroundWorkshopOwnership.Root+"/Palettes",map.registration.assetFolder))&&FullStamp(map)==fullBefore,"缺edge family拒绝且无半绑定/资产");
+            var oldRecipe=map.layerBindings[overlay].recipe;
+            var recipe=GroundWorkshopAuthoring.CreateRecipe("原创暖色技术底纹替换",imported,oldRecipe.edgeFamily,oldRecipe.worldRepeatPeriod,oldRecipe.cutoff,recipePath,"original-technical-32-"+id);
+            Require(recipe!=null&&recipe.detailTexture==imported&&recipe.edgeFamily==oldRecipe.edgeFamily&&File.Exists(recipePath),"使用同一自有边缘族成功创建独立配方");
+            Frame(camera,map.surface.WorldBounds,1.12f);
+            Capture(camera,"Original_Before","Original相机，全层原始帧；Baseline");
+            var change=GroundWorkshopAuthoring.PrepareReplacement(map,overlay,recipe,GroundReplacementScope.ExistingAndFuture);
+            Require(change.IsValid&&change.knownCount==32&&change.unknownTiles.Length==0,"ExistingAndFuture准确识别32格，无异种Tile");
+            GroundWorkshopAuthoring.Preview(change);
+            Require(GroundWorkshopAuthoring.HasPreview&&AuthorStamp(map)==authorBefore&&FullStamp(map)==fullBefore,"预览不改真实作者格/配方绑定/锁/装饰TRS");
+            GroundWorkshopAuthoring.CancelPreview(change);
+            Require(!GroundWorkshopAuthoring.HasPreview&&FullStamp(map)==fullBefore,"取消预览恢复原显示且无半绑定");
+            int changedLayer=GroundWorkshopAuthoring.Commit(change);needsUndo=true;ownedUndoGroup=Undo.GetCurrentGroup();
+            Require(changedLayer==overlay&&map.layerBindings[overlay].recipe==recipe&&KnownCells(map,overlay).SequenceEqual(known),"提交只换Overlay配方与已识别Tile身份，32格位置不变");
+            Require(AuthorStamp(map)==authorBefore&&AttributesMatch(map,baselineCells,overlay),"提交保留全层作者颜色/flags/矩阵、锁和44装饰根TRS");
+            Capture(camera,"Original_AfterReplacement","Original相机，全层原始帧；Overlay换自有底纹");
+            var edge=known.First(cell=>new[]{Vector3Int.left,Vector3Int.right,Vector3Int.up,Vector3Int.down}.Any(n=>map.surface.layers[overlay].tilemap.GetTile(cell+n)!=map.surface.layers[overlay].paintTile));
+            Vector3 edgeWorld=map.surface.grid.GetCellCenterWorld(edge);
+            float cellSize=Vector3.Distance(map.surface.grid.CellToWorld(Vector3Int.zero),map.surface.grid.CellToWorld(Vector3Int.right));
+            Frame(camera,new Bounds(edgeWorld,new Vector3(cellSize*5,1,cellSize*5)),1.05f);
+            Capture(camera,"Original_EdgeClose","Original相机临时近景；未裁剪图像");
+            Frame(camera,map.surface.WorldBounds,1.12f);
+            for(int index=0;index<3;index++)
+            {
+                Isolate(map,index,baselineRenderers);
+                Capture(camera,new[]{"Original_Base","Original_Overlay","Original_Road"}[index],"Original相机全帧，临时仅显示该地表层；装饰隐藏");
+            }
+            Isolate(map,overlay,baselineRenderers);
+            var overlayRenderer=map.surface.layers[overlay].tilemap.GetComponent<TilemapRenderer>();
+            var debug=GetBlock(overlayRenderer);debug.SetFloat("_DebugMask",1);overlayRenderer.SetPropertyBlock(debug);
+            Capture(camera,"Original_Overlay_DebugMask","Original相机全帧，真实Shader _DebugMask=1；未后处理");
+            foreach(var row in baselineBlocks)if(row.Key!=null)row.Key.SetPropertyBlock(row.Value);
+            foreach(var row in baselineRenderers)if(row.Key!=null)row.Key.enabled=row.Value;
+            Require(Undo.GetCurrentGroup()==ownedUndoGroup,"最新Undo组仍属于本次Commit，没有跨外部历史回滚");
+            Undo.PerformUndo();needsUndo=false;
+            Require(FullStamp(map)==fullBefore&&AuthorStamp(map)==authorBefore&&AttributesMatch(map,baselineCells,-1),"一次Undo恢复全部作者绑定/格子身份/属性与装饰根");
+            Require(HashFile(scene.path)==sceneSha,"Original Scene磁盘SHA未改变，未保存fixture作者操作");
+            if(!renderUnavailable)
+            {
+                string before=Path.Combine(imageRoot,"Original_Before.png"),after=Path.Combine(imageRoot,"Original_AfterReplacement.png");
+                Require(File.Exists(before)&&File.Exists(after)&&HashFile(before)!=HashFile(after),"真实相机换底纹前后帧内容不同");
+            }
+            logicPassed=true;
+        }
+        catch(Exception error){failure=error.ToString();}
+        finally
+        {
+            GroundWorkshopAuthoring.CancelPreview();
+            foreach(var row in baselineBlocks)if(row.Key!=null)row.Key.SetPropertyBlock(row.Value);
+            foreach(var row in baselineRenderers)if(row.Key!=null)row.Key.enabled=row.Value;
+            if(needsUndo)
+            {
+                if(Undo.GetCurrentGroup()==ownedUndoGroup){Undo.PerformUndo();needsUndo=false;}
+                else failure=(failure??"")+"\n外部Undo组改变；未越组撤销，保留可恢复现场。";
+            }
+            if(camera!=null){camera.CopyFrom(backup);camera.enabled=true;cameraTransform.Restore();}
+            RenderTexture.active=previousActive;
+            foreach(var snapshot in visuals)snapshot.Restore();
+            UnityEngine.Object.DestroyImmediate(backupObject);
+            restored=map!=null&&FullStamp(map)==fullBefore&&AuthorStamp(map)==authorBefore&&AttributesMatch(map,baselineCells,-1)&&HashFile(scene.path)==sceneSha;
+            var afterFiles=SnapshotFiles(GroundWorkshopOwnership.Root+"/Palettes",map.registration.assetFolder);
+            var newFiles=afterFiles.Keys.Except(assetsBefore.Keys,StringComparer.OrdinalIgnoreCase).OrderBy(p=>p,StringComparer.Ordinal).ToArray();
+            var receipt=new JObject
+            {
+                {"format","ground-workshop-original-story"},{"schemaVersion",1},{"passed",logicPassed&&restored&&!renderUnavailable&&images.Count==7},
+                {"logicPassed",logicPassed},{"baselineRestored",restored},{"renderPassed",!renderUnavailable&&images.Count==7},{"sceneDiskShaUnchanged",HashFile(scene.path)==sceneSha},
+                {"sceneDirtyAfterUndo",scene.isDirty},{"failure",failure},{"renderFailures",new JArray(renderFailures)},
+                {"checks",JArray.FromObject(checks)},{"images",JArray.FromObject(images)},
+                {"retainedImportPath",importedPath},{"retainedRecipePath",File.Exists(recipePath)?recipePath:null},
+                {"newFiles",new JArray(newFiles.Select(p=>new JObject{{"path",p},{"sha256",afterFiles[p]}}))},
+                {"missingPreexistingFiles",new JArray(assetsBefore.Keys.Where(p=>!afterFiles.ContainsKey(p)))},
+                {"changedPreexistingFiles",new JArray(assetsBefore.Where(row=>afterFiles.TryGetValue(row.Key,out string sha)&&sha!=row.Value).Select(row=>row.Key))},
+                {"scope","仅自有素材；七张PNG为原生Camera.Render完整1024×576帧，非Editor截图。相机/RT/Renderer/MPB/派生visual已还原；Scene不保存，Unity dirty标记可在确认baseline后由root重开保存场清除。"}
+            };
+            File.WriteAllText(receiptPath,receipt.ToString());
+            ctx.ReturnValue=new{passed=(bool)receipt["passed"],logicPassed,baselineRestored=restored,renderPassed=(bool)receipt["renderPassed"],receiptPath,imageRoot,
+                imageCount=images.Count,renderFailures,retainedImportPath=importedPath,retainedRecipePath=File.Exists(recipePath)?recipePath:null,sceneDirty=scene.isDirty,failure};
+        }
+    }
+
+    private void Capture(Camera camera,string name,string description)
+    {
+        if(renderUnavailable)return;
+        RenderTexture previous=RenderTexture.active,oldTarget=camera.targetTexture;
+        var target=new RenderTexture(1024,576,24,RenderTextureFormat.ARGB32,RenderTextureReadWrite.sRGB){hideFlags=HideFlags.HideAndDontSave};
+        var read=new Texture2D(1024,576,TextureFormat.RGBA32,false){hideFlags=HideFlags.HideAndDontSave};
+        try
+        {
+            target.Create();camera.targetTexture=target;RenderTexture.active=target;camera.Render();
+            read.ReadPixels(new Rect(0,0,1024,576),0,0,false);read.Apply(false,false);
+            var pixels=read.GetPixels32();var first=pixels[0];
+            if(!pixels.Any(p=>p.r!=first.r||p.g!=first.g||p.b!=first.b))throw new InvalidOperationException("Camera.Render输出均匀帧，不能作有效地表证据。");
+            string path=Path.Combine(imageRoot,name+".png");File.WriteAllBytes(path,read.EncodeToPNG());
+            images.Add(new{name,path,width=1024,height=576,method="NativeCamera.Render",description,sha256=HashFile(path)});
+        }
+        catch(Exception error){renderUnavailable=true;renderFailures.Add(name+": "+error.Message+"；root可改用MCP capture_scene_view，未把失败帧当截图交付。");}
+        finally{camera.targetTexture=oldTarget;RenderTexture.active=previous;target.Release();UnityEngine.Object.DestroyImmediate(target);UnityEngine.Object.DestroyImmediate(read);}
+    }
+    private static void Frame(Camera camera,Bounds bounds,float padding)
+    {
+        camera.orthographic=true;camera.aspect=1024f/576f;camera.nearClipPlane=.01f;camera.farClipPlane=2000;camera.allowHDR=false;camera.allowMSAA=false;
+        Vector3 center=bounds.center;float horizontal=0,vertical=0;
+        foreach(float x in new[]{bounds.min.x,bounds.max.x})foreach(float z in new[]{bounds.min.z,bounds.max.z})foreach(float y in new[]{bounds.min.y,bounds.max.y+1f})
+        {
+            Vector3 delta=new Vector3(x,y,z)-center;
+            horizontal=Mathf.Max(horizontal,Mathf.Abs(Vector3.Dot(delta,camera.transform.right)));
+            vertical=Mathf.Max(vertical,Mathf.Abs(Vector3.Dot(delta,camera.transform.up)));
+        }
+        camera.orthographicSize=Mathf.Max(.5f,Mathf.Max(vertical,horizontal/camera.aspect)*padding);
+        camera.transform.position=center-camera.transform.forward*Mathf.Max(50,bounds.size.magnitude*2);
+    }
+    private static void Isolate(GroundWorkshopMap map,int index,Dictionary<Renderer,bool> baseline)
+    {
+        foreach(var row in baseline)if(row.Key!=null)row.Key.enabled=false;
+        var renderer=map.surface.layers[index].tilemap.GetComponent<TilemapRenderer>();if(renderer!=null)renderer.enabled=true;
+    }
+    private static void WriteTechnicalPng(string path,int size)
+    {
+        var texture=new Texture2D(size,size,TextureFormat.RGBA32,false);
+        try
+        {
+            var colors=new Color32[size*size];
+            for(int y=0;y<size;y++)for(int x=0;x<size;x++)
+            {
+                float wave=.5f+.19f*Mathf.Cos(2*Mathf.PI*x/size*4)+.16f*Mathf.Sin(2*Mathf.PI*y/size*4)+.1f*Mathf.Cos(2*Mathf.PI*(x+y)/size*2);
+                colors[y*size+x]=Color.Lerp(new Color(.32f,.16f,.15f,1),new Color(.68f,.46f,.29f,1),Mathf.Clamp01(wave));
+            }
+            texture.SetPixels32(colors);texture.Apply(false,false);File.WriteAllBytes(path,texture.EncodeToPNG());
+        }
+        finally{UnityEngine.Object.DestroyImmediate(texture);}
+    }
+    private void WriteThreeByThree(string importedPath,string path)
+    {
+        var source=new Texture2D(2,2,TextureFormat.RGBA32,false);var preview=new Texture2D(96,96,TextureFormat.RGBA32,false);
+        try
+        {
+            Require(ImageConversion.LoadImage(source,File.ReadAllBytes(importedPath))&&source.width==32&&source.height==32,"3×3从实际导入PNG读取32画布");
+            source.wrapMode=TextureWrapMode.Repeat;var pixels=new Color[96*96];
+            for(int y=0;y<96;y++)for(int x=0;x<96;x++)pixels[y*96+x]=source.GetPixel(x%32,y%32);
+            preview.SetPixels(pixels);preview.Apply(false,false);File.WriteAllBytes(path,preview.EncodeToPNG());
+            Require(preview.GetPixel(0,0)==preview.GetPixel(32,32)&&preview.GetPixel(31,31)==preview.GetPixel(95,95),"Native技术预览3×3周期一致");
+        }
+        finally{UnityEngine.Object.DestroyImmediate(source);UnityEngine.Object.DestroyImmediate(preview);}
+    }
+    private sealed class CellSnapshot
+    {
+        public int layer;public Vector3Int cell;public TileBase tile;public Color color;public TileFlags flags;public Matrix4x4 matrix;
+    }
+    private static CellSnapshot[] CaptureCells(GroundWorkshopMap map)
+    {
+        var rows=new List<CellSnapshot>();
+        for(int index=0;index<map.surface.layers.Length;index++)foreach(var cell in map.surface.EditableCells.allPositionsWithin)
+        {var tiles=map.surface.layers[index].tilemap;rows.Add(new CellSnapshot{layer=index,cell=cell,tile=tiles.GetTile(cell),color=tiles.GetColor(cell),flags=tiles.GetTileFlags(cell),matrix=tiles.GetTransformMatrix(cell)});}
+        return rows.ToArray();
+    }
+    private static bool AttributesMatch(GroundWorkshopMap map,CellSnapshot[] baseline,int replacementLayer)
+    {
+        foreach(var row in baseline)
+        {
+            var tiles=map.surface.layers[row.layer].tilemap;var tile=tiles.GetTile(row.cell);
+            if((replacementLayer==row.layer?(tile!=null)!=(row.tile!=null):tile!=row.tile)||tiles.GetColor(row.cell)!=row.color||tiles.GetTileFlags(row.cell)!=row.flags||tiles.GetTransformMatrix(row.cell)!=row.matrix)return false;
+        }
+        return true;
+    }
+    private static Vector3Int[] KnownCells(GroundWorkshopMap map,int index)
+    {var cells=new List<Vector3Int>();foreach(var cell in map.surface.EditableCells.allPositionsWithin)if(map.surface.layers[index].tilemap.GetTile(cell)==map.surface.layers[index].paintTile)cells.Add(cell);return cells.ToArray();}
+    private static string AuthorStamp(GroundWorkshopMap map)
+    {
+        var text=new StringBuilder();text.Append(map.surface.layers.Length).Append('|').Append(map.surface.editableCells.ToString());AppendTransform(text,map.transform);
+        for(int i=0;i<map.surface.layers.Length;i++)
+        {
+            text.Append('|').Append(i).Append(':').Append(map.surface.layers[i].isLocked).Append(':').Append(map.theme.layers[i].locked).Append(':').Append(map.theme.layers[i].slotId).Append(':').Append(map.theme.layers[i].purpose);
+            var tiles=map.surface.layers[i].tilemap;
+            foreach(var cell in map.surface.EditableCells.allPositionsWithin)
+            {
+                text.Append(';').Append(cell.x).Append(',').Append(cell.y).Append(':').Append(tiles.GetTile(cell)!=null).Append(':').Append((int)tiles.GetTileFlags(cell));
+                Color color=tiles.GetColor(cell);Append(text,color.r,color.g,color.b,color.a);var matrix=tiles.GetTransformMatrix(cell);for(int n=0;n<16;n++)Append(text,matrix[n]);
+            }
+        }
+        foreach(var instance in map.decorationRoot.GetComponentsInChildren<GroundDecorationInstance>(true).OrderBy(d=>d.GetInstanceID()))
+        {text.Append('|').Append(instance.GetInstanceID()).Append(':').Append(instance.definition==null?0:instance.definition.GetInstanceID()).Append(':').Append(instance.generationGroup);AppendTransform(text,instance.transform);}
+        return HashText(text.ToString());
+    }
+    private static string FullStamp(GroundWorkshopMap map)
+    {
+        var text=new StringBuilder(AuthorStamp(map));text.Append('|').Append(map.theme.GetInstanceID());
+        for(int i=0;i<map.surface.layers.Length;i++)
+        {
+            var layer=map.surface.layers[i];var binding=map.layerBindings[i];var renderer=layer.tilemap.GetComponent<TilemapRenderer>();
+            text.Append('|').Append(binding.recipe.GetInstanceID()).Append(':').Append(binding.ownedTile.GetInstanceID()).Append(':').Append(binding.ownedMaterial.GetInstanceID())
+                .Append(':').Append(layer.paintTile.GetInstanceID()).Append(':').Append(layer.detailTexture.GetInstanceID()).Append(':').Append(layer.sourceId).Append(':').Append(layer.displayName)
+                .Append(':').Append(renderer.sharedMaterial.GetInstanceID());
+            foreach(var cell in map.surface.EditableCells.allPositionsWithin){var tile=layer.tilemap.GetTile(cell);text.Append(',').Append(tile==null?0:tile.GetInstanceID());}
+        }
+        return HashText(text.ToString());
+    }
+    private sealed class TransformSnapshot
+    {
+        private readonly Transform value;private readonly Vector3 position,scale;private readonly Quaternion rotation;
+        public TransformSnapshot(Transform value){this.value=value;position=value.localPosition;rotation=value.localRotation;scale=value.localScale;}
+        public void Restore(){if(value!=null){value.localPosition=position;value.localRotation=rotation;value.localScale=scale;}}
+    }
+    private static void AppendTransform(StringBuilder text,Transform value)=>Append(text,value.localPosition.x,value.localPosition.y,value.localPosition.z,value.localRotation.x,value.localRotation.y,value.localRotation.z,value.localRotation.w,value.localScale.x,value.localScale.y,value.localScale.z);
+    private static void Append(StringBuilder text,params float[] values){foreach(float value in values)text.Append('/').Append(value.ToString("R",CultureInfo.InvariantCulture));}
+    private static Dictionary<string,string> SnapshotFiles(params string[] roots)=>roots.Where(Directory.Exists).SelectMany(root=>Directory.GetFiles(root,"*",SearchOption.AllDirectories)).Distinct(StringComparer.OrdinalIgnoreCase).ToDictionary(p=>p,HashFile,StringComparer.OrdinalIgnoreCase);
+    private static bool SameFiles(Dictionary<string,string> a,Dictionary<string,string> b)=>a.Count==b.Count&&a.All(row=>b.TryGetValue(row.Key,out string hash)&&hash==row.Value);
+    private static MaterialPropertyBlock GetBlock(Renderer renderer){var block=new MaterialPropertyBlock();renderer.GetPropertyBlock(block);return block;}
+    private static T[] InScene<T>(Scene scene)where T:Component=>scene.GetRootGameObjects().SelectMany(root=>root.GetComponentsInChildren<T>(true)).ToArray();
+    private void Require(bool passed,string name){checks.Add(new{name,passed});if(!passed)throw new InvalidOperationException("原创故事B失败："+name);}
+    private static string HashFile(string path){using(var file=File.OpenRead(path))using(var sha=SHA256.Create())return BitConverter.ToString(sha.ComputeHash(file)).Replace("-","").ToLowerInvariant();}
+    private static string HashText(string text){using(var sha=SHA256.Create())return BitConverter.ToString(sha.ComputeHash(Encoding.UTF8.GetBytes(text))).Replace("-","").ToLowerInvariant();}
+}

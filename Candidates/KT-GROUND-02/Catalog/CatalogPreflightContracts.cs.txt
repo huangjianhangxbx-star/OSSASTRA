@@ -1,0 +1,62 @@
+/* 验证真实导入预检：不创建Unity资产；会在显式testOutput目录创建4个自有选择集fixture。
+ * 执行前由root在SessionState填GroundCatalog.TestManifest和GroundCatalog.TestOutput；不猜本机路径。
+ */
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using Funplay.Editor.Tools.Scripting;
+using Newtonsoft.Json.Linq;
+using UnityEditor;
+using Ossastra.GroundResearch.Editor;
+
+public sealed class CatalogPreflightContracts : IFunplayCommand
+{
+    public void Execute(ExecutionContext ctx)
+    {
+        string manifest=SessionState.GetString("GroundCatalog.TestManifest","");
+        string folder=SessionState.GetString("GroundCatalog.TestOutput","");
+        if(!File.Exists(manifest) || string.IsNullOrEmpty(folder) || !Directory.Exists(folder))
+            throw new InvalidOperationException("请先设置明确测试清单和已存在的外部测试输出目录。");
+        var doc=GroundWorkshopCatalog.Load(manifest);
+        var ready=doc.entries.First(e=>e.compatibility=="Ready" && e.kind=="GroundDetail");
+        var preview=doc.entries.First(e=>e.compatibility=="StaticPreviewOnly");
+        var rows=new List<object>();
+        string local=GroundWorkshopOwnership.Root+"/LocalReference";
+        string[] before=Directory.Exists(local)?Directory.GetFiles(local,"*",SearchOption.AllDirectories).OrderBy(x=>x).ToArray():Array.Empty<string>();
+        Action<string,Action> reject=(name,action)=>
+        {
+            bool refused=false; string reason=null;
+            try{action();}catch(InvalidOperationException e){refused=true;reason=e.Message;}catch(IOException e){refused=true;reason=e.Message;}
+            rows.Add(new{name,passed=refused,reason});
+            if(!refused) throw new Exception("预检未拒绝："+name);
+        };
+        Func<string,JArray,string> selection=(version,entries)=>
+        {
+            string path=Path.Combine(folder,"Selection_"+Guid.NewGuid().ToString("N")+".json");
+            File.WriteAllText(path,new JObject{{"format","ground-workshop-selection"},{"schemaVersion",1},{"catalogId",doc.catalogId},{"version",version},{"entries",entries}}.ToString());
+            return path;
+        };
+        Func<string,string,JObject> row=(id,revision)=>new JObject{{"assetId",id},{"revision",revision}};
+        string stale=selection("stale-test-version",new JArray(row(ready.assetId,ready.revision)));
+        reject("stale catalog version",()=>GroundWorkshopCatalog.ImportSelection(doc,stale));
+        string unknown=selection(doc.version,new JArray(row(ready.assetId,ready.revision),row("unknown.test.asset","none")));
+        reject("unknown entry stops whole batch",()=>GroundWorkshopCatalog.ImportSelection(doc,unknown));
+        string oldRevision=selection(doc.version,new JArray(row(ready.assetId,"old-revision")));
+        reject("stale entry revision",()=>GroundWorkshopCatalog.ImportSelection(doc,oldRevision));
+        string unresolved=selection(doc.version,new JArray(row(ready.assetId,ready.revision),row(preview.assetId,preview.revision)));
+        reject("preview-only entry stops whole batch",()=>GroundWorkshopCatalog.ImportSelection(doc,unresolved));
+        string sha=ready.sha256;
+        try{ready.sha256=new string('0',64);reject("corrupt source hash",()=>GroundWorkshopCatalog.ImportEntry(doc,ready));}finally{ready.sha256=sha;}
+        string media=ready.mediaPath;
+        try{ready.mediaPath="../outside.png";reject("media entry cannot escape root",()=>GroundWorkshopCatalog.ResolveMedia(doc,ready));}finally{ready.mediaPath=media;}
+        int width=ready.width;
+        try{ready.width++;reject("declared PNG size mismatch",()=>GroundWorkshopCatalog.ImportEntry(doc,ready));}finally{ready.width=width;}
+        reject("unregistered entry object",()=>GroundWorkshopCatalog.ResolveMedia(doc,new GroundCatalogEntry{assetId=ready.assetId}));
+        string[] after=Directory.Exists(local)?Directory.GetFiles(local,"*",SearchOption.AllDirectories).OrderBy(x=>x).ToArray():Array.Empty<string>();
+        bool untouched=before.SequenceEqual(after);
+        rows.Add(new{name="invalid requests created no asset files",passed=untouched,before=before.Length,after=after.Length});
+        if(!untouched)throw new Exception("预检失败时留下了新资产。");
+        ctx.ReturnValue=new{passed=true,checks=rows.Count,rows};
+    }
+}

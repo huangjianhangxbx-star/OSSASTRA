@@ -1,0 +1,217 @@
+/* 验证：Native真实导入、二次复用、HTML选择集一致性与Sprite参数/原生边缘族依赖。
+ * 负责：调用唯一生产Importer并返回本批新文件账本；不改写或删除旧资产，不创建新场景。
+ * 执行前设置SessionState：GroundCatalog.TestManifest、GroundCatalog.TestOutput（已存在且在Assets外），
+ * GroundCatalog.TestImportIds（JSON字符串数组，底纹+三个Ready直立Sprite），GroundCatalog.TestFamilyId（Ready族ID）。
+ * 测试ID和本机目录由root注入，不在可公开代码中存来源清单或机器路径。
+ * 成功保留新资产供参考场使用；失败也保留已成功的明确新资产供审计，不做跨批回滚或清理。
+ */
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Security.Cryptography;
+using Funplay.Editor.Tools.Scripting;
+using Newtonsoft.Json.Linq;
+using UnityEditor;
+using UnityEngine;
+using UnityEngine.Tilemaps;
+using Ossastra.GroundResearch;
+using Ossastra.GroundResearch.Editor;
+
+public sealed class CatalogImportContracts : IFunplayCommand
+{
+    private readonly List<object> checks=new List<object>();
+
+    public void Execute(ExecutionContext ctx)
+    {
+        string manifest=SessionState.GetString("GroundCatalog.TestManifest","");
+        string output=SessionState.GetString("GroundCatalog.TestOutput","");
+        string familyId=SessionState.GetString("GroundCatalog.TestFamilyId","");
+        Require(File.Exists(manifest)&&Directory.Exists(output),"明确的测试清单和已存在外部输出目录");
+        string outputFull=Path.GetFullPath(output).TrimEnd(Path.DirectorySeparatorChar)+Path.DirectorySeparatorChar;
+        string assetsFull=Path.GetFullPath(Application.dataPath).TrimEnd(Path.DirectorySeparatorChar)+Path.DirectorySeparatorChar;
+        Require(!outputFull.StartsWith(assetsFull,StringComparison.OrdinalIgnoreCase),"选择集fixture在Assets外");
+        Require(GroundWorkshopOwnership.ContextReady(out string contextReason),"Editor可导入："+contextReason);
+        var doc=GroundWorkshopCatalog.Load(manifest);
+        Require(doc.entries.Length==600,"真实目录Load 600/600");
+        var ids=JArray.Parse(SessionState.GetString("GroundCatalog.TestImportIds","[]")).Values<string>().ToArray();
+        Require(ids.Length==4&&ids.Distinct(StringComparer.Ordinal).Count()==4,"显式选择一个底纹与三个不同直立条目");
+        var entries=ids.Select(id=>doc.entries.SingleOrDefault(e=>e.assetId==id)).ToArray();
+        Require(entries.All(e=>e!=null&&e.compatibility=="Ready"),"四项身份均属于当前目录且Ready");
+        Require(entries[0].kind=="GroundDetail"&&entries.Skip(1).All(e=>e.kind=="UprightSprite"),"选择类型顺序为GroundDetail+3 UprightSprite");
+        var family=doc.entries.SingleOrDefault(e=>e.assetId==familyId);
+        Require(family!=null&&family.kind=="EdgeFamily"&&family.compatibility=="Ready","显式Ready边缘族身份");
+
+        string rulePath=(string)family.raw["ruleTileAssetPath"],fillPath=(string)family.raw["fullTileAssetPath"];
+        var sourceRule=AssetDatabase.LoadAssetAtPath<RuleTile>(rulePath);
+        var sourceFill=AssetDatabase.LoadAssetAtPath<Tile>(fillPath);
+        Require(sourceRule!=null&&sourceFill!=null&&sourceFill.sprite!=null,"本机规则/填充依赖已解析");
+        Require(sourceRule.m_DefaultSprite!=null&&sourceRule.m_TilingRules!=null&&sourceRule.m_TilingRules.Count>0&&
+            sourceRule.m_TilingRules.All(r=>r.m_Sprites!=null&&r.m_Sprites.Length>0&&r.m_Sprites.All(s=>s!=null)),"规则各Sprite引用可解析");
+
+        string local=GroundWorkshopOwnership.Root+"/LocalReference";
+        var before=Snapshot(local);
+        var protectedBefore=Snapshot("Assets/OSSASTRA/GroundResearch/LocalGenerated",GroundWorkshopOwnership.Root+"/Originals");
+        var sourceBefore=entries.Concat(new[]{family}).Select(e=>GroundWorkshopCatalog.ResolveMedia(doc,e)).Distinct(StringComparer.OrdinalIgnoreCase).ToDictionary(p=>p,Hash,StringComparer.OrdinalIgnoreCase);
+        string fixture=Path.Combine(output,"ValidSelection_"+Guid.NewGuid().ToString("N")+".json");
+        var selection=new JObject
+        {
+            {"format","ground-workshop-selection"},{"schemaVersion",1},{"catalogId",doc.catalogId},{"version",doc.version},
+            {"entries",new JArray(entries.Select(e=>new JObject{{"assetId",e.assetId},{"revision",e.revision}}))}
+        };
+        File.WriteAllText(fixture,selection.ToString());
+
+        string ledgerPath=Path.Combine(output,"CatalogImportLedger_"+Guid.NewGuid().ToString("N")+".json");
+        bool completed=false;string failure=null;
+        try
+        {
+        var first=entries.Select(e=>GroundWorkshopCatalog.ImportEntry(doc,e)).ToArray();
+        for(int i=0;i<first.Length;i++)ValidateImported(entries[i],first[i]);
+        var firstFamily=GroundWorkshopCatalog.ImportEntry(doc,family) as GroundEdgeFamily;
+        Require(firstFamily!=null&&firstFamily.assetId==family.assetId&&firstFamily.revision==family.revision&&firstFamily.validated,"边缘族仅生成当前身份wrapper");
+        Require(firstFamily.paintTemplate==sourceRule&&firstFamily.fillTemplate==sourceFill&&firstFamily.preview==sourceFill.sprite,"边缘族保留原生引用，无规则数组转写");
+        string familyPath=AssetDatabase.GetAssetPath(firstFamily);
+        var familyDeps=AssetDatabase.GetDependencies(familyPath,true);
+        Require(familyDeps.Contains(rulePath)&&familyDeps.Contains(fillPath),"wrapper依赖链包含原生RuleTile与FullCoverage Tile");
+
+        var firstFiles=Snapshot(local);
+        RequireUnchanged(before,firstFiles,"首次导入不改写任何既有LocalReference文件");
+        RequireExact(protectedBefore,Snapshot("Assets/OSSASTRA/GroundResearch/LocalGenerated",GroundWorkshopOwnership.Root+"/Originals"),"首次导入不改旧原生规则/原创模板文件");
+        var second=entries.Select(e=>GroundWorkshopCatalog.ImportEntry(doc,e)).ToArray();
+        for(int i=0;i<first.Length;i++)Require(first[i]!=null&&second[i]!=null&&first[i]==second[i]&&first[i].GetInstanceID()==second[i].GetInstanceID(),"第二次ImportEntry复用同Native实例："+entries[i].assetId);
+        var secondFamily=GroundWorkshopCatalog.ImportEntry(doc,family);
+        Require(firstFamily==secondFamily&&firstFamily.GetInstanceID()==secondFamily.GetInstanceID(),"第二次边缘族导入复用同实例");
+        RequireExact(firstFiles,Snapshot(local),"二次导入文件集合与所有PNG/asset/meta SHA均不变");
+
+        var selected=GroundWorkshopCatalog.ImportSelection(doc,fixture);
+        Require(selected.Length==4,"HTML格式选择集导入四项");
+        for(int i=0;i<selected.Length;i++)
+        {
+            Require(selected[i]==first[i]&&selected[i].GetInstanceID()==first[i].GetInstanceID(),"选择集身份/顺序/实例一致："+entries[i].assetId);
+            ValidateImported(entries[i],selected[i]);
+        }
+        var after=Snapshot(local);
+        RequireExact(firstFiles,after,"选择集复用不重写任何导入文件或Importer meta");
+        RequireExact(protectedBefore,Snapshot("Assets/OSSASTRA/GroundResearch/LocalGenerated",GroundWorkshopOwnership.Root+"/Originals"),"整轮旧原生规则/原创模板文件SHA与集合不变");
+        Require(sourceBefore.All(row=>File.Exists(row.Key)&&Hash(row.Key)==row.Value),"源媒体SHA不变");
+
+        var ownedFiles=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var assetRows=new List<object>();
+        for(int i=0;i<first.Length;i++)
+        {
+            string definitionPath=AssetDatabase.GetAssetPath(first[i]);
+            string imagePath=first[i] is GroundDecorationDefinition definition?AssetDatabase.GetAssetPath(definition.sprite):definitionPath;
+            AllowExactImport(ownedFiles,imagePath);AllowExactImport(ownedFiles,definitionPath);
+            assetRows.Add(new{entries[i].assetId,entries[i].revision,entries[i].kind,definitionPath,imagePath,guid=AssetDatabase.AssetPathToGUID(definitionPath),instanceId=first[i].GetInstanceID()});
+        }
+        AllowExactImport(ownedFiles,familyPath);
+        assetRows.Add(new{family.assetId,family.revision,family.kind,definitionPath=familyPath,imagePath="",guid=AssetDatabase.AssetPathToGUID(familyPath),instanceId=firstFamily.GetInstanceID()});
+        var created=after.Keys.Except(before.Keys,StringComparer.OrdinalIgnoreCase).OrderBy(p=>p,StringComparer.Ordinal).ToArray();
+        Require(created.All(ownedFiles.Contains),"所有新文件均在本批身份/修订精确账本内");
+        ctx.ReturnValue=new
+        {
+            passed=true,loaded=doc.entries.Length,catalogId=doc.catalogId,version=doc.version,checks=checks.Count,rows=checks,
+            retained=true,selectionFixture=fixture,ledgerPath,assets=assetRows,
+            newAssetPaths=created.Where(p=>!p.EndsWith(".meta",StringComparison.OrdinalIgnoreCase)).ToArray(),
+            newFiles=created.Select(p=>new{path=p,sha256=after[p]}).ToArray(),
+            existingFiles=before.Count,protectedFiles=protectedBefore.Count,
+            note="只保留明确新导入与外部选择集；未删除资产、未重写既有Importer或源文件。"
+        };
+        completed=true;
+        }
+        catch(Exception error){failure=error.ToString();throw;}
+        finally
+        {
+            // Native错误也留下本批差分账本；不为让测试变绿而删除成功导入，后续由root精确读回。
+            try
+            {
+                var current=Snapshot(local);
+                var created=current.Keys.Except(before.Keys,StringComparer.OrdinalIgnoreCase).OrderBy(p=>p,StringComparer.Ordinal).ToArray();
+                var changed=before.Where(row=>!current.TryGetValue(row.Key,out string value)||value!=row.Value).Select(row=>row.Key).ToArray();
+                File.WriteAllText(ledgerPath,new JObject
+                {
+                    {"format","ground-workshop-import-contract-ledger"},{"schemaVersion",1},{"passed",completed},{"retained",true},
+                    {"catalogId",doc.catalogId},{"version",doc.version},{"selectionFixture",fixture},{"failure",failure},
+                    {"requestedIds",new JArray(ids.Concat(new[]{familyId}))},
+                    {"newFiles",new JArray(created.Select(path=>new JObject{{"path",path},{"sha256",current[path]}}))},
+                    {"changedPreexistingFiles",new JArray(changed)}
+                }.ToString());
+            }
+            catch(Exception ledgerError)
+            {
+                Debug.LogError("导入合同账本未能写出；未删除任何资产："+ledgerPath+"；"+ledgerError.Message);
+                if(completed)throw;
+            }
+        }
+    }
+
+    private void ValidateImported(GroundCatalogEntry entry,UnityEngine.Object value)
+    {
+        Require(value!=null,"返回非空资产："+entry.assetId);
+        var definition=value as GroundDecorationDefinition;
+        string path=definition==null?AssetDatabase.GetAssetPath(value):AssetDatabase.GetAssetPath(definition.sprite);
+        Require(GroundWorkshopOwnership.IsUnder(path,GroundWorkshopOwnership.Root+"/LocalReference/"+entry.assetId.ToLowerInvariant()),"输出身份目录正确："+entry.assetId);
+        Require(File.Exists(path)&&Hash(path)==entry.sha256.ToLowerInvariant(),"导入PNG与源SHA相同："+entry.assetId);
+        var texture=AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+        var importer=AssetImporter.GetAtPath(path) as TextureImporter;
+        Require(texture!=null&&texture.width==entry.width&&texture.height==entry.height&&importer!=null,"画布尺寸保真："+entry.assetId);
+        Require(importer.sRGBTexture&&!importer.mipmapEnabled&&importer.npotScale==TextureImporterNPOTScale.None&&
+            importer.filterMode==FilterMode.Bilinear&&importer.textureCompression==TextureImporterCompression.Uncompressed&&
+            importer.alphaSource==TextureImporterAlphaSource.FromInput&&!importer.isReadable,"公共Importer配置正确："+entry.assetId);
+        if(entry.kind=="GroundDetail")
+        {
+            Require(value is Texture2D&&importer.textureType==TextureImporterType.Default&&importer.wrapMode==TextureWrapMode.Repeat,"底纹返回Texture2D并使用Repeat");
+            return;
+        }
+        Require(definition!=null&&definition.assetId==entry.assetId&&definition.revision==entry.revision&&definition.sprite!=null,"装饰定义身份与Sprite依赖正确："+entry.assetId);
+        Require(Enum.TryParse(entry.placementMode,false,out GroundDecorationMode mode)&&definition.mode==mode&&
+            Vector2.Distance(definition.footpointNormalized,entry.pivot)<.0001f,"定义脚点与摆放模式一致："+entry.assetId);
+        var sprite=definition.sprite;var settings=new TextureImporterSettings();importer.ReadTextureSettings(settings);
+        Require(importer.textureType==TextureImporterType.Sprite&&importer.spriteImportMode==SpriteImportMode.Single&&importer.wrapMode==TextureWrapMode.Clamp&&importer.alphaIsTransparency,"直立Sprite使用Single/Clamp/alpha："+entry.assetId);
+        Require(settings.spriteAlignment==(int)SpriteAlignment.Custom&&settings.spriteMeshType==SpriteMeshType.FullRect&&
+            Mathf.Approximately(importer.spritePixelsPerUnit,entry.pixelsPerUnit)&&Mathf.Approximately(sprite.pixelsPerUnit,entry.pixelsPerUnit),"Sprite Alignment/Mesh/PPU正确："+entry.assetId);
+        Require(Vector2.Distance(importer.spritePivot,entry.pivot)<.0001f&&
+            Vector2.Distance(sprite.pivot,new Vector2(entry.pivot.x*entry.width,entry.pivot.y*entry.height))<.01f,"Importer与Native Sprite实际pivot正确："+entry.assetId);
+        Require(sprite.texture==texture&&sprite.rect==new Rect(0,0,entry.width,entry.height),"Single Sprite完整原画布rect与Texture依赖："+entry.assetId);
+        Require(AssetDatabase.GetDependencies(AssetDatabase.GetAssetPath(definition),true).Contains(path),"装饰定义依赖链包含其Sprite PNG："+entry.assetId);
+    }
+
+    // 账本只允许Importer固定的Source.png/Definition.asset及其精确父目录meta，不接受任意新资产。
+    private static void AllowExactImport(HashSet<string> allowed,string path)
+    {
+        string local=GroundWorkshopOwnership.Root+"/LocalReference";
+        if(!GroundWorkshopOwnership.IsUnder(path,local))throw new Exception("输出不在LocalReference："+path);
+        string name=Path.GetFileName(path);
+        if(name!="Source.png"&&name!="Definition.asset")throw new Exception("未登记的导入文件名："+path);
+        allowed.Add(Normalize(path));allowed.Add(Normalize(path+".meta"));allowed.Add(Normalize(local+".meta"));
+        string directory=Path.GetDirectoryName(path).Replace('\\','/');
+        while(directory!=local)
+        {
+            if(!GroundWorkshopOwnership.IsUnder(directory,local))throw new Exception("导入父目录越界。");
+            allowed.Add(Normalize(directory+".meta"));directory=Path.GetDirectoryName(directory).Replace('\\','/');
+        }
+    }
+    private static Dictionary<string,string> Snapshot(params string[] roots)
+    {
+        var result=new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);
+        foreach(string root in roots)
+        {
+            if(File.Exists(root+".meta"))result[Normalize(root+".meta")]=Hash(root+".meta");
+            if(!Directory.Exists(root))continue;
+            foreach(string path in Directory.GetFiles(root,"*",SearchOption.AllDirectories))result[Normalize(path)]=Hash(path);
+        }
+        return result;
+    }
+    private void RequireUnchanged(Dictionary<string,string> before,Dictionary<string,string> after,string label)
+        =>Require(before.All(row=>after.TryGetValue(row.Key,out string value)&&value==row.Value),label);
+    private void RequireExact(Dictionary<string,string> before,Dictionary<string,string> after,string label)
+        =>Require(before.Count==after.Count&&before.All(row=>after.TryGetValue(row.Key,out string value)&&value==row.Value),label);
+    private void Require(bool passed,string label)
+    {
+        checks.Add(new{name=label,passed});
+        if(!passed)throw new InvalidOperationException("CatalogImportContracts失败："+label);
+    }
+    private static string Normalize(string path)=>Path.GetFullPath(path).Replace('\\','/');
+    private static string Hash(string path)
+    {using(var stream=File.OpenRead(path))using(var sha=SHA256.Create())return BitConverter.ToString(sha.ComputeHash(stream)).Replace("-","").ToLowerInvariant();}
+}

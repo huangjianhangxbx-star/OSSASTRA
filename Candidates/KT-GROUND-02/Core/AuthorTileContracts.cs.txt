@@ -1,0 +1,37 @@
+/* 零资产写入，验证首格原生初始化/自动转角/已解锁作者矩阵；不以最终截图代替底层语义。 */
+using System;using System.Linq;using System.Collections.Generic;using UnityEngine;using UnityEngine.Tilemaps;using UnityEditor;using UnityEditor.SceneManagement;using Funplay.Editor.Tools.Scripting;
+using G=Ossastra.GroundResearch;using E=Ossastra.GroundResearch.Editor;
+public sealed class AuthorTileContracts:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  var scene=EditorSceneManager.NewPreviewScene();var owned=new List<UnityEngine.Object>();var rows=new List<object>();
+  Action<string,bool> check=(name,passed)=>rows.Add(new{name,passed});
+  try
+  {
+   var family=AssetDatabase.LoadAssetAtPath<G.GroundEdgeFamily>(E.GroundWorkshopOriginalAssets.Root+"/Originals/Edges/Rounded.asset");
+   var canonical=ScriptableObject.CreateInstance<RuleTile>();owned.Add(canonical);canonical.m_DefaultSprite=family.preview;
+   canonical.m_TilingRules=new List<RuleTile.TilingRule>{new RuleTile.TilingRule{m_Neighbors=new List<int>{RuleTile.TilingRule.Neighbor.This},m_NeighborPositions=new List<Vector3Int>{Vector3Int.up},m_RuleTransform=RuleTile.TilingRuleOutput.Transform.Rotated,m_Sprites=new[]{family.preview}}};
+   var authored=ScriptableObject.CreateInstance<G.GroundAuthorRuleTile>();owned.Add(authored);EditorUtility.CopySerializedManagedFieldsOnly(canonical,authored);
+   Func<string,Tilemap> make=name=>{var root=new GameObject(name);UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(root,scene);root.AddComponent<Grid>();var child=new GameObject("Tilemap");child.transform.SetParent(root.transform,false);return child.AddComponent<Tilemap>();};
+   var source=make("Canonical");var target=make("Author");var single=make("Single");var a=Vector3Int.zero;var b=Vector3Int.right;
+   source.SetTile(a,canonical);target.SetTile(a,authored);
+   check("fresh RuleTile cell retains canonical lock flags",target.GetTileFlags(a)==source.GetTileFlags(a)&&target.GetTileFlags(a)==TileFlags.LockTransform);
+   source.SetTile(b,canonical);target.SetTile(b,authored);
+   check("fresh native neighbor rotates canonical rule",source.GetTransformMatrix(a)!=Matrix4x4.identity);
+   check("locked generated transform follows canonical rotation",target.GetTransformMatrix(a)==source.GetTransformMatrix(a));
+   var manual=Matrix4x4.TRS(new Vector3(.11f,.07f,0),Quaternion.Euler(0,0,13),new Vector3(.83f,1.09f,1));
+   target.SetTileFlags(a,TileFlags.None);target.SetTransformMatrix(a,manual);target.SetTile(b,null);target.RefreshAllTiles();
+   check("neighbor and explicit refresh preserve unlocked author matrix",target.GetTileFlags(a)==TileFlags.None&&target.GetTransformMatrix(a)==manual);
+   target.SetTileFlags(a,TileFlags.LockAll);target.SetTile(b,authored);target.RefreshAllTiles();
+   check("locked cell returns to generated rule transform",target.GetTileFlags(a)==TileFlags.LockAll&&target.GetTransformMatrix(a)==source.GetTransformMatrix(a));
+   var plain=ScriptableObject.CreateInstance<Tile>();owned.Add(plain);plain.sprite=family.preview;plain.flags=TileFlags.LockAll;
+   var solid=ScriptableObject.CreateInstance<G.GroundAuthorTile>();owned.Add(solid);EditorUtility.CopySerializedManagedFieldsOnly(plain,solid);single.SetTile(a,solid);
+   check("fresh solid Tile keeps canonical definition flags",single.GetTileFlags(a)==plain.flags&&single.GetSprite(a)==plain.sprite);
+   single.SetTileFlags(a,TileFlags.None);single.SetTransformMatrix(a,manual);single.RefreshAllTiles();
+   check("solid refresh preserves Native author unlock and matrix",single.GetTileFlags(a)==TileFlags.None&&single.GetTransformMatrix(a)==manual);
+  }
+  finally{if(scene.IsValid()&&scene.isLoaded)EditorSceneManager.ClosePreviewScene(scene);foreach(var asset in owned)UnityEngine.Object.DestroyImmediate(asset);}
+  ctx.ReturnValue=new{passed=rows.Count(r=>(bool)r.GetType().GetProperty("passed").GetValue(r)),checks=rows.Count,rows};
+ }
+}

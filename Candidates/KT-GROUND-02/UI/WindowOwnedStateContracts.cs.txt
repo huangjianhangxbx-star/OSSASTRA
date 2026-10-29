@@ -1,0 +1,182 @@
+/*
+ * 必须由root在已打开、可编辑的自有工坊地图上执行。只用真实Window操作，不写源文件/资产。
+ * 捕获的破坏：切层越界改变目标；释放Palette吞外部选择；显隐/MPB恢复覆盖外部最新值；关窗残留。
+ * 夹具的Scene可见性和完整MPB在finally恢复。没有注册地图时明确FIXTURE_MISSING，不冒称RED/GREEN。
+ */
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using Funplay.Editor.Tools.Scripting;
+using UnityEditor;
+using UnityEditor.EditorTools;
+using UnityEditor.SceneManagement;
+using UnityEditor.Tilemaps;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEngine.Tilemaps;
+
+public sealed class GroundWorkshopWindowOwnedStateContracts : IFunplayCommand
+{
+    public void Execute(ExecutionContext ctx)
+    {
+        Type windowType = FindType("Ossastra.GroundResearch.Editor.GroundWorkshopWindow");
+        Type mapType = FindType("Ossastra.GroundResearch.GroundWorkshopMap");
+        if (windowType == null || mapType == null)
+        { ctx.ReturnValue = new { status = "RED", passed = 0, failed = 1, reason = "Workshop Window/Map is missing." }; return; }
+        var previousBrush = GridPaintingState.gridBrush;
+        var previousTarget = GridPaintingState.scenePaintTarget;
+        Type previousTool = ToolManager.activeToolType;
+        var previousSelection = Selection.activeObject;
+        var checks = new List<string>(); int passed = 0, failed = 0;
+        string stage = "fixture setup";
+        string exceptionType = null, exceptionStack = null, wrapperStack = null;
+        object diagnostic = null;
+        var paletteTrace = new List<object>();
+        EditorWindow window = null; Scene preview = default(Scene); GridBrush externalBrush = null;
+        Tilemap tilemap = null; TilemapRenderer renderer = null; bool wasHidden = false;
+        var originalBlock = new MaterialPropertyBlock();
+        try
+        {
+            Component fixture = UnityEngine.Object.FindObjectsOfType(mapType).Cast<Component>().FirstOrDefault(item => item != null && item.gameObject.scene == SceneManager.GetActiveScene());
+            if (fixture == null) { ctx.ReturnValue = new { status = "FIXTURE_MISSING", reason = "Open a registered editable workshop scene first." }; return; }
+            var surface = (Component)mapType.GetField("surface").GetValue(fixture);
+            if (surface == null) throw new InvalidOperationException("Fixture map lacks surface.");
+            var layers = (Array)surface.GetType().GetField("layers").GetValue(surface);
+            int index = -1;
+            for (int i = 0; i < layers.Length; i++)
+            {
+                object layer = layers.GetValue(i); if (layer == null) continue;
+                bool locked = (bool)layer.GetType().GetField("isLocked").GetValue(layer);
+                var candidate = (Tilemap)layer.GetType().GetField("tilemap").GetValue(layer);
+                if (!locked && candidate != null && candidate.GetComponent<TilemapRenderer>() != null) { index = i; tilemap = candidate; break; }
+            }
+            if (index < 0) throw new InvalidOperationException("Fixture requires one unlocked complete layer.");
+            renderer = tilemap.GetComponent<TilemapRenderer>(); renderer.GetPropertyBlock(originalBlock);
+            wasHidden = SceneVisibilityManager.instance.IsHidden(tilemap.gameObject);
+            TileBase originalZero = tilemap.GetTile(Vector3Int.zero);
+            int usedCount = tilemap.GetUsedTilesCount();
+            window = (EditorWindow)ScriptableObject.CreateInstance(windowType);
+            Invoke(window, "SelectSurface", surface);
+            object[] gate = { null };
+            if (!(bool)windowType.GetMethod("CanAuthorSurface").Invoke(window, gate))
+            { ctx.ReturnValue = new { status = "FIXTURE_MISSING", reason = "The actual author gate rejects current fixture: " + gate[0] }; return; }
+            Check((bool)Invoke(window, "SelectLayer", index), "operator can select an existing registered layer", checks, ref passed, ref failed);
+            Check((bool)Invoke(window, "ActivateBrush", typeof(PaintTool)) && GridPaintingState.scenePaintTarget == tilemap.gameObject,
+                "painting activates the selected real Tilemap target", checks, ref passed, ref failed);
+            var ownedBrush = GridPaintingState.gridBrush;
+            Check(!(bool)Invoke(window, "SelectLayer", layers.Length) && GridPaintingState.gridBrush == ownedBrush && GridPaintingState.scenePaintTarget == tilemap.gameObject,
+                "out-of-range selection leaves the current author target intact", checks, ref passed, ref failed);
+
+            stage = "normalize visibility";
+            SceneVisibilityManager.instance.Show(tilemap.gameObject, false);
+            stage = "SetLayerVisible(false)";
+            Invoke(window, "SetLayerVisible", index, false);
+            stage = "SetLayerVisible(true)";
+            Invoke(window, "SetLayerVisible", index, true);
+            stage = "external visibility override";
+            SceneVisibilityManager.instance.Hide(tilemap.gameObject, false);
+
+            int maskId = Shader.PropertyToID("_DebugMask"), customId = Shader.PropertyToID("_KT02WindowFixture");
+            stage = "fixture MPB initialization";
+            var block = new MaterialPropertyBlock(); block.SetFloat(maskId, .3f); block.SetFloat(customId, 47f);
+            renderer.SetPropertyBlock(block);
+            stage = "SetMaskDebug(true)";
+            Check((bool)Invoke(window, "SetMaskDebug", true), "registered map enables mask observation", checks, ref passed, ref failed);
+            stage = "read mask observation";
+            renderer.GetPropertyBlock(block);
+            Check(Mathf.Approximately(block.GetFloat(maskId), 1f) && Mathf.Approximately(block.GetFloat(customId), 47f),
+                "mask observation preserves unrelated MPB properties", checks, ref passed, ref failed);
+            stage = "ReleaseAuthoring / first observation";
+            Invoke(window, "ReleaseAuthoring"); renderer.GetPropertyBlock(block);
+            Check(Mathf.Approximately(block.GetFloat(maskId), .3f) && Mathf.Approximately(block.GetFloat(customId), 47f),
+                "releasing owned observation restores the complete pre-observation MPB", checks, ref passed, ref failed);
+            Check(SceneVisibilityManager.instance.IsHidden(tilemap.gameObject), "release preserves a later external visibility change", checks, ref passed, ref failed);
+            Check(GridPaintingState.gridBrush == previousBrush && GridPaintingState.scenePaintTarget == previousTarget,
+                "release restores the Palette brush and target it still owns", checks, ref passed, ref failed);
+
+            Invoke(window, "ActivateBrush", typeof(PaintTool)); Invoke(window, "SetMaskDebug", true);
+            renderer.GetPropertyBlock(block); block.SetFloat(maskId, .7f); block.SetFloat(customId, 62f); renderer.SetPropertyBlock(block);
+            Invoke(window, "ReleaseAuthoring"); renderer.GetPropertyBlock(block);
+            Check(Mathf.Approximately(block.GetFloat(maskId), .7f) && Mathf.Approximately(block.GetFloat(customId), 62f),
+                "release does not overwrite a mask observer that replaced its debug value", checks, ref passed, ref failed);
+
+            preview = EditorSceneManager.NewPreviewScene();
+            var gridRoot = new GameObject("ExternalPaletteFixture"); SceneManager.MoveGameObjectToScene(gridRoot, preview); gridRoot.AddComponent<Grid>();
+            var target = new GameObject("ExternalTarget"); SceneManager.MoveGameObjectToScene(target, preview); target.transform.SetParent(gridRoot.transform); target.AddComponent<Tilemap>();
+            stage = "external Palette target replacement";
+            Invoke(window, "ActivateBrush", typeof(PaintTool));
+            paletteTrace.Add(PaletteState("before foreign target assignment", window, target));
+            GridPaintingState.scenePaintTarget = target;
+            paletteTrace.Add(PaletteState("after foreign target assignment, before release", window, target));
+            Invoke(window, "ReleaseAuthoring");
+            paletteTrace.Add(PaletteState("after release", window, target));
+            Check(GridPaintingState.scenePaintTarget == target, "release preserves an independently replaced Palette target", checks, ref passed, ref failed);
+            Invoke(window, "ActivateBrush", typeof(PaintTool));
+            externalBrush = ScriptableObject.CreateInstance<GridBrush>(); GridPaintingState.gridBrush = externalBrush;
+            Invoke(window, "ReleaseAuthoring");
+            Check(GridPaintingState.gridBrush == externalBrush, "release preserves a later external Palette brush", checks, ref passed, ref failed);
+            Invoke(window, "SelectSurface", new object[] { null });
+            Check(GridPaintingState.gridBrush == externalBrush, "switching away from a map does not reclaim a released Palette", checks, ref passed, ref failed);
+            Check(tilemap.GetTile(Vector3Int.zero) == originalZero && tilemap.GetUsedTilesCount() == usedCount,
+                "window tools and observations never rewrite native author cells", checks, ref passed, ref failed);
+        }
+        catch (Exception exception)
+        {
+            failed++; var cause = exception.GetBaseException();
+            exceptionType = cause.GetType().FullName; exceptionStack = cause.ToString(); wrapperStack = exception.ToString();
+            checks.Add("FAIL at " + stage + ": " + cause.Message);
+            FieldInfo blockField = windowType.GetField("readBlock", BindingFlags.Instance | BindingFlags.NonPublic);
+            object windowBlock = window == null || blockField == null ? null : blockField.GetValue(window);
+            diagnostic = new { windowExists = window != null, readBlockFieldExists = blockField != null,
+                readBlockIsNull = windowBlock == null, rendererExists = renderer != null, fixtureOriginalBlockIsNull = originalBlock == null };
+        }
+        finally
+        {
+            if (window != null) UnityEngine.Object.DestroyImmediate(window);
+            GridPaintingState.gridBrush = previousBrush; GridPaintingState.scenePaintTarget = previousTarget;
+            if (previousTool != null) ToolManager.SetActiveTool(previousTool);
+            Selection.activeObject = previousSelection;
+            if (renderer != null) renderer.SetPropertyBlock(originalBlock.isEmpty ? null : originalBlock);
+            if (tilemap != null) { if (wasHidden) SceneVisibilityManager.instance.Hide(tilemap.gameObject, false); else SceneVisibilityManager.instance.Show(tilemap.gameObject, false); }
+            if (externalBrush != null) UnityEngine.Object.DestroyImmediate(externalBrush);
+            if (preview.IsValid()) EditorSceneManager.ClosePreviewScene(preview);
+        }
+        ctx.ReturnValue = new { status = failed == 0 ? "GREEN" : "RED", passed, failed, stage,
+            exceptionType, exceptionStack, wrapperStack, diagnostic, paletteTrace = paletteTrace.ToArray(), checks = checks.ToArray() };
+    }
+    private static object PaletteState(string stage, object window, GameObject requested)
+    {
+        var currentTarget = GridPaintingState.scenePaintTarget;
+        var currentBrush = GridPaintingState.gridBrush;
+        Type type = window.GetType();
+        var ownBrush = (UnityEngine.Object)type.GetField("brush", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(window);
+        var ownedTarget = (GameObject)type.GetField("writtenTarget", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(window);
+        var previousBrush = (UnityEngine.Object)type.GetField("previousBrush", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(window);
+        var previousTarget = (GameObject)type.GetField("previousTarget", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(window);
+        return new { stage, currentBrush = Identity(currentBrush), currentTarget = TargetIdentity(currentTarget),
+            ownedBrush = Identity(ownBrush), ownedTarget = TargetIdentity(ownedTarget), previousBrush = Identity(previousBrush),
+            previousTarget = TargetIdentity(previousTarget), requestedTarget = TargetIdentity(requested),
+            requestActuallyApplied = currentTarget == requested, activeTool = ToolManager.activeToolType == null ? null : ToolManager.activeToolType.FullName };
+    }
+    private static object Identity(UnityEngine.Object value)
+    { return new { exists = value != null, id = value == null ? 0 : value.GetInstanceID(), name = value == null ? null : value.name, type = value == null ? null : value.GetType().FullName }; }
+    private static object TargetIdentity(GameObject value)
+    {
+        var map = value == null ? null : value.GetComponent<Tilemap>();
+        return new { exists = value != null, id = value == null ? 0 : value.GetInstanceID(), name = value == null ? null : value.name,
+            sceneValid = value != null && value.scene.IsValid(), sceneLoaded = value != null && value.scene.isLoaded,
+            isPreviewScene = value != null && value.scene.IsValid() && EditorSceneManager.IsPreviewScene(value.scene),
+            tilemap = map != null, layoutGrid = map == null || map.layoutGrid == null ? 0 : map.layoutGrid.GetInstanceID() };
+    }
+    private static object Invoke(object target, string name, params object[] args)
+    { return target.GetType().GetMethod(name, BindingFlags.Public | BindingFlags.Instance).Invoke(target, args); }
+    private static Type FindType(string name)
+    {
+        foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
+        { Type type = assembly.GetType(name, false); if (type != null) return type; }
+        return null;
+    }
+    private static void Check(bool ok, string name, List<string> checks, ref int passed, ref int failed)
+    { checks.Add((ok ? "PASS " : "FAIL ") + name); if (ok) passed++; else failed++; }
+}

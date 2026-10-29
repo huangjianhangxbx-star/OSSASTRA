@@ -1,0 +1,30 @@
+// 捕获预览把真实Renderer关闭后被原生Ctrl+S持久化的问题；结束恢复本测试原先可见状态。
+using System;using System.Linq;using UnityEditor;using UnityEditor.SceneManagement;using UnityEngine;
+using Ossastra.GroundResearch;using Ossastra.GroundResearch.Editor;using Funplay.Editor.Tools.Scripting;
+public sealed class GroundWorkshopPreviewSaveContract : IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  var scene=UnityEngine.SceneManagement.SceneManager.GetActiveScene();string path=scene.path;
+  var map=scene.GetRootGameObjects().SelectMany(x=>x.GetComponentsInChildren<GroundWorkshopMap>(true)).Single();
+  var renderer=map.surface.layers[0].tilemap.GetComponent<UnityEngine.Tilemaps.TilemapRenderer>();bool original=renderer.enabled;
+  bool noPreview=false,persisted=false;string error=null;bool wasLocked=GroundWorkshopAuthoring.IsLayerLocked(map,0);
+  try
+  {
+   if(wasLocked)GroundWorkshopAuthoring.SetLayerLocked(map,0,false);
+   var recipe=AssetDatabase.LoadAssetAtPath<GroundRecipe>(GroundWorkshopOwnership.Root+"/Originals/Recipes/Alternate.asset");
+   var change=GroundWorkshopAuthoring.PrepareReplacement(map,0,recipe,GroundReplacementScope.ExistingAndFuture);
+   GroundWorkshopAuthoring.Preview(change);EditorSceneManager.SaveScene(scene,path);
+   noPreview=!GroundWorkshopAuthoring.HasPreview;
+   GroundWorkshopAuthoring.CancelPreview();EditorSceneManager.CloseScene(scene,true);scene=EditorSceneManager.OpenScene(path,OpenSceneMode.Single);
+   map=scene.GetRootGameObjects().SelectMany(x=>x.GetComponentsInChildren<GroundWorkshopMap>(true)).Single();
+   renderer=map.surface.layers[0].tilemap.GetComponent<UnityEngine.Tilemaps.TilemapRenderer>();persisted=renderer.enabled==original;
+  }
+  catch(Exception e){error=e.ToString();}
+  finally
+  {
+   GroundWorkshopAuthoring.CancelPreview();if(map!=null)GroundWorkshopAuthoring.SetLayerLocked(map,0,wasLocked);if(renderer!=null){renderer.enabled=original;EditorSceneManager.MarkSceneDirty(renderer.gameObject.scene);EditorSceneManager.SaveScene(renderer.gameObject.scene,path);}
+  }
+  ctx.ReturnValue=new{passed=noPreview&&persisted,error,saveReleasedPreview=noPreview,rendererPersisted=persisted};
+ }
+}

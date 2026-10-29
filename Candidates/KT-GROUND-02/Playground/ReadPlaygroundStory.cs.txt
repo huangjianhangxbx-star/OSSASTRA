@@ -1,0 +1,17 @@
+using System;using System.IO;using System.Linq;using System.Security.Cryptography;using UnityEditor;using UnityEngine;using UnityEngine.SceneManagement;using Funplay.Editor.Tools.Scripting;
+using G=Ossastra.GroundResearch;using E=Ossastra.GroundResearch.Editor;using C=Ossastra.Characters;using N=Ossastra.Enemies;
+public sealed class ReadPlaygroundStory:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  string author=SessionState.GetString("KT02.PlayStory.AuthorScene",""),expectedHash=SessionState.GetString("KT02.PlayStory.AuthorSha","");
+  string hash="missing";if(File.Exists(author))using(var f=File.OpenRead(author))using(var h=SHA256.Create())hash=Convert.ToBase64String(h.ComputeHash(f));
+  var scene=SceneManager.GetActiveScene();var components=scene.GetRootGameObjects().SelectMany(r=>r.GetComponentsInChildren<Component>(true)).ToArray();var maps=components.OfType<G.GroundWorkshopMap>().ToArray();var map=maps.SingleOrDefault();
+  bool editable=map!=null&&E.GroundWorkshopOwnership.CanEdit(map,out _);
+  ctx.ReturnValue=new{playing=Application.isPlaying,path=scene.path,scene.isDirty,hasSession=E.GroundWorkshopPlaygroundSession.HasSession,author,authorHashUnchanged=hash==expectedHash,
+   returnedIdentity=scene.path==author&&map!=null&&map.registration.mapId==SessionState.GetString("KT02.PlayStory.AuthorMapId",""),editable,
+   mapCount=maps.Length,layers=map==null?0:map.surface.layers.Length,decorations=map==null||map.decorationRoot==null?0:map.decorationRoot.childCount,
+   players=components.OfType<C.CharacterRoot>().Select(c=>new{name=c.name,alive=c.IsAlive}).ToArray(),enemies=components.OfType<N.EnemyRoot>().Select(e=>new{name=e.name,attacks=e.AttacksEnabled}).ToArray(),
+   colliders=components.OfType<Collider>().Select(c=>new{name=c.name,parent=c.transform.parent==null?"":c.transform.parent.name,type=c.GetType().Name}).ToArray()};
+ }
+}

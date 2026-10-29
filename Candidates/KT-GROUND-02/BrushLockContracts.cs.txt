@@ -1,0 +1,12 @@
+// 先行回归：移除作者锁检查会导致被锁图层仍可写，必须捕获真实Native格变化。
+using System;using UnityEngine;using UnityEngine.Tilemaps;using UnityEditor.SceneManagement;
+using Ossastra.GroundResearch;using Ossastra.GroundResearch.Editor;using Funplay.Editor.Tools.Scripting;
+public sealed class GroundWorkshopBrushLockContract : IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  var scene=EditorSceneManager.NewPreviewScene();GameObject go=null;Tile tile=null;FrontierGroundBrush brush=null;
+  try{go=new GameObject("owned-test-only");UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(go,scene);var g=go.AddComponent<Grid>();g.cellSwizzle=GridLayout.CellSwizzle.XZY;var s=go.AddComponent<GroundResearchSurface>();s.grid=g;s.editableCells=new BoundsInt(0,0,0,2,2,1);var child=new GameObject("layer");child.transform.SetParent(go.transform);var map=child.AddComponent<Tilemap>();tile=ScriptableObject.CreateInstance<Tile>();s.layers=new[]{new GroundLayer{tilemap=map,paintTile=tile,displayName="lock fixture",isLocked=true}};brush=ScriptableObject.CreateInstance<FrontierGroundBrush>();bool configured=brush.Configure(s,0,1);brush.Paint(g,child,Vector3Int.zero);bool untouched=map.GetTile(Vector3Int.zero)==null;brush.FinishStroke(false);ctx.ReturnValue=new{passed=!configured&&untouched,configured,untouched};}
+  finally{if(brush!=null)UnityEngine.Object.DestroyImmediate(brush);if(go!=null)UnityEngine.Object.DestroyImmediate(go);if(tile!=null)UnityEngine.Object.DestroyImmediate(tile);EditorSceneManager.ClosePreviewScene(scene);}
+ }
+}

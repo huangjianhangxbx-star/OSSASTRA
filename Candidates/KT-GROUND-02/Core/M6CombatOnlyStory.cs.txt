@@ -1,0 +1,237 @@
+/*
+ * KT02单独交战候选：仅ReferenceScene或精确PreviewSession；跳过路线/镜头，读取当前实控角色原命中回执。
+ * 只有该Current自身Released、MainAction/Melee的Applied回执及敌HP下降同时发生才通过。
+ * 原ResetEncounter显式复位；不直接改HP、动作、Transform、暂停、TimeScale或输入绑定。
+ * standalone Action无devices过滤，运行时物理设备须闲置；结束还原map过滤并移除虚拟设备。
+ */
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using Funplay.Editor.Tools.Scripting;
+using UnityEditor;
+using UnityEngine;
+using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.Controls;
+using UnityEngine.InputSystem.LowLevel;
+using UnityEngine.SceneManagement;
+using Ossastra.GroundResearch;
+using Ossastra.MapResearch;
+using Ossastra.MapResearchIntegration;
+using C = Ossastra.Characters;
+using E = Ossastra.Enemies;
+
+public sealed class KT02M6CombatOnlyStory : IFunplayCommand
+{
+    public static bool Running;
+    public static long RunId;
+    public static object Report;
+    private static MapResearchRoot map;
+    private static C.CharacterControlCoordinator coordinator;
+    private static C.CharacterRoot[] characters;
+    private static C.CharacterRoot player;
+    private static E.EnemyRoot enemy;
+    private static GroundResearchView view;
+    private static MapResearchEncounterDev encounter;
+    private static C.CharacterMainAction mainAction;
+    private static Ossastra.Combat.CombatMeleeHit melee;
+    private static Keyboard keyboard;
+    private static Mouse mouse;
+    private static Key[] keys = Array.Empty<Key>();
+    private static Vector2 pointer;
+    private static bool attack, oldEnemyAllowed, enemyReleased;
+    private static string phase, error;
+    private static double started, phaseStarted, lastTrace;
+    private static int lastFrame, releaseBefore, enemyHpBefore, playerHpBefore, passed, failed;
+    private static float yawBeforeReset;
+    private static List<object> checks, trace;
+    private static HashSet<Guid> appliedActions;
+    private static List<MapFilter> filters;
+    private static string runScenePath;
+    private static bool AllowedScene(Scene scene)
+    {
+        string preview=Ossastra.GroundResearch.Editor.GroundWorkshopPlaygroundSession.PreviewScenePath;
+        return scene.path==Ossastra.GroundResearch.Editor.GroundWorkshopOwnership.ReferenceScene||
+            (!string.IsNullOrEmpty(preview)&&Ossastra.GroundResearch.Editor.GroundWorkshopPlaygroundSession.HasSession&&scene.path==preview);
+    }
+    private sealed class MapFilter { public InputActionMap map; public bool hadDevices; public InputDevice[] devices; }
+
+    public void Execute(ExecutionContext ctx)
+    {
+        foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies()) foreach (string name in new[] { "KT02M6InputStory", "KT02M6Performance", "KT02M6CombatOnlyStory" })
+        {
+            Type type = assembly.GetType(name, false);
+            if (type != null && type != typeof(KT02M6CombatOnlyStory) && (bool)type.GetField("Running").GetValue(null))
+                throw new InvalidOperationException("Another M6 story is still active; run sequentially.");
+        }
+        if (Running) throw new InvalidOperationException("Combat-only story is already active.");
+        RunId = DateTime.UtcNow.Ticks; Report = null; started = phaseStarted = lastTrace = EditorApplication.timeSinceStartup;
+        checks = new List<object>(); trace = new List<object>(); appliedActions = new HashSet<Guid>(); filters = new List<MapFilter>();
+        passed = failed = 0; error = ""; phase = "warmup"; attack = enemyReleased = false; lastFrame = -1;
+        try
+        {
+            Scene scene = SceneManager.GetActiveScene();
+            runScenePath=scene.path;
+            if (!Application.isPlaying || EditorApplication.isPaused || Time.timeScale != 1f || !AllowedScene(scene))
+                throw new InvalidOperationException("Unpaused normal-time ReferenceScene or exact PreviewSession Play required.");
+            var surface = InScene<GroundResearchSurface>(scene).Single();
+            if (Mathf.Abs(surface.WorldArea - 3072f) > 0.01f) throw new InvalidOperationException("Full surface expected.");
+            map = InScene<MapResearchRoot>(scene).Single(); coordinator = InScene<C.CharacterControlCoordinator>(scene).Single();
+            characters = InScene<C.CharacterRoot>(scene); enemy = InScene<E.EnemyRoot>(scene).Single();
+            encounter = InScene<MapResearchEncounterDev>(scene).Single(); view = InScene<GroundResearchView>(scene).Single();
+            if (characters.Length != 2 || coordinator.Current == null || map.IsStructureMode||!map.IsValid) throw new InvalidOperationException("Initialized original pair and normal valid view required.");
+            oldEnemyAllowed = enemy.AttacksEnabled; view.SetEnemyAttacksAllowed(false);
+            keyboard = InputSystem.AddDevice<Keyboard>("KT02M6CombatKeyboard"); mouse = InputSystem.AddDevice<Mouse>("KT02M6CombatMouse");
+            var actions = new HashSet<InputAction>();
+            foreach (C.CharacterRoot character in characters)
+            {
+                var input = character.GetComponent<C.CharacterInputHandler>();
+                foreach (FieldInfo field in input.GetType().GetFields(BindingFlags.Public | BindingFlags.Instance))
+                    if (field.FieldType == typeof(InputAction) && field.GetValue(input) is InputAction action) actions.Add(action);
+                if (!input.rightHandAction.bindings.Any(b => b.effectivePath == "<Mouse>/leftButton")) throw new InvalidOperationException("Configured mouse-left main hand required.");
+                foreach (string direction in new[] { "up", "down", "left", "right" }) ReadKey(input.movementAction, direction);
+            }
+            foreach (InputActionMap actionMap in actions.Select(a => a.actionMap).Where(x => x != null).Distinct())
+            {
+                var old = actionMap.devices;
+                filters.Add(new MapFilter { map = actionMap, hadDevices = old.HasValue, devices = old.HasValue ? old.Value.ToArray() : null });
+                actionMap.devices = new InputDevice[] { keyboard, mouse };
+            }
+            keys = Array.Empty<Key>(); pointer = new Vector2(Screen.width * 0.5f, Screen.height * 0.55f);
+            Running = true; InputSystem.onBeforeUpdate += BeforeInput; EditorApplication.update += Tick;
+            EditorApplication.playModeStateChanged += OnPlayState; AssemblyReloadEvents.beforeAssemblyReload += OnReload;
+            Type gameView = typeof(EditorWindow).Assembly.GetType("UnityEditor.GameView", false);
+            if (gameView != null) EditorWindow.GetWindow(gameView).Focus();
+            Publish(false);
+            ctx.ReturnValue = new { started = true, RunId, wallClockLimitSeconds = 35, standaloneActionsRequireIdlePhysicalDevices = true, note = "Poll M6PollCombatOnlyStory. Current-specific actual hit receipt, not aggregate ally release count." };
+        }
+        catch (Exception exception) { error = exception.ToString(); Cleanup(); ctx.ReturnValue = Report; }
+    }
+
+    private static void BeforeInput()
+    {
+        if (!Running || !Application.isPlaying || keyboard == null || mouse == null || InputState.currentUpdateType != InputUpdateType.Dynamic) return;
+        InputSystem.QueueStateEvent(keyboard, new KeyboardState(keys));
+        InputSystem.QueueStateEvent(mouse, new MouseState { position = pointer, buttons = attack ? (ushort)1 : (ushort)0 });
+    }
+    private static void Tick()
+    {
+        if (!Running) return;
+        try
+        {
+            if (!Application.isPlaying || EditorApplication.isPaused || Time.timeScale != 1f || map == null || coordinator == null || enemy == null)
+                throw new InvalidOperationException("Owned normal Play interrupted.");
+            if(SceneManager.GetActiveScene().path!=runScenePath||!AllowedScene(SceneManager.GetActiveScene()))throw new InvalidOperationException("Recorded allowed gameplay scene changed during story.");
+            double now = EditorApplication.timeSinceStartup;
+            if (now - started > 35) throw new TimeoutException("Combat-only story exceeded 35 seconds; no pass inferred.");
+            if (Time.frameCount == lastFrame) return;
+            lastFrame = Time.frameCount;
+            double elapsed = now - phaseStarted;
+            if (now - lastTrace > 0.4 && trace.Count < 90)
+            {
+                lastTrace = now;
+                trace.Add(new { phase, seconds = now - started, current = coordinator.Current == null ? "none" : coordinator.Current.ActorId, actor = player == null ? "none" : player.ActorId, playerReleaseCount = player == null ? -1 : player.ReleaseCount, appliedReceipts = appliedActions.Count, enemyHp = EnemyHp(), playerHp = PlayerHp(), enemyReleased });
+            }
+            switch (phase)
+            {
+                case "warmup": if (elapsed > 0.75) { encounter.ResetEncounter(); Enter("settle-reset"); } break;
+                case "settle-reset":
+                    if (elapsed > 0.75)
+                    {
+                        Check("original reset returns existing alive entities", characters.All(x => x.IsAlive) && enemy.Vitals.IsAlive);
+                        Enter("approach");
+                    }
+                    break;
+                case "approach":
+                    if (coordinator.Current == null) throw new InvalidOperationException("Current unavailable before engagement.");
+                    Vector3 delta = enemy.transform.position - coordinator.Current.transform.position; delta.y = 0;
+                    if (delta.magnitude > 1.05f)
+                    {
+                        if (elapsed > 8) throw new TimeoutException("Real input did not approach enemy; distance=" + delta.magnitude);
+                        Vector3 direction = delta.normalized;
+                        float x = Vector3.Dot(direction, map.ViewRight), y = Vector3.Dot(direction, map.ViewForward);
+                        var desired = new List<Key>(); var movement = coordinator.Current.GetComponent<C.CharacterInputHandler>().movementAction;
+                        if (Mathf.Abs(x) > 0.25f) desired.Add(ReadKey(movement, x > 0 ? "right" : "left"));
+                        if (Mathf.Abs(y) > 0.25f) desired.Add(ReadKey(movement, y > 0 ? "up" : "down"));
+                        keys = desired.ToArray();
+                    }
+                    else
+                    {
+                        Neutral(); player = coordinator.Current; releaseBefore = player.ReleaseCount;
+                        mainAction = player.GetComponent<C.CharacterMainAction>(); melee = player.GetComponent<Ossastra.Combat.CombatMeleeHit>();
+                        if (mainAction != null) mainAction.Resolved += OnPlayerHit;
+                        if (melee != null) melee.Resolved += OnPlayerHit;
+                        enemyHpBefore = EnemyHp(); playerHpBefore = PlayerHp(); enemyReleased = false;
+                        view.SetEnemyAttacksAllowed(true); Enter("enemy-first");
+                    }
+                    break;
+                case "enemy-first":
+                    if(player==null||coordinator.Current!=player)throw new InvalidOperationException("Captured Current changed before its hit proof; no ally substitution.");
+                    enemyReleased |= enemy.AttackReleased;
+                    if (elapsed > 0.2 && (enemyReleased || PlayerHp() < playerHpBefore || elapsed > 2)) Enter("attack");
+                    break;
+                case "attack":
+                    enemyReleased |= enemy.AttackReleased;
+                    if (player == null || coordinator.Current != player) throw new InvalidOperationException("Captured Current changed before its hit proof; no ally substitution.");
+                    Vector3 screen = map.GameplayCamera.WorldToScreenPoint(enemy.transform.position + Vector3.up * 0.25f);
+                    if (screen.z <= 0 || screen.x < 0 || screen.y < 0 || screen.x >= Screen.width || screen.y >= Screen.height) throw new InvalidOperationException("Enemy target is outside game view.");
+                    pointer = new Vector2(screen.x, screen.y); attack = elapsed % 0.65 < 0.18;
+                    if (elapsed > 1 && player.ReleaseCount > releaseBefore && appliedActions.Count > 0 && EnemyHp() < enemyHpBefore || elapsed > 8)
+                    {
+                        Check("captured actual Current releases through original action clock", player.ReleaseCount > releaseBefore, new { actor = player.ActorId, releaseBefore, releaseAfter = player.ReleaseCount });
+                        Check("that Current receives original Applied delivery receipt", appliedActions.Count > 0, new { actor = player.ActorId, actionIds = appliedActions.Select(x => x.ToString("N")).ToArray() });
+                        Check("real enemy HP decreases with captured player's hit proof", appliedActions.Count > 0 && EnemyHp() < enemyHpBefore, new { before = enemyHpBefore, after = EnemyHp() });
+                        Check("enemy original release or real player damage observed", enemyReleased || PlayerHp() < playerHpBefore, new { enemyReleased, playerHpBefore, playerHpAfter = PlayerHp() });
+                        Neutral(); view.SetEnemyAttacksAllowed(false); yawBeforeReset = map.ActualYaw;
+                        encounter.ResetEncounter(); Enter("verify-reset");
+                    }
+                    break;
+                case "verify-reset":
+                    if (elapsed > 1)
+                    {
+                        Check("original encounter reset restores original identities' HP", characters.All(x => x.Vitals.Health.Current == x.Vitals.Health.Maximum) && enemy.Vitals.Health.Current == enemy.Vitals.Health.Maximum);
+                        Check("original reset retains observation yaw", Mathf.Abs(Mathf.DeltaAngle(yawBeforeReset, map.ActualYaw)) < 0.1f);
+                        Cleanup();
+                    }
+                    break;
+            }
+            if (Running) Publish(false);
+        }
+        catch (Exception exception) { error = exception.ToString(); Cleanup(); }
+    }
+    private static void OnPlayerHit(Guid actionId, bool applied) { if (applied&&player!=null&&coordinator!=null&&coordinator.Current==player) appliedActions.Add(actionId); }
+    private static void Neutral() { keys = Array.Empty<Key>(); attack = false; }
+    private static void Enter(string next) { phase = next; phaseStarted = EditorApplication.timeSinceStartup; }
+    private static int EnemyHp() => enemy.Vitals == null || enemy.Vitals.Health == null ? -1 : enemy.Vitals.Health.Current;
+    private static int PlayerHp() => characters.Sum(x => x.Vitals == null || x.Vitals.Health == null ? 0 : x.Vitals.Health.Current);
+    private static void Check(string name, bool ok, object detail = null) { checks.Add(new { name, passed = ok, detail }); if (ok) passed++; else failed++; }
+    private static Key ReadKey(InputAction action, string part)
+    {
+        foreach (InputBinding binding in action.bindings)
+        {
+            if (!binding.isPartOfComposite || !string.Equals(binding.name, part, StringComparison.OrdinalIgnoreCase)) continue;
+            string path = binding.effectivePath;
+            if (!string.IsNullOrEmpty(path) && path.StartsWith("<Keyboard>/", StringComparison.OrdinalIgnoreCase) && keyboard[path.Substring(path.LastIndexOf('/') + 1)] is KeyControl control) return control.keyCode;
+        }
+        throw new InvalidOperationException("No configured keyboard movement part: " + part);
+    }
+    private static T[] InScene<T>(Scene scene) where T : Component => scene.GetRootGameObjects().SelectMany(x => x.GetComponentsInChildren<T>(true)).ToArray();
+    private static void Publish(bool done) { Report = new { done, status = !done ? "RUNNING" : string.IsNullOrEmpty(error) && failed == 0 ? "PASS" : "FAILED", RunId, Running,scene=runScenePath, phase, seconds = EditorApplication.timeSinceStartup - started, passed, failed, error, checks = checks == null ? null : checks.ToArray(), trace = trace == null ? null : trace.ToArray(), hardwareVerified = false, actorSpecificAppliedProof = appliedActions != null && appliedActions.Count > 0 }; }
+    private static void OnPlayState(PlayModeStateChange state) { if (Running && state == PlayModeStateChange.ExitingPlayMode) Cancel("Play exit interrupted story"); }
+    private static void OnReload() { if (Running) Cancel("Assembly reload interrupted story"); }
+    public static void Cancel(string reason) { error = reason; Cleanup(); }
+    private static void Cleanup()
+    {
+        Running = false; Neutral();
+        EditorApplication.update -= Tick; InputSystem.onBeforeUpdate -= BeforeInput;
+        EditorApplication.playModeStateChanged -= OnPlayState; AssemblyReloadEvents.beforeAssemblyReload -= OnReload;
+        if (mainAction != null) mainAction.Resolved -= OnPlayerHit;
+        if (melee != null) melee.Resolved -= OnPlayerHit;
+        try { if (keyboard != null) InputSystem.ResetDevice(keyboard); if (mouse != null) InputSystem.ResetDevice(mouse); } catch (Exception exception) { error += "\nReset device: " + exception.Message; }
+        if (filters != null) foreach (MapFilter filter in filters) try { filter.map.devices = filter.hadDevices ? filter.devices : null; } catch (ObjectDisposedException) { }
+        if (keyboard != null) InputSystem.RemoveDevice(keyboard); if (mouse != null) InputSystem.RemoveDevice(mouse);
+        keyboard = null; mouse = null;
+        if (view != null && enemy != null) view.SetEnemyAttacksAllowed(oldEnemyAllowed);
+        Publish(true);
+    }
+}

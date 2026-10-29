@@ -1,0 +1,16 @@
+// 捕获跨文件保存风险：作者事务不能原地改变旧Scene磁盘上仍引用的主题定义。
+using System;using System.Linq;using UnityEngine;using UnityEditor;
+using Ossastra.GroundResearch;using Ossastra.GroundResearch.Editor;using Funplay.Editor.Tools.Scripting;
+public sealed class GroundWorkshopThemeCopyContract : IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  var map=UnityEngine.Object.FindObjectsOfType<GroundWorkshopMap>().Single(m=>m.gameObject.scene==UnityEngine.SceneManagement.SceneManager.GetActiveScene());
+  var oldTheme=map.theme;string snapshot=EditorJsonUtility.ToJson(oldTheme);var recipe=AssetDatabase.LoadAssetAtPath<GroundRecipe>(GroundWorkshopOwnership.Root+"/Originals/Recipes/Alternate.asset");
+  Undo.IncrementCurrentGroup();int group=Undo.GetCurrentGroup();bool newTheme=false,oldUnchanged=false;string error=null;
+  try{var change=GroundWorkshopAuthoring.PrepareReplacement(map,2,recipe,GroundReplacementScope.ExistingAndFuture);GroundWorkshopAuthoring.Commit(change);newTheme=map.theme!=oldTheme;oldUnchanged=EditorJsonUtility.ToJson(oldTheme)==snapshot;}
+  catch(Exception e){error=e.ToString();}
+  finally{Undo.RevertAllDownToGroup(group);Undo.IncrementCurrentGroup();AssetDatabase.SaveAssetIfDirty(oldTheme);}
+  ctx.ReturnValue=new{passed=newTheme&&oldUnchanged,error,newTheme,oldUnchanged};
+ }
+}

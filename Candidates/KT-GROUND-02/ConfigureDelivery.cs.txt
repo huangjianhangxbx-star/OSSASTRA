@@ -1,0 +1,13 @@
+using System;using System.IO;using UnityEditor;using Funplay.Editor.Tools.Scripting;
+public sealed class ConfigureDelivery:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  const string root="E:/WORLDCREATOR/XingHaiHuiLang/研究/开拓物语地表/KT-GROUND-02";
+  string manifest=root+"/06-delivery/public-documentation-manifest.json";if(!File.Exists(manifest))throw new FileNotFoundException(manifest);
+  SessionState.SetString("GroundCore.PublicDocumentationManifest",manifest);
+  SessionState.SetString("GroundCore.StoryRecipePaths","[\"Assets/OSSASTRA/GroundWorkshop/Palettes/OriginalReplacement_af1facdf26994ef4ab3c532ec4a83005.asset\",\"Assets/OSSASTRA/GroundWorkshop/Palettes/Imports/3a5385949cea47e99d365cb45f0ff548.png\"]");
+  SessionState.SetBool("GroundCore.ExportExecute",false);SessionState.SetBool("GroundCore.ReplaceOwnedDocumentation",true);
+  ctx.ReturnValue=new{configured=true,manifest};
+ }
+}

@@ -1,0 +1,110 @@
+/* Native回归：真实删除第一个自有Scene后，按已确认进度恢复，继续精确删除Prefab/marker。
+ * 边界：仅新GUID会话目录；保留当前SceneSetup，不启动Play、不保存或关闭用户场。
+ * 这是合法中途检查点的续清验证，不声称已注入Unity DeleteAsset底层随机失败。
+ * 失败保留明确fixture目录并清除自有测试SessionState，避免后续用户Play误接测试会话。
+ */
+using System;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Security.Cryptography;
+using Funplay.Editor.Tools.Scripting;
+using Newtonsoft.Json.Linq;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using Ossastra.GroundResearch.Editor;
+
+public sealed class PlaygroundCleanupContinuationContracts : IFunplayCommand
+{
+    private const string stateKey="Ossastra.GroundWorkshop.PlaygroundSession";
+    public void Execute(ExecutionContext ctx)
+    {
+        if(!GroundWorkshopOwnership.ContextReady(out string reason))throw new InvalidOperationException(reason);
+        if(GroundWorkshopPlaygroundSession.HasSession)throw new InvalidOperationException("已有真实会话，不运行fixture。");
+        var type=typeof(GroundWorkshopPlaygroundSession);
+        var stateType=type.GetNestedType("State",BindingFlags.NonPublic);
+        var cleanup=type.GetMethod("Cleanup",BindingFlags.NonPublic|BindingFlags.Static);
+        if(stateType==null||cleanup==null||stateType.GetField("cleanupVerified")==null||stateType.GetField("deletedPaths")==null||stateType.GetField("cleanupHashes")==null)
+            throw new InvalidOperationException("缺少可续清字段/函数；尚未进入Fixture资产创建。");
+        var setup=EditorSceneManager.GetSceneManagerSetup();var author=SceneManager.GetActiveScene();
+        if(!author.IsValid()||!author.isLoaded||string.IsNullOrEmpty(author.path)||setup.Any(s=>string.IsNullOrEmpty(s.path)))
+            throw new InvalidOperationException("需要已保存、可恢复的SceneSetup。");
+        for(int i=0;i<SceneManager.sceneCount;i++)if(SceneManager.GetSceneAt(i).isDirty)throw new InvalidOperationException("现有Scene dirty，fixture不操作。");
+        string sceneSetup=JsonUtility.ToJson(new SetupSnapshot{scenes=setup.Select(s=>new SavedScene{path=s.path,loaded=s.isLoaded,active=s.isActive}).ToArray()});
+        string authorSha=Hash(author.path),id=Guid.NewGuid().ToString("N");
+        string folder=GroundWorkshopOwnership.Root+"/Maps/PreviewSessions/"+id;
+        string scenePath=folder+"/Playground.unity",prefabPath=folder+"/World.prefab",markerPath=folder+"/Session.json";
+        if(Directory.Exists(folder)||File.Exists(folder+".meta"))throw new InvalidOperationException("新fixture目录已存在，不覆盖。");
+        Scene scratch=default;bool passed=false;
+        try
+        {
+            CreateFolder(folder);
+            scratch=EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Additive);SceneManager.SetActiveScene(scratch);
+            var root=new GameObject("自有续清验证占位");ctx.RegisterObjectCreation(root);
+            if(!EditorSceneManager.SaveScene(scratch,scenePath))throw new IOException("自有Scene保存失败。");
+            var prefab=PrefabUtility.SaveAsPrefabAsset(root,prefabPath,out bool saved);
+            if(!saved||prefab==null)throw new IOException("自有Prefab保存失败。");
+            if(!EditorSceneManager.CloseScene(scratch,true))throw new IOException("未能关闭自有scratch，不继续删除。");
+            SceneManager.SetActiveScene(author);
+            AssetDatabase.ImportAsset(scenePath,ImportAssetOptions.ForceSynchronousImport);
+            string sceneGuid=AssetDatabase.AssetPathToGUID(scenePath),prefabGuid=AssetDatabase.AssetPathToGUID(prefabPath);
+            if(string.IsNullOrEmpty(sceneGuid)||string.IsNullOrEmpty(prefabGuid))throw new Exception("自有fixture缺GUID。");
+            var marker=new JObject{{"sessionId",id},{"folder",folder},{"scenePath",scenePath},{"prefabPath",prefabPath},
+                {"sceneGuid",sceneGuid},{"prefabGuid",prefabGuid},{"authorScenePath",author.path},{"authorMapId","native-cleanup-fixture"}};
+            File.WriteAllText(markerPath,marker.ToString());AssetDatabase.ImportAsset(markerPath,ImportAssetOptions.ForceSynchronousImport);
+            string markerGuid=AssetDatabase.AssetPathToGUID(markerPath),markerSha=Hash(markerPath);
+            var hashes=new[]{Hash(scenePath),Hash(prefabPath),markerSha};
+            if(string.IsNullOrEmpty(markerGuid))throw new Exception("自有fixture marker缺GUID。");
+            // 真实Native删除首项后，写入生产定义的已验证有序前缀，模拟上一次已确认成功后被中断。
+            if(!AssetDatabase.DeleteAsset(scenePath)||File.Exists(scenePath)||File.Exists(scenePath+".meta"))throw new Exception("首项Native删除未确认。");
+            var state=new JObject
+            {
+                {"schemaVersion",1},{"sessionId",id},{"phase","CleanupPending"},{"folder",folder},
+                {"scenePath",scenePath},{"prefabPath",prefabPath},{"markerPath",markerPath},
+                {"sceneGuid",sceneGuid},{"prefabGuid",prefabGuid},{"markerGuid",markerGuid},{"markerSha256",markerSha},
+                {"authorScenePath",author.path},{"authorSceneGuid",AssetDatabase.AssetPathToGUID(author.path)},{"authorMapId","native-cleanup-fixture"},
+                {"previousStartScene",""},{"cleanupVerified",true},{"cleanupHashes",new JArray(hashes)},{"deletedPaths",new JArray(scenePath)}
+            };
+            SessionState.SetString(stateKey,state.ToString());
+            object nativeState=JsonUtility.FromJson(state.ToString(),stateType);
+            try{cleanup.Invoke(null,new[]{nativeState});}
+            catch(TargetInvocationException error){throw error.InnerException??error;}
+            var checkpoint=JObject.Parse(SessionState.GetString(stateKey,"{}"));
+            string[] deleted=(checkpoint["deletedPaths"]as JArray)?.Values<string>().ToArray();
+            bool allGone=new[]{scenePath,prefabPath,markerPath}.All(p=>!File.Exists(p)&&!File.Exists(p+".meta")&&AssetDatabase.LoadMainAssetAtPath(p)==null);
+            bool folderGone=!Directory.Exists(folder)&&!File.Exists(folder+".meta");
+            string afterSetup=JsonUtility.ToJson(new SetupSnapshot{scenes=EditorSceneManager.GetSceneManagerSetup().Select(s=>new SavedScene{path=s.path,loaded=s.isLoaded,active=s.isActive}).ToArray()});
+            if(deleted==null||!deleted.SequenceEqual(new[]{scenePath,prefabPath,markerPath})||!allGone||!folderGone||afterSetup!=sceneSetup||Hash(author.path)!=authorSha)
+                throw new Exception("续清结果、删除进度、作者SceneSetup或SHA不符。");
+            passed=true;
+            ctx.ReturnValue=new{passed=true,checks=7,sceneWasAlreadyDeleted=true,continuedPrefabAndMarker=true,journalPrefix=deleted,
+                allGone,folderGone,sceneSetupUnchanged=true,authorSceneShaUnchanged=true,fixtureFolder=folder,
+                scope="只验证合法已删前缀续清；未注入底层DeleteAsset随机失败，未启动Play。"};
+        }
+        catch(Exception error){throw new InvalidOperationException("续清fixture失败，保留精确自有目录供root读回："+folder,error);}
+        finally
+        {
+            if(scratch.IsValid()&&scratch.isLoaded)EditorSceneManager.CloseScene(scratch,true);
+            if(author.IsValid()&&author.isLoaded)SceneManager.SetActiveScene(author);
+            string pending=SessionState.GetString(stateKey,"");
+            if(!string.IsNullOrEmpty(pending))
+            {
+                try{if((string)JObject.Parse(pending)["sessionId"]==id)SessionState.EraseString(stateKey);}
+                catch(Exception error){Debug.LogWarning("测试检查点读取失败，未抹除未知会话："+error.Message);}
+            }
+            if(!passed)Debug.LogWarning("未递归删除fixture或改变作者资产；必要时仅按上报路径和新GUID清理。");
+        }
+    }
+    private static void CreateFolder(string path)
+    {
+        if(AssetDatabase.IsValidFolder(path))return;
+        int cut=path.LastIndexOf('/');if(cut<0)throw new InvalidOperationException("非法Assets目录。");
+        CreateFolder(path.Substring(0,cut));AssetDatabase.CreateFolder(path.Substring(0,cut),path.Substring(cut+1));
+    }
+    private static string Hash(string path)
+    {using(var stream=File.OpenRead(path))using(var sha=SHA256.Create())return BitConverter.ToString(sha.ComputeHash(stream)).Replace("-","");}
+    [Serializable]private sealed class SetupSnapshot{public SavedScene[] scenes;}
+    [Serializable]private sealed class SavedScene{public string path;public bool loaded,active;}
+}

@@ -1,0 +1,93 @@
+/* 装饰窄边界：世界尺度、三种朝向、局部操作和外部Undo组。
+ * 仅在当前已注册工坊地图创建有账本的临时定义/对象；最后撤销测试组并精确删自有fixture。
+ */
+using System;
+using System.Linq;
+using System.Reflection;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEditor;
+using Funplay.Editor.Tools.Scripting;
+using G=Ossastra.GroundResearch;
+using E=Ossastra.GroundResearch.Editor;
+
+public sealed class KT02DecorationEdgeContracts:IFunplayCommand
+{
+    public void Execute(ExecutionContext ctx)
+    {
+        var ok=new List<string>();var bad=new List<string>();Action<string,bool>check=(n,v)=>{(v?ok:bad).Add(n);};
+        var map=UnityEngine.Object.FindObjectsOfType<G.GroundWorkshopMap>().FirstOrDefault(m=>m.gameObject.scene==UnityEngine.SceneManagement.SceneManager.GetActiveScene());
+        if(map==null){ctx.ReturnValue=new{passed=0,failed=1,failedCases=new[]{"需已注册活动工坊地图"}};return;}
+        Undo.IncrementCurrentGroup();int group=Undo.GetCurrentGroup();
+        var fixtures=new List<KeyValuePair<string,G.GroundDecorationDefinition>>();var temporary=new List<GameObject>();
+        Undo.PostprocessModifications callback=null;
+        try
+        {
+            var defs=new List<G.GroundDecorationDefinition>();
+            foreach(G.GroundDecorationMode mode in Enum.GetValues(typeof(G.GroundDecorationMode)))
+            {
+                string path=map.registration.assetFolder+"/__DecorationEdge_"+mode+".asset";
+                if(AssetDatabase.LoadMainAssetAtPath(path)!=null)throw new InvalidOperationException("夹具路径已占用，停止");
+                var definition=UnityEngine.Object.Instantiate(map.theme.decorations[0]);definition.mode=mode;definition.assetId="test.edge."+mode;
+                definition.footpointNormalized=new Vector2(.29f,.21f);definition.scaleRange=Vector2.one;
+                AssetDatabase.CreateAsset(definition,path);fixtures.Add(new KeyValuePair<string,G.GroundDecorationDefinition>(path,definition));defs.Add(definition);
+            }
+            var area=map.surface.EditableCells;
+            var instances=new List<G.GroundDecorationInstance>();
+            for(int i=0;i<defs.Count;i++)instances.Add(E.GroundWorkshopDecorations.Place(map,defs[i],map.surface.grid.GetCellCenterWorld(new Vector3Int(area.xMin+i+1,area.yMin+1,0)),true));
+            check("非均匀祖先下每个新根的世界倍率仍为1",instances.All(i=>(i.transform.lossyScale-Vector3.one).sqrMagnitude<.00001f));
+            var cameraObject=new GameObject("KT02 edge camera",typeof(Camera));temporary.Add(cameraObject);var camera=cameraObject.GetComponent<Camera>();
+            camera.transform.rotation=Quaternion.Euler(61,137,12);
+            var orientation=map.GetComponent<G.GroundDecorationOrientation>();orientation.RefreshForCamera(camera);
+            var flat=instances.Single(i=>i.definition.mode==G.GroundDecorationMode.Flat);
+            var fixedOne=instances.Single(i=>i.definition.mode==G.GroundDecorationMode.FixedUpright);
+            var yawOne=instances.Single(i=>i.definition.mode==G.GroundDecorationMode.UprightYaw);
+            check("Flat视觉位于世界地表平面",Mathf.Abs(Vector3.Dot(flat.visual.forward,Vector3.up))>.999f);
+            check("FixedUpright保持原生根的固定直立",Quaternion.Angle(fixedOne.visual.localRotation,Quaternion.identity)<.001f);
+            check("UprightYaw只取相机Yaw不继承其俯仰和滚转",Quaternion.Angle(yawOne.visual.rotation,Quaternion.Euler(0,137,0))<.001f);
+            bool footpoints=true;
+            foreach(var instance in instances)
+            {
+                var sprite=instance.visual.GetComponent<SpriteRenderer>().sprite;var f=instance.definition.footpointNormalized;
+                var p=new Vector3((f.x*sprite.rect.width-sprite.pivot.x)/sprite.pixelsPerUnit,(f.y*sprite.rect.height-sprite.pivot.y)/sprite.pixelsPerUnit,0);
+                footpoints&=(instance.visual.TransformPoint(p)-(instance.transform.position+Vector3.up*instance.definition.groundOffset)).sqrMagnitude<.00001f;
+            }
+            check("三种朝向均补偿真实pivot且离地沿worldUp",footpoints);
+            var outside=E.GroundWorkshopDecorations.Place(map,defs[0],map.surface.grid.GetCellCenterWorld(new Vector3Int(area.xMax-1,area.yMax-1,0)),false);
+            string outsideId=outside.instanceId;Vector3 outsidePoint=outside.transform.position;
+            var small=new BoundsInt(area.xMin,area.yMin,0,2,2,1);
+            E.GroundWorkshopDecorations.Scatter(map,new[]{defs[0]},small,91,15,.3f,false);
+            E.GroundWorkshopDecorations.EraseGenerated(map,small);
+            check("局部重撒与清生成不触碰选区外生成根",outside!=null&&outside.instanceId==outsideId&&outside.transform.position==outsidePoint);
+            var decorated=E.GroundWorkshopDecorations.Place(map,defs[0],map.surface.grid.GetCellCenterWorld(new Vector3Int(area.xMin+1,area.yMin+1,0)),false);
+            var externalChild=new GameObject("foreign child must remain");temporary.Add(externalChild);externalChild.transform.SetParent(decorated.transform,false);
+            E.GroundWorkshopDecorations.EraseGenerated(map,area);
+            check("有外部子物件的根拒绝当作纯工具对象清除",decorated!=null&&externalChild!=null&&externalChild.transform.parent==decorated.transform);
+
+            var lockTarget=instances[0];bool triggered=false;GameObject foreignUndoObject=null;
+            callback=modifications=>
+            {
+                if(!triggered&&modifications.Any(m=>m.currentValue.target==lockTarget))
+                {
+                    triggered=true;Undo.IncrementCurrentGroup();foreignUndoObject=new GameObject("foreign undo fixture");temporary.Add(foreignUndoObject);
+                    Undo.RegisterCreatedObjectUndo(foreignUndoObject,"external fixture group");
+                }
+                return modifications;
+            };
+            Undo.postprocessModifications+=callback;bool rejected=false;
+            try{E.GroundWorkshopDecorations.SetProtected(lockTarget,true);}catch(InvalidOperationException){rejected=true;}
+            finally{Undo.postprocessModifications-=callback;callback=null;}
+            check("外部Undo组漂移明确拒绝且恢复本次锁",triggered&&rejected&&!lockTarget.isLocked);
+            check("失败回滚没有撤销外部Undo创建的对象",foreignUndoObject!=null);
+        }
+        catch(Exception e){bad.Add("边界合同异常："+(e.InnerException??e));}
+        finally
+        {
+            if(callback!=null)Undo.postprocessModifications-=callback;
+            Undo.RevertAllDownToGroup(group);Undo.IncrementCurrentGroup();
+            foreach(var go in temporary)if(go!=null)UnityEngine.Object.DestroyImmediate(go);
+            foreach(var fixture in fixtures)if(fixture.Value!=null&&AssetDatabase.GetAssetPath(fixture.Value)==fixture.Key)AssetDatabase.DeleteAsset(fixture.Key);
+        }
+        ctx.ReturnValue=new{passed=ok.Count,failed=bad.Count,passedCases=ok,failedCases=bad};
+    }
+}

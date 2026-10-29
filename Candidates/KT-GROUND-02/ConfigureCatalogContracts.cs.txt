@@ -1,0 +1,20 @@
+using System.IO;using UnityEditor;using Funplay.Editor.Tools.Scripting;
+public sealed class ConfigureCatalogContracts:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  const string root="E:/WORLDCREATOR/XingHaiHuiLang/研究/开拓物语地表/KT-GROUND-02";
+  string manifest=root+"/02-catalog/catalog.json",output=root+"/01-evidence/catalog-contracts";
+  if(!File.Exists(manifest))throw new FileNotFoundException(manifest);
+  Directory.CreateDirectory(output);
+  SessionState.SetString("GroundCatalog.TestManifest",manifest);
+  SessionState.SetString("GroundCatalog.TestOutput",output);
+  SessionState.SetString("GroundCatalog.TestImportIds","[\"kt-53a02d5b7999877a4733d5e1\",\"kt-c93658d1b0fcb1d590583217\",\"kt-3504e2a3461a11c3287ff8e2\",\"kt-15fbe741ca5ed239c61c3b9f\"]");
+  SessionState.SetString("GroundCatalog.TestFamilyId","kt-f5080fb859d447f91b6dcef3");
+  Directory.CreateDirectory(root+"/06-delivery");SessionState.SetString("GroundCore.DeliveryRoot",root+"/06-delivery");
+  SessionState.SetString("KT02.RotationArtifacts.Output",root+"/03-tutorial/images/ReferenceRotate");
+  EditorPrefs.SetString("Ossastra.GroundWorkshop.CatalogPath",manifest);
+  EditorPrefs.SetString("Ossastra.GroundWorkshop.HelpRoot",root);
+  ctx.ReturnValue=new{manifest,output,configured=true};
+ }
+}

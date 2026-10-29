@@ -1,6 +1,6 @@
 /*
  * 脚本：GroundLayer
- * 功能：保存一个研究地表图层的 Tilemap、刷子、擦除替代和来源证据。
+ * 功能：保存地表图层的 Tilemap、刷子、擦除替代、作者锁和来源证据。
  * 边界：仅是可序列化作者数据，不执行刷地、不拥有角色状态，也不创建材质。
  * 协作：GroundResearchSurface 限定图层归属；Editor 作者工具使用同一份字段完成编辑。
  */
@@ -15,6 +15,9 @@ namespace Ossastra.GroundResearch
     {
         [Tooltip("作者工具中显示的图层名称。")]
         public string displayName;
+
+        [Tooltip("作者锁；刷子、擦除和工坊批量事务均须拒绝此层写入。")]
+        public bool isLocked;
 
         [Tooltip("必须属于当前地表层级，并使用该地表登记的 Grid。")]
         public Tilemap tilemap;

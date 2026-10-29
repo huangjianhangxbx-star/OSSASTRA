@@ -1,0 +1,19 @@
+/* 真实调用已注册菜单创建本轮新参考场；校验保护原场SHA与两个现有角色链，不写源。 */
+using System;using System.IO;using System.Linq;using System.Security.Cryptography;using UnityEditor;using UnityEngine;using UnityEngine.SceneManagement;using UnityEngine.Tilemaps;using Funplay.Editor.Tools.Scripting;
+using G=Ossastra.GroundResearch;using E=Ossastra.GroundResearch.Editor;using C=Ossastra.Characters;using N=Ossastra.Enemies;
+public sealed class BuildReferenceGroundLab:IFunplayCommand
+{
+ static string Hash(string p){using(var f=File.OpenRead(p))using(var h=SHA256.Create())return Convert.ToBase64String(h.ComputeHash(f));}
+ public void Execute(ExecutionContext ctx)
+ {
+  string source=E.FrontierGroundSceneBuilder.ScenePath,before=Hash(source);
+  if(!EditorApplication.ExecuteMenuItem("Tools/OSSASTRA/地表工坊/打开双角色工坊场"))throw new InvalidOperationException("真实菜单未找到");
+  var scene=SceneManager.GetActiveScene();var all=scene.GetRootGameObjects().SelectMany(r=>r.GetComponentsInChildren<Component>(true)).ToArray();
+  var map=all.OfType<G.GroundWorkshopMap>().Single();
+  ctx.ReturnValue=new{path=scene.path,dirty=scene.isDirty,sourceHashUnchanged=Hash(source)==before,
+   valid=E.GroundWorkshopOwnership.CanEdit(map,out string reason),reason,layerCount=map.surface.layers.Length,area=map.surface.WorldArea,
+   players=all.OfType<C.CharacterRoot>().Select(c=>c.name).ToArray(),enemies=all.OfType<N.EnemyRoot>().Select(c=>new{name=c.name,attacks=c.AttacksEnabled}).ToArray(),
+   registrationFolder=map.registration.assetFolder,colliders=all.OfType<Collider>().Select(c=>new{name=c.name,parent=c.transform.parent==null?"":c.transform.parent.name,type=c.GetType().Name}).ToArray(),
+   recipes=map.theme.layers.Select(l=>new{l.displayName,id=l.recipe.detailAssetId,kind=l.purpose.ToString()}).ToArray()};
+ }
+}

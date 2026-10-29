@@ -1,0 +1,43 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 688c829b165ae1443a1e1a0cd223c364, type: 3}
+  m_Name: Theme_d8ee1ad07b814900a3ee0d045ea8051a
+  m_EditorClassIdentifier: 
+  schemaVersion: 1
+  assetId: original.theme.technical
+  revision: 1
+  displayName: "\u539F\u521B\u6280\u672F\u6837\u672C \xB7 \u4E09\u5C42\u5730\u8868"
+  evidence: "ORIGINAL_GENERATED_TECHNICAL\uFF1A\u672C\u9879\u76EE\u72EC\u7ACB\u6570\u5B66\u751F\u6210\u7684\u539F\u521B\u6280\u672F\u6837\u672C\uFF1B\u4F9B\u63A5\u5165\u3001\u62D3\u6251\u4E0E\u66FF\u6362\u6559\u7A0B\u4F7F\u7528\uFF0C\u4E0D\u4EE3\u8868\u6B63\u5F0F\u7F8E\u672F\u3002"
+  layers:
+  - slotId: base
+    displayName: "\u539F\u521B\u6280\u672F \xB7 \u6280\u672F\u8349\u5730"
+    recipe: {fileID: 11400000, guid: df9f1301829a6d14587cfda7ab3bc8ae, type: 2}
+    purpose: 0
+    locked: 1
+  - slotId: overlay
+    displayName: "\u539F\u521B\u6280\u672F \xB7 \u6280\u672F\u82D4\u5730"
+    recipe: {fileID: 11400000, guid: ce890be7ef9753247bd401ef46afd112, type: 2}
+    purpose: 1
+    locked: 0
+  - slotId: road
+    displayName: "\u539F\u521B\u6280\u672F \xB7 \u6280\u672F\u571F\u77F3\u9053\u8DEF"
+    recipe: {fileID: 11400000, guid: 7b2646c534317274da8de56a91489224, type: 2}
+    purpose: 2
+    locked: 0
+  decorations:
+  - {fileID: 11400000, guid: c9890abb147d77b40beccf0ee485c25c, type: 2}
+  - {fileID: 11400000, guid: 8c48f8ae1c49da0469e6bec89284cdd1, type: 2}
+  - {fileID: 11400000, guid: ab69e17abe6881540b998c71ea078a35, type: 2}
+  densityPer100: 1.4
+  minimumSpacing: 2.7
+  roadExclusionCells: 1
+  seed: 123

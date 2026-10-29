@@ -1,0 +1,100 @@
+/* 装饰作者合同：使用已注册当前地图，调用真实服务；测试结束只撤销本次测试组。
+ * 捕获脚点漂移、全局重撒、手摆/锁丢失、非工具对象被清除、非确定性和共享材质泄漏。
+ */
+using System;
+using System.Linq;
+using System.Reflection;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEditor;
+using Funplay.Editor.Tools.Scripting;
+using G=Ossastra.GroundResearch;
+
+public sealed class KT02DecorationContracts : IFunplayCommand
+{
+    readonly List<string> ok=new List<string>(),bad=new List<string>();
+    Type service;
+    void Check(string name,bool result){(result?ok:bad).Add(name);}
+    object Call(string name,params object[] args){return service.GetMethod(name,BindingFlags.Public|BindingFlags.Static).Invoke(null,args);}
+    bool Reject(Action action){try{action();return false;}catch(TargetInvocationException e){return e.InnerException is InvalidOperationException || e.InnerException is ArgumentException;}catch(InvalidOperationException){return true;}}
+    static string[] Positions(G.GroundWorkshopMap map){return map.decorationRoot.GetComponentsInChildren<G.GroundDecorationInstance>(true).Where(i=>i.generated&&!i.isLocked).Select(i=>i.assetId+":"+i.transform.position.ToString("F5")+":"+i.transform.localScale.ToString("F5")+":"+i.visual.localScale.ToString("F5")).OrderBy(x=>x,StringComparer.Ordinal).ToArray();}
+    public void Execute(ExecutionContext ctx)
+    {
+        service=AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType("Ossastra.GroundResearch.Editor.GroundWorkshopDecorations")).FirstOrDefault(t=>t!=null);
+        Check("缺失装饰服务明确RED，不调用旧散布器",service!=null);
+        if(service==null){ctx.ReturnValue=new{passed=ok.Count,failed=bad.Count,passedCases=ok,failedCases=bad};return;}
+        var map=UnityEngine.Object.FindObjectsOfType<G.GroundWorkshopMap>().FirstOrDefault(m=>m.gameObject.scene==UnityEngine.SceneManagement.SceneManager.GetActiveScene());
+        if(map==null){bad.Add("需先打开已注册工坊测试地图");ctx.ReturnValue=new{passed=ok.Count,failed=bad.Count,passedCases=ok,failedCases=bad};return;}
+        Undo.IncrementCurrentGroup();int testGroup=Undo.GetCurrentGroup();
+        GameObject external=null,cameraObject=null,invalidObject=null;
+        G.GroundDecorationDefinition fixture=null;string fixturePath=map.registration.assetFolder+"/__DecorationContracts.asset";
+        try
+        {
+            var definition=map.theme.decorations.First();
+            if(AssetDatabase.LoadMainAssetAtPath(fixturePath)!=null)throw new InvalidOperationException("测试路径已存在，保留并停止");
+            fixture=UnityEngine.Object.Instantiate(definition);fixture.assetId="test.decoration.footpoint";fixture.footpointNormalized=new Vector2(.31f,.19f);
+            AssetDatabase.CreateAsset(fixture,fixturePath);
+            var area=map.surface.EditableCells;
+            Vector3 point=map.surface.grid.GetCellCenterWorld(new Vector3Int(area.xMin+1,area.yMin+1,0));
+            var manual=(G.GroundDecorationInstance)Call("Place",map,fixture,point,true);
+            Check("手摆根与视觉分离且无默认碰撞",manual!=null&&!manual.generated&&manual.transform.parent==map.decorationRoot&&manual.visual!=null&&manual.visual.parent==manual.transform&&manual.visual.GetComponent<SpriteRenderer>()!=null&&manual.GetComponentsInChildren<Collider>(true).Length==0);
+            string manualId=manual.instanceId;
+            Undo.PerformUndo();Check("一次Undo仅撤销本次Place",!map.decorationRoot.GetComponentsInChildren<G.GroundDecorationInstance>(true).Any(i=>i.instanceId==manualId));
+            Undo.PerformRedo();manual=map.decorationRoot.GetComponentsInChildren<G.GroundDecorationInstance>(true).Single(i=>i.instanceId==manualId);
+            cameraObject=new GameObject("KT02 camera fixture",typeof(Camera));var camera=cameraObject.GetComponent<Camera>();
+            var orientationType=AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType("Ossastra.GroundResearch.GroundDecorationOrientation")).FirstOrDefault(t=>t!=null);
+            var orientation=map.GetComponent(orientationType);
+            Check("每地图仅一个派生朝向组件",orientation!=null&&map.GetComponents(orientationType).Length==1);
+            Vector3 rootPosition=manual.transform.position,rootScale=manual.transform.localScale;Quaternion rootRotation=manual.transform.rotation;
+            bool feet=true;
+            foreach(float yaw in new[]{0f,93f,247f})
+            {
+                camera.transform.rotation=Quaternion.Euler(47f,yaw,0f);
+                orientationType.GetMethod("RefreshForCamera").Invoke(orientation,new object[]{camera});
+                var sprite=manual.visual.GetComponent<SpriteRenderer>().sprite;
+                Vector3 inSprite=new Vector3((fixture.footpointNormalized.x*sprite.rect.width-sprite.pivot.x)/sprite.pixelsPerUnit,(fixture.footpointNormalized.y*sprite.rect.height-sprite.pivot.y)/sprite.pixelsPerUnit,0);
+                feet&=(manual.visual.TransformPoint(inSprite)-(rootPosition+Vector3.up*fixture.groundOffset)).sqrMagnitude<.00001f;
+            }
+            Check("不匹配pivot的脚点在多次转镜头后仍落根位置",feet);
+            Check("朝向刷新不改根手动TRS",manual.transform.position==rootPosition&&manual.transform.rotation==rootRotation&&manual.transform.localScale==rootScale);
+            var locked=(G.GroundDecorationInstance)Call("Place",map,definition,point+new Vector3(.8f,0,.8f),false);
+            Call("SetProtected",locked,true);
+            external=new GameObject("外部物件保持");external.transform.SetParent(map.decorationRoot,false);external.transform.position=point+new Vector3(2,0,2);
+            int count=(int)Call("Scatter",map,new[]{definition},area,5321,3f,.65f,false);
+            string[] first=Positions(map);
+            int repeated=(int)Call("Scatter",map,new[]{definition},area,5321,3f,.65f,false);
+            Check("相同seed/区域/配置重撒可复现",count>0&&count==repeated&&first.SequenceEqual(Positions(map)));
+            Check("重撒保留手摆/锁/外部物件",manual!=null&&locked!=null&&locked.isLocked&&external!=null);
+            var generated=map.decorationRoot.GetComponentsInChildren<G.GroundDecorationInstance>(true).Where(i=>i.generated&&!i.isLocked).ToArray();
+            Check("每株只用同一地图材质资产",generated.All(i=>AssetDatabase.GetAssetPath(i.visual.GetComponent<SpriteRenderer>().sharedMaterial)==map.registration.assetFolder+"/Decoration.mat"));
+            Check("散布上限与实际世界间距",generated.Length<=512&&generated.SelectMany((a,i)=>generated.Skip(i+1).Select(b=>(a.transform.position-b.transform.position).magnitude)).All(d=>d>=.649f));
+            Call("Scatter",map,new[]{definition},area,9743,3f,.65f,false);Check("不同seed产生不同布局",!first.SequenceEqual(Positions(map)));
+            int roadIndex=Array.FindIndex(map.theme.layers,l=>l.purpose==G.GroundLayerPurpose.Road);
+            if(roadIndex>=0)
+            {
+                var road=map.surface.layers[roadIndex];Undo.RegisterCompleteObjectUndo(road.tilemap,"KT02 fixture roads");
+                foreach(Vector3Int cell in area.allPositionsWithin)road.tilemap.SetTile(cell,road.paintTile);
+                int excluded=(int)Call("Scatter",map,new[]{definition},area,5321,3f,.65f,true);
+                Check("真实道路Tilemap排除全部候选",excluded==0&&manual!=null&&locked!=null&&external!=null);
+            }
+            else bad.Add("测试地图缺道路层");
+            Call("Scatter",map,new[]{definition},area,5321,3f,.65f,false);
+            int erased=(int)Call("EraseGenerated",map,area);
+            Check("清生成仅删除指定区域未锁的本工具对象",erased>0&&Positions(map).Length==0&&manual!=null&&locked!=null&&external!=null);
+            invalidObject=new GameObject("invalid decoration",typeof(G.GroundDecorationInstance));
+            var invalid=invalidObject.GetComponent<G.GroundDecorationInstance>();
+            Check("拒绝锁定非工具实例",Reject(()=>Call("SetProtected",invalid,true)));
+            Check("拒绝范围外放置",Reject(()=>Call("Place",map,definition,map.surface.WorldBounds.max+new Vector3(100,0,100),true)));
+            Check("拒绝无注册地图",Reject(()=>Call("Place",null,definition,point,true)));
+            Check("拒绝非法散布参数且不改现有对象",Reject(()=>Call("Scatter",map,new[]{definition},area,1,float.NaN,.65f,false))&&Reject(()=>Call("Scatter",map,new[]{definition},area,1,3f,0f,false))&&manual!=null&&locked!=null);
+        }
+        catch(Exception e){bad.Add("真实装饰合同异常："+(e.InnerException??e));}
+        finally
+        {
+            Undo.RevertAllDownToGroup(testGroup);Undo.IncrementCurrentGroup();
+            foreach(var go in new[]{external,cameraObject,invalidObject})if(go!=null)UnityEngine.Object.DestroyImmediate(go);
+            if(fixture!=null&&AssetDatabase.GetAssetPath(fixture)==fixturePath)AssetDatabase.DeleteAsset(fixturePath);
+        }
+        ctx.ReturnValue=new{passed=ok.Count,failed=bad.Count,passedCases=ok,failedCases=bad};
+    }
+}

@@ -1,0 +1,12 @@
+// 只丢弃本任务合同留下的已验证等价dirty；不是通用用户场景清理入口。
+using System;using UnityEditor.SceneManagement;using UnityEngine.SceneManagement;using Funplay.Editor.Tools.Scripting;
+using E=Ossastra.GroundResearch.Editor;
+public sealed class ReopenOwnedGroundOriginal:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  var s=SceneManager.GetActiveScene();if(s.path!=E.GroundWorkshopOwnership.OriginalScene)throw new InvalidOperationException("仅允许本轮OriginalLab，拒绝其他场景。");
+  var opened=EditorSceneManager.OpenScene(E.GroundWorkshopOwnership.OriginalScene,OpenSceneMode.Single);
+  ctx.ReturnValue=new{path=opened.path,dirty=opened.isDirty};
+ }
+}

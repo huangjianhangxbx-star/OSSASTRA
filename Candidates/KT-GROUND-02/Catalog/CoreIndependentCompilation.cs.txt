@@ -1,0 +1,111 @@
+/* Native独立Editor Core源码编译：只输入25文件，默认引用按引擎安装目录+三个实际包提供者白名单过滤。
+ * 不引用当前项目玩法程序集；不在Assets/Library创建程序集，不调用AssetDatabase.Refresh，不运行生成DLL。
+ * AssemblyBuilder是异步API：立即返回accepted不等于通过；root按receipt JSON读finished与真实CompilerMessage。
+ * 前置：GroundCore.DeliveryRoot为已存在Assets外06-delivery；上次Queued/Compiling未结束时拒绝重放。
+ */
+using System;
+using System.IO;
+using System.Linq;
+using System.Security.Cryptography;
+using Funplay.Editor.Tools.Scripting;
+using Newtonsoft.Json.Linq;
+using UnityEditor;
+using UnityEditor.Compilation;
+using UnityEditor.Tilemaps;
+using UnityEngine;
+
+public sealed class CoreIndependentCompilation : IFunplayCommand
+{
+    public void Execute(ExecutionContext ctx)
+    {
+        if(EditorApplication.isPlayingOrWillChangePlaymode||EditorApplication.isCompiling||EditorApplication.isUpdating)
+            throw new InvalidOperationException("必须返回ready Edit后单独运行Core编译。");
+        string delivery=SessionState.GetString("GroundCore.DeliveryRoot","");
+        if(string.IsNullOrEmpty(delivery)||!Directory.Exists(delivery))throw new InvalidOperationException("需要明确已存在的外部06-delivery。");
+        string assets=Canonical(Application.dataPath).TrimEnd('/')+"/";
+        string deliveryFull=Canonical(delivery).TrimEnd('/')+"/";
+        if(deliveryFull.StartsWith(assets,StringComparison.OrdinalIgnoreCase))throw new InvalidOperationException("输出必须在Assets外。");
+        string old=SessionState.GetString("GroundCore.CompilationReceipt","");
+        if(File.Exists(old))
+        {
+            string phase=(string)JObject.Parse(File.ReadAllText(old))["phase"];
+            if(phase=="Queued"||phase=="Compiling")throw new InvalidOperationException("先读已有编译回执，不重放："+old);
+        }
+        string sourceRoot=Path.Combine(Application.dataPath,"OSSASTRA/Scripts/GroundResearch");
+        string[] excludedFiles={"GroundSourceImporter.cs","FrontierGroundSceneBuilder.cs","FrontierGroundBrushWindow.cs","GroundResearchView.cs","GroundWorkshopPlaygroundBuilder.cs","GroundWorkshopPlaygroundSession.cs"};
+        string[] files=Directory.GetFiles(sourceRoot,"*.cs",SearchOption.AllDirectories).Where(p=>!excludedFiles.Contains(Path.GetFileName(p),StringComparer.Ordinal))
+            .Select(Path.GetFullPath).OrderBy(p=>p,StringComparer.Ordinal).ToArray();
+        if(files.Length!=25)throw new InvalidOperationException("Core源码数不是25；未开始编译："+files.Length);
+        var providers=new[]{typeof(UnityEngine.RuleTile).Assembly,typeof(GridBrush).Assembly,typeof(JObject).Assembly};
+        string[] packageReferences=providers.Select(a=>Path.GetFullPath(a.Location)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        if(providers.Any(a=>a.GetName().Name=="Assembly-CSharp"||a.GetName().Name=="Assembly-CSharp-Editor")||
+            packageReferences.Length!=3||packageReferences.Any(p=>!File.Exists(p)))
+            throw new InvalidOperationException("RuleTile/GridBrush/Newtonsoft没有三个独立可验证提供程序集，不能借项目DLL掩盖缺依赖。");
+        string runId=Guid.NewGuid().ToString("N"),folder=Path.Combine(delivery,"Compile_"+runId);
+        if(Directory.Exists(folder))throw new InvalidOperationException("本次输出目录意外存在。");
+        Directory.CreateDirectory(folder);
+        string dll=Path.Combine(folder,"GroundWorkshop.Core.Independent.Editor.dll"),receiptPath=Path.Combine(folder,"compilation.json");
+        var builder=new AssemblyBuilder(dll,files)
+        {
+            flags=AssemblyBuilderFlags.EditorAssembly,
+            referencesOptions=ReferencesOptions.UseEngineModules,
+            additionalDefines=Array.Empty<string>()
+        };
+        string editorData=Canonical(EditorApplication.applicationContentsPath).TrimEnd('/')+"/";
+        Func<string,bool> isEngine=path=>Canonical(path).StartsWith(editorData,StringComparison.OrdinalIgnoreCase);
+        Func<string,bool> isDeclaredPackage=path=>packageReferences.Any(p=>string.Equals(Canonical(path),Canonical(p),StringComparison.OrdinalIgnoreCase));
+        string[] defaults=builder.defaultReferences;
+        string[] allowedDefaults=defaults.Where(path=>isEngine(path)||isDeclaredPackage(path)).ToArray();
+        builder.excludeReferences=defaults.Except(allowedDefaults,StringComparer.Ordinal).ToArray();
+        builder.additionalReferences=packageReferences.Where(p=>!allowedDefaults.Any(d=>string.Equals(Canonical(d),Canonical(p),StringComparison.OrdinalIgnoreCase))).ToArray();
+        string[] effective=allowedDefaults.Concat(builder.additionalReferences).Select(Canonical).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(p=>p,StringComparer.Ordinal).ToArray();
+        if(effective.Any(p=>!isEngine(p)&&!isDeclaredPackage(p))||effective.Any(p=>Path.GetFileName(p)=="Assembly-CSharp.dll"||Path.GetFileName(p)=="Assembly-CSharp-Editor.dll"))
+            throw new InvalidOperationException("最终引用仍含未声明项目DLL，未Build。");
+        var sourceHashes=files.ToDictionary(p=>p,Hash,StringComparer.OrdinalIgnoreCase);
+        var receipt=new JObject
+        {
+            {"format","ground-workshop-independent-editor-core-compilation"},{"schemaVersion",1},{"runId",runId},{"phase","Queued"},
+            {"accepted",false},{"finished",false},{"passed",false},{"outputDll",dll},{"sourceCount",files.Length},
+            {"sources",new JArray(files.Select(p=>new JObject{{"path",p},{"sha256",sourceHashes[p]}}))},
+            {"excludedSourceNames",new JArray(excludedFiles)},{"excludedReferences",new JArray(builder.excludeReferences)},
+            {"effectiveReferences",new JArray(effective)},{"additionalReferences",new JArray(builder.additionalReferences)},
+            {"declaredPackageProviders",new JArray(providers.Select(a=>new JObject{{"assembly",a.GetName().Name},{"path",a.Location}}))},
+            {"flags",builder.flags.ToString()},{"referencesOptions",builder.referencesOptions.ToString()},
+            {"defaultDefines",new JArray(builder.defaultDefines)},{"logMessages",new JArray()},
+            {"scope","真实独立Editor Core源编译；未验证Player构建、Shader编译或空工程导入。"}
+        };
+        Action write=()=>File.WriteAllText(receiptPath,receipt.ToString());
+        write();SessionState.SetString("GroundCore.CompilationReceipt",receiptPath);
+        builder.buildStarted+=path=>{receipt["phase"]="Compiling";receipt["startedUtc"]=DateTime.UtcNow.ToString("o");write();};
+        builder.buildFinished+=(path,messages)=>
+        {
+            try
+            {
+                if(messages==null)messages=Array.Empty<CompilerMessage>();
+                int errors=messages.Count(m=>m.type==CompilerMessageType.Error),warnings=messages.Count(m=>m.type==CompilerMessageType.Warning);
+                bool sourceUnchanged=sourceHashes.All(row=>File.Exists(row.Key)&&Hash(row.Key)==row.Value);
+                bool outputExists=File.Exists(dll)&&new FileInfo(dll).Length>0;
+                receipt["phase"]="Finished";receipt["finished"]=true;receipt["finishedUtc"]=DateTime.UtcNow.ToString("o");
+                receipt["errors"]=errors;receipt["warnings"]=warnings;receipt["sourceUnchanged"]=sourceUnchanged;
+                receipt["outputExists"]=outputExists;receipt["passed"]=errors==0&&outputExists&&sourceUnchanged;
+                receipt["outputBytes"]=outputExists?new FileInfo(dll).Length:0;
+                receipt["outputSha256"]=outputExists?Hash(dll):null;
+                receipt["logMessages"]=new JArray(messages.Select(m=>new JObject{{"type",m.type.ToString()},{"message",m.message},{"file",m.file},{"line",m.line},{"column",m.column}}));
+                write();
+            }
+            catch(Exception error){receipt["phase"]="ReceiptFailure";receipt["finished"]=true;receipt["passed"]=false;receipt["failure"]=error.ToString();write();}
+        };
+        bool accepted;
+        try{accepted=builder.Build();}
+        catch(Exception error){receipt["phase"]="StartFailure";receipt["finished"]=true;receipt["passed"]=false;receipt["failure"]=error.ToString();write();throw;}
+        receipt["accepted"]=accepted;
+        if(!accepted){receipt["phase"]="Rejected";receipt["finished"]=true;receipt["passed"]=false;}
+        write();
+        ctx.ReturnValue=new{accepted,finished=false,passed=false,receiptPath,sourceCount=files.Length,excludedReferences=builder.excludeReferences.Length,
+            effectiveReferences=effective.Length,declaredPackageProviders=providers.Select(a=>a.GetName().Name).ToArray(),
+            note="异步请求已登记；只以receipt.finished=true及实际CompilerMessage判定结果。若失联先读同一receipt，不重放Build。"};
+    }
+    private static string Canonical(string path)=>Path.GetFullPath(path).Replace('\\','/');
+    private static string Hash(string path)
+    {using(var stream=File.OpenRead(path))using(var sha=SHA256.Create())return BitConverter.ToString(sha.ComputeHash(stream)).Replace("-","").ToLowerInvariant();}
+}

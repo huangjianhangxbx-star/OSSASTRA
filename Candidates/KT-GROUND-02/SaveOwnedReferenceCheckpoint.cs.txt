@@ -1,0 +1,11 @@
+/* 本轮独有参考场配置提交后，先刷新待写Undo记录，再保存已验证注册的当前checkpoint。 */
+using System;using System.Linq;using UnityEditor;using UnityEngine.SceneManagement;using Funplay.Editor.Tools.Scripting;using G=Ossastra.GroundResearch;using E=Ossastra.GroundResearch.Editor;
+public sealed class SaveOwnedReferenceCheckpoint:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  var s=SceneManager.GetActiveScene();if(SceneManager.sceneCount!=1||s.path!=E.GroundWorkshopOwnership.ReferenceScene||E.GroundWorkshopPlaygroundSession.HasSession)throw new InvalidOperationException("只保存本轮独有Reference checkpoint");
+  var map=s.GetRootGameObjects().SelectMany(r=>r.GetComponentsInChildren<G.GroundWorkshopMap>(true)).Single();E.GroundWorkshopOwnership.Require(map);Undo.FlushUndoRecordObjects();E.GroundWorkshopMaps.Save(map);
+  ctx.ReturnValue=new{s.path,s.isDirty,count=map.decorationRoot.childCount,modes=map.theme.decorations.Select(d=>d.mode.ToString()).ToArray()};
+ }
+}

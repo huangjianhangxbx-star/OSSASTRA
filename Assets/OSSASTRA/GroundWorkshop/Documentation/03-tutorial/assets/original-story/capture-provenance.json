@@ -1,0 +1,88 @@
+{
+  "format": "ground-workshop-original-capture-provenance",
+  "version": "1",
+  "storyId": "Story_af1facdf26994ef4ab3c532ec4a83005",
+  "scope": "Original-only ground and decorations, NativeCamera.Render full frames; no third-party character/reference media, not an Editor window capture.",
+  "authorFixture": {
+    "baseCells": 192,
+    "overlayCells": 32,
+    "roadCells": 19,
+    "roadConnectivity": "four-neighbor connected branch",
+    "decorations": 44
+  },
+  "logicPassed": true,
+  "baselineRestored": true,
+  "sceneDiskShaUnchanged": true,
+  "captures": [
+    {
+      "file": "Original_Before.png",
+      "width": 1024,
+      "height": 576,
+      "method": "NativeCamera.Render",
+      "sha256": "8e3768dac0170aa6f32f1880bc356942aaaac63334d9c5b47a9b1a8dbb30e355",
+      "description": "Original相机，全层原始帧；Baseline"
+    },
+    {
+      "file": "Original_AfterReplacement.png",
+      "width": 1024,
+      "height": 576,
+      "method": "NativeCamera.Render",
+      "sha256": "8f3ecdbcbcbca5f3b7fa137cac0b36a546b1bfd593ff0d34534cf01a2fc15c91",
+      "description": "Original相机，全层原始帧；Overlay换自有底纹"
+    },
+    {
+      "file": "Original_EdgeClose.png",
+      "width": 1024,
+      "height": 576,
+      "method": "NativeCamera.Render",
+      "sha256": "2fe444a479e771838cf33928628509139701b298549cde1f592497f9cdd8c523",
+      "description": "Original相机临时近景；未裁剪图像"
+    },
+    {
+      "file": "Original_Base.png",
+      "width": 1024,
+      "height": 576,
+      "method": "NativeCamera.Render",
+      "sha256": "ba9f4d7df4311007b4d9c1df5836217f67746c9895dd8f62172362623cd9bd46",
+      "description": "Original相机全帧，临时仅显示该地表层；装饰隐藏"
+    },
+    {
+      "file": "Original_Overlay.png",
+      "width": 1024,
+      "height": 576,
+      "method": "NativeCamera.Render",
+      "sha256": "33c5eff797a33bbd270988cc2cc3c106f0e63c2936cc590ed0b0b967adb578c6",
+      "description": "Original相机全帧，临时仅显示该地表层；装饰隐藏"
+    },
+    {
+      "file": "Original_Road.png",
+      "width": 1024,
+      "height": 576,
+      "method": "NativeCamera.Render",
+      "sha256": "6fe092a947a1f8817504e29980561c9fb0863fa26b581fb1c2e8f233de787547",
+      "description": "Original相机全帧，临时仅显示该地表层；装饰隐藏"
+    },
+    {
+      "file": "Original_Overlay_DebugMask.png",
+      "width": 1024,
+      "height": 576,
+      "method": "NativeCamera.Render",
+      "sha256": "74f2eab734f6a771d2b706de4928f43e25f935c01b92027009a62b89bce0816e",
+      "description": "Original相机全帧，真实Shader _DebugMask=1；未后处理"
+    }
+  ],
+  "practice": [
+    {
+      "file": "../../../04-art-guide/assets/OriginalTechnical32.png",
+      "width": 32,
+      "height": 32,
+      "sha256": "1ac20dcc5d22ff36cd1af4caf8f592e8c3379cc1ba079bfdb17f9278efa21d01"
+    },
+    {
+      "file": "../../../04-art-guide/assets/OriginalTechnical32_3x3.png",
+      "width": 96,
+      "height": 96,
+      "sha256": "4337eef0817c389dacca725fd837dffeb19b81b479e7f9af257486b4e8ff73c9"
+    }
+  ]
+}

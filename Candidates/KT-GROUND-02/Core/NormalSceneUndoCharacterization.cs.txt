@@ -1,0 +1,89 @@
+/* 普通loaded additive Scene的Native Undo对照。所有Tile/材质只借用persistent资产，不创建/保存资产。
+ * 第一轮保留原Palette target，第二轮暂指向自有Tilemap；finally只关闭自有临时Scene，恢复active/brush/target。
+ */
+using System;
+using System.IO;
+using System.Linq;
+using System.Collections.Generic;
+using System.Security.Cryptography;
+using UnityEngine;
+using UnityEditor;
+using UnityEditor.EditorTools;
+using UnityEditor.SceneManagement;
+using UnityEditor.Tilemaps;
+using UnityEngine.SceneManagement;
+using UnityEngine.Tilemaps;
+using Funplay.Editor.Tools.Scripting;
+using G=Ossastra.GroundResearch;
+using E=Ossastra.GroundResearch.Editor;
+
+public sealed class KT02NormalSceneUndoCharacterization:IFunplayCommand
+{
+    static string SetupSignature(SceneSetup[] setup)=>string.Join("|",setup.Select(s=>s.path+":"+s.isLoaded+":"+s.isActive));
+    static string Hash(string path){if(!File.Exists(path))return "missing";using(var input=File.OpenRead(path))using(var sha=SHA256.Create())return Convert.ToBase64String(sha.ComputeHash(input));}
+    static object Attributes(Tilemap tilemap,Vector3Int cell)=>new{tile=AssetDatabase.GetAssetPath(tilemap.GetTile(cell)),flags=(int)tilemap.GetTileFlags(cell),matrix=tilemap.GetTransformMatrix(cell).ToString("F6")};
+    public void Execute(ExecutionContext ctx)
+    {
+        var setup=EditorSceneManager.GetSceneManagerSetup();var active=SceneManager.GetActiveScene();
+        var productScenes=Enumerable.Range(0,SceneManager.sceneCount).Select(SceneManager.GetSceneAt).ToArray();var dirtyBefore=productScenes.Select(s=>s.isDirty).ToArray();
+        var oldBrush=GridPaintingState.gridBrush;var oldTarget=GridPaintingState.scenePaintTarget;Type oldTool=ToolManager.activeToolType;
+        Scene own=default;Tilemap map=null;int firstGroup=-1;bool contextRestored=false,paletteRestored=false;
+        var snapshots=new List<object>();var hashes=new Dictionary<string,string>();string error=null,cleanupError=null;
+        try
+        {
+            if(EditorApplication.isPlayingOrWillChangePlaymode||E.GroundWorkshopAuthoring.HasPreview)throw new InvalidOperationException("需要Edit模式且无现有用户预览");
+            // 工坊在切active Scene时会销毁独占画笔；先拒绝这种前置条件，不能称为可精确恢复同一brush对象。
+            if(oldBrush!=null&&oldBrush.GetType().Name=="FrontierGroundBrush")throw new InvalidOperationException("请root先ReleaseAuthoring释放工坊独占画笔，再运行；探针不销毁旧brush");
+            var product=active.GetRootGameObjects().SelectMany(r=>r.GetComponentsInChildren<G.GroundWorkshopMap>(true)).Single();E.GroundWorkshopOwnership.Require(product);
+            var families=new[]{"Rounded","Chamfered"}.Select(name=>AssetDatabase.LoadAssetAtPath<G.GroundEdgeFamily>(E.GroundWorkshopOriginalAssets.Root+"/Originals/Edges/"+name+".asset")).ToArray();
+            if(families.Any(f=>f==null||!(f.paintTemplate is RuleTile)))throw new InvalidOperationException("需已存在两份原创persistent RuleTile，探针不生成");
+            TileBase original=families[0].paintTemplate,replacement=families[1].paintTemplate;
+            var materials=product.layerBindings.Where(b=>b.ownedMaterial!=null&&EditorUtility.IsPersistent(b.ownedMaterial)).Select(b=>b.ownedMaterial).Distinct().Take(2).ToArray();
+            if(materials.Length!=2)throw new InvalidOperationException("需两份已存在persistent地表材质");
+            foreach(var asset in new UnityEngine.Object[]{original,replacement,materials[0],materials[1]})
+                foreach(string file in new[]{AssetDatabase.GetAssetPath(asset),AssetDatabase.GetAssetPath(asset)+".meta"})hashes[file]=Hash(file);
+            foreach(var scene in productScenes)if(!string.IsNullOrEmpty(scene.path))hashes[scene.path]=Hash(scene.path);
+            own=EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Additive);SceneManager.SetActiveScene(own);
+            var gridObject=new GameObject("KT02 Normal Scene Native Undo Probe");var grid=gridObject.AddComponent<Grid>();
+            var tileObject=new GameObject("Normal Scene Two Cells");tileObject.transform.SetParent(grid.transform,false);map=tileObject.AddComponent<Tilemap>();var renderer=tileObject.AddComponent<TilemapRenderer>();
+            Vector3Int a=Vector3Int.zero,b=Vector3Int.right;var matrix=Matrix4x4.TRS(new Vector3(.13f,.07f,0),Quaternion.Euler(0,0,13),new Vector3(.83f,1.09f,1));
+            Action manual=()=>{map.SetTileFlags(a,TileFlags.None);map.SetTransformMatrix(a,matrix);};
+            Action<string,bool> trial=(label,ownTarget)=>
+            {
+                if(ownTarget)GridPaintingState.scenePaintTarget=tileObject;
+                map.SetTile(a,original);map.SetTile(b,original);renderer.sharedMaterial=materials[0];map.RefreshAllTiles();manual();
+                snapshots.Add(new{phase=label+" before",a=Attributes(map,a),material=AssetDatabase.GetAssetPath(renderer.sharedMaterial),ownPaletteTarget=GridPaintingState.scenePaintTarget==tileObject});
+                Undo.IncrementCurrentGroup();int group=Undo.GetCurrentGroup();if(firstGroup<0)firstGroup=group;
+                Undo.SetCurrentGroupName("KT02 normal scene "+label);Undo.RegisterCompleteObjectUndo(new UnityEngine.Object[]{map,renderer},"KT02 normal scene "+label);
+                map.SetTile(a,replacement);map.SetTile(b,replacement);renderer.sharedMaterial=materials[1];map.RefreshAllTiles();manual();
+                Undo.FlushUndoRecordObjects();Undo.CollapseUndoOperations(group);Undo.IncrementCurrentGroup();
+                snapshots.Add(new{phase=label+" committed",a=Attributes(map,a),material=AssetDatabase.GetAssetPath(renderer.sharedMaterial)});
+                Undo.PerformUndo();snapshots.Add(new{phase=label+" after Native Undo",a=Attributes(map,a),material=AssetDatabase.GetAssetPath(renderer.sharedMaterial)});
+                Undo.PerformRedo();snapshots.Add(new{phase=label+" after Native Redo",a=Attributes(map,a),material=AssetDatabase.GetAssetPath(renderer.sharedMaterial)});
+                SceneView.RepaintAll();snapshots.Add(new{phase=label+" after SceneView.RepaintAll request",a=Attributes(map,a),material=AssetDatabase.GetAssetPath(renderer.sharedMaterial),repaintIsQueued=true});
+            };
+            trial("original Palette target",false);trial("own Palette target",true);
+        }
+        catch(Exception e){error=(e.InnerException??e).ToString();}
+        finally
+        {
+            try
+            {
+                if(firstGroup>=0){Undo.FlushUndoRecordObjects();Undo.RevertAllDownToGroup(firstGroup);Undo.IncrementCurrentGroup();}
+                if(map!=null)Undo.ClearUndo(map);
+                // 先移除临时target，关闭仅本次拥有的Scene；正常product Scene保持loaded，从不Save/重载。
+                if(GridPaintingState.scenePaintTarget!=oldTarget)GridPaintingState.scenePaintTarget=oldTarget;
+                if(active.IsValid()&&active.isLoaded)SceneManager.SetActiveScene(active);
+                if(own.IsValid()&&own.isLoaded)EditorSceneManager.CloseScene(own,true);
+                if(GridPaintingState.gridBrush!=oldBrush)GridPaintingState.gridBrush=oldBrush;
+                if(oldTool!=null&&ToolManager.activeToolType!=oldTool)ToolManager.SetActiveTool(oldTool);
+                if(GridPaintingState.scenePaintTarget!=oldTarget)GridPaintingState.scenePaintTarget=oldTarget;
+                paletteRestored=GridPaintingState.gridBrush==oldBrush&&GridPaintingState.scenePaintTarget==oldTarget;
+                contextRestored=SetupSignature(EditorSceneManager.GetSceneManagerSetup())==SetupSignature(setup);
+            }
+            catch(Exception e){cleanupError=e.ToString();}
+        }
+        ctx.ReturnValue=new{error,cleanupError,contextRestored,paletteRestored,
+            productDirtyFlagsUnchanged=productScenes.Select(s=>s.isDirty).SequenceEqual(dirtyBefore),borrowedAssetsAndProductScenesUnchanged=hashes.All(pair=>Hash(pair.Key)==pair.Value),snapshots};
+    }
+}

@@ -1,0 +1,183 @@
+/* Native显式导出计划/执行：25 Core源码+2 Shader+原创样板/全集模板/教学配方/公开文档精确白名单。
+ * 不使用IncludeDependencies/Recurse，不复制Packages、旧参考场/素材、六个玩法适配/旧工具模块。
+ * GroundCore.DeliveryRoot：已存在、Assets外06-delivery；GroundCore.ExportExecute默认false只出计划。
+ * 执行需GroundCore.ApprovedExportPlanHash等于上次实际计划SHA，且目标unitypackage尚不存在。
+ * GroundCore.StoryRecipePaths为明确recipe与PNG两条Assets路径的JSON数组；PublicDocumentationManifest为外部原创建档路径。
+ */
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
+using Funplay.Editor.Tools.Scripting;
+using Newtonsoft.Json.Linq;
+using UnityEditor;
+using UnityEngine;
+using Ossastra.GroundResearch;
+using Ossastra.GroundResearch.Editor;
+
+public sealed class CoreExportPackageContracts : IFunplayCommand
+{
+    public void Execute(ExecutionContext ctx)
+    {
+        if(!GroundWorkshopOwnership.ContextReady(out string reason))throw new InvalidOperationException(reason);
+        string output=Path.GetFullPath(SessionState.GetString("GroundCore.DeliveryRoot",""));
+        string assets=Path.GetFullPath(Application.dataPath).TrimEnd(Path.DirectorySeparatorChar)+Path.DirectorySeparatorChar;
+        if(!Directory.Exists(output)||(output.TrimEnd(Path.DirectorySeparatorChar)+Path.DirectorySeparatorChar).StartsWith(assets,StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("需要明确已存在Assets外的06-delivery。");
+        string coreRoot="Assets/OSSASTRA/Scripts/GroundResearch";
+        string[] excludedNames={"GroundSourceImporter.cs","FrontierGroundSceneBuilder.cs","FrontierGroundBrushWindow.cs","GroundResearchView.cs","GroundWorkshopPlaygroundBuilder.cs","GroundWorkshopPlaygroundSession.cs"};
+        string[] core=Directory.GetFiles(coreRoot,"*.cs",SearchOption.AllDirectories).Select(p=>p.Replace('\\','/'))
+            .Where(p=>!excludedNames.Contains(Path.GetFileName(p),StringComparer.Ordinal)).OrderBy(p=>p,StringComparer.Ordinal).ToArray();
+        if(core.Length!=25)throw new InvalidOperationException("Core白名单计数发生变化，未导出："+core.Length);
+        string[] shaders={coreRoot+"/Shaders/GroundMaskWorld.shader",coreRoot+"/Shaders/GroundDecorationCutout.shader"};
+        string scenePath=GroundWorkshopOwnership.OriginalScene;
+        if(AssetDatabase.LoadAssetAtPath<SceneAsset>(scenePath)==null)throw new InvalidOperationException("原创样板尚不存在，未导出。");
+        string[] sceneClosure=AssetDatabase.GetDependencies(scenePath,true).OrderBy(p=>p,StringComparer.Ordinal).ToArray();
+        var registrations=sceneClosure.Where(p=>AssetDatabase.GetMainAssetTypeAtPath(p)==typeof(GroundMapRegistration))
+            .Select(p=>AssetDatabase.LoadAssetAtPath<GroundMapRegistration>(p)).Where(r=>r!=null&&r.scenePath==scenePath).ToArray();
+        if(registrations.Length!=1)throw new InvalidOperationException("原创场注册身份不唯一，未猜测地图目录。");
+        var registration=registrations[0];
+        if(registration.owner!="Ossastra.GroundWorkshop"||!Guid.TryParseExact(registration.mapId,"N",out _)||
+            registration.assetFolder!=GroundWorkshopOwnership.Root+"/Maps/"+registration.mapId)
+            throw new InvalidOperationException("原创场mapId/资源归属无效。");
+        string originalRoot=GroundWorkshopOwnership.Root+"/Originals";
+        string[] originals=KnownOriginals().OrderBy(p=>p,StringComparer.Ordinal).ToArray();
+        string[] discovered=AssetDatabase.FindAssets("",new[]{originalRoot}).Select(AssetDatabase.GUIDToAssetPath).Where(p=>!AssetDatabase.IsValidFolder(p)).Distinct(StringComparer.Ordinal).ToArray();
+        if(originals.Length!=22||originals.Any(p=>!discovered.Contains(p,StringComparer.Ordinal)))
+            throw new InvalidOperationException("已知自有Originals全集应有22文件；发现缺项，未用任意目录内容代替。");
+        string[] unselectedOriginals=discovered.Except(originals,StringComparer.Ordinal).OrderBy(p=>p,StringComparer.Ordinal).ToArray();
+        string themePath=GroundWorkshopOwnership.Root+"/Palettes/OriginalTechnicalTheme.asset";
+        if(AssetDatabase.LoadAssetAtPath<GroundTheme>(themePath)==null)throw new InvalidOperationException("缺少原生OriginalTechnicalTheme。");
+        string[] storyPaths=ReadStoryPaths(originals);
+        string manifestPath=SessionState.GetString("GroundCore.PublicDocumentationManifest","");
+        string[] documentation=ReadDocumentation(manifestPath);
+        var seeds=core.Concat(shaders).Concat(new[]{scenePath,themePath}).Concat(originals).Concat(storyPaths).Concat(documentation).Distinct(StringComparer.Ordinal).ToArray();
+        string[] closure=AssetDatabase.GetDependencies(seeds,true).OrderBy(p=>p,StringComparer.Ordinal).ToArray();
+        var sceneSet=new HashSet<string>(sceneClosure,StringComparer.Ordinal);
+        var explicitPaths=new HashSet<string>(seeds,StringComparer.Ordinal);
+        var packageDependencies=new List<string>();var builtinDependencies=new List<string>();var rejected=new List<string>();
+        foreach(string path in closure)
+        {
+            if(explicitPaths.Contains(path))continue;
+            if(path.StartsWith("Packages/",StringComparison.Ordinal))
+            {
+                if(AllowedPackage(path))packageDependencies.Add(path);else rejected.Add(path);
+                continue;
+            }
+            if(path=="Resources/unity_builtin_extra"||path.StartsWith("Library/unity ",StringComparison.Ordinal)){builtinDependencies.Add(path);continue;}
+            // 私有地图资源只接受原Scene真实闭包；不枚举目录，更不顺带打进Undo历史孤儿。
+            // Originals/Palettes/Docs已以明确seed列齐，任何额外陌生引用仍拒绝。
+            if(GroundWorkshopOwnership.IsUnder(path,registration.assetFolder)&&sceneSet.Contains(path))
+            {explicitPaths.Add(path);continue;}
+            rejected.Add(path);
+        }
+        // 包引用保留为外部先决条件，不把任何第三方包通过递归导出带入；未知Assets引用整批拒绝。
+        string[] paths=explicitPaths.OrderBy(p=>p,StringComparer.Ordinal).ToArray();
+        if(paths.Any(AssetDatabase.IsValidFolder)||paths.Any(p=>!File.Exists(p)||!File.Exists(p+".meta"))||
+            paths.Any(p=>excludedNames.Contains(Path.GetFileName(p),StringComparer.Ordinal))||rejected.Count!=0)
+            throw new InvalidOperationException("显式闭包含缺失/文件夹/排除模块或外部Assets引用，未导出："+string.Join(",",rejected));
+        long bytes=paths.Sum(p=>new FileInfo(p).Length+new FileInfo(p+".meta").Length);
+        if(bytes>64L*1024*1024)throw new InvalidOperationException("原创Core+样板输入超过64MiB，小型交付预算不符，未导出。");
+        var rows=paths.Select(p=>new JObject{{"path",p},{"guid",AssetDatabase.AssetPathToGUID(p)},{"sha256",HashFile(p)},{"metaSha256",HashFile(p+".meta")}}).ToArray();
+        string canonical=string.Join("\n",rows.Select(row=>(string)row["path"]+"\t"+(string)row["guid"]+"\t"+(string)row["sha256"]+"\t"+(string)row["metaSha256"]))+
+            "\nPublicDocumentationManifest:"+HashFile(manifestPath)+"\nStoryRecipePaths:"+string.Join("|",storyPaths);
+        string planHash=HashText(canonical);
+        string planPath=Path.Combine(output,"CoreExportPlan_"+planHash.Substring(0,16)+".json");
+        var plan=new JObject
+        {
+            {"format","ground-workshop-core-export-plan"},{"schemaVersion",2},{"planHash",planHash},{"coreFiles",core.Length},{"shaders",shaders.Length},
+            {"scenePath",scenePath},{"mapId",registration.mapId},{"mapAssetFolder",registration.assetFolder},{"inputBytes",bytes},
+            {"paths",new JArray(rows)},{"excludedFileNames",new JArray(excludedNames)},
+            {"knownOriginalFiles",new JArray(originals)},{"unselectedOriginalFiles",new JArray(unselectedOriginals)},{"originalTheme",themePath},
+            {"storyRecipePaths",new JArray(storyPaths)},{"publicDocumentationManifest",manifestPath},{"documentationFiles",new JArray(documentation)},
+            {"privateMapPaths",new JArray(paths.Where(p=>GroundWorkshopOwnership.IsUnder(p,registration.assetFolder)))},
+            {"requiredExternalPackagePaths",new JArray(packageDependencies)},{"builtinReferences",new JArray(builtinDependencies)},
+            {"includeDependencies",false},{"recurse",false}
+        };
+        if(File.Exists(planPath)&&File.ReadAllText(planPath)!=plan.ToString())throw new InvalidOperationException("同计划路径已有不同内容，保留不覆盖。");
+        if(!File.Exists(planPath))File.WriteAllText(planPath,plan.ToString());
+        bool execute=SessionState.GetBool("GroundCore.ExportExecute",false);
+        string destination=Path.Combine(output,"GroundWorkshop-Core_"+planHash.Substring(0,16)+".unitypackage");
+        if(execute)
+        {
+            if(SessionState.GetString("GroundCore.ApprovedExportPlanHash","")!=planHash)throw new InvalidOperationException("实际白名单/哈希与root确认计划不符，未导出。");
+            if(File.Exists(destination))throw new InvalidOperationException("目标unitypackage已存在，未覆盖或重放导出。");
+            AssetDatabase.ExportPackage(paths,destination,ExportPackageOptions.Default);
+            if(!File.Exists(destination)||new FileInfo(destination).Length==0)throw new IOException("Native ExportPackage未产生有效包。");
+        }
+        ctx.ReturnValue=new{passed=true,planned=true,exported=execute,planHash,planPath,destination=execute?destination:null,
+            explicitFiles=paths.Length,coreFiles=core.Length,shaders=shaders.Length,inputBytes=bytes,exportedBytes=execute?new FileInfo(destination).Length:0,
+            knownOriginalFiles=originals.Length,documentationFiles=documentation.Length,storyPaths,
+            excludedModules=excludedNames,packageReferencePaths=packageDependencies,includeDependencies=false,recurse=false,
+            note="Native明确文件列表自动携带各asset的meta；不递归目录，Map只取Scene实际闭包。文档/截图/Story/Originals均明确白名单；外部包未复制，干净工程仍需实际导入验证。"};
+    }
+    private static IEnumerable<string> KnownOriginals()
+    {
+        string root=GroundWorkshopOwnership.Root+"/Originals";
+        foreach(string family in new[]{"Rounded","Chamfered"})foreach(string suffix in new[]{".png",".asset","_Rule.asset","_Fill.asset"})yield return root+"/Edges/"+family+suffix;
+        foreach(string name in new[]{"Grass","Moss","Road","Alternate"}){yield return root+"/Textures/"+name+".png";yield return root+"/Recipes/"+name+".asset";}
+        foreach(string name in new[]{"GrassTuft","SmallFlower","FallenLeaves"}){yield return root+"/Decorations/"+name+".png";yield return root+"/Decorations/"+name+".asset";}
+    }
+    private static string[] ReadStoryPaths(string[] originals)
+    {
+        string raw=SessionState.GetString("GroundCore.StoryRecipePaths","");
+        if(string.IsNullOrWhiteSpace(raw))throw new InvalidOperationException("请从最新Story回执明确提供recipe与PNG两路径；不扫描Palettes历史。");
+        var rows=JArray.Parse(raw);
+        if(rows.Count!=2||rows.Any(row=>row.Type!=JTokenType.String))throw new InvalidOperationException("StoryRecipePaths必须为recipe与PNG两条字符串。");
+        string[] paths=rows.Values<string>().ToArray();
+        if(paths.Distinct(StringComparer.OrdinalIgnoreCase).Count()!=2)throw new InvalidOperationException("Story路径重复。");
+        string recipePath=paths.SingleOrDefault(p=>p.EndsWith(".asset",StringComparison.Ordinal)),pngPath=paths.SingleOrDefault(p=>p.EndsWith(".png",StringComparison.Ordinal));
+        string palettes=GroundWorkshopOwnership.Root+"/Palettes";
+        if(string.IsNullOrEmpty(recipePath)||string.IsNullOrEmpty(pngPath)||!recipePath.StartsWith(palettes+"/OriginalReplacement_",StringComparison.Ordinal)||
+            !GroundWorkshopOwnership.IsUnder(recipePath,palettes)||!GroundWorkshopOwnership.IsUnder(pngPath,palettes+"/Imports")||
+            !Guid.TryParseExact(Path.GetFileNameWithoutExtension(recipePath).Substring("OriginalReplacement_".Length),"N",out _)||
+            !Guid.TryParseExact(Path.GetFileNameWithoutExtension(pngPath),"N",out _))throw new InvalidOperationException("Story不是明确的本轮独立配方/受控PNG身份。");
+        var recipe=AssetDatabase.LoadAssetAtPath<GroundRecipe>(recipePath);var png=AssetDatabase.LoadAssetAtPath<Texture2D>(pngPath);
+        if(recipe==null||png==null||recipe.detailTexture!=png||recipe.edgeFamily==null||!originals.Contains(AssetDatabase.GetAssetPath(recipe.edgeFamily),StringComparer.Ordinal)||
+            !GroundWorkshopOwnership.ValidateRecipe(recipe,out string _))throw new InvalidOperationException("Story配方与明确PNG/自有边缘族依赖不符。");
+        return new[]{recipePath,pngPath};
+    }
+    private static string[] ReadDocumentation(string manifestPath)
+    {
+        if(string.IsNullOrWhiteSpace(manifestPath)||!File.Exists(manifestPath)||new FileInfo(manifestPath).Length>1024*1024)
+            throw new InvalidOperationException("缺少明确、至多1MiB的公开原创文档manifest。");
+        var manifest=JObject.Parse(File.ReadAllText(manifestPath));
+        if((string)manifest["format"]!="ground-workshop-public-documentation"||manifest.Value<int?>("schemaVersion")!=1)
+            throw new InvalidOperationException("公开文档manifest格式不符。");
+        var entries=manifest["entries"]as JArray;
+        if(entries==null||entries.Count<11||entries.Count>128)throw new InvalidOperationException("公开文档manifest需11–128条明确文件。");
+        string root=GroundWorkshopOwnership.Root+"/Documentation";
+        string[] required={"README.md","03-tutorial/地面组合逻辑教程.md","03-tutorial/地面组合逻辑教程.html","03-tutorial/assets/地表组合示意.svg","03-tutorial/assets/坐标与脚点.svg",
+            "04-art-guide/素材绘制规范.md","04-art-guide/素材绘制规范.html","04-art-guide/assets/原创边缘练习模板.svg","04-art-guide/assets/原创边缘练习_孤岛128.png","04-art-guide/assets/原创技术边缘族_编号表.csv","04-art-guide/assets/原创技术边缘族_编号图.svg"};
+        var requiredSet=new HashSet<string>(required.Select(path=>root+"/"+path),StringComparer.Ordinal);
+        var paths=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        string[] extensions={".md",".html",".svg",".csv",".png",".json"},kinds={"Guide","OriginalDiagram","OriginalTemplate","OriginalScreenshot","OriginalTechnicalPreview"};
+        foreach(var value in entries)
+        {
+            var row=value as JObject??throw new InvalidOperationException("文档条目必须为对象。");
+            string path=(string)row["assetPath"],sha=(string)row["sha256"],kind=(string)row["contentKind"];
+            if(string.IsNullOrEmpty(path)||path.Contains('\\')||path.Contains("..")||!GroundWorkshopOwnership.IsUnder(path,root)||
+                !paths.Add(path)||!extensions.Contains(Path.GetExtension(path),StringComparer.Ordinal)||!kinds.Contains(kind,StringComparer.Ordinal)||
+                !File.Exists(path)||!File.Exists(path+".meta")||string.IsNullOrWhiteSpace(sha)||sha.Length!=64||HashFile(path)!=sha.ToLowerInvariant())
+                throw new InvalidOperationException("文档身份、位置、类型、meta或SHA不符："+path);
+            bool storyImage=path.StartsWith(root+"/03-tutorial/assets/original-story/",StringComparison.Ordinal)&&
+                new[]{"Original_Before.png","Original_AfterReplacement.png","Original_EdgeClose.png","Original_Base.png","Original_Overlay.png","Original_Road.png","Original_Overlay_DebugMask.png"}.Contains(Path.GetFileName(path),StringComparer.Ordinal);
+            bool technicalImage=new[]{root+"/04-art-guide/assets/OriginalTechnical32.png",root+"/04-art-guide/assets/OriginalTechnical32_3x3.png"}.Contains(path,StringComparer.Ordinal);
+            if(path.EndsWith(".json",StringComparison.Ordinal)&&path!=root+"/03-tutorial/assets/original-story/capture-provenance.json")
+                throw new InvalidOperationException("只允许已复核的原创相机图来源记录JSON："+path);
+            if(path.EndsWith(".png",StringComparison.Ordinal)&&!requiredSet.Contains(path)&&
+                (!(kind=="OriginalScreenshot"||kind=="OriginalTechnicalPreview")||!(storyImage||technicalImage)))
+                throw new InvalidOperationException("新增PNG须为明确Original目录的原创实截图/技术预览："+path);
+        }
+        if(requiredSet.Any(path=>!paths.Contains(path)))throw new InvalidOperationException("公开manifest未列齐当前11份核心文档。");
+        return paths.OrderBy(path=>path,StringComparer.Ordinal).ToArray();
+    }
+    private static bool AllowedPackage(string path)=>new[]{"com.unity.render-pipelines.universal","com.unity.render-pipelines.core","com.unity.2d.tilemap","com.unity.2d.tilemap.extras","com.unity.nuget.newtonsoft-json"}
+        .Any(name=>path.StartsWith("Packages/"+name+"/",StringComparison.Ordinal));
+    private static string HashFile(string path)
+    {using(var stream=File.OpenRead(path))using(var sha=SHA256.Create())return BitConverter.ToString(sha.ComputeHash(stream)).Replace("-","").ToLowerInvariant();}
+    private static string HashText(string text)
+    {using(var sha=SHA256.Create())return BitConverter.ToString(sha.ComputeHash(Encoding.UTF8.GetBytes(text))).Replace("-","").ToLowerInvariant();}
+}

@@ -1,0 +1,29 @@
+// 首次使用合同：新的受控子目录应由创建事务建立，不能要求用户先研究Assets文件夹布局。
+using System;using System.Linq;using UnityEditor;using UnityEditor.SceneManagement;using UnityEngine;using UnityEngine.Tilemaps;
+using Ossastra.GroundResearch;using Ossastra.GroundResearch.Editor;using Funplay.Editor.Tools.Scripting;
+public sealed class GroundWorkshopFirstMapContract : IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  string path=GroundWorkshopOwnership.Root+"/Maps/FirstUseContract/Map.unity";var setup=EditorSceneManager.GetSceneManagerSetup();GroundWorkshopMap map=null;
+  var checks=new System.Collections.Generic.List<object>();bool all=true;string folder=null;
+  try
+  {
+   if(System.IO.File.Exists(path))throw new InvalidOperationException("测试目标已存在，保留不覆盖");
+   var theme=AssetDatabase.LoadAssetAtPath<GroundTheme>(GroundWorkshopOwnership.Root+"/Palettes/OriginalTechnicalTheme.asset");
+   map=GroundWorkshopMaps.CreateMap(theme,path,new Vector2Int(16,12));folder=map.registration.assetFolder;
+   bool valid=GroundWorkshopAuthoring.CanEdit(map,out string why);all&=valid;checks.Add(new{name="新受控目录一次创建有效注册地图",pass=valid,actual=why});
+   int count=0;foreach(var p in map.surface.EditableCells.allPositionsWithin)if(map.surface.layers[0].tilemap.HasTile(p))count++;
+   bool baseFilled=count==192;all&=baseFilled;checks.Add(new{name="初始基层192格连续覆盖",pass=baseFilled,count});
+   bool owns=map.surface.layers.Length==3&&map.surface.layers.All(l=>map.surface.Owns(l.tilemap));all&=owns;checks.Add(new{name="三层均为真实原生Tilemap",pass=owns});
+  }
+  catch(Exception e){all=false;checks.Add(new{name="首次使用流程异常",pass=false,actual=e.ToString()});}
+  finally
+  {
+   if(map!=null){var scene=map.gameObject.scene;if(scene.IsValid()&&scene.isLoaded)EditorSceneManager.CloseScene(scene,true);}
+   if(setup.Length>0)EditorSceneManager.RestoreSceneManagerSetup(setup);
+   if(map!=null||folder!=null){AssetDatabase.DeleteAsset(path);if(folder!=null&&GroundWorkshopOwnership.IsUnder(folder,GroundWorkshopOwnership.Root+"/Maps"))AssetDatabase.DeleteAsset(folder);}
+  }
+  ctx.ReturnValue=new{passed=all,checks};
+ }
+}

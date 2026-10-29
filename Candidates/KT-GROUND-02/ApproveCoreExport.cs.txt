@@ -1,0 +1,12 @@
+/* root已逐项复核83个精确自有文件，排除参考场/媒体/玩法模块；仅确认这一个导出清单。 */
+using System;using System.IO;using UnityEditor;using Newtonsoft.Json.Linq;using Funplay.Editor.Tools.Scripting;
+public sealed class ApproveCoreExport:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  const string hash="ba314e638528a8e8e623a9eda9454cd8f65907f1dd84d3aae76aebd7abb8e312";
+  string path=SessionState.GetString("GroundCore.DeliveryRoot","")+"/CoreExportPlan_"+hash.Substring(0,16)+".json";
+  var plan=JObject.Parse(File.ReadAllText(path));if((string)plan["planHash"]!=hash||((JArray)plan["paths"]).Count!=83)throw new InvalidOperationException("导出计划发生变化，需重新复核。");
+  SessionState.SetString("GroundCore.ApprovedExportPlanHash",hash);SessionState.SetBool("GroundCore.ExportExecute",true);ctx.ReturnValue=new{reviewed=true,hash,explicitFiles=83};
+ }
+}

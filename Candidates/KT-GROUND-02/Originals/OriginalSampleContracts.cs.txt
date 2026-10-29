@@ -1,0 +1,122 @@
+/* 原创技术样本合同：调用真实工厂、真实原生RuleTile和导入资产，不读取原作媒体。
+ * 保护缺失能力、拓扑错误、凹凸角/边族混淆、重复执行覆盖既有内容及私有来源泄漏。
+ */
+using System;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Collections.Generic;
+using System.Security.Cryptography;
+using UnityEngine;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+using UnityEngine.Tilemaps;
+using UnityEngine.SceneManagement;
+using Funplay.Editor.Tools.Scripting;
+
+public sealed class KT02OriginalSampleContracts : IFunplayCommand
+{
+    const string Root = "Assets/OSSASTRA/GroundWorkshop";
+    readonly List<string> passed = new List<string>();
+    readonly List<string> failed = new List<string>();
+    void Check(string name, bool value) { (value ? passed : failed).Add(name); }
+    static object Field(object value, string field) { return value.GetType().GetField(field).GetValue(value); }
+    static Type Find(string fullName) { return AppDomain.CurrentDomain.GetAssemblies().Select(a => a.GetType(fullName)).FirstOrDefault(t => t != null); }
+    static float Alpha(Sprite s, int x, int y) { return s.texture.GetPixel((int)s.rect.x + x, (int)s.rect.y + y).a; }
+    static Dictionary<string,string> Fingerprints()
+    {
+        var result = new Dictionary<string,string>();
+        foreach (string guid in AssetDatabase.FindAssets("", new[] { Root }))
+        {
+            string path = AssetDatabase.GUIDToAssetPath(guid);
+            if (AssetDatabase.IsValidFolder(path)) continue;
+            foreach (string file in new[] { path, path + ".meta" })
+                if (File.Exists(file)) using (var stream = File.OpenRead(file)) using (var sha = SHA256.Create())
+                    result[file] = Convert.ToBase64String(sha.ComputeHash(stream));
+        }
+        return result;
+    }
+    public void Execute(ExecutionContext ctx)
+    {
+        Type factory = Find("Ossastra.GroundResearch.Editor.GroundWorkshopOriginalAssets");
+        Check("缺失工厂必须暴露为未实现，不能借旧Importer替代", factory != null);
+        if (factory == null) { ctx.ReturnValue = new { passed = passed.Count, failed = failed.Count, passedCases = passed, failedCases = failed }; return; }
+        object theme = null;
+        try
+        {
+            var ensure = factory.GetMethod("EnsureSamples", BindingFlags.Public | BindingFlags.Static, null, Type.EmptyTypes, null);
+            Check("有显式无参数EnsureSamples入口", ensure != null);
+            if (ensure == null) throw new InvalidOperationException("Missing EnsureSamples");
+            theme = ensure.Invoke(null, null);
+            string themePath = AssetDatabase.GetAssetPath((UnityEngine.Object)theme);
+            Check("独立原创Theme可直接交给工坊", theme != null && theme.GetType().FullName == "Ossastra.GroundResearch.GroundTheme" && themePath == Root + "/Palettes/OriginalTechnicalTheme.asset");
+            var layers = (Array)Field(theme, "layers");
+            Check("三层样本有真实Base/Overlay/Road职责", layers.Length == 3 && layers.Cast<object>().Select(l => Field(l, "purpose").ToString()).SequenceEqual(new[] { "Base", "Overlay", "Road" }));
+            Check("每层都有真实底纹与合法边族", layers.Cast<object>().All(l => Field(l, "recipe") is UnityEngine.Object && Field(Field(l, "recipe"), "detailTexture") is Texture2D && Field(Field(l, "recipe"), "edgeFamily") is UnityEngine.Object));
+            var families = new[] { "Rounded", "Chamfered" }.Select(n => AssetDatabase.LoadMainAssetAtPath(Root + "/Originals/Edges/" + n + ".asset")).ToArray();
+            Check("两套独立可替换边族均标记已验证", families.All(f => f != null && (bool)Field(f, "validated")) && families[0] != families[1]);
+            for (int familyIndex = 0; familyIndex < families.Length; familyIndex++)
+            {
+                object family = families[familyIndex];
+                if (family == null) continue;
+                var rule = Field(family, "paintTemplate") as RuleTile;
+                var fill = Field(family, "fillTemplate") as Tile;
+                string label = familyIndex == 0 ? "柔和" : "折线";
+                Check(label + "族有独立原生256规则与满覆盖Tile", rule != null && fill != null && rule.m_TilingRules.Count == 256 && fill.sprite != null);
+                if (rule == null || fill == null) continue;
+                var sprites = rule.m_TilingRules.SelectMany(r => r.m_Sprites).Distinct().ToArray();
+                Check(label + "族256切片尺寸/中心/PPU一致", sprites.Length == 256 && sprites.All(s => s != null && s.rect.size == new Vector2(128,128) && Mathf.Approximately(s.pixelsPerUnit,99) && (s.pivot - new Vector2(64,64)).sqrMagnitude < .001f));
+                Check(label + "族不携带碰撞或游戏对象", rule.m_DefaultColliderType == Tile.ColliderType.None && rule.m_DefaultGameObject == null && rule.m_TilingRules.All(r => r.m_ColliderType == Tile.ColliderType.None && r.m_GameObject == null));
+                var importer = AssetImporter.GetAtPath(AssetDatabase.GetAssetPath(rule.m_DefaultSprite)) as TextureImporter;
+                Check(label + "遮罩使用线性Clamp且无mip", importer != null && !importer.sRGBTexture && !importer.mipmapEnabled && importer.wrapMode == TextureWrapMode.Clamp && importer.isReadable && importer.spriteImportMode == SpriteImportMode.Multiple);
+                var preview = EditorSceneManager.NewPreviewScene();
+                GameObject gridObject = null;
+                bool topology = true;
+                string detail = "";
+                try
+                {
+                    gridObject = new GameObject("KT02 transient topology", typeof(Grid));
+                    SceneManager.MoveGameObjectToScene(gridObject, preview);
+                    var go = new GameObject("Map", typeof(Tilemap));
+                    go.transform.SetParent(gridObject.transform, false);
+                    var map = go.GetComponent<Tilemap>();
+                    var offsets = new[] { new Vector3Int(-1,1,0), new Vector3Int(0,1,0), new Vector3Int(1,1,0), new Vector3Int(-1,0,0), new Vector3Int(1,0,0), new Vector3Int(-1,-1,0), new Vector3Int(0,-1,0), new Vector3Int(1,-1,0) };
+                    for (int mask = 0; mask < 256; mask++)
+                    {
+                        map.ClearAllTiles();
+                        map.SetTile(Vector3Int.zero, rule);
+                        for (int bit = 0; bit < offsets.Length; bit++) if ((mask & (1 << bit)) != 0) map.SetTile(offsets[bit], rule);
+                        map.RefreshAllTiles();
+                        var actual = map.GetSprite(Vector3Int.zero);
+                        if (actual == null || actual.name != "mask_" + mask.ToString("D3")) { topology = false; detail = " mask=" + mask; break; }
+                    }
+                }
+                finally { if (gridObject != null) UnityEngine.Object.DestroyImmediate(gridObject); EditorSceneManager.ClosePreviewScene(preview); }
+                Check(label + "族真实Tilemap全部256邻域选择正确" + detail, topology);
+                var byName = sprites.ToDictionary(s => s.name);
+                Check(label + "族孤岛中心可见且外角透明", Alpha(byName["mask_000"],64,64) > .9f && Alpha(byName["mask_000"],116,116) < .1f);
+                Check(label + "族缺东北对角产生凹口，全邻接无凹口", Alpha(byName["mask_251"],103,103) < .1f && Alpha(byName["mask_255"],103,103) > .9f);
+                Check(label + "满覆盖Tile没有透明孔", fill.sprite == byName["mask_255"] && Alpha(fill.sprite,64,64) > .9f);
+            }
+            if (families.All(f => f != null))
+            {
+                var soft = ((RuleTile)Field(families[0], "paintTemplate")).m_TilingRules[0].m_Sprites[0];
+                var sharp = ((RuleTile)Field(families[1], "paintTemplate")).m_TilingRules[0].m_Sprites[0];
+                Check("同一孤岛在圆角与倒角族真实Alpha不同", Alpha(soft,103,103) > .9f && Alpha(sharp,103,103) < .1f);
+            }
+            var alternate = AssetDatabase.LoadMainAssetAtPath(Root + "/Originals/Recipes/Alternate.asset");
+            object first = Field(layers.GetValue(0), "recipe");
+            Check("备用底纹可保持同边族独立换材", alternate != null && Field(alternate,"detailTexture") != Field(first,"detailTexture") && Field(alternate,"edgeFamily") == Field(first,"edgeFamily"));
+            var decorations = (Array)Field(theme, "decorations");
+            Check("三个原创装饰有独立Sprite及明确模式", decorations.Length == 3 && decorations.Cast<object>().All(d => Field(d,"sprite") is Sprite) && decorations.Cast<object>().Select(d => Field(d,"mode").ToString()).Distinct().Count() >= 2);
+            Check("装饰脚点与Sprite pivot一致", decorations.Cast<object>().All(d => { var sprite=(Sprite)Field(d,"sprite"); var foot=(Vector2)Field(d,"footpointNormalized"); return (new Vector2(sprite.pivot.x/sprite.rect.width,sprite.pivot.y/sprite.rect.height)-foot).sqrMagnitude<.0001f; }));
+            Check("Theme依赖不含旧样板/角色/原作资源", !AssetDatabase.GetDependencies(themePath,true).Any(p => p.Contains("ReferenceLocal") || p.Contains("LocalGenerated") || p.Contains("LocalMedia") || p.Contains("/Characters/") || p.EndsWith("manifest.json")));
+            var before = Fingerprints();
+            object second = ensure.Invoke(null, null);
+            var after = Fingerprints();
+            Check("重复执行复用同一Theme而不覆盖已有文件", ReferenceEquals(theme,second) && before.Count == after.Count && before.All(kv => after.ContainsKey(kv.Key) && after[kv.Key] == kv.Value));
+        }
+        catch (Exception e) { failed.Add("真实样本合同异常：" + (e.InnerException ?? e)); }
+        ctx.ReturnValue = new { passed = passed.Count, failed = failed.Count, passedCases = passed, failedCases = failed, themePath = theme == null ? null : AssetDatabase.GetAssetPath((UnityEngine.Object)theme) };
+    }
+}

@@ -1,0 +1,24 @@
+/* 最终只读检查与可见工坊入口；不保存其他场，不关闭Editor，不触发电源。 */
+using System;using System.IO;using System.Linq;using System.Reflection;using UnityEditor;using UnityEngine;using UnityEngine.SceneManagement;using Funplay.Editor.Tools.Scripting;
+using G=Ossastra.GroundResearch;using E=Ossastra.GroundResearch.Editor;
+public sealed class FinalEditorCheckpoint:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  if(!E.GroundWorkshopOwnership.ContextReady(out string reason))throw new InvalidOperationException(reason);
+  var scene=SceneManager.GetActiveScene();if(SceneManager.sceneCount!=1||scene.path!=E.GroundWorkshopOwnership.ReferenceScene||scene.isDirty||E.GroundWorkshopPlaygroundSession.HasSession)throw new InvalidOperationException("最终需干净已返回参考Lab且无Session");
+  var map=scene.GetRootGameObjects().SelectMany(r=>r.GetComponentsInChildren<G.GroundWorkshopMap>(true)).Single();E.GroundWorkshopOwnership.Require(map);
+  E.GroundWorkshopWindow.Open();var window=Resources.FindObjectsOfTypeAll<E.GroundWorkshopWindow>().Single();window.SelectSurface(map.surface);window.SelectLayer(map.surface.layers.Length-1);window.ReleaseAuthoring();Selection.activeGameObject=map.gameObject;
+  SessionState.SetBool("GroundCore.ExportExecute",false);SessionState.SetBool("GroundCore.ReplaceOwnedDocumentation",false);
+  var pending=E.GroundWorkshopOwnership.Root+"/Maps/PreviewSessions";
+  string[] tempAssets=Directory.Exists(pending)?AssetDatabase.FindAssets("",new[]{pending}).Select(AssetDatabase.GUIDToAssetPath).Where(p=>!AssetDatabase.IsValidFolder(p)).ToArray():Array.Empty<string>();
+  int missing=scene.GetRootGameObjects().SelectMany(r=>r.GetComponentsInChildren<Transform>(true)).Sum(t=>GameObjectUtility.GetMonoBehavioursWithMissingScriptCount(t.gameObject));
+  var shaderMethod=typeof(ShaderUtil).GetMethod("GetShaderMessages",BindingFlags.Static|BindingFlags.Public,null,new[]{typeof(Shader)},null);
+  var shaders=new[]{"Ossastra/GroundResearch/MaskWorldTile","Ossastra/GroundWorkshop/DecorationCutout"}.Select(name=>new{name,shader=Shader.Find(name)}).ToArray();
+  ctx.ReturnValue=new{ready=true,playing=Application.isPlaying,path=scene.path,scene.isDirty,editable=E.GroundWorkshopOwnership.CanEdit(map,out _),mapId=map.registration.mapId,
+   layers=map.surface.layers.Length,decorations=map.decorationRoot.childCount,missingScripts=missing,hasPreview=E.GroundWorkshopAuthoring.HasPreview,hasSession=E.GroundWorkshopPlaygroundSession.HasSession,
+   temporaryAssets=tempAssets,visibleWorkshopWindows=Resources.FindObjectsOfTypeAll<E.GroundWorkshopWindow>().Length,
+   shaderReadbackAvailable=shaderMethod!=null,shaders=shaders.Select(s=>new{s.name,exists=s.shader!=null,messages=s.shader==null||shaderMethod==null?null:shaderMethod.Invoke(null,new object[]{s.shader})}).ToArray(),
+   noPowerAction=true,physicalEditorScreenshot="UI_PHYSICAL_UNVERIFIED"};
+ }
+}

@@ -1,0 +1,51 @@
+*** Begin Patch
+*** Update File: E:/WORLDCREATOR/new/Project_ANKALUTE/Assets/OSSASTRA/Scripts/GroundResearch/Editor/GroundWorkshopWindow.cs
+@@
+             EditorGUILayout.SelectableLabel(EditorPrefs.GetString(HelpRootPreference, "尚未设置本机资料根"), GUILayout.Height(34));
++            EditorGUILayout.HelpBox("优先打开本机资料根中的实际文件；未提供时使用项目Documentation内的自有手册。参考图鉴与本机交付状态不随纯插件包分发。", MessageType.None);
+@@
+         public bool OpenHelpFile(string relativePath)
+         {
+-            string root = EditorPrefs.GetString(HelpRootPreference, "");
+-            if (string.IsNullOrEmpty(root)) { Notice("尚未设置本机资料根；请在帮助页选择包含开始使用.html的KT-GROUND-02目录。", MessageType.Warning); return false; }
++            if (!TryResolveHelpPath(relativePath, out string fullPath))
++            {
++                bool catalogRequest = (relativePath ?? "").Replace('\\', '/').StartsWith("02-catalog/", StringComparison.OrdinalIgnoreCase);
++                Notice(catalogRequest ? "本机参考图鉴未提供；公开插件只包含自有教程与绘制规范。有本机资源库时，请在帮助页设置资料根目录。" :
++                    "本机资料根和项目Documentation均未提供此文件：" + relativePath + "。纯插件可直接打开教程与绘制规范；本机交付状态需另设资料根。", MessageType.Warning);
++                return false;
++            }
+             try
+             {
+-                string fullRoot = Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+-                string fullPath = Path.GetFullPath(Path.Combine(fullRoot, relativePath));
+-                if (!fullPath.StartsWith(fullRoot, StringComparison.OrdinalIgnoreCase) || !File.Exists(fullPath))
+-                { Notice("资料尚未就绪或路径不在已选择的资料根：" + relativePath, MessageType.Warning); return false; }
+                 Application.OpenURL(new Uri(fullPath).AbsoluteUri); return true;
+             }
+             catch (Exception exception) { Notice(exception.Message, MessageType.Warning); return false; }
+         }
++
++        /// <summary>实际文档导航路径：本机资料优先，随后项目内自有Documentation；不猜空目录或访问任意绝对路径。</summary>
++        public bool TryResolveHelpPath(string relativePath, out string fullPath)
++        {
++            fullPath = null;
++            if (string.IsNullOrWhiteSpace(relativePath) || Path.IsPathRooted(relativePath)) return false;
++            string projectDocumentation = Path.GetFullPath(Path.Combine(Application.dataPath, "..", GroundWorkshopOwnership.Root, "Documentation"));
++            foreach (string root in new[] { EditorPrefs.GetString(HelpRootPreference, ""), projectDocumentation })
++            {
++                if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root)) continue;
++                try
++                {
++                    string fullRoot = Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
++                    string candidate = Path.GetFullPath(Path.Combine(fullRoot, relativePath));
++                    if (candidate.StartsWith(fullRoot, StringComparison.OrdinalIgnoreCase) && File.Exists(candidate))
++                    { fullPath = candidate; return true; }
++                }
++                catch (ArgumentException) { }
++                catch (NotSupportedException) { }
++                catch (PathTooLongException) { }
++            }
++            return false;
++        }
+*** End Patch

@@ -1,0 +1,132 @@
+/* 工坊配方纵向合同：真实原生笔画、属性预览、COW、既有/未来换材、锁与失效拒绝。
+ * 当前OriginalLab只作可撤销夹具；不保存其场景，不改共享主题，finally撤销测试组并精确清自建版本资产。
+ */
+using System;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Collections.Generic;
+using System.Security.Cryptography;
+using UnityEngine;
+using UnityEditor;
+using UnityEngine.Tilemaps;
+using Funplay.Editor.Tools.Scripting;
+using G=Ossastra.GroundResearch;
+using E=Ossastra.GroundResearch.Editor;
+
+public sealed class KT02CoreRecipeContracts:IFunplayCommand
+{
+    readonly List<string> passed=new List<string>(),failed=new List<string>();
+    readonly List<object> attributeSnapshots=new List<object>();
+    void Check(string name,bool result){(result?passed:failed).Add(name);}
+    static string Hash(string path){if(!File.Exists(path))return "missing";using(var stream=File.OpenRead(path))using(var sha=SHA256.Create())return Convert.ToBase64String(sha.ComputeHash(stream));}
+    static string[] Assets(string folder)=>AssetDatabase.FindAssets("",new[]{folder}).Select(AssetDatabase.GUIDToAssetPath).Where(p=>!AssetDatabase.IsValidFolder(p)).OrderBy(p=>p,StringComparer.Ordinal).ToArray();
+    static string Cells(Tilemap map,BoundsInt area)
+    {
+        var text=new StringBuilder();
+        foreach(var cell in area.allPositionsWithin)
+        {
+            var tile=map.GetTile(cell);if(tile==null)continue;
+            var flags=map.GetTileFlags(cell);text.Append(cell).Append(':').Append(tile.GetInstanceID()).Append(':').Append(map.GetColor(cell).ToString("F6")).Append(':').Append((int)flags);
+            if((flags&TileFlags.LockTransform)==0)text.Append(map.GetTransformMatrix(cell).ToString("F6"));text.Append(';');
+        }
+        return text.ToString();
+    }
+    static string MapData(G.GroundWorkshopMap map)=>AssetDatabase.GetAssetPath(map.theme)+"|"+string.Join("|",map.surface.layers.Select(l=>
+        Cells(l.tilemap,map.surface.EditableCells)+AssetDatabase.GetAssetPath(l.paintTile)+l.sourceId+l.worldRepeatPeriod.ToString("R",System.Globalization.CultureInfo.InvariantCulture)+l.isLocked+l.tilemap.transform.localPosition.ToString("F6")+l.tilemap.transform.localRotation.ToString("F6")+l.tilemap.transform.localScale.ToString("F6")+l.tilemap.color.ToString("F6")+l.tilemap.GetComponent<TilemapRenderer>().enabled+AssetDatabase.GetAssetPath(l.tilemap.GetComponent<TilemapRenderer>().sharedMaterial)))+"|"+
+        string.Join("|",map.decorationRoot.GetComponentsInChildren<G.GroundDecorationInstance>(true).OrderBy(i=>i.instanceId).Select(i=>i.instanceId+":"+i.transform.position.ToString("F6")+i.transform.rotation.ToString("F6")+i.transform.localScale.ToString("F6")+i.generated+i.isLocked));
+    static bool MatrixSame(Matrix4x4 a,Matrix4x4 b){for(int i=0;i<16;i++)if(Mathf.Abs(a[i]-b[i])>.00001f)return false;return true;}
+    static object Attributes(Tilemap tilemap,Vector3Int cell)=>new{color=tilemap.GetColor(cell).ToString("F6"),flags=(int)tilemap.GetTileFlags(cell),matrix=tilemap.GetTransformMatrix(cell).ToString("F6")};
+    static bool Reject(Action action){try{action();return false;}catch(InvalidOperationException){return true;}catch(ArgumentException){return true;}}
+    public void Execute(ExecutionContext ctx)
+    {
+        G.GroundWorkshopMap map=null;E.FrontierGroundBrush brush=null;Tile foreign=null;
+        string folder=null,baseline=null,scenePath=null,sceneHash=null;string[] beforeAssets=null;int testGroup=-1;
+        try
+        {
+            map=UnityEngine.Object.FindObjectsOfType<G.GroundWorkshopMap>().FirstOrDefault(m=>m.gameObject.scene==UnityEngine.SceneManagement.SceneManager.GetActiveScene());
+            E.GroundWorkshopOwnership.Require(map);
+            if(E.GroundWorkshopAuthoring.HasPreview)throw new InvalidOperationException("已有作者预览，测试保留现场并停止。");
+            int road=Array.FindIndex(map.theme.layers,l=>l.purpose==G.GroundLayerPurpose.Road);
+            if(road<0||E.GroundWorkshopAuthoring.IsLayerLocked(map,road))throw new InvalidOperationException("测试需要当前未锁Road层，不自动解锁用户层。");
+            folder=map.registration.assetFolder;beforeAssets=Assets(folder);baseline=MapData(map);scenePath=map.gameObject.scene.path;sceneHash=Hash(scenePath);
+            var oldTheme=map.theme;string oldThemeJson=EditorJsonUtility.ToJson(oldTheme),oldThemePath=AssetDatabase.GetAssetPath(oldTheme),oldThemeHash=Hash(oldThemePath);
+            Undo.IncrementCurrentGroup();testGroup=Undo.GetCurrentGroup();
+            var tilemap=map.surface.layers[road].tilemap;var renderer=tilemap.GetComponent<TilemapRenderer>();var originalTile=map.surface.layers[road].paintTile;var originalMaterial=renderer.sharedMaterial;
+            var bounds=map.surface.EditableCells;var a=new Vector3Int(bounds.xMin+1,bounds.yMin+1,0);var b=a+Vector3Int.right;
+            Undo.RegisterCompleteObjectUndo(new UnityEngine.Object[]{tilemap,tilemap.transform},"KT02 原生属性夹具");tilemap.SetTile(a,null);tilemap.SetTile(b,null);
+            brush=ScriptableObject.CreateInstance<E.FrontierGroundBrush>();brush.hideFlags=HideFlags.HideAndDontSave;
+            Check("原生Road画笔配置通过",brush.Configure(map.surface,road,1));brush.Paint(map.surface.grid,tilemap.gameObject,a);brush.Paint(map.surface.grid,tilemap.gameObject,b);brush.FinishStroke(false);
+            Check("NativeBrush两点实际写入同一当前Tile",tilemap.GetTile(a)==originalTile&&tilemap.GetTile(b)==originalTile);
+            Undo.RegisterCompleteObjectUndo(new UnityEngine.Object[]{tilemap,tilemap.transform},"KT02 颜色与有效手动矩阵");
+            Color tint=new Color(.22f,.73f,.81f,.91f),layerTint=new Color(.84f,.91f,.78f,.96f);
+            Matrix4x4 matrix=Matrix4x4.TRS(new Vector3(.13f,.07f,0),Quaternion.Euler(0,0,13),new Vector3(.83f,1.09f,1));
+            tilemap.SetTileFlags(a,TileFlags.None);tilemap.SetColor(a,tint);tilemap.SetTransformMatrix(a,matrix);tilemap.color=layerTint;
+            tilemap.transform.localRotation=Quaternion.Euler(0,11,0);tilemap.transform.localScale=new Vector3(1.03f,1,.97f);
+            var expectedAttributes=new{color=tint.ToString("F6"),flags=(int)TileFlags.None,matrix=matrix.ToString("F6")};
+            attributeSnapshots.Add(new{stage="夹具写入后原生实际值",expected=expectedAttributes,actual=Attributes(tilemap,a)});
+            string author=Cells(tilemap,bounds);var rotation=tilemap.transform.localRotation;var scale=tilemap.transform.localScale;bool visible=renderer.enabled;
+            var alternate=AssetDatabase.LoadAssetAtPath<G.GroundRecipe>(E.GroundWorkshopOriginalAssets.Root+"/Originals/Recipes/Alternate.asset");
+            var change=E.GroundWorkshopAuthoring.PrepareReplacement(map,road,alternate,G.GroundReplacementScope.ExistingAndFuture);
+            Check("ExistingAndFuture预检识别真实格",change.IsValid&&change.knownCount>=2&&change.unknownTiles.Length==0);
+            E.GroundWorkshopAuthoring.Preview(change);
+            var preview=Resources.FindObjectsOfTypeAll<Tilemap>().Single(m=>m.gameObject.scene==map.gameObject.scene&&m.gameObject.name=="配方预览_不保存作者格");
+            attributeSnapshots.Add(new{stage="预览完成",expected=expectedAttributes,source=Attributes(tilemap,a),actual=Attributes(preview,a)});
+            Check("预览期间原生作者格与实际绑定不变",Cells(tilemap,bounds)==author&&renderer.sharedMaterial==originalMaterial&&map.layerBindings[road].ownedTile==originalTile);
+            Check("预览匹配每格颜色flags及手动矩阵",preview.GetColor(a)==tint&&preview.GetTileFlags(a)==TileFlags.None&&MatrixSame(preview.GetTransformMatrix(a),matrix));
+            Check("预览匹配图层颜色与TRS",preview.color==layerTint&&Quaternion.Angle(preview.transform.localRotation,rotation)<.001f&&(preview.transform.localScale-scale).sqrMagnitude<.00001f);
+            E.GroundWorkshopAuthoring.CancelPreview();
+            Check("取消删除全部预览且恢复真实显示",!E.GroundWorkshopAuthoring.HasPreview&&preview==null&&renderer.enabled==visible&&Cells(tilemap,bounds)==author);
+            int same=E.GroundWorkshopAuthoring.Commit(change);var replaced=map.layerBindings[road].ownedTile;var replacedMaterial=renderer.sharedMaterial;
+            attributeSnapshots.Add(new{stage="既有格Commit后",expected=expectedAttributes,actual=Attributes(tilemap,a)});
+            Check("既有格和后续画笔同步新Tile及独立材质",same==road&&replaced!=originalTile&&tilemap.GetTile(a)==replaced&&tilemap.GetTile(b)==replaced&&map.surface.layers[road].paintTile==replaced&&replacedMaterial!=originalMaterial&&replacedMaterial.GetTexture("_SecondTex")==alternate.detailTexture);
+            Check("迁移保留颜色flags及有效手动矩阵",tilemap.GetColor(a)==tint&&tilemap.GetTileFlags(a)==TileFlags.None&&MatrixSame(tilemap.GetTransformMatrix(a),matrix));
+            Check("COW没有修改旧主题内存与磁盘",map.theme!=oldTheme&&EditorJsonUtility.ToJson(oldTheme)==oldThemeJson&&Hash(oldThemePath)==oldThemeHash);
+            Undo.PerformUndo();attributeSnapshots.Add(new{stage="一次Undo后",expected=expectedAttributes,actual=Attributes(tilemap,a)});Check("一次Undo恢复原生Tile材质与主题",tilemap.GetTile(a)==originalTile&&renderer.sharedMaterial==originalMaterial&&map.theme==oldTheme);
+            Undo.PerformRedo();attributeSnapshots.Add(new{stage="一次Redo后",expected=expectedAttributes,actual=Attributes(tilemap,a)});Check("一次Redo恢复替换且作者属性保留",tilemap.GetTile(a)==replaced&&renderer.sharedMaterial==replacedMaterial&&tilemap.GetColor(a)==tint&&tilemap.GetTileFlags(a)==TileFlags.None&&MatrixSame(tilemap.GetTransformMatrix(a),matrix));
+            string prior=Cells(tilemap,bounds);int layers=map.surface.layers.Length;var futureOldTheme=map.theme;string futureOldJson=EditorJsonUtility.ToJson(futureOldTheme);
+            var roadRecipe=AssetDatabase.LoadAssetAtPath<G.GroundRecipe>(E.GroundWorkshopOriginalAssets.Root+"/Originals/Recipes/Road.asset");
+            var future=E.GroundWorkshopAuthoring.PrepareReplacement(map,road,roadRecipe,G.GroundReplacementScope.FutureOnly);int added=E.GroundWorkshopAuthoring.Commit(future);
+            Check("FutureOnly新增独立Native层并保留旧格旧材质",added==layers&&map.surface.layers.Length==layers+1&&Cells(tilemap,bounds)==prior&&renderer.sharedMaterial==replacedMaterial&&map.surface.layers[added].tilemap!=tilemap&&map.layerBindings[added].ownedTile!=replaced&&map.layerBindings[added].ownedMaterial!=replacedMaterial);
+            Check("FutureOnly新增层初始为空且旧主题未变",map.surface.layers[added].tilemap.GetTilesBlock(bounds).All(t=>t==null)&&EditorJsonUtility.ToJson(futureOldTheme)==futureOldJson&&map.theme!=futureOldTheme);
+            var beforeLock=E.GroundWorkshopAuthoring.PrepareReplacement(map,road,roadRecipe,G.GroundReplacementScope.ExistingAndFuture);
+            E.GroundWorkshopAuthoring.SetLayerLocked(map,road,true);
+            Check("锁保护原生画笔配置与两种配方入口",!brush.Configure(map.surface,road,1)&&Reject(()=>E.GroundWorkshopAuthoring.PrepareReplacement(map,road,roadRecipe,G.GroundReplacementScope.FutureOnly))&&Reject(()=>E.GroundWorkshopAuthoring.PrepareReplacement(map,road,roadRecipe,G.GroundReplacementScope.ExistingAndFuture))&&Reject(()=>E.GroundWorkshopAuthoring.Commit(beforeLock)));
+            E.GroundWorkshopAuthoring.SetLayerLocked(map,road,false);
+            Undo.IncrementCurrentGroup();int unknownGroup=Undo.GetCurrentGroup();Undo.RegisterCompleteObjectUndo(tilemap,"KT02 异种Tile夹具");
+            foreign=ScriptableObject.CreateInstance<Tile>();foreign.name="KT02 未映射Tile";foreign.hideFlags=HideFlags.HideAndDontSave;tilemap.SetTile(b,foreign);
+            var unknown=E.GroundWorkshopAuthoring.PrepareReplacement(map,road,roadRecipe,G.GroundReplacementScope.ExistingAndFuture);string unknownCells=Cells(tilemap,bounds);
+            Check("未知Tile先列明并拒绝提交，不误迁移",!unknown.IsValid&&unknown.unknownTiles.Length>0&&Reject(()=>E.GroundWorkshopAuthoring.Commit(unknown))&&Cells(tilemap,bounds)==unknownCells);
+            Undo.RevertAllDownToGroup(unknownGroup);Undo.IncrementCurrentGroup();
+            var stale=E.GroundWorkshopAuthoring.PrepareReplacement(map,road,roadRecipe,G.GroundReplacementScope.ExistingAndFuture);
+            Undo.RegisterCompleteObjectUndo(tilemap,"KT02 过期预检夹具");tilemap.SetTile(a,null);var bindingBefore=map.layerBindings[road];
+            Check("作者格改变后过期token拒绝且绑定不动",Reject(()=>E.GroundWorkshopAuthoring.Commit(stale))&&ReferenceEquals(bindingBefore,map.layerBindings[road])&&tilemap.GetTile(a)==null);
+            Check("旧主题文件始终未变",Hash(oldThemePath)==oldThemeHash);
+        }
+        catch(Exception e){failed.Add("核心配方合同异常："+(e.InnerException??e));}
+        finally
+        {
+            try
+            {
+                if(testGroup>=0)E.GroundWorkshopAuthoring.CancelPreview();if(brush!=null){brush.FinishStroke(false);UnityEngine.Object.DestroyImmediate(brush);}
+                if(testGroup>=0){Undo.FlushUndoRecordObjects();Undo.RevertAllDownToGroup(testGroup);Undo.IncrementCurrentGroup();}
+                if(map!=null&&baseline!=null)
+                {
+                    bool restored=MapData(map)==baseline;
+                    Check("测试Undo后产品地图作者数据完整恢复",restored);
+                    Check("产品OriginalLab场景磁盘未保存或改写",Hash(scenePath)==sceneHash);
+                    // 恢复失败时保留可能仍被当前现场引用的资源，不能为了清理把失败扩大为丢引用。
+                    if(restored)
+                    {
+                        if(foreign!=null)UnityEngine.Object.DestroyImmediate(foreign);
+                        var created=Assets(folder).Except(beforeAssets??Array.Empty<string>()).ToArray();
+                        foreach(string path in created)if(path.StartsWith(folder+"/",StringComparison.Ordinal)&&
+                            (Path.GetFileName(path).StartsWith("Revision_",StringComparison.Ordinal)||Path.GetFileName(path).StartsWith("Theme_",StringComparison.Ordinal)))AssetDatabase.DeleteAsset(path);
+                    }
+                }
+            }
+            catch(Exception cleanup){failed.Add("测试清理保留恢复现场："+cleanup);}
+        }
+        ctx.ReturnValue=new{passed=passed.Count,failed=failed.Count,passedCases=passed,failedCases=failed,attributeSnapshots};
+    }
+}

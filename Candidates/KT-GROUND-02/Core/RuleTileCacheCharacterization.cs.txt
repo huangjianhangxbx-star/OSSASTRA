@@ -1,0 +1,125 @@
+/* Native RuleTile缓存特征探针：只在PreviewScene实验，不写任何资产或产品作者数据。
+ * 派生类型仅记录base调用前的ITilemap缓存，base的输出照常返回；不实施保留策略。
+ */
+using System;
+using System.Linq;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+using UnityEngine.SceneManagement;
+using UnityEngine.Tilemaps;
+using Funplay.Editor.Tools.Scripting;
+using G=Ossastra.GroundResearch;
+using E=Ossastra.GroundResearch.Editor;
+
+public sealed class KT02CacheProbeRow
+{
+    public string phase,tile,cell,beforeMatrix,baseMatrix,error;
+    public int beforeFlags,baseFlags,nestedReads;
+}
+public sealed class KT02CacheProbeTile:RuleTile
+{
+    public static string Phase;
+    public static readonly List<KT02CacheProbeRow> Rows=new List<KT02CacheProbeRow>();
+    public static int TotalCalls,NestedCalls;
+    public string label;
+    bool reading;
+    public override void GetTileData(Vector3Int position,ITilemap tilemap,ref TileData tileData)
+    {
+        // 查询自身缓存若触发引擎重入，立刻只走base；避免探针递归影响编辑器安全。
+        if(reading){NestedCalls++;base.GetTileData(position,tilemap,ref tileData);return;}
+        reading=true;var row=new KT02CacheProbeRow{phase=Phase,tile=label,cell=position.ToString()};int nested=NestedCalls;
+        try
+        {
+            row.beforeFlags=(int)tilemap.GetTileFlags(position);row.beforeMatrix=tilemap.GetTransformMatrix(position).ToString("F6");
+            base.GetTileData(position,tilemap,ref tileData);row.baseFlags=(int)tileData.flags;row.baseMatrix=tileData.transform.ToString("F6");
+        }
+        catch(Exception e){row.error=e.GetType().Name+": "+e.Message;throw;}
+        finally{row.nestedReads=NestedCalls-nested;TotalCalls++;if(Rows.Count<80)Rows.Add(row);reading=false;}
+    }
+}
+public sealed class KT02RuleTileCacheCharacterization:IFunplayCommand
+{
+    static object Attributes(Tilemap tilemap,Vector3Int cell)=>new{tile=tilemap.GetTile(cell)==null?null:tilemap.GetTile(cell).name,flags=(int)tilemap.GetTileFlags(cell),matrix=tilemap.GetTransformMatrix(cell).ToString("F6")};
+    static string SetupSignature(SceneSetup[] setup)=>string.Join("|",setup.Select(s=>s.path+":"+s.isLoaded+":"+s.isActive));
+    static KT02CacheProbeTile Create(RuleTile template,string label)
+    {
+        var tile=ScriptableObject.CreateInstance<KT02CacheProbeTile>();tile.hideFlags=HideFlags.HideAndDontSave;tile.name="KT02 CacheProbe "+label;tile.label=label;
+        tile.m_DefaultSprite=template.m_DefaultSprite;tile.m_DefaultColliderType=template.m_DefaultColliderType;
+        // 规则只作只读参考；列表容器为探针独立实例，不改源RuleTile或其规则对象。
+        tile.m_TilingRules=new List<RuleTile.TilingRule>(template.m_TilingRules);tile.UpdateNeighborPositions();return tile;
+    }
+    public void Execute(ExecutionContext ctx)
+    {
+        var setup=EditorSceneManager.GetSceneManagerSetup();var active=SceneManager.GetActiveScene();
+        var dirtyBefore=Enumerable.Range(0,SceneManager.sceneCount).Select(i=>SceneManager.GetSceneAt(i).isDirty).ToArray();
+        Scene preview=default;Tilemap map=null;KT02CacheProbeTile first=null,next=null;Material originalMaterial=null,nextMaterial=null;int group=-1;
+        var snapshots=new List<object>();string error=null,cleanupError=null;bool contextRestored=false;
+        KT02CacheProbeTile.Rows.Clear();KT02CacheProbeTile.TotalCalls=0;KT02CacheProbeTile.NestedCalls=0;
+        try
+        {
+            if(EditorApplication.isPlayingOrWillChangePlaymode)throw new InvalidOperationException("探针仅Edit模式运行");
+            if(E.GroundWorkshopAuthoring.HasPreview)throw new InvalidOperationException("已有产品预览，保留现场并停止探针");
+            var family=AssetDatabase.LoadAssetAtPath<G.GroundEdgeFamily>(E.GroundWorkshopOriginalAssets.Root+"/Originals/Edges/Rounded.asset");
+            if(family==null||!(family.paintTemplate is RuleTile template))throw new InvalidOperationException("需已存在的原创Rounded RuleTile；探针不生成或写素材");
+            first=Create(template,"original");next=Create(template,"replacement");
+            preview=EditorSceneManager.NewPreviewScene();
+            var gridObject=new GameObject("KT02 Preview CacheProbe");gridObject.hideFlags=HideFlags.HideAndDontSave;SceneManager.MoveGameObjectToScene(gridObject,preview);var grid=gridObject.AddComponent<Grid>();
+            var tileObject=new GameObject("Native Probe Tilemap");tileObject.hideFlags=HideFlags.HideAndDontSave;tileObject.transform.SetParent(grid.transform,false);map=tileObject.AddComponent<Tilemap>();tileObject.AddComponent<TilemapRenderer>();
+            Vector3Int a=Vector3Int.zero,b=Vector3Int.right;
+            var authored=Matrix4x4.TRS(new Vector3(.13f,.07f,0),Quaternion.Euler(0,0,13),new Vector3(.83f,1.09f,1));
+            Action manual=()=>{map.SetTileFlags(a,TileFlags.None);map.SetTransformMatrix(a,authored);};
+            KT02CacheProbeTile.Phase="initial adjacent tiles";map.SetTile(a,first);map.SetTile(b,first);map.RefreshAllTiles();snapshots.Add(new{phase="initial",a=Attributes(map,a),b=Attributes(map,b)});
+            KT02CacheProbeTile.Phase="set manual flags and matrix";manual();snapshots.Add(new{phase="manual before neighbor refresh",a=Attributes(map,a)});
+            KT02CacheProbeTile.Phase="neighbor erase and reinsert";map.SetTile(b,null);map.SetTile(b,first);snapshots.Add(new{phase="after neighbor refresh",a=Attributes(map,a),b=Attributes(map,b)});
+            manual();snapshots.Add(new{phase="manual restored before transaction",a=Attributes(map,a)});
+            Undo.IncrementCurrentGroup();group=Undo.GetCurrentGroup();Undo.SetCurrentGroupName("KT02 Preview Native缓存特征探针");Undo.RegisterCompleteObjectUndo(map,"KT02 Preview Native缓存特征探针");
+            KT02CacheProbeTile.Phase="transaction replace tile then restore author";map.SetTile(a,next);manual();Undo.FlushUndoRecordObjects();Undo.CollapseUndoOperations(group);Undo.IncrementCurrentGroup();
+            snapshots.Add(new{phase="transaction committed with manual author values",a=Attributes(map,a)});
+            KT02CacheProbeTile.Phase="Native Undo";Undo.PerformUndo();snapshots.Add(new{phase="after Native Undo",a=Attributes(map,a),b=Attributes(map,b)});
+            KT02CacheProbeTile.Phase="Native Redo";Undo.PerformRedo();snapshots.Add(new{phase="after Native Redo",a=Attributes(map,a),b=Attributes(map,b)});
+            KT02CacheProbeTile.Phase="explicit RefreshAllTiles";map.RefreshAllTiles();snapshots.Add(new{phase="after explicit RefreshAllTiles",a=Attributes(map,a)});
+            var renderer=map.GetComponent<TilemapRenderer>();var shader=Shader.Find(E.GroundWorkshopOwnership.ShaderName);
+            if(shader==null)throw new InvalidOperationException("缺少已存在地表Shader；不创建或导入替代Shader");
+            originalMaterial=new Material(shader){name="KT02 transient original",hideFlags=HideFlags.HideAndDontSave};
+            nextMaterial=new Material(shader){name="KT02 transient replacement",hideFlags=HideFlags.HideAndDontSave};
+            Action<string,bool> rendererTrial=(label,tilemapFirst)=>
+            {
+                KT02CacheProbeTile.Phase=label+" reset";map.SetTile(a,first);map.SetTile(b,first);renderer.sharedMaterial=originalMaterial;map.RefreshAllTiles();manual();
+                snapshots.Add(new{phase=label+" before transaction",a=Attributes(map,a),material=renderer.sharedMaterial.name});
+                Undo.IncrementCurrentGroup();int own=Undo.GetCurrentGroup();Undo.SetCurrentGroupName("KT02 Preview "+label);
+                Undo.RegisterCompleteObjectUndo(tilemapFirst?new UnityEngine.Object[]{map,renderer}:new UnityEngine.Object[]{renderer,map},"KT02 Preview "+label);
+                KT02CacheProbeTile.Phase=label+" replace tiles/material and restore author";
+                map.SetTile(a,next);map.SetTile(b,next);renderer.sharedMaterial=nextMaterial;map.RefreshAllTiles();manual();
+                Undo.FlushUndoRecordObjects();Undo.CollapseUndoOperations(own);Undo.IncrementCurrentGroup();
+                snapshots.Add(new{phase=label+" committed",a=Attributes(map,a),material=renderer.sharedMaterial.name});
+                KT02CacheProbeTile.Phase=label+" Native Undo";Undo.PerformUndo();snapshots.Add(new{phase=label+" after Undo",a=Attributes(map,a),material=renderer.sharedMaterial==null?null:renderer.sharedMaterial.name});
+                KT02CacheProbeTile.Phase=label+" Native Redo";Undo.PerformRedo();snapshots.Add(new{phase=label+" after Redo",a=Attributes(map,a),material=renderer.sharedMaterial==null?null:renderer.sharedMaterial.name});
+            };
+            rendererTrial("register tilemap then renderer",true);
+            rendererTrial("register renderer then tilemap",false);
+        }
+        catch(Exception e){error=(e.InnerException??e).ToString();}
+        finally
+        {
+            try
+            {
+                KT02CacheProbeTile.Phase="probe cleanup";
+                if(group>=0){Undo.FlushUndoRecordObjects();Undo.RevertAllDownToGroup(group);Undo.IncrementCurrentGroup();}
+                if(map!=null)Undo.ClearUndo(map);
+                if(preview.IsValid())EditorSceneManager.ClosePreviewScene(preview);
+                if(first!=null)UnityEngine.Object.DestroyImmediate(first);if(next!=null)UnityEngine.Object.DestroyImmediate(next);
+                if(originalMaterial!=null)UnityEngine.Object.DestroyImmediate(originalMaterial);if(nextMaterial!=null)UnityEngine.Object.DestroyImmediate(nextMaterial);
+                if(active.IsValid()&&active.isLoaded&&SceneManager.GetActiveScene()!=active)SceneManager.SetActiveScene(active);
+                contextRestored=SetupSignature(EditorSceneManager.GetSceneManagerSetup())==SetupSignature(setup);
+                // PreviewScene不参加正常scene setup；正常情况完全不重载产品现场，也保留初始dirty。
+                if(!contextRestored)throw new InvalidOperationException("PreviewScene后产品scene setup意外改变；保留现场供root处理，不放弃dirty场景");
+            }
+            catch(Exception e){cleanupError=e.ToString();}
+        }
+        var dirtyAfter=Enumerable.Range(0,SceneManager.sceneCount).Select(i=>SceneManager.GetSceneAt(i).isDirty).ToArray();
+        ctx.ReturnValue=new{error,cleanupError,contextRestored,productDirtyFlagsUnchanged=dirtyBefore.SequenceEqual(dirtyAfter),snapshots,
+            totalGetTileDataCalls=KT02CacheProbeTile.TotalCalls,nestedCacheReadCalls=KT02CacheProbeTile.NestedCalls,rows=KT02CacheProbeTile.Rows.ToArray(),logLimit=80};
+    }
+}

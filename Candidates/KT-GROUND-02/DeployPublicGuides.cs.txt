@@ -1,0 +1,25 @@
+/* 本轮新Documentation明确11文件部署；只复制自有manifest，Native生成meta，不带私有图鉴/参考图。 */
+using System;using System.IO;using System.Linq;using System.Security.Cryptography;using UnityEditor;using UnityEngine;using Newtonsoft.Json.Linq;using Funplay.Editor.Tools.Scripting;
+using E=Ossastra.GroundResearch.Editor;
+public sealed class DeployPublicGuides:IFunplayCommand
+{
+ static string Hash(string p){using(var f=File.OpenRead(p))using(var h=SHA256.Create())return BitConverter.ToString(h.ComputeHash(f)).Replace("-","").ToLowerInvariant();}
+ static void Folder(string p){if(AssetDatabase.IsValidFolder(p))return;int n=p.LastIndexOf('/');Folder(p.Substring(0,n));AssetDatabase.CreateFolder(p.Substring(0,n),p.Substring(n+1));}
+ public void Execute(ExecutionContext ctx)
+ {
+  if(!E.GroundWorkshopOwnership.ContextReady(out string reason))throw new InvalidOperationException(reason);
+  string source="Candidates/KT-GROUND-02/UI/PublicGuide",root=E.GroundWorkshopOwnership.Root+"/Documentation";
+  var manifest=JObject.Parse(File.ReadAllText(source+"/public-manifest.json"));var files=(JArray)manifest["files"];
+  if(files.Count<11||files.Count>40)throw new InvalidOperationException("自有指南清单数量异常");
+  var rows=files.Select(row=>new{relative=(string)row["path"],hash=(string)row["sha256"]}).ToArray();
+  foreach(var row in rows){if(string.IsNullOrEmpty(row.relative)||row.relative.Contains("..")||Path.IsPathRooted(row.relative)||row.relative.StartsWith("02-catalog/")||Hash(source+"/"+row.relative)!=row.hash)throw new InvalidOperationException("公开清单路径/来源/哈希不符");}
+  foreach(var row in rows)
+  {
+   string target=root+"/"+row.relative;Folder(Path.GetDirectoryName(target).Replace('\\','/'));
+   if(File.Exists(target)&&Hash(target)!=row.hash&&!SessionState.GetBool("GroundCore.ReplaceOwnedDocumentation",false))throw new InvalidOperationException("自有指南已有不同内容，保留现场："+target);
+   if(!File.Exists(target)||Hash(target)!=row.hash)File.Copy(source+"/"+row.relative,target,true);
+   AssetDatabase.ImportAsset(target,ImportAssetOptions.ForceSynchronousImport);
+  }
+  ctx.ReturnValue=new{passed=true,files=rows.Length,root,paths=rows.Select(r=>root+"/"+r.relative).ToArray(),privateCatalogIncluded=false};
+ }
+}

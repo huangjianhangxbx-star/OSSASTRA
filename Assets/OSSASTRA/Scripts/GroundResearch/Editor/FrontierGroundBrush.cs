@@ -1,7 +1,7 @@
 /*
  * 脚本：FrontierGroundBrush
  * 功能：为原生Tile Palette限定地表、格范围和单笔Undo事务，实际作者数据仍为Tilemap。
- * 边界：不持有第二份格数据、不实例化材质或推进角色；拖动补点由现有原生Palette负责。
+ * 边界：不持有第二份格数据、不实例化材质或推进角色；拒绝作者锁，拖动补点由原生Palette负责。
  * 协作：Window显式配置图层；GridBrushEditor的原生入口开始事务，Esc取消，失焦提交已刷内容。
  */
 using System;
@@ -50,7 +50,10 @@ namespace Ossastra.GroundResearch.Editor
                 EditorUtility.IsPersistent(target) || PrefabStageUtility.GetCurrentPrefabStage() != null ||
                 target.scene != surface.gameObject.scene) return false;
             var map = target.GetComponent<Tilemap>();
-            return map != null && surface.Owns(map) && Layer != null && Layer.tilemap == map;
+            if (map == null || !surface.Owns(map) || Layer == null || Layer.tilemap != map || Layer.isLocked) return false;
+            var workshop = surface.GetComponent<GroundWorkshopMap>();
+            return workshop == null || GroundWorkshopOwnership.CanEdit(workshop,out _) &&
+                !GroundWorkshopAuthoring.IsLayerLocked(workshop,selectedLayer);
         }
 
         public bool BeginStroke(Tilemap target)
@@ -102,6 +105,8 @@ namespace Ossastra.GroundResearch.Editor
             int minY = Mathf.Max(area.yMin, legal.yMin), maxY = Mathf.Min(area.yMax, legal.yMax);
             if (minX >= maxX || minY >= maxY || area.zMin > 0 || area.zMax <= 0) return;
             var tile = erase ? Layer.eraseReplacement : Layer.paintTile;
+            // Native邻接刷新会触及笔画的一格邻域；保留其中仍未被本笔替换的作者属性。
+            var attributes = GroundTilemapAttributes.Capture(map,new BoundsInt(minX-1,minY-1,0,maxX-minX+2,maxY-minY+2,1));
             for (int y = minY; y < maxY; y++) for (int x = minX; x < maxX; x++)
             {
                 var cell = new Vector3Int(x, y, 0);
@@ -109,6 +114,7 @@ namespace Ossastra.GroundResearch.Editor
                 if (!IsStrokeActive && !BeginStroke(map)) return;
                 map.SetTile(cell, tile);
             }
+            attributes.Restore();
         }
 
         public override void Pick(GridLayout gridLayout, GameObject brushTarget, BoundsInt position, Vector3Int pickStart)

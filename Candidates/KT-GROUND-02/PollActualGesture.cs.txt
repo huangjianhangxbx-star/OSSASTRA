@@ -1,0 +1,9 @@
+using System;using System.Linq;using System.Reflection;using Funplay.Editor.Tools.Scripting;using Newtonsoft.Json.Linq;
+public sealed class PollActualGesture:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  var types=AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType("KT02ActualSceneGestureContracts",false)).Where(t=>t!=null).ToArray();
+  ctx.ReturnValue=types.Select(t=>new{assembly=t.Assembly.FullName,result=JObject.Parse((string)t.GetField("ResultJson",BindingFlags.Static|BindingFlags.Public).GetValue(null))}).ToArray();
+ }
+}

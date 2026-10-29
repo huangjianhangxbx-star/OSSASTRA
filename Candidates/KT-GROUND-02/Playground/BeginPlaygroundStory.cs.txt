@@ -1,0 +1,17 @@
+/* 实际菜单请求当前已保存作者图试玩；只保存Native Session服务的自有副本。 */
+using System;using System.IO;using System.Linq;using System.Security.Cryptography;using UnityEditor;using UnityEngine.SceneManagement;using Funplay.Editor.Tools.Scripting;
+using G=Ossastra.GroundResearch;using E=Ossastra.GroundResearch.Editor;
+public sealed class BeginPlaygroundStory:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  if(E.GroundWorkshopPlaygroundSession.HasSession)throw new InvalidOperationException("已有会话，不能覆盖。");
+  var s=SceneManager.GetActiveScene();var map=s.GetRootGameObjects().SelectMany(r=>r.GetComponentsInChildren<G.GroundWorkshopMap>(true)).Single();
+  E.GroundWorkshopOwnership.Require(map);if(s.isDirty)throw new InvalidOperationException("测试只请求已保存作者图");
+  string authorPath=s.path;string hash;using(var f=File.OpenRead(authorPath))using(var h=SHA256.Create())hash=Convert.ToBase64String(h.ComputeHash(f));
+  SessionState.SetString("KT02.PlayStory.AuthorScene",s.path);SessionState.SetString("KT02.PlayStory.AuthorMapId",map.registration.mapId);SessionState.SetString("KT02.PlayStory.AuthorSha",hash);
+  Selection.activeGameObject=map.gameObject;
+  if(!EditorApplication.ExecuteMenuItem("Tools/OSSASTRA/地表工坊/用当前地图进入角色试玩"))throw new InvalidOperationException("真实试玩菜单不可用");
+  ctx.ReturnValue=new{requested=true,author=authorPath,preview=E.GroundWorkshopPlaygroundSession.PreviewScenePath,hasSession=E.GroundWorkshopPlaygroundSession.HasSession,note="仅请求；需随后确认Play ready与实际Scene"};
+ }
+}

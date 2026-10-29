@@ -1,0 +1,12 @@
+// 测试真实目录加载；缺服务返回RED，不把自己构造的数据当导入器输出。
+using System;using System.Linq;using System.Reflection;using Funplay.Editor.Tools.Scripting;
+public sealed class GroundWorkshopCatalogLoadContract : IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  var type=AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType("Ossastra.GroundResearch.Editor.GroundWorkshopCatalog")).FirstOrDefault(t=>t!=null);
+  if(type==null){ctx.ReturnValue=new{passed=false,reason="共用目录Load服务未实现"};return;}
+  try{var doc=type.GetMethod("Load").Invoke(null,new object[]{"E:/WORLDCREATOR/XingHaiHuiLang/研究/开拓物语地表/KT-GROUND-02/02-catalog/catalog.json"});var rows=(Array)doc.GetType().GetField("entries").GetValue(doc);ctx.ReturnValue=new{passed=rows.Length>=29,count=rows.Length};}
+  catch(Exception e){ctx.ReturnValue=new{passed=false,error=(e.InnerException??e).Message};}
+ }
+}

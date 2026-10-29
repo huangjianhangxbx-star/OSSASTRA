@@ -1,0 +1,25 @@
+/* 原生反射合同：可选角色试玩模块必须注册两条菜单及窄Hook；只读，不触发菜单或场景变更。 */
+using System;
+using System.Linq;
+using System.Reflection;
+using Funplay.Editor.Tools.Scripting;
+using UnityEditor;
+
+public sealed class PlaygroundAvailabilityContracts : IFunplayCommand
+{
+    public void Execute(ExecutionContext ctx)
+    {
+        var builder=AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType("Ossastra.GroundResearch.Editor.GroundWorkshopPlaygroundBuilder")).FirstOrDefault(t=>t!=null);
+        var hooks=AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType("Ossastra.GroundResearch.Editor.GroundWorkshopPlayHooks")).FirstOrDefault(t=>t!=null);
+        string[] required={"Tools/OSSASTRA/地表工坊/打开双角色工坊场","Tools/OSSASTRA/地表工坊/用当前地图进入角色试玩"};
+        string[] menus=builder==null?Array.Empty<string>():builder.GetMethods(BindingFlags.Public|BindingFlags.Static).SelectMany(m=>m.GetCustomAttributes(typeof(MenuItem),false).Cast<MenuItem>()).Select(a=>a.menuItem).ToArray();
+        bool available=false;
+        if(hooks!=null)
+        {
+            var property=hooks.GetProperty("IsAvailable",BindingFlags.Public|BindingFlags.Static);
+            var field=hooks.GetField("IsAvailable",BindingFlags.Public|BindingFlags.Static);
+            available=property!=null?(bool)property.GetValue(null):field!=null&&(bool)field.GetValue(null);
+        }
+        ctx.ReturnValue=new{passed=builder!=null&&hooks!=null&&available&&required.All(menus.Contains),builderPresent=builder!=null,hooksPresent=hooks!=null,hookAvailable=available,registeredMenus=menus,expectedMissing=required.Except(menus).ToArray()};
+    }
+}

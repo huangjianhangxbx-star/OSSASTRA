@@ -1,0 +1,91 @@
+/*
+ * 窗口行为合同：未注册场景不因打开工坊而获得写入权。
+ * 捕获的回归：Window漏过注册检查、错误目标启动Palette、切层越界、释放工具覆盖外部状态。
+ * root以execute_code执行；仅独立PreviewScene与瞬态窗口，不保存资产、不触碰已有场景。
+ */
+using System;
+using System.Collections.Generic;
+using System.Reflection;
+using Funplay.Editor.Tools.Scripting;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+using UnityEditor.Tilemaps;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEngine.Tilemaps;
+
+public sealed class GroundWorkshopWindowGateContracts : IFunplayCommand
+{
+    public void Execute(ExecutionContext ctx)
+    {
+        Type windowType = FindType("Ossastra.GroundResearch.Editor.GroundWorkshopWindow");
+        if (windowType == null)
+        {
+            ctx.ReturnValue = new { status = "RED", passed = 0, failed = 1,
+                reason = "Missing GroundWorkshopWindow: an unregistered map cannot yet exercise the workshop ownership gate." };
+            return;
+        }
+        var checks = new List<string>(); int passed = 0, failed = 0;
+        Scene preview = default(Scene); ScriptableObject window = null; Tile tile = null;
+        var previousBrush = GridPaintingState.gridBrush;
+        var previousTarget = GridPaintingState.scenePaintTarget;
+        try
+        {
+            Type surfaceType = FindType("Ossastra.GroundResearch.GroundResearchSurface");
+            Type layerType = FindType("Ossastra.GroundResearch.GroundLayer");
+            preview = EditorSceneManager.NewPreviewScene();
+            var root = new GameObject("UnregisteredWorkshopMap");
+            SceneManager.MoveGameObjectToScene(root, preview);
+            var grid = root.AddComponent<Grid>(); grid.cellSwizzle = GridLayout.CellSwizzle.XZY;
+            var surface = root.AddComponent(surfaceType);
+            var child = new GameObject("UnregisteredTilemap");
+            SceneManager.MoveGameObjectToScene(child, preview); child.transform.SetParent(root.transform, false);
+            var map = child.AddComponent<Tilemap>();
+            tile = ScriptableObject.CreateInstance<Tile>(); map.SetTile(Vector3Int.zero, tile);
+            object layer = Activator.CreateInstance(layerType);
+            layerType.GetField("displayName").SetValue(layer, "未注册测试层");
+            layerType.GetField("tilemap").SetValue(layer, map);
+            layerType.GetField("paintTile").SetValue(layer, tile);
+            Array layers = Array.CreateInstance(layerType, 1); layers.SetValue(layer, 0);
+            surfaceType.GetField("grid").SetValue(surface, grid);
+            surfaceType.GetField("layers").SetValue(surface, layers);
+            surfaceType.GetField("editableCells").SetValue(surface, new BoundsInt(0, 0, 0, 4, 4, 1));
+            window = ScriptableObject.CreateInstance(windowType);
+            Invoke(window, "SelectSurface", surface);
+            object[] args = { null };
+            bool editable = (bool)windowType.GetMethod("CanAuthorSurface", BindingFlags.Public | BindingFlags.Instance).Invoke(window, args);
+            Check(!editable && !string.IsNullOrWhiteSpace(args[0] as string), "unregistered map is read-only with an actionable reason", checks, ref passed, ref failed);
+            Check(!(bool)Invoke(window, "SelectLayer", -1) && !(bool)Invoke(window, "SelectLayer", 1), "invalid layer indices do not become active authoring targets", checks, ref passed, ref failed);
+            Check(!(bool)Invoke(window, "ActivateBrush", typeof(PaintTool)), "unregistered map cannot activate a painting tool", checks, ref passed, ref failed);
+            Check(GridPaintingState.gridBrush == previousBrush && GridPaintingState.scenePaintTarget == previousTarget, "rejected activation leaves the user's Palette brush and target untouched", checks, ref passed, ref failed);
+            Check(map.GetTile(Vector3Int.zero) == tile && map.GetUsedTilesCount() == 1, "rejected operations preserve the original native Tilemap data", checks, ref passed, ref failed);
+            Invoke(window, "ReleaseAuthoring"); Invoke(window, "ReleaseAuthoring");
+            Check(GridPaintingState.gridBrush == previousBrush && GridPaintingState.scenePaintTarget == previousTarget, "releasing a window with no owned brush never restores somebody else's Palette state", checks, ref passed, ref failed);
+            Invoke(window, "SelectSurface", new object[] { null });
+            args = new object[] { null };
+            Check(!(bool)windowType.GetMethod("CanAuthorSurface").Invoke(window, args) && !string.IsNullOrWhiteSpace(args[0] as string), "clearing the selected map closes authoring and explains how to proceed", checks, ref passed, ref failed);
+        }
+        catch (Exception e) { failed++; checks.Add("FAIL contract/API: " + e.GetBaseException().Message); }
+        finally
+        {
+            if (window != null) UnityEngine.Object.DestroyImmediate(window);
+            if (tile != null) UnityEngine.Object.DestroyImmediate(tile);
+            if (preview.IsValid()) EditorSceneManager.ClosePreviewScene(preview);
+        }
+        ctx.ReturnValue = new { status = failed == 0 ? "GREEN" : "RED", passed, failed, checks = checks.ToArray() };
+    }
+    private static object Invoke(object target, string name, params object[] args)
+    {
+        MethodInfo method = target.GetType().GetMethod(name, BindingFlags.Public | BindingFlags.Instance);
+        if (method == null) throw new InvalidOperationException("Missing operator action " + name);
+        return method.Invoke(target, args);
+    }
+    private static Type FindType(string name)
+    {
+        foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
+        { Type type = assembly.GetType(name, false); if (type != null) return type; }
+        return null;
+    }
+    private static void Check(bool ok, string name, List<string> checks, ref int passed, ref int failed)
+    { checks.Add((ok ? "PASS " : "FAIL ") + name); if (ok) passed++; else failed++; }
+}

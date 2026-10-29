@@ -1,0 +1,10 @@
+using System;using UnityEditor;using Funplay.Editor.Tools.Scripting;using E=Ossastra.GroundResearch.Editor;
+public sealed class ReturnFromPlaygroundStory:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  if(!E.GroundWorkshopPlaygroundSession.HasSession)throw new InvalidOperationException("无本轮Session，不执行通用退出");
+  if(!EditorApplication.ExecuteMenuItem("Tools/OSSASTRA/地表工坊/返回作者地图"))throw new InvalidOperationException("返回菜单不存在");
+  ctx.ReturnValue=new{requested=true,note="须在Edit ready后核对Session清理、源SHA和MapID，未在此提前宣告返回完成。"};
+ }
+}

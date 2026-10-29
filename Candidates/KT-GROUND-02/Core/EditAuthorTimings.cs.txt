@@ -1,0 +1,134 @@
+/* A21有界Edit作者操作计时：只测本轮clean OriginalLab的8–12格空路线。
+ * 真FrontierGroundBrush.Paint+Finish与局部Tilemap.RefreshTile API；不是物理鼠标拖刷认证。
+ * 先Undo且全层属性/作者根/材质身份精确恢复，才能Maps.Save基线；永不把夹具格存盘。
+ */
+using System;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Collections.Generic;
+using System.Security.Cryptography;
+using System.Diagnostics;
+using UnityEngine;
+using UnityEngine.Tilemaps;
+using UnityEditor;
+using UnityEngine.SceneManagement;
+using Funplay.Editor.Tools.Scripting;
+using G=Ossastra.GroundResearch;
+using E=Ossastra.GroundResearch.Editor;
+
+public sealed class KT02EditAuthorTimings:IFunplayCommand
+{
+    sealed class LayerSnapshot
+    {
+        public Tilemap map;public BoundsInt bounds;public TileBase[] tiles;public Color[] colors;public TileFlags[] flags;public Matrix4x4[] matrices;
+        public Vector3Int origin,size;public Material material;public TilemapRenderer renderer;public Color layerColor;
+        public Vector3 position,scale;public Quaternion rotation;
+        public bool Matches()
+        {
+            if(map==null||renderer==null||renderer.sharedMaterial!=material||map.origin!=origin||map.size!=size||map.color!=layerColor||
+                map.transform.localPosition!=position||map.transform.localRotation!=rotation||map.transform.localScale!=scale||!tiles.SequenceEqual(map.GetTilesBlock(bounds)))return false;
+            int index=0;foreach(var cell in bounds.allPositionsWithin)
+            {
+                if(tiles[index]!=null)
+                {
+                    if(map.GetTileFlags(cell)!=flags[index]||map.GetColor(cell)!=colors[index])return false;
+                    if((flags[index]&TileFlags.LockTransform)==0){var actual=map.GetTransformMatrix(cell);for(int element=0;element<16;element++)if(Mathf.Abs(actual[element]-matrices[index][element])>.00001f)return false;}
+                }
+                index++;
+            }
+            return true;
+        }
+    }
+    static LayerSnapshot Capture(G.GroundLayer layer,BoundsInt legal)
+    {
+        var map=layer.tilemap;var native=map.cellBounds;
+        var min=Vector3Int.Min(native.min,legal.min);var max=Vector3Int.Max(native.max,legal.max);var bounds=new BoundsInt(min,max-min);
+        var snapshot=new LayerSnapshot{map=map,bounds=bounds,tiles=map.GetTilesBlock(bounds),origin=map.origin,size=map.size,renderer=map.GetComponent<TilemapRenderer>(),material=map.GetComponent<TilemapRenderer>().sharedMaterial,layerColor=map.color,
+            position=map.transform.localPosition,rotation=map.transform.localRotation,scale=map.transform.localScale};
+        snapshot.colors=new Color[snapshot.tiles.Length];snapshot.flags=new TileFlags[snapshot.tiles.Length];snapshot.matrices=new Matrix4x4[snapshot.tiles.Length];
+        int index=0;foreach(var cell in bounds.allPositionsWithin){snapshot.colors[index]=map.GetColor(cell);snapshot.flags[index]=map.GetTileFlags(cell);snapshot.matrices[index]=map.GetTransformMatrix(cell);index++;}return snapshot;
+    }
+    static string Hash(string path){if(!File.Exists(path))return "missing";using(var input=File.OpenRead(path))using(var sha=SHA256.Create())return Convert.ToBase64String(sha.ComputeHash(input));}
+    static string Authors(G.GroundWorkshopMap map)
+    {
+        var text=new StringBuilder();text.Append(map.registration.mapId).Append(map.transform.position.ToString("F6")).Append(map.transform.rotation.ToString("F6")).Append(map.transform.lossyScale.ToString("F6"));
+        foreach(var instance in map.decorationRoot.GetComponentsInChildren<G.GroundDecorationInstance>(true).OrderBy(value=>value.instanceId,StringComparer.Ordinal))
+            text.Append(instance.instanceId).Append(instance.assetId).Append(instance.generated).Append(instance.isLocked).Append(instance.transform.localPosition.ToString("F6")).Append(instance.transform.localRotation.ToString("F6")).Append(instance.transform.localScale.ToString("F6"));
+        return text.ToString();
+    }
+    static Vector3Int[] EmptyRoute(Tilemap map,BoundsInt bounds)
+    {
+        foreach(int length in new[]{12,10,8})foreach(var cell in bounds.allPositionsWithin)
+        {
+            if(cell.z!=0||cell.y<=bounds.yMin||cell.y>=bounds.yMax-1||cell.x<=bounds.xMin||cell.x+length>=bounds.xMax)continue;
+            var cells=Enumerable.Range(0,length).Select(offset=>cell+Vector3Int.right*offset).ToArray();if(cells.All(point=>map.GetTile(point)==null))return cells;
+        }
+        return null;
+    }
+    public void Execute(ExecutionContext ctx)
+    {
+        G.GroundWorkshopMap map=null;E.FrontierGroundBrush brush=null;LayerSnapshot[] baseline=null;string authorBefore=null,scenePath=null,sceneHashBefore=null,sceneHashAfter=null,error=null;
+        bool undoDone=false,restoredBeforeSave=false,restoredAfterSave=false,saveCalled=false,foreignGroup=false;int strokeGroup=-1,expectedNext=-1,refreshCalls=0,roadBefore=-1;
+        double paintMs=-1,refreshMs=-1,saveMs=-1;Vector3Int[] route=null;var protectedHashes=new Dictionary<string,string>();
+        try
+        {
+            var scene=SceneManager.GetActiveScene();
+            if(scene.path!=E.GroundWorkshopOwnership.OriginalScene||Application.isPlaying||EditorApplication.isPlayingOrWillChangePlaymode||E.GroundWorkshopAuthoring.HasPreview)throw new InvalidOperationException("仅本轮OriginalLab clean Edit且无预览可计时");
+            for(int index=0;index<SceneManager.sceneCount;index++)if(SceneManager.GetSceneAt(index).isDirty)throw new InvalidOperationException("存在未保存场景，保留现场，不计时或保存");
+            map=scene.GetRootGameObjects().SelectMany(root=>root.GetComponentsInChildren<G.GroundWorkshopMap>(true)).Single();E.GroundWorkshopOwnership.Require(map);
+            if(map.surface.layers.Length!=3||map.decorationRoot.GetComponentsInChildren<G.GroundDecorationInstance>(true).Length!=44||Mathf.Abs(map.surface.WorldArea-3072f)>.01f)throw new InvalidOperationException("需要本轮3层/44装饰/3072m²原创图，拒绝其他基线");
+            if(map.layerBindings.Any(binding=>EditorUtility.IsDirty(binding.ownedTile)||EditorUtility.IsDirty(binding.ownedMaterial))||EditorUtility.IsDirty(map.theme)||EditorUtility.IsDirty(map.registration))throw new InvalidOperationException("地图资产已有未保存修改，不能把未知dirty一起保存");
+            int road=Array.FindIndex(map.theme.layers,layer=>layer.purpose==G.GroundLayerPurpose.Road);if(road<0||E.GroundWorkshopAuthoring.IsLayerLocked(map,road))throw new InvalidOperationException("需要现有未锁Road层");
+            var tilemap=map.surface.layers[road].tilemap;roadBefore=0;foreach(var cell in map.surface.EditableCells.allPositionsWithin)if(tilemap.GetTile(cell)!=null)roadBefore++;
+            if(roadBefore!=19)throw new InvalidOperationException("本轮Road基线应为19，实际"+roadBefore);
+            route=EmptyRoute(tilemap,map.surface.EditableCells);if(route==null)throw new InvalidOperationException("无8–12格实际空路线；不清用户格");
+            baseline=map.surface.layers.Select(layer=>Capture(layer,map.surface.EditableCells)).ToArray();authorBefore=Authors(map);scenePath=scene.path;sceneHashBefore=Hash(scenePath);
+            foreach(string path in new[]{scenePath,E.GroundWorkshopOwnership.ReferenceScene,E.FrontierGroundSceneBuilder.ScenePath})if(File.Exists(path))protectedHashes[path]=Hash(path);
+            brush=ScriptableObject.CreateInstance<E.FrontierGroundBrush>();brush.hideFlags=HideFlags.HideAndDontSave;if(!brush.Configure(map.surface,road,1))throw new InvalidOperationException("Native画笔拒绝当前Road");
+            var stopwatch=Stopwatch.StartNew();if(!brush.BeginStroke(tilemap))throw new InvalidOperationException("无法开启本次Native作者事务");strokeGroup=Undo.GetCurrentGroup();
+            foreach(var cell in route)brush.Paint(map.surface.grid,tilemap.gameObject,cell);
+            if(Undo.GetCurrentGroup()!=strokeGroup){foreignGroup=true;throw new InvalidOperationException("笔画期间出现外部Undo组，保留现场，禁止跨组撤销或保存");}
+            brush.FinishStroke(false);stopwatch.Stop();paintMs=stopwatch.Elapsed.TotalMilliseconds;expectedNext=Undo.GetCurrentGroup();
+            if(!string.IsNullOrEmpty(brush.LastStrokeNotice)){foreignGroup=true;throw new InvalidOperationException("笔画报告外部历史漂移："+brush.LastStrokeNotice);}
+            if(!route.All(cell=>tilemap.GetTile(cell)==map.surface.layers[road].paintTile&&tilemap.GetSprite(cell)!=null))throw new InvalidOperationException("API笔画未产生预期原生Tile/Sprite，不给假计时通过");
+            var affected=new BoundsInt(route[0].x-1,route[0].y-1,0,route.Length+2,3,1);
+            stopwatch.Restart();foreach(var cell in affected.allPositionsWithin){tilemap.RefreshTile(cell);refreshCalls++;}stopwatch.Stop();refreshMs=stopwatch.Elapsed.TotalMilliseconds;
+            if(Undo.GetCurrentGroup()!=expectedNext){foreignGroup=true;throw new InvalidOperationException("局部刷新期间出现外部Undo组，保留现场不回滚他人操作");}
+            Undo.FlushUndoRecordObjects();Undo.PerformUndo();undoDone=true;
+            restoredBeforeSave=baseline.All(layer=>layer.Matches())&&Authors(map)==authorBefore;
+            if(!restoredBeforeSave)throw new InvalidOperationException("自己的笔画Undo后原生格/属性/材质/作者TRS未完全恢复；禁止Save夹具");
+            stopwatch.Restart();E.GroundWorkshopMaps.Save(map);stopwatch.Stop();saveMs=stopwatch.Elapsed.TotalMilliseconds;saveCalled=true;
+            restoredAfterSave=baseline.All(layer=>layer.Matches())&&Authors(map)==authorBefore;sceneHashAfter=Hash(scenePath);
+            if(!restoredAfterSave)throw new InvalidOperationException("基线Save后作者语义状态改变，需root核对");
+        }
+        catch(Exception exception){error=(exception.InnerException??exception).ToString();}
+        finally
+        {
+            try
+            {
+                if(brush!=null&&brush.IsStrokeActive)
+                {
+                    bool stillOwn=strokeGroup>=0&&Undo.GetCurrentGroup()==strokeGroup;brush.FinishStroke(false);
+                    if(stillOwn&&!foreignGroup)expectedNext=Undo.GetCurrentGroup();else foreignGroup=true;
+                }
+                // 只有确认仍在本笔紧接的空组才撤自己的记录；外部漂移绝不跨界RevertAll。
+                if(!undoDone&&strokeGroup>=0&&!foreignGroup&&Undo.GetCurrentGroup()==expectedNext){Undo.PerformUndo();undoDone=true;}
+                if(brush!=null)UnityEngine.Object.DestroyImmediate(brush);
+            }
+            catch(Exception cleanup){error+="\nCleanup: "+cleanup;}
+        }
+        bool currentRestored=map!=null&&baseline!=null&&baseline.All(layer=>layer.Matches())&&Authors(map)==authorBefore;
+        bool protectedOldScenesUnchanged=protectedHashes.Where(pair=>pair.Key!=scenePath).All(pair=>Hash(pair.Key)==pair.Value);
+        ctx.ReturnValue=new{status=string.IsNullOrEmpty(error)&&undoDone&&restoredBeforeSave&&restoredAfterSave&&saveCalled&&protectedOldScenesUnchanged?"PASS":"FAILED",error,
+            apiPaintAndFinishMilliseconds=paintMs,localNativeRefreshMilliseconds=refreshMs,nativeMapsSaveMilliseconds=saveMs,
+            route=route==null?null:route.Select(cell=>new[]{cell.x,cell.y,cell.z}).ToArray(),routeCells=route==null?0:route.Length,localRefreshCalls=refreshCalls,
+            worldArea=map==null?0:map.surface.WorldArea,groundRenderers=map==null?0:map.surface.layers.Count(layer=>layer.tilemap.GetComponent<TilemapRenderer>()!=null),
+            uniqueGroundMaterials=map==null?0:map.layerBindings.Select(binding=>binding.ownedMaterial).Distinct().Count(),decorations=map==null?0:map.decorationRoot.GetComponentsInChildren<G.GroundDecorationInstance>(true).Length,roadBaseline=roadBefore,
+            undoDone,restoredBeforeSave,restoredAfterSave,currentRestored,foreignGroup,saveCalled,protectedOldScenesUnchanged,sceneHashBefore,sceneHashAfter,
+            baselineSaveByteIdentical=sceneHashBefore!=null&&sceneHashAfter==sceneHashBefore,
+            serializationExplanation=sceneHashAfter!=null&&sceneHashAfter!=sceneHashBefore?"原生作者状态已逐项保持，但Native Maps.Save重序列化改变场景字节；字节同一性未通过，须结合原生diff审阅，不能解释为夹具格已保存。":"未发现基线场景字节变化或尚未执行Save。",
+            protectedScenes=protectedHashes.Select(pair=>new{path=pair.Key,before=pair.Value,after=Hash(pair.Key),unchanged=Hash(pair.Key)==pair.Value}).ToArray(),
+            brushApiNotPhysicalDrag=true,physicalHardwareVerified=false,noNewMapOrLayoutRegeneration=true,measurementScope="有界Editor API耗时；包含Native BeginStroke/Paint/Finish；局部刷新逐个Native RefreshTile，Save使用原Maps.Save包含其正常刷新；不是长时间/硬件/逐帧拖刷性能认证。"};
+    }
+}

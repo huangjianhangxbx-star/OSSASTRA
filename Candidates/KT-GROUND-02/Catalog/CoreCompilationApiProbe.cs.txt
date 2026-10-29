@@ -1,0 +1,54 @@
+/* 只读Native元数据探针：确认本机AssemblyBuilder公开API与默认引用，不调用Build/Export，不写资产。
+ * root先设置SessionState GroundCore.DeliveryRoot为Assets外已存在的小型06-delivery目录。
+ * 类型提供程序集取实际RuleTile/GridBrush/JObject；不猜包名，不用当前Assembly-CSharp掩盖独立依赖。
+ */
+using System;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using Funplay.Editor.Tools.Scripting;
+using UnityEditor;
+using UnityEditor.Tilemaps;
+using UnityEngine;
+using UnityEngine.Tilemaps;
+using Newtonsoft.Json.Linq;
+
+public sealed class CoreCompilationApiProbe : IFunplayCommand
+{
+    public void Execute(ExecutionContext ctx)
+    {
+        string output=SessionState.GetString("GroundCore.DeliveryRoot","");
+        if(string.IsNullOrEmpty(output)||!Directory.Exists(output))throw new InvalidOperationException("先设置明确已存在的外部06-delivery目录。");
+        string sourceRoot=Path.Combine(Application.dataPath,"OSSASTRA/Scripts/GroundResearch");
+        string[] excluded={"GroundSourceImporter.cs","FrontierGroundSceneBuilder.cs","FrontierGroundBrushWindow.cs","GroundResearchView.cs","GroundWorkshopPlaygroundBuilder.cs","GroundWorkshopPlaygroundSession.cs"};
+        string[] files=Directory.GetFiles(sourceRoot,"*.cs",SearchOption.AllDirectories).Where(p=>!excluded.Contains(Path.GetFileName(p),StringComparer.Ordinal)).OrderBy(p=>p,StringComparer.Ordinal).ToArray();
+        if(files.Length!=25)throw new InvalidOperationException("Core白名单计数不为25，未构造编译对象："+files.Length);
+        var type=AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType("UnityEditor.Compilation.AssemblyBuilder",false)).FirstOrDefault(t=>t!=null);
+        if(type==null)throw new InvalidOperationException("本机未找到AssemblyBuilder。");
+        object builder=Activator.CreateInstance(type,new object[]{Path.Combine(output,"metadata-probe-only.dll"),files});
+        var flags=type.GetProperty("flags",BindingFlags.Public|BindingFlags.Instance);
+        if(flags!=null&&flags.CanWrite&&flags.PropertyType.IsEnum&&Enum.GetNames(flags.PropertyType).Contains("EditorAssembly"))
+            flags.SetValue(builder,Enum.Parse(flags.PropertyType,"EditorAssembly"));
+        Func<string,object> read=name=>
+        {
+            var property=type.GetProperty(name,BindingFlags.Public|BindingFlags.Instance);
+            try{return property==null?null:property.GetValue(builder);}
+            catch(Exception error){return "getter error: "+error.Message;}
+        };
+        Func<Type,object> provider=t=>new{type=t.FullName,assembly=t.Assembly.GetName().Name,path=t.Assembly.Location};
+        ctx.ReturnValue=new
+        {
+            passed=true,probeOnly=true,built=false,exported=false,coreFiles=files.Length,
+            assembly=type.Assembly.FullName,
+            constructors=type.GetConstructors().Select(c=>c.ToString()).ToArray(),
+            properties=type.GetProperties(BindingFlags.Public|BindingFlags.Instance).Select(p=>new{p.Name,type=p.PropertyType.FullName,p.CanRead,p.CanWrite,
+                enumValues=p.PropertyType.IsEnum?Enum.GetNames(p.PropertyType):Array.Empty<string>()}).ToArray(),
+            fields=type.GetFields(BindingFlags.Public|BindingFlags.Instance).Select(f=>new{f.Name,type=f.FieldType.FullName}).ToArray(),
+            events=type.GetEvents(BindingFlags.Public|BindingFlags.Instance).Select(e=>new{e.Name,handler=e.EventHandlerType.FullName,
+                invoke=e.EventHandlerType.GetMethod("Invoke").ToString()}).ToArray(),
+            defaultReferences=read("defaultReferences"),defaultDefines=read("defaultDefines"),referencesOptions=read("referencesOptions"),
+            excludeReferences=read("excludeReferences"),excludeReferencesOptions=read("excludeReferencesOptions"),
+            providers=new[]{provider(typeof(RuleTile)),provider(typeof(GridBrush)),provider(typeof(GridBrushEditor)),provider(typeof(JObject))}
+        };
+    }
+}

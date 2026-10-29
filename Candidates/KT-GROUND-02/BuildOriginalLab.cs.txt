@@ -1,0 +1,13 @@
+// 首次创建本轮原创示例；已有文件只打开，绝不重填作者格。
+using System;using UnityEditor;using UnityEditor.SceneManagement;using UnityEngine;
+using Ossastra.GroundResearch;using Ossastra.GroundResearch.Editor;using Funplay.Editor.Tools.Scripting;
+public sealed class GroundWorkshopBuildOriginalLab : IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  string path=GroundWorkshopOwnership.OriginalScene;
+  if(AssetDatabase.LoadAssetAtPath<SceneAsset>(path)!=null){ctx.ReturnValue=new{created=false,path,reason="已存在，不重建或覆盖"};return;}
+  var map=GroundWorkshopMaps.CreateMap(GroundWorkshopOriginalAssets.EnsureSamples(),path,new Vector2Int(16,12));
+  ctx.ReturnValue=new{created=true,path,instanceId=map.GetInstanceID(),assetFolder=map.registration.assetFolder,area=map.surface.WorldArea,layers=map.surface.layers.Length};
+ }
+}

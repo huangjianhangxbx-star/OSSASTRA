@@ -1,0 +1,20 @@
+/* 原创样板只补两个弯路连接格和三个分叉格；不重铺、不重新散布44装饰。 */
+using System;using System.Linq;using System.Collections.Generic;using UnityEditor;using UnityEngine;using UnityEngine.SceneManagement;using Funplay.Editor.Tools.Scripting;using G=Ossastra.GroundResearch;using E=Ossastra.GroundResearch.Editor;
+public sealed class ConnectOriginalSampleRoad:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  var s=SceneManager.GetActiveScene();if(s.path!=E.GroundWorkshopOwnership.OriginalScene||s.isDirty)throw new InvalidOperationException("只改本轮干净原创样板");
+  var map=s.GetRootGameObjects().SelectMany(r=>r.GetComponentsInChildren<G.GroundWorkshopMap>(true)).Single();E.GroundWorkshopOwnership.Require(map);
+  int road=Array.FindIndex(map.theme.layers,l=>l.purpose==G.GroundLayerPurpose.Road);var tilemap=map.surface.layers[road].tilemap;
+  var brush=ScriptableObject.CreateInstance<E.FrontierGroundBrush>();
+  try{if(!brush.Configure(map.surface,road,1))throw new InvalidOperationException("Road锁定");foreach(var p in new[]{new Vector3Int(-2,-1,0),new Vector3Int(2,0,0),new Vector3Int(-2,1,0),new Vector3Int(-2,2,0),new Vector3Int(-2,3,0)})brush.Paint(map.surface.grid,tilemap.gameObject,p);brush.FinishStroke(false);}
+  finally{brush.FinishStroke(false);UnityEngine.Object.DestroyImmediate(brush);}
+  var cells=new HashSet<Vector3Int>();foreach(var p in map.surface.EditableCells.allPositionsWithin)if(tilemap.GetTile(p)!=null)cells.Add(p);
+  var seen=new HashSet<Vector3Int>();var queue=new Queue<Vector3Int>();queue.Enqueue(cells.First());
+  while(queue.Count>0){var p=queue.Dequeue();if(!seen.Add(p))continue;foreach(var delta in new[]{Vector3Int.left,Vector3Int.right,Vector3Int.up,Vector3Int.down})if(cells.Contains(p+delta)&&!seen.Contains(p+delta))queue.Enqueue(p+delta);}
+  if(cells.Count!=19||seen.Count!=19)throw new InvalidOperationException("样板道路未达19格四邻接连通");
+  Undo.FlushUndoRecordObjects();E.GroundWorkshopMaps.Save(map);
+  ctx.ReturnValue=new{path=s.path,s.isDirty,roadCells=cells.Count,fourConnected=seen.Count==cells.Count,decorations=map.decorationRoot.childCount};
+ }
+}
