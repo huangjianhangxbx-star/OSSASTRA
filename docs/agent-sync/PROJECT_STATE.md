@@ -575,3 +575,5 @@ F00–F10工程实施/定向验证完成：原唯一音频根/Transport/32短音
 
 ## 2026-10-29 DS-MAP-01 technical-complete / publishing
 独立SC_DontStarveMapLab、原Blue完整控制链Variant及Root管理的optional ViewSpace完成；滚轮/十字键45度旋转，Q/E/方向移动保留，WorldRoot/碰撞固定。三地表/40物件/结构侧俯视，本机素材隔离。119/162/37/13/10/7/24/91/48/31/25/10分层检查及原Commerce移动普攻、三轮重开通过；错误长按连招夹具预期、全Editor隐藏管线材质增长、原作OBSERVATION_BLOCKED与真实OS焦点/实体手柄/用户视觉未代验均单列。42保护项/40源SHA保持，最终Edit clean/Missing0；全部Unity/源码租约释放，仅自有文档/选择性GitHub发布。详见ossastra/DS-MAP-01/handoff.md。无电源动作。
+
+2026-10-29 DS-MAP-01 complete：产品ff08d51399476893ae7b08fd63a79b3716abec81/186路径已GitHub main精确核验，受限媒体/私有帧Mesh零公开；独立GPL转换工具附许可。全部租约释放，最终SC_DontStarveMapLab Edit clean，无后续自动迁移或电源动作。用户视觉/原作实机/实体手柄和外部Hidden管线材质增长保持分列。见ossastra/DS-MAP-01/publication-receipt.md。
