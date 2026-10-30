@@ -88,9 +88,9 @@ C从同一平台平面、同一像素路径重建片元深度，沿用原队列�
 
 ## 环境事件（与渲染首因分开）
 
-本机C盘剩余0字节，一次poll编译发生IO112（空间不足）。root沿原run恢复后D24-AA4为GREEN，原回执不改成“从未失败”；这是工具/环境中断，不拿来解释此前已经复现的地表层序错误。
+本机C盘诊断期间曾剩余0字节，一次poll编译发生IO112（空间不足）。root沿原run恢复后D24-AA4为GREEN，原回执不改成“从未失败”；这是工具/环境中断，不拿来解释此前已经复现的地表层序错误。
 
-曾只对Unity进程尝试TMP/TEMP重定向E；`temp-route.json`读回Path.GetTempPath仍为C盘。`temp-route-restored.json`确认进程环境已恢复，不能声称成功迁移临时目录；没有删除C盘文件。随后小Native请求仍可成功不代表磁盘问题已解决，磁盘来源/清理不在本修复范围内。
+曾只对Unity进程尝试TMP/TEMP重定向E；`temp-route.json`读回Path.GetTempPath仍为C盘。`temp-route-restored.json`确认进程环境已恢复，不能声称成功迁移临时目录；没有删除C盘文件。随后小Native请求仍可成功不代表磁盘问题已解决，磁盘来源/清理不在本修复范围内。最终只读回执C盘可用110854144字节（约106MiB），属于少量空间回收，不能继续写“当前仍严格为0”，也不足以声明空间问题已解决。
 
 ## 最终Edit现场与保护
 
@@ -132,4 +132,4 @@ C从同一平台平面、同一像素路径重建片元深度，沿用原队列�
 
 ## 发布与交接
 
-功能提交`79f61936a9429bf375d0544b45147262663ee60b`已定向推至GitHub main，fresh ls-remote返回相同SHA。28个精确文件仅含本轮Shader、自有候选、文档与任务同步，Registry只stage本轮4行，原17行与其他36项既有dirty保留。媒体/截图、场景、派生Sprite/UV缓存未上传。全部Unity/路径租约释放；最终Edit ready/单Lab/dirty=true不强存，C盘0字节问题仍未解决。用户当前修复请求未要求电源动作，本轮没有关机或休眠。
+功能提交`79f61936a9429bf375d0544b45147262663ee60b`已定向推至GitHub main，fresh ls-remote返回相同SHA。28个精确文件仅含本轮Shader、自有候选、文档与任务同步，Registry只stage本轮4行，原17行与其他36项既有dirty保留。媒体/截图、场景、派生Sprite/UV缓存未上传。全部Unity/路径租约释放；最终Edit ready/单Lab/dirty=true不强存，磁盘剩余空间仍很紧张。用户当前修复请求未要求电源动作，本轮没有关机或休眠。
