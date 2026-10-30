@@ -11,9 +11,9 @@
 - 活动任务不得拥有重叠路径；同一时刻最多一个 `unity-writer`。
 - 暂停、阻塞或完成时，将记录移到历史并释放路径。
 
-## KT-VIS-01 发布收口（2026-10-31）
+## KT-VIS-01 完成交接（2026-10-31）
 
-- `kt-vis-01` active/docs-writer：实现与Native验证已完成，Unity/Assets及运行输入租约全部释放；Root仅进行本轮自有源码和技术文档GitHub定向发布。原197文件/37dirty/开发细则保护，不提交第三方美术、场景、派生UV缓存或录像。最终新SC_OcclusionVisibilityLab为Edit ready/clean，详tasks/2026-10-30-kt-vis-01.md。
+- `kt-vis-01` complete/read-only：角色显示深度与模型柔边透视已完成限定验证；新Lab Edit ready/clean，运行资源/输入租约归零，197源文件/原37dirty/开发细则保持。功能提交04aac0039a83a80bfbdc357b10749a46240bdae8已GitHub main精确核验，受限美术/场景/缓存/录像不发布。全部Unity/源码/文档writer释放，详tasks/2026-10-30-kt-vis-01.md。
 
 ## KT-GROUND-03-FIX01 完成交接（2026-10-30）
 
