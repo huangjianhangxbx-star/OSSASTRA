@@ -1,6 +1,8 @@
 # KT-GROUND-03 验证记录
 
-本轮已经保存独立高台Lab，完成真实作者操作、坡道登高、双角色切控、运行观察和一次真正关场重开。本文按实际Native回执记录；**本轮技术验证与最终正常现场已收口；发布SHA和租约释放由root补录**。严格像素仍11/12及物理UI未验的边界不改成全通过。原KT02结果不移作KT03通过数。
+本轮已经保存独立高台Lab，完成真实作者操作、坡道登高、双角色切控、运行观察和一次真正关场重开。本文按实际Native回执记录；**本轮技术验证与最终正常现场已收口，功能主提交已发布到origin/main**。严格像素仍11/12及物理UI未验的边界不改成全通过。原KT02结果不移作KT03通过数。
+
+功能主提交：[c080c07](https://github.com/huangjianhangxbx-star/OSSASTRA/commit/c080c0749a8e312e3538a7c6b066fc3af38f531e)。root实际推送后以fresh `ls-remote`核验origin/main精确为`c080c0749a8e312e3538a7c6b066fc3af38f531e`。117文件包含116项发布清单及自有Registry4行；Scene、Maps/缓存、参考媒体未发布。本文后续交接补录不冒称已在该功能提交内。
 
 ## 环境与现场
 
@@ -16,7 +18,7 @@
 
 | 编号 | 必须取得的结果 | 本轮证据与当前边界 |
 |---|---|---|
-| V01 | HEAD/dirty/Unity现场、保护快照与单writer | root同步记录；native-context、initial-status及保护20/20。最终租约释放待root。 |
+| V01 | HEAD/dirty/Unity现场、保护快照与单writer | root同步记录；native-context、initial-status及保护20/20。主提交已发布；租约释放由root在交接记录登记。 |
 | V02 | 独立新Lab，旧场/基础Prefab保持 | M1新场保存clean；旧工坊12/12，19个场景/依赖字节相同，保护20/20。 |
 | V03 | 原草/浅石路/覆盖/花草真实复用 | M1对象与真实Game View、运行观察及视频可见；未用计划截图冒充运行画面。人工审美未签。 |
 | V04 | 独立侧壁/薄盖，无重复共面顶盖 | 实际A/B独立墙、裁剪盖与Collider；Bare/Structure/Exploded/BeforeClip可分辨。normal-final最终现场passed=true，双平台每平台cache各1且全部持久Mesh/材质/cap有效。 |
@@ -41,7 +43,7 @@
 | V23 | 同内容A、真实场B、0重建/数量稳定 | A同内容像素0、4轮；B真实场四模式3轮视觉消融、Full恢复像素0；静止/旋转44/44，运行高度故事0重建。Editor wall-clock非GPU/Player/FPS。 |
 | V24 | 诊断不改真实世界，恢复与运行继续 | 冷门Gate5/5、真实组件归属18/18，真实Play观察PASS；物理/姿态/缓存保持，游戏时间前进4.347s。normal-final最终Edit clean、Final/诊断0、敌攻击关、35°/distance25/FOV35、无MissingScript或测试设备；双平台正常持久引用。 |
 | V25 | 旧工坊最小刷改/撤销及原装配回归 | 旧工坊12/12：真实API刷/擦与Native Undo、双角色/Controller、单敌、35°原MapResearch装配读回；未Save/Play旧场。Undo后内存dirty=true如实保留，文件19项不变。 |
-| V26 | 入口、资源分界、完整交接与发布SHA | 本机HTML与操作说明已整理；最终原地回归及normal-final已通过；仅公开精确清单/发布SHA和租约释放由root补，不预报远端成功。 |
+| V26 | 入口、资源分界、完整交接与发布SHA | 本机HTML与操作说明已整理；最终原地回归及normal-final已通过；功能主提交c080c07已推送并fresh ls-remote核验；117文件（116清单+自有Registry4行），未发布Scene/Maps缓存/媒体，租约释放由root交接记录登记。 |
 
 ## 关键实际回执
 
@@ -100,7 +102,7 @@
 - 分段接缝前两轮各1PASS/2FAIL，因实际cap Mesh不可读；仅源墙SHA不变通过。修复重载引用与队列后actual-seam-green真实3/3，原墙11个开放边每边t=0/.25/.5/.75/1取样，A30+B25共55点，实际cache/cap的XZ/Y最大误差均0（1e-4/5e-4）。缓存全部顶点独立检查在原墙凹域内。这一轮cap/cache为当前重建显示对象（persistent=false），不把接缝回执本身当持久保存复验。
 - 显示首轮33PASS/1FAIL只缺SceneVisibility Hide镜像。第二轮1PASS/1FAIL在DisplayHash/DebugMask遇NullReference；root进一步确认BeforeReload误删仍被Scene引用的Mesh/Mat，加上delayCall队列挂住，并非仅将其归咎于夹具。窄修保留重载引用并改为重载后有界一次性update队列；cache-health-queue-fixed双平台27个chunk Mesh/Mat及两个可读cap恢复，update-scheduler-fixed读回pending0、scheduled/draining/waiting=false，未手工Rebuild或重开场景掩盖。随后display-sync-final-result真实34/34，包含实际Hide/Show/Mask/Release与非A保持。第二次脚本重载后cache-health-second-reload再次27个chunk/双cap健康、源指纹相同；不是只让健康读回通过而放弃原显示合同。
 - 新增真实MaskSave顺序RED5PASS/3FAIL：保存前没有释放原工坊Window观察，导致运行材质残留mask。root已窄补Save前释放同Lab该Window拥有的观察。Inspector MeshFilter引用错误门RED8PASS/1FAIL：实际引用变更但无stale-model错误；root已窄补Modified对精确MeshFilter引用的匹配。编译后mask-save-fixed-result真实8/8、mesh-reference-gate-fixed-result真实9/9通过；失败历史保留，不再将RED当当前结论。
-- `normal-final.json`已真实passed=true：最终Edit clean、root确认单个新场、三独立Map、两个原角色/单敌（敌攻击false）、35°/distance25/FOV35、Final/diagnosticRenderer0、MissingScript0、temporaryTestDevices空；两平台各一个cache，全部Mesh/材质/cap持久有效、DebugMask0、源指纹匹配、失效装饰0。最终公开清单、远端提交与租约释放仍由root收口，不提前填SHA；本轮没有休眠。
+- `normal-final.json`已真实passed=true：最终Edit clean、root确认单个新场、三独立Map、两个原角色/单敌（敌攻击false）、35°/distance25/FOV35、Final/diagnosticRenderer0、MissingScript0、temporaryTestDevices空；两平台各一个cache，全部Mesh/材质/cap持久有效、DebugMask0、源指纹匹配、失效装饰0。功能主提交已精确推送并fresh ls-remote验证，原37项dirty与Registry17条无关行保留；租约释放由root交接登记。本轮没有休眠。
 
 首版只支持经校验的水平简单单外环、正TRS/绕Y旋转；复杂孔洞、非共面、负缩放、非流形等拒绝，不自动凸包填平。二维mask不称体积mask。完整伙伴跨层寻路、跨层战斗、任意FBX自动接合、动态平台和任意曲面刷地不在本轮承诺内。
 

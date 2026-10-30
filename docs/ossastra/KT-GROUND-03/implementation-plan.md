@@ -79,8 +79,8 @@ UI/审计代理：接口冻结后独占Runtime/GroundSurfaceLabView.cs、Editor/
 
 - [x] V01—V26逐项实际回执；少量同机位图、短视频、操作/模型契约与本机HTML。
 - [x] 旧工坊真实刷改撤销与角色最小冒烟；初始保护SHA核对且原dirty保留。
-- [ ] 最终新Lab正常35度/诊断关/敌攻击关/哨兵移除已读回通过；R11定向公开自有代码文档，参考场/纹理/派生Mesh仅本机，核远端SHA、释放租约，不电源操作。
+- [x] 最终新Lab正常35度/诊断关/敌攻击关/哨兵移除已读回通过；R11定向公开自有代码文档，参考场/纹理/派生Mesh仅本机，核远端SHA、释放租约，不电源操作。
 
 ## 实际收口备注
 
-M0—M5及Native交付检查已执行，证据索引见validation.md。严格Native/缓存像素12案为11案精确同、一案单RGB像素采样边界差，总false保留；性能A同内容486三角全帧像素差0，GPU/Player未测。最终分段墙沿55点与实际盖/Collider误差0，normal-final已通过。M6仅精确发布/远端核验与租约释放由root最后补。
+M0—M5及Native交付检查已执行，证据索引见validation.md。严格Native/缓存像素12案为11案精确同、一案单RGB像素采样边界差，总false保留；性能A同内容486三角全帧像素差0，GPU/Player未测。最终分段墙沿55点与实际盖/Collider误差0，normal-final已通过。M6主提交 c080c0749a8e312e3538a7c6b066fc3af38f531e 已发布并精确核验，全部租约释放；最终normal-final通过。

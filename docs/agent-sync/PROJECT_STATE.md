@@ -1,5 +1,7 @@
 # ANKALUTE 共享项目状态
 
+> 2026-10-30 KT-GROUND-03方案B技术交付：新SC_CliffEdgeLab的3m凹L/5m斜切平台从已保存侧壁提边，Tilemap唯一作者+裁剪顶盖/独立凹域Collider，原工坊刷改/配方/Undo/模型/装饰/多Map保存重开已验；原双角色真实缓坡Y .02→3.02与35度旋转切控19/19，55实际墙边分段采样误差0。修复派生指针Undo、SceneVisibility、reload资源/工作队列、保存mask与MF引用错误门。最终Edit clean/Final/敌攻击关、持久引用完整/无MissingScript；严格像素11/12单像素边界差、GPU/实体UI/Player未验及编辑器/工具日志边界保留。功能主提交 c080c0749a8e312e3538a7c6b066fc3af38f531e 已GitHub main精确核验，原37dirty/20保护SHA保持，受限媒体/派生缓存/场景仅本机；全部租约释放，无电源动作。入口docs/ossastra/KT-GROUND-03/README.md。
+
 > 2026-10-30 地表工坊镜头按用户参考改为35°俯角（原42.857），配置在MapResearchRoot.pitch，距离25/FOV35/yaw45保持；当前Lab已Native保存，可选当前地图试玩只继承作者pitch、不改只读Frontier模板。实际Play/返回35°、原图SHA相同、clean/无Session、Console无error；源控制算法/角色不改，全部租约释放。见docs/ossastra/KT-GROUND-camera-angle.md。
 
 > 2026-10-30 KT-GROUND-02完成交接：原生工坊/原创3层/七层双角色单敌参考图、600项本机图鉴与八章教材已成；三次真实试玩返回clean、8+1角复验、换材/另存/笔刷/装饰与独立25源编译通过。83自有文件Core原生包及SourceZIP完成；最终参考场Edit ready/clean，预览/会话/临时资产0，18保护SHA未变；物理UI/空工程/Player未验。产品8cba9ffcd4de3e4ac566131d0094ad218326f8a8已GitHub main精确核验，全部writer/路径租约释放。原37dirty保留，参考媒体仅本机，详见docs/ossastra/KT-GROUND-02/README.md与tasks/2026-10-30-kt-ground-02.md。
