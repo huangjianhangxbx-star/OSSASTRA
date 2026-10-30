@@ -11,9 +11,9 @@
 - 活动任务不得拥有重叠路径；同一时刻最多一个 `unity-writer`。
 - 暂停、阻塞或完成时，将记录移到历史并释放路径。
 
-## KT-GROUND-03-FIX01 活动任务（2026-10-30）
+## KT-GROUND-03-FIX01 完成交接（2026-10-30）
 
-- `kt-ground-03-fix01` active/unity-writer：root唯一Unity writer，用户地表闪烁定向排障/方案/修复；独占GroundSurfaces、Candidates/KT-GROUND-03-FIX01、专题文档与本任务同步，代理仅候选/文档。先真实多层动态RED，不以几何/八角静帧代验；原37dirty/参考资源/角色/全局管线保护。见tasks/2026-10-30-kt-ground-03-fix01.md。
+- `kt-ground-03-fix01` complete/read-only：共面地表深度首因与Shader-only修复已交付，2207934生产叠层样本0错/未知、184机位独立opaque遮挡0差、实际Play45→315及返回已验；功能79f61936a9429bf375d0544b45147262663ee60b已GitHub精确核验。保留dirty=true/自动cache+1、GPU/Player/长时未测与C盘0/工具日志边界；作者及20保护SHA/原37dirty保持；全部Unity/路径租约释放。见tasks/2026-10-30-kt-ground-03-fix01.md。
 
 ## KT-GROUND-03 完成交接（2026-10-30）
 

@@ -120,7 +120,7 @@ C从同一平台平面、同一像素路径重建片元深度，沿用原队列�
 | F09 | Shader-only不改作者/更新路径，检查原输入身份与只读authorHash、现有运行显示直接生效 | 三Map authorHash相同；本轮不主动写作者/刷改撤销，不把旧闭环计数搬过来 |
 | F10 | Shader-only保持同名GUID/材质引用，重载及Play后现有资源可直接显示；不重序列化或保存用户场 | Shader GUID保持、prepare Play经重载ready，实际Game View已出图；不保存/关场重开用户场景，runtime Shader supported/errorsfalse、原GUID/材质名称与共面Y读回；返回Edit保留dirty，未强制重存 |
 | F11 | 静止/转镜头不重建顶盖，Renderer/Mesh/Material数量稳定；原低地/旧场/角色配置及用户dirty保护 | 三Map输入/20文件指纹通过；Play生命周期A91→92/B55→56自动生成缓存，未手动Rebuild，不声称全程0重建；本轮未另跑长时资源稳定采样，GPU/Player未测 |
-| F12 | 原始RED→因果对照→生产Green→动态回归→最终正常场/发布SHA | C生产Bounded与独立opaque/MSAA四组Green；原Orbit45°→315°、返回Edit、作者/文件保护及临时Shader清理完成；发布SHA待root，有限/未测项保留 |
+| F12 | 原始RED→因果对照→生产Green→动态回归→最终正常场/发布SHA | C生产Bounded与独立opaque/MSAA四组Green；原Orbit45°→315°、返回Edit、作者/文件保护及临时Shader清理完成；功能79f61936a9429bf375d0544b45147262663ee60b已GitHub main精确核验，有限/未测项保留 |
 
 ## 必须保留的限制
 
@@ -129,3 +129,7 @@ C从同一平台平面、同一像素路径重建片元深度，沿用原队列�
 - 孤立Preview可以建立因果，最终需要正常运行原场复验，不能只用groundOnly或关闭问题层收口。
 - 原KT03严格Native/Cache像素11/12、GPU/Player/实体鼠标与人工审美未验边界继续保留；本轮也不声称全局Console零错误。
 - 源媒体/包含原Sprite形状与UV的派生输出仅本机；root独占Unity并按协议更新任务同步。本轮不保存/改作者原场、不改角色配置或渲染管线来扩大任务。
+
+## 发布与交接
+
+功能提交`79f61936a9429bf375d0544b45147262663ee60b`已定向推至GitHub main，fresh ls-remote返回相同SHA。28个精确文件仅含本轮Shader、自有候选、文档与任务同步，Registry只stage本轮4行，原17行与其他36项既有dirty保留。媒体/截图、场景、派生Sprite/UV缓存未上传。全部Unity/路径租约释放；最终Edit ready/单Lab/dirty=true不强存，C盘0字节问题仍未解决。用户当前修复请求未要求电源动作，本轮没有关机或休眠。
