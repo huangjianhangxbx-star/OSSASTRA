@@ -11,12 +11,10 @@
 - 活动任务不得拥有重叠路径；同一时刻最多一个 `unity-writer`。
 - 暂停、阻塞或完成时，将记录移到历史并释放路径。
 
-## KT-VIS-02 活动任务（2026-10-31）
+## KT-VIS-02 完成交接（2026-10-31）
 
-- `kt-vis-02` active/unity-writer，负责人 `/root`。增量计划 v1.0 已获执行授权；B级模块验证及计划专项验收。
-- 独占路径：`Assets/OSSASTRA/Scripts/SceneVisibility/`、`Assets/OSSASTRA/Scripts/Characters/Runtime/CharacterMovement.cs`、`Assets/OSSASTRA/Scripts/Characters/Runtime/CharacterRoot.cs`、`Assets/OSSASTRA/Scripts/Characters/ViewSpace/CharacterViewContracts.cs`、`Assets/OSSASTRA/Scripts/Characters/Environment/`、`Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-01/`、`Candidates/KT-VIS-02/`、`docs/ossastra/KT-VIS-02/`、`docs/agent-sync/tasks/2026-10-31-kt-vis-02.md`。同步索引由 Root 独占维护。
-- 仅为本Lab生成缓存的既有三Map同步持久化租约：`Assets/OSSASTRA/GroundWorkshop/Maps/febbcf1ac785440984c49effb3510ab5/`、`Assets/OSSASTRA/GroundWorkshop/Maps/bcb6bd5714a04f5fbcaf35141571b40b/`、`Assets/OSSASTRA/GroundWorkshop/Maps/13edcfeae3ea47fa9185811aa9b9fa14/`。不改作者格，仅由原SaveLab持久化本Lab运行生成物理盖。
-- 子代理仅只读/候选文件工作，Unity操作由Root唯一执行；不触碰原37dirty及旧地图。
+- `kt-vis-02` complete/read-only：固定环境身体净空（原CC/单Move保留）、独立过渡与空间柔边点阵、同场四预设已完成；实际输入/坡道/dodge/force/双角色切控与支撑、CPU26与GPU40合同、保存重开/退出清理已验证。
+- 功能提交 `13522ad5e8c9b91c660fb84c63bc4b6f0d25346c` 已GitHub main精确核验；最终Lab Edit ready/clean，标记资源/输入租约/虚拟设备归零，原37dirty/197源SHA/原SO保持；所有Unity/源码/文档/样板缓存writer已释放。详tasks/2026-10-31-kt-vis-02.md及docs/ossastra/KT-VIS-02/README.md，正式美术包络与主观观感仍待用户试玩。
 
 ## KT-VIS-01 完成交接（2026-10-31）
 
