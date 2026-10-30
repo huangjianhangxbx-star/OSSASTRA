@@ -9,6 +9,17 @@ using UnityEngine;
 
 namespace Ossastra.SceneVisibility.Editor
 {
+    [CustomEditor(typeof(VisibilitySettingsSO))]
+    public sealed class VisibilitySettingsInspector : UnityEditor.Editor
+    {
+        public override void OnInspectorGUI()
+        {
+            bool baseline = AssetDatabase.GetAssetPath(target).EndsWith("/KT_VIS02_Original_ReadOnly.asset", System.StringComparison.Ordinal);
+            if (baseline) EditorGUILayout.HelpBox("KT-VIS-02 原版只读对照。请复制候选配置后调整，不改本基线。", MessageType.Info);
+            using (new EditorGUI.DisabledScope(baseline)) DrawDefaultInspector();
+        }
+    }
+
     [CustomEditor(typeof(SceneVisibilityRoot))]
     public sealed class SceneVisibilityInspector : UnityEditor.Editor
     {
@@ -25,13 +36,16 @@ namespace Ossastra.SceneVisibility.Editor
             }
             if (Application.isPlaying)
             {
-                if (GUILayout.Button("应用配置并重接本模块")) root.Reconnect();
+                if (GUILayout.Button("应用配置（保留机位与过渡）")) root.ApplyPreset(root.settings);
+                if (GUILayout.Button("Original（只读）")) root.ApplyPreset(root.originalPreset);
+                if (GUILayout.Button("Soft 柔边")) root.ApplyPreset(root.softPreset);
+                if (GUILayout.Button("Soft + 轻点阵")) root.ApplyPreset(root.softDitherPreset);
                 EditorGUILayout.HelpBox(root.Status + "\n" + root.RenderError, MessageType.Info);
                 EditorGUILayout.LabelField("检测CPU / 捕获提交CPU（非GPU）", root.DetectionMilliseconds.ToString("F3") + " / " + root.RenderMilliseconds.ToString("F3") + " ms");
                 EditorGUILayout.LabelField("组数 / 超预算", root.ActiveGroups + " / " + root.BudgetOverflow);
                 Repaint();
             }
-            EditorGUILayout.HelpBox("配置在每次启用时复制为一致的运行快照。修改SO后点应用；不会暂停或重置游戏。主控站台时保留整块承载顶盖，伙伴可能仍被其合法遮住。", MessageType.None);
+            EditorGUILayout.HelpBox("配置复制为自有运行快照。修改候选SO后点应用；切换不重置机位、角色或圆窗历史。Original基线只读。主控站台时保留整块承载顶盖，伙伴可能仍被其合法遮住。", MessageType.None);
         }
 
         [MenuItem("OSSASTRA/场景可见性/打开独立遮挡验证场")]

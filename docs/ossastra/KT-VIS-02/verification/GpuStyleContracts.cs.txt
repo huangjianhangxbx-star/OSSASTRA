@@ -1,0 +1,432 @@
+/* KT-VIS-02 Native GPU contract; root is the only executor.
+ * Reuses the previous backend contract's independent original-material images +
+ * original-geometry CPU ray/triangle oracle, without copying its full test suite.
+ * No production OpacityMath/ReadGroup/private capture texture is used as an expected image.
+ * Private backend reflection is read-only and used ONLY for owned-resource identity.
+ * Requires stable Edit and SessionState[GroundSurface.Vis02Output] = existing evidence directory.
+ */
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Text;
+using Funplay.Editor.Tools.Scripting;
+using Ossastra.SceneVisibility;
+using Ossastra.SceneVisibility.Rendering;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+using UnityEngine;
+using UnityEngine.Experimental.Rendering;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
+using UnityEngine.SceneManagement;
+using Object = UnityEngine.Object;
+
+public sealed class Vis02GpuStyleContracts : IFunplayCommand
+{
+    public static string ResultJson = "NOT_STARTED";
+    static Runner active;
+    public void Execute(ExecutionContext ctx)
+    {
+        if (active != null) { ctx.ReturnValue = new { status = "ALREADY_RUNNING", result = ResultJson }; return; }
+        active = new Runner();
+        try { active.Start(); } catch (Exception error) { active.Finish(error.ToString()); }
+        ctx.ReturnValue = new { status = active == null ? "FINISHED" : "STARTED", pollType = "Vis02GpuStyleContracts", pollField = "ResultJson", result = ResultJson };
+    }
+    sealed class Runner
+    {
+        const float ColorTolerance = 4f / 1024f;
+        const int Layer = 30;
+        readonly List<Object> owned = new List<Object>();
+        readonly List<Surface> bases = new List<Surface>();
+        readonly List<Row> rows = new List<Row>();
+        readonly RegisteredGroupFrame[] frames = new RegisteredGroupFrame[2];
+        Scene source, preview;
+        bool sourceDirty, sourceCaptured, subscribed, backendEnabled, finished, floorOnly;
+        string sourcePath, sourceRoots, output, callbackError, stableIds;
+        float sourceTimeScale;
+        RenderTexture previousActive, target;
+        Camera camera;
+        FiniteGroupCapture backend;
+        Shader fixtureShader;
+        Surface a, b;
+        Color[] baseImage, originalBoth, singleA, singleB, softImage, ditherImage;
+        int width, height, resolution, stage, captured, mainBegins, mainEnds;
+        double next, started;
+        string phase = "setup";
+        sealed class Surface { public MeshRenderer Renderer; public Vector3[] Vertices; public int[] Triangles; }
+        sealed class Row
+        {
+            public string Name, Reason;
+            public bool Passed;
+            public int Width, Height, Samples, Wrong;
+            public float MaxError;
+        }
+        static void Need(bool condition, string reason) { if (!condition) throw new InvalidOperationException(reason); }
+        public void Start()
+        {
+            Need(!Application.isPlaying && !EditorApplication.isPlayingOrWillChangePlaymode && !EditorApplication.isCompiling && !EditorApplication.isUpdating &&
+                PrefabStageUtility.GetCurrentPrefabStage() == null, "需要稳定Edit；不改变Play/PrefabStage。");
+            source = SceneManager.GetActiveScene(); sourceDirty = source.isDirty; sourcePath = source.path;
+            sourceRoots = RootIds(source); sourceTimeScale = Time.timeScale; previousActive = RenderTexture.active; sourceCaptured = true;
+            Need(UniversalRenderPipeline.asset != null && Mathf.Abs(UniversalRenderPipeline.asset.renderScale - 1) < .0001f && QualitySettings.activeColorSpace == ColorSpace.Linear,
+                "仅验证现有Linear URP renderScale=1；不改pipeline。");
+            string directory = SessionState.GetString("GroundSurface.Vis02Output", "");
+            Need(Directory.Exists(directory), "需先设置已存在GroundSurface.Vis02Output目录。");
+            output = Path.Combine(directory, "GpuStyle_" + Guid.NewGuid().ToString("N")); Directory.CreateDirectory(output);
+            floorOnly = SessionState.GetBool("GroundSurface.Vis02.FloorOnly", false);
+            preview = EditorSceneManager.NewPreviewScene();
+            fixtureShader = CreateFixtureShader(); owned.Add(fixtureShader);
+            var cameraObject = NewObject("Vis02_PrivateMain"); camera = cameraObject.AddComponent<Camera>(); camera.scene = preview; camera.enabled = false;
+            camera.transform.SetPositionAndRotation(new Vector3(0, 0, -8), Quaternion.identity);
+            camera.orthographic = true; camera.orthographicSize = 3; camera.nearClipPlane = .05f; camera.farClipPlane = 40;
+            camera.cullingMask = 1; camera.rect = new Rect(0, 0, 1, 1); camera.allowHDR = true; camera.allowMSAA = false;
+            camera.clearFlags = CameraClearFlags.SolidColor; camera.backgroundColor = Color.black; camera.useOcclusionCulling = false;
+            var extra = cameraObject.AddComponent<UniversalAdditionalCameraData>(); extra.renderType = CameraRenderType.Base;
+            extra.renderPostProcessing = false; extra.volumeLayerMask = 0; extra.renderShadows = false;
+            extra.requiresDepthOption = CameraOverrideOption.Off; extra.requiresColorOption = CameraOverrideOption.Off;
+            bases.Add(Quad("Base", -6, 6, -4, 4, 4, 0, Constant(new Color(.035f, .08f, .13f, 1))));
+            bases.Add(Quad("BodyBehind", -1.25f, 1.25f, -1.2f, 1.3f, 2, 0, Constant(new Color(.83f, .57f, .17f, 1))));
+            bases.Add(Quad("ObjectInFront", 1.3f, 2.25f, -1.3f, -.45f, -1.6f, 0, Constant(new Color(.19f, .54f, .87f, 1))));
+            Shader lit = Required("Packages/com.unity.render-pipelines.universal/Shaders/Lit.shader");
+            a = Quad("IntersectingGroupA", -2.8f, 2.8f, -1.8f, 1.8f, .12f, .43f, Emissive(lit, new Color(.87f, .16f, .11f, 1)));
+            b = Quad("IntersectingGroupB", -2.8f, 2.8f, -1.8f, 1.8f, .28f, -.39f, Emissive(lit, new Color(.11f, .32f, .92f, 1)));
+            frames[0] = new RegisteredGroupFrame { StableId = 1001, GeometryVersion = 1, Members = new Renderer[] {a.Renderer} };
+            frames[1] = new RegisteredGroupFrame { StableId = 1002, GeometryVersion = 1, Members = new Renderer[] {b.Renderer} };
+            backend = new FiniteGroupCapture(camera, Layer,
+                Required("Assets/OSSASTRA/Scripts/SceneVisibility/Rendering/FiniteGroupOpaque.shader"),
+                Required("Assets/OSSASTRA/Scripts/SceneVisibility/Rendering/FiniteGroupFeather.shader"),
+                Required("Assets/OSSASTRA/Scripts/SceneVisibility/Rendering/OwnedGroupDeviceDepth.shader"));
+            RenderPipelineManager.beginCameraRendering += Begin; RenderPipelineManager.endCameraRendering += End; subscribed = true;
+            EditorApplication.update += Tick; started = EditorApplication.timeSinceStartup; next = started + .15;
+            Publish("RUNNING", null, false); EditorApplication.QueuePlayerLoopUpdate();
+        }
+        void Tick()
+        {
+            if (EditorApplication.timeSinceStartup < next) return;
+            try
+            {
+                Need(!Application.isPlaying && !EditorApplication.isPlayingOrWillChangePlaymode && !EditorApplication.isCompiling && !EditorApplication.isUpdating,
+                    "源编辑器生命周期改变；不继续或伪造结果。");
+                Need(SceneManager.GetActiveScene() == source && source.isDirty == sourceDirty && RootIds(source) == sourceRoots && Time.timeScale == sourceTimeScale,
+                    "源场景/dirty/root/timeScale变化。");
+                if (floorOnly)
+                {
+                    if (stage == 0) SetupResolution();
+                    else if (stage == 1) MinimumOpacityFloor();
+                    else if (resolution == 0) { resolution = 1; stage = -1; }
+                    else { Finish(null); return; }
+                }
+                else if (stage == 0) SetupResolution();
+                else if (stage == 1) Soft();
+                else if (stage == 2) DitherStable();
+                else if (stage == 3) SoftAgain();
+                else if (stage == 4) WholeHalfAndDepth();
+                else if (stage == 5) Endpoints();
+                else if (stage == 6) UnionAndSupport();
+                else
+                {
+                    if (resolution == 0) { resolution = 1; stage = -1; }
+                    else { Finish(null); return; }
+                }
+                stage++; next = EditorApplication.timeSinceStartup + .05; Publish("RUNNING", null, false); EditorApplication.QueuePlayerLoopUpdate();
+            }
+            catch (Exception error) { Finish(error.ToString()); }
+        }
+        void SetupResolution()
+        {
+            width = resolution == 0 ? 1280 : 1920; height = resolution == 0 ? 720 : 1080; phase = width + "x" + height + " original references";
+            if (target != null) { target.Release(); Object.DestroyImmediate(target); owned.RemoveAll(o => o == null); }
+            camera.aspect = (float)width / height;
+            target = new RenderTexture(width, height, 32, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear)
+                {name = "Vis02_PrivateMainLinearHalf", antiAliasing = 1, filterMode = FilterMode.Point, hideFlags = HideFlags.HideAndDontSave};
+            target.depthStencilFormat = GraphicsFormat.D32_SFloat_S8_UInt; owned.Add(target); Need(target.Create(), "私有target创建失败"); camera.targetTexture = target;
+            Show(false, false, true); baseImage = Render(false);
+            Show(true, false, false); singleA = Render(false);
+            Show(false, true, false); singleB = Render(false);
+            Show(true, true, true); originalBoth = Render(false);
+            softImage = ditherImage = null; SetCircles(.6f); stableIds = null;
+        }
+        void Soft()
+        {
+            phase = "Soft reference on same backend"; Show(true, true, true); SetCircles(.6f);
+            backend.SetDebugView(0); backend.SetEdgeStyle(VisibilityEdgeStyle.Soft, 0, 1); softImage = Render(true); stableIds = ResourceIds();
+            Add("finite-resource-budget", backend.OwnedRTCount == 4 && captured == 2, "two groups must retain exactly four RTs"); Save(softImage, "soft.png");
+        }
+        void DitherStable()
+        {
+            phase = "Dither stable pixels and resource identity"; backend.SetEdgeStyle(VisibilityEdgeStyle.SoftDitherEdge, .18f, 1);
+            ditherImage = Render(true); Color[] repeated = Render(true);
+            Equal("dither-fixed-pose-deterministic", ditherImage, repeated, null, 0);
+            Add("same-owned-resource-identities-after-style", ResourceIds() == stableIds, "style changes must not replace RT/material/mesh/proxy resources");
+            CompareDitherBand(); Save(ditherImage, "dither.png");
+        }
+        void SoftAgain()
+        {
+            phase = "Soft/Dither/Soft without backend reset"; backend.SetEdgeStyle(VisibilityEdgeStyle.Soft, 0, 1);
+            Equal("soft-dither-soft-returns-identical-image", softImage, Render(true), null, 0);
+            backend.SetEdgeStyle(VisibilityEdgeStyle.SoftDitherEdge, 0, 1);
+            Equal("strength-zero-is-exact-soft", softImage, Render(true), null, 0);
+            Add("same-owned-resource-identities-after-roundtrip", ResourceIds() == stableIds, "same IDs after the roundtrip");
+        }
+        void WholeHalfAndDepth()
+        {
+            phase = "whole half opacity and original triangle depth order";
+            for (int i = 0; i < 2; i++) { frames[i].CircleA = frames[i].CircleB = frames[i].PreserveSupport = default(CaptureCircle); frames[i].WholeFade = .5f; }
+            backend.SetEdgeStyle(VisibilityEdgeStyle.Soft, 0, 1); Color[] soft = Render(true);
+            backend.SetEdgeStyle(VisibilityEdgeStyle.SoftDitherEdge, .18f, 1); Color[] dotted = Render(true);
+            Equal("wholepartial-no-dots-without-spatial-feather", soft, dotted, null, 0);
+            int samples = 0, wrong = 0, aNear = 0, bNear = 0, front = 0; float maxError = 0;
+            // Sparse 3px sampling is predeclared to keep the independent CPU oracle bounded at 1080.
+            for (int y = 3; y < height - 3; y += 3) for (int x = 3; x < width - 3; x += 3)
+            {
+                Ray ray = camera.ViewportPointToRay(new Vector3((x + .5f) / width, (y + .5f) / height, 0));
+                float da, db; if (!Interior(a, ray, out da) || !Interior(b, ray, out db)) continue;
+                float depth = float.PositiveInfinity; foreach (var item in bases) { float d; if (Hit(item, ray, false, out d)) depth = Math.Min(depth, d); }
+                int p = y * width + x; Color expected = baseImage[p];
+                if (da < db) { aNear++; if (db < depth) expected = Mix(expected, singleB[p], .5f); if (da < depth) expected = Mix(expected, singleA[p], .5f); }
+                else { bNear++; if (da < depth) expected = Mix(expected, singleA[p], .5f); if (db < depth) expected = Mix(expected, singleB[p], .5f); }
+                if (depth < da && depth < db) front++;
+                float e = Error(expected, dotted[p]); maxError = Math.Max(maxError, e); samples++; if (e > ColorTolerance) wrong++;
+            }
+            Add(new Row {Name = "per-pixel-crossing-depth-and-front-object", Samples = samples, Wrong = wrong, MaxError = maxError,
+                Passed = samples > 1000 && aNear > 100 && bNear > 100 && front > 50 && wrong == 0,
+                Reason = "independent original-material references plus original-triangle depth; aNear=" + aNear + " bNear=" + bNear + " front=" + front});
+            Save(dotted, "wholehalf-no-exterior-dots.png");
+        }
+        void Endpoints()
+        {
+            phase = "clear core / opaque exterior / no hidden depth"; SetCircles(1);
+            backend.SetEdgeStyle(VisibilityEdgeStyle.SoftDitherEdge, .18f, 1); Color[] actual = Render(true);
+            Equal("clear-core-reveals-original-rear-body", baseImage, actual, p => Distance(frames[0].CircleA, p) < frames[0].CircleA.InnerPixels - 3, ColorTolerance);
+            Equal("opaque-exterior-preserves-original-surfaces", originalBoth, actual, p => Distance(frames[0].CircleA, p) > frames[0].CircleA.OuterPixels + 3, ColorTolerance);
+            Save(actual, "endpoint-core-exterior.png");
+        }
+        void UnionAndSupport()
+        {
+            phase = "two-window max union and support across intersecting groups"; SetCircles(.6f);
+            backend.SetEdgeStyle(VisibilityEdgeStyle.SoftDitherEdge, .18f, 1); Color[] one = Render(true);
+            for (int i = 0; i < 2; i++) frames[i].CircleB = frames[i].CircleA;
+            Equal("duplicate-window-is-not-multiplied", one, Render(true), null, 0);
+            for (int i = 0; i < 2; i++) frames[i].PreserveSupport = new CaptureCircle {CenterViewport = new Vector2(.5f, .5f), InnerPixels = height * .09f, OuterPixels = height * .16f, Strength = 1};
+            Color[] support = Render(true);
+            Equal("support-core-preserves-original-cross-group-depth", originalBoth, support,
+                p => Distance(frames[0].PreserveSupport, p) < frames[0].PreserveSupport.InnerPixels - 3, ColorTolerance);
+            Add("resources-still-identical-at-resolution-end", ResourceIds() == stableIds, "no style/circle/support RT rebuild within a fixed viewport");
+            Save(support, "support-core.png");
+        }
+        void MinimumOpacityFloor()
+        {
+            phase = "nonzero floor GPU regression"; const float floor = .8f;
+            SetCircles(1-floor); Show(true,false,true);
+            // On the old backend the field is absent; still render its actual dither output and
+            // fail on observed undershoot rather than treating an API-name check as the regression.
+            var field = typeof(RegisteredGroupFrame).GetField("MinimumOpacity");
+            if(field!=null){object value=frames[0];field.SetValue(value,floor);frames[0]=(RegisteredGroupFrame)value;}
+            backend.SetDebugView(0); backend.SetEdgeStyle(VisibilityEdgeStyle.SoftDitherEdge,.18f,1);
+            Color[] actual=Render(true); int samples=0,violations=0,innerSamples=0,innerViolations=0;float minimum=1,innerMinimum=1;
+            for(int y=2;y<height-2;y++)for(int x=2;x<width-2;x++)
+            {
+                int p=y*width+x;float d=Distance(frames[0].CircleA,p);
+                if(d<=frames[0].CircleA.InnerPixels+2||d>=frames[0].CircleA.OuterPixels-2)continue;
+                Ray ray=camera.ViewportPointToRay(new Vector3((x+.5f)/width,(y+.5f)/height,0));float groupDepth;
+                if(!Interior(a,ray,out groupDepth))continue;
+                float depth=float.PositiveInfinity;foreach(var item in bases){if(!item.Renderer.enabled)continue;float z;if(Hit(item,ray,false,out z))depth=Math.Min(depth,z);}
+                if(groupDepth>=depth)continue;
+                Color delta=singleA[p]-baseImage[p];int channel=Math.Abs(delta.r)>Math.Abs(delta.g)?0:1;
+                if(Math.Abs(delta.b)>Math.Abs(delta[channel]))channel=2;
+                if(Math.Abs(delta[channel])<.25f)continue;
+                float inferred=(actual[p][channel]-baseImage[p][channel])/delta[channel];
+                samples++;minimum=Math.Min(minimum,inferred);if(float.IsNaN(inferred)||float.IsInfinity(inferred)||inferred<floor-.0015f)violations++;
+                if(d<frames[0].CircleA.InnerPixels+.4f*(frames[0].CircleA.OuterPixels-frames[0].CircleA.InnerPixels))
+                {
+                    innerSamples++;innerMinimum=Math.Min(innerMinimum,inferred);
+                    if(float.IsNaN(inferred)||float.IsInfinity(inferred)||inferred<floor-.0015f)innerViolations++;
+                }
+            }
+            Add(new Row{Name="actual-feather-keeps-explicit-minimum-opacity",Samples=samples,Wrong=violations,MaxError=Math.Max(0,floor-minimum),
+                Passed=samples>500&&innerSamples>500&&violations==0,
+                Reason="floor="+floor+" measured minimum="+minimum+" inner-ring minimum="+innerMinimum+" inner violations="+innerViolations+"/"+innerSamples+
+                    "; dark Base only, independent original-color mixture, opacity tolerance .0015"});
+            Add("floor-plumbing-adds-no-capture-target",backend.OwnedRTCount==2&&captured==1,"one visible group remains exactly two RTs; second source is disabled");
+            Save(actual,"minimum-opacity-floor.png");
+        }
+        void CompareDitherBand()
+        {
+            int core = 0, exterior = 0, edge = 0, changed = 0, wrongCore = 0, wrongExterior = 0; float maxBandError = 0;
+            double redMean = 0, greenMean = 0, blueMean = 0;
+            for (int y = 2; y < height - 2; y++) for (int x = 2; x < width - 2; x++)
+            {
+                int p = y * width + x; float distance = Distance(frames[0].CircleA, p); float delta = Error(softImage[p], ditherImage[p]);
+                if (distance < frames[0].CircleA.InnerPixels - 2) {core++; if (delta != 0) wrongCore++;}
+                else if (distance > frames[0].CircleA.OuterPixels + 2) {exterior++; if (delta != 0) wrongExterior++;}
+                else
+                {
+                    edge++; if (delta > .0002f) changed++; maxBandError = Math.Max(maxBandError, delta);
+                    redMean += ditherImage[p].r - softImage[p].r; greenMean += ditherImage[p].g - softImage[p].g; blueMean += ditherImage[p].b - softImage[p].b;
+                }
+            }
+            Add(new Row {Name="spatial-core-and-exterior-have-no-dot-change", Samples=core+exterior, Wrong=wrongCore+wrongExterior,
+                Passed=core>100 && exterior>100 && wrongCore==0 && wrongExterior==0, Reason="actual GPU fixed-pose style difference, not a CPU style mirror"});
+            float mean = edge > 0 ? (float)Math.Max(Math.Abs(redMean / edge), Math.Max(Math.Abs(greenMean / edge), Math.Abs(blueMean / edge))) : 1;
+            Add(new Row {Name="only-feather-has-restrained-mean-preserving-pattern", Samples=edge, Wrong=0, MaxError=maxBandError,
+                Passed=changed>100 && maxBandError<.15f && mean<.012f, Reason="changed="+changed+" max RGB mean shift="+mean});
+            // A 1px reference cell must exhibit neighbouring-pixel differences at both actual viewport sizes.
+            int neighborPairs = 0, neighborChanges = 0;
+            for (int y = height/2-12; y < height/2+12; y++) for (int x = width/2+(int)(height*.19f); x < width/2+(int)(height*.23f); x++)
+            {
+                int p=y*width+x; Color n=ditherImage[p+1]-softImage[p+1], c=ditherImage[p]-softImage[p];
+                // Blue is monotone with coverage in this explicitly declared blue-near fixture.
+                // Count residual sign reversals, not a smooth feather gradient masquerading as fine dots.
+                neighborPairs++; if (Math.Abs(n.b)>.0005f&&Math.Abs(c.b)>.0005f&&Math.Sign(n.b)!=Math.Sign(c.b)) neighborChanges++;
+            }
+            Add("actual-pixel-small-pattern-at-"+height+"p", neighborPairs>100 && neighborChanges>neighborPairs/3,
+                "neighbouring edge residual sign reversals="+neighborChanges+"/"+neighborPairs+"; smooth gradients cannot satisfy fine-dot gate");
+        }
+        void SetCircles(float strength)
+        {
+            for (int i=0;i<2;i++)
+            {
+                frames[i].CircleA=new CaptureCircle {CenterViewport=new Vector2(.5f,.5f),InnerPixels=height*.14f,OuterPixels=height*.30f,Strength=strength};
+                frames[i].CircleB=frames[i].PreserveSupport=default(CaptureCircle);frames[i].WholeFade=0;
+            }
+        }
+        float Distance(CaptureCircle circle,int p)
+        { float dx=p%width+.5f-circle.CenterViewport.x*width,dy=p/width+.5f-circle.CenterViewport.y*height;return Mathf.Sqrt(dx*dx+dy*dy); }
+        void Equal(string name,Color[] expected,Color[] actual,Func<int,bool> mask,float tolerance)
+        {
+            int samples=0,wrong=0;float max=0;
+            for(int p=0;p<actual.Length;p++)if(mask==null||mask(p))
+            {float e=Error(expected[p],actual[p]);samples++;max=Math.Max(max,e);if(e>tolerance)wrong++;}
+            Add(new Row{Name=name,Samples=samples,Wrong=wrong,MaxError=max,Passed=samples>100&&wrong==0});
+        }
+        void Add(string name,bool passed,string reason) => Add(new Row{Name=name,Passed=passed,Reason=reason});
+        void Add(Row row) {row.Width=width;row.Height=height;rows.Add(row);}
+        static float Error(Color a,Color b)
+        {
+            float r=Math.Abs(a.r-b.r),g=Math.Abs(a.g-b.g),blue=Math.Abs(a.b-b.b);
+            return float.IsNaN(r)||float.IsNaN(g)||float.IsNaN(blue)?float.PositiveInfinity:Math.Max(r,Math.Max(g,blue));
+        }
+        static Color Mix(Color behind,Color front,float alpha) => behind*(1-alpha)+front*alpha;
+        void Show(bool showA,bool showB,bool showBase)
+        {
+            a.Renderer.enabled=showA;b.Renderer.enabled=showB;
+            // FloorOnly uses a dark high-contrast background. The ordinary suite retains rear/front geometry.
+            // Otherwise the inner ring could be rejected solely because the colored body is too similar to A.
+            for(int i=0;i<bases.Count;i++)bases[i].Renderer.enabled=showBase&&(!floorOnly||i==0);
+        }
+        Color[] Render(bool enabled)
+        {
+            backendEnabled=enabled;callbackError=null;camera.Render();backendEnabled=false;
+            Need(string.IsNullOrEmpty(callbackError)&&string.IsNullOrEmpty(backend.LastError),"capture error: "+callbackError+" / "+backend.LastError);
+            var texture=new Texture2D(width,height,TextureFormat.RGBAHalf,false,true);var prior=RenderTexture.active;
+            try {RenderTexture.active=target;texture.ReadPixels(new Rect(0,0,width,height),0,0);texture.Apply();return texture.GetPixels();}
+            finally {RenderTexture.active=prior;Object.DestroyImmediate(texture);}
+        }
+        void Begin(ScriptableRenderContext context,Camera c)
+        {
+            if(c!=camera)return;mainBegins++;
+            try {backend.BeginCamera(context,c,frames,backendEnabled?2:0);captured=backend.CapturedGroupCount;}
+            catch(Exception e){callbackError=e.ToString();}
+        }
+        void End(ScriptableRenderContext context,Camera c)
+        {if(c!=camera)return;mainEnds++;try {backend.EndCamera(context,c);}catch(Exception e){callbackError=e.ToString();}}
+        static bool Interior(Surface surface,Ray ray,out float distance) => Hit(surface,ray,true,out distance);
+        static bool Hit(Surface s,Ray ray,bool interior,out float distance)
+        {
+            distance=float.PositiveInfinity;bool hit=false;
+            for(int i=0;i<s.Triangles.Length;i+=3)
+            {
+                Vector3 a=s.Vertices[s.Triangles[i]],e1=s.Vertices[s.Triangles[i+1]]-a,e2=s.Vertices[s.Triangles[i+2]]-a;
+                Vector3 p=Vector3.Cross(ray.direction,e2);float det=Vector3.Dot(e1,p);if(Math.Abs(det)<1e-7f)continue;
+                float inv=1/det;Vector3 t=ray.origin-a;float u=Vector3.Dot(t,p)*inv;Vector3 q=Vector3.Cross(t,e1);float v=Vector3.Dot(ray.direction,q)*inv;
+                float margin=interior?.005f:0;if(u<margin||v<margin||u+v>1-margin)continue;
+                float d=Vector3.Dot(e2,q)*inv;if(d>=0&&d<distance){hit=true;distance=d;}
+            }
+            return hit;
+        }
+        string ResourceIds()
+        {
+            var ids=new List<int>();
+            Action<object> add=value=>{var o=value as Object;if(o!=null)ids.Add(o.GetInstanceID());};
+            var flags=BindingFlags.Instance|BindingFlags.Public|BindingFlags.NonPublic;Type type=backend.GetType();
+            foreach(string n in new[]{"quad","auxiliaryObject","proxyRoot"})add(type.GetField(n,flags).GetValue(backend));
+            foreach(var value in (IEnumerable)type.GetField("displays",flags).GetValue(backend))add(value);
+            foreach(var group in (IEnumerable)type.GetField("slots",flags).GetValue(backend))if(group!=null)
+            {
+                Type gt=group.GetType();foreach(string n in new[]{"Color","Depth","Root"})add(gt.GetField(n,flags).GetValue(group));
+                foreach(var item in (IEnumerable)gt.GetField("Sources",flags).GetValue(group))if(item!=null)
+                {
+                    Type st=item.GetType();foreach(string n in new[]{"Copy","Mesh"})add(st.GetField(n,flags).GetValue(item));
+                    foreach(string n in new[]{"Materials","DepthMaterials"})foreach(var m in (IEnumerable)st.GetField(n,flags).GetValue(item))add(m);
+                }
+            }
+            ids.Sort();return string.Join(",",ids)+"|"+backend.OwnedRTCount+"|"+backend.OwnedMaterialCount+"|"+backend.OwnedMeshCount;
+        }
+        Surface Quad(string name,float x0,float x1,float y0,float y1,float z,float slope,Material material)
+        {
+            Vector3[] vertices={new Vector3(x0,y0,z+slope*x0),new Vector3(x1,y0,z+slope*x1),new Vector3(x1,y1,z+slope*x1),new Vector3(x0,y1,z+slope*x0)};
+            int[] triangles={0,2,1,0,3,2};var mesh=new Mesh{name=name+"_original",hideFlags=HideFlags.HideAndDontSave};owned.Add(mesh);
+            mesh.vertices=vertices;mesh.triangles=triangles;mesh.uv=new[]{Vector2.zero,Vector2.right,Vector2.one,Vector2.up};mesh.RecalculateNormals();mesh.RecalculateBounds();
+            var go=NewObject(name);go.AddComponent<MeshFilter>().sharedMesh=mesh;var r=go.AddComponent<MeshRenderer>();r.sharedMaterial=material;
+            r.shadowCastingMode=ShadowCastingMode.Off;r.receiveShadows=false;return new Surface{Renderer=r,Vertices=vertices,Triangles=triangles};
+        }
+        Material Constant(Color c){var m=new Material(fixtureShader){hideFlags=HideFlags.HideAndDontSave};m.SetColor("_Color",c);owned.Add(m);return m;}
+        Material Emissive(Shader lit,Color color)
+        {
+            var m=new Material(lit){hideFlags=HideFlags.HideAndDontSave,renderQueue=2000};owned.Add(m);
+            m.SetColor("_BaseColor",Color.black);m.SetTexture("_BaseMap",Texture2D.whiteTexture);m.SetColor("_EmissionColor",color);m.EnableKeyword("_EMISSION");
+            m.SetFloat("_Surface",0);m.SetFloat("_ZWrite",1);m.SetFloat("_Cull",0);return m;
+        }
+        GameObject NewObject(string name)
+        {var go=EditorUtility.CreateGameObjectWithHideFlags(name,HideFlags.HideAndDontSave);go.layer=0;SceneManager.MoveGameObjectToScene(go,preview);owned.Add(go);return go;}
+        static Shader Required(string path)
+        {var shader=AssetDatabase.LoadAssetAtPath<Shader>(path);Need(shader!=null&&shader.isSupported&&!ShaderUtil.ShaderHasError(shader),"shader unavailable: "+path);return shader;}
+        Shader CreateFixtureShader()
+        {
+            string name="Hidden/Vis02/OriginalOracle_"+Guid.NewGuid().ToString("N");
+            string text="Shader \""+name+"\" { Properties { _Color(\"Color\",Color)=(1,1,1,1) } SubShader { Tags{\"RenderPipeline\"=\"UniversalPipeline\" \"Queue\"=\"Geometry\"} Pass { Tags{\"LightMode\"=\"SRPDefaultUnlit\"} Cull Off ZTest LEqual ZWrite On Blend Off\nHLSLPROGRAM\n"+
+                "#pragma vertex vert\n#pragma fragment frag\n#include \"Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl\"\n"+
+                "float4 _Color; struct A{float4 p:POSITION;};struct V{float4 p:SV_POSITION;}; V vert(A a){V o;o.p=TransformObjectToHClip(a.p.xyz);return o;} half4 frag(V i):SV_Target{return _Color;}\nENDHLSL\n} } }";
+            var method=typeof(ShaderUtil).GetMethod("CreateShaderAsset",BindingFlags.Static|BindingFlags.Public|BindingFlags.NonPublic,null,new[]{typeof(string),typeof(bool)},null);
+            Need(method!=null,"missing transient shader creation overload");var result=method.Invoke(null,new object[]{text,true}) as Shader;
+            Need(result!=null&&!EditorUtility.IsPersistent(result)&&!ShaderUtil.ShaderHasError(result),"transient original reference shader failed");result.hideFlags=HideFlags.HideAndDontSave;return result;
+        }
+        void Save(Color[] pixels,string name)
+        {
+            var image=new Texture2D(width,height,TextureFormat.RGBA32,false,false);
+            try
+            {
+                // PNG is display evidence only; comparisons above remain untouched linear Half values.
+                var display=new Color32[pixels.Length];
+                for(int p=0;p<pixels.Length;p++){Color c=pixels[p].gamma;c.a=1;display[p]=c;}
+                image.SetPixels32(display);image.Apply();File.WriteAllBytes(Path.Combine(output,height+"p-"+name),image.EncodeToPNG());
+            }
+            finally {Object.DestroyImmediate(image);}
+        }
+        static string RootIds(Scene scene)=>string.Join(",",scene.GetRootGameObjects().Select(go=>go.GetInstanceID()).OrderBy(i=>i));
+        public void Finish(string error)
+        {
+            if(finished)return;finished=true;EditorApplication.update-=Tick;
+            if(subscribed){RenderPipelineManager.beginCameraRendering-=Begin;RenderPipelineManager.endCameraRendering-=End;subscribed=false;}
+            try{backend?.Dispose();}catch(Exception e){error=(error??"")+" cleanup: "+e;}
+            if(backend!=null)Add("owned-backend-resources-disposed",backend.OwnedRTCount==0&&backend.OwnedMaterialCount==0&&backend.OwnedMeshCount==0,"owned counters must return to zero");
+            Add("main-camera-scopes-balanced",mainBegins==mainEnds,"begin/end="+mainBegins+"/"+mainEnds);
+            backendEnabled=false;if(camera!=null)camera.targetTexture=null;RenderTexture.active=previousActive;
+            foreach(var item in owned.AsEnumerable().Reverse())if(item!=null){var rt=item as RenderTexture;if(rt!=null)rt.Release();Object.DestroyImmediate(item);}owned.Clear();
+            if(preview.IsValid())EditorSceneManager.ClosePreviewScene(preview);
+            bool unchanged=!sourceCaptured||(source.IsValid()&&source.path==sourcePath&&SceneManager.GetActiveScene()==source&&source.isDirty==sourceDirty&&RootIds(source)==sourceRoots&&Time.timeScale==sourceTimeScale);
+            if(!unchanged)error=(error??"")+" source scene/dirty/root/timeScale changed";
+            Publish(error==null&&rows.All(r=>r.Passed)&&rows.Count>=(floorOnly?6:34)?"PASS":"FAIL",error,unchanged);active=null;
+        }
+        void Publish(string status,string error,bool unchanged)
+        {
+            ResultJson=Newtonsoft.Json.JsonConvert.SerializeObject(new{status,phase,error,floorOnly,elapsedSeconds=EditorApplication.timeSinceStartup-started,output,
+                passed=rows.Count(r=>r.Passed),failed=rows.Count(r=>!r.Passed),rows,mainBegins,mainEnds,sourceUnchanged=unchanged,
+                limitations="Private orthographic Linear/Half URP GPU fixtures at real 720/1080. Not a dynamic Spine/play-scene/camera-rotation/GPU-profiler pass; root must do those separately."},Newtonsoft.Json.Formatting.Indented);
+            if(!string.IsNullOrEmpty(output))File.WriteAllText(Path.Combine(output,"result.json"),ResultJson,new UTF8Encoding(false));
+        }
+    }
+}

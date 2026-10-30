@@ -13,6 +13,7 @@ CBUFFER_START(UnityPerMaterial)
  float4 _CircleB0,_CircleB1,_CircleB2,_CircleB3;
  float4 _Support0,_Support1,_Support2,_Support3;
  float4 _Strength0,_Strength1,_Strength2,_Strength3;
+ float4 _VisEdgeStyle; // style, strength, actual viewport cell pixels, diagnostic gray flag
  float _Rank;
 CBUFFER_END
 struct VisAttributes {float4 positionOS:POSITION;};
@@ -34,6 +35,17 @@ float Disk(float2 pixels,float4 circle,float strength)
  if(strength<=0 || circle.w<=circle.z)return 0;
  return saturate(strength)*(1-smoothstep(circle.z,circle.w,length(pixels-circle.xy*_VisScreen.xy)));
 }
+float EffectiveEdgeOpacity(float opacity,float2 pixels,float edgeWeight)
+{
+ opacity=saturate(opacity);
+ if(_VisEdgeStyle.x<.5||_VisEdgeStyle.y<=0||edgeWeight<=0||opacity<=0||opacity>=1)return opacity;
+ static const float bayer[16]={0,8,2,10,12,4,14,6,3,11,1,9,15,7,13,5};
+ uint2 cell=(uint2)floor(pixels/max(1,_VisEdgeStyle.z));
+ float threshold=(bayer[(cell.y&3)*4+(cell.x&3)]+.5)/16;
+ // Weak blend modulation: a clear core and opaque exterior stay exact; no time noise.
+ float coverage=step(threshold,opacity);
+ return saturate(lerp(opacity,coverage,saturate(_VisEdgeStyle.y)*saturate(edgeWeight)*4*opacity*(1-opacity)));
+}
 GroupSample ReadGroup(int slot,float2 pixels)
 {
  GroupSample o;o.color=0;o.depth=0;o.opacity=0;o.order=_GroupOrder[slot];o.valid=false;
@@ -49,7 +61,13 @@ GroupSample ReadGroup(int slot,float2 pixels)
   o.valid=o.depth>=0 && o.depth<1;
  #endif
  float reveal=max(saturate(strength.z),max(Disk(pixels,a,strength.x),Disk(pixels,b,strength.y)));
- reveal*=1-Disk(pixels,support,_SupportStrength[slot]);o.opacity=1-saturate(reveal);return o;
+ reveal*=1-Disk(pixels,support,_SupportStrength[slot]);
+ // Spatial union first: another target's core must suppress an overlapping feather's dots.
+ // WholeFade changes opacity continuously; it never spreads dither across the model exterior.
+ float spatialWindow=max(Disk(pixels,a,1),Disk(pixels,b,1));
+ float edgeGate=4*spatialWindow*(1-spatialWindow);
+ // Preserve the authored group opacity floor after every style, including dither's lower samples.
+ o.opacity=max(saturate(strength.w),EffectiveEdgeOpacity(1-saturate(reveal),pixels,edgeGate));return o;
 }
 bool Nearer(GroupSample a,GroupSample b)
 {
@@ -66,13 +84,14 @@ VisOutput VisOpaque(VisVaryings input)
  [unroll]for(int slot=0;slot<4;slot++)
  {
   GroupSample sample=ReadGroup(slot,pixels);
-  if(sample.valid&&sample.opacity>=.999999&&(!best.valid||Nearer(sample,best)))best=sample;
+  if(sample.valid&&(_VisEdgeStyle.w>.5||sample.opacity>=.999999)&&(!best.valid||Nearer(sample,best)))best=sample;
  }
- clip(best.valid?1:-1);VisOutput o;o.color=best.color;o.depth=best.depth;return o;
+ clip(best.valid?1:-1);VisOutput o;o.color=_VisEdgeStyle.w>.5?half4(best.opacity.xxx,1):best.color;o.depth=best.depth;return o;
 }
 float VisOpaqueDepth(VisVaryings input):SV_Depth {return VisOpaque(input).depth;}
 VisOutput VisFeather(VisVaryings input)
 {
+ clip(_VisEdgeStyle.w>.5?-1:1); // Gray mode draws each footprint once through the opaque path.
  float2 pixels=CameraBottomPixels(input.positionCS.xy);GroupSample samples[4];
  [unroll]for(int i=0;i<4;i++){samples[i]=ReadGroup(i,pixels);samples[i].valid=samples[i].valid&&samples[i].opacity>0&&samples[i].opacity<.999999;}
  GroupSample selected;selected.color=0;selected.depth=0;selected.opacity=0;selected.order=0;selected.valid=false;

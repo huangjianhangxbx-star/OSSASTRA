@@ -121,6 +121,7 @@ namespace Ossastra.Characters
         private ICharacterInputSource inputSource;
         private CharacterIntentSelector intentSelector;
         private ICharacterMovement mover;
+        private ICharacterEnvironmentClearance environmentClearance;
         private ICharacterOrientation orienter;
         private ICharacterPresentation presentation;
         private ICombatHitResolver hitResolver;
@@ -269,6 +270,15 @@ namespace Ossastra.Characters
             foreach(var component in GetComponents<MonoBehaviour>())if(component is ICharacterInventoryConsumer consumer){inventoryConsumer=consumer;consumer.Initialize(this);break;}
             foreach(var component in GetComponents<MonoBehaviour>())if(component is ICharacterTransientItemPresentation itemView){transientItems=itemView;itemView.Initialize(this);break;}
             mover = movement;
+            // 可选固定主体净空；只给原Movement返回位移，不增加另一个运动提交者。
+            foreach(var component in GetComponents<MonoBehaviour>())
+                if(component is ICharacterEnvironmentClearance clearance)
+                {
+                    if(environmentClearance!=null)throw new InvalidOperationException("Only one environment clearance per CharacterRoot");
+                    if(clearance.Initialize(transform,movement.GetComponent<CharacterController>()))environmentClearance=clearance;
+                    else Debug.LogWarning("Character environment clearance configuration unavailable; original movement retained",this);
+                }
+            movement.BindEnvironmentClearance(environmentClearance);
             orienter = orientation;
             presentation = view as ICharacterPresentation;
             hitResolver = melee;
@@ -423,9 +433,11 @@ namespace Ossastra.Characters
         private void OnApplicationPause(bool value)
           { applicationPaused = value; if(value)stateArbitrator?.Combat?.ClearBuffer(); if (follow != null) follow.ResetIntent(); if (value) stateArbitrator?.Combat?.SuppressInput(); }
         private void OnEnable() { stateArbitrator?.Combat?.SuppressInput(); if (intentSelector != null) intentSelector.Clear(); }
-        private void OnDisable() { foreach(var depth in visualDepth)depth.Suspend();viewSpace?.Suspend();stateArbitrator?.StopMovement();transientItems?.Hide();statusEffects?.Clear();mainAction?.ResetState();equipmentView?.Hide();equipmentSpineView?.Hide();skills?.Clear();offhand?.CancelAll(); CancelAction("disabled"); if (posture != null) posture.ResetState(); authority.Release(posture); if (follow != null) follow.ResetIntent(); if (intentSelector != null) intentSelector.Clear(); if (ready && presentation != null) presentation.SetPaused(false); }
+        private void OnDisable() { environmentClearance?.Suspend();foreach(var depth in visualDepth)depth.Suspend();viewSpace?.Suspend();stateArbitrator?.StopMovement();transientItems?.Hide();statusEffects?.Clear();mainAction?.ResetState();equipmentView?.Hide();equipmentSpineView?.Hide();skills?.Clear();offhand?.CancelAll(); CancelAction("disabled"); if (posture != null) posture.ResetState(); authority.Release(posture); if (follow != null) follow.ResetIntent(); if (intentSelector != null) intentSelector.Clear(); if (ready && presentation != null) presentation.SetPaused(false); }
         private void OnDestroy()
         {
+            movement?.BindEnvironmentClearance(null);
+            environmentClearance?.Dispose();environmentClearance=null;
             foreach(var depth in visualDepth)depth.Dispose();
             if (viewContextOwner != null) ReleaseViewContext(viewContextOwner);
             viewSpace?.Dispose();

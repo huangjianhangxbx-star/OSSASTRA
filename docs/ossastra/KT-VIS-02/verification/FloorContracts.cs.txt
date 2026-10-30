@@ -1,0 +1,67 @@
+/* New RED regression: partial feather opacity must never fall below the explicit
+ * group minimum opacity after style processing. Expected values are literal floors;
+ * this test never reconstructs the Bayer/envelope formula as its own oracle.
+ * Reflection permits the previous 10-argument helper to execute and demonstrate
+ * the actual undershoot before the optional floor parameter exists.
+ */
+using System;
+using System.Collections.Generic;
+using System.Reflection;
+using Funplay.Editor.Tools.Scripting;
+using Ossastra.SceneVisibility;
+using UnityEngine;
+
+public sealed class Vis02FloorContracts : IFunplayCommand
+{
+    readonly List<object> rows=new List<object>(); int passed,failed;
+    public void Execute(ExecutionContext ctx)
+    {
+        foreach(float floor in new[]{.6f,.8f,.95f})foreach(int height in new[]{720,1080})
+        {
+            float f=floor;int h=height;
+            Run("feather_respects_group_floor_"+f+"_"+h,()=>
+            {
+                var circle=new VisibilityCircle(new Vector2(64,64),16,32,1-f);
+                float minimum=1;int samples=0,violations=0;
+                for(int y=32;y<96;y++)for(int x=32;x<96;x++)
+                {
+                    var point=new Vector2(x+.5f,y+.5f);float d=Vector2.Distance(point,new Vector2(64,64));
+                    if(d<=16||d>=32)continue;
+                    float actual=Effective(1,point,circle,default(VisibilityCircle),0,default(VisibilityCircle),f,h);
+                    samples++;minimum=Math.Min(minimum,actual);if(float.IsNaN(actual)||float.IsInfinity(actual)||actual<f-1e-6f)violations++;
+                }
+                Need(samples>1000&&violations==0,"literal floor="+f+" minimum="+minimum+" violations="+violations+"/"+samples);
+            });
+        }
+        Run("floor_is_relative_to_original_opacity_not_an_extra_visible_layer",()=>
+        {
+            var circle=new VisibilityCircle(new Vector2(64,64),16,32,.2f);
+            float minimum=1;
+            for(int y=32;y<96;y++)for(int x=32;x<96;x++)
+                minimum=Math.Min(minimum,Effective(.5f,new Vector2(x+.5f,y+.5f),circle,default(VisibilityCircle),0,default(VisibilityCircle),.8f,1080));
+            Need(minimum>=.4f-1e-6f,"original alpha .5 * floor .8 must retain >=.4; actual minimum="+minimum);
+            Near(Effective(0,new Vector2(82.5f,64.5f),circle,default(VisibilityCircle),0,default(VisibilityCircle),.8f,1080),0);
+        });
+        Run("core_floor_is_a_stable_exact_value_and_support_is_still_opaque",()=>
+        {
+            var circle=new VisibilityCircle(new Vector2(64,64),16,32,.2f);
+            Near(Effective(1,new Vector2(64,64),circle,circle,0,default(VisibilityCircle),.8f,1080),.8f);
+            var support=new VisibilityCircle(new Vector2(64,64),8,12,1);
+            Near(Effective(1,new Vector2(64,64),circle,circle,0,support,.8f,720),1);
+        });
+        ctx.ReturnValue=new{status=failed==0?"PASS":"FAIL",passed,failed,rows,scope="real production CPU opacity; dedicated GPU floor check remains required"};
+    }
+    static float Effective(float alpha,Vector2 pixel,VisibilityCircle a,VisibilityCircle b,float whole,VisibilityCircle support,float floor,int height)
+    {
+        var method=typeof(OpacityMath).GetMethod("ComputeEffectiveOpacity",BindingFlags.Public|BindingFlags.Static);
+        var styleType=typeof(OpacityMath).Assembly.GetType("Ossastra.SceneVisibility.VisibilityEdgeStyle");
+        Need(method!=null&&styleType!=null,"existing production edge API is required for this regression");
+        var args=new List<object>{alpha,pixel,a,b,whole,support,Enum.Parse(styleType,"SoftDitherEdge"),.18f,1f,height};
+        if(method.GetParameters().Length>args.Count)args.Add(floor);
+        return (float)method.Invoke(null,args.ToArray());
+    }
+    static void Near(float actual,float expected)=>Need(Math.Abs(actual-expected)<1e-6f,"expected="+expected+" actual="+actual);
+    static void Need(bool condition,string message){if(!condition)throw new InvalidOperationException(message);}
+    void Run(string name,Action action)
+    {try{action();passed++;rows.Add(new{name,passed=true});}catch(Exception e){failed++;rows.Add(new{name,passed=false,reason=e.GetBaseException().Message});}}
+}

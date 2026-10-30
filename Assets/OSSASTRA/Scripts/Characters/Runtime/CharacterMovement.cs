@@ -19,11 +19,14 @@ namespace Ossastra.Characters
         private CharacterDataBus dataBus;
         private Ossastra.Combat.CombatStatusEffects statusEffects;
         private ICharacterLocomotionScale locomotionScale;
+        private ICharacterEnvironmentClearance environmentClearance;
         public bool IsMoving { get; private set; }
         public Vector3 Velocity { get; private set; }
         // 只读诊断：区分未获许可、未请求速度与真实碰撞截断，不参与运动决策。
         public bool LastAllowed {get;private set;}
         public Vector3 RequestedVelocity {get;private set;}
+        public bool LastEnvironmentSideBlocked {get;private set;}
+        internal void BindEnvironmentClearance(ICharacterEnvironmentClearance clearance) { environmentClearance = clearance; }
 
         public bool Initialize(CharacterDataBus dataBus)
         {
@@ -48,8 +51,12 @@ namespace Ossastra.Characters
             if(statusEffects!=null)velocity=statusEffects.HasForcedMotion?statusEffects.ForcedVelocity:
                 statusEffects.BlocksIntent?Vector3.zero:velocity*statusEffects.SpeedScale;
             RequestedVelocity=velocity;
-            var collision=body.Move((velocity + Vector3.down * groundStick) * delta);
-            if((collision&CollisionFlags.Sides)!=0&&statusEffects!=null&&statusEffects.HasForcedMotion)statusEffects.StopForcedMotion();
+            var requestedDisplacement=(velocity + Vector3.down * groundStick) * delta;
+            var constrained=environmentClearance==null
+                ?new CharacterClearanceResult(requestedDisplacement,false):environmentClearance.Constrain(requestedDisplacement);
+            LastEnvironmentSideBlocked=constrained.SideBlocked;
+            var collision=body.Move(constrained.Displacement);
+            if(((collision&CollisionFlags.Sides)!=0||LastEnvironmentSideBlocked)&&statusEffects!=null&&statusEffects.HasForcedMotion)statusEffects.StopForcedMotion();
             // 用碰撞处理后的实际位移报告运动，而不是把“按住移动键”当成真的跑动。
             var displacement = transform.position - before;
             displacement.y = 0;
@@ -59,7 +66,7 @@ namespace Ossastra.Characters
 
         /// <summary>只清运动事实，不Move、不改坐标；死亡/禁用路径也必须形成真实退出边沿。</summary>
         public void Stop()
-        { LastAllowed=false;RequestedVelocity=Vector3.zero;IsMoving=false;Velocity=Vector3.zero; }
+        { LastAllowed=false;RequestedVelocity=Vector3.zero;LastEnvironmentSideBlocked=false;IsMoving=false;Velocity=Vector3.zero; }
         private void OnDisable(){Stop();}
 
         public void Teleport(Vector3 position)

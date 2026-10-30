@@ -26,5 +26,7 @@ namespace Ossastra.SceneVisibility.Rendering
         public CaptureCircle CircleB;
         public CaptureCircle PreserveSupport;
         public float WholeFade;
+        // Authored group floor, enforced after edge styling. Zero preserves existing callers.
+        public float MinimumOpacity;
     }
 }

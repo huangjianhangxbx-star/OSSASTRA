@@ -1,5 +1,11 @@
 # ANKALUTE 共享项目状态
 
+## KT-VIS-02 进行中（2026-10-31）
+
+- 固定主体净空通过可选ICharacterEnvironmentClearance接在原Movement唯一Move前；原CC仍承担原受击形状，场景两角色只额外挂环境约束。Root负责初始化/释放，环境侧阻并入原forced结束链，禁止另起Update推根。
+- 可视性继续既有有限组颜色/深度后端：独立local/radius/whole时序、空间羽化带稳定点阵，Original只读/Soft/SoftDither候选通过Native配置；原SO未改。M1原墙/斜滑/窄道/坡道/dodge/forced与镜头零推根，M2静态34 GPU合同已验证；floor边界修正及本轮最终收口仍进行中，不宣称整轮完成。详任务2026-10-31-kt-vis-02.md。
+
+
 > 2026-10-31 KT-VIS-01完成：可选角色竖直显示深度修复墙边截身；显式环境组柔边/扩大/有限整体淡出，双角色、支撑保护、离屏重入/跨界/死亡交接等已限定验证。新SC_OcclusionVisibilityLab Edit ready/clean，自有资源与输入租约归零，197源文件及原37dirty保持。功能提交04aac0039a83a80bfbdc357b10749a46240bdae8已GitHub main精确核验，源码/技术文档74文件白名单；第三方媒体/场景/缓存/录像仅本机。全部写入租约释放，GPU/Standalone及全域审美等边界见docs/ossastra/KT-VIS-01/validation.md。
 
 > 2026-10-30 KT-GROUND-03-FIX01地表闪烁定向修复：实际缓存共面层原Offset裕量不足，最小37999样本5616错、A多层72009样本19093错；同名同GUID GroundThinTop Shader改为统一每像素水平平面深度、额外层偏移0，沿原queue/LEqual，保留旧深度属性兼容，不抬高Mesh/Collider。生产A/B×28机位×实际D24/D32共2207934有效样本0错/0未知；独立opaque遮挡184机位、4187722内部样本及严格全图0错，含透视/正交和MSAA1/4。真实Play原Orbit45→315及截图正常，返回Edit ready/单Lab；生命周期自动cache +1，保留dirty=true未保存用户场景。三Map作者hash、20保护SHA及Lab磁盘hash不变；临时Shader已精确销毁。GPU/Player/长时与任意alpha边缘未签，Console保留1条MCP取消；C盘0字节导致部分诊断IO112但原run恢复/最小校验成功，未清用户文件。方案与证据docs/ossastra/KT-GROUND-03-FIX01/；功能79f61936a9429bf375d0544b45147262663ee60b已GitHub main精确核验，全部Unity/路径租约释放，详见本任务同步。

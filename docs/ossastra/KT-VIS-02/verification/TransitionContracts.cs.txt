@@ -1,0 +1,169 @@
+/* Native/IFunplayCommand contract, authored before transition implementation.
+ * It creates only transient Settings SOs; no scene, camera, asset or project write.
+ * RED on old production: independent radius/whole channels and delayed whole fade.
+ * Style checks assert endpoint, union, support, bounded energy and determinism
+ * rather than reimplementing the Bayer/envelope formula as their own expected value.
+ */
+using System;
+using System.Collections.Generic;
+using System.Reflection;
+using Funplay.Editor.Tools.Scripting;
+using Ossastra.SceneVisibility;
+using UnityEngine;
+
+public sealed class Vis02TransitionContracts : IFunplayCommand
+{
+    readonly List<object> rows = new List<object>();
+    int passed, failed;
+    public void Execute(ExecutionContext ctx)
+    {
+        Run("legacy_zero_sentinels_keep_original_rates", () => WithSettings(s =>
+        {
+            var state = new VisibilityState(s); state.Tick(Demand(1), .1f);
+            Near(state.LocalStrength, .5f); Near(state.RadiusMultiplier, 1.5f); Near(state.WholeFade, .5f);
+        }));
+        Run("clear_core_finishes_before_radius_expansion", () => WithSettings(s =>
+        {
+            Independent(s); var state = new VisibilityState(s); state.Tick(Demand(1), .2f);
+            Need(state.LocalStrength > .999f && state.RadiusMultiplier > 1.2f && state.RadiusMultiplier < 1.4f,
+                "core=" + state.LocalStrength + " radius=" + state.RadiusMultiplier + "; radius must remain partial when core is clear");
+        }));
+        Run("whole_fade_waits_then_uses_its_own_slow_entry", () => WithSettings(s =>
+        {
+            Independent(s); var state = new VisibilityState(s); state.Tick(Demand(1), .2f);
+            Need(state.WholeFade == 0, "whole=" + state.WholeFade + "; no whole fade before .30s stable demand");
+            state.Tick(Demand(1), .12f);
+            Need(state.WholeFade > 0 && state.WholeFade < .04f, "whole=" + state.WholeFade + "; only .02s of .80s whole entry has elapsed");
+        }));
+        Run("whole_delay_is_independent_of_tick_partition", () => WithSettings(s =>
+        {
+            Independent(s); var a = new VisibilityState(s); var b = new VisibilityState(s);
+            a.Tick(Demand(1), .42f); b.Tick(Demand(1), .21f); b.Tick(Demand(1), .21f);
+            Near(a.WholeFade, .15f); Near(a.WholeFade, b.WholeFade);
+        }));
+        Run("whole_delay_restarts_after_severity_falls", () => WithSettings(s =>
+        {
+            Independent(s); var state = new VisibilityState(s); state.Tick(Demand(1), .25f);
+            state.Tick(Demand(.4f), .01f); state.Tick(Demand(1), .1f);
+            Need(state.WholeFade == 0, "whole=" + state.WholeFade + "; separate brief peaks must not accumulate into whole fade");
+        }));
+        Run("local_radius_whole_restore_at_independent_rates", () => WithSettings(s =>
+        {
+            Independent(s); var state = new VisibilityState(s); state.Tick(Demand(1), 2);
+            state.Tick(new VisibilityDemand(false, 0, 0, false, false), .4f);
+            Near(state.LocalStrength, 0); Near(state.RadiusMultiplier, 1.5f);
+            Need(state.WholeFade > .5f && state.WholeFade < .6f, "whole=" + state.WholeFade + "; whole restore must outlive clear-core restore");
+        }));
+        Run("support_immediately_cancels_whole_fade", () => WithSettings(s =>
+        {
+            Independent(s); var state = new VisibilityState(s); state.Tick(Demand(1), 2);
+            state.Tick(new VisibilityDemand(true, 1, 1, true, true), 0);
+            Need(state.WholeFade == 0, "support protection cannot wait for the slow whole restore");
+        }));
+        Run("partial_radius_reverses_without_restarting_animation", () => WithSettings(s =>
+        {
+            Independent(s); var state = new VisibilityState(s); state.Tick(Demand(1), .3f);
+            float previous = state.RadiusMultiplier; state.Tick(Demand(.1f), .1f);
+            Need(state.RadiusMultiplier < previous && state.RadiusMultiplier > 1.1f,
+                "radius=" + state.RadiusMultiplier + "; reverse continuously from the current radius");
+        }));
+        Run("reconfigure_keeps_current_values_and_smoothly_reduces_a_new_radius_cap", () => WithSettings(s =>
+        {
+            Independent(s); var state = new VisibilityState(s); state.Tick(Demand(1), 2);
+            float local = state.LocalStrength, radius = state.RadiusMultiplier, whole = state.WholeFade;
+            s.maxRadiusMultiplier = 1;
+            var method = typeof(VisibilityState).GetMethod("Reconfigure");
+            Need(method != null, "non-resetting preset reconfiguration is unavailable"); method.Invoke(state, new object[] {s});
+            Near(state.LocalStrength, local); Near(state.RadiusMultiplier, radius); Near(state.WholeFade, whole);
+            state.Tick(Demand(1), .2f);
+            Need(state.RadiusMultiplier > 1 && state.RadiusMultiplier < radius, "a lower radius cap must converge smoothly, not clamp or freeze");
+            state.Tick(Demand(1), 2); Near(state.RadiusMultiplier, 1);
+        }));
+        Run("soft_and_dither_keep_clear_opaque_endpoints", () =>
+        {
+            foreach (int height in new[] {720, 1080}) foreach (string style in new[] {"Soft", "SoftDitherEdge"})
+            for (int x = 0; x < 12; x++) { Near(Edge(0, new Vector2(x + .5f, 11.5f), style, height), 0); Near(Edge(1, new Vector2(x + .5f, 11.5f), style, height), 1); }
+        });
+        Run("dither_is_restrained_deterministic_and_changes_partial_edges", () =>
+        {
+            foreach (int height in new[] {720, 1080})
+            {
+                float sum = 0, min = 1, max = 0;
+                for (int y = 0; y < 16; y++) for (int x = 0; x < 16; x++)
+                {
+                    var p = new Vector2(x + .5f, y + .5f); float actual = Edge(.37f, p, "SoftDitherEdge", height);
+                    Near(actual, Edge(.37f, p, "SoftDitherEdge", height)); Near(Edge(.37f, p, "Soft", height), .37f);
+                    Need(Math.Abs(actual - .37f) < .12f, "dither must remain a low-strength edge change");
+                    sum += actual; min = Math.Min(min, actual); max = Math.Max(max, actual);
+                }
+                Need(max - min > .01f, "style has no observable dot pattern");
+                Need(Math.Abs(sum / 256 - .37f) < .01f, "edge mean opacity must remain close to soft mode");
+            }
+        });
+        Run("dual_windows_use_union_and_support_core_stays_opaque", () =>
+        {
+            var c = new VisibilityCircle(new Vector2(64, 64), 16, 32, .6f);
+            var support = new VisibilityCircle(new Vector2(64, 64), 8, 12, 1);
+            var p = new Vector2(64, 64);
+            Near(Effective(1, p, c, c, 0, default(VisibilityCircle), "Soft", 1080), .4f);
+            Near(Effective(1, p, c, c, 0, support, "SoftDitherEdge", 1080), 1);
+            Near(Effective(1, p, default(VisibilityCircle), default(VisibilityCircle), 1, default(VisibilityCircle), "SoftDitherEdge", 720), 0);
+        });
+        Run("whole_partial_fade_has_no_dither_outside_spatial_feather", () =>
+        {
+            foreach (int height in new[] {720, 1080})
+            for (int x = 0; x < 8; x++)
+                Near(Effective(1, new Vector2(280.5f + x, 280.5f), default(VisibilityCircle), default(VisibilityCircle), .6f,
+                    default(VisibilityCircle), "SoftDitherEdge", height), .4f);
+        });
+        Run("a_clear_spatial_core_suppresses_dither_even_during_partial_local_entry", () =>
+        {
+            var a = new VisibilityCircle(new Vector2(64, 64), 16, 32, .6f);
+            var b = new VisibilityCircle(new Vector2(40, 64), 16, 32, .8f);
+            // The point is inside A's core and halfway through B's feather. Union keeps the core clean.
+            Near(Effective(1, new Vector2(64, 64), a, b, 0, default(VisibilityCircle), "SoftDitherEdge", 1080), .4f);
+        });
+        ctx.ReturnValue = new { status = failed == 0 ? "PASS" : "FAIL", passed, failed, rows,
+            scope = "pure production state/math; actual Native GPU color/depth and 720/1080 image contracts still required" };
+    }
+    static VisibilityDemand Demand(float severity) => new VisibilityDemand(true, severity, 0, true, false);
+    static void Independent(VisibilitySettingsSO s)
+    {
+        Set(s, "radiusEnterSeconds", .6f); Set(s, "radiusRestoreSeconds", .8f);
+        Set(s, "wholeEnterSeconds", .8f); Set(s, "wholeRestoreSeconds", .9f); Set(s, "wholeFadeDelaySeconds", .3f);
+    }
+    static void Set(VisibilitySettingsSO s, string name, float value)
+    { var f = typeof(VisibilitySettingsSO).GetField(name); if (f != null) f.SetValue(s, value); }
+    static void WithSettings(Action<VisibilitySettingsSO> action)
+    {
+        var s = ScriptableObject.CreateInstance<VisibilitySettingsSO>();
+        try { s.enterSeconds = .2f; s.restoreSeconds = .4f; s.exitGraceSeconds = 0; s.maxRadiusMultiplier = 2; s.wholeFadeStart = .8f; s.wholeFadeEnd = 1; action(s); }
+        finally { UnityEngine.Object.DestroyImmediate(s); }
+    }
+    static object Style(string name)
+    {
+        Type t = typeof(OpacityMath).Assembly.GetType("Ossastra.SceneVisibility.VisibilityEdgeStyle");
+        Need(t != null, "transition style API is unavailable"); return Enum.Parse(t, name);
+    }
+    static float Edge(float opacity, Vector2 pixel, string style, int height)
+    {
+        var method = typeof(OpacityMath).GetMethod("ApplyEdgeStyle", BindingFlags.Public | BindingFlags.Static);
+        Need(method != null, "transition style API is unavailable");
+        return (float)method.Invoke(null, new object[] {opacity, pixel, Style(style), .18f, 1f, height});
+    }
+    static float Effective(float alpha, Vector2 pixel, VisibilityCircle a, VisibilityCircle b, float whole, VisibilityCircle support, string style, int height)
+    {
+        var method = typeof(OpacityMath).GetMethod("ComputeEffectiveOpacity", BindingFlags.Public | BindingFlags.Static);
+        Need(method != null, "unified support/union edge API is unavailable");
+        var args = new List<object> {alpha, pixel, a, b, whole, support, Style(style), .18f, 1f, height};
+        if (method.GetParameters().Length > args.Count) args.Add(0f); // Optional group floor preserves old callers.
+        return (float)method.Invoke(null, args.ToArray());
+    }
+    static void Near(float actual, float expected) => Need(Math.Abs(actual - expected) < .00005f, "expected=" + expected + " actual=" + actual);
+    static void Need(bool condition, string reason) { if (!condition) throw new InvalidOperationException(reason); }
+    void Run(string name, Action action)
+    {
+        try { action(); passed++; rows.Add(new {name, passed = true}); }
+        catch (Exception error) { failed++; rows.Add(new {name, passed = false, reason = error.GetBaseException().Message}); }
+    }
+}

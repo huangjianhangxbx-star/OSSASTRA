@@ -3,6 +3,7 @@ Shader "Hidden/Ossastra/SceneVisibility/FiniteGroupFeather"
 {
  Properties
  {
+  _VisEdgeStyle("Style strength actual-cell-pixels diagnostic-gray",Vector)=(0,0,1,0)
   _GroupColor0("Color0",2D)="black"{} _GroupDepth0("Depth0",2D)="black"{}
   _GroupColor1("Color1",2D)="black"{} _GroupDepth1("Depth1",2D)="black"{}
   _GroupColor2("Color2",2D)="black"{} _GroupDepth2("Depth2",2D)="black"{}

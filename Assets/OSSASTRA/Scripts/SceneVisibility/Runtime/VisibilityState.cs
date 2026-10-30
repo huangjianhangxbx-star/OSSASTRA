@@ -3,7 +3,6 @@ using System;
 // 纯需求与状态推进：输入由外部已完成资格判定；不接管物理、角色或相机。
 namespace Ossastra.SceneVisibility
 {
-    // 表示一个已判定资格的观测需求，本类型不再执行物理或相机查询。
     public readonly struct VisibilityDemand
     {
         public bool Eligible { get; }
@@ -11,104 +10,93 @@ namespace Ossastra.SceneVisibility
         public float Entry { get; }
         public bool AllowWholeFade { get; }
         public bool SupportProtected { get; }
-
         public VisibilityDemand(bool eligible, float coverage, float entry, bool allowWholeFade, bool supportProtected)
         {
-            VisibilityNumbers.RequireUnit(coverage, nameof(coverage));
-            VisibilityNumbers.RequireUnit(entry, nameof(entry));
-            Eligible = eligible; Coverage = coverage; Entry = entry;
-            AllowWholeFade = allowWholeFade; SupportProtected = supportProtected;
+            VisibilityNumbers.RequireUnit(coverage, nameof(coverage)); VisibilityNumbers.RequireUnit(entry, nameof(entry));
+            Eligible = eligible; Coverage = coverage; Entry = entry; AllowWholeFade = allowWholeFade; SupportProtected = supportProtected;
         }
     }
 
-    // 保存一个目标/遮挡组的状态，不持有Renderer、世界对象或另一份“当前角色”。
-    // 构造时校验并复制配置；外部明确变更配置时应重新创建状态，而非隐式读取变化中的SO。
+    // 保存一个目标/遮挡组的状态；配置复制为值，Reconfigure不重置当前值与身份/滞回历史。
     public sealed class VisibilityState
     {
-        readonly float enterSeconds, restoreSeconds, graceSeconds, maxRadius, wholeStart, wholeEnd;
-        float graceRemaining, lastSeverity, lastWholeTarget;
+        float enterSeconds, restoreSeconds, radiusEnter, radiusRestore, wholeEnter, wholeRestore;
+        float graceSeconds, maxRadius, radiusSpan, wholeStart, wholeEnd, wholeDelay;
+        float graceRemaining, lastSeverity, lastWholeTarget, strongDemandSeconds;
         bool retainingDemand;
-
         public float LocalStrength { get; private set; }
         public float RadiusMultiplier { get; private set; } = 1f;
         public float WholeFade { get; private set; }
-        public bool IsReleased => !retainingDemand && graceRemaining <= 0f &&
-            LocalStrength == 0f && WholeFade == 0f && RadiusMultiplier == 1f;
+        public float WholeDelayProgress => wholeDelay <= 0 ? 1f : Math.Min(1f, strongDemandSeconds / wholeDelay);
+        public bool IsReleased => !retainingDemand && graceRemaining <= 0f && LocalStrength == 0f && WholeFade == 0f && RadiusMultiplier == 1f;
 
-        public VisibilityState(VisibilitySettingsSO settings)
+        public VisibilityState(VisibilitySettingsSO settings) { Reconfigure(settings); }
+        public void Reconfigure(VisibilitySettingsSO settings)
         {
             if (settings == null) throw new ArgumentNullException(nameof(settings));
             if (!settings.TryValidate(out string reason)) throw new ArgumentException(reason, nameof(settings));
             enterSeconds = settings.enterSeconds; restoreSeconds = settings.restoreSeconds;
+            radiusEnter = settings.radiusEnterSeconds > 0 ? settings.radiusEnterSeconds : enterSeconds;
+            radiusRestore = settings.radiusRestoreSeconds > 0 ? settings.radiusRestoreSeconds : restoreSeconds;
+            wholeEnter = settings.wholeEnterSeconds > 0 ? settings.wholeEnterSeconds : enterSeconds;
+            wholeRestore = settings.wholeRestoreSeconds > 0 ? settings.wholeRestoreSeconds : restoreSeconds;
             graceSeconds = settings.exitGraceSeconds; maxRadius = settings.maxRadiusMultiplier;
-            wholeStart = settings.wholeFadeStart; wholeEnd = settings.wholeFadeEnd;
+            // 新cap可低于当前半径。保留完整回收跨度，尤其cap=1时不能令速率变成0。
+            radiusSpan = Math.Max(maxRadius - 1f, RadiusMultiplier - 1f);
+            wholeStart = settings.wholeFadeStart; wholeEnd = settings.wholeFadeEnd; wholeDelay = settings.wholeFadeDelaySeconds;
         }
-
         public void Tick(VisibilityDemand demand, float deltaSeconds)
         {
-            // 先拒绝无效输入，再修改任何状态，包括支撑保护与滞回计时。
             VisibilityNumbers.RequireNonNegative(deltaSeconds, nameof(deltaSeconds));
-            VisibilityNumbers.RequireUnit(demand.Coverage, nameof(demand.Coverage));
-            VisibilityNumbers.RequireUnit(demand.Entry, nameof(demand.Entry));
-            if (demand.SupportProtected)
-            {
-                // 支撑安全优先于平滑：本Tick立即撤销整组淡出，局部前景需求仍可继续。
-                WholeFade = 0f;
-                lastWholeTarget = 0f;
-            }
-
+            VisibilityNumbers.RequireUnit(demand.Coverage, nameof(demand.Coverage)); VisibilityNumbers.RequireUnit(demand.Entry, nameof(demand.Entry));
+            if (demand.SupportProtected) { WholeFade = 0f; lastWholeTarget = 0f; strongDemandSeconds = 0f; }
             if (demand.Eligible)
             {
-                // 程度只决定半径和整组需求；合法遮挡的清晰核心最终趋1，避免轻挡稳态发灰。
                 lastSeverity = Math.Max(demand.Coverage, demand.Entry);
                 lastWholeTarget = demand.AllowWholeFade && !demand.SupportProtected
                     ? SmoothUnit((lastSeverity - wholeStart) / (wholeEnd - wholeStart)) : 0f;
                 if (!demand.AllowWholeFade) WholeFade = 0f;
-                retainingDemand = true;
-                graceRemaining = graceSeconds;
-                Advance(deltaSeconds, 1f, RadiusTarget(), lastWholeTarget);
-                return;
+                float wholeDelta = deltaSeconds;
+                if (lastWholeTarget > 0f)
+                {
+                    float waiting = Math.Max(0f, wholeDelay - strongDemandSeconds);
+                    wholeDelta = Math.Max(0f, deltaSeconds - waiting);
+                    strongDemandSeconds = Math.Min(wholeDelay, strongDemandSeconds + deltaSeconds);
+                }
+                else strongDemandSeconds = 0f;
+                retainingDemand = true; graceRemaining = graceSeconds;
+                Advance(deltaSeconds, 1f, RadiusTarget(), lastWholeTarget, wholeDelta); return;
             }
-
-            // 即使单次delta跨越滞回边界，也分段消费“保留需求”和“恢复”时间。
-            // 检测暂缺时只保留上次程度；可继续趋近该目标，但不能按等待时间提高程度。
+            // 检测暂缺不累计“持续强遮挡”。旧delay=0仍保持旧滞回期间继续进入的行为。
+            strongDemandSeconds = 0f;
             float held = retainingDemand ? Math.Min(deltaSeconds, graceRemaining) : 0f;
             if (held > 0f)
             {
-                Advance(held, 1f, RadiusTarget(), lastWholeTarget);
+                Advance(held, 1f, RadiusTarget(), lastWholeTarget, wholeDelay <= 0 ? held : 0f);
                 graceRemaining = Math.Max(0f, graceRemaining - held);
             }
             if (graceRemaining <= 0f) retainingDemand = false;
             float restoring = deltaSeconds - held;
-            if (restoring > 0f) Advance(restoring, 0f, 1f, 0f);
+            if (restoring > 0f) Advance(restoring, 0f, 1f, 0f, restoring);
         }
-
         public void Reset()
         {
             LocalStrength = 0f; RadiusMultiplier = 1f; WholeFade = 0f;
-            graceRemaining = lastSeverity = lastWholeTarget = 0f;
-            retainingDemand = false;
+            graceRemaining = lastSeverity = lastWholeTarget = strongDemandSeconds = 0f; retainingDemand = false;
         }
-
         float RadiusTarget() => (float)(1d + ((double)maxRadius - 1d) * lastSeverity);
-        void Advance(float delta, float local, float radius, float whole)
+        void Advance(float delta, float local, float radius, float whole, float wholeEntryDelta)
         {
-            LocalStrength = Move(LocalStrength, local, delta, 1f);
-            RadiusMultiplier = Move(RadiusMultiplier, radius, delta, Math.Max(0f, maxRadius - 1f));
-            WholeFade = Move(WholeFade, whole, delta, 1f);
+            LocalStrength = Move(LocalStrength, local, delta, 1f, enterSeconds, restoreSeconds);
+            RadiusMultiplier = Move(RadiusMultiplier, radius, delta, radiusSpan, radiusEnter, radiusRestore);
+            WholeFade = Move(WholeFade, whole, whole > WholeFade ? wholeEntryDelta : delta, 1f, wholeEnter, wholeRestore);
         }
-        float Move(float current, float target, float delta, float span)
+        static float Move(float current, float target, float delta, float span, float enter, float restore)
         {
-            // 参数表示完整跨度的进入/恢复耗时；需求改变不重新启动一条计时动画。
             if (current == target || delta <= 0f || span <= 0f) return current;
-            double step = (double)delta / (target > current ? enterSeconds : restoreSeconds) * span;
-            double difference = (double)target - current;
+            double step = (double)delta / (target > current ? enter : restore) * span, difference = (double)target - current;
             return Math.Abs(difference) <= step ? target : (float)(current + Math.Sign(difference) * step);
         }
-        static float SmoothUnit(float value)
-        {
-            float t = Math.Max(0f, Math.Min(1f, value));
-            return t * t * (3f - 2f * t);
-        }
+        static float SmoothUnit(float value) { float t = Math.Max(0f, Math.Min(1f, value)); return t * t * (3f - 2f * t); }
     }
 }

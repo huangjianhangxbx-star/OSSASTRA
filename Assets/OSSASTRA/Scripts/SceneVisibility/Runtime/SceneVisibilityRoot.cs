@@ -22,6 +22,11 @@ namespace Ossastra.SceneVisibility
         public MapResearchRoot mapView;
         public C.CharacterControlCoordinator coordinator;
         public VisibilitySettingsSO settings;
+        [Header("同机位比较预设（Original只读；修改候选SO后用按钮应用）")]
+        public VisibilitySettingsSO originalPreset, softPreset, softDitherPreset;
+        public bool showAdvancedDiagnostics, showWindowBoundaries, showOpacityGray;
+        public VisibilitySettingsSO ActiveSettings => activeSettings;
+        public Rect DiagnosticsRect => new Rect(Mathf.Max(5, Screen.width - 370), 65, 360, showAdvancedDiagnostics ? 500 : 195);
         public VisibilityTarget[] targets = Array.Empty<VisibilityTarget>();
         public SceneOccluderGroup[] groups = Array.Empty<SceneOccluderGroup>();
         [Header("运行开关（不会暂停世界）")]
@@ -92,6 +97,8 @@ namespace Ossastra.SceneVisibility
                     for (int t = 0; t < 2; ++t) runtime[i].State[t] = new VisibilityState(activeSettings);
                 }
                 capture = new FiniteGroupCapture(gameplayCamera, captureOnlyLayer, opaqueShader, featherShader, copyDepthShader);
+                capture.SetEdgeStyle(activeSettings.edgeStyle, activeSettings.ditherStrength, activeSettings.ditherCell1080Pixels);
+                capture.SetDebugView(showOpacityGray ? 1 : 0);
                 boundCamera = gameplayCamera;
                 proxyScene = new VisibilityProxyScene(); proxyRegistrySignature = 0;
                 RenderPipelineManager.beginCameraRendering += BeginCamera;
@@ -172,8 +179,13 @@ namespace Ossastra.SceneVisibility
                         var demand = active && effectEnabled && visible[t] ? item.Demand[t] : new VisibilityDemand(false, 0f, 0f, false, item.Support);
                         item.State[t].Tick(demand, delta);
                         var state = item.State[t];
-                        if (visible[t]) item.Circle[t] = new CaptureCircle { CenterViewport = selected[t].CenterViewport, InnerPixels = selected[t].CorePixels * state.RadiusMultiplier,
-                            OuterPixels = selected[t].CorePixels * state.RadiusMultiplier + selected[t].BodyPixels * activeSettings.feather, Strength = state.LocalStrength * (1f - (group == null ? 1f : Mathf.Clamp01(group.minimumOpacity))) };
+                        if (visible[t])
+                        {
+                            float inner = selected[t].CorePixels * state.RadiusMultiplier;
+                            item.Circle[t] = new CaptureCircle { CenterViewport = selected[t].CenterViewport, InnerPixels = inner,
+                                OuterPixels = inner + activeSettings.FeatherWidthPixels(selected[t].BodyPixels, inner, camera.pixelHeight),
+                                Strength = state.LocalStrength * (1f - (group == null ? 1f : Mathf.Clamp01(group.minimumOpacity))) };
+                        }
                         else { var circle = item.Circle[t]; circle.Strength = state.LocalStrength * (1f - (group == null ? 1f : Mathf.Clamp01(group.minimumOpacity))); item.Circle[t] = circle; }
                         whole = Mathf.Max(whole, state.WholeFade);
                         score += state.LocalStrength * (t == 0 ? 100f : 1f);
@@ -181,7 +193,7 @@ namespace Ossastra.SceneVisibility
                     if (!active || !effectEnabled || score <= 0f || group.Resolved.Length == 0) continue;
                     ++ActiveGroups;
                     var frame = new RegisteredGroupFrame { StableId = group.GetInstanceID(), GeometryVersion = group.GeometryVersion, Members = group.Resolved,
-                        CircleA = item.Circle[0], CircleB = item.Circle[1], PreserveSupport = item.PreserveSupport, WholeFade = Mathf.Min(whole, 1f - Mathf.Clamp01(group.minimumOpacity)) };
+                        CircleA = item.Circle[0], CircleB = item.Circle[1], PreserveSupport = item.PreserveSupport, MinimumOpacity = Mathf.Clamp01(group.minimumOpacity), WholeFade = Mathf.Min(whole, 1f - Mathf.Clamp01(group.minimumOpacity)) };
                     Insert(frame, score);
                 }
                 int count = Mathf.Min(4, Mathf.Min(ActiveGroups, activeSettings.maxGroups));
@@ -264,6 +276,21 @@ namespace Ossastra.SceneVisibility
         void EndCamera(ScriptableRenderContext context, Camera camera) { if (capture != null) capture.EndCamera(context, camera); }
         // 参数变化只重接本模块；不重置角色、地图或原控制会话。
         public void Reconnect() { Release(); if (isActiveAndEnabled && Application.isPlaying) OnEnable(); }
+
+        // 换配置只替换自有快照与时序参数，保留当前圆窗、目标身份、滞回及后端资源。
+        public bool ApplyPreset(VisibilitySettingsSO preset)
+        {
+            if (!Application.isPlaying || preset == null || capture == null || runtime == null) return false;
+            if (!preset.TryValidate(out string reason)) { Status = "预设拒绝：" + reason; return false; }
+            var snapshot = Instantiate(preset); snapshot.hideFlags = HideFlags.HideAndDontSave;
+            foreach (var item in runtime) foreach (var state in item.State) state.Reconfigure(snapshot);
+            var previous = activeSettings; activeSettings = snapshot; settings = preset;
+            capture.SetEdgeStyle(snapshot.edgeStyle, snapshot.ditherStrength, snapshot.ditherCell1080Pixels);
+            if (previous != null) Destroy(previous);
+            effectEnabled = true; detectionOnly = false; nextDetection = 0;
+            Status = "已应用：" + preset.name + "；原位置与圆窗历史保留";
+            return true;
+        }
         static double ElapsedMilliseconds(long start) => (System.Diagnostics.Stopwatch.GetTimestamp() - start) * 1000d / System.Diagnostics.Stopwatch.Frequency;
         void RefreshSupport()
         {
@@ -318,6 +345,9 @@ namespace Ossastra.SceneVisibility
                 text.Append(item.Group.groupLabel).Append("：").Append(item.State[0].LocalStrength.ToString("F2")).Append(" / 半径×")
                     .Append(item.State[0].RadiusMultiplier.ToString("F2")).Append(" / 整组")
                     .Append(Mathf.Max(item.State[0].WholeFade, item.State[1].WholeFade).ToString("F2"));
+                text.Append(" / 覆盖").Append(item.Demand[0].Coverage.ToString("F2"))
+                    .Append(" / 内部").Append(item.Demand[0].Entry.ToString("F2"))
+                    .Append(" / 延迟").Append(item.State[0].WholeDelayProgress.ToString("F2"));
                 if (item.MainSupport) text.Append(" [保留主控整块承载面]");
                 else if (item.CompanionSupport) text.Append(" [保留伙伴脚盘]");
                 text.Append('\n');
@@ -327,14 +357,60 @@ namespace Ossastra.SceneVisibility
         void OnGUI()
         {
             if (!Application.isPlaying || !showDiagnostics) return;
-            GUILayout.BeginArea(new Rect(Mathf.Max(5, Screen.width - 370), 65, 360, 320), GUI.skin.box);
-            GUILayout.Label("模型遮挡透视 · KT-VIS-01");
-            effectEnabled = GUILayout.Toggle(effectEnabled, "启用模型柔边透视");
-            detectionOnly = GUILayout.Toggle(detectionOnly, "仅检测（保留模型原样）");
+            if (showAdvancedDiagnostics && showWindowBoundaries) DrawWindowBoundaries();
+            GUILayout.BeginArea(DiagnosticsRect, GUI.skin.box);
+            GUILayout.Label("模型遮挡透视 · KT-VIS-02");
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("关闭效果")) { effectEnabled = false; detectionOnly = false; }
+            if (GUILayout.Button("Original（只读）")) ApplyPreset(originalPreset);
+            GUILayout.EndHorizontal(); GUILayout.BeginHorizontal();
+            if (GUILayout.Button("Soft 柔边")) ApplyPreset(softPreset);
+            if (GUILayout.Button("Soft + 轻点阵")) ApplyPreset(softDitherPreset);
+            GUILayout.EndHorizontal();
             protectCompanion = GUILayout.Toggle(protectCompanion, "保护同屏存活伙伴");
-            GUILayout.Label(Status); GUILayout.Label(diagnostics);
+            GUILayout.Label(Status);
+            bool advanced = GUILayout.Toggle(showAdvancedDiagnostics, "展开诊断与配置读数");
+            if (!advanced && showOpacityGray) { showOpacityGray = false; capture?.SetDebugView(0); }
+            showAdvancedDiagnostics = advanced;
+            if (showAdvancedDiagnostics)
+            {
+                detectionOnly = GUILayout.Toggle(detectionOnly, "仅检测（保留模型原样）");
+                showWindowBoundaries = GUILayout.Toggle(showWindowBoundaries, "核心/羽化外沿（蓝/黄）");
+                bool gray = GUILayout.Toggle(showOpacityGray, "opacity 灰度（诊断深度，不作正常画面验收）");
+                if (gray != showOpacityGray) { showOpacityGray = gray; capture?.SetDebugView(gray ? 1 : 0); }
+                if (activeSettings != null) GUILayout.Label("当前快照：" + activeSettings.name +
+                    "\n核心 " + activeSettings.enterSeconds.ToString("F2") + "s / 扩圈 " + activeSettings.radiusEnterSeconds.ToString("F2") +
+                    "s / 整组 " + activeSettings.wholeEnterSeconds.ToString("F2") + "s / 延迟 " + activeSettings.wholeFadeDelaySeconds.ToString("F2") + "s");
+                GUILayout.Label(diagnostics);
+            }
             if (!string.IsNullOrEmpty(RenderError)) GUILayout.Label(RenderError);
             GUILayout.EndArea();
+        }
+        void DrawWindowBoundaries()
+        {
+            if (runtime == null || gameplayCamera == null) return;
+            var oldColor = GUI.color; var matrix = GUI.matrix;
+            foreach (var item in runtime) for (int t = 0; t < 2; ++t)
+            {
+                var circle = item.Circle[t]; if (circle.Strength <= 0) continue;
+                Vector2 center = new Vector2(circle.CenterViewport.x * Screen.width, (1 - circle.CenterViewport.y) * Screen.height);
+                float scale = (float)Screen.height / gameplayCamera.pixelHeight;
+                DrawCircle(center, circle.InnerPixels * scale, new Color(.2f, .8f, 1f, .7f));
+                DrawCircle(center, circle.OuterPixels * scale, new Color(1f, .8f, .2f, .6f));
+            }
+            GUI.color = oldColor; GUI.matrix = matrix;
+        }
+        static void DrawCircle(Vector2 center, float radius, Color color)
+        {
+            GUI.color = color;
+            for (int i = 0; i < 64; ++i)
+            {
+                float a = i * Mathf.PI * 2 / 64, b = (i + 1) * Mathf.PI * 2 / 64;
+                Vector2 start = center + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * radius;
+                Vector2 end = center + new Vector2(Mathf.Cos(b), Mathf.Sin(b)) * radius, delta = end - start;
+                var matrix = GUI.matrix; GUIUtility.RotateAroundPivot(Mathf.Atan2(delta.y, delta.x) * Mathf.Rad2Deg, start);
+                GUI.DrawTexture(new Rect(start.x, start.y, delta.magnitude, 1), Texture2D.whiteTexture); GUI.matrix = matrix;
+            }
         }
         void OnDisable() => Release();
         void OnDestroy() => Release();

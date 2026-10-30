@@ -1,0 +1,81 @@
+/* 独立增量合同：覆盖候选原驱动未涉及的grace跨界/延迟、长驻有界、零强度等价。
+ * 仅读生产状态与数学，不操纵角色、场景、输入、GPU或SO资产。
+ * 由唯一Native执行者在生产实现编译后运行；此文件自身不代表已执行。
+ */
+using System;
+using System.Collections.Generic;
+using Funplay.Editor.Tools.Scripting;
+using Ossastra.SceneVisibility;
+using UnityEngine;
+
+public sealed class Vis02AdditionalTransitionContracts : IFunplayCommand
+{
+    readonly List<object> rows = new List<object>();
+    int failed;
+    public void Execute(ExecutionContext ctx)
+    {
+        Run("missing_demand_grace_boundary_is_partition_independent_with_delay", () => WithSettings(s =>
+        {
+            var a = new VisibilityState(s); var b = new VisibilityState(s);
+            var strong = new VisibilityDemand(true, 1, 0, true, false);
+            var miss = new VisibilityDemand(false, 0, 0, false, false);
+            a.Tick(strong, .25f); b.Tick(strong, .25f);
+            a.Tick(miss, .2f);
+            for (int i = 0; i < 4; ++i) b.Tick(miss, .05f);
+            Near(a.LocalStrength, b.LocalStrength); Near(a.RadiusMultiplier, b.RadiusMultiplier); Near(a.WholeFade, b.WholeFade);
+            a.Tick(strong, .1f); b.Tick(strong, .1f);
+            Need(a.WholeFade == 0 && b.WholeFade == 0, "interrupted pre-delay peaks must not count as continuous strong demand");
+        }));
+        Run("long_held_demand_has_finite_exact_targets", () => WithSettings(s =>
+        {
+            var state = new VisibilityState(s);
+            var demand = new VisibilityDemand(true, 1, 1, true, false);
+            state.Tick(demand, 10f);
+            Near(state.LocalStrength, 1); Near(state.RadiusMultiplier, s.maxRadiusMultiplier); Near(state.WholeFade, 1);
+            state.Tick(demand, 10f);
+            Near(state.LocalStrength, 1); Near(state.RadiusMultiplier, s.maxRadiusMultiplier); Near(state.WholeFade, 1);
+        }));
+        Run("support_protection_cancels_existing_whole_fade_even_during_missing_demand_grace", () => WithSettings(s =>
+        {
+            var state = new VisibilityState(s);
+            state.Tick(new VisibilityDemand(true, 1, 1, true, false), 2);
+            Need(state.WholeFade == 1, "precondition: finite group whole fade active");
+            state.Tick(new VisibilityDemand(false, 0, 0, false, true), 0);
+            Need(state.WholeFade == 0, "support is safety eligibility and must not wait for restore/delay clocks");
+        }));
+        Run("zero_strength_dither_exactly_matches_soft_at_both_viewport_sizes", () =>
+        {
+            foreach (int height in new[] {720, 1080})
+                foreach (float p in new[] {0f, .01f, .25f, .5f, .83f, 1f})
+                    for (int y = 0; y < 8; ++y) for (int x = 0; x < 8; ++x)
+                    {
+                        var pixel = new Vector2(x + .5f, y + .5f);
+                        float dither = OpacityMath.ApplyEdgeStyle(p, pixel, VisibilityEdgeStyle.SoftDitherEdge, 0, 1, height);
+                        float soft = OpacityMath.ApplyEdgeStyle(p, pixel, VisibilityEdgeStyle.Soft, .18f, 1, height);
+                        Need(dither == p && dither == soft, "zero strength must not perturb even one partial-edge pixel");
+                    }
+        });
+        ctx.ReturnValue = new {status = failed == 0 ? "PASS" : "FAIL", passed = rows.Count - failed, failed, rows,
+            scope = "Four pure production state/math contracts only; Native physical clearance, GPU depth, real input, images, video, lifecycle/performance still separate"};
+    }
+    static void WithSettings(Action<VisibilitySettingsSO> action)
+    {
+        var s = ScriptableObject.CreateInstance<VisibilitySettingsSO>();
+        try
+        {
+            s.enterSeconds = .2f; s.restoreSeconds = .4f; s.exitGraceSeconds = .1f;
+            s.radiusEnterSeconds = .4f; s.radiusRestoreSeconds = .5f;
+            s.wholeEnterSeconds = .6f; s.wholeRestoreSeconds = .7f; s.wholeFadeDelaySeconds = .3f;
+            s.maxRadiusMultiplier = 1.6f; s.wholeFadeStart = .75f; s.wholeFadeEnd = .95f;
+            action(s);
+        }
+        finally { UnityEngine.Object.DestroyImmediate(s); }
+    }
+    static void Need(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
+    static void Near(float actual, float expected) => Need(Math.Abs(actual - expected) < .0001f, "expected=" + expected + ", actual=" + actual);
+    void Run(string name, Action action)
+    {
+        try { action(); rows.Add(new {name, passed = true}); }
+        catch (Exception error) { ++failed; rows.Add(new {name, passed = false, reason = error.GetBaseException().Message}); }
+    }
+}

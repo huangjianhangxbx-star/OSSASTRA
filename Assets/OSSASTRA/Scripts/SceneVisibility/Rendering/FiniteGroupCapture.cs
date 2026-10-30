@@ -57,7 +57,7 @@ namespace Ossastra.SceneVisibility.Rendering
         readonly int captureLayer, displayLayer;
         static readonly int[] ColorIds = Ids("_GroupColor"), DepthIds = Ids("_GroupDepth"), CircleAIds = Ids("_CircleA"), CircleBIds = Ids("_CircleB"), StrengthIds = Ids("_Strength"), SupportIds = Ids("_Support");
         static readonly int ActiveId = Shader.PropertyToID("_GroupActive"), OrderId = Shader.PropertyToID("_GroupOrder"), ScreenId = Shader.PropertyToID("_VisScreen"), SupportStrengthId = Shader.PropertyToID("_SupportStrength");
-        static readonly int SpriteMainTexId = Shader.PropertyToID("_MainTex");
+        static readonly int SpriteMainTexId = Shader.PropertyToID("_MainTex"), EdgeStyleId = Shader.PropertyToID("_VisEdgeStyle");
         readonly Shader dataShader;
         readonly Group[] slots = new Group[MaxGroups];
         readonly List<Material> sharedMaterialsScratch = new List<Material>(8);
@@ -70,6 +70,9 @@ namespace Ossastra.SceneVisibility.Rendering
         readonly Mesh quad;
         bool disposed, inside;
         int width, height;
+        VisibilityEdgeStyle edgeStyle;
+        float ditherStrength = .18f, ditherCell1080Pixels = 1f;
+        int debugView;
 
         public string LastError { get; private set; }
         public int CapturedGroupCount { get; private set; }
@@ -236,6 +239,8 @@ namespace Ossastra.SceneVisibility.Rendering
                 throw new InvalidOperationException("Each finite group needs a nonzero stable ID and explicit members.");
             ValidateCircle(frame.CircleA); ValidateCircle(frame.CircleB); ValidateCircle(frame.PreserveSupport);
             if (!Finite(frame.WholeFade) || frame.WholeFade < 0 || frame.WholeFade > 1) throw new InvalidOperationException("Whole fade must be finite 0..1.");
+            if (!Finite(frame.MinimumOpacity) || frame.MinimumOpacity < 0 || frame.MinimumOpacity > 1)
+                throw new InvalidOperationException("Minimum group opacity must be finite 0..1.");
             for (int i = 0; i < frame.Members.Length; i++)
             {
                 var renderer=frame.Members[i];
@@ -482,6 +487,19 @@ namespace Ossastra.SceneVisibility.Rendering
             proxyRoot.transform.SetPositionAndRotation(main.transform.position + main.transform.forward * z, main.transform.rotation);
             proxyRoot.transform.localScale = new Vector3(h * main.aspect, h, 1);
         }
+        // Only existing display uniforms change; captures/materials/state identities remain owned and reused.
+        public void SetEdgeStyle(VisibilityEdgeStyle style, float strength, float cell1080Pixels)
+        {
+            if (style != VisibilityEdgeStyle.Soft && style != VisibilityEdgeStyle.SoftDitherEdge)
+                throw new ArgumentOutOfRangeException(nameof(style));
+            VisibilityNumbers.RequireUnit(strength, nameof(strength));
+            OpacityMath.EdgeCellPixels(cell1080Pixels, 1080);
+            edgeStyle = style; ditherStrength = strength; ditherCell1080Pixels = cell1080Pixels;
+        }
+        // 1 shows actual effective opacity on the nearest captured group footprint; 0 restores normal rendering.
+        // Diagnostic mode deliberately hides rear actors on that footprint. It is not a gameplay depth assertion.
+        public void SetDebugView(int mode)
+        { if (mode < 0 || mode > 1) throw new ArgumentOutOfRangeException(nameof(mode)); debugView = mode; }
         void BindDisplays()
         {
             var active = Vector4.zero; var order = Vector4.zero; var supportStrength = Vector4.zero;
@@ -498,13 +516,14 @@ namespace Ossastra.SceneVisibility.Rendering
                     displays[m].SetVector(CircleAIds[s], new Vector4(a.CenterViewport.x, a.CenterViewport.y, a.InnerPixels, a.OuterPixels));
                     displays[m].SetVector(CircleBIds[s], new Vector4(b.CenterViewport.x, b.CenterViewport.y, b.InnerPixels, b.OuterPixels));
                     displays[m].SetVector(SupportIds[s], new Vector4(support.CenterViewport.x, support.CenterViewport.y, support.InnerPixels, support.OuterPixels));
-                    displays[m].SetVector(StrengthIds[s], new Vector4(a.Strength, b.Strength, enabled ? group.Frame.WholeFade : 0, 0));
+                    displays[m].SetVector(StrengthIds[s], new Vector4(a.Strength, b.Strength, enabled ? group.Frame.WholeFade : 0, enabled ? group.Frame.MinimumOpacity : 0));
                 }
             }
             for (int m = 0; m < displays.Length; m++)
             {
                 displays[m].SetVector(ActiveId, active); displays[m].SetVector(OrderId, order); displays[m].SetVector(SupportStrengthId, supportStrength);
                 displays[m].SetVector(ScreenId, new Vector4(width, height, 1f / width, 1f / height));
+                displays[m].SetVector(EdgeStyleId, new Vector4((float)edgeStyle, ditherStrength, OpacityMath.EdgeCellPixels(ditherCell1080Pixels, height), debugView));
             }
         }
         static int[] Ids(string prefix) { var ids = new int[MaxGroups]; for (int i = 0; i < ids.Length; i++) ids[i] = Shader.PropertyToID(prefix + i); return ids; }
