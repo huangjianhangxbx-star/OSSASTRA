@@ -36,4 +36,14 @@ namespace Ossastra.Characters.ViewSpace
         string ViewDiagnostics { get; }
         bool SetViewInputCapture(object owner, bool captured);
     }
+
+    /// <summary>角色根组织的可选纯视觉深度；不持有控制/动画/物理权威，无模块的旧场不受影响。</summary>
+    public interface ICharacterVisualDepth
+    {
+        void Initialize(Transform actor);
+        // 根已完成当帧装备表现后，提供实际游戏相机；实现不另行Update角色。
+        void Prepare(Camera gameplayCamera);
+        void Suspend();
+        void Dispose();
+    }
 }

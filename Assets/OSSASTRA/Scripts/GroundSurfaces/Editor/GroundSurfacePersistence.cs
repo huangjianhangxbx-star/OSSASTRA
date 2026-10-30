@@ -226,7 +226,7 @@ namespace Ossastra.GroundSurfaces.Editor
             try
             {
                 PrepareAndPersistLab(scene);
-                if(!EditorSceneManager.SaveScene(scene,ScenePath))throw new IOException("悬崖样板保存失败，当前作者场保留。");
+                if(!EditorSceneManager.SaveScene(scene,scene.path))throw new IOException("悬崖样板保存失败，当前作者场保留。");
             }
             finally{savingSurfaceLab=false;}
         }
@@ -235,12 +235,13 @@ namespace Ossastra.GroundSurfaces.Editor
             SaveLab();var scene=SceneManager.GetActiveScene();RequireLabScene(scene);
             for(int i=0;i<SceneManager.sceneCount;i++){var other=SceneManager.GetSceneAt(i);if(other!=scene&&other.isDirty)throw new InvalidOperationException("其他loaded场有未保存变更，不进入Play："+other.path);}
             var start=EditorSceneManager.playModeStartScene;
-            if(start!=null&&AssetDatabase.GetAssetPath(start)!=ScenePath)throw new InvalidOperationException("当前Play起始场指向其他Scene；未篡改用户设置，也未进入错误场景。");
+            if(start!=null&&AssetDatabase.GetAssetPath(start)!=scene.path)throw new InvalidOperationException("当前Play起始场指向其他Scene；未篡改用户设置，也未进入错误场景。");
             EditorApplication.isPlaying=true;
         }
         private static void SurfaceSceneSaving(Scene scene,string path)
         {
-            if(path!=ScenePath||scene.path!=ScenePath||savingSurfaceLab)return;
+            // 另存副本只写快照；在访问Map/窗口/缓存前拒绝源目标不同的回调，避免串写源资产。
+            if(savingSurfaceLab||!GroundSurfaceSceneAccess.IsInPlaceSave(scene.path,path))return;
             // 首次从保护模板另存/登记的中间快照尚无平台，不把构造流程误当已完成的多平台保存。
             if(!scene.GetRootGameObjects().Any(root=>root.GetComponentsInChildren<GroundSurfaceBinding>(true).Length!=0))return;
             RequireLabScene(scene);savingSurfaceLab=true;
@@ -249,7 +250,7 @@ namespace Ossastra.GroundSurfaces.Editor
         private static void RequireLabScene(Scene scene)
         {
             if(!GroundWorkshopOwnership.ContextReady(out string reason))throw new InvalidOperationException(reason);
-            if(!scene.IsValid()||!scene.isLoaded||scene.path!=ScenePath||scene!=SceneManager.GetActiveScene()||EditorSceneManager.IsPreviewScene(scene))
+            if(!scene.IsValid()||!scene.isLoaded||!GroundSurfaceSceneAccess.IsSupported(scene.path)||scene!=SceneManager.GetActiveScene()||EditorSceneManager.IsPreviewScene(scene))
                 throw new InvalidOperationException("只保存当前有效的独立悬崖样板；不切换或保存旧场。");
         }
         private static void PrepareAndPersistLab(Scene scene)

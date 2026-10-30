@@ -16,6 +16,8 @@ namespace Ossastra.Characters
         private EquipmentDefinitionSO current;
         private Spine.Bone bone;
         public string LastResult {get;private set;}="未初始化";
+        // 只读表现端口供可选视觉深度使用；不开放装备状态或Renderer写入所有权。
+        public SpriteRenderer PresentedRenderer => renderer;
         public void Initialize(CharacterRoot root)
         {
             owner=root;equipment=GetComponent<CharacterEquipment>();skeleton=GetComponentInChildren<SkeletonAnimation>();

@@ -49,10 +49,10 @@ namespace Ossastra.GroundSurfaces.Editor
         {
             if(!GroundWorkshopOwnership.ContextReady(out string reason))throw new InvalidOperationException(reason);
             var active=SceneManager.GetActiveScene();
-            if(binding==null||!binding.isActiveAndEnabled||EditorUtility.IsPersistent(binding)||active.path!=ScenePath||binding.gameObject.scene!=active||EditorSceneManager.IsPreviewScene(active))
+            if(binding==null||!binding.isActiveAndEnabled||EditorUtility.IsPersistent(binding)||!GroundSurfaceSceneAccess.IsSupported(active.path)||binding.gameObject.scene!=active||EditorSceneManager.IsPreviewScene(active))
                 throw new InvalidOperationException("仅当前已保存悬崖样板中的有效平台Binding可执行此操作。");
             GroundWorkshopOwnership.Require(binding.map);
-            if(binding.map.gameObject.scene!=active||binding.boundary==null||
+            if(binding.map==null||binding.map.registration==null||binding.map.gameObject.scene!=active||binding.map.registration.scenePath!=active.path||binding.boundary==null||
                !GroundWorkshopOwnership.IsUnder(AssetDatabase.GetAssetPath(binding.boundary),binding.map.registration.assetFolder))
                 throw new InvalidOperationException("平台缺少属于本地图assetFolder的独立Boundary，未写共享环或外部资产。");
             ValidateExistingCache(binding);
@@ -60,7 +60,7 @@ namespace Ossastra.GroundSurfaces.Editor
         public static GroundSurfaceBinding[] GetBindings()
         {
             var scene=SceneManager.GetActiveScene();
-            if(!scene.IsValid()||!scene.isLoaded||scene.path!=ScenePath)return Array.Empty<GroundSurfaceBinding>();
+            if(!scene.IsValid()||!scene.isLoaded||!GroundSurfaceSceneAccess.IsSupported(scene.path))return Array.Empty<GroundSurfaceBinding>();
             if(!GroundWorkshopOwnership.ContextReady(out string reason))throw new InvalidOperationException(reason);
             var bindings=scene.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<GroundSurfaceBinding>(true)).ToArray();
             var maps=new HashSet<GroundWorkshopMap>();

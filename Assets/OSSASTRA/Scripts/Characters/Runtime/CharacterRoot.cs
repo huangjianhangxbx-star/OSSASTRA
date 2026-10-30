@@ -2,7 +2,7 @@
  * 脚本：CharacterRoot
  * 功能：角色组装与明确调度；注册仲裁器/状态机拥有动作组织，接受费用沿原协调器。
  * 边界：主动作运行时由战斗状态机唯一持有；只读生命资格，不实现HP写入、设备绑定或开发GUI。
- * 协作：初始化可选Follow/Posture/ViewSpace与定义驱动能力；先缓存实际观察基，再按输入、架势、朝向、动作、运动、表现推进。
+ * 协作：初始化可选Follow/Posture/ViewSpace/纯视觉深度与定义驱动能力；先缓存实际观察基，再按输入、架势、朝向、动作、运动、表现推进。
  * 兼容：没有能力控制端口的历史场继续旧Skills/Guard/Offhand路径，新候选与旧路径互斥。
  */
 using System;
@@ -29,6 +29,7 @@ namespace Ossastra.Characters
         [SerializeField] private CharacterInputHandler input;
         [SerializeField] private Camera viewCamera;
         private CharacterViewSpaceAdapter viewSpace;
+        private ICharacterVisualDepth[] visualDepth = Array.Empty<ICharacterVisualDepth>();
         private object viewContextOwner;
         private Camera viewCameraBeforeContext;
         public Transform CharacterTransform => transform;
@@ -247,6 +248,11 @@ namespace Ossastra.Characters
             if (viewCamera == null) viewCamera = Camera.main;
             if (viewSpace == null) viewSpace = GetComponent<CharacterViewSpaceAdapter>();
             if (viewSpace != null) viewSpace.Initialize(transform);
+            // 纯视觉可选端口由本根初始化和释放；旧角色没有此组件时数组为空。
+            var depths = new System.Collections.Generic.List<ICharacterVisualDepth>();
+            foreach (var component in GetComponents<MonoBehaviour>())
+                if (component is ICharacterVisualDepth depth) { depth.Initialize(transform); depths.Add(depth); }
+            visualDepth = depths.ToArray();
             if (vitals!=null)
             {
                 if (!vitals.Initialize(actorId)) { Debug.LogError("Character vitals identity/configuration invalid",this); enabled=false; return; }
@@ -321,7 +327,9 @@ namespace Ossastra.Characters
 
         // Spine在Update求骨骼；本根LateUpdate消费同帧挂点，Renderer稍后构建网格。
         // 此处仅推进装备表现，不执行第二次Move或结算。
-        private void LateUpdate(){if(ready){(presentation as Ossastra.CharacterAnimation.CharacterAnimationController)?.FlushSignals();equipmentView?.TickPresentation();equipmentSpineView?.TickPresentation();transientItems?.TickPresentation();}}
+        private void LateUpdate(){if(ready){(presentation as Ossastra.CharacterAnimation.CharacterAnimationController)?.FlushSignals();equipmentView?.TickPresentation();equipmentSpineView?.TickPresentation();transientItems?.TickPresentation();
+            // 装备实例已由原表现端口完成，本帧显示深度才接收同一相机；不增加第二次Move/动画提交。
+            foreach(var depth in visualDepth)depth.Prepare(viewCamera);}}
         // 7. Animation Intent → One Commit；无子模块Update争抢主轨。
         private void CommitPresentation()
         {
@@ -415,9 +423,10 @@ namespace Ossastra.Characters
         private void OnApplicationPause(bool value)
           { applicationPaused = value; if(value)stateArbitrator?.Combat?.ClearBuffer(); if (follow != null) follow.ResetIntent(); if (value) stateArbitrator?.Combat?.SuppressInput(); }
         private void OnEnable() { stateArbitrator?.Combat?.SuppressInput(); if (intentSelector != null) intentSelector.Clear(); }
-        private void OnDisable() { viewSpace?.Suspend();stateArbitrator?.StopMovement();transientItems?.Hide();statusEffects?.Clear();mainAction?.ResetState();equipmentView?.Hide();equipmentSpineView?.Hide();skills?.Clear();offhand?.CancelAll(); CancelAction("disabled"); if (posture != null) posture.ResetState(); authority.Release(posture); if (follow != null) follow.ResetIntent(); if (intentSelector != null) intentSelector.Clear(); if (ready && presentation != null) presentation.SetPaused(false); }
+        private void OnDisable() { foreach(var depth in visualDepth)depth.Suspend();viewSpace?.Suspend();stateArbitrator?.StopMovement();transientItems?.Hide();statusEffects?.Clear();mainAction?.ResetState();equipmentView?.Hide();equipmentSpineView?.Hide();skills?.Clear();offhand?.CancelAll(); CancelAction("disabled"); if (posture != null) posture.ResetState(); authority.Release(posture); if (follow != null) follow.ResetIntent(); if (intentSelector != null) intentSelector.Clear(); if (ready && presentation != null) presentation.SetPaused(false); }
         private void OnDestroy()
         {
+            foreach(var depth in visualDepth)depth.Dispose();
             if (viewContextOwner != null) ReleaseViewContext(viewContextOwner);
             viewSpace?.Dispose();
             if(mainAction!=null)mainAction.Resolved-=OnHitReceipt;

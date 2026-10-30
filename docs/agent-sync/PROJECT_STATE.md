@@ -1,5 +1,7 @@
 # ANKALUTE 共享项目状态
 
+> 2026-10-31 KT-VIS-01收口：新SC_OcclusionVisibilityLab/三独立Map与原双角色接入，墙边倾斜显示面截身已通过正式深度修正，合法前景高台由模型柔边/扩大/有限整组淡出处理。纯状态20/0、探针15/0、Sprite14/材质26像素门、真实Play23项、保存重建关闭重开42项、三轮自有资源清理与104引用0存活、开关前后原输入碰撞/命中、5/4/1预算及两比例两zoom参数、四阶段录像已验证；相关旧场0992完整冒烟0新增错误、197源文件保持。Root唯一Native writer正完成最后相机/资格边界并定向发布，不改全局URP/基础角色Prefab/用户dirty，不执行电源动作。最终状态见docs/ossastra/KT-VIS-01/validation.md与tasks/2026-10-30-kt-vis-01.md。
+
 > 2026-10-30 KT-GROUND-03-FIX01地表闪烁定向修复：实际缓存共面层原Offset裕量不足，最小37999样本5616错、A多层72009样本19093错；同名同GUID GroundThinTop Shader改为统一每像素水平平面深度、额外层偏移0，沿原queue/LEqual，保留旧深度属性兼容，不抬高Mesh/Collider。生产A/B×28机位×实际D24/D32共2207934有效样本0错/0未知；独立opaque遮挡184机位、4187722内部样本及严格全图0错，含透视/正交和MSAA1/4。真实Play原Orbit45→315及截图正常，返回Edit ready/单Lab；生命周期自动cache +1，保留dirty=true未保存用户场景。三Map作者hash、20保护SHA及Lab磁盘hash不变；临时Shader已精确销毁。GPU/Player/长时与任意alpha边缘未签，Console保留1条MCP取消；C盘0字节导致部分诊断IO112但原run恢复/最小校验成功，未清用户文件。方案与证据docs/ossastra/KT-GROUND-03-FIX01/；功能79f61936a9429bf375d0544b45147262663ee60b已GitHub main精确核验，全部Unity/路径租约释放，详见本任务同步。
 
 > 2026-10-30 KT-GROUND-03方案B技术交付：新SC_CliffEdgeLab的3m凹L/5m斜切平台从已保存侧壁提边，Tilemap唯一作者+裁剪顶盖/独立凹域Collider，原工坊刷改/配方/Undo/模型/装饰/多Map保存重开已验；原双角色真实缓坡Y .02→3.02与35度旋转切控19/19，55实际墙边分段采样误差0。修复派生指针Undo、SceneVisibility、reload资源/工作队列、保存mask与MF引用错误门。最终Edit clean/Final/敌攻击关、持久引用完整/无MissingScript；严格像素11/12单像素边界差、GPU/实体UI/Player未验及编辑器/工具日志边界保留。功能主提交 c080c0749a8e312e3538a7c6b066fc3af38f531e 已GitHub main精确核验，原37dirty/20保护SHA保持，受限媒体/派生缓存/场景仅本机；全部租约释放，无电源动作。入口docs/ossastra/KT-GROUND-03/README.md。

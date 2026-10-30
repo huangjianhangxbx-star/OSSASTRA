@@ -44,7 +44,7 @@ namespace Ossastra.GroundSurfaces.Editor
         }
         public static void QueueMap(GroundWorkshopMap map)
         {
-            if(map==null||map.gameObject.scene.path!=GroundSurfaceAuthoring.ScenePath)return;
+            if(map==null||!GroundSurfaceSceneAccess.IsSupported(map.gameObject.scene.path))return;
             foreach(var binding in AllBindings())if(binding.map==map)Queue(binding);
         }
         public static void ClearPending()
@@ -100,7 +100,7 @@ namespace Ossastra.GroundSurfaces.Editor
             if(!Ready())return;
             EditorApplication.update-=WaitReady;waiting=false;Schedule();
         }
-        private static void SceneOpened(Scene scene,OpenSceneMode mode){if(scene.path==GroundSurfaceAuthoring.ScenePath)QueueAll();}
+        private static void SceneOpened(Scene scene,OpenSceneMode mode){if(GroundSurfaceSceneAccess.IsSupported(scene.path))QueueAll();}
         private static void ModeChanged(PlayModeStateChange state)
         {
             if(state==PlayModeStateChange.ExitingEditMode){ClearPending();return;}
@@ -126,7 +126,8 @@ namespace Ossastra.GroundSurfaces.Editor
             return modifications;
         }
         private static bool Eligible(GroundSurfaceBinding binding)=>binding!=null&&binding.map!=null&&binding.Surface!=null&&binding.gameObject.scene.IsValid()&&
-            binding.gameObject.scene.isLoaded&&binding.gameObject.scene.path==GroundSurfaceAuthoring.ScenePath;
+            binding.gameObject.scene.isLoaded&&GroundSurfaceSceneAccess.IsSupported(binding.gameObject.scene.path)&&
+            binding.map.registration!=null&&binding.map.registration.scenePath==binding.gameObject.scene.path;
         private static GroundSurfaceBinding[] AllBindings()=>Resources.FindObjectsOfTypeAll<GroundSurfaceBinding>().Where(Eligible).ToArray();
         private static void BeforeReload(){ClearPending();}
         [UnityEditor.Callbacks.DidReloadScripts]
@@ -143,12 +144,12 @@ namespace Ossastra.GroundSurfaces.Editor
             if(!Ready())
             {if(EditorApplication.timeSinceStartup<reloadRetryUntil)EditorApplication.update+=QueueReloadedBindings;return;}
             var bindings=AllBindings();foreach(var binding in bindings)Queue(binding);
-            if(SceneManager.GetActiveScene().path==GroundSurfaceAuthoring.ScenePath&&bindings.Length==0&&EditorApplication.timeSinceStartup<reloadRetryUntil)
+            if(GroundSurfaceSceneAccess.IsSupported(SceneManager.GetActiveScene().path)&&bindings.Length==0&&EditorApplication.timeSinceStartup<reloadRetryUntil)
                 EditorApplication.update+=QueueReloadedBindings;
         }
         private static void SceneClosing(Scene scene,bool removing)
         {
-            if(scene.path!=GroundSurfaceAuthoring.ScenePath)return;
+            if(!GroundSurfaceSceneAccess.IsSupported(scene.path))return;
             foreach(var binding in AllBindings().Where(b=>b.gameObject.scene==scene)){pending.Remove(binding);ReleaseTransient(binding);}
         }
         private static void ReleaseTransient(GroundSurfaceBinding binding)
@@ -176,7 +177,7 @@ namespace Ossastra.GroundSurfaces.Editor
         {
             var changed=new HashSet<string>((imported??Array.Empty<string>()).Concat(deleted??Array.Empty<string>()).Concat(moved??Array.Empty<string>()).Concat(movedFrom??Array.Empty<string>()),StringComparer.Ordinal);
             foreach(var binding in Resources.FindObjectsOfTypeAll<GroundSurfaceBinding>())
-                if(binding!=null&&binding.gameObject.scene.IsValid()&&binding.gameObject.scene.path==GroundSurfaceAuthoring.ScenePath&&
+                if(binding!=null&&binding.gameObject.scene.IsValid()&&GroundSurfaceSceneAccess.IsSupported(binding.gameObject.scene.path)&&
                     binding.sideWalls!=null&&binding.sideWalls.Any(wall=>wall!=null&&wall.sharedMesh!=null&&changed.Contains(AssetDatabase.GetAssetPath(wall.sharedMesh))))GroundSurfaceUpdates.Queue(binding);
         }
     }

@@ -73,6 +73,15 @@ namespace Ossastra.MapResearch
         public float TargetYaw => orbit != null ? orbit.TargetYaw : initialYaw;
         public int TargetSector => orbit != null ? orbit.TargetSector : 0;
 
+        /// <summary>UI/调试复用已有八向请求；只有本根的正常Update写相机，不新增输入绑定。</summary>
+        public bool RequestRotationStep(int direction)
+        {
+            var current = structureMode ? observerOrbit : orbit;
+            if (!isActiveAndEnabled || current == null || (direction != -1 && direction != 1)) return false;
+            current.RequestStep(direction);
+            return true;
+        }
+
         private struct CameraState
         {
             private Vector3 position;
