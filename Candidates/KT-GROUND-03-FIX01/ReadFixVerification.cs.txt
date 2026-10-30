@@ -1,0 +1,16 @@
+/* FIX01只读：核对真实场景、作者hash、碰撞/缓存身份和生产Shader。没有保存、重建或回滚。 */
+using System;using System.Linq;using System.Text;using System.Security.Cryptography;using UnityEngine;using UnityEngine.SceneManagement;using UnityEditor;using Ossastra.GroundSurfaces;using Ossastra.GroundResearch;using Funplay.Editor.Tools.Scripting;
+public sealed class KT03FixReadVerification:IFunplayCommand
+{
+ static string Hash(GroundWorkshopMap map){var s=new StringBuilder();foreach(var l in map.surface.layers){var t=l.tilemap;s.Append(t.GetInstanceID()).Append(t.cellBounds.ToString());foreach(var p in t.cellBounds.allPositionsWithin){var tile=t.GetTile(p);if(tile==null)continue;s.Append(p).Append(tile.GetInstanceID()).Append(t.GetColor(p).ToString("R")).Append((int)t.GetTileFlags(p)).Append(t.GetTransformMatrix(p).ToString("R"));}}using(var h=SHA256.Create())return Convert.ToBase64String(h.ComputeHash(Encoding.UTF8.GetBytes(s.ToString())));}
+ public void Execute(ExecutionContext ctx)
+ {
+  var s=SceneManager.GetActiveScene();if(s.path!="Assets/OSSASTRA/GroundWorkshop/Samples/KT-GROUND-03/SC_CliffEdgeLab.unity")throw new InvalidOperationException("未在已核验Lab；不猜场景");
+  var roots=s.GetRootGameObjects();var shader=AssetDatabase.LoadAssetAtPath<Shader>("Assets/OSSASTRA/Scripts/GroundSurfaces/Shaders/GroundThinTop.shader");if(shader==null||shader.name!="Ossastra/GroundSurfaces/ThinTop")throw new InvalidOperationException("生产Shader缺失或身份改变");
+  var bindings=roots.SelectMany(g=>g.GetComponentsInChildren<GroundSurfaceBinding>(true)).ToArray();
+  ctx.ReturnValue=new{scene=s.path,s.isDirty,playing=Application.isPlaying,compiling=EditorApplication.isCompiling,updating=EditorApplication.isUpdating,Time.timeScale,sceneCount=SceneManager.sceneCount,
+   shader=new{name=shader.name,shader.isSupported,errors=ShaderUtil.ShaderHasError(shader),messages=ShaderUtil.GetShaderMessages(shader).Select(m=>new{m.message,severity=m.severity.ToString(),m.line}).ToArray(),guid=AssetDatabase.AssetPathToGUID(AssetDatabase.GetAssetPath(shader))},
+   maps=roots.SelectMany(g=>g.GetComponentsInChildren<GroundWorkshopMap>(true)).Select(m=>new{id=m.registration.mapId,authorHash=Hash(m)}).ToArray(),
+   surfaces=bindings.Select(b=>{var c=b.cacheRoot.GetComponent<GroundSurfaceMeshCache>();return new{b.SurfaceId,b.flattenDisplay,b.lastError,c.rebuildCount,c.signature,cacheId=c.GetInstanceID(),colliderId=b.capCollider.GetInstanceID(),colliderMesh=b.capCollider.sharedMesh.GetInstanceID(),chunks=c.chunks.Select(k=>new{k.layerIndex,mesh=k.filter.sharedMesh.GetInstanceID(),material=k.renderer.sharedMaterial.GetInstanceID(),shader=k.renderer.sharedMaterial.shader.name,k.renderer.sharedMaterial.renderQueue,minY=k.filter.sharedMesh.vertices.Min(v=>k.filter.transform.TransformPoint(v).y),maxY=k.filter.sharedMesh.vertices.Max(v=>k.filter.transform.TransformPoint(v).y)}).ToArray()};}).ToArray()};
+ }
+}

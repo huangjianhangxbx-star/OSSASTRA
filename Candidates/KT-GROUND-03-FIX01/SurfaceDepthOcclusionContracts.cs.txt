@@ -1,0 +1,187 @@
+/* Independent absolute-depth reference: native opaque plane/cards vs the candidate ground shader.
+ * Root Native only. Everything rendered belongs to a private PreviewScene; no source scene writes.
+ * Pure primary colors avoid color-space/lighting ambiguity. Known front and behind overlap must both exist.
+ * RGB mismatch in a 5x5 reference interior is RED; raster-edge differences are separately reported.
+ */
+using System;using System.IO;using System.Linq;using System.Text;using System.Reflection;using System.Collections.Generic;
+using UnityEngine;using UnityEngine.Rendering;using UnityEngine.Rendering.Universal;using UnityEngine.Experimental.Rendering;
+using UnityEngine.SceneManagement;using UnityEditor;using UnityEditor.SceneManagement;
+using Funplay.Editor.Tools.Scripting;using Object=UnityEngine.Object;
+public sealed class KT03Fix01DepthOcclusionContracts:IFunplayCommand
+{
+    public static string ResultJson="NOT_STARTED";static Runner active;
+    public void Execute(ExecutionContext ctx)
+    {
+        if(active!=null){ctx.ReturnValue=new{status="ALREADY_RUNNING",pollType="KT03Fix01DepthOcclusionContracts"};return;}
+        active=new Runner();try{active.Start();}catch(Exception error){active.End(error.ToString());}
+        ctx.ReturnValue=new{status=active==null?"FINISHED":"STARTED",pollType="KT03Fix01DepthOcclusionContracts",pollField="ResultJson",result=ResultJson};
+    }
+    sealed class View{public float pitch,yaw,distance;public bool ortho;public string name;}
+    sealed class Runner
+    {
+        const int W=384,H=256,Radius=2,Minimum=64;
+        const string Keys="GroundSurface.Fix01.Occlusion.";
+        readonly string runId=Guid.NewGuid().ToString("N"),startedUtc=DateTime.UtcNow.ToString("O");
+        readonly List<Object> owned=new List<Object>();readonly List<View> views=new List<View>();readonly List<object> rows=new List<object>();
+        Scene sourceScene,preview;Camera camera;Shader candidate,reference;MeshRenderer ground,front,behind;
+        Material standardGround,candidateGround;RenderTexture target,resolve,priorActive;
+        bool captured,sourceDirty,unsupported,saveImages,everyPoseValid=true;float timeScale,near,far,planeY,gap;
+        int requestedMsaa,actualMsaa,viewIndex,stage;long interiorWrong,frontWrong,behindWrong;double started,next;
+        string formatName,actualDepthFormat,actualColorFormat,matrixPreset,sourceStamp,output,receipt,phase="setup";
+        const string ReferenceSource=@"Shader ""Hidden/Ossastra/FIX01/AbsoluteOpaqueReference"" {
+          Properties {_Color(""Color"",Color)=(1,1,1,1)}
+          SubShader {Tags{""RenderPipeline""=""UniversalPipeline"" ""Queue""=""Geometry"" ""RenderType""=""Opaque""}
+           Pass {Tags{""LightMode""=""UniversalForward""} Cull Off ZWrite On ZTest LEqual Blend Off
+            HLSLPROGRAM
+            #pragma target 3.0
+            #pragma vertex vert
+            #pragma fragment frag
+            #include ""Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl""
+            CBUFFER_START(UnityPerMaterial) float4 _Color; CBUFFER_END
+            struct A {float4 positionOS:POSITION;}; struct V {float4 positionCS:SV_POSITION;};
+            V vert(A i){V o;o.positionCS=TransformObjectToHClip(i.positionOS.xyz);return o;}
+            half4 frag(V i):SV_Target{return half4(_Color.rgb,1);}
+            ENDHLSL
+           }} }";
+        public void Start()
+        {
+            started=EditorApplication.timeSinceStartup;
+            if(EditorApplication.isPlayingOrWillChangePlaymode||EditorApplication.isCompiling||EditorApplication.isUpdating)throw new InvalidOperationException("Edit ready only; never stops Play or changes TimeScale.");
+            sourceScene=SceneManager.GetActiveScene();sourceDirty=sourceScene.isDirty;sourceStamp=SourceStamp();timeScale=Time.timeScale;priorActive=RenderTexture.active;captured=true;
+            int shaderId=SessionState.GetInt("GroundSurface.Fix01.ShaderOverrideId",0);
+            string expected=SessionState.GetString("GroundSurface.Fix01.ShaderOverrideName","Hidden/Ossastra/GroundSurfaces/FIX01/UnifiedPlaneDepth");
+            candidate=shaderId==0?null:EditorUtility.InstanceIDToObject(shaderId) as Shader;
+            if(candidate==null||candidate.name!=expected)throw new InvalidOperationException("Set a verified ShaderOverrideId and its exact ShaderOverrideName; no hardcoded instance or Shader.Find fallback.");
+            if(!candidate.isSupported||ShaderUtil.ShaderHasError(candidate))throw new InvalidOperationException("Candidate shader unsupported/ShaderHasError; no occlusion verdict.");
+            formatName=SessionState.GetString(Keys+"DepthFormat","D32_SFloat_S8_UInt");requestedMsaa=SessionState.GetInt(Keys+"MSAA",1);
+            near=SessionState.GetFloat(Keys+"Near",.05f);far=SessionState.GetFloat(Keys+"Far",180);planeY=SessionState.GetFloat(Keys+"PlaneY",3);gap=SessionState.GetFloat(Keys+"Gap",.3f);
+            if((requestedMsaa!=1&&requestedMsaa!=4)||!Finite(near)||!Finite(far)||near<=0||far<=near||!Finite(planeY)||!Finite(gap)||gap<=0||gap>1)throw new ArgumentException("Invalid bounded clip/gap/MSAA settings.");
+            matrixPreset=SessionState.GetString(Keys+"MatrixPreset","Core");saveImages=SessionState.GetBool(Keys+"SaveImages",true);BuildViews();
+            string root=SessionState.GetString("GroundSurface.Fix01Output","");if(!Directory.Exists(root))throw new InvalidOperationException("Existing GroundSurface.Fix01Output required.");
+            output=Path.Combine(root,"AbsoluteOcclusion_"+runId);Directory.CreateDirectory(output);receipt=Path.Combine(output,"absolute-occlusion.json");
+            preview=EditorSceneManager.NewPreviewScene();reference=CreateReference();owned.Add(reference);
+            var floorMesh=Quad(true);var cardMesh=Quad(false);owned.Add(floorMesh);owned.Add(cardMesh);
+            standardGround=MakeMaterial(reference,Color.blue);var red=MakeMaterial(reference,Color.red);var green=MakeMaterial(reference,Color.green);
+            candidateGround=MakeMaterial(candidate,Color.blue);
+            candidateGround.SetTexture("_MainTex",Texture2D.whiteTexture);candidateGround.SetTexture("_SecondTex",Texture2D.whiteTexture);
+            candidateGround.SetFloat("_BaseCoverage",1);candidateGround.SetFloat("_Cutoff",.5f);candidateGround.SetFloat("_DebugMask",0);
+            candidateGround.SetVector("_GroundBounds",new Vector4(-1000,-1000,1000,1000));candidateGround.SetFloat("_WorldPeriod",16);
+            if(candidateGround.HasProperty("_ViewDepthOffsetMeters"))candidateGround.SetFloat("_ViewDepthOffsetMeters",0);
+            ground=MakeRenderer("PrivateGround",floorMesh,standardGround);front=MakeRenderer("KnownFrontRed",cardMesh,red);behind=MakeRenderer("KnownBehindGreen",cardMesh,green);
+            var go=NewObject("AbsoluteReferenceCamera");camera=go.AddComponent<Camera>();camera.scene=preview;camera.enabled=false;
+            camera.fieldOfView=35;camera.aspect=(float)W/H;camera.nearClipPlane=near;camera.farClipPlane=far;camera.allowHDR=false;camera.allowMSAA=requestedMsaa>1;camera.useOcclusionCulling=false;
+            camera.clearFlags=CameraClearFlags.SolidColor;camera.backgroundColor=new Color(0,0,0,0);camera.cullingMask=1<<31;
+            var data=go.AddComponent<UniversalAdditionalCameraData>();data.renderPostProcessing=false;data.volumeLayerMask=0;
+            GraphicsFormat requested=formatName=="D24_UNorm_S8_UInt"?GraphicsFormat.D24_UNorm_S8_UInt:formatName=="D32_SFloat_S8_UInt"?GraphicsFormat.D32_SFloat_S8_UInt:GraphicsFormat.None;
+            if(requested==GraphicsFormat.None)throw new ArgumentException("DepthFormat must name exact D24_UNorm_S8_UInt or D32_SFloat_S8_UInt.");
+            if(!SystemInfo.IsFormatSupported(requested,FormatUsage.Render)){unsupported=true;throw new NotSupportedException("Exact requested depth format unsupported: "+formatName);}
+            target=new RenderTexture(W,H,24,RenderTextureFormat.ARGB32,RenderTextureReadWrite.sRGB){antiAliasing=requestedMsaa,depthStencilFormat=requested,hideFlags=HideFlags.HideAndDontSave};owned.Add(target);
+            int supported=SystemInfo.GetRenderTextureSupportedMSAASampleCount(target.descriptor);
+            if(supported!=requestedMsaa){unsupported=true;throw new NotSupportedException("Requested MSAA "+requestedMsaa+" is supported as "+supported+" for this descriptor; no silent fallback.");}
+            if(!target.Create())throw new InvalidOperationException("Requested RenderTexture could not be created.");actualMsaa=target.antiAliasing;actualDepthFormat=target.depthStencilFormat.ToString();actualColorFormat=target.graphicsFormat.ToString();
+            if(target.depthStencilFormat!=requested||actualMsaa!=requestedMsaa){unsupported=true;throw new NotSupportedException("Actual target format/MSAA differs from request: "+actualDepthFormat+" / "+actualMsaa);}
+            if(actualMsaa>1)
+            {resolve=new RenderTexture(W,H,0,RenderTextureFormat.ARGB32,RenderTextureReadWrite.sRGB){antiAliasing=1,hideFlags=HideFlags.HideAndDontSave};owned.Add(resolve);if(!resolve.Create())throw new InvalidOperationException("Resolve RenderTexture creation failed.");if(resolve.graphicsFormat!=target.graphicsFormat)throw new InvalidOperationException("Resolve color formats do not match.");}
+            camera.targetTexture=target;phase="wait-native-registration";next=started+.25;EditorApplication.QueuePlayerLoopUpdate();EditorApplication.update+=Tick;Publish("RUNNING",null);
+        }
+        void BuildViews()
+        {
+            Action<float,float,float,bool> add=(p,y,d,o)=>{if(!views.Any(v=>v.pitch==p&&v.yaw==y&&v.distance==d&&v.ortho==o))views.Add(new View{pitch=p,yaw=y,distance=d,ortho=o,name=(o?"ortho":"persp")+"_p"+p+"_y"+y+"_d"+d});};
+            foreach(bool o in new[]{false,true})foreach(float p in new[]{12f,35f,70f})foreach(float d in new[]{5f,25f,32f})add(p,315,d,o);
+            if(matrixPreset=="Expanded")foreach(bool o in new[]{false,true})foreach(float p in new[]{12f,35f})foreach(float y in new[]{0f,45f,90f,135f,180f,225f,270f,315f})add(p,y,25,o);
+            else if(matrixPreset!="Core")throw new ArgumentException("MatrixPreset must be Core or Expanded.");
+            if(views.Count>48)throw new InvalidOperationException("View budget exceeded.");
+        }
+        void Prepare(View view)
+        {
+            float s=view.distance/25f;Vector3 focus=new Vector3(0,planeY,0);Quaternion r=Quaternion.Euler(view.pitch,view.yaw,0),yaw=Quaternion.Euler(0,view.yaw,0);
+            Vector3 right=yaw*Vector3.right,toward=yaw*Vector3.back;
+            camera.orthographic=view.ortho;camera.orthographicSize=view.distance*Mathf.Tan(35*Mathf.Deg2Rad*.5f);camera.transform.SetPositionAndRotation(focus-r*Vector3.forward*view.distance,r);
+            ground.transform.SetPositionAndRotation(focus,Quaternion.identity);ground.transform.localScale=new Vector3(14*s,1,14*s);
+            front.transform.SetPositionAndRotation(focus+toward*(2*s)-right*(1.5f*s)+Vector3.up*((gap+1)*s),yaw);front.transform.localScale=new Vector3(1.8f*s,2*s,1);
+            behind.transform.SetPositionAndRotation(focus-toward*(2*s)+right*(1.5f*s)-Vector3.up*((gap+.85f)*s),yaw);behind.transform.localScale=new Vector3(1.8f*s,1.7f*s,1);
+            EditorApplication.QueuePlayerLoopUpdate();
+        }
+        void Tick()
+        {
+            try
+            {
+                double now=EditorApplication.timeSinceStartup;if(now<next)return;if(now-started>120)throw new TimeoutException("Bounded absolute-depth run exceeded 120 seconds.");
+                if(EditorApplication.isPlayingOrWillChangePlaymode||EditorApplication.isCompiling)throw new InvalidOperationException("Lifecycle changed; source preserved.");
+                if(viewIndex>=views.Count){End(null);return;}
+                var view=views[viewIndex];phase=view.name;
+                if(stage==0){Prepare(view);stage=1;next=now+.05;return;}
+                var groundOnly=Capture(true,false,false,standardGround);var cardsOnly=Capture(false,true,true,standardGround);
+                var standard=Capture(true,true,true,standardGround);var candidateFrame=Capture(true,true,true,candidateGround);
+                Analyze(groundOnly,cardsOnly,standard,candidateFrame,view,viewIndex);stage=0;viewIndex++;next=now+.01;Publish("RUNNING",null);
+            }
+            catch(Exception error){End(error.ToString());}
+        }
+        Color32[] Capture(bool floor,bool red,bool green,Material floorMaterial)
+        {
+            ground.enabled=floor;front.enabled=red;behind.enabled=green;ground.sharedMaterial=floorMaterial;
+            if(ShaderUtil.ShaderHasError(candidate)||ShaderUtil.ShaderHasError(reference))throw new InvalidOperationException("ShaderHasError; no RGB occlusion verdict.");
+            camera.Render();if(ShaderUtil.ShaderHasError(candidate)||ShaderUtil.ShaderHasError(reference))throw new InvalidOperationException("Shader compile error after native Render.");
+            var read=target;if(actualMsaa>1){target.ResolveAntiAliasedSurface(resolve);read=resolve;}
+            var texture=new Texture2D(W,H,TextureFormat.RGBA32,false);
+            try{RenderTexture.active=read;texture.ReadPixels(new Rect(0,0,W,H),0,0);texture.Apply();return texture.GetPixels32();}
+            finally{RenderTexture.active=priorActive;Object.DestroyImmediate(texture);}
+        }
+        static int Kind(Color32 p)
+        {if(p.r==255&&p.g==0&&p.b==0)return 1;if(p.r==0&&p.g==255&&p.b==0)return 2;if(p.r==0&&p.g==0&&p.b==255)return 3;return 0;}
+        static bool Region(Color32[] a,int x,int y,int kind)
+        {for(int dy=-Radius;dy<=Radius;dy++)for(int dx=-Radius;dx<=Radius;dx++)if(Kind(a[(y+dy)*W+x+dx])!=kind)return false;return true;}
+        static bool Same(Color32 a,Color32 b)=>a.r==b.r&&a.g==b.g&&a.b==b.b;
+        void Analyze(Color32[] onlyGround,Color32[] onlyCards,Color32[] standard,Color32[] actual,View view,int index)
+        {
+            var mask=new Color32[W*H];int fronts=0,backs=0,frontErrors=0,backErrors=0,interiors=0,errors=0,allErrors=0;var examples=new List<object>();
+            for(int p=0;p<standard.Length;p++)if(!Same(standard[p],actual[p]))allErrors++;
+            for(int y=Radius;y<H-Radius;y++)for(int x=Radius;x<W-Radius;x++)
+            {
+                int p=y*W+x,kind=Kind(standard[p]);if(kind==0||!Region(standard,x,y,kind))continue;interiors++;bool wrong=!Same(standard[p],actual[p]);
+                if(wrong){errors++;mask[p]=new Color32(255,40,255,255);if(examples.Count<10)examples.Add(new{x,y,expected=new[]{(int)standard[p].r,standard[p].g,standard[p].b},actual=new[]{(int)actual[p].r,actual[p].g,actual[p].b}});}
+                bool onPlane=Region(onlyGround,x,y,3);
+                if(kind==1&&onPlane&&Region(onlyCards,x,y,1)){fronts++;if(wrong){frontErrors++;mask[p]=new Color32(255,30,30,255);}}
+                if(kind==3&&onPlane&&Region(onlyCards,x,y,2)){backs++;if(wrong){backErrors++;mask[p]=new Color32(20,140,255,255);}}
+            }
+            bool valid=fronts>=Minimum&&backs>=Minimum;everyPoseValid&=valid;
+            if(valid){interiorWrong+=errors;frontWrong+=frontErrors;behindWrong+=backErrors;}
+            if(saveImages){string prefix=Path.Combine(output,"pose"+index);Save(onlyGround,prefix+"_GroundOnly.png");Save(onlyCards,prefix+"_CardsOnly.png");Save(standard,prefix+"_Standard.png");Save(actual,prefix+"_Candidate.png");Save(mask,prefix+"_ErrorMask.png");}
+            rows.Add(new{pose=index,view.name,view.pitch,view.yaw,view.distance,orthographic=view.ortho,frontOverlapSamples=fronts,behindOverlapSamples=backs,minimum=Minimum,valid,
+                interiorSamples=interiors,interiorMismatch=errors,frontMismatch=frontErrors,behindMismatch=backErrors,strictAllPixelsMismatch=allErrors,edgeOrBackgroundMismatch=allErrors-errors,examples,
+                result=!valid?"UNRESOLVED":errors>0?"RED":"GREEN"});
+        }
+        public void End(string error)
+        {
+            EditorApplication.update-=Tick;bool sourceChanged=captured&&(SceneManager.GetActiveScene()!=sourceScene||SourceStamp()!=sourceStamp||sourceScene.isDirty!=sourceDirty||Time.timeScale!=timeScale);
+            try{if(camera!=null)camera.targetTexture=null;if(captured)RenderTexture.active=priorActive;if(preview.IsValid())EditorSceneManager.ClosePreviewScene(preview);}catch(Exception cleanup){error=(error??"")+"\nPreview cleanup: "+cleanup;}
+            foreach(var item in owned.AsEnumerable().Reverse())if(item!=null){if(item is RenderTexture rt)rt.Release();Object.DestroyImmediate(item);}owned.Clear();
+            phase="finished";Publish(error!=null?(unsupported?"UNSUPPORTED":"ERROR"):sourceChanged?"EXTERNAL_SOURCE_CHANGED":interiorWrong>0?"RED":!everyPoseValid||rows.Count!=views.Count?"UNRESOLVED":"GREEN",error);active=null;
+        }
+        void Publish(string status,string error)
+        {
+            ResultJson=Newtonsoft.Json.JsonConvert.SerializeObject(new{status,runId,startedUtc,phase,error,rows,requestedViews=views.Count,everyPoseValid,interiorWrong,frontWrong,behindWrong,
+                matrixPreset,requestedDepthFormat=formatName,actualDepthFormat,actualColorFormat,requestedMsaa,actualMsaa,near,far,planeY,gap,seconds=EditorApplication.timeSinceStartup-started,outputRoot=output,receiptPath=receipt,
+                sourceScene=sourceScene.IsValid()?sourceScene.path:null,sourceDirtyBefore=sourceDirty,sourceDirtyNow=sourceScene.IsValid()?sourceScene.isDirty:false,
+                scope="Independent native opaque reference shader, horizontal blue ground and known above/below upright red/green cards. Candidate replaces ground only with white textures, blue tint, zero view-depth offset. 5x5 exact-color interiors; front AND hidden-behind overlap each >=64 per pose. MSAA explicitly resolves to same color format before ReadPixels. Target depth format/MSAA observed; URP internal attachments not directly captured. No source Save/Rebuild/actor control/TimeScale writes or persistent shader asset."},Newtonsoft.Json.Formatting.Indented);
+            if(!string.IsNullOrEmpty(receipt))File.WriteAllText(receipt,ResultJson,new UTF8Encoding(false));
+        }
+        Shader CreateReference()
+        {
+            var methods=typeof(ShaderUtil).GetMethods(BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Static).Where(m=>m.Name=="CreateShaderAsset"&&m.ReturnType==typeof(Shader)).ToArray();
+            var method=methods.FirstOrDefault(m=>{var p=m.GetParameters();return p.Length==2&&p[0].ParameterType==typeof(string)&&p[1].ParameterType==typeof(bool);});object[] args={ReferenceSource,true};
+            if(method==null){method=methods.FirstOrDefault(m=>{var p=m.GetParameters();return p.Length==1&&p[0].ParameterType==typeof(string);});args=new object[]{ReferenceSource};}
+            if(method==null)throw new MissingMethodException("No in-memory CreateShaderAsset entry point.");
+            var shader=method.Invoke(null,args) as Shader;if(shader==null||EditorUtility.IsPersistent(shader))throw new InvalidOperationException("Reference shader was not transient.");
+            shader.hideFlags=HideFlags.HideAndDontSave;if(!shader.isSupported||ShaderUtil.ShaderHasError(shader)){Object.DestroyImmediate(shader);throw new InvalidOperationException("Opaque reference ShaderHasError/unsupported.");}return shader;
+        }
+        GameObject NewObject(string name){var go=EditorUtility.CreateGameObjectWithHideFlags(name,HideFlags.HideAndDontSave);owned.Add(go);go.layer=31;SceneManager.MoveGameObjectToScene(go,preview);return go;}
+        Material MakeMaterial(Shader shader,Color color){var m=new Material(shader){hideFlags=HideFlags.HideAndDontSave,renderQueue=2000};m.SetColor("_Color",color);owned.Add(m);return m;}
+        MeshRenderer MakeRenderer(string name,Mesh mesh,Material material){var go=NewObject(name);go.AddComponent<MeshFilter>().sharedMesh=mesh;var r=go.AddComponent<MeshRenderer>();r.sharedMaterial=material;r.shadowCastingMode=ShadowCastingMode.Off;r.receiveShadows=false;return r;}
+        static Mesh Quad(bool horizontal)
+        {var m=new Mesh{name=horizontal?"PrivateXZ":"PrivateXY",hideFlags=HideFlags.HideAndDontSave};m.vertices=horizontal?new[]{new Vector3(-.5f,0,-.5f),new Vector3(.5f,0,-.5f),new Vector3(.5f,0,.5f),new Vector3(-.5f,0,.5f)}:new[]{new Vector3(-.5f,-.5f,0),new Vector3(.5f,-.5f,0),new Vector3(.5f,.5f,0),new Vector3(-.5f,.5f,0)};m.uv=new[]{Vector2.zero,Vector2.right,Vector2.one,Vector2.up};m.colors=Enumerable.Repeat(Color.white,4).ToArray();m.triangles=new[]{0,2,1,0,3,2};m.RecalculateBounds();return m;}
+        string SourceStamp()=>sourceScene.IsValid()?string.Join("|",sourceScene.GetRootGameObjects().OrderBy(g=>g.GetInstanceID()).Select(g=>g.GetInstanceID()+":"+g.transform.localToWorldMatrix.ToString("R"))):"missing";
+        static bool Finite(float x)=>!float.IsNaN(x)&&!float.IsInfinity(x);
+        static void Save(Color32[] p,string path){var t=new Texture2D(W,H,TextureFormat.RGBA32,false);try{t.SetPixels32(p);t.Apply();File.WriteAllBytes(path,t.EncodeToPNG());}finally{Object.DestroyImmediate(t);}}
+    }
+}

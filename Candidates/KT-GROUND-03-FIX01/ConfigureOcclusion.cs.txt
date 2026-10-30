@@ -1,0 +1,14 @@
+/* 仅设置本轮私有绝对遮挡实验键；生产Shader只读。 */
+using System;using System.IO;using Newtonsoft.Json.Linq;using UnityEngine;using UnityEditor;using Funplay.Editor.Tools.Scripting;
+public sealed class KT03FixConfigureOcclusion:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  var j=JObject.Parse(File.ReadAllText("E:/WORLDCREATOR/XingHaiHuiLang/研究/开拓物语地表/KT-GROUND-03-FIX01/01-evidence/occlusion-parameters.json"));
+  var shader=AssetDatabase.LoadAssetAtPath<Shader>("Assets/OSSASTRA/Scripts/GroundSurfaces/Shaders/GroundThinTop.shader");
+  if(shader==null||shader.name!="Ossastra/GroundSurfaces/ThinTop")throw new InvalidOperationException("已核验生产Shader身份不符");
+  const string p="GroundSurface.Fix01.";SessionState.SetString(p+"ShaderOverrideName",shader.name);SessionState.SetInt(p+"ShaderOverrideId",shader.GetInstanceID());
+  SessionState.SetString(p+"Occlusion.DepthFormat",j.Value<string>("depthFormat"));SessionState.SetInt(p+"Occlusion.MSAA",j.Value<int>("msaa"));SessionState.SetString(p+"Occlusion.MatrixPreset",j.Value<string>("matrix")??"Expanded");SessionState.SetBool(p+"Occlusion.SaveImages",j.Value<bool>("saveImages"));
+  ctx.ReturnValue=new{shader=shader.name,id=shader.GetInstanceID(),parameters=j};
+ }
+}

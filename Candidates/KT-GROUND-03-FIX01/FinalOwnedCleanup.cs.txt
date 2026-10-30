@@ -1,0 +1,6 @@
+/* 清理本轮唯一登记的内存Shader，绝不按名称扫描删除其他对象。 */
+using System;using UnityEngine;using UnityEditor;using Funplay.Editor.Tools.Scripting;
+public sealed class KT03FixFinalOwnedCleanup:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx){const string p="GroundSurface.Fix01.";int id=SessionState.GetInt(p+"UnifiedPlaneShaderId",0);var o=id==0?null:EditorUtility.InstanceIDToObject(id);bool alreadyGone=o==null,destroyed=false;if(o!=null){var shader=o as Shader;if(shader==null||shader.name!="Hidden/Ossastra/GroundSurfaces/FIX01/UnifiedPlaneDepth"||EditorUtility.IsPersistent(shader))throw new InvalidOperationException("原候选ID身份已变化，未删除");UnityEngine.Object.DestroyImmediate(shader);destroyed=true;}SessionState.EraseInt(p+"UnifiedPlaneShaderId");SessionState.EraseString(p+"UnifiedPlaneShaderSha");SessionState.EraseInt(p+"ShaderOverrideId");SessionState.EraseString(p+"ShaderOverrideName");ctx.ReturnValue=new{id,destroyed,alreadyGone,processTempRouteActive=SessionState.GetBool(p+"TempRoute.active",false)};}
+}

@@ -1,0 +1,6 @@
+/* 最小只读指纹，减少C盘已满时诊断编译的临时程序集体积。算法与初始快照一致。 */
+using System;using System.Linq;using System.Text;using System.Collections.Generic;using System.Security.Cryptography;using UnityEngine.SceneManagement;using Ossastra.GroundResearch;using Funplay.Editor.Tools.Scripting;
+public sealed class KT03FixFinalAuthorHashes:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx){var result=new Dictionary<string,string>();foreach(var m in SceneManager.GetActiveScene().GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<GroundWorkshopMap>(true))){var s=new StringBuilder();foreach(var l in m.surface.layers){var t=l.tilemap;s.Append(t.GetInstanceID()).Append(t.cellBounds.ToString());foreach(var p in t.cellBounds.allPositionsWithin){var tile=t.GetTile(p);if(tile==null)continue;s.Append(p).Append(tile.GetInstanceID()).Append(t.GetColor(p).ToString("R")).Append((int)t.GetTileFlags(p)).Append(t.GetTransformMatrix(p).ToString("R"));}}using(var h=SHA256.Create())result.Add(m.registration.mapId,Convert.ToBase64String(h.ComputeHash(Encoding.UTF8.GetBytes(s.ToString()))));}ctx.ReturnValue=result;}
+}

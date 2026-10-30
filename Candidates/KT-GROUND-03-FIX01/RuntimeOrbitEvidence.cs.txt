@@ -1,0 +1,14 @@
+/* 仅Play中的原MapOrbitState RequestStep；不发物理输入、不写相机Transform/人物或场景资产。 */
+using System;using System.Reflection;using UnityEngine;using UnityEngine.SceneManagement;using UnityEditor;using Ossastra.MapResearch;using Funplay.Editor.Tools.Scripting;
+public sealed class KT03FixRuntimeOrbitEvidence:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  var s=SceneManager.GetActiveScene();if(!Application.isPlaying||s.path!="Assets/OSSASTRA/GroundWorkshop/Samples/KT-GROUND-03/SC_CliffEdgeLab.unity")throw new InvalidOperationException("仅已核验Lab的真实Play");
+  var go=EditorUtility.InstanceIDToObject(123126) as GameObject;if(go==null||go.scene!=s)throw new InvalidOperationException("已核验MapResearchRoot实例已失效，不猜名字");
+  var root=go.GetComponent<MapResearchRoot>();if(root==null||!root.IsValid||root.IsStructureMode||Mathf.Abs(Mathf.DeltaAngle(root.ActualYaw,45))>.1f)throw new InvalidOperationException("原正常镜头状态不符，不接管其他机位");
+  var f=typeof(MapResearchRoot).GetField("orbit",BindingFlags.Instance|BindingFlags.NonPublic);var orbit=f==null?null:f.GetValue(root) as MapOrbitState;if(orbit==null)throw new InvalidOperationException("原orbit未装配");
+  float before=root.ActualYaw;orbit.RequestStep(-1);orbit.RequestStep(-1);
+  ctx.ReturnValue=new{root=go.GetInstanceID(),before,root.ActualYaw,root.TargetYaw,scope="Runtime state requests only; normal Update interpolates and animates; exiting Play restores original Edit scene",Time.timeScale};
+ }
+}

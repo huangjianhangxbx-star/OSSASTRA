@@ -1,0 +1,71 @@
+/* 只创建自有非persistent Shader，供现有private Preview opaque oracle替换快照材质。
+ * 不写Assets/Package/场景；Apply只接受HideAndDontSave且非persistent的快照Material，保留原颜色属性/MPB/队列。
+ * Root先执行Create，再在oracle的renderer.SetPropertyBlock(block)前反射调用ApplyToSnapshot(material,block,layer,step)。
+ */
+using System;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Security.Cryptography;
+using UnityEditor;
+using UnityEngine;
+using Funplay.Editor.Tools.Scripting;
+using Object=UnityEngine.Object;
+
+public static class KT03Fix01UnifiedPlaneCandidate
+{
+    public const string ShaderName="Hidden/Ossastra/GroundSurfaces/FIX01/UnifiedPlaneDepth";
+    public const string ShaderIdKey="GroundSurface.Fix01.UnifiedPlaneShaderId";
+    public const string ShaderShaKey="GroundSurface.Fix01.UnifiedPlaneShaderSha";
+    public const string LayerStepKey="GroundSurface.Fix01.UnifiedPlaneLayerStepMeters";
+    public static Shader Resolve()
+    {
+        var shader=EditorUtility.InstanceIDToObject(SessionState.GetInt(ShaderIdKey,0)) as Shader;
+        if(shader==null||shader.name!=ShaderName||EditorUtility.IsPersistent(shader))throw new InvalidOperationException("先创建本轮自有内存Shader；不借用生产Shader。");return shader;
+    }
+    public static Shader Create(out string sha)
+    {
+        string path=Path.GetFullPath(Path.Combine(Application.dataPath,"../Candidates/KT-GROUND-03-FIX01/GroundThinTopUnifiedPlane.shader.txt"));
+        byte[] bytes=File.ReadAllBytes(path);using(var hash=SHA256.Create())sha=BitConverter.ToString(hash.ComputeHash(bytes)).Replace("-","").ToLowerInvariant();
+        var previous=EditorUtility.InstanceIDToObject(SessionState.GetInt(ShaderIdKey,0)) as Shader;
+        if(previous!=null)
+        {if(previous.name==ShaderName&&!EditorUtility.IsPersistent(previous)&&SessionState.GetString(ShaderShaKey,"")==sha)return previous;throw new InvalidOperationException("旧候选身份或源码已变化；先结束oracle并显式Release，未自动销毁可能仍使用的Shader。");}
+        var methods=typeof(ShaderUtil).GetMethods(BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Static).Where(m=>m.Name=="CreateShaderAsset"&&m.ReturnType==typeof(Shader)).ToArray();
+        var method=methods.FirstOrDefault(m=>{var p=m.GetParameters();return p.Length==2&&p[0].ParameterType==typeof(string)&&p[1].ParameterType==typeof(bool);});
+        object[] arguments={System.Text.Encoding.UTF8.GetString(bytes),true};
+        if(method==null){method=methods.FirstOrDefault(m=>{var p=m.GetParameters();return p.Length==1&&p[0].ParameterType==typeof(string);});arguments=new object[]{System.Text.Encoding.UTF8.GetString(bytes)};}
+        if(method==null)throw new MissingMethodException("当前编辑器没有CreateShaderAsset(string[,bool])入口。");
+        var shader=(Shader)method.Invoke(null,arguments);
+        if(shader==null||EditorUtility.IsPersistent(shader)||shader.name!=ShaderName)throw new InvalidOperationException("CreateShaderAsset未返回预期自有非persistent Shader。");
+        shader.hideFlags=HideFlags.HideAndDontSave;
+        var errors=ShaderUtil.GetShaderMessages(shader).Where(m=>m.severity.ToString()=="Error").ToArray();
+        if(errors.Length!=0){string text=string.Join("\n",errors.Select(e=>e.message));Object.DestroyImmediate(shader);throw new InvalidOperationException("候选Shader编译错误："+text);}
+        SessionState.SetInt(ShaderIdKey,shader.GetInstanceID());SessionState.SetString(ShaderShaKey,sha);return shader;
+    }
+    public static void ApplyToSnapshot(Material material,MaterialPropertyBlock block,int layer,float layerStepMeters)
+    {
+        if(material==null||block==null||EditorUtility.IsPersistent(material)||(material.hideFlags&HideFlags.HideAndDontSave)!=HideFlags.HideAndDontSave)
+            throw new InvalidOperationException("只接受oracle自有HideAndDontSave材质及其完整MPB副本，不修改生产材质。");
+        if(layer<0||layer>31||float.IsNaN(layerStepMeters)||float.IsInfinity(layerStepMeters)||layerStepMeters<0||layerStepMeters>.005f)
+            throw new ArgumentException("本技术对照layer须0—31，step须0—.005米；默认先0，再可试.0005。");
+        int queue=material.renderQueue;var copy=new Material(material){hideFlags=HideFlags.HideAndDontSave};
+        try{var shader=Resolve();material.shader=shader;material.CopyPropertiesFromMaterial(copy);material.shader=shader;material.renderQueue=queue;}
+        finally{Object.DestroyImmediate(copy);}
+        float offset=layer*layerStepMeters;material.SetFloat("_ViewDepthOffsetMeters",offset);block.SetFloat("_ViewDepthOffsetMeters",offset);
+    }
+    public static void Release()
+    {
+        var shader=EditorUtility.InstanceIDToObject(SessionState.GetInt(ShaderIdKey,0)) as Shader;
+        if(shader!=null){if(EditorUtility.IsPersistent(shader)||shader.name!=ShaderName)throw new InvalidOperationException("Shader身份已变化，未销毁外部对象。");Object.DestroyImmediate(shader);}
+        SessionState.EraseInt(ShaderIdKey);SessionState.EraseString(ShaderShaKey);
+    }
+}
+public sealed class KT03Fix01CreateUnifiedPlaneShader : IFunplayCommand
+{
+    public void Execute(ExecutionContext ctx)
+    {
+        var shader=KT03Fix01UnifiedPlaneCandidate.Create(out string sha);
+        ctx.ReturnValue=new{shaderName=shader.name,instanceId=shader.GetInstanceID(),persistent=EditorUtility.IsPersistent(shader),supported=shader.isSupported,sourceSha256=sha,
+            layerStepMeters=SessionState.GetFloat(KT03Fix01UnifiedPlaneCandidate.LayerStepKey,0),scope="In-memory only; shader default depth step0, unchanged production assets/meshes/colliders and original color path"};
+    }
+}

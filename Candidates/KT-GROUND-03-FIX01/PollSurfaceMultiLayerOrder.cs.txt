@@ -1,0 +1,11 @@
+using System;using System.Linq;using System.Reflection;using Newtonsoft.Json.Linq;using Funplay.Editor.Tools.Scripting;
+public sealed class PollKT03Fix01MultiLayerOrder:IFunplayCommand
+{
+    public void Execute(ExecutionContext ctx)
+    {
+        ctx.ReturnValue=AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType("KT03Fix01MultiLayerOrderContracts",false)).Where(t=>t!=null).Select(t=>{
+            var text=(string)t.GetField("ResultJson",BindingFlags.Static|BindingFlags.Public).GetValue(null);
+            return new{assembly=t.Assembly.FullName,module=t.Module.ModuleVersionId.ToString("N"),result=text=="NOT_STARTED"?new JObject(new JProperty("status",text)):JObject.Parse(text)};
+        }).ToArray();
+    }
+}

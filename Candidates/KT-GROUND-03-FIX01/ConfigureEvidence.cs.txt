@@ -1,0 +1,2 @@
+using UnityEditor;using Funplay.Editor.Tools.Scripting;
+public sealed class KT03FixConfigureEvidence:IFunplayCommand{public void Execute(ExecutionContext ctx){SessionState.SetString("GroundSurface.Fix01Output","E:/WORLDCREATOR/XingHaiHuiLang/研究/开拓物语地表/KT-GROUND-03-FIX01/01-evidence");ctx.ReturnValue=new{configured=true};}}

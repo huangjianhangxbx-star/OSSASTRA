@@ -1,0 +1,15 @@
+/* 显式释放创建器登记的唯一非persistent候选Shader；应在oracle私有场景/材质清理之后执行。 */
+using System;
+using System.Linq;
+using System.Reflection;
+using Funplay.Editor.Tools.Scripting;
+public sealed class KT03Fix01ReleaseUnifiedPlaneShader : IFunplayCommand
+{
+    public void Execute(ExecutionContext ctx)
+    {
+        var type=AppDomain.CurrentDomain.GetAssemblies().Reverse().Select(a=>a.GetType("KT03Fix01UnifiedPlaneCandidate")).FirstOrDefault(t=>t!=null);
+        if(type==null)throw new InvalidOperationException("内存候选创建器未加载，未猜测删除Shader。");
+        type.GetMethod("Release",BindingFlags.Public|BindingFlags.Static).Invoke(null,null);
+        ctx.ReturnValue=new{released=true,scope="Only exact owned nonpersistent candidate Shader; source/production untouched"};
+    }
+}
