@@ -1,0 +1,32 @@
+/* 原生相机的同场观察图；只临时显示和机位，finally恢复，不保存或移动物理世界。 */
+using System;using System.IO;using System.Linq;using UnityEngine;using UnityEngine.SceneManagement;using Funplay.Editor.Tools.Scripting;using Ossastra.GroundSurfaces;using Ossastra.GroundSurfaces.Editor;using M=Ossastra.MapResearch;using C=Ossastra.Characters;using E=Ossastra.Enemies;
+public sealed class RenderLabSamples:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx){
+  if(Application.isPlaying)throw new InvalidOperationException("此批为Editor静态同场观察，需Edit");var scene=SceneManager.GetActiveScene();if(scene.path!=GroundSurfaceAuthoring.ScenePath)throw new InvalidOperationException("不是新Lab");
+  var root=scene.GetRootGameObjects().SelectMany(r=>r.GetComponentsInChildren<M.MapResearchRoot>(true)).Single();var cam=root.gameplayCamera;
+  var view=scene.GetRootGameObjects().SelectMany(r=>r.GetComponentsInChildren<GroundSurfaceLabView>(true)).Single();
+  // 静态相机改机位时角色ViewContext并不Tick；这些图只验地表，原角色视觉以真实Play图/视频为准。
+  var actorFlags=scene.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<Renderer>(true)).Where(r=>r.GetComponentInParent<C.CharacterRoot>()!=null||r.GetComponentInParent<E.EnemyRoot>()!=null).Select(r=>new{renderer=r,hidden=r.forceRenderingOff}).ToArray();
+  var pos=cam.transform.position;var rot=cam.transform.rotation;float fov=cam.fieldOfView;var target=cam.targetTexture;var active=RenderTexture.active;
+  string folder="E:/WORLDCREATOR/XingHaiHuiLang/研究/开拓物语地表/KT-GROUND-03/02-visuals/LabFinal";Directory.CreateDirectory(folder);
+  var rt=new RenderTexture(1280,720,24);var tex=new Texture2D(1280,720,TextureFormat.RGBA32,false);var files=new System.Collections.Generic.List<string>();
+  try{
+   foreach(var state in actorFlags)state.renderer.forceRenderingOff=true;
+   cam.targetTexture=rt;cam.fieldOfView=35;
+   Action<string,GroundSurfaceLabViewMode,Vector3,float,float,float> shot=(name,mode,center,pitch,yaw,distance)=>{
+    if(!view.SetMode(mode))throw new InvalidOperationException(view.LastMessage);var rotation=Quaternion.Euler(pitch,yaw,0);cam.transform.SetPositionAndRotation(center-rotation*Vector3.forward*distance,rotation);
+    cam.Render();RenderTexture.active=rt;tex.ReadPixels(new Rect(0,0,1280,720),0,0);tex.Apply();string file=Path.Combine(folder,name+".png");File.WriteAllBytes(file,tex.EncodeToPNG());files.Add(file);
+   };
+   shot("01_Final35",GroundSurfaceLabViewMode.Final,new Vector3(0,2,0),35,45,48);
+   shot("02_Bare35",GroundSurfaceLabViewMode.BareSeam,new Vector3(0,2,0),35,45,48);
+   shot("03_Bare15",GroundSurfaceLabViewMode.BareSeam,new Vector3(0,3,2),15,45,46);
+   shot("04_ConcaveClose",GroundSurfaceLabViewMode.BareSeam,new Vector3(13.3f,3,3),25,135,15);
+   shot("05_DiagonalClose",GroundSurfaceLabViewMode.BareSeam,new Vector3(-8,5,13),20,235,16);
+   shot("06_Structure",GroundSurfaceLabViewMode.Structure,new Vector3(0,2,0),35,45,48);
+   shot("07_Exploded",GroundSurfaceLabViewMode.Exploded,new Vector3(0,3,0),35,45,48);
+   shot("08_Unclipped",GroundSurfaceLabViewMode.BeforeClip,new Vector3(0,2,0),35,45,48);
+  }finally{foreach(var state in actorFlags)if(state.renderer!=null)state.renderer.forceRenderingOff=state.hidden;view.Restore();cam.targetTexture=target;RenderTexture.active=active;cam.fieldOfView=fov;cam.transform.SetPositionAndRotation(pos,rot);UnityEngine.Object.DestroyImmediate(rt);UnityEngine.Object.DestroyImmediate(tex);}
+  ctx.ReturnValue=new{files=files.ToArray(),groundOnly=true,temporarilyHiddenActorRenderers=actorFlags.Length,restored=view.Mode==GroundSurfaceLabViewMode.Final,diagnosticRenderers=view.DiagnosticRendererCount,root.pitch,root.distance};
+ }
+}

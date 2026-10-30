@@ -1,0 +1,121 @@
+/* 实际接缝采样：从已保存侧壁的原生顶点/索引独立统计开放上沿，不消费Builder私有多边形或Boundary.rim。
+ * 每个真实上沿段采端点、1/4、1/2、3/4；对实际Collider外边及实际Base缓存边计算世界XZ/Y误差。
+ * 只读Mesh与文件哈希；不渲染、不写资产、不创建场景/物件，不移动人物或相机。
+ */
+using System;
+using System.IO;
+using System.Linq;
+using System.Collections.Generic;
+using System.Security.Cryptography;
+using Ossastra.GroundResearch;
+using Ossastra.GroundSurfaces;
+using Ossastra.GroundSurfaces.Editor;
+using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.SceneManagement;
+using UnityEditor;
+using Funplay.Editor.Tools.Scripting;
+
+public sealed class KT03ActualSeamContracts : IFunplayCommand
+{
+    struct Key : IEquatable<Key>
+    {
+        public int a,b;public Key(int a,int b){this.a=Math.Min(a,b);this.b=Math.Max(a,b);}
+        public bool Equals(Key o)=>a==o.a&&b==o.b;public override bool Equals(object o)=>o is Key k&&Equals(k);public override int GetHashCode()=>a*397^b;
+    }
+    sealed class Edge {public Vector3 a,b;public int count;public string source;}
+    sealed class Edges
+    {
+        public readonly List<Vector3> points=new List<Vector3>();public readonly Dictionary<Key,Edge> edges=new Dictionary<Key,Edge>();public double tolerance;
+        int Point(Vector3 p){for(int i=0;i<points.Count;i++)if((points[i]-p).sqrMagnitude<=tolerance*tolerance)return i;points.Add(p);return points.Count-1;}
+        public void Add(Mesh mesh,Matrix4x4 transform,string source)
+        {
+            Require(mesh!=null&&mesh.isReadable,"实际网格不可读："+source);var raw=mesh.vertices;var mapping=new int[raw.Length];for(int i=0;i<raw.Length;i++)mapping[i]=Point(transform.MultiplyPoint3x4(raw[i]));
+            for(int sub=0;sub<mesh.subMeshCount;sub++)
+            {
+                Require(mesh.GetTopology(sub)==MeshTopology.Triangles,"采样只接受实际Triangle子网格");var indices=mesh.GetTriangles(sub);
+                for(int t=0;t<indices.Length;t+=3)for(int c=0;c<3;c++)
+                {
+                    int a=mapping[indices[t+c]],b=mapping[indices[t+(c+1)%3]];if(a==b)continue;var key=new Key(a,b);
+                    if(edges.TryGetValue(key,out var edge))edge.count++;else edges.Add(key,new Edge{a=points[a],b=points[b],count=1,source=source+"#submesh="+sub});
+                }
+            }
+        }
+    }
+    readonly List<string> passed=new List<string>(),failed=new List<string>();readonly List<object> evidence=new List<object>();
+    static void Require(bool value,string message){if(!value)throw new InvalidOperationException(message);}
+    void Case(string name,Action action){try{action();passed.Add(name);}catch(Exception e){failed.Add(name+": "+e.Message);}}
+    static string Sha(string path){using(var s=File.OpenRead(path))using(var h=SHA256.Create())return Convert.ToBase64String(h.ComputeHash(s));}
+    static float DistanceXZ(Vector3 point,Edge edge,out float y)
+    {
+        Vector2 p=new Vector2(point.x,point.z),a=new Vector2(edge.a.x,edge.a.z),b=new Vector2(edge.b.x,edge.b.z);Vector2 delta=b-a;
+        float t=delta.sqrMagnitude>0?Mathf.Clamp01(Vector2.Dot(p-a,delta)/delta.sqrMagnitude):0;y=Mathf.Lerp(edge.a.y,edge.b.y,t);return Vector2.Distance(p,a+delta*t);
+    }
+    static float Nearest(Vector3 point,Edge[] edges,out float y)
+    {
+        float best=float.PositiveInfinity; y=float.NaN;foreach(var edge in edges){float d=DistanceXZ(point,edge,out float candidate);if(d<best){best=d;y=candidate;}}return best;
+    }
+    static bool Inside(Vector3 point,Edge[] rim,float epsilon)
+    {
+        if(Nearest(point,rim,out _)<=epsilon)return true;bool inside=false;
+        foreach(var edge in rim){var a=edge.a;var b=edge.b;if((a.z>point.z)!=(b.z>point.z)&&point.x<(double)(b.x-a.x)*(point.z-a.z)/(b.z-a.z)+a.x)inside=!inside;}return inside;
+    }
+    public void Execute(ExecutionContext ctx)
+    {
+        var files=new Dictionary<string,string>();
+        try
+        {
+            Require(SceneManager.GetActiveScene().path==GroundSurfaceAuthoring.ScenePath&&!Application.isPlaying,"只读当前精确Lab Edit样本");
+            var bindings=GroundSurfaceAuthoring.GetBindings();Require(bindings.Length==2,"实际双平台");
+            foreach(var binding in bindings)
+            {
+                var current=binding;
+                Case(current.name+" 已保存墙上沿到实际cache/cap分段接缝",()=>
+                {
+                    float worldScale=Mathf.Max(current.transform.TransformVector(Vector3.right).magnitude,current.transform.TransformVector(Vector3.forward).magnitude);
+                    float tolerance=current.boundary.weldTolerance*worldScale,planeTolerance=current.boundary.planeTolerance*current.transform.TransformVector(Vector3.up).magnitude;
+                    var raw=new Edges{tolerance=tolerance};
+                    foreach(var filter in current.sideWalls)
+                    {
+                        var mesh=filter.sharedMesh;string path=AssetDatabase.GetAssetPath(mesh);Require(!string.IsNullOrEmpty(path)&&EditorUtility.IsPersistent(mesh)&&File.Exists(path),"源墙必须来自先保存的真实Mesh资产");if(!files.ContainsKey(path))files.Add(path,Sha(path));
+                        string source=path+"|GUID="+AssetDatabase.AssetPathToGUID(path);raw.Add(mesh,filter.transform.localToWorldMatrix,source);
+                    }
+                    Require(raw.edges.Values.All(e=>e.count<=2),"保存墙存在非流形边，不能用凸包采样");
+                    float top=current.transform.TransformPoint(new Vector3(0,current.boundary.localTopY,0)).y;
+                    var wall=raw.edges.Values.Where(e=>e.count==1&&Mathf.Abs(e.a.y-top)<=planeTolerance&&Mathf.Abs(e.b.y-top)<=planeTolerance).ToArray();Require(wall.Length>=3,"真实开放上沿未形成可采样段");
+                    var degree=new Dictionary<Vector3,int>();foreach(var edge in wall){degree[edge.a]=degree.TryGetValue(edge.a,out int a)?a+1:1;degree[edge.b]=degree.TryGetValue(edge.b,out int b)?b+1:1;}Require(degree.Values.All(v=>v==2),"真实上沿不是闭环");
+                    var physical=new Edges{tolerance=tolerance};physical.Add(current.capCollider.sharedMesh,current.capCollider.transform.localToWorldMatrix,"ActualPhysicalCap");
+                    var cap=physical.edges.Values.Where(e=>e.count==1).ToArray();Require(cap.Length>=3&&physical.edges.Values.All(e=>e.count<=2),"实际Collider没有独立可验证外边");
+                    var cache=current.cacheRoot.GetComponent<GroundSurfaceMeshCache>();var baseLayers=new HashSet<int>(Enumerable.Range(0,current.map.theme.layers.Length).Where(i=>current.map.theme.layers[i].purpose==GroundLayerPurpose.Base));
+                    var bases=cache.chunks.Where(c=>baseLayers.Contains(c.layerIndex)).ToArray();Require(bases.Length>0,"必须核验真实连续满覆盖基层，不能用稀疏道路代替封口");
+                    var renderBoundary=new List<Edge>();int actualVertices=0,escaped=0;
+                    foreach(var chunk in cache.chunks)
+                    {
+                        foreach(var vertex in chunk.filter.sharedMesh.vertices){actualVertices++;var world=chunk.filter.transform.TransformPoint(vertex);if(!Inside(world,wall,tolerance+1e-5f))escaped++;}
+                    }
+                    Require(escaped==0,"实际缓存顶点伸出保存墙真实凹域，数量="+escaped);
+                    foreach(var chunk in bases)
+                    {
+                        var meshEdges=new Edges{tolerance=tolerance};meshEdges.Add(chunk.filter.sharedMesh,chunk.filter.transform.localToWorldMatrix,"ActualBaseChunk");
+                        // Sprite原生几何有重叠，不能要求合并后为流形；只采真正落在墙边的实际三角边。
+                        foreach(var edge in meshEdges.edges.Values)
+                            if(Nearest(edge.a,wall,out _)<=tolerance+1e-5f&&Nearest(edge.b,wall,out _)<=tolerance+1e-5f&&Nearest((edge.a+edge.b)*.5f,wall,out _)<=tolerance+1e-5f)renderBoundary.Add(edge);
+                    }
+                    Require(renderBoundary.Count>0,"实际基层没有贴墙的几何边");var render=renderBoundary.ToArray();
+                    float maxCapXZ=0,maxCapY=0,maxCacheXZ=0,maxCacheY=0;var samples=new List<object>();
+                    for(int segment=0;segment<wall.Length;segment++)foreach(float fraction in new[]{0f,.25f,.5f,.75f,1f})
+                    {
+                        Vector3 p=Vector3.Lerp(wall[segment].a,wall[segment].b,fraction);float cx=Nearest(p,cap,out float cy),rx=Nearest(p,render,out float ry);
+                        maxCapXZ=Mathf.Max(maxCapXZ,cx);maxCapY=Mathf.Max(maxCapY,Mathf.Abs(cy-p.y));maxCacheXZ=Mathf.Max(maxCacheXZ,rx);maxCacheY=Mathf.Max(maxCacheY,Mathf.Abs(ry-p.y));
+                        samples.Add(new{segment=segment,t=fraction,source=wall[segment].source,wallWorld=p.ToString("R"),physicalXZ=cx,physicalY=Mathf.Abs(cy-p.y),cacheXZ=rx,cacheY=Mathf.Abs(ry-p.y)});
+                    }
+                    evidence.Add(new{surfaceId=current.SurfaceId,worldHeight=top,rawWallOpenSegments=wall.Length,sampleCount=samples.Count,actualCacheVertices=actualVertices,actualCapBoundaryEdges=cap.Length,actualCacheWallEdges=render.Length,capPersistent=EditorUtility.IsPersistent(current.capCollider.sharedMesh),allCachePersistent=cache.chunks.All(c=>EditorUtility.IsPersistent(c.filter.sharedMesh)),maxPhysicalXZ=maxCapXZ,maxPhysicalY=maxCapY,maxCacheXZ=maxCacheXZ,maxCacheY=maxCacheY,xzTolerance=tolerance,planeTolerance=planeTolerance,samples=samples});
+                    Require(maxCapXZ<=tolerance+1e-5f&&maxCacheXZ<=tolerance+1e-5f&&maxCapY<=planeTolerance+1e-5f&&maxCacheY<=planeTolerance+1e-5f,"实际接缝采样超出已登记容差");
+                });
+            }
+            Case("源墙Mesh文件只读保持",()=>Require(files.All(f=>Sha(f.Key)==f.Value),"源模型文件SHA改变"));
+        }
+        catch(Exception e){failed.Add("接缝采样上下文："+e.Message);}
+        ctx.ReturnValue=new{passed=passed.Count,failed=failed.Count,passedCases=passed,failedCases=failed,evidence=evidence,method="Independent open-edge counts from saved wall Mesh vertices+indices; five samples per real segment to actual native physical-cap boundary and actual rendered Base triangle edges; all cache vertices checked against raw wall edges. Not private polygon or screenshot comparison."};
+    }
+}

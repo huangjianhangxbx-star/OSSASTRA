@@ -1,7 +1,7 @@
 /* 脚本：GroundWorkshopRecipeChanges
  * 功能：预检、临时预览、取消和提交当前层配方变更；保存/关场/Play/重载前释放临时显示。
  * 边界：预览只用HideAndDontSave的Native Tilemap；只有Commit写作者数据，异种Tile不被隐式迁移。
- * 协作：ExistingAndFuture替换已识别Tile；FutureOnly追加独立材质的变体层，避免同层单材质误改旧格。
+ * 协作：可选显示后端只读真实临时Tilemap；Existing替换识别Tile，Future追加独立材质变体层。
  */
 #if UNITY_EDITOR
 using System;
@@ -50,6 +50,13 @@ namespace Ossastra.GroundResearch.Editor
         private static bool previousEnabled;
         public static bool HasPreview => previewRoot!=null;
         public static GroundRecipeChange ActivePreview {get;private set;}
+        public static bool TryGetPreviewTilemap(GroundWorkshopMap map,out Tilemap tilemap,out Material material,out int layer,out GroundReplacementScope scope)
+        {
+            tilemap=null;material=null;layer=-1;scope=GroundReplacementScope.ExistingAndFuture;
+            if(ActivePreview==null||ActivePreview.map!=map||previewRoot==null)return false;
+            tilemap=previewRoot.GetComponent<Tilemap>();material=previewMaterial;
+            layer=ActivePreview.layerIndex;scope=ActivePreview.scope;return tilemap!=null&&material!=null;
+        }
         public static GroundRecipeChange PrepareReplacement(GroundWorkshopMap map,int layer,GroundRecipe recipe,GroundReplacementScope scope)
         {
             RequireLayer(map,layer);
@@ -101,18 +108,19 @@ namespace Ossastra.GroundResearch.Editor
                     var bounds=map.surface.EditableCells;
                     for(int y=bounds.yMin;y<Mathf.Min(bounds.yMin+3,bounds.yMax);y++)for(int x=bounds.xMin;x<Mathf.Min(bounds.xMin+3,bounds.xMax);x++)tilemap.SetTile(new Vector3Int(x,y,0),previewTile);
                 }
-                ActivePreview=change;SceneView.RepaintAll();
+                ActivePreview=change;GroundWorkshopDisplayEvents.Notify(map);SceneView.RepaintAll();
             }
             catch{CancelPreview();throw;}
         }
         public static void CancelPreview()
         {
+            var changedMap=ActivePreview==null?null:ActivePreview.map;
             if(previewOriginal!=null&&!previewOriginal.enabled)previewOriginal.enabled=previousEnabled;
             previewOriginal=null;ActivePreview=null;
             if(previewRoot!=null)UnityEngine.Object.DestroyImmediate(previewRoot);
             if(previewTile!=null)UnityEngine.Object.DestroyImmediate(previewTile);
             if(previewMaterial!=null)UnityEngine.Object.DestroyImmediate(previewMaterial);
-            previewRoot=null;previewTile=null;previewMaterial=null;SceneView.RepaintAll();
+            previewRoot=null;previewTile=null;previewMaterial=null;GroundWorkshopDisplayEvents.Notify(changedMap);SceneView.RepaintAll();
         }
         public static void CancelPreview(GroundRecipeChange owner)
         {if(owner!=null&&ActivePreview==owner)CancelPreview();}

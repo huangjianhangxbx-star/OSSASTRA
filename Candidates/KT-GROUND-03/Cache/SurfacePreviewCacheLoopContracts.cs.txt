@@ -1,0 +1,270 @@
+/* KT03 actual-Lab recipe/cache integration contract. Root runs Native once, then polls ResultJson.
+ * No direct Rebuild, SetTile, SaveScene, production change, blanket Undo, or deletion of prior assets.
+ * Uses real Existing/Future preview Tilemaps and delayCall-driven cache updates. About 6-15 s; 45 s bound.
+ * Preconditions: clean saved KT03 Lab, no brush stroke/observation/other preview, exclusive Editor lease.
+ * Commit creates map-owned revision assets through the real API; these are listed and retained for Undo.
+ */
+using System;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Collections.Generic;
+using System.Security.Cryptography;
+using UnityEngine;
+using UnityEngine.Tilemaps;
+using UnityEngine.SceneManagement;
+using UnityEditor;
+using Ossastra.GroundResearch;
+using Ossastra.GroundResearch.Editor;
+using Ossastra.GroundSurfaces;
+using Ossastra.GroundSurfaces.Editor;
+using Funplay.Editor.Tools.Scripting;
+using Object=UnityEngine.Object;
+
+public sealed class KT03SurfacePreviewCacheLoopContracts : IFunplayCommand
+{
+    public static string ResultJson="NOT_STARTED";
+    static Runner active;
+    static string Json(object value)=>Newtonsoft.Json.JsonConvert.SerializeObject(value,Newtonsoft.Json.Formatting.Indented);
+    public void Execute(ExecutionContext ctx)
+    {
+        if(active!=null){ctx.ReturnValue=new{status="ALREADY_RUNNING",pollType="KT03SurfacePreviewCacheLoopContracts",pollField="ResultJson"};return;}
+        active=new Runner();try{active.Start();}catch(Exception error){active.Abort(error.ToString());}
+        ctx.ReturnValue=new{status=active==null?"SETUP_FINISHED_OR_FAILED":"STARTED",pollType="KT03SurfacePreviewCacheLoopContracts",pollField="ResultJson",result=ResultJson};
+    }
+    sealed class Step { public string name;public Action action;public Func<bool> wait; }
+    sealed class Runner
+    {
+        const string SurfaceA="0544cd8ed8b24bbd81646cd2134def4a";
+        const string RecipePath="Assets/OSSASTRA/GroundWorkshop/Originals/Recipes/Alternate.asset";
+        readonly Queue<Step> steps=new Queue<Step>();readonly List<object> checks=new List<object>(),trace=new List<object>();
+        GroundSurfaceBinding binding;GroundWorkshopMap author;GroundWorkshopMap[] maps;GroundRecipe recipe;Scene scene;
+        GroundRecipeChange change;Tilemap preview;int previewId,previewLayer,oldCacheId,commitGroup=-1,layerIndex,expectedKnown,passed,failed;
+        readonly string runId=Guid.NewGuid().ToString("N"),startedUtc=DateTime.UtcNow.ToString("O");
+        bool commitActive,finishing;double started,nextTick,waitStarted;string phase="setup",failure,baselineSignature,receiptPath;
+        Dictionary<string,string> authorHashes,attributeHashes,fileHashes;HashSet<string> priorAssets;string decorationHash;
+        GroundMapLayerBinding oldBinding,committedBinding;Object[] selection;
+
+        public void Start()
+        {
+            started=EditorApplication.timeSinceStartup;
+            if(!GroundWorkshopOwnership.ContextReady(out string reason))throw new InvalidOperationException(reason);
+            scene=SceneManager.GetActiveScene();
+            if(scene.path!=GroundSurfaceAuthoring.ScenePath||scene.isDirty)throw new InvalidOperationException("Requires the clean saved KT03 Lab.");
+            if(GroundWorkshopAuthoring.HasPreview)throw new InvalidOperationException("An existing recipe preview belongs to another operation.");
+            if(Resources.FindObjectsOfTypeAll<FrontierGroundBrush>().Any(b=>b.IsStrokeActive))throw new InvalidOperationException("An existing brush stroke is active.");
+            if(scene.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<GroundSurfaceLabView>(true)).Any(v=>v.IsObserving))throw new InvalidOperationException("Restore existing observation before running the contract.");
+            binding=GroundSurfaceAuthoring.GetBindings().Single(b=>b.SurfaceId==SurfaceA);author=binding.map;GroundWorkshopOwnership.Require(author);
+            maps=scene.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<GroundWorkshopMap>(true)).ToArray();
+            if(maps.Length!=3)throw new InvalidOperationException("Expected the three exact M1 Lab maps.");
+            layerIndex=6;oldBinding=author.layerBindings[layerIndex];
+            if(author.theme.layers[layerIndex].purpose!=GroundLayerPurpose.Road)throw new InvalidOperationException("The exact M1 Road layer at slot 6 is required; no first-layer guess.");
+            if(GroundWorkshopAuthoring.IsLayerLocked(author,layerIndex))throw new InvalidOperationException("The intended Road layer is locked; the contract does not unlock it.");
+            foreach(var cell in author.surface.EditableCells.allPositionsWithin)if(author.surface.layers[layerIndex].tilemap.GetTile(cell)==author.surface.layers[layerIndex].paintTile)expectedKnown++;
+            if(expectedKnown==0)throw new InvalidOperationException("The intended Road layer has no known cells to exercise replacement.");
+            recipe=AssetDatabase.LoadAssetAtPath<GroundRecipe>(RecipePath);
+            if(recipe==null||recipe==oldBinding.recipe||recipe.detailTexture==oldBinding.recipe.detailTexture)throw new InvalidOperationException("A distinct existing original Alternate recipe is required.");
+            if(!GroundWorkshopOwnership.ValidateRecipe(recipe,out reason))throw new InvalidOperationException(reason);
+            selection=Selection.objects;authorHashes=maps.ToDictionary(m=>m.registration.mapId,FullAuthorHash);
+            attributeHashes=maps.ToDictionary(m=>m.registration.mapId,m=>AttributesHash(m));decorationHash=DecorationsHash();
+            baselineSignature=Current().signature;CheckOwnedCache("baseline");
+            priorAssets=new HashSet<string>(AssetPaths(author.registration.assetFolder),StringComparer.Ordinal);
+            var paths=new HashSet<string>(StringComparer.Ordinal){scene.path,RecipePath,AssetDatabase.GetAssetPath(oldBinding.recipe),AssetDatabase.GetAssetPath(binding.boundary)};
+            foreach(var wall in binding.sideWalls)if(wall!=null&&wall.sharedMesh!=null)paths.Add(AssetDatabase.GetAssetPath(wall.sharedMesh));
+            fileHashes=paths.Where(p=>!string.IsNullOrEmpty(p)&&File.Exists(p)).ToDictionary(p=>p,FileSha,StringComparer.Ordinal);
+            string output=SessionState.GetString("GroundSurface.CacheTestOutput","");
+            if(!string.IsNullOrEmpty(output)&&Directory.Exists(output))receiptPath=Path.Combine(output,"preview-cache-loop_"+Guid.NewGuid().ToString("N")+".json");
+
+            Action existingPreview=()=>BeginPreview(GroundReplacementScope.ExistingAndFuture);
+            Add("existing-preview-start",existingPreview);
+            Wait("existing-preview-cache",()=>PreviewMatches(false),()=>{
+                Check("Existing uses the actual temporary Tilemap in place of Road",Effective().Length==author.surface.layers.Length&&Effective()[layerIndex].tilemap==preview);
+                Check("Existing preview leaves all author data unchanged",AllAuthorsBaseline());CheckPreviewMaterial(layerIndex);
+                Check("Existing preview disables only the original Native renderer",!author.surface.layers[layerIndex].tilemap.GetComponent<TilemapRenderer>().enabled);
+                Check("preview Native renderer is suppressed by cache backend",preview.GetComponent<TilemapRenderer>().forceRenderingOff);CheckOwnedCache("existing-preview");CancelOwnedPreview();
+            });
+            Wait("existing-cancel-cache",NormalMatches,()=>{
+                Check("Existing cancel restores the baseline cache signature",Current().signature==baselineSignature);
+                Check("Existing cancel restores author and decoration data",AllAuthorsBaseline()&&DecorationsHash()==decorationHash);CheckOwnedCache("existing-cancel");
+            });
+            Add("future-preview-start",()=>BeginPreview(GroundReplacementScope.FutureOnly));
+            Wait("future-preview-cache",()=>PreviewMatches(true),()=>{
+                var inputs=Effective();Check("Future keeps existing inputs and adds the real 3x3 preview",inputs.Length==author.surface.layers.Length+1&&inputs.Last().tilemap==preview&&inputs.Take(author.surface.layers.Length).Select(i=>i.tilemap).SequenceEqual(author.surface.layers.Select(l=>l.tilemap)));
+                Check("Future preview does not append an author layer or change old cells",AllAuthorsBaseline());
+                int cells=0;foreach(var cell in preview.cellBounds.allPositionsWithin)if(preview.GetTile(cell)!=null)cells++;
+                Check("Future preview contains nine complete cells",cells==9);CheckPreviewMaterial(author.surface.layers.Length);CheckOwnedCache("future-preview");CancelOwnedPreview();
+            });
+            Wait("future-cancel-cache",NormalMatches,()=>{
+                Check("Future cancel restores original inputs/cache",Current().signature==baselineSignature&&AllAuthorsBaseline());CheckOwnedCache("future-cancel");
+            });
+            Add("existing-commit",()=>{
+                change=GroundWorkshopAuthoring.PrepareReplacement(author,layerIndex,recipe,GroundReplacementScope.ExistingAndFuture);
+                Check("real Existing preflight recognizes all original Road cells",change.IsValid&&change.knownCount==expectedKnown);
+                oldCacheId=Current().GetInstanceID();int result=GroundWorkshopAuthoring.Commit(change);
+                committedBinding=author.layerBindings[layerIndex];commitGroup=Undo.GetCurrentGroup();commitActive=true;
+                Check("Commit targets the same author layer",result==layerIndex&&author.surface.layers.Length==7&&committedBinding!=oldBinding&&committedBinding.recipe==recipe);
+            });
+            Wait("commit-auto-cache",()=>NormalMatches()&&Current().GetInstanceID()!=oldCacheId,()=>{
+                Check("Commit changes recipe and Tile identity but preserves layout/manual attributes",AttributesHash(author)==attributeHashes[author.registration.mapId]);
+                Check("Commit leaves other maps, layer locks and decoration author transforms intact",OtherAuthorsBaseline()&&DecorationsHash()==decorationHash);
+                CheckPreviewMaterial(layerIndex);CheckOwnedCache("committed");
+                Check("Commit produced a different cache signature",Current().signature!=baselineSignature);
+                if(Undo.GetCurrentGroup()!=commitGroup||author.layerBindings[layerIndex]!=committedBinding)throw new InvalidOperationException("An external Undo or map operation intervened; the contract will not undo it.");
+                Undo.FlushUndoRecordObjects();Undo.PerformUndo();
+            });
+            Wait("one-undo-auto-cache",()=>NormalMatches()&&Current().signature==baselineSignature,()=>{
+                Check("one actual Undo restores all author inputs",AllAuthorsBaseline());Check("one actual Undo restores original recipe/material ownership",author.layerBindings[layerIndex].recipe==oldBinding.recipe&&author.layerBindings[layerIndex].ownedMaterial==oldBinding.ownedMaterial);
+                Check("Undo restores cache signature and exactly one cap/cache",Current().signature==baselineSignature);CheckOwnedCache("undo-restored");commitActive=false;
+            });
+            Add("finish",()=>BeginFinish(null));EditorApplication.update+=Tick;nextTick=started+.3;Publish("RUNNING");
+        }
+        void Add(string name,Action action)=>steps.Enqueue(new Step{name=name,action=action});
+        void Wait(string name,Func<bool> wait,Action action)=>steps.Enqueue(new Step{name=name,wait=wait,action=action});
+        SurfaceLayerInput[] Effective()=>GroundSurfaceAuthoring.EffectiveInputs(binding);
+        GroundSurfaceMeshCache Current()=>binding==null||binding.cacheRoot==null?null:binding.cacheRoot.GetComponent<GroundSurfaceMeshCache>();
+        void BeginPreview(GroundReplacementScope scope)
+        {
+            change=GroundWorkshopAuthoring.PrepareReplacement(author,layerIndex,recipe,scope);
+            Check("real "+scope+" preflight is valid",change.IsValid&&change.knownCount==expectedKnown);
+            oldCacheId=Current().GetInstanceID();GroundWorkshopAuthoring.Preview(change);
+            if(!GroundWorkshopAuthoring.TryGetPreviewTilemap(author,out preview,out _,out previewLayer,out var actual)||actual!=scope)throw new InvalidOperationException("The real temporary Tilemap was not exposed.");
+            previewId=preview.GetInstanceID();Check("preview is transient and owned by the actual map",preview.GetComponentInParent<GroundWorkshopMap>()==author&&!EditorUtility.IsPersistent(preview)&&(preview.gameObject.hideFlags&HideFlags.DontSave)!=0);
+        }
+        bool PreviewMatches(bool future)
+        {
+            var cache=Current();if(cache==null||cache.GetInstanceID()==oldCacheId||preview==null||!string.IsNullOrEmpty(binding.lastError))return false;
+            int expectedLayer=future?author.surface.layers.Length:layerIndex;
+            return cache.chunks.Any(c=>c.layerIndex==expectedLayer&&c.sourceTilemap==preview)&&
+                cache.chunks.Where(c=>c.layerIndex==expectedLayer).All(c=>c.sourceTilemap==preview);
+        }
+        bool NormalMatches()
+        {
+            var cache=Current();if(cache==null||GroundWorkshopAuthoring.HasPreview||!string.IsNullOrEmpty(binding.lastError))return false;
+            return cache.chunks.All(c=>c.sourceTilemap!=null&&author.surface.layers.Any(l=>l.tilemap==c.sourceTilemap))&&
+                Effective().Select(i=>i.tilemap).SequenceEqual(author.surface.layers.Select(l=>l.tilemap));
+        }
+        void CancelOwnedPreview()
+        {
+            if(GroundWorkshopAuthoring.ActivePreview!=change)throw new InvalidOperationException("A foreign recipe preview replaced the fixture preview.");
+            GroundWorkshopAuthoring.CancelPreview(change);preview=null;
+        }
+        void CheckPreviewMaterial(int index)
+        {
+            var chunks=Current().chunks.Where(c=>c.layerIndex==index).ToArray();Check("layer "+index+" has clipped visible chunks",chunks.Length>0);
+            foreach(var chunk in chunks)
+            {
+                var block=new MaterialPropertyBlock();chunk.renderer.GetPropertyBlock(block);var material=chunk.renderer.sharedMaterial;
+                var texture=block.HasProperty(Shader.PropertyToID("_SecondTex"))?block.GetTexture("_SecondTex"):material.GetTexture("_SecondTex");
+                float period=block.HasProperty(Shader.PropertyToID("_WorldPeriod"))?block.GetFloat("_WorldPeriod"):material.GetFloat("_WorldPeriod");
+                if(texture!=recipe.detailTexture||Mathf.Abs(period-recipe.worldRepeatPeriod)>1e-6f)throw new InvalidOperationException("The visible cache is using a stale recipe detail/period.");
+            }
+            Check("actual clipped layer uses the replacement recipe texture/period",true);
+        }
+        void CheckOwnedCache(string label)
+        {
+            var cache=Current();int caches=binding.GetComponentsInChildren<GroundSurfaceMeshCache>(true).Count(c=>c.binding==binding);
+            int caps=binding.GetComponentsInChildren<MeshCollider>(true).Count(c=>c.sharedMesh==cache.colliderMesh);
+            Check(label+": exactly one owned cache and physical cap",caches==1&&caps==1&&binding.capCollider!=null&&binding.capCollider.sharedMesh==cache.colliderMesh&&binding.capCollider.gameObject.activeInHierarchy);
+            trace.Add(new{label,seconds=EditorApplication.timeSinceStartup-started,cacheId=cache.GetInstanceID(),cache.rebuildCount,cache.signature,chunks=cache.chunks.Length,caches,caps,previewId,previewLayer,lastError=binding.lastError,
+                sources=cache.chunks.Select(c=>new{c.layerIndex,source=c.sourceTilemap==null?0:c.sourceTilemap.GetInstanceID()}).Distinct().ToArray()});
+        }
+        void Check(string name,bool ok)
+        {checks.Add(new{name,passed=ok});if(ok)passed++;else{failed++;throw new InvalidOperationException(name);}}
+        bool AllAuthorsBaseline()=>maps!=null&&maps.All(m=>FullAuthorHash(m)==authorHashes[m.registration.mapId]);
+        bool OtherAuthorsBaseline()=>maps.Where(m=>m!=author).All(m=>FullAuthorHash(m)==authorHashes[m.registration.mapId]);
+        void Tick()
+        {
+            try
+            {
+                double now=EditorApplication.timeSinceStartup;if(now<nextTick)return;
+                if(finishing){Finish();return;}
+                if(now-started>45)throw new TimeoutException("The bounded contract timed out at "+phase);
+                if(EditorApplication.isCompiling||EditorApplication.isPlayingOrWillChangePlaymode||SceneManager.GetActiveScene()!=scene)throw new InvalidOperationException("Editor lifecycle changed; no further author operations.");
+                if(steps.Count==0){BeginFinish(null);return;}
+                var step=steps.Peek();if(phase!=step.name){phase=step.name;waitStarted=now;Publish("RUNNING");}
+                if(step.wait!=null&&!step.wait())
+                {
+                    if(now-waitStarted>8)throw new TimeoutException(phase+": cache queue did not reach the expected real-input state; "+(binding==null?"missing binding":binding.lastError));
+                    nextTick=now+.1;return;
+                }
+                steps.Dequeue();step.action();nextTick=now+.35;
+            }
+            catch(Exception error){BeginFinish(error.ToString());}
+        }
+        public void Abort(string error){if(started==0)started=EditorApplication.timeSinceStartup;BeginFinish(error);}
+        void BeginFinish(string error)
+        {
+            if(finishing)return;finishing=true;failure=error;
+            try
+            {
+                if(change!=null&&GroundWorkshopAuthoring.ActivePreview==change)GroundWorkshopAuthoring.CancelPreview(change);
+                if(commitActive&&author!=null&&author.layerBindings[layerIndex]==committedBinding)
+                {
+                    if(Undo.GetCurrentGroup()!=commitGroup)throw new InvalidOperationException("Recovery stopped: a foreign Undo group intervened; the still-owned revision remains recoverable.");
+                    Undo.FlushUndoRecordObjects();Undo.PerformUndo();
+                }
+            }
+            catch(Exception cleanup){failure=(failure??"")+"\nRecovery: "+cleanup;}
+            phase="bounded-cleanup-after-delay";nextTick=EditorApplication.timeSinceStartup+.5;
+            EditorApplication.update-=Tick;EditorApplication.update+=Tick;Publish("CLEANUP_PENDING");
+        }
+        void Finish()
+        {
+            EditorApplication.update-=Tick;
+            try
+            {
+                if(authorHashes!=null)
+                {
+                    Check("finally all three map author snapshots restored",AllAuthorsBaseline());
+                    Check("finally original cache signature restored",Current()!=null&&Current().signature==baselineSignature);
+                    Check("finally decoration author data restored",DecorationsHash()==decorationHash);CheckOwnedCache("finally");
+                    Check("no intermediate Scene/source/recipe/Boundary disk save",fileHashes.All(p=>File.Exists(p.Key)&&FileSha(p.Key)==p.Value));
+                }
+            }
+            catch(Exception error){failure=(failure??"")+"\nFinal checks: "+error;}
+            finally{if(selection!=null)Selection.objects=selection;}
+            if(failure!=null)failed++;
+            Publish(failure==null&&failed==0?"COMPLETED":"FAILED");active=null;
+        }
+        void Publish(string status)
+        {
+            var value=new{status,runId,startedUtc,phase,passed,failed,failure,checks,trace,layerIndex,expectedKnown,seconds=EditorApplication.timeSinceStartup-started,receiptPath,
+                newOwnedAssets=priorAssets==null||author==null?Array.Empty<string>():AssetPaths(author.registration.assetFolder).Where(p=>!priorAssets.Contains(p)).OrderBy(p=>p,StringComparer.Ordinal).ToArray(),
+                baselineAuthorHashes=authorHashes,scope="Real saved KT03 platform A; direct recipe API plus native delayed cache events; no manual Rebuild/SetTile/Scene save. New revision assets retained for native Undo; user author baseline restored when no foreign operation intervenes.",physicalPointerVerified=false};
+            ResultJson=Json(value);if(!string.IsNullOrEmpty(receiptPath))File.WriteAllText(receiptPath,ResultJson,new UTF8Encoding(false));
+        }
+        static string[] AssetPaths(string folder)=>AssetDatabase.FindAssets("",new[]{folder}).Select(AssetDatabase.GUIDToAssetPath).Where(p=>!string.IsNullOrEmpty(p)).Distinct().ToArray();
+        static string FileSha(string path){using(var stream=File.OpenRead(path))using(var hash=SHA256.Create())return Convert.ToBase64String(hash.ComputeHash(stream));}
+        static string Hash(Action<BinaryWriter> action)
+        {using(var stream=new MemoryStream()){using(var writer=new BinaryWriter(stream,Encoding.UTF8,true))action(writer);stream.Position=0;using(var hash=SHA256.Create())return Convert.ToBase64String(hash.ComputeHash(stream));}}
+        static void Matrix(BinaryWriter w,Matrix4x4 matrix){for(int r=0;r<4;r++)for(int c=0;c<4;c++)w.Write(matrix[r,c]);}
+        static BoundsInt SnapshotBounds(GroundWorkshopMap map,Tilemap tilemap)
+        {
+            var bounds=tilemap.cellBounds;bounds.SetMinMax(Vector3Int.Min(bounds.min,map.surface.EditableCells.min),Vector3Int.Max(bounds.max,map.surface.EditableCells.max));
+            if((long)bounds.size.x*bounds.size.y*bounds.size.z>262144)throw new InvalidOperationException("Author snapshot exceeds its fixed cell budget.");return bounds;
+        }
+        static string FullAuthorHash(GroundWorkshopMap map)=>Hash(w=>{
+            w.Write(map.registration.mapId);w.Write(map.theme.GetInstanceID());Matrix(w,map.transform.localToWorldMatrix);w.Write(map.surface.layers.Length);
+            for(int i=0;i<map.surface.layers.Length;i++)
+            {
+                var layer=map.surface.layers[i];var tilemap=layer.tilemap;var owned=map.layerBindings[i];w.Write(tilemap.GetInstanceID());w.Write(layer.isLocked);w.Write(map.theme.layers[i].locked);
+                w.Write(owned.slotId??"");w.Write(owned.recipe.GetInstanceID());w.Write(owned.ownedTile.GetInstanceID());w.Write(owned.ownedMaterial.GetInstanceID());Matrix(w,tilemap.transform.localToWorldMatrix);
+                foreach(var cell in SnapshotBounds(map,tilemap).allPositionsWithin)
+                {var tile=tilemap.GetTile(cell);var color=tilemap.GetColor(cell);w.Write(cell.x);w.Write(cell.y);w.Write(cell.z);w.Write(tile==null?0:tile.GetInstanceID());w.Write(color.r);w.Write(color.g);w.Write(color.b);w.Write(color.a);w.Write((int)tilemap.GetTileFlags(cell));Matrix(w,tilemap.GetTransformMatrix(cell));}
+            }
+        });
+        static string AttributesHash(GroundWorkshopMap map)=>Hash(w=>{
+            w.Write(map.surface.layers.Length);
+            for(int i=0;i<map.surface.layers.Length;i++)
+            {
+                var layer=map.surface.layers[i];var tilemap=layer.tilemap;w.Write(tilemap.GetInstanceID());w.Write(layer.isLocked);w.Write(map.theme.layers[i].locked);Matrix(w,tilemap.transform.localToWorldMatrix);
+                foreach(var cell in SnapshotBounds(map,tilemap).allPositionsWithin)
+                {var flags=tilemap.GetTileFlags(cell);var color=tilemap.GetColor(cell);w.Write(cell.x);w.Write(cell.y);w.Write(cell.z);w.Write(tilemap.GetTile(cell)!=null);w.Write(color.r);w.Write(color.g);w.Write(color.b);w.Write(color.a);w.Write((int)flags);if((flags&TileFlags.LockTransform)==0)Matrix(w,tilemap.GetTransformMatrix(cell));}
+            }
+        });
+        string DecorationsHash()=>Hash(w=>{
+            foreach(var item in maps.SelectMany(m=>m.GetComponentsInChildren<GroundDecorationInstance>(true)).OrderBy(d=>d.GetInstanceID()))
+            {w.Write(item.GetInstanceID());w.Write(item.instanceId??"");w.Write(item.assetId??"");w.Write(item.generationGroup??"");w.Write(item.isLocked);w.Write(item.generated);w.Write(item.seed);w.Write(item.definition==null?0:item.definition.GetInstanceID());Matrix(w,item.transform.localToWorldMatrix);}
+        });
+    }
+}

@@ -1,0 +1,9 @@
+using System;using System.Linq;using System.Reflection;using Funplay.Editor.Tools.Scripting;using Newtonsoft.Json.Linq;
+public sealed class PollKT03ActualSurfaceGesture:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  ctx.ReturnValue=AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType("KT03ActualSurfaceGestureContracts",false)).Where(t=>t!=null).Select(t=>new{
+   assembly=t.Assembly.FullName,result=(string)t.GetField("ResultJson",BindingFlags.Static|BindingFlags.Public).GetValue(null)=="NOT_STARTED"?new JObject(new JProperty("status","NOT_STARTED")):JObject.Parse((string)t.GetField("ResultJson",BindingFlags.Static|BindingFlags.Public).GetValue(null))}).ToArray();
+ }
+}

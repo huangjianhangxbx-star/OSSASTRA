@@ -1,0 +1,2 @@
+using System;using System.Linq;using System.Reflection;using Funplay.Editor.Tools.Scripting;
+public sealed class KT03PollPreviewLoop:IFunplayCommand{public void Execute(ExecutionContext ctx){ctx.ReturnValue=AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType("KT03SurfacePreviewCacheLoopContracts")).Where(t=>t!=null).Select(t=>new{assembly=t.Assembly.FullName,result=Newtonsoft.Json.JsonConvert.DeserializeObject((string)t.GetField("ResultJson",BindingFlags.Public|BindingFlags.Static).GetValue(null))}).ToArray();}}

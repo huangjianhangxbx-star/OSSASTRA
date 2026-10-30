@@ -1,0 +1,150 @@
+/* 新Lab实际模块合同：原生Brush API与Physics读回，不把程序调用称为SceneView实体拖刷。
+ * 仅当前精确Lab、无配方预览时运行；外层自有Undo区间结束后恢复作者格，不保存中间数据。
+ */
+using System;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Collections.Generic;
+using System.Security.Cryptography;
+using System.Text;
+using Ossastra.GroundResearch;
+using Ossastra.GroundResearch.Editor;
+using Ossastra.GroundSurfaces;
+using Ossastra.GroundSurfaces.Editor;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEngine.Tilemaps;
+using UnityEditor;
+using Funplay.Editor.Tools.Scripting;
+
+public sealed class KT03LabBrushAndIsolationContracts : IFunplayCommand
+{
+    readonly List<string> passed=new List<string>(),failed=new List<string>();
+    static void Require(bool value,string message){if(!value)throw new InvalidOperationException(message);}
+    void Case(string name,Action action){try{action();passed.Add(name);}catch(Exception e){failed.Add(name+": "+(e.InnerException??e).Message);}}
+    static string Sha(string path){using(var s=File.OpenRead(path))using(var h=SHA256.Create())return Convert.ToBase64String(h.ComputeHash(s));}
+    static string Digest(Action<BinaryWriter> write)
+    {using(var stream=new MemoryStream()){using(var writer=new BinaryWriter(stream,Encoding.UTF8,true))write(writer);stream.Position=0;using(var hash=SHA256.Create())return Convert.ToBase64String(hash.ComputeHash(stream));}}
+    static void Matrix(BinaryWriter w,Matrix4x4 m){for(int r=0;r<4;r++)for(int c=0;c<4;c++)w.Write(m[r,c]);}
+    static string Authors(GroundWorkshopMap map)=>Digest(w=>
+    {
+        w.Write(map.registration.mapId);Matrix(w,map.transform.localToWorldMatrix);
+        foreach(var layer in map.surface.layers)
+        {
+            var t=layer.tilemap;w.Write(t.GetInstanceID());w.Write(layer.isLocked);w.Write(t.origin.x);w.Write(t.origin.y);w.Write(t.size.x);w.Write(t.size.y);Matrix(w,t.transform.localToWorldMatrix);
+            w.Write(t.color.r);w.Write(t.color.g);w.Write(t.color.b);w.Write(t.color.a);
+            var bounds=t.cellBounds;bounds.SetMinMax(Vector3Int.Min(bounds.min,map.surface.EditableCells.min),Vector3Int.Max(bounds.max,map.surface.EditableCells.max));
+            Require((long)bounds.size.x*bounds.size.y*bounds.size.z<262144,"作者快照须有界");
+            foreach(var cell in bounds.allPositionsWithin)
+            {var tile=t.GetTile(cell);var color=t.GetColor(cell);w.Write(cell.x);w.Write(cell.y);w.Write(cell.z);w.Write(tile==null?0:tile.GetInstanceID());w.Write(color.r);w.Write(color.g);w.Write(color.b);w.Write(color.a);w.Write((int)t.GetTileFlags(cell));Matrix(w,t.GetTransformMatrix(cell));}
+        }
+    });
+    static Dictionary<string,string> Files(GroundWorkshopMap[] maps,GroundSurfaceBinding[] bindings)
+    {
+        var paths=new HashSet<string>(StringComparer.OrdinalIgnoreCase){GroundSurfaceAuthoring.ScenePath,GroundWorkshopOwnership.ReferenceScene,GroundWorkshopOwnership.OriginalScene,FrontierGroundSceneBuilder.ScenePath};
+        foreach(var map in maps)foreach(string p in Directory.GetFiles(map.registration.assetFolder,"*",SearchOption.AllDirectories))paths.Add(p.Replace('\\','/'));
+        foreach(var mesh in bindings.SelectMany(b=>b.modelVariants).Where(m=>m!=null)){string p=AssetDatabase.GetAssetPath(mesh);paths.Add(p);paths.Add(p+".meta");}
+        return paths.Where(File.Exists).ToDictionary(p=>p,Sha);
+    }
+    static double CellArea(GroundSurfaceBinding binding,Tilemap tilemap,Vector3Int cell)
+    {
+        Vector3 a=binding.transform.InverseTransformPoint(tilemap.CellToWorld(cell)),b=binding.transform.InverseTransformPoint(tilemap.CellToWorld(cell+Vector3Int.right)),
+            c=binding.transform.InverseTransformPoint(tilemap.CellToWorld(cell+Vector3Int.right+Vector3Int.up)),d=binding.transform.InverseTransformPoint(tilemap.CellToWorld(cell+Vector3Int.up));
+        var vertices=new List<ClipVertex>();var indices=new List<int>();var domain=binding.GetDomain();
+        GroundSurfaceGeometry.ClipTriangle(new ClipVertex(a,Vector2.zero,Color.white),new ClipVertex(b,Vector2.zero,Color.white),new ClipVertex(c,Vector2.zero,Color.white),domain,vertices,indices);
+        GroundSurfaceGeometry.ClipTriangle(new ClipVertex(a,Vector2.zero,Color.white),new ClipVertex(c,Vector2.zero,Color.white),new ClipVertex(d,Vector2.zero,Color.white),domain,vertices,indices);
+        double area=0;for(int i=0;i<indices.Count;i+=3)area+=Math.Abs(Vector3.Cross(vertices[indices[i+1]].position-vertices[indices[i]].position,vertices[indices[i+2]].position-vertices[indices[i]].position).y)*.5;return area;
+    }
+    static void Stroke(FrontierGroundBrush brush,Tilemap tilemap,Action apply)
+    {Require(brush.BeginStroke(tilemap),"真实Brush不能开始事务");try{apply();}finally{brush.FinishStroke(false);}}
+    static void Rejected(Action action)
+    {
+        bool rejected=false;try{action();}catch(Exception e){var actual=e is TargetInvocationException?e.InnerException:e;rejected=actual is InvalidOperationException&&actual.Message.Contains("多个")&&actual.Message.Contains("表面");}
+        Require(rejected,"必须因多表面在入口拒绝，而非写了一半后因其他原因失败");
+    }
+    public void Execute(ExecutionContext ctx)
+    {
+        var scene=SceneManager.GetActiveScene();FrontierGroundBrush brush=null;int fixtureGroup=-1;GroundWorkshopMap[] maps=null;GroundSurfaceBinding[] bindings=null;
+        Dictionary<string,string> input=null,files=null;Dictionary<Transform,Matrix4x4> actors=null;var physicsDiagnostics=new Dictionary<string,object>();float scale=Time.timeScale;Vector3Int inside=default,outside=default,crossing=default;
+        try
+        {
+            Require(scene.path==GroundSurfaceAuthoring.ScenePath&&!Application.isPlaying&&!GroundWorkshopAuthoring.HasPreview,"仅新Lab Edit且无预览可运行");
+            maps=scene.GetRootGameObjects().SelectMany(r=>r.GetComponentsInChildren<GroundWorkshopMap>(true)).ToArray();bindings=GroundSurfaceAuthoring.GetBindings();Require(maps.Length==3&&bindings.Length==2,"实际三Map/双高台");
+            var a=bindings.OrderBy(b=>b.transform.position.y).First();var b=bindings.Single(x=>x!=a);var low=maps.Single(m=>m!=a.map&&m!=b.map);
+            input=maps.ToDictionary(m=>m.registration.mapId,Authors);files=Files(maps,bindings);
+            actors=scene.GetRootGameObjects().SelectMany(r=>r.GetComponentsInChildren<MonoBehaviour>(true)).Where(c=>c!=null&&(c.GetType().Name=="CharacterRoot"||c.GetType().Name=="EnemyRoot")).Select(c=>c.transform).Concat(scene.GetRootGameObjects().SelectMany(r=>r.GetComponentsInChildren<Camera>(true)).Select(c=>c.transform)).Distinct().ToDictionary(t=>t,t=>t.localToWorldMatrix);
+            var ids=maps.Select(m=>m.registration.mapId).OrderBy(x=>x).ToArray();bool session=GroundWorkshopPlaygroundSession.HasSession;var previousStart=UnityEditor.SceneManagement.EditorSceneManager.playModeStartScene;
+            string rejectedFolder=GroundWorkshopOwnership.Root+"/Maps/Contracts/KT03Rejected_"+Guid.NewGuid().ToString("N");
+            Case("三Map旧Save/SaveAs/Session入口在落盘切场前拒绝",()=>
+            {
+                var begin=typeof(GroundWorkshopPlaygroundSession).GetMethod("Begin",BindingFlags.NonPublic|BindingFlags.Static);
+                foreach(var map in maps){Rejected(()=>GroundWorkshopMaps.Save(map));Rejected(()=>GroundWorkshopMaps.SaveAs(map,rejectedFolder+"/Rejected.unity"));Rejected(()=>begin.Invoke(null,new object[]{map}));}
+                Require(!Directory.Exists(rejectedFolder)&&!File.Exists(rejectedFolder+".meta")&&SceneManager.GetActiveScene()==scene&&GroundWorkshopPlaygroundSession.HasSession==session&&UnityEditor.SceneManagement.EditorSceneManager.playModeStartScene==previousStart,"旧入口有副作用");
+                Require(ids.SequenceEqual(maps.Select(m=>m.registration.mapId).OrderBy(x=>x))&&maps.All(m=>Authors(m)==input[m.registration.mapId])&&files.All(f=>File.Exists(f.Key)&&Sha(f.Key)==f.Value),"旧入口改了身份、作者或源文件");
+            });
+            int layer=Enumerable.Range(0,a.map.surface.layers.Length).Last(i=>!GroundWorkshopAuthoring.IsLayerLocked(a.map,i)&&a.map.surface.layers[i].paintTile!=a.map.surface.layers[i].eraseReplacement);
+            var target=a.map.surface.layers[layer].tilemap;var cellList=new List<Vector3Int>();foreach(var cell in a.map.surface.EditableCells.allPositionsWithin)cellList.Add(cell);var cells=cellList.ToArray();var areas=cells.ToDictionary(c=>c,c=>CellArea(a,target,c));
+            double full=Vector3.Cross(a.transform.InverseTransformVector(target.CellToWorld(Vector3Int.right)-target.CellToWorld(Vector3Int.zero)),a.transform.InverseTransformVector(target.CellToWorld(Vector3Int.up)-target.CellToWorld(Vector3Int.zero))).magnitude;
+            inside=cells.First(c=>Math.Abs(areas[c]-full)<1e-4);outside=cells.First(c=>areas[c]<1e-7);crossing=cells.First(c=>areas[c]>1e-5&&areas[c]<full-1e-4);
+            brush=ScriptableObject.CreateInstance<FrontierGroundBrush>();Require(brush.Configure(a.map.surface,layer,1),"复用原Brush配置");
+            Undo.IncrementCurrentGroup();fixtureGroup=Undo.GetCurrentGroup();Undo.SetCurrentGroupName("KT03受控Brush合同夹具");
+            Case("真实Brush API内部Paint/Erase及单笔UndoRedo",()=>
+            {
+                Stroke(brush,target,()=>brush.Erase(a.map.surface.grid,target.gameObject,inside));Require(target.GetTile(inside)==brush.Layer.eraseReplacement,"擦除");
+                Stroke(brush,target,()=>brush.Paint(a.map.surface.grid,target.gameObject,inside));Require(target.GetTile(inside)==brush.Layer.paintTile,"内部落笔");
+                Undo.FlushUndoRecordObjects();Undo.PerformUndo();Require(target.GetTile(inside)==brush.Layer.eraseReplacement,"Undo应只撤销最新Paint");Undo.PerformRedo();Require(target.GetTile(inside)==brush.Layer.paintTile,"Redo Paint");
+            });
+            Case("全域外格不落笔或创建Brush事务",()=>{var old=target.GetTile(outside);int group=Undo.GetCurrentGroup();brush.Paint(a.map.surface.grid,target.gameObject,outside);Require(target.GetTile(outside)==old&&!brush.IsStrokeActive&&Undo.GetCurrentGroup()==group,"全外格产生作者修改/Undo");});
+            Case("跨边界格保留原生Tile且缓存只输出域内片段",()=>
+            {
+                Stroke(brush,target,()=>brush.Erase(a.map.surface.grid,target.gameObject,crossing));Stroke(brush,target,()=>brush.Paint(a.map.surface.grid,target.gameObject,crossing));Require(target.GetTile(crossing)==brush.Layer.paintTile,"跨界格不能整格删除");
+                GroundSurfaceAuthoring.Rebuild(a);var chunks=a.cacheRoot.GetComponent<GroundSurfaceMeshCache>().chunks.Where(c=>c.layerIndex==layer).ToArray();Require(chunks.Any(c=>c.sourceCells.Contains(crossing)),"跨界格没有实际缓存三角来源");
+                foreach(var chunk in chunks)foreach(var vertex in chunk.filter.sharedMesh.vertices)Require(GroundSurfaceGeometry.ContainsXZ(a.GetDomain(),new Vector2(vertex.x,vertex.z)),"裁剪顶点越过模型边界");
+            });
+            Case("真实BoxFill/BoxErase只处理目标平台合法格",()=>
+            {
+                var old=cells.ToDictionary(c=>c,c=>target.GetTile(c));var area=a.map.surface.EditableCells;
+                Stroke(brush,target,()=>brush.BoxFill(a.map.surface.grid,target.gameObject,area));foreach(var cell in cells)Require(target.GetTile(cell)==(areas[cell]>1e-7?brush.Layer.paintTile:old[cell]),"BoxFill域过滤 "+cell);
+                Stroke(brush,target,()=>brush.BoxErase(a.map.surface.grid,target.gameObject,area));foreach(var cell in cells)Require(target.GetTile(cell)==(areas[cell]>1e-7?brush.Layer.eraseReplacement:old[cell]),"BoxErase域过滤 "+cell);
+            });
+            Case("Pick及外部目标不能绕过当前平台归属",()=>
+            {
+                brush.Pick(a.map.surface.grid,target.gameObject,new BoundsInt(inside,Vector3Int.one),inside);Require(brush.LastPickedMap==target&&brush.LastPickedCell==inside,"真实Pick回执");
+                brush.Pick(a.map.surface.grid,target.gameObject,new BoundsInt(outside,Vector3Int.one),outside);Require(brush.LastPickedMap==target&&brush.LastPickedCell==inside,"域外Pick应保留上次合法结果");
+                brush.Paint(b.map.surface.grid,b.map.surface.layers[Math.Min(layer,b.map.surface.layers.Length-1)].tilemap.gameObject,inside);Require(!brush.IsStrokeActive,"外部平台Paint不应受理");
+            });
+            Case("低地和B作者数据不因刷A串写",()=>Require(Authors(low)==input[low.registration.mapId]&&Authors(b.map)==input[b.map.registration.mapId],"跨平台作者hash变化"));
+            Case("同XZ不同高度surface及真实凹口Collider",()=>
+            {
+                Physics.SyncTransforms();Vector3 rawCenter=target.GetCellCenterWorld(inside);Vector3 point=a.transform.TransformPoint(new Vector3(a.transform.InverseTransformPoint(rawCenter).x,a.boundary.localTopY,a.transform.InverseTransformPoint(rawCenter).z));
+                Require(a.ContainsWorldPoint(point)&&!b.ContainsWorldPoint(point),"高台实际落点归属");Vector3 lowPoint=new Vector3(point.x,0,point.z);
+                var lowTilemap=low.surface.layers[0].tilemap;var lowCell=lowTilemap.WorldToCell(lowPoint);var lowGridCell=low.surface.grid.WorldToCell(lowPoint);
+                physicsDiagnostics["rawTilemapCenterWorld"]=rawCenter.ToString("R");physicsDiagnostics["projectedInsideWorld"]=point.ToString("R");physicsDiagnostics["insideLocalY"]=a.transform.InverseTransformPoint(point).y;
+                physicsDiagnostics["boundaryLocalY"]=a.boundary.localTopY;physicsDiagnostics["boundaryWorldY"]=a.transform.TransformPoint(new Vector3(0,a.boundary.localTopY,0)).y;physicsDiagnostics["heightTolerance"]=a.footpointHeightTolerance;
+                physicsDiagnostics["lowPointWorld"]=lowPoint.ToString("R");physicsDiagnostics["lowPointInALocalY"]=a.transform.InverseTransformPoint(lowPoint).y;physicsDiagnostics["aAcceptsLowPoint"]=a.ContainsWorldPoint(lowPoint);
+                physicsDiagnostics["lowTilemapCell"]=lowCell.ToString();physicsDiagnostics["lowGridCell"]=lowGridCell.ToString();physicsDiagnostics["lowTilemapPlaneWorldY"]=lowTilemap.CellToWorld(Vector3Int.zero).y;
+                physicsDiagnostics["lowAcceptsTilemapCell"]=low.surface.ContainsCell(lowCell);physicsDiagnostics["lowAcceptsGridCell"]=low.surface.ContainsCell(lowGridCell);
+                // 物理低地y0属于Grid作者平面；外观Tilemap的毫米层偏移不能拿来floor逻辑第三轴。
+                Require(!a.ContainsWorldPoint(lowPoint)&&low.surface.ContainsCell(lowGridCell),"同XZ不能忽略高度");
+                Require(a.capCollider.Raycast(new Ray(point+Vector3.up*10,Vector3.down),out var high,20)&&Math.Abs(high.point.y-point.y)<.001,"高台内部真实Collider高度");
+                Vector2 notch=default;bool found=false;var domain=a.GetDomain();
+                for(int ix=1;ix<10&&!found;ix++)for(int iz=1;iz<10&&!found;iz++){var p=new Vector2(Mathf.Lerp(domain.bounds.xMin,domain.bounds.xMax,ix/10f),Mathf.Lerp(domain.bounds.yMin,domain.bounds.yMax,iz/10f));if(!GroundSurfaceGeometry.ContainsXZ(domain,p)&&p.x>domain.bounds.center.x+1&&p.y>domain.bounds.center.y+1){notch=p;found=true;}}
+                Require(found,"凹口实际采样点");var world=a.transform.TransformPoint(new Vector3(notch.x,a.boundary.localTopY,notch.y));var ray=new Ray(new Vector3(world.x,20,world.z),Vector3.down);
+                Require(!a.capCollider.Raycast(ray,out _,40),"高台Collider不可用AABB填平凹口");var floor=low.GetComponentsInChildren<BoxCollider>(true).Single(c=>c.name=="低地连续碰撞_非高台AABB");Require(floor.Raycast(ray,out var lower,40)&&Math.Abs(lower.point.y)<.001,"凹口下方应命中低地y0");
+                bool use=a.useCache;a.SetCacheVisible(false);Require(a.capCollider.gameObject.activeInHierarchy&&a.capCollider.Raycast(new Ray(point+Vector3.up*10,Vector3.down),out _,20),"显示A/B关闭了物理地面");a.SetCacheVisible(use);
+            });
+        }
+        catch(Exception e){failed.Add("合同设置/执行异常："+(e.InnerException??e));}
+        finally
+        {
+            if(brush!=null){brush.FinishStroke(false);UnityEngine.Object.DestroyImmediate(brush);}
+            if(fixtureGroup>=0){Undo.FlushUndoRecordObjects();Undo.RevertAllDownToGroup(fixtureGroup);}
+            if(bindings!=null)foreach(var binding in bindings)try{GroundSurfaceAuthoring.Rebuild(binding);}catch(Exception e){failed.Add("恢复缓存："+e.Message);}
+            if(input!=null)Case("finally完整恢复三Map原生作者属性",()=>Require(maps.All(m=>Authors(m)==input[m.registration.mapId]),"作者Tile/颜色/flags/矩阵未完全恢复"));
+            if(files!=null)Case("中间测试未保存且新旧场源SHA保持",()=>Require(files.All(f=>File.Exists(f.Key)&&Sha(f.Key)==f.Value),"磁盘源文件变化"));
+            if(actors!=null)Case("相机角色TRS与TimeScale未改",()=>Require(actors.All(p=>p.Key!=null&&p.Key.localToWorldMatrix==p.Value)&&Time.timeScale==scale,"违反人物/相机/时钟边界"));
+        }
+        ctx.ReturnValue=new{passed=passed.Count,failed=failed.Count,passedCases=passed,failedCases=failed,inside=inside.ToString(),outside=outside.ToString(),crossing=crossing.ToString(),inputHashes=input,physicsDiagnostics=physicsDiagnostics,scope="Actual FrontierBrush API and native Physics; not physical mouse or SceneView gesture; author Undo restored and no intermediate save"};
+    }
+}

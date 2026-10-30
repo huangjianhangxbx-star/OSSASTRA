@@ -1,0 +1,98 @@
+/* Root Native: real Inspector-equivalent RecordObject(sharedMesh) dependency gate.
+ * Does not call Rebuild/Retake, alter model collider, or save. One owned Undo restores the sole fixture property.
+ * Expected before the fix: delayed lastError remains empty (RED). No foreign-history rollback.
+ */
+using System;using System.IO;using System.Linq;using System.Text;using System.Collections.Generic;
+using UnityEngine;using UnityEngine.SceneManagement;using UnityEditor;
+using Ossastra.GroundResearch;using Ossastra.GroundResearch.Editor;using Ossastra.GroundSurfaces;using Ossastra.GroundSurfaces.Editor;
+using Funplay.Editor.Tools.Scripting;
+public sealed class KT03SurfaceMeshReferenceGateContracts:IFunplayCommand
+{
+    public static string ResultJson="NOT_STARTED";static Runner active;
+    public void Execute(ExecutionContext ctx)
+    {
+        if(active!=null){ctx.ReturnValue=new{status="ALREADY_RUNNING"};return;}
+        active=new Runner();try{active.Start();}catch(Exception e){active.Cleanup(e.ToString());}
+        ctx.ReturnValue=new{status=active==null?"FINISHED":"STARTED",pollType="KT03SurfaceMeshReferenceGateContracts",pollField="ResultJson",result=ResultJson};
+    }
+    sealed class Runner
+    {
+        readonly string runId=Guid.NewGuid().ToString("N"),startedUtc=DateTime.UtcNow.ToString("O");readonly List<object> rows=new List<object>();
+        GroundSurfaceBinding binding;MeshFilter wall;Mesh original,replacement;Scene scene;int group=-1,stage=-1,passed,failed,cacheId;bool recorded,finishing;
+        double started,next;string phase="setup",failure,receiptPath,boundaryJson,signature,sourceDiskSha;
+        GroundSurfaceMeshCache Cache()=>binding.cacheRoot.GetComponent<GroundSurfaceMeshCache>();
+        public void Start()
+        {
+            started=EditorApplication.timeSinceStartup;if(!GroundWorkshopOwnership.ContextReady(out string reason))throw new InvalidOperationException(reason);
+            scene=SceneManager.GetActiveScene();if(scene.path!=GroundSurfaceAuthoring.ScenePath||GroundWorkshopAuthoring.HasPreview)throw new InvalidOperationException("Requires the actual Lab without preview.");
+            binding=GroundSurfaceAuthoring.GetBindings().Single(b=>b.SurfaceId=="0544cd8ed8b24bbd81646cd2134def4a");wall=binding.sideWalls[0];original=wall.sharedMesh;
+            replacement=binding.modelVariants.FirstOrDefault(m=>m!=null&&m!=original);if(replacement==null)throw new InvalidOperationException("An existing alternative real model is required.");
+            if(!string.IsNullOrEmpty(binding.lastError))throw new InvalidOperationException("An earlier model error must be resolved first.");
+            boundaryJson=EditorJsonUtility.ToJson(binding.boundary);signature=Cache().signature;cacheId=Cache().GetInstanceID();sourceDiskSha=Sha(scene.path);
+            string root=SessionState.GetString("GroundSurface.CacheTestOutput","");if(Directory.Exists(root))receiptPath=Path.Combine(root,"mesh-reference-gate_"+runId+".json");
+            // Let any independent reload/sceneOpened bootstrap drain before the tested property edit;
+            // otherwise an unrelated queued rebuild could produce a false GREEN for a missing MF dependency.
+            phase="settle-preexisting-lifecycle-work";next=started+.8;EditorApplication.update+=Tick;Publish("RUNNING");
+        }
+        void Tick()
+        {
+            try
+            {
+                var now=EditorApplication.timeSinceStartup;if(now<next)return;if(finishing){Finish();return;}
+                if(now-started>15)throw new TimeoutException(phase);
+                if(EditorApplication.isCompiling||EditorApplication.isPlayingOrWillChangePlaymode||SceneManager.GetActiveScene()!=scene)throw new InvalidOperationException("Editor lifecycle changed.");
+                if(stage==-1)
+                {
+                    if(wall.sharedMesh!=original||!string.IsNullOrEmpty(binding.lastError))throw new InvalidOperationException("The baseline changed while settling; no fixture edit was made.");
+                    cacheId=Cache().GetInstanceID();signature=Cache().signature;
+                    Undo.IncrementCurrentGroup();group=Undo.GetCurrentGroup();Undo.SetCurrentGroupName("KT03 bounded Inspector mesh reference fixture");
+                    Undo.RecordObject(wall,"KT03 bounded Inspector mesh reference fixture");wall.sharedMesh=replacement;EditorUtility.SetDirty(wall);Undo.FlushUndoRecordObjects();recorded=true;
+                    stage=0;phase="wait-real-modification-event";next=now+.8;Publish("RUNNING");return;
+                }
+                if(stage==0)
+                {
+                    Check("Inspector mesh reference actually changed",wall.sharedMesh==replacement);
+                    Check("real modification queue reports stale-model error",!string.IsNullOrEmpty(binding.lastError));
+                    Check("stale edit never silently retakes Boundary",EditorJsonUtility.ToJson(binding.boundary)==boundaryJson);
+                    Check("stale edit keeps previous cache intact",Cache().GetInstanceID()==cacheId&&Cache().signature==signature);
+                    UndoOwn();stage=1;phase="wait-Undo-automatic-recovery";next=now+.6;Publish("RUNNING");return;
+                }
+                if(stage==1)
+                {
+                    if(!string.IsNullOrEmpty(binding.lastError)&&now-started<8){next=now+.1;return;}
+                    Check("one owned Native Undo restores mesh reference",wall.sharedMesh==original);
+                    Check("Undo auto refresh clears stale error and restores original signature",string.IsNullOrEmpty(binding.lastError)&&Cache().signature==signature);
+                    Check("Boundary evidence never changed",EditorJsonUtility.ToJson(binding.boundary)==boundaryJson);
+                    Check("fixture never saves the Scene",Sha(scene.path)==sourceDiskSha);Cleanup(null);
+                }
+            }
+            catch(Exception e){Cleanup(e.ToString());}
+        }
+        void Check(string name,bool good){rows.Add(new{name,passed=good,lastError=binding==null?null:binding.lastError});if(good)passed++;else failed++;}
+        void UndoOwn()
+        {
+            if(!recorded)return;
+            if(Undo.GetCurrentGroup()!=group||wall==null||wall.sharedMesh!=replacement)throw new InvalidOperationException("Foreign Undo/property change intervened; no cross-history recovery.");
+            Undo.PerformUndo();recorded=false;
+        }
+        public void Cleanup(string error)
+        {
+            if(finishing)return;finishing=true;failure=error;try{UndoOwn();}catch(Exception e){failure=(failure??"")+"\nRecovery: "+e;}
+            phase="cleanup-after-Undo-event";next=EditorApplication.timeSinceStartup+.6;EditorApplication.update-=Tick;EditorApplication.update+=Tick;Publish("CLEANUP_PENDING");
+        }
+        void Finish()
+        {
+            EditorApplication.update-=Tick;
+            if(wall!=null)Check("finally fixture model reference restored",wall.sharedMesh==original);
+            if(failure!=null)failed++;phase="finished";Publish(failure==null&&failed==0?"COMPLETED":"FAILED");active=null;
+        }
+        void Publish(string status)
+        {
+            ResultJson=Newtonsoft.Json.JsonConvert.SerializeObject(new{status,runId,startedUtc,phase,passed,failed,failure,rows,receiptPath,seconds=EditorApplication.timeSinceStartup-started,
+                originalMesh=original==null?null:AssetDatabase.GetAssetPath(original),temporaryMesh=replacement==null?null:AssetDatabase.GetAssetPath(replacement),
+                scope="One actual MeshFilter Inspector-equivalent RecordObject property edit, delayed stale-error gate, one owned native Undo recovery. No Rebuild/Retake/Scene save/model Collider change."},Newtonsoft.Json.Formatting.Indented);
+            if(!string.IsNullOrEmpty(receiptPath))File.WriteAllText(receiptPath,ResultJson,new UTF8Encoding(false));
+        }
+        static string Sha(string path){using(var s=File.OpenRead(path))using(var h=System.Security.Cryptography.SHA256.Create())return Convert.ToBase64String(h.ComputeHash(s));}
+    }
+}

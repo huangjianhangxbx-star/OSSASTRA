@@ -1,0 +1,238 @@
+/* KT03 short Native SceneView gesture fixture, adapted from KT02 ActualSceneGestureContracts.
+ * Root only, exclusive Editor lease, saved new Lab, diagnostics/recipe preview off, no prior stroke.
+ * An existing brush is borrowed only when it is already A/same Road/D1/zero pivot with one matching owner Window.
+ * About 8 seconds; bounded 35 second timeout. Does not call Paint/Erase/SetTile or save any Scene.
+ * Lock is an explicit Undo-recorded condition fixture, not a claim of clicking the lock checkbox.
+ * Consumed events are diagnostic only. Native Tile/Sprite/cache and all non-A authors must prove results.
+ */
+using System;
+using System.Linq;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.Tilemaps;
+using UnityEditor;
+using UnityEditor.EditorTools;
+using UnityEditor.SceneManagement;
+using UnityEditor.Tilemaps;
+using UnityEngine.SceneManagement;
+using Ossastra.GroundResearch;
+using Ossastra.GroundResearch.Editor;
+using Ossastra.GroundSurfaces;
+using Ossastra.GroundSurfaces.Editor;
+using Funplay.Editor.Tools.Scripting;
+
+public sealed class KT03ActualSurfaceGestureContracts : IFunplayCommand
+{
+    public static string ResultJson="NOT_STARTED";
+    static Runner active;
+    static string Json(object value)=>Newtonsoft.Json.JsonConvert.SerializeObject(value,new Newtonsoft.Json.JsonSerializerSettings{
+        Formatting=Newtonsoft.Json.Formatting.Indented,TypeNameHandling=Newtonsoft.Json.TypeNameHandling.None,
+        ContractResolver=new Newtonsoft.Json.Serialization.DefaultContractResolver()});
+    public void Execute(ExecutionContext ctx)
+    {
+        if(active!=null){ctx.ReturnValue=new{status="ALREADY_RUNNING",pollType="KT03ActualSurfaceGestureContracts",pollField="ResultJson"};return;}
+        active=new Runner();try{active.Start();}catch(Exception error){active.End(error.ToString());}
+        ctx.ReturnValue=new{status=active==null?"SETUP_FINISHED_OR_FAILED":"STARTED",pollType="KT03ActualSurfaceGestureContracts",pollField="ResultJson",result=ResultJson};
+    }
+    sealed class Snapshot
+    {
+        public GroundWorkshopMap owner;public Tilemap map;public BoundsInt bounds;public TileBase[] tiles;public string attributes;
+        public static string Attributes(Tilemap map,BoundsInt bounds)
+        {var text=new System.Text.StringBuilder();foreach(var cell in bounds.allPositionsWithin){var tile=map.GetTile(cell);if(tile==null)continue;var flags=map.GetTileFlags(cell);text.Append(cell).Append(tile.GetInstanceID()).Append(map.GetColor(cell).ToString("F6")).Append((int)flags);if((flags&TileFlags.LockTransform)==0)text.Append(map.GetTransformMatrix(cell).ToString("F6"));}return text.ToString();}
+        public bool Matches()=>map!=null&&tiles.SequenceEqual(map.GetTilesBlock(bounds))&&attributes==Attributes(map,bounds);
+    }
+    sealed class WindowState{public GroundWorkshopWindow window;public GroundResearchSurface surface;public int layer;}
+    sealed class Step{public string name;public Action action;public bool coordinates;}
+    sealed class Runner
+    {
+        const string ScenePath="Assets/OSSASTRA/GroundWorkshop/Samples/KT-GROUND-03/SC_CliffEdgeLab.unity";
+        // Exact M1 identity. A rebuilt Lab with other identities must be deliberately re-approved, not guessed by First().
+        const string SurfaceA="0544cd8ed8b24bbd81646cd2134def4a";
+        readonly List<object> rows=new List<object>(),dispatches=new List<object>(),calibrations=new List<object>(),cacheTrace=new List<object>();
+        readonly Queue<Step> steps=new Queue<Step>();readonly HashSet<int> priorWindows=new HashSet<int>();
+        GroundSurfaceBinding binding;GroundSurfaceMeshCache cache;GroundWorkshopMap author;GroundResearchSurface surface;GroundLayer layer;Tilemap target;
+        Scene scene;SceneView view;GroundWorkshopWindow window;FrontierGroundBrush brush;EditorWindow palette,priorFocus;
+        GridBrushBase priorBrush;GameObject priorTarget;Type priorTool;UnityEngine.Object[] priorSelection;WindowState[] windowStates;
+        Snapshot[] snapshots;Vector3Int[] route;Vector2[] gui;bool[] layerLocks;bool ending,ready,calibrated,captured,cleanupDone;
+        int layerIndex,fixtureGroup=-1,passed,failed,startRebuild,startCacheId;double started,nextTick;string phase="setup",guiError,sceneHash;
+        string originalSignature;bool initialDirty,ownsAuthorWindow,borrowedBrush;float priorTimeScale;Vector3Int priorBrushSize,priorBrushPivot;
+
+        public void Start()
+        {
+            if(!GroundWorkshopOwnership.ContextReady(out string reason))throw new InvalidOperationException(reason);
+            scene=SceneManager.GetActiveScene();if(scene.path!=ScenePath||scene.isDirty)throw new InvalidOperationException("Requires the saved clean KT03 Lab; author scene is preserved.");
+            if(GroundWorkshopAuthoring.HasPreview||scene.GetRootGameObjects().SelectMany(root=>root.GetComponentsInChildren<GroundSurfaceLabView>(true)).Any(v=>v.IsObserving))throw new InvalidOperationException("Finish existing preview/observation first; fixture does not take it over.");
+            if(Resources.FindObjectsOfTypeAll<FrontierGroundBrush>().Any(b=>b.IsStrokeActive))throw new InvalidOperationException("A prior workshop stroke is active; fixture preserves it.");
+            binding=GroundSurfaceAuthoring.GetBindings().Single(b=>b.SurfaceId==SurfaceA);author=binding.map;surface=author.surface;
+            GroundWorkshopOwnership.Require(author);
+            var caches=binding.GetComponentsInChildren<GroundSurfaceMeshCache>(true).AsEnumerable();if(binding.cacheRoot!=null)caches=caches.Concat(binding.cacheRoot.GetComponentsInChildren<GroundSurfaceMeshCache>(true));cache=caches.Where(c=>c.binding==binding).Distinct().Single();
+            var existing=GridPaintingState.gridBrush as FrontierGroundBrush;
+            if(existing!=null)
+            {
+                int existingIndex=Array.IndexOf(surface.layers,existing.Layer);
+                if(existing.Surface!=surface||existingIndex<0||author.theme.layers[existingIndex].purpose!=GroundLayerPurpose.Road||
+                    GroundWorkshopAuthoring.IsLayerLocked(author,existingIndex)||existing.size!=Vector3Int.one||existing.pivot!=Vector3Int.zero||
+                    GridPaintingState.scenePaintTarget!=existing.Layer.tilemap.gameObject)
+                    throw new InvalidOperationException("Existing brush is not idle A/same Road/D1/zero pivot. User tool configuration is preserved.");
+                var owners=Resources.FindObjectsOfTypeAll<GroundWorkshopWindow>().Where(w=>w.SelectedMap==author&&w.SelectedLayerIndex==existingIndex).ToArray();
+                if(owners.Length!=1)throw new InvalidOperationException("Existing A brush has no unique matching original Window; fixture does not guess its owner.");
+                var existingRoute=Route(existing.Layer.tilemap,existing.Layer.paintTile);
+                if(existingRoute==null)throw new InvalidOperationException("Existing A Road has no real two-cell change; fixture does not reconfigure the user brush.");
+                layerIndex=existingIndex;layer=existing.Layer;target=layer.tilemap;route=existingRoute;window=owners[0];brush=existing;borrowedBrush=true;
+            }
+            for(int i=surface.layers.Length-1;target==null&&i>=0;i--)
+            {
+                if(author.theme.layers[i].purpose!=GroundLayerPurpose.Road||GroundWorkshopAuthoring.IsLayerLocked(author,i))continue;
+                var candidate=surface.layers[i];var path=Route(candidate.tilemap,candidate.paintTile);
+                if(path==null)continue;layerIndex=i;layer=candidate;target=candidate.tilemap;route=path;break;
+            }
+            if(target==null)throw new InvalidOperationException("No unlocked Road layer with a real two-cell change inside A. No author data was cleared to manufacture a case.");
+            var maps=scene.GetRootGameObjects().SelectMany(root=>root.GetComponentsInChildren<GroundWorkshopMap>(true)).ToArray();
+            snapshots=maps.SelectMany(map=>map.surface.layers.Where(l=>l!=null&&l.tilemap!=null).Select(l=>new Snapshot{owner=map,map=l.tilemap,bounds=map.surface.EditableCells,tiles=l.tilemap.GetTilesBlock(map.surface.EditableCells),attributes=Snapshot.Attributes(l.tilemap,map.surface.EditableCells)})).ToArray();
+            layerLocks=surface.layers.Select(l=>l.isLocked).ToArray();initialDirty=scene.isDirty;sceneHash=Hash(scene.path);priorTimeScale=Time.timeScale;
+            priorBrush=GridPaintingState.gridBrush;priorTarget=GridPaintingState.scenePaintTarget;priorTool=ToolManager.activeToolType;priorSelection=Selection.objects;priorFocus=EditorWindow.focusedWindow;
+            if(borrowedBrush){priorBrushSize=brush.size;priorBrushPivot=brush.pivot;}
+            windowStates=Resources.FindObjectsOfTypeAll<GroundWorkshopWindow>().Select(w=>new WindowState{window=w,surface=w.SelectedSurface,layer=w.SelectedLayerIndex}).ToArray();
+            foreach(var item in Resources.FindObjectsOfTypeAll<EditorWindow>())priorWindows.Add(item.GetInstanceID());captured=true;
+            fixtureGroup=Undo.GetCurrentGroup();Undo.IncrementCurrentGroup();fixtureGroup=Undo.GetCurrentGroup();Undo.SetCurrentGroupName("KT03 bounded SceneView gesture");
+            if(!borrowedBrush)
+            {
+                window=ScriptableObject.CreateInstance<GroundWorkshopWindow>();ownsAuthorWindow=true;window.titleContent=new GUIContent("KT03 临时原工坊");window.ShowUtility();
+                window.SelectSurface(surface);Require("original-window-selects-platform-A",window.SelectedMap==author);
+                Require("original-window-selects-road-layer",window.SelectLayer(layerIndex));
+                Require("original-window-activates-Native-brush",window.ActivateBrush(typeof(PaintTool)));
+                brush=GridPaintingState.gridBrush as FrontierGroundBrush;
+            }
+            else
+            {Require("existing-A-brush-is-borrowed-without-reconfiguration",GridPaintingState.gridBrush==brush&&window.SelectedMap==author&&window.SelectedLayerIndex==layerIndex);TilemapEditorTool.SetActiveEditorTool(typeof(PaintTool));}
+            Require("actual-Palette-target-is-A-road",brush!=null&&brush.Surface==surface&&GridPaintingState.scenePaintTarget==target.gameObject);
+            palette=Resources.FindObjectsOfTypeAll<EditorWindow>().FirstOrDefault(w=>w.GetType().FullName=="UnityEditor.Tilemaps.GridPaintPaletteWindow");
+            view=ScriptableObject.CreateInstance<SceneView>();view.titleContent=new GUIContent("KT03 临时SceneView手势");view.position=new Rect(100,100,1000,760);view.Show();view.Focus();
+            view.in2DMode=false;view.orthographic=true;view.LookAtDirect((target.GetCellCenterWorld(route[0])+target.GetCellCenterWorld(route[1]))*.5f,Quaternion.Euler(90,0,0),Mathf.Max(8,surface.WorldBounds.size.magnitude*.5f));
+            started=EditorApplication.timeSinceStartup;startRebuild=cache.rebuildCount;startCacheId=cache.GetInstanceID();originalSignature=cache.signature;TraceCache("before-stroke");
+            Step("paint-native-down-drag-up",()=>{Enter();Gesture();Require("real-stroke-writes-Tile-and-Sprite",route.All(c=>target.GetTile(c)==layer.paintTile&&target.GetSprite(c)!=null));Require("mouse-up-finishes-the-original-brush",!brush.IsStrokeActive);TraceCache("after-pointer-before-update");},true);
+            Step("paint-cache-and-isolation",()=>{TraceCache("after-update-delay");var current=CurrentCache();Require("paint-automatically-updates-A-cache",current!=null&&current.rebuildCount>startRebuild,"initialCacheId="+startCacheId+"; oldFakeNull="+(cache==null)+"; currentId="+(current==null?0:current.GetInstanceID())+"; currentCount="+(current==null?-1:current.rebuildCount)+"; initialCount="+startRebuild);RequireOthers();Undo.FlushUndoRecordObjects();Undo.PerformUndo();});
+            Step("native-undo",()=>{Require("one-Undo-restores-all-author-inputs",snapshots.All(s=>s.Matches()));Undo.PerformRedo();});
+            Step("native-redo",()=>{Require("one-Redo-restores-real-stroke",route.All(c=>target.GetTile(c)==layer.paintTile&&target.GetSprite(c)!=null));RequireOthers();TilemapEditorTool.SetActiveEditorTool(typeof(PickingTool));});
+            Step("native-pick",()=>{Enter();Send(EventType.MouseDown,gui[0]);Send(EventType.MouseUp,gui[0]);Require("actual-Pick-reports-A-cell",brush.LastPickedMap==target&&brush.LastPickedCell==route[0]);Require("Pick-keeps-A-as-Palette-target",GridPaintingState.scenePaintTarget==target.gameObject);TilemapEditorTool.SetActiveEditorTool(typeof(EraseTool));},true);
+            Step("native-erase",()=>{Enter();Gesture();Require("actual-Erase-writes-the-layer-replacement",route.All(c=>target.GetTile(c)==layer.eraseReplacement));RequireOthers();},true);
+            Step("lock-condition",()=>{Undo.IncrementCurrentGroup();Undo.SetCurrentGroupName("KT03 temporary lock condition");Undo.RecordObject(surface,"KT03 temporary lock condition");layer.isLocked=true;EditorUtility.SetDirty(surface);Undo.FlushUndoRecordObjects();TilemapEditorTool.SetActiveEditorTool(typeof(PaintTool));});
+            Step("locked-native-pointer",()=>{var before=Snapshot.Attributes(target,surface.EditableCells);Gesture();Require("locked-layer-rejects-real-pointer-write",before==Snapshot.Attributes(target,surface.EditableCells)&&!brush.IsStrokeActive);RequireOthers();Undo.PerformUndo();Require("Undo-restores-the-temporary-lock",!layer.isLocked);},true);
+            Step("fixture-Undo-to-baseline",()=>{RequireOthers();brush.FinishStroke(true);Undo.RevertAllDownToGroup(fixtureGroup);Undo.IncrementCurrentGroup();cleanupDone=true;});
+            Step("baseline-after-auto-cache-refresh",()=>{TraceCache("baseline-after-Undo-update");Require("all-original-author-inputs-restored",snapshots.All(s=>s.Matches()));Require("all-A-layer-locks-restored",surface.layers.Select(l=>l.isLocked).SequenceEqual(layerLocks));var current=CurrentCache();Require("A-cache-input-signature-restored",current!=null&&current.signature==originalSignature);RequireOthers();});
+            SceneView.duringSceneGui+=DuringGui;EditorApplication.update+=Tick;nextTick=started+.4;Publish("RUNNING");view.Repaint();
+        }
+        Vector3Int[] Route(Tilemap map,TileBase paint)
+        {
+            var bounds=surface.EditableCells;
+            foreach(var cell in bounds.allPositionsWithin)
+            {
+                var next=cell+Vector3Int.right;if(!surface.ContainsCell(next))continue;
+                if(map.GetTile(cell)==paint&&map.GetTile(next)==paint)continue;
+                if(!binding.ContainsWorldPoint(map.GetCellCenterWorld(cell),.1f)||!binding.ContainsWorldPoint(map.GetCellCenterWorld(next),.1f))continue;
+                return new[]{cell,next};
+            }
+            return null;
+        }
+        void Step(string name,Action action,bool coordinates=false)=>steps.Enqueue(new Step{name=name,action=action,coordinates=coordinates});
+        void Require(string name,bool success,string detail=""){rows.Add(new{name,passed=success,detail});if(success)passed++;else{failed++;throw new InvalidOperationException(name+": "+detail);}}
+        void RequireOthers()=>Require("lowland-and-B-author-data-unchanged",snapshots.Where(s=>s.owner!=author).All(s=>s.Matches()));
+        GroundSurfaceMeshCache CurrentCache()=>binding==null||binding.cacheRoot==null?null:binding.cacheRoot.GetComponent<GroundSurfaceMeshCache>();
+        void TraceCache(string label)
+        {
+            var current=CurrentCache();cacheTrace.Add(new{label,seconds=EditorApplication.timeSinceStartup-started,initialCacheId=startCacheId,
+                initialCount=startRebuild,initialSignature=originalSignature,oldManagedNull=ReferenceEquals(cache,null),oldUnityFakeNull=cache==null,
+                oldStoredCount=ReferenceEquals(cache,null)?-1:cache.rebuildCount,oldStoredSignature=ReferenceEquals(cache,null)?null:cache.signature,
+                currentId=current==null?0:current.GetInstanceID(),currentCount=current==null?-1:current.rebuildCount,currentSignature=current==null?null:current.signature,
+                lastError=binding==null?"binding destroyed":binding.lastError,route=route.Select(c=>new{cell=new[]{c.x,c.y,c.z},tile=target.GetTile(c)==null?"null":target.GetTile(c).name,sprite=target.GetSprite(c)==null?"null":target.GetSprite(c).name}).ToArray()});
+        }
+        void DuringGui(SceneView current)
+        {
+            if(current!=view||Event.current==null||Event.current.type!=EventType.Repaint)return;
+            try
+            {
+                if(!calibrated)gui=route.Select(c=>WindowPoint(target.GetCellCenterWorld(c))).ToArray();
+                var safe=new Rect(35,45,view.position.width-70,view.position.height-90);
+                ready=gui.All(p=>!float.IsNaN(p.x)&&!float.IsNaN(p.y)&&safe.Contains(p));
+                if(!ready)guiError="Projected cells fall outside the safe SceneView viewport.";
+            }catch(Exception error){guiError=error.ToString();}
+        }
+        Vector2 WindowPoint(Vector3 world)
+        {var camera=view.camera;var pixel=camera.WorldToScreenPoint(world);float pp=EditorGUIUtility.pixelsPerPoint;float top=view.position.height-(camera.pixelRect.y+camera.pixelRect.height)/pp;return new Vector2(pixel.x/pp,top+(camera.pixelRect.y+camera.pixelRect.height-pixel.y)/pp);}
+        void Enter()
+        {
+            view.Focus();var originalTool=ToolManager.activeToolType;var before=snapshots.Select(s=>new Snapshot{map=s.map,bounds=s.bounds,tiles=s.map.GetTilesBlock(s.bounds),attributes=Snapshot.Attributes(s.map,s.bounds)}).ToArray();
+            TilemapEditorTool.SetActiveEditorTool(typeof(PaintTool));
+            var from=view.camera.WorldToScreenPoint(target.GetCellCenterWorld(route[0]));var to=view.camera.WorldToScreenPoint(target.GetCellCenterWorld(route[0]+Vector3Int.right));float pp=EditorGUIUtility.pixelsPerPoint;
+            var nudge=new Vector2((to.x-from.x)/pp,-(to.y-from.y)/pp);Send(EventType.MouseEnterWindow,gui[0]);Send(EventType.MouseMove,gui[0]+nudge);Send(EventType.Layout,gui[0]+nudge);
+            bool found=false;
+            for(int attempt=0;attempt<4;attempt++)
+            {
+                Send(EventType.MouseEnterWindow,gui[0]);Send(EventType.MouseMove,gui[0]);Send(EventType.Layout,gui[0]);
+                var previewCells=new List<Vector3Int>();foreach(var cell in surface.EditableCells.allPositionsWithin)if(target.GetEditorPreviewTile(cell)==layer.paintTile)previewCells.Add(cell);var preview=previewCells.ToArray();
+                calibrations.Add(new{phase,attempt,preview=preview.Select(c=>new[]{c.x,c.y,c.z}).ToArray(),sent=new[]{gui[0].x,gui[0].y}});
+                Require("calibration-has-one-real-Native-preview",preview.Length==1);
+                if(preview[0]==route[0]){found=true;calibrated=true;break;}
+                var wanted=view.camera.WorldToScreenPoint(target.GetCellCenterWorld(route[0]));var actual=view.camera.WorldToScreenPoint(target.GetCellCenterWorld(preview[0]));
+                var correction=new Vector2((wanted.x-actual.x)/pp,-(wanted.y-actual.y)/pp);for(int i=0;i<gui.Length;i++)gui[i]+=correction;calibrated=true;
+            }
+            Require("calibration-matches-A-author-cell",found);Require("calibration-never-writes-author-data",before.All(s=>s.Matches()));
+            if(originalTool!=null&&originalTool!=typeof(PaintTool))TilemapEditorTool.SetActiveEditorTool(originalTool);
+            Send(EventType.MouseMove,gui[0]);Send(EventType.Layout,gui[0]);
+        }
+        void Gesture(){Send(EventType.MouseDown,gui[0]);Send(EventType.MouseDrag,gui[1],gui[1]-gui[0]);Send(EventType.MouseUp,gui[1]);}
+        void Send(EventType type,Vector2 point,Vector2 delta=default)
+        {bool consumed=view.SendEvent(new Event{type=type,mousePosition=point,button=0,delta=delta,clickCount=type==EventType.MouseDown?1:0});dispatches.Add(new{type=type.ToString(),point=new[]{point.x,point.y},consumed});}
+        void Tick()
+        {
+            if(ending)return;
+            try
+            {
+                double now=EditorApplication.timeSinceStartup;if(now-started>35)throw new TimeoutException(phase+": "+guiError);
+                if(EditorApplication.isPlayingOrWillChangePlaymode||EditorApplication.isCompiling||scene!=SceneManager.GetActiveScene())throw new InvalidOperationException("Editor lifecycle changed; fixture stops.");
+                if(now<nextTick)return;if(steps.Count==0){End(null);return;}
+                var step=steps.Peek();phase=step.name;Publish("RUNNING");
+                if(step.coordinates&&(!ready||EditorWindow.focusedWindow!=view)){view.Focus();view.Repaint();return;}
+                steps.Dequeue();step.action();nextTick=now+.35;
+            }catch(Exception error){End(error.ToString());}
+        }
+        public void End(string error)
+        {
+            if(ending)return;ending=true;EditorApplication.update-=Tick;SceneView.duringSceneGui-=DuringGui;
+            try
+            {
+                if(!cleanupDone&&fixtureGroup>=0&&scene==SceneManager.GetActiveScene())
+                {
+                    if(snapshots!=null&&snapshots.Where(s=>s.owner!=author).Any(s=>!s.Matches()))throw new InvalidOperationException("Non-A author changed externally; no broad Undo cleanup is attempted. Root must inspect retained fixture.");
+                    if(brush!=null)brush.FinishStroke(true);Undo.RevertAllDownToGroup(fixtureGroup);Undo.IncrementCurrentGroup();
+                }
+                if(snapshots!=null)Require("final-author-input-baseline",snapshots.All(s=>s.Matches()));
+                if(!string.IsNullOrEmpty(sceneHash))Require("saved-Lab-file-SHA-unchanged",Hash(scene.path)==sceneHash);
+                if(captured)
+                {
+                    bool ownsPalette=GridPaintingState.gridBrush==brush&&GridPaintingState.scenePaintTarget==target.gameObject;
+                    if(window!=null&&ownsAuthorWindow)window.Close();window=null;
+                    foreach(var state in windowStates)if(state.window!=null&&state.window.SelectedSurface==surface&&state.window.SelectedLayerIndex==layerIndex){state.window.SelectSurface(state.surface);state.window.SelectLayer(state.layer);}
+                    if(ownsPalette)
+                    {
+                        if(priorTool!=null)ToolManager.SetActiveTool(priorTool);else ToolManager.RestorePreviousTool();
+                        GridPaintingState.gridBrush=priorBrush;GridPaintingState.scenePaintTarget=priorTarget;Selection.objects=priorSelection;
+                    }
+                    Require("Palette-target-and-brush-restored",GridPaintingState.gridBrush==priorBrush&&GridPaintingState.scenePaintTarget==priorTarget);
+                    if(borrowedBrush)Require("borrowed-brush-identity-size-and-pivot-preserved",brush!=null&&GridPaintingState.gridBrush==brush&&brush.size==priorBrushSize&&brush.pivot==priorBrushPivot);
+                    Require("world-time-scale-unchanged",Time.timeScale==priorTimeScale);
+                }
+            }
+            catch(Exception failure){failed++;rows.Add(new{name="cleanup",passed=false,detail=failure.ToString()});if(error==null)error=failure.ToString();}
+            finally
+            {
+                if(window!=null&&ownsAuthorWindow)window.Close();if(view!=null)view.Close();if(palette!=null&&!priorWindows.Contains(palette.GetInstanceID()))palette.Close();if(priorFocus!=null)priorFocus.Focus();
+                ResultJson=Json(new{status=error==null&&failed==0?"GREEN":"RED",error,phase,passed,failed,rows,dispatches,calibrations,cacheTrace,borrowedBrush,scene=scene.IsValid()?scene.path:"none",surfaceId=author==null?"none":author.registration.mapId,layer=layerIndex,
+                    route=route==null?null:route.Select(c=>new[]{c.x,c.y,c.z}).ToArray(),initialDirty,finalDirty=scene.IsValid()&&scene.isDirty,
+                    boundary="Native SceneView SendEvent, public original window and brush; Undo-recorded lock condition. No direct Paint/Erase/SetTile/Scene save. Final input baseline restored through native Undo. Cache cleanup is asynchronous on abnormal early exit.",physicalHardwareVerified=false});active=null;
+            }
+        }
+        void Publish(string status){ResultJson=Json(new{status,phase,passed,failed});}
+        static string Hash(string path){var absolute=System.IO.Path.GetFullPath(System.IO.Path.Combine(Application.dataPath,"..",path));using(var stream=System.IO.File.OpenRead(absolute))using(var sha=System.Security.Cryptography.SHA256.Create())return Convert.ToBase64String(sha.ComputeHash(stream));}
+    }
+}

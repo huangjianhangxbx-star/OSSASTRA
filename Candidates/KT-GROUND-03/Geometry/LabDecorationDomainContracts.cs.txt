@@ -1,0 +1,142 @@
+/* 新Lab装饰域/退让/失效提示合同：真实Place/Scatter/模型版本与原生Undo；没有中间Save。
+ * 手摆、锁及缩域后无效生成实例保持原生脚点；诊断列表只读，不把保留误报成已经修复落点。
+ */
+using System;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Globalization;
+using System.Collections.Generic;
+using System.Security.Cryptography;
+using System.Text;
+using Ossastra.GroundResearch;
+using Ossastra.GroundResearch.Editor;
+using Ossastra.GroundSurfaces;
+using Ossastra.GroundSurfaces.Editor;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEditor;
+using Funplay.Editor.Tools.Scripting;
+using Object=UnityEngine.Object;
+
+public sealed class KT03LabDecorationDomainContracts : IFunplayCommand
+{
+    readonly List<string> passed=new List<string>(),failed=new List<string>();
+    readonly List<object> issueEvidence=new List<object>();
+    static void Require(bool v,string m){if(!v)throw new InvalidOperationException(m);}
+    void Case(string name,Action action){try{action();passed.Add(name);}catch(Exception e){failed.Add(name+": "+(e.InnerException??e).Message);}}
+    static object Field(object value,string name)=>value.GetType().GetField(name).GetValue(value);
+    static string Sha(string path){using(var stream=File.OpenRead(path))using(var sha=SHA256.Create())return Convert.ToBase64String(sha.ComputeHash(stream));}
+    static string Hash(Action<BinaryWriter> action){using(var s=new MemoryStream()){using(var w=new BinaryWriter(s,Encoding.UTF8,true))action(w);s.Position=0;using(var h=SHA256.Create())return Convert.ToBase64String(h.ComputeHash(s));}}
+    static void Matrix(BinaryWriter w,Matrix4x4 m){for(int r=0;r<4;r++)for(int c=0;c<4;c++)w.Write(m[r,c]);}
+    static string Tiles(GroundWorkshopMap map)=>Hash(w=>
+    {
+        w.Write(map.registration.mapId);foreach(var layer in map.surface.layers){var t=layer.tilemap;w.Write(t.origin.x);w.Write(t.origin.y);w.Write(t.size.x);w.Write(t.size.y);foreach(var cell in t.cellBounds.allPositionsWithin){var tile=t.GetTile(cell);var color=t.GetColor(cell);w.Write(cell.x);w.Write(cell.y);w.Write(cell.z);w.Write(tile==null?0:tile.GetInstanceID());w.Write(color.r);w.Write(color.g);w.Write(color.b);w.Write(color.a);w.Write((int)t.GetTileFlags(cell));Matrix(w,t.GetTransformMatrix(cell));}}
+    });
+    static string Decor(GroundWorkshopMap map)=>Hash(w=>
+    {
+        var roots=new List<Transform>();foreach(Transform child in map.decorationRoot)roots.Add(child);
+        foreach(var root in roots.OrderBy(t=>{var i=t.GetComponent<GroundDecorationInstance>();return i==null?"external:"+t.name:i.instanceId;}))
+        {
+            var i=root.GetComponent<GroundDecorationInstance>();w.Write(i==null?"external:"+root.name:i.instanceId);Matrix(w,root.localToWorldMatrix);
+            if(i!=null){w.Write(i.assetId??"");w.Write(i.generationGroup??"");w.Write(i.generated);w.Write(i.isLocked);w.Write(i.seed);w.Write(i.definition==null?0:i.definition.GetInstanceID());}
+        }
+    });
+    static string Pattern(GroundSurfaceBinding binding)=>Hash(w=>
+    {
+        var values=binding.map.decorationRoot.GetComponentsInChildren<GroundDecorationInstance>(true).Where(i=>i.generated&&!i.isLocked&&binding.ContainsWorldPoint(i.transform.position)).OrderBy(i=>i.transform.position.x).ThenBy(i=>i.transform.position.z).ToArray();
+        w.Write(values.Length);foreach(var i in values){w.Write(i.assetId);Matrix(w,i.transform.localToWorldMatrix);w.Write(i.visual.localScale.x);}
+    });
+    static GroundDecorationInstance[] Instances(GroundWorkshopMap map)=>map.decorationRoot.GetComponentsInChildren<GroundDecorationInstance>(true);
+    static string InstanceState(GroundDecorationInstance i)=>Hash(w=>{w.Write(i.instanceId);w.Write(i.generated);w.Write(i.isLocked);w.Write(i.assetId);Matrix(w,i.transform.localToWorldMatrix);});
+    static void Reject(Action action)
+    {bool rejected=false;try{action();}catch(Exception e){var actual=e is TargetInvocationException?e.InnerException:e;rejected=actual is InvalidOperationException||actual is ArgumentException;}Require(rejected,"应在写入前拒绝无效脚点");}
+    public void Execute(ExecutionContext ctx)
+    {
+        var diag=AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType("Ossastra.GroundSurfaces.Editor.GroundSurfaceDecorationDiagnostics")).FirstOrDefault(t=>t!=null);
+        if(diag==null){ctx.ReturnValue=new{passed=0,failed=1,failedCases=new[]{"只读装饰诊断未安装，无法冒称失效提示已经实现"}};return;}
+        GroundSurfaceBinding a=null;GroundWorkshopMap[] maps=null;Dictionary<string,string> tiles=null,decor=null,files=null;Dictionary<Transform,Matrix4x4> actors=null;
+        GameObject foreign=null;int fixture=-1;Object previousSelection=Selection.activeObject;float timeScale=Time.timeScale;
+        try
+        {
+            var scene=SceneManager.GetActiveScene();Require(scene.path==GroundSurfaceAuthoring.ScenePath&&!Application.isPlaying&&!GroundWorkshopAuthoring.HasPreview,"仅精确Lab Edit且无预览");
+            var bindings=GroundSurfaceAuthoring.GetBindings();a=bindings.OrderBy(b=>b.transform.position.y).First();Require(a.currentModelVariant==0&&a.modelVariants.Length>=2,"A原版0前置条件");
+            maps=scene.GetRootGameObjects().SelectMany(r=>r.GetComponentsInChildren<GroundWorkshopMap>(true)).ToArray();Require(maps.Length==3,"实际三Map");
+            Require(AssetDatabase.LoadAssetAtPath<Material>(a.map.registration.assetFolder+"/Decoration.mat")!=null&&a.map.GetComponent<GroundDecorationOrientation>()!=null,"原样板应已有装饰材质/方向组件，合同不创建新资产");
+            tiles=maps.ToDictionary(m=>m.registration.mapId,Tiles);decor=maps.ToDictionary(m=>m.registration.mapId,Decor);
+            var paths=new HashSet<string>{GroundSurfaceAuthoring.ScenePath,GroundWorkshopOwnership.ReferenceScene,GroundWorkshopOwnership.OriginalScene,FrontierGroundSceneBuilder.ScenePath};foreach(var map in maps)foreach(var path in Directory.GetFiles(map.registration.assetFolder,"*",SearchOption.AllDirectories))paths.Add(path);foreach(var def in maps.SelectMany(m=>m.theme.decorations).Where(d=>d!=null)){paths.Add(AssetDatabase.GetAssetPath(def));paths.Add(AssetDatabase.GetAssetPath(def)+".meta");}foreach(var mesh in bindings.SelectMany(b=>b.modelVariants)){paths.Add(AssetDatabase.GetAssetPath(mesh));paths.Add(AssetDatabase.GetAssetPath(mesh)+".meta");}files=paths.Where(File.Exists).ToDictionary(p=>p,Sha);
+            actors=scene.GetRootGameObjects().SelectMany(r=>r.GetComponentsInChildren<MonoBehaviour>(true)).Where(c=>c!=null&&(c.GetType().Name=="CharacterRoot"||c.GetType().Name=="EnemyRoot")).Select(c=>c.transform).Concat(scene.GetRootGameObjects().SelectMany(r=>r.GetComponentsInChildren<Camera>(true)).Select(c=>c.transform)).Distinct().ToDictionary(t=>t,t=>t.localToWorldMatrix);
+            var defn=a.map.theme.decorations.First(d=>d!=null&&d.sprite!=null);var original=a.GetDomain();var smaller=GroundSurfaceModelReader.ReadDomain(a,a.modelVariants[1]);var lost=new List<Vector3>();Vector3 inside=default,edge=default,outside=default;bool haveInside=false,haveEdge=false,haveOutside=false;
+            for(int x=1;x<40;x++)for(int z=1;z<40;z++)
+            {
+                var p=new Vector2(Mathf.Lerp(original.bounds.xMin,original.bounds.xMax,x/40f),Mathf.Lerp(original.bounds.yMin,original.bounds.yMax,z/40f));var world=a.transform.TransformPoint(new Vector3(p.x,a.boundary.localTopY,p.y));
+                if(a.ContainsWorldPoint(world,a.DecorationInset+.05f))
+                {
+                    if(!haveInside&&GroundSurfaceGeometry.ContainsXZ(smaller,p)){inside=world;haveInside=true;}
+                    if(!GroundSurfaceGeometry.ContainsXZ(smaller,p)&&lost.All(q=>Vector3.Distance(q,world)>.8f))lost.Add(world);
+                }
+                if(!haveOutside&&!GroundSurfaceGeometry.ContainsXZ(original,p)){outside=world;haveOutside=true;}
+            }
+            for(int i=0;i<original.ring.Length&&!haveEdge;i++)
+            {
+                var p=original.ring[i];var q=original.ring[(i+1)%original.ring.Length];Vector3 start=a.transform.TransformPoint(new Vector3(p.x,a.boundary.localTopY,p.y)),end=a.transform.TransformPoint(new Vector3(q.x,a.boundary.localTopY,q.y));
+                var candidate=(start+end)*.5f+Vector3.Cross((end-start).normalized,Vector3.up)*a.DecorationInset*.5f;
+                if(a.ContainsWorldPoint(candidate)&&!a.ContainsWorldPoint(candidate,a.DecorationInset)){edge=candidate;haveEdge=true;}
+            }
+            Require(haveInside&&haveEdge&&haveOutside&&lost.Count>=3,"实际模型内/外/退让区及缩域落点夹具");
+            Undo.IncrementCurrentGroup();fixture=Undo.GetCurrentGroup();Undo.SetCurrentGroupName("KT03装饰域与失效提示合同");
+            Case("Place拒绝同XZ低层域外与不足退让且无作者副作用",()=>
+            {
+                string before=Decor(a.map);int group=Undo.GetCurrentGroup();Reject(()=>GroundWorkshopDecorations.Place(a.map,defn,new Vector3(inside.x,0,inside.z)));Reject(()=>GroundWorkshopDecorations.Place(a.map,defn,outside));Reject(()=>GroundWorkshopDecorations.Place(a.map,defn,edge));
+                Require(Decor(a.map)==before&&Undo.GetCurrentGroup()==group,"拒绝路径改变了装饰或Undo");
+            });
+            var manual=GroundWorkshopDecorations.Place(a.map,defn,lost[0],true);var locked=GroundWorkshopDecorations.Place(a.map,defn,lost[1],false);GroundWorkshopDecorations.SetProtected(locked,true);var generated=GroundWorkshopDecorations.Place(a.map,defn,lost[2],false);
+            var edgeMoved=GroundWorkshopDecorations.Place(a.map,defn,inside,true);Undo.RecordObject(edgeMoved.transform,"KT03手摆边缘脚点");edgeMoved.transform.position=edge;Undo.FlushUndoRecordObjects();
+            var highMoved=GroundWorkshopDecorations.Place(a.map,defn,inside,true);Undo.RecordObject(highMoved.transform,"KT03手摆错误高度");highMoved.transform.position=inside+Vector3.up*2;Undo.FlushUndoRecordObjects();
+            foreign=new GameObject("KT03 foreign decoration sentinel");foreign.transform.SetParent(a.map.decorationRoot,false);foreign.transform.position=inside+Vector3.right;var foreignMatrix=foreign.transform.localToWorldMatrix;
+            Case("已有手摆移动后的退让和高度错误由只读列表定位",()=>
+            {
+                string before=Decor(a.map);var selection=Selection.activeObject;var rows=((Array)diag.GetMethod("Inspect").Invoke(null,new object[]{a})).Cast<object>().ToArray();
+                Require(rows.Any(r=>(GroundDecorationInstance)Field(r,"instance")==edgeMoved&&(string)Field(r,"code")=="InsufficientInset")&&rows.Any(r=>(GroundDecorationInstance)Field(r,"instance")==highMoved&&(string)Field(r,"code")=="WrongHeight"),"真实无效脚点未分类");
+                Require(before==Decor(a.map)&&Selection.activeObject==selection&&foreign.GetComponent<GroundDecorationInstance>()==null,"Inspect修改了脚点/选择或接管foreign");
+            });
+            var kept=new[]{manual,locked,generated,edgeMoved,highMoved};var states=kept.ToDictionary(i=>i.instanceId,InstanceState);
+            GroundSurfaceAuthoring.UseModelVariant(a,1);Undo.FlushUndoRecordObjects();
+            Case("缩模型保留手摆锁定及域外生成的原生脚点并列原因",()=>
+            {
+                Require(kept.All(i=>i!=null&&InstanceState(i)==states[i.instanceId]),"模型变更删除/移动已有实例");
+                var rows=((Array)diag.GetMethod("Inspect").Invoke(null,new object[]{a})).Cast<object>().ToArray();
+                foreach(var instance in new[]{manual,locked,generated})
+                {
+                    var row=rows.Single(r=>(GroundDecorationInstance)Field(r,"instance")==instance);Require((string)Field(row,"code")=="OutsideBoundary"&&!string.IsNullOrWhiteSpace((string)Field(row,"reason"))&&(Vector3)Field(row,"worldFootpoint")==instance.transform.position,"失效行非原生脚点证据");
+                    issueEvidence.Add(new{instanceId=instance.instanceId,manual=!instance.generated,locked=instance.isLocked,code=Field(row,"code"),reason=Field(row,"reason"),world=instance.transform.position.ToString("R")});
+                }
+            });
+            Case("当前域撒布满足实际脚点退让间距并保留域外实例",()=>
+            {
+                int n=GroundWorkshopDecorations.Scatter(a.map,new[]{defn},a.map.surface.EditableCells,731,3f,1f,false);Require(n>0,"当前域应有实际生成样本");
+                var samples=Instances(a.map).Where(i=>i.generated&&!i.isLocked&&a.ContainsWorldPoint(i.transform.position)).ToArray();Require(samples.Length==n&&samples.All(i=>a.ContainsWorldPoint(i.transform.position,a.DecorationInset)),"撒布脚点越界/高度/退让");
+                for(int i=0;i<samples.Length;i++)for(int j=i+1;j<samples.Length;j++)Require(Vector3.Distance(samples[i].transform.position,samples[j].transform.position)>=.9999f,"实际世界间距不足");
+                Require(kept.All(i=>i!=null&&InstanceState(i)==states[i.instanceId])&&foreign!=null&&foreign.transform.localToWorldMatrix==foreignMatrix,"Scatter删移manual/locked/域外生成/foreign");
+                string first=Pattern(a);int next=GroundWorkshopDecorations.Scatter(a.map,new[]{defn},a.map.surface.EditableCells,731,3f,1f,false);Require(next==n&&Pattern(a)==first,"相同seed配置的原生布局不稳定");
+            });
+            Case("显式选择只定位原实例而不移动物件或相机",()=>{string before=Decor(a.map);diag.GetMethod("Select").Invoke(null,new object[]{a,manual});Require(Selection.activeGameObject==manual.gameObject&&Decor(a.map)==before,"Select没有只改选择");});
+            Case("坏域不能回报零个失效装饰",()=>
+            {
+                var rim=a.boundary.rim;try{a.boundary.rim=new[]{Vector2.zero,Vector2.one};Reject(()=>diag.GetMethod("Inspect").Invoke(null,new object[]{a}));}finally{a.boundary.rim=rim;a.InvalidateBoundary();}
+            });
+            Case("装饰与模型操作不改任何Map原生笔画或另一平台装饰",()=>{Require(maps.All(m=>Tiles(m)==tiles[m.registration.mapId]),"地表作者数据被修改");Require(maps.Where(m=>m!=a.map).All(m=>Decor(m)==decor[m.registration.mapId]),"其他Map装饰被改");});
+        }
+        catch(Exception e){failed.Add("装饰合同设置/执行异常："+(e.InnerException??e));}
+        finally
+        {
+            if(foreign!=null)Object.DestroyImmediate(foreign);if(fixture>=0){Undo.FlushUndoRecordObjects();Undo.RevertAllDownToGroup(fixture);}
+            if(a!=null)try{a.InvalidateBoundary();GroundSurfaceAuthoring.Rebuild(a);}catch(Exception e){failed.Add("恢复平台缓存："+e.Message);}
+            Selection.activeObject=previousSelection;
+            if(tiles!=null)Case("finally恢复三Map笔画与原装饰布局",()=>Require(maps.All(m=>Tiles(m)==tiles[m.registration.mapId]&&Decor(m)==decor[m.registration.mapId]),"原生作者或装饰基线未恢复"));
+            if(files!=null)Case("装饰合同无中间保存且源SHA保持",()=>Require(files.All(f=>File.Exists(f.Key)&&Sha(f.Key)==f.Value),"源文件变化"));
+            if(actors!=null)Case("装饰合同未移动角色相机或改TimeScale",()=>Require(actors.All(p=>p.Key!=null&&p.Key.localToWorldMatrix==p.Value)&&Time.timeScale==timeScale,"控制链边界变化"));
+        }
+        ctx.ReturnValue=new{passed=passed.Count,failed=failed.Count,passedCases=passed,failedCases=failed,issueEvidence=issueEvidence,baselineTileHashes=tiles,baselineDecorationHashes=decor,scope="Actual Place/Scatter/model variants and read-only invalid-footpoint list; explicit selection; single outer Undo fixture restored; no intermediate save"};
+    }
+}

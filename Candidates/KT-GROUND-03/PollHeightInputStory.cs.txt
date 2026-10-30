@@ -1,0 +1,2 @@
+using System;using System.Linq;using System.Reflection;using Funplay.Editor.Tools.Scripting;
+public sealed class PollHeightInputStory:IFunplayCommand{public void Execute(ExecutionContext ctx){var t=AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType("KT03HeightInputStory",false)).FirstOrDefault(t=>t!=null);ctx.ReturnValue=t==null?new{missing=true}:(object)t.GetField("Report",BindingFlags.Public|BindingFlags.Static).GetValue(null);}}

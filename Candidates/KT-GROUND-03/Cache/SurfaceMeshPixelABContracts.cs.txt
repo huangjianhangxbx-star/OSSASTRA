@@ -1,0 +1,194 @@
+/* Native像素A/B：同一PreviewScene/Camera/Shader/MPB，以TilemapRenderer原生帧为独立期望。
+ * 自有4×4双色非对称alpha图、非中心pivot、anchor/方向矩阵/格手工矩阵/父TRS哨兵。
+ * flatten=false、clip=false，互斥绘制；每案保留原始Native/Mesh完整帧，不剪贴/调色，不写持久Unity资产。
+ * GroundSurface.CacheTestOutput需预先设置为已存在外部目录。通过规则预先固定为RGBA逐字节完全相同；
+ * 同时报告原始max/MAE/RMSE/超1级像素数，失败不放宽阈值，不把空白帧当通过。
+ */
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using Funplay.Editor.Tools.Scripting;
+using Newtonsoft.Json.Linq;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.SceneManagement;
+using UnityEngine.Tilemaps;
+using Ossastra.GroundResearch;
+using Ossastra.GroundSurfaces;
+using Ossastra.GroundSurfaces.Editor;
+
+public sealed class SurfaceMeshPixelABContracts : IFunplayCommand
+{
+    private const int size=512;
+    private sealed class Case
+    {
+        public string name;
+        public Vector3 anchor,rootPosition,rootScale,layerPosition;
+        public Quaternion rootRotation,layerRotation;
+        public Matrix4x4 cellMatrix,orientation;
+        public bool customOrientation;
+        public bool whiteVertex;
+    }
+    public void Execute(ExecutionContext ctx)
+    {
+        string parent=SessionState.GetString("GroundSurface.CacheTestOutput","");
+        if(!Directory.Exists(parent))throw new InvalidOperationException("请先设置明确已存在的外部CacheTestOutput。");
+        if(EditorApplication.isPlayingOrWillChangePlaymode||EditorApplication.isCompiling||EditorApplication.isUpdating)throw new InvalidOperationException("Native像素A/B需ready Edit。");
+        string output=Path.Combine(parent,"PixelAB_"+Guid.NewGuid().ToString("N"));Directory.CreateDirectory(output);
+        var scene=EditorSceneManager.NewPreviewScene();var owned=new List<UnityEngine.Object>();var ownedMeshes=new List<Mesh>();
+        var rows=new List<object>();var failure=new List<string>();RenderTexture previous=RenderTexture.active;
+        bool passed=false;string runtimeFailure=null;
+        try
+        {
+            var root=NewObject(scene,"非对称Native像素验证");var grid=root.AddComponent<Grid>();grid.cellSize=Vector3.one;grid.cellSwizzle=GridLayout.CellSwizzle.XZY;
+            var surface=root.AddComponent<GroundResearchSurface>();surface.grid=grid;surface.editableCells=new BoundsInt(-8,-8,0,16,16,1);
+            var map=root.AddComponent<GroundWorkshopMap>();map.surface=surface;map.registration=ScriptableObject.CreateInstance<GroundMapRegistration>();owned.Add(map.registration);map.registration.mapId=Guid.NewGuid().ToString("N");
+            var binding=root.AddComponent<GroundSurfaceBinding>();binding.map=map;binding.chunkSize=8;binding.flattenDisplay=false;
+            binding.boundary=ScriptableObject.CreateInstance<GroundSurfaceBoundary>();owned.Add(binding.boundary);binding.boundary.localTopY=0;
+            var layer=NewObject(scene,"原生Tilemap");layer.transform.SetParent(root.transform,false);var tiles=layer.AddComponent<Tilemap>();
+            var native=layer.AddComponent<TilemapRenderer>();native.mode=TilemapRenderer.Mode.Chunk;native.shadowCastingMode=ShadowCastingMode.Off;native.receiveShadows=false;
+            var texture=new Texture2D(4,4,TextureFormat.RGBA32,false){filterMode=FilterMode.Point,wrapMode=TextureWrapMode.Repeat};owned.Add(texture);
+            var pixels=new Color32[16];
+            for(int y=0;y<4;y++)for(int x=0;x<4;x++)
+            {
+                // 满alpha的折L+偏置单点对空alpha，既不中心对称，也不镜面对称。
+                bool solid=x==0||y==3&&x<3||x==2&&y==1;
+                pixels[y*4+x]=solid?new Color32(235,102,42,255):new Color32(41,116,224,0);
+            }
+            texture.SetPixels32(pixels);texture.Apply(false,false);
+            var sprite=Sprite.Create(texture,new Rect(0,0,4,4),new Vector2(.2f,.7f),2,0,SpriteMeshType.FullRect);owned.Add(sprite);
+            var tile=ScriptableObject.CreateInstance<Tile>();owned.Add(tile);tile.sprite=sprite;tile.color=Color.white;
+            var shader=Shader.Find("Ossastra/GroundResearch/MaskWorldTile");if(shader==null)throw new InvalidOperationException("缺基准MaskWorldTile Shader。");
+            var material=new Material(shader);owned.Add(material);material.SetTexture("_MainTex",texture);material.SetTexture("_SecondTex",texture);
+            material.SetFloat("_WorldPeriod",3.3f);material.SetFloat("_Cutoff",.5f);material.SetFloat("_BaseCoverage",0);material.SetFloat("_DebugMask",0);
+            material.SetVector("_GroundBounds",new Vector4(-10000,-10000,10000,10000));material.SetColor("_Color",new Color(.9f,1,.82f,1));native.sharedMaterial=material;
+            var properties=new MaterialPropertyBlock();properties.SetTexture("_MainTex",texture);properties.SetTexture("_SecondTex",texture);
+            properties.SetFloat("_WorldPeriod",3.3f);properties.SetFloat("_Cutoff",.5f);properties.SetFloat("_BaseCoverage",0);properties.SetFloat("_DebugMask",0);
+            properties.SetVector("_GroundBounds",new Vector4(-10000,-10000,10000,10000));properties.SetColor("_Color",new Color(.9f,1,.82f,1));native.SetPropertyBlock(properties);
+            surface.layers=new[]{new GroundLayer{tilemap=tiles,paintTile=tile,detailTexture=texture,worldRepeatPeriod=3.3f}};
+            var cameraObject=NewObject(scene,"实际互斥A-B相机");var camera=cameraObject.AddComponent<Camera>();camera.scene=scene;camera.enabled=false;
+            camera.orthographic=true;camera.aspect=1;camera.nearClipPlane=.01f;camera.farClipPlane=1000;camera.allowHDR=false;camera.allowMSAA=false;camera.useOcclusionCulling=false;
+            camera.clearFlags=CameraClearFlags.SolidColor;camera.backgroundColor=new Color(.031f,.047f,.063f,1);camera.cullingMask=1<<31;
+            SurfaceDomain domain;GeometryIssue issue;
+            if(!GroundSurfaceGeometry.TryBuildDomain(new[]{new Vector2(-100,-100),new Vector2(100,-100),new Vector2(100,100),new Vector2(-100,100)},new GeometryOptions(),out domain,out issue))
+                throw new InvalidOperationException("A/B辅助矩形域失败。");
+            var cases=Cases();
+            foreach(var test in cases)
+            {
+                root.transform.SetPositionAndRotation(test.rootPosition,test.rootRotation);root.transform.localScale=test.rootScale;
+                layer.transform.localPosition=test.layerPosition;layer.transform.localRotation=test.layerRotation;layer.transform.localScale=Vector3.one;
+                tiles.orientation=test.customOrientation?Tilemap.Orientation.Custom:Tilemap.Orientation.XZ;
+                if(test.customOrientation)tiles.orientationMatrix=test.orientation;tiles.tileAnchor=test.anchor;
+                tiles.color=test.whiteVertex?Color.white:new Color(.73f,.89f,.56f,.92f);tiles.SetTile(new Vector3Int(1,-1,0),tile);
+                tiles.SetTileFlags(new Vector3Int(1,-1,0),TileFlags.None);tiles.SetTransformMatrix(new Vector3Int(1,-1,0),test.cellMatrix);
+                tiles.SetColor(new Vector3Int(1,-1,0),test.whiteVertex?Color.white:new Color(.8f,.7f,.9f,.9f));
+                var result=GroundSurfaceMeshGenerator.Build(binding,domain,new[]{new SurfaceLayerInput(tiles,material,0)},false);
+                var meshRoot=NewObject(scene,"本案Mesh输出");meshRoot.transform.SetParent(root.transform,false);var meshes=new List<MeshRenderer>();
+                foreach(var chunk in result.chunks)
+                {
+                    ownedMeshes.Add(chunk.mesh);var go=NewObject(scene,"Mesh块");go.transform.SetParent(meshRoot.transform,false);go.AddComponent<MeshFilter>().sharedMesh=chunk.mesh;
+                    var renderer=go.AddComponent<MeshRenderer>();renderer.sharedMaterial=material;renderer.sortingLayerID=native.sortingLayerID;renderer.sortingOrder=native.sortingOrder;
+                    renderer.shadowCastingMode=native.shadowCastingMode;renderer.receiveShadows=native.receiveShadows;
+                    var copied=new MaterialPropertyBlock();native.GetPropertyBlock(copied);copied.SetTexture("_MainTex",chunk.mainTexture);renderer.SetPropertyBlock(copied);renderer.enabled=false;meshes.Add(renderer);
+                }
+                try
+                {
+                    foreach(int pitch in new[]{90,35})
+                    {
+                        camera.transform.rotation=Quaternion.Euler(pitch,29,0);Frame(camera,native.bounds);
+                        string name=test.name+"_pitch"+pitch;
+                        native.enabled=true;foreach(var renderer in meshes)renderer.enabled=false;
+                        Color32[] a=Render(camera,Path.Combine(output,name+"_Native.png"));
+                        native.enabled=false;foreach(var renderer in meshes)renderer.enabled=true;
+                        Color32[] b=Render(camera,Path.Combine(output,name+"_Mesh.png"));
+                        var comparison=Compare(a,b);bool valid=NonUniform(a)&&NonUniform(b);bool same=comparison.changedPixels==0;
+                        bool ok=valid&&same;
+                        rows.Add(new{test=test.name,pitch,passed=ok,validNativeAndMesh=valid,exactRGBA=same,vertexColorMode=test.whiteVertex?"WhiteVertexControl":"TintedVertex",activeColorSpace=QualitySettings.activeColorSpace.ToString(),
+                            cellColor=ColorArray(tiles.GetColor(new Vector3Int(1,-1,0))),tilemapColor=ColorArray(tiles.color),
+                            comparison.changedPixels,comparison.pixelsOverOne,comparison.alphaChangedPixels,comparison.maxRgb,comparison.maxAlpha,comparison.meanAbsoluteRgb,comparison.rootMeanSquareRgb,
+                            totalPixels=a.Length,textureWidth=texture.width,textureHeight=texture.height,pivot=new[]{sprite.pivot.x,sprite.pivot.y},pixelsPerUnit=sprite.pixelsPerUnit,
+                            tileAnchor=Vector(tiles.tileAnchor),cellMatrix=Matrix(test.cellMatrix),orientationMatrix=Matrix(tiles.orientationMatrix),
+                            nativeBoundsCenter=Vector(native.bounds.center),nativeBoundsSize=Vector(native.bounds.size),
+                            nativeImage=Path.Combine(output,name+"_Native.png"),meshImage=Path.Combine(output,name+"_Mesh.png"),chunks=result.chunks.Length,triangles=result.outputTriangles});
+                        if(!ok)failure.Add(name+"："+(!valid?"存在空白/均匀帧，不能作为一致性证据":"RGBA像素不完全一致"));
+                    }
+                }
+                finally{native.enabled=true;UnityEngine.Object.DestroyImmediate(meshRoot);}
+            }
+            passed=failure.Count==0&&rows.Count==12;
+        }
+        catch(Exception error){runtimeFailure=error.ToString();failure.Add("执行失败："+error.Message);}
+        finally
+        {
+            RenderTexture.active=previous;EditorSceneManager.ClosePreviewScene(scene);
+            foreach(var mesh in ownedMeshes.Distinct())if(mesh!=null)UnityEngine.Object.DestroyImmediate(mesh);
+            foreach(var value in owned)if(value!=null)UnityEngine.Object.DestroyImmediate(value);
+            string receipt=Path.Combine(output,"pixel-ab.json");
+            File.WriteAllText(receipt,new JObject{{"format","ground-surface-native-pixel-ab"},{"schemaVersion",1},{"passed",passed},
+                {"resolution",size},{"fixedPassRule","Native和Mesh均非均匀有效帧，RGBA所有像素逐字节相同；阈值未运行后放宽。"},
+                {"scope","自有PreviewScene；同Camera/Shader/Texture/MPB/Color；互斥Renderer；flatten=false/clip=false，未认证裁剪或深度偏移。"},
+                {"rows",JArray.FromObject(rows)},{"failures",new JArray(failure)},{"runtimeFailure",runtimeFailure}}.ToString());
+            ctx.ReturnValue=new{passed,comparisons=rows.Count,receiptPath=receipt,outputRoot=output,failures=failure,runtimeFailure,
+                scope="原始全帧PNG保留，未知不造通过；无源素材、角色或持久Unity资产。"};
+        }
+    }
+    private static Case[] Cases()
+    {
+        var baseline=new Case{name="01_Baseline",anchor=new Vector3(.5f,.5f,0),rootPosition=Vector3.zero,rootScale=new Vector3(4,1,4),rootRotation=Quaternion.identity,
+            layerPosition=new Vector3(0,.014f,0),layerRotation=Quaternion.identity,cellMatrix=Matrix4x4.identity};
+        var white=new Case{name="00_WhiteVertexControl",whiteVertex=true,anchor=baseline.anchor,rootPosition=baseline.rootPosition,rootScale=baseline.rootScale,rootRotation=baseline.rootRotation,
+            layerPosition=baseline.layerPosition,layerRotation=baseline.layerRotation,cellMatrix=baseline.cellMatrix};
+        Func<string,Matrix4x4,Case> changed=(name,matrix)=>new Case{name=name,anchor=new Vector3(.17f,.83f,0),rootPosition=new Vector3(3.4f,1.2f,-2.7f),rootScale=new Vector3(1.7f,.85f,2.2f),
+            rootRotation=Quaternion.Euler(0,23,0),layerPosition=new Vector3(.35f,.027f,-.22f),layerRotation=Quaternion.Euler(0,17,0),cellMatrix=matrix};
+        var anchor=changed("02_AnchorParentTRS",Matrix4x4.identity);
+        var rotate=changed("03_RotateTranslate",Matrix4x4.TRS(new Vector3(.21f,-.13f,0),Quaternion.Euler(0,0,90),new Vector3(.8f,1.25f,1)));
+        var mirror=changed("04_MirrorTranslate",Matrix4x4.TRS(new Vector3(-.18f,.29f,0),Quaternion.Euler(0,0,-37),new Vector3(-.85f,1.1f,1)));
+        var custom=changed("05_CustomOrientation",Matrix4x4.TRS(new Vector3(.26f,-.19f,0),Quaternion.Euler(0,0,61),new Vector3(-1.2f,.7f,1)));
+        custom.customOrientation=true;custom.orientation=Matrix4x4.TRS(new Vector3(.14f,.03f,-.08f),Quaternion.Euler(90,0,0),new Vector3(1.1f,.9f,1));
+        return new[]{white,baseline,anchor,rotate,mirror,custom};
+    }
+    private static GameObject NewObject(Scene scene,string name){var go=new GameObject(name);go.layer=31;SceneManager.MoveGameObjectToScene(go,scene);return go;}
+    private static Color32[] Render(Camera camera,string path)
+    {
+        var oldActive=RenderTexture.active;var oldTarget=camera.targetTexture;
+        var rt=new RenderTexture(size,size,24,RenderTextureFormat.ARGB32,RenderTextureReadWrite.sRGB);var read=new Texture2D(size,size,TextureFormat.RGBA32,false);
+        try
+        {
+            rt.Create();camera.targetTexture=rt;RenderTexture.active=rt;
+            camera.Render();camera.Render(); // 同条件有界预热，允许Native Tilemap提交其真实chunk。
+            camera.Render();read.ReadPixels(new Rect(0,0,size,size),0,0,false);read.Apply(false,false);
+            File.WriteAllBytes(path,read.EncodeToPNG());return read.GetPixels32();
+        }
+        finally{camera.targetTexture=oldTarget;RenderTexture.active=oldActive;rt.Release();UnityEngine.Object.DestroyImmediate(rt);UnityEngine.Object.DestroyImmediate(read);}
+    }
+    private static void Frame(Camera camera,Bounds bounds)
+    {
+        if(bounds.size.sqrMagnitude<1e-8f)throw new InvalidOperationException("Native TilemapRenderer bounds退化，未拿Mesh包围盒冒充期望。");
+        float extent=0;
+        foreach(float x in new[]{bounds.min.x,bounds.max.x})foreach(float y in new[]{bounds.min.y,bounds.max.y})foreach(float z in new[]{bounds.min.z,bounds.max.z})
+        {
+            Vector3 d=new Vector3(x,y,z)-bounds.center;extent=Mathf.Max(extent,Mathf.Abs(Vector3.Dot(d,camera.transform.right)),Mathf.Abs(Vector3.Dot(d,camera.transform.up)));
+        }
+        camera.orthographicSize=Mathf.Max(.5f,extent*1.25f);camera.transform.position=bounds.center-camera.transform.forward*Mathf.Max(50,bounds.size.magnitude*4);
+    }
+    private sealed class Difference
+    {public int changedPixels,pixelsOverOne,alphaChangedPixels,maxRgb,maxAlpha;public double meanAbsoluteRgb,rootMeanSquareRgb;}
+    private static Difference Compare(Color32[] a,Color32[] b)
+    {
+        if(a.Length!=b.Length)throw new InvalidOperationException("A/B像素长度不同。");var value=new Difference();long sum=0,squared=0;
+        for(int i=0;i<a.Length;i++)
+        {
+            int r=Math.Abs(a[i].r-b[i].r),g=Math.Abs(a[i].g-b[i].g),blue=Math.Abs(a[i].b-b[i].b),alpha=Math.Abs(a[i].a-b[i].a),max=Math.Max(r,Math.Max(g,blue));
+            if(max!=0||alpha!=0)value.changedPixels++;if(max>1||alpha>1)value.pixelsOverOne++;if(alpha!=0)value.alphaChangedPixels++;
+            value.maxRgb=Math.Max(value.maxRgb,max);value.maxAlpha=Math.Max(value.maxAlpha,alpha);sum+=r+g+blue;squared+=(long)r*r+(long)g*g+(long)blue*blue;
+        }
+        value.meanAbsoluteRgb=(double)sum/(a.Length*3);value.rootMeanSquareRgb=Math.Sqrt((double)squared/(a.Length*3));return value;
+    }
+    private static bool NonUniform(Color32[] pixels){var first=pixels[0];return pixels.Any(p=>p.r!=first.r||p.g!=first.g||p.b!=first.b||p.a!=first.a);}
+    private static float[] Matrix(Matrix4x4 value){var result=new float[16];for(int i=0;i<16;i++)result[i]=value[i];return result;}
+    private static float[] Vector(Vector3 value)=>new[]{value.x,value.y,value.z};
+    private static float[] ColorArray(UnityEngine.Color value)=>new[]{value.r,value.g,value.b,value.a};
+}

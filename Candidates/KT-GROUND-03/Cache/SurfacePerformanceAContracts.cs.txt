@@ -1,0 +1,145 @@
+/* 性能A：自有纯地表、同一内容/材质/35°Camera/RT，Native Tilemap与unclipped Mesh互斥。
+ * 4轮×12个同步Camera.Render调用/路径，先各8次warm；计时不含ReadPixels/PNG/重建。
+ * 这只是Editor CPU侧同步调用wall-clock代理，可能包含驱动/GPU等待；GPU与渲染线程未测。
+ * Native内部chunk Mesh数无可靠公开归属API，记未取得；不拿显式MeshFilter数冒充Native实际内部Mesh数。
+ * GroundSurface.CacheTestOutput为明确已存在外部目录。只运行自有PreviewScene，不隐藏已有角色冒充隔离。
+ */
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using Funplay.Editor.Tools.Scripting;
+using Newtonsoft.Json.Linq;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.SceneManagement;
+using UnityEngine.Tilemaps;
+using Ossastra.GroundResearch;
+using Ossastra.GroundSurfaces;
+using Ossastra.GroundSurfaces.Editor;
+
+public sealed class SurfacePerformanceAContracts : IFunplayCommand
+{
+    private const int width=512,height=288,warm=8,rounds=4,samples=12;
+    public void Execute(ExecutionContext ctx)
+    {
+        if(EditorApplication.isPlayingOrWillChangePlaymode||EditorApplication.isCompiling||EditorApplication.isUpdating)throw new InvalidOperationException("性能A需ready Edit。");
+        string parent=SessionState.GetString("GroundSurface.CacheTestOutput","");if(!Directory.Exists(parent))throw new InvalidOperationException("缺明确外部CacheTestOutput。");
+        string output=Path.Combine(parent,"PerformanceA_"+Guid.NewGuid().ToString("N"));Directory.CreateDirectory(output);
+        string receipt=Path.Combine(output,"performance-a.json");
+        var scene=EditorSceneManager.NewPreviewScene();var owned=new List<UnityEngine.Object>();var meshes=new List<Mesh>();
+        var globalBefore=LiveCounts();RenderTexture oldActive=RenderTexture.active;
+        var report=new JObject{{"format","ground-surface-performance-a"},{"schemaVersion",1},{"passed",false},{"finished",false}};
+        try
+        {
+            var root=NewObject(scene,"仅自有三层地表");root.transform.localScale=new Vector3(4,1,4);
+            var grid=root.AddComponent<Grid>();grid.cellSwizzle=GridLayout.CellSwizzle.XZY;grid.cellSize=Vector3.one;
+            var surface=root.AddComponent<GroundResearchSurface>();surface.grid=grid;surface.editableCells=new BoundsInt(-8,-6,0,16,12,1);
+            var map=root.AddComponent<GroundWorkshopMap>();map.surface=surface;map.registration=ScriptableObject.CreateInstance<GroundMapRegistration>();owned.Add(map.registration);map.registration.mapId=Guid.NewGuid().ToString("N");
+            var binding=root.AddComponent<GroundSurfaceBinding>();binding.map=map;binding.chunkSize=8;binding.flattenDisplay=false;
+            binding.boundary=ScriptableObject.CreateInstance<GroundSurfaceBoundary>();owned.Add(binding.boundary);binding.boundary.localTopY=0;
+            var native=new List<TilemapRenderer>();var inputs=new List<SurfaceLayerInput>();var layers=new List<GroundLayer>();var materials=new List<Material>();
+            var shader=Shader.Find("Ossastra/GroundResearch/MaskWorldTile");if(shader==null)throw new InvalidOperationException("基准自有Shader缺失。");
+            int[] counts=new int[3];int spriteTriangles=0;
+            for(int layerIndex=0;layerIndex<3;layerIndex++)
+            {
+                var mask=new Texture2D(4,4,TextureFormat.RGBA32,false){filterMode=FilterMode.Point,wrapMode=TextureWrapMode.Clamp};owned.Add(mask);
+                var pixels=new Color32[16];for(int y=0;y<4;y++)for(int x=0;x<4;x++)pixels[y*4+x]=new Color32(255,255,255,(byte)(layerIndex==0||x==0||y==3||x==2&&y==1?255:0));mask.SetPixels32(pixels);mask.Apply();
+                var sprite=Sprite.Create(mask,new Rect(0,0,4,4),new Vector2(.5f,.5f),4,0,SpriteMeshType.FullRect);owned.Add(sprite);
+                var detail=new Texture2D(4,4,TextureFormat.RGBA32,false){filterMode=FilterMode.Bilinear,wrapMode=TextureWrapMode.Repeat};owned.Add(detail);
+                Color color=new[]{new Color(.2f,.32f,.15f),new Color(.48f,.43f,.18f),new Color(.38f,.34f,.32f)}[layerIndex];detail.SetPixels(Enumerable.Repeat(color,16).ToArray());detail.Apply();
+                var tile=ScriptableObject.CreateInstance<Tile>();owned.Add(tile);tile.sprite=sprite;tile.color=Color.white;
+                var material=new Material(shader){name="性能A自有层"+layerIndex};owned.Add(material);materials.Add(material);
+                material.SetTexture("_MainTex",mask);material.SetTexture("_SecondTex",detail);material.SetFloat("_WorldPeriod",16);material.SetFloat("_Cutoff",.5f);material.SetFloat("_BaseCoverage",layerIndex==0?1:0);material.SetVector("_GroundBounds",new Vector4(-32,-24,32,24));material.SetColor("_Color",Color.white);
+                var go=NewObject(scene,"原生地表层"+layerIndex);go.transform.SetParent(root.transform,false);go.transform.localPosition=new Vector3(0,.006f+layerIndex*.002f,0);
+                var tilemap=go.AddComponent<Tilemap>();tilemap.orientation=Tilemap.Orientation.XZ;tilemap.color=Color.white;tilemap.tileAnchor=new Vector3(.5f,.5f,0);
+                var renderer=go.AddComponent<TilemapRenderer>();renderer.mode=TilemapRenderer.Mode.Chunk;renderer.sharedMaterial=material;renderer.sortingOrder=layerIndex;renderer.shadowCastingMode=ShadowCastingMode.Off;renderer.receiveShadows=false;native.Add(renderer);
+                var block=new MaterialPropertyBlock();block.SetTexture("_MainTex",mask);block.SetTexture("_SecondTex",detail);renderer.SetPropertyBlock(block);
+                foreach(var cell in surface.EditableCells.allPositionsWithin)
+                {
+                    bool paint=layerIndex==0||layerIndex==1&&cell.x>=-4&&cell.x<4&&cell.y>=-2&&cell.y<2||layerIndex==2&&(cell.y==0||cell.x==0&&cell.y>=1&&cell.y<=3);
+                    if(paint){tilemap.SetTile(cell,tile);counts[layerIndex]++;spriteTriangles+=sprite.triangles.Length/3;}
+                }
+                inputs.Add(new SurfaceLayerInput(tilemap,material,layerIndex));layers.Add(new GroundLayer{tilemap=tilemap,paintTile=tile,detailTexture=detail,worldRepeatPeriod=16});
+            }
+            surface.layers=layers.ToArray();
+            if(!counts.SequenceEqual(new[]{192,32,19}))throw new InvalidOperationException("自有基准布局不是192/32/19。");
+            SurfaceDomain domain;GeometryIssue issue;
+            if(!GroundSurfaceGeometry.TryBuildDomain(new[]{new Vector2(-8,-6),new Vector2(8,-6),new Vector2(8,6),new Vector2(-8,6)},new GeometryOptions(),out domain,out issue))throw new InvalidOperationException("辅助域失败。");
+            var build=GroundSurfaceMeshGenerator.Build(binding,domain,inputs.ToArray(),false);
+            var cacheRoot=NewObject(scene,"未裁剪缓存路径");cacheRoot.transform.SetParent(root.transform,false);var cached=new List<MeshRenderer>();
+            foreach(var chunk in build.chunks)
+            {
+                meshes.Add(chunk.mesh);var go=NewObject(scene,"缓存层块");go.transform.SetParent(cacheRoot.transform,false);go.AddComponent<MeshFilter>().sharedMesh=chunk.mesh;
+                var renderer=go.AddComponent<MeshRenderer>();renderer.sharedMaterial=chunk.sourceMaterial;renderer.sortingOrder=chunk.layerIndex;renderer.shadowCastingMode=ShadowCastingMode.Off;renderer.receiveShadows=false;
+                var block=new MaterialPropertyBlock();chunk.sourceTilemap.GetComponent<TilemapRenderer>().GetPropertyBlock(block);block.SetTexture("_MainTex",chunk.mainTexture);renderer.SetPropertyBlock(block);renderer.enabled=false;cached.Add(renderer);
+            }
+            var cameraGo=NewObject(scene,"性能A相机");var camera=cameraGo.AddComponent<Camera>();camera.scene=scene;camera.enabled=false;camera.orthographic=true;camera.aspect=(float)width/height;
+            camera.orthographicSize=43;camera.transform.rotation=Quaternion.Euler(35,45,0);camera.transform.position=surface.WorldBounds.center-camera.transform.forward*120;
+            camera.nearClipPlane=.1f;camera.farClipPlane=300;camera.allowHDR=false;camera.allowMSAA=false;camera.useOcclusionCulling=false;camera.cullingMask=1<<31;camera.clearFlags=CameraClearFlags.SolidColor;camera.backgroundColor=new Color(.03f,.05f,.07f,1);
+            var rt=new RenderTexture(width,height,24,RenderTextureFormat.ARGB32,RenderTextureReadWrite.sRGB);owned.Add(rt);rt.Create();camera.targetTexture=rt;
+            Action<bool> useNative=value=>{foreach(var renderer in native)renderer.enabled=value;foreach(var renderer in cached)renderer.enabled=!value;};
+            useNative(true);for(int i=0;i<warm;i++)camera.Render();Color32[] expected=Capture(camera,rt,Path.Combine(output,"Native.png"));
+            useNative(false);for(int i=0;i<warm;i++)camera.Render();Color32[] actual=Capture(camera,rt,Path.Combine(output,"UnclippedCache.png"));
+            var visual=Difference(expected,actual);bool nonBlank=NonUniform(expected)&&NonUniform(actual);
+            bool sameTriangles=build.outputTriangles==spriteTriangles;bool sameVisual=nonBlank&&visual.Value<int>("changedPixels")==0;
+            var nativeTimes=new List<double>();var cacheTimes=new List<double>();var roundRows=new JArray();var liveRows=new JArray();
+            for(int round=0;round<rounds;round++)
+            {
+                foreach(bool mode in round%2==0?new[]{true,false}:new[]{false,true})
+                {
+                    useNative(mode);camera.Render();var times=new double[samples];
+                    for(int sample=0;sample<samples;sample++){var timer=Stopwatch.StartNew();camera.Render();timer.Stop();times[sample]=timer.Elapsed.TotalMilliseconds;}
+                    (mode?nativeTimes:cacheTimes).AddRange(times);roundRows.Add(new JObject{{"round",round+1},{"path",mode?"Native":"UnclippedCache"},{"milliseconds",new JArray(times)},
+                        {"medianMs",Percentile(times,.5)},{"p95Ms",Percentile(times,.95)}});
+                }
+                liveRows.Add(new JObject{{"round",round+1},{"globalAlive",JObject.FromObject(LiveCounts())},{"ownedOutputMeshes",meshes.Count(mesh=>mesh!=null)},{"ownedMaterialObjects",materials.Count(material=>material!=null)}});
+            }
+            int actorComponents=scene.GetRootGameObjects().SelectMany(go=>go.GetComponentsInChildren<MonoBehaviour>(true)).Count(component=>component!=null&&(component.GetType().Namespace??"").StartsWith("Ossastra.Characters",StringComparison.Ordinal));
+            report["passed"]=sameTriangles&&sameVisual&&actorComponents==0;report["finished"]=true;
+            report["conditions"]=new JObject{{"unity",Application.unityVersion},{"graphicsApi",SystemInfo.graphicsDeviceType.ToString()},{"graphicsDevice",SystemInfo.graphicsDeviceName},{"graphicsVersion",SystemInfo.graphicsDeviceVersion},
+                {"cpu",SystemInfo.processorType},{"cpuCount",SystemInfo.processorCount},{"systemMemoryMiB",SystemInfo.systemMemorySize},{"graphicsMemoryMiB",SystemInfo.graphicsMemorySize},
+                {"pipeline",GraphicsSettings.currentRenderPipeline==null?"Built-in":GraphicsSettings.currentRenderPipeline.name},{"colorSpace",QualitySettings.activeColorSpace.ToString()},
+                {"width",width},{"height",height},{"pitchDegrees",35},{"yawDegrees",45},{"orthographicSize",43},{"vSyncCount",QualitySettings.vSyncCount},{"targetFrameRate",Application.targetFrameRate},
+                {"warmRenderCallsPerPath",warm},{"rounds",rounds},{"samplesPerRoundPerPath",samples},{"order","alternating AB/BA per round"},{"hdr",false},{"msaa",false},{"occlusionCulling",false}};
+            report["sameGeometryPrecheck"]=new JObject{{"sameInput",true},{"sameShaderMaterialMpb",true},{"flatten",false},{"clipped",false},{"cellCounts",new JArray(counts)},
+                {"nativeSpriteGeometryTriangles",spriteTriangles},{"cacheTriangles",build.outputTriangles},{"sameTriangleCount",sameTriangles},{"pixelComparison",visual},{"validNonBlankFrames",nonBlank},{"strictPixelIdentical",sameVisual}};
+            report["resourceCounts"]=new JObject{{"nativeRendererObjects",native.Count},{"cacheRendererObjects",cached.Count},{"cacheMeshObjects",meshes.Count},{"nativeInternalMeshObjects",null},
+                {"nativeInternalMeshReason","TilemapRenderer内部chunk Mesh未由公开API可靠按场景归属；不以显式MeshFilter计数替代。"},
+                {"sharedMaterialObjectsPerPath",materials.Count},{"cacheVertices",build.outputVertices},{"cacheTriangles",build.outputTriangles},{"actorComponentsInThisScene",actorComponents},
+                {"cacheBuildMsSeparate",build.elapsedMilliseconds},{"survivalByRound",liveRows}};
+            report["cameraRenderCallTiming"]=new JObject{{"unit","ms"},{"measurement","Editor主线程Camera.Render同步调用wall-clock，计时区不含ReadPixels/PNG/构建；可能包括驱动/GPU等待，不是GPU或独立渲染线程耗时。"},
+                {"nativeMedianMs",Percentile(nativeTimes.ToArray(),.5)},{"nativeP95Ms",Percentile(nativeTimes.ToArray(),.95)},
+                {"cacheMedianMs",Percentile(cacheTimes.ToArray(),.5)},{"cacheP95Ms",Percentile(cacheTimes.ToArray(),.95)},{"perRound",roundRows},{"gpuMs",null},{"renderThreadMs",null},{"gpuStatus","未测"}};
+            report["limitations"]="限定自有三层小样、Editor、单机位/分辨率；不把渲染块/材质相同说成一次draw，不以相同三角数替代像素预检。原生内部Mesh与GPU未测；已有SceneView/Editor开销仍需按实际环境理解。";
+        }
+        catch(Exception error){report["finished"]=true;report["failure"]=error.ToString();}
+        finally
+        {
+            RenderTexture.active=oldActive;EditorSceneManager.ClosePreviewScene(scene);
+            foreach(var mesh in meshes.Distinct())if(mesh!=null)UnityEngine.Object.DestroyImmediate(mesh);
+            foreach(var value in owned)if(value!=null){if(value is RenderTexture target)target.Release();UnityEngine.Object.DestroyImmediate(value);}
+            report["globalAliveBefore"]=JObject.FromObject(globalBefore);report["globalAliveAfterCleanup"]=JObject.FromObject(LiveCounts());
+            File.WriteAllText(receipt,report.ToString());ctx.ReturnValue=new{passed=report.Value<bool>("passed"),finished=true,receiptPath=receipt,outputRoot=output,gpuStatus="未测",scope="自有PreviewScene纯地表A对照，非完整高台FPS或长期泄漏认证。"};
+        }
+    }
+    private static GameObject NewObject(Scene scene,string name){var go=new GameObject(name);go.layer=31;SceneManager.MoveGameObjectToScene(go,scene);return go;}
+    private static Color32[] Capture(Camera camera,RenderTexture rt,string path)
+    {
+        var old=RenderTexture.active;var image=new Texture2D(width,height,TextureFormat.RGBA32,false);
+        try{camera.Render();RenderTexture.active=rt;image.ReadPixels(new Rect(0,0,width,height),0,0,false);image.Apply(false,false);File.WriteAllBytes(path,image.EncodeToPNG());return image.GetPixels32();}
+        finally{RenderTexture.active=old;UnityEngine.Object.DestroyImmediate(image);}
+    }
+    private static JObject Difference(Color32[] a,Color32[] b)
+    {
+        int changed=0,overOne=0,max=0;long sum=0,squared=0;
+        for(int i=0;i<a.Length;i++){int r=Math.Abs(a[i].r-b[i].r),g=Math.Abs(a[i].g-b[i].g),blue=Math.Abs(a[i].b-b[i].b),alpha=Math.Abs(a[i].a-b[i].a),d=Math.Max(alpha,Math.Max(r,Math.Max(g,blue)));if(d!=0)changed++;if(d>1)overOne++;max=Math.Max(max,d);sum+=r+g+blue;squared+=(long)r*r+(long)g*g+(long)blue*blue;}
+        return new JObject{{"pixels",a.Length},{"changedPixels",changed},{"pixelsOverOne",overOne},{"maxRGBA",max},{"meanAbsoluteRgb",(double)sum/(a.Length*3)},{"rootMeanSquareRgb",Math.Sqrt((double)squared/(a.Length*3))}};
+    }
+    private static bool NonUniform(Color32[] values){var first=values[0];return values.Any(p=>p.r!=first.r||p.g!=first.g||p.b!=first.b||p.a!=first.a);}
+    private static double Percentile(double[] values,double fraction){var sorted=values.OrderBy(value=>value).ToArray();return sorted[Math.Max(0,Math.Min(sorted.Length-1,(int)Math.Ceiling(sorted.Length*fraction)-1))];}
+    private static object LiveCounts()=>new{meshes=Resources.FindObjectsOfTypeAll<Mesh>().Length,materials=Resources.FindObjectsOfTypeAll<Material>().Length,renderTextures=Resources.FindObjectsOfTypeAll<RenderTexture>().Length};
+}

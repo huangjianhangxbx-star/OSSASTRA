@@ -1,0 +1,102 @@
+/* Root Native: inverse order not covered by ordinary display/save tests.
+ * Actual Window Mask(true) -> wait cache -> SaveLab -> Release -> inspect persisted material.
+ * Finally releases its private Window, waits update, and SaveLab again to restore clean diagnostics-off disk state.
+ * Only the exact KT03 Lab is saved. No Play, Tile/actor/Collider write, asset deletion or production change.
+ */
+using System;using System.IO;using System.Linq;using System.Text;using System.Collections.Generic;
+using UnityEngine;using UnityEngine.SceneManagement;using UnityEditor;
+using Ossastra.GroundResearch;using Ossastra.GroundResearch.Editor;using Ossastra.GroundSurfaces;using Ossastra.GroundSurfaces.Editor;
+using Funplay.Editor.Tools.Scripting;using Object=UnityEngine.Object;
+public sealed class KT03SurfaceMaskSaveOrderContracts:IFunplayCommand
+{
+    public static string ResultJson="NOT_STARTED";static Runner active;
+    public void Execute(ExecutionContext ctx)
+    {
+        if(active!=null){ctx.ReturnValue=new{status="ALREADY_RUNNING"};return;}
+        active=new Runner();try{active.Start();}catch(Exception error){active.Cleanup(error.ToString());}
+        ctx.ReturnValue=new{status=active==null?"FINISHED":"STARTED",pollType="KT03SurfaceMaskSaveOrderContracts",pollField="ResultJson",result=ResultJson};
+    }
+    sealed class Runner
+    {
+        readonly string runId=Guid.NewGuid().ToString("N"),startedUtc=DateTime.UtcNow.ToString("O");readonly List<object> rows=new List<object>();
+        GroundSurfaceBinding binding;GroundWorkshopWindow window;GroundWorkshopMap[] maps;Dictionary<string,string> authorBaseline;
+        Scene scene;string phase="setup",failure,receiptPath;int stage,passed,failed,priorCache;double started,next;string[] savedMaterials;bool finishing;
+        GroundSurfaceMeshCache Cache()=>binding.cacheRoot.GetComponent<GroundSurfaceMeshCache>();
+        public void Start()
+        {
+            started=EditorApplication.timeSinceStartup;if(!GroundWorkshopOwnership.ContextReady(out string reason))throw new InvalidOperationException(reason);
+            scene=SceneManager.GetActiveScene();if(scene.path!=GroundSurfaceAuthoring.ScenePath||SceneManager.sceneCount!=1)throw new InvalidOperationException("Requires the sole exact KT03 Lab.");
+            if(GroundWorkshopAuthoring.HasPreview||scene.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<GroundSurfaceLabView>(true)).Any(v=>v.IsObserving))throw new InvalidOperationException("Finish the prior observation/preview.");
+            binding=GroundSurfaceAuthoring.GetBindings().Single(b=>b.SurfaceId=="0544cd8ed8b24bbd81646cd2134def4a");
+            if(Cache()==null||Cache().chunks.Any(c=>c.renderer==null||c.renderer.sharedMaterial==null))throw new InvalidOperationException("Restore the broken reload cache through its real lifecycle before running this contract.");
+            if(binding.Surface.layers.Any(l=>Mask(l.tilemap.GetComponent<Renderer>())!=0))throw new InvalidOperationException("An existing Native mask observation is owned externally.");
+            maps=scene.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<GroundWorkshopMap>(true)).ToArray();authorBaseline=maps.ToDictionary(m=>m.registration.mapId,AuthorState);
+            string root=SessionState.GetString("GroundSurface.CacheTestOutput","");if(Directory.Exists(root))receiptPath=Path.Combine(root,"mask-save-order_"+runId+".json");
+            window=ScriptableObject.CreateInstance<GroundWorkshopWindow>();window.hideFlags=HideFlags.HideAndDontSave;window.SelectSurface(binding.Surface);
+            priorCache=Cache().GetInstanceID();Check("real Window accepts mask observation",window.SetMaskDebug(true));phase="wait-mask-cache";
+            next=started+.5;EditorApplication.update+=Tick;Publish("RUNNING");
+        }
+        void Tick()
+        {
+            try
+            {
+                double now=EditorApplication.timeSinceStartup;if(now<next)return;
+                if(finishing){Finish();return;}
+                if(now-started>30)throw new TimeoutException(phase);
+                if(EditorApplication.isCompiling||EditorApplication.isPlayingOrWillChangePlaymode||SceneManager.GetActiveScene()!=scene)throw new InvalidOperationException("Lifecycle changed; no further fixture save.");
+                if(stage==0)
+                {
+                    if(Cache().GetInstanceID()==priorCache){next=now+.1;return;}
+                    Check("actual cache shows the requested mask before saving",Cache().chunks.All(c=>Mask(c.renderer)==1));
+                    GroundSurfaceAuthoring.SaveLab();savedMaterials=Cache().chunks.Select(c=>AssetDatabase.GetAssetPath(c.renderer.sharedMaterial)).Distinct().ToArray();
+                    Check("SaveLab exits Native Window mask observation",binding.Surface.layers.All(l=>Mask(l.tilemap.GetComponent<Renderer>())==0));
+                    Check("SaveLab stores final appearance instead of mask in runtime materials",savedMaterials.Length>0&&savedMaterials.All(p=>AssetDatabase.LoadAssetAtPath<Material>(p).GetFloat("_DebugMask")==0));
+                    priorCache=Cache().GetInstanceID();window.ReleaseAuthoring();stage=1;phase="release-after-save";next=now+.5;Publish("RUNNING");return;
+                }
+                if(stage==1)
+                {
+                    if(Cache().GetInstanceID()==priorCache){next=now+.1;return;}
+                    Check("Release restores Native/debug display",binding.Surface.layers.All(l=>Mask(l.tilemap.GetComponent<Renderer>())==0)&&Cache().chunks.All(c=>Mask(c.renderer)==0));
+                    Check("persisted runtime material remains diagnostics-off after Release",savedMaterials.All(p=>AssetDatabase.LoadAssetAtPath<Material>(p).GetFloat("_DebugMask")==0));
+                    Cleanup(null);
+                }
+            }
+            catch(Exception error){Cleanup(error.ToString());}
+        }
+        void Check(string name,bool success){rows.Add(new{name,passed=success});if(success)passed++;else failed++;}
+        public void Cleanup(string error)
+        {
+            if(finishing)return;finishing=true;failure=error;
+            try{if(window!=null){window.ReleaseAuthoring();Object.DestroyImmediate(window);window=null;}}catch(Exception e){failure=(failure??"")+"\nWindow cleanup: "+e;}
+            phase="cleanup-then-final-save";next=EditorApplication.timeSinceStartup+.6;EditorApplication.update-=Tick;EditorApplication.update+=Tick;Publish("CLEANUP_PENDING");
+        }
+        void Finish()
+        {
+            EditorApplication.update-=Tick;
+            try
+            {
+                if(binding!=null&&SceneManager.GetActiveScene()==scene&&!EditorApplication.isPlayingOrWillChangePlaymode)
+                {
+                    GroundSurfaceAuthoring.SaveLab();
+                    Check("finally author data exactly preserved",maps.All(m=>AuthorState(m)==authorBaseline[m.registration.mapId]));
+                    Check("finally clean diagnostics-off runtime materials",!scene.isDirty&&Cache().chunks.All(c=>c.renderer.sharedMaterial.GetFloat("_DebugMask")==0&&Mask(c.renderer)==0));
+                }
+            }
+            catch(Exception error){failure=(failure??"")+"\nFinal: "+error;}
+            if(failure!=null)failed++;phase="finished";Publish(failure==null&&failed==0?"COMPLETED":"FAILED");active=null;
+        }
+        void Publish(string status)
+        {
+            ResultJson=Newtonsoft.Json.JsonConvert.SerializeObject(new{status,runId,startedUtc,phase,passed,failed,failure,rows,savedMaterials,receiptPath,seconds=EditorApplication.timeSinceStartup-started,
+                scope="Actual Window Mask1 -> SaveLab -> Release; inspect stable Material DebugMask for runtime. Finally releases its own observation and explicitly re-saves clean diagnostics-off Lab. No Play or author layout change."},Newtonsoft.Json.Formatting.Indented);
+            if(!string.IsNullOrEmpty(receiptPath))File.WriteAllText(receiptPath,ResultJson,new UTF8Encoding(false));
+        }
+        static float Mask(Renderer r){var b=new MaterialPropertyBlock();r.GetPropertyBlock(b);return b.HasFloat("_DebugMask")?b.GetFloat("_DebugMask"):r.sharedMaterial.GetFloat("_DebugMask");}
+        static string AuthorState(GroundWorkshopMap map)
+        {
+            var s=new StringBuilder(EditorJsonUtility.ToJson(map)).Append(EditorJsonUtility.ToJson(map.surface));
+            foreach(var l in map.surface.layers)foreach(var c in map.surface.EditableCells.allPositionsWithin)s.Append(c).Append(l.tilemap.GetTile(c)==null?0:l.tilemap.GetTile(c).GetInstanceID()).Append(l.tilemap.GetColor(c).ToString("R")).Append((int)l.tilemap.GetTileFlags(c)).Append(l.tilemap.GetTransformMatrix(c).ToString("R"));
+            foreach(var d in map.GetComponentsInChildren<GroundDecorationInstance>(true).OrderBy(d=>d.instanceId,StringComparer.Ordinal))s.Append(d.instanceId).Append(d.isLocked).Append(d.transform.localToWorldMatrix.ToString("R"));return s.ToString();
+        }
+    }
+}

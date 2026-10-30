@@ -1,0 +1,29 @@
+/* 只读装饰失效提示的入口RED：不创建场景/物件，不调用UI或改选择。
+ * 完整行为另由实际Lab装饰合同覆盖；该文件只确认API缺失不能冒称已经显示失效位置。
+ */
+using System;
+using System.Linq;
+using System.Reflection;
+using System.Collections.Generic;
+using UnityEngine;
+using Funplay.Editor.Tools.Scripting;
+
+public sealed class KT03DecorationDiagnosticsAvailabilityContracts : IFunplayCommand
+{
+    public void Execute(ExecutionContext ctx)
+    {
+        var passed=new List<string>();var failed=new List<string>();
+        var type=AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType("Ossastra.GroundSurfaces.Editor.GroundSurfaceDecorationDiagnostics")).FirstOrDefault(t=>t!=null);
+        var row=AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType("Ossastra.GroundSurfaces.Editor.GroundSurfaceDecorationIssue")).FirstOrDefault(t=>t!=null);
+        if(type==null||row==null||type.GetMethod("Inspect",BindingFlags.Public|BindingFlags.Static)==null||type.GetMethod("Select",BindingFlags.Public|BindingFlags.Static)==null)
+            failed.Add("只读装饰失效列表/显式选择入口缺失，必须真实RED");
+        else
+        {
+            bool fields=new[]{"instance","code","reason","worldFootpoint"}.All(n=>row.GetField(n,BindingFlags.Public|BindingFlags.Instance)!=null);
+            (fields?passed:failed).Add("失效行含实际实例原因和原生脚点证据");
+            bool signature=type.GetMethod("Inspect").ReturnType==row.MakeArrayType()&&type.GetMethod("Select").ReturnType==typeof(void);
+            (signature?passed:failed).Add("Inspect只返回派生行Select为显式命令");
+        }
+        ctx.ReturnValue=new{passed=passed.Count,failed=failed.Count,passedCases=passed,failedCases=failed,scope="Read-only reflection; zero scene/asset/selection mutation"};
+    }
+}

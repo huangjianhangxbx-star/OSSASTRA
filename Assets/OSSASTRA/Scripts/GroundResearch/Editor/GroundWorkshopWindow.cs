@@ -891,7 +891,7 @@ namespace Ossastra.GroundResearch.Editor
             var target = layer.tilemap.gameObject;
             if (!previousVisibility.ContainsKey(target)) previousVisibility[target] = SceneVisibilityManager.instance.IsHidden(target);
             if (visible) SceneVisibilityManager.instance.Show(target, false); else SceneVisibilityManager.instance.Hide(target, false);
-            writtenVisibility[target] = !visible; SceneView.RepaintAll(); return true;
+            writtenVisibility[target] = !visible; GroundWorkshopDisplayEvents.Notify(SelectedMap); SceneView.RepaintAll(); return true;
         }
 
         public bool SetMaskDebug(bool enabled)
@@ -907,7 +907,7 @@ namespace Ossastra.GroundResearch.Editor
                 renderer.GetPropertyBlock(readBlock); state.written = enabled ? 1f : 0f;
                 readBlock.SetFloat(DebugMaskId, state.written); renderer.SetPropertyBlock(readBlock);
             }
-            SceneView.RepaintAll(); return true;
+            GroundWorkshopDisplayEvents.Notify(SelectedMap); SceneView.RepaintAll(); return true;
         }
 
         private void RestoreObservation()
@@ -925,7 +925,7 @@ namespace Ossastra.GroundResearch.Editor
                 pair.Key.GetPropertyBlock(readBlock);
                 if (Mathf.Approximately(readBlock.GetFloat(DebugMaskId), pair.Value.written)) pair.Key.SetPropertyBlock(pair.Value.original.isEmpty ? null : pair.Value.original);
             }
-            maskStates.Clear(); SceneView.RepaintAll();
+            maskStates.Clear(); GroundWorkshopDisplayEvents.Notify(SelectedMap); SceneView.RepaintAll();
         }
 
         private void EnsureObservationBuffer()

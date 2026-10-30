@@ -1,0 +1,171 @@
+/* 高台纯几何合同：反射调用生产入口，以可手算的凹域、侧壁缝和UV断言验证算法。
+ * 本候选不读取或写入资产，不创建场景/游戏物件，不操作编辑器选择和Undo。
+ * 缺失生产类型必须真实RED；合同不是侧壁或地图的第二份作者数据。
+ */
+using System;
+using System.Linq;
+using System.Reflection;
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using Funplay.Editor.Tools.Scripting;
+
+public sealed class KT03GeometryContracts : IFunplayCommand
+{
+    const string Ns="Ossastra.GroundSurfaces.";
+    readonly List<string> passed=new List<string>(),failed=new List<string>();
+    Type geometry,optionsType,snapshotType,domainType,issueType,vertexType;
+    object options;
+    static Type Find(string name)=>AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType(Ns+name)).FirstOrDefault(t=>t!=null);
+    static object Get(object value,string name)=>value.GetType().GetField(name).GetValue(value);
+    static void Set(object value,string name,object field)=>value.GetType().GetField(name).SetValue(value,field);
+    static void Require(bool value,string detail){if(!value)throw new InvalidOperationException(detail);}
+    void Case(string name,Action action)
+    {try{action();passed.Add(name);}catch(Exception e){failed.Add(name+": "+(e.InnerException??e).Message);}}
+    MethodInfo Method(string name)=>geometry.GetMethod(name,BindingFlags.Public|BindingFlags.Static);
+    object Build(Vector2[] ring,bool expected=true)
+    {
+        var args=new object[]{ring,options,null,null};
+        bool ok=(bool)Method("TryBuildDomain").Invoke(null,args);
+        Require(ok==expected,"ok="+ok+" issue="+(args[3]==null?"null":Get(args[3],"code")+"/"+Get(args[3],"message")));
+        if(!expected){Require(args[2]==null&&args[3]!=null&&!string.IsNullOrEmpty((string)Get(args[3],"code")),"失败须返回明确issue且无半成品Domain");return null;}
+        Require(args[2]!=null&&args[3]==null,"成功Domain/Issue合同");return args[2];
+    }
+    bool Inside(object domain,Vector2 point)=>(bool)Method("ContainsXZ").Invoke(null,new[]{domain,(object)point});
+    object Vertex(float x,float z,Vector2 uv,Color color)
+    {var value=Activator.CreateInstance(vertexType);Set(value,"position",new Vector3(x,3,z));Set(value,"uv",uv);Set(value,"color",color);return value;}
+    object[] Clip(object domain,object a,object b,object c)
+    {
+        var vertices=(IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(vertexType));var indices=new List<int>();
+        Method("ClipTriangle").Invoke(null,new object[]{a,b,c,domain,vertices,indices});return new object[]{vertices,indices};
+    }
+    static double TriangleArea(Vector3 a,Vector3 b,Vector3 c)=>Math.Abs(((double)b.x-a.x)*(c.z-a.z)-((double)b.z-a.z)*(c.x-a.x))*.5;
+    static double OutputArea(object[] output,bool up=true)
+    {
+        var vertices=(IList)output[0];var indices=(List<int>)output[1];double area=0;
+        Require(indices.Count%3==0,"三角索引整除");
+        for(int i=0;i<indices.Count;i+=3)
+        {
+            Vector3 a=(Vector3)Get(vertices[indices[i]],"position"),b=(Vector3)Get(vertices[indices[i+1]],"position"),c=(Vector3)Get(vertices[indices[i+2]],"position");
+            double value=TriangleArea(a,b,c);Require(value>1e-9,"不能输出零面积三角形");
+            if(up)Require(Vector3.Cross(b-a,c-a).y>0,"XZ三角必须朝+Y");area+=value;
+        }
+        return area;
+    }
+    static void Near(double actual,double expected,double epsilon=1e-6)=>Require(Math.Abs(actual-expected)<=epsilon,"actual="+actual+" expected="+expected);
+    void DomainArea(object domain,double expected,int triangles)
+    {
+        Near((double)Get(domain,"area"),expected);var ring=(Vector2[])Get(domain,"ring");var indices=(int[])Get(domain,"triangles");
+        Require(indices.Length==triangles*3,"三角数量="+indices.Length/3);double area=0;
+        for(int i=0;i<indices.Length;i+=3)
+        {
+            var p=ring[indices[i]];var q=ring[indices[i+1]];var r=ring[indices[i+2]];
+            var a=new Vector3(p.x,0,p.y);var b=new Vector3(q.x,0,q.y);var c=new Vector3(r.x,0,r.y);
+            Require(Vector3.Cross(b-a,c-a).y>0,"Collider三角必须朝+Y");area+=TriangleArea(a,b,c);
+            Require(Inside(domain,(p+q+r)/3f),"三角形重心不可在域外");
+        }
+        Near(area,expected);
+    }
+    static Vector2[] L()=>new[]{new Vector2(0,0),new Vector2(3,0),new Vector2(3,1),new Vector2(1,1),new Vector2(1,3),new Vector2(0,3)};
+    object Snapshot(Vector3[] vertices,int[] triangles,string id,Matrix4x4? matrix=null)
+    {
+        var value=Activator.CreateInstance(snapshotType);Set(value,"vertices",vertices);Set(value,"triangles",triangles);
+        Set(value,"sourceId",id);Set(value,"submesh",0);Set(value,"meshToSurface",matrix??Matrix4x4.identity);return value;
+    }
+    object Wall(Vector2[] ring,string id,float height=3)
+    {
+        var vertices=new List<Vector3>();var triangles=new List<int>();
+        for(int i=0;i<ring.Length;i++)
+        {
+            Vector2 a=ring[i],b=ring[(i+1)%ring.Length];int n=vertices.Count;
+            // 每一墙面独占顶点，模拟UV缝/硬法线；提环只能临时按坐标焊接。
+            vertices.Add(new Vector3(a.x,0,a.y));vertices.Add(new Vector3(a.x,height,a.y));
+            vertices.Add(new Vector3(b.x,height,b.y));vertices.Add(new Vector3(b.x,0,b.y));
+            triangles.AddRange(new[]{n,n+1,n+2,n,n+2,n+3});
+        }
+        return Snapshot(vertices.ToArray(),triangles.ToArray(),id);
+    }
+    object Extract(object[] values,float height,bool expected=true)
+    {
+        Array snapshots=Array.CreateInstance(snapshotType,values.Length);for(int i=0;i<values.Length;i++)snapshots.SetValue(values[i],i);
+        var args=new object[]{snapshots,height,options,null,null};bool ok=(bool)Method("TryExtractTopRim").Invoke(null,args);
+        Require(ok==expected,"提环ok="+ok+" issue="+(args[4]==null?"null":Get(args[4],"code")+"/"+Get(args[4],"message")));
+        if(!expected){Require(args[3]==null&&args[4]!=null&&!string.IsNullOrEmpty((string)Get(args[4],"code")),"提环失败须无半成品并定位原因");return null;}
+        Require(args[3]!=null&&args[4]==null,"提环成功Domain/Issue合同");return args[3];
+    }
+    public void Execute(ExecutionContext ctx)
+    {
+        geometry=Find("GroundSurfaceGeometry");optionsType=Find("GeometryOptions");snapshotType=Find("MeshSnapshot");
+        domainType=Find("SurfaceDomain");issueType=Find("GeometryIssue");vertexType=Find("ClipVertex");
+        if(new[]{geometry,optionsType,snapshotType,domainType,issueType,vertexType}.Any(t=>t==null))
+        {failed.Add("缺失纯几何生产入口或冻结值类型，必须真实RED");Finish(ctx);return;}
+        Case("公开纯几何API与默认容差冻结",()=>
+        {
+            options=Activator.CreateInstance(optionsType);Near(Convert.ToDouble(Get(options,"weldTolerance")),1e-4,1e-10);
+            Near(Convert.ToDouble(Get(options,"planeTolerance")),5e-4,1e-10);Near(Convert.ToDouble(Get(options,"areaTolerance")),1e-9,1e-14);
+            Require(Method("TryBuildDomain").ReturnType==typeof(bool)&&Method("TryExtractTopRim").ReturnType==typeof(bool)&&Method("ContainsXZ").ReturnType==typeof(bool)&&Method("ClipTriangle").ReturnType==typeof(void),"API返回类型");
+            Require(vertexType.IsValueType,"ClipVertex应是值类型");
+        });
+        if(options==null){Finish(ctx);return;}
+        Case("凹L面积5及四片向上三角保留缺口",()=>{var d=Build(L());DomainArea(d,5,4);Require(!Inside(d,new Vector2(2,2))&&Inside(d,new Vector2(.5f,2.5f))&&Inside(d,new Vector2(2.5f,.5f)),"L域点测试");});
+        Case("反向环仍得到相同域和向上三角",()=>DomainArea(Build(L().Reverse().ToArray()),5,4));
+        Case("非整格缺口面积9.125",()=>{var d=Build(new[]{new Vector2(0,0),new Vector2(4,0),new Vector2(4,1.5f),new Vector2(1.25f,1.5f),new Vector2(1.25f,4),new Vector2(0,4)});DomainArea(d,9.125,4);Require(!Inside(d,new Vector2(2,2)),"非整格缺口不可填平");});
+        Case("斜切五边形面积10",()=>{var d=Build(new[]{new Vector2(0,0),new Vector2(4,0),new Vector2(4,1),new Vector2(2,3),new Vector2(0,3)});DomainArea(d,10,3);Require(!Inside(d,new Vector2(3.5f,2.5f)),"斜切角域外");});
+        Case("共线中间点不制造退化三角",()=>{var d=Build(new[]{new Vector2(0,0),new Vector2(1,0),new Vector2(2,0),new Vector2(2,2),new Vector2(0,2)});Near((double)Get(d,"area"),4);var ring=(Vector2[])Get(d,"ring");var ti=(int[])Get(d,"triangles");double area=0;for(int i=0;i<ti.Length;i+=3){var a=ring[ti[i]];var b=ring[ti[i+1]];var c=ring[ti[i+2]];double v=Math.Abs(((double)b.x-a.x)*(c.y-a.y)-((double)b.y-a.y)*(c.x-a.x))*.5;Require(v>1e-9,"零面积");area+=v;}Near(area,4);});
+        Case("三顶点都在凹域内仍裁缺口3.125为3",()=>
+        {
+            var d=Build(L());var o=Clip(d,Vertex(0,0,Vector2.zero,Color.white),Vertex(2.5f,0,Vector2.right,Color.white),Vertex(0,2.5f,Vector2.up,Color.white));Near(OutputArea(o),3);
+            var v=(IList)o[0];var ti=(List<int>)o[1];for(int i=0;i<ti.Count;i+=3){var a=(Vector3)Get(v[ti[i]],"position");var b=(Vector3)Get(v[ti[i+1]],"position");var c=(Vector3)Get(v[ti[i+2]],"position");Require(Inside(d,new Vector2((a.x+b.x+c.x)/3,(a.z+b.z+c.z)/3)),"裁后面片不能在缺口内");}
+        });
+        Case("裁剪新增点UV与颜色重心插值",()=>
+        {
+            var d=Build(new[]{new Vector2(0,0),new Vector2(1,0),new Vector2(1,2),new Vector2(0,2)});
+            var o=Clip(d,Vertex(0,0,Vector2.zero,Color.red),Vertex(2,0,Vector2.right,Color.green),Vertex(0,2,Vector2.up,Color.blue));Near(OutputArea(o),1.5);
+            var vertices=(IList)o[0];bool p=false,q=false;foreach(object v in vertices)
+            {
+                var pos=(Vector3)Get(v,"position");var uv=(Vector2)Get(v,"uv");var color=(Color)Get(v,"color");Near(pos.y,3);
+                if((new Vector2(pos.x,pos.z)-new Vector2(1,0)).sqrMagnitude<1e-10){Near(uv.x,.5);Near(uv.y,0);Near(color.r,.5);Near(color.g,.5);Near(color.b,0);p=true;}
+                if((new Vector2(pos.x,pos.z)-new Vector2(1,1)).sqrMagnitude<1e-10){Near(uv.x,.5);Near(uv.y,.5);Near(color.r,0);Near(color.g,.5);Near(color.b,.5);q=true;}
+            }
+            Require(p&&q,"必须有两处实际交点");
+        });
+        Case("完整内部三角不多余细分并保持属性",()=>{var d=Build(L());var o=Clip(d,Vertex(.1f,.1f,Vector2.zero,Color.red),Vertex(.8f,.1f,Vector2.right,Color.green),Vertex(.1f,.8f,Vector2.up,Color.blue));Require(((IList)o[0]).Count==3&&((List<int>)o[1]).Count==3,"全内快速路径应保留原三顶点");Near(OutputArea(o),.245);});
+        Case("完整域外三角无输出",()=>{var d=Build(L());var o=Clip(d,Vertex(2,2,Vector2.zero,Color.white),Vertex(2.5f,2,Vector2.right,Color.white),Vertex(2,2.5f,Vector2.up,Color.white));Require(((IList)o[0]).Count==0&&((List<int>)o[1]).Count==0,"域外仍输出");});
+        Case("几何追加索引不会覆盖已有输出",()=>
+        {
+            var d=Build(L());var o=Clip(d,Vertex(.1f,.1f,Vector2.zero,Color.red),Vertex(.8f,.1f,Vector2.right,Color.green),Vertex(.1f,.8f,Vector2.up,Color.blue));
+            var list=(IList)o[0];int n=list.Count;Method("ClipTriangle").Invoke(null,new object[]{Vertex(.1f,1.1f,Vector2.zero,Color.white),Vertex(.8f,1.1f,Vector2.right,Color.white),Vertex(.1f,1.8f,Vector2.up,Color.white),d,o[0],o[1]});
+            Require(list.Count==n+3&&((List<int>)o[1]).Skip(3).All(i=>i>=n),"追加索引需使用输出基址");Near(OutputArea(o),.49);
+        });
+        Case("24个UV缝顶点临时焊为六点凹形上沿",()=>
+        {
+            var wall=Wall(L(),"fixture-seamed-L");var source=(Vector3[])Get(wall,"vertices");var triangles=(int[])Get(wall,"triangles");var vb=(Vector3[])source.Clone();var tb=(int[])triangles.Clone();
+            var d=Extract(new[]{wall},3);Require(((Vector2[])Get(d,"ring")).Length==6,"顶环六点");DomainArea(d,5,4);Require(source.SequenceEqual(vb)&&triangles.SequenceEqual(tb),"不得改源数组");
+        });
+        Case("多Mesh同坐标统一提环并支持水平TRS",()=>
+        {
+            var wall=Wall(L(),"fixture-split");var v=(Vector3[])Get(wall,"vertices");var t=(int[])Get(wall,"triangles");var transform=Matrix4x4.TRS(new Vector3(7,2,-4),Quaternion.Euler(0,90,0),new Vector3(2,1,2));
+            var a=Snapshot(v.Take(12).ToArray(),t.Take(18).ToArray(),"half-a",transform);var b=Snapshot(v.Skip(12).ToArray(),t.Skip(18).Select(i=>i-12).ToArray(),"half-b",transform);
+            var d=Extract(new[]{a,b},5);DomainArea(d,20,4);Require(((Vector2[])Get(d,"ring")).Length==6,"跨Mesh UV接缝");
+        });
+        Case("显式高度不擅选更高闭环",()=>
+        {
+            var a=Wall(L(),"lower",3);var upper=Wall(new[]{new Vector2(10,0),new Vector2(12,0),new Vector2(12,2),new Vector2(10,2)},"upper",5);
+            DomainArea(Extract(new[]{a,upper},3),5,4);
+        });
+        Case("自交蝴蝶环明确拒绝",()=>Build(new[]{new Vector2(0,0),new Vector2(2,2),new Vector2(0,2),new Vector2(2,0)},false));
+        Case("非相邻边自触环明确拒绝",()=>Build(new[]{new Vector2(0,0),new Vector2(3,0),new Vector2(3,3),new Vector2(1,1),new Vector2(0,3),new Vector2(1,1)},false));
+        Case("零长度及重复边明确拒绝",()=>Build(new[]{new Vector2(0,0),new Vector2(2,0),new Vector2(2,0),new Vector2(0,2)},false));
+        Case("NaN坐标明确拒绝",()=>Build(new[]{new Vector2(0,0),new Vector2(float.NaN,1),new Vector2(1,2)},false));
+        Case("零面积环明确拒绝",()=>Build(new[]{new Vector2(0,0),new Vector2(1,0),new Vector2(2,0)},false));
+        Case("同高两个分离外环拒绝而非只取最大",()=>Extract(new[]{Wall(L(),"island-a"),Wall(new[]{new Vector2(10,0),new Vector2(12,0),new Vector2(12,2),new Vector2(10,2)},"island-b")},3,false));
+        Case("内孔双环拒绝而非填平",()=>Extract(new[]{Wall(new[]{new Vector2(0,0),new Vector2(5,0),new Vector2(5,5),new Vector2(0,5)},"outer"),Wall(new[]{new Vector2(1,1),new Vector2(1,2),new Vector2(2,2),new Vector2(2,1)},"hole")},3,false));
+        Case("非共面顶沿拒绝",()=>{var wall=Wall(L(),"warped");var v=(Vector3[])Get(wall,"vertices");for(int i=0;i<v.Length;i++)if(v[i].x==0&&v[i].z==0&&v[i].y==3)v[i].y+=.01f;Extract(new[]{wall},3,false);});
+        Case("非流形三重边拒绝",()=>Extract(new[]{Snapshot(new[]{new Vector3(0,3,0),new Vector3(1,3,0),new Vector3(0,0,0),new Vector3(0,0,1),new Vector3(0,0,-1)},new[]{0,1,2,1,0,3,0,1,4},"three-edge")},3,false));
+        Case("重复三角形拒绝",()=>{var wall=Wall(L(),"duplicate-triangle");var t=(int[])Get(wall,"triangles");Set(wall,"triangles",t.Concat(t.Take(3)).ToArray());Extract(new[]{wall},3,false);});
+        Case("缺失开放上沿拒绝",()=>Extract(new[]{Snapshot(new[]{Vector3.zero,Vector3.right,Vector3.up,Vector3.forward},new[]{0,1,2,0,3,1,0,2,3,1,3,2},"closed-tetrahedron")},1,false));
+        Case("负缩放及倾斜变换拒绝",()=>{var wall=Wall(L(),"negative");Set(wall,"meshToSurface",Matrix4x4.Scale(new Vector3(-1,1,1)));Extract(new[]{wall},3,false);Set(wall,"meshToSurface",Matrix4x4.Rotate(Quaternion.Euler(10,0,0)));Extract(new[]{wall},3,false);});
+        Finish(ctx);
+    }
+    void Finish(ExecutionContext ctx)=>ctx.ReturnValue=new{passed=passed.Count,failed=failed.Count,passedCases=passed,failedCases=failed,scope="Pure array geometry; no scene/asset/Undo mutation"};
+}

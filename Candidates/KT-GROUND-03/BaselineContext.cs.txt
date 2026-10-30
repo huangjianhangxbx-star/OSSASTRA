@@ -1,0 +1,13 @@
+/* 只读接手：确认真实工程、Editor/Scene/PrefabStage、已加载包和地图身份，不修改当前现场。 */
+using System;using System.Linq;using UnityEngine;using UnityEditor;using UnityEditor.SceneManagement;using UnityEngine.SceneManagement;using UnityEditor.PackageManager;using Funplay.Editor.Tools.Scripting;using G=Ossastra.GroundResearch;using M=Ossastra.MapResearch;
+public sealed class BaselineContext:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx){var scene=SceneManager.GetActiveScene();var stage=PrefabStageUtility.GetCurrentPrefabStage();
+  ctx.ReturnValue=new{dataPath=Application.dataPath,version=Application.unityVersion,api=SystemInfo.graphicsDeviceType.ToString(),gpu=SystemInfo.graphicsDeviceName,cpu=SystemInfo.processorType,
+   playing=Application.isPlaying,compiling=EditorApplication.isCompiling,scene=scene.path,scene.isDirty,prefabStage=stage==null?null:stage.assetPath,
+   packages=UnityEditor.PackageManager.PackageInfo.GetAllRegisteredPackages().Where(p=>p.name.Contains("render-pipelines.universal")||p.name.Contains("tilemap")||p.name.Contains("2d-extras")).Select(p=>new{p.name,p.version}).ToArray(),
+   maps=scene.GetRootGameObjects().SelectMany(r=>r.GetComponentsInChildren<G.GroundWorkshopMap>(true)).Select(m=>new{name=m.name,id=m.registration==null?null:m.registration.mapId,assetFolder=m.registration==null?null:m.registration.assetFolder,layers=m.surface==null?0:m.surface.layers.Length}).ToArray(),
+   cameras=scene.GetRootGameObjects().SelectMany(r=>r.GetComponentsInChildren<M.MapResearchRoot>(true)).Select(r=>new{id=r.GetInstanceID(),r.pitch,r.distance,r.fieldOfView,r.initialYaw}).ToArray(),
+   session=G.Editor.GroundWorkshopPlaygroundSession.HasSession};
+ }
+}

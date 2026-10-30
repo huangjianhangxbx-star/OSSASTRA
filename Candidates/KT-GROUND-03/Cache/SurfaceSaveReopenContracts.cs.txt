@@ -1,0 +1,154 @@
+/* Actual KT03 Lab persistence loop, intended immediately after the real recipe Undo contract.
+ * Root Native only: saves only the exact Lab, closes/reopens that one scene, saves its automatic refresh.
+ * Requires one loaded scene, no preview/observation/stroke. No author fixture writes or asset deletion.
+ * Native OpenScene necessarily resets that scene's undo history. Root must run under its exclusive lease.
+ */
+using System;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Collections.Generic;
+using System.Security.Cryptography;
+using UnityEngine;
+using UnityEngine.Tilemaps;
+using UnityEngine.SceneManagement;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+using Ossastra.GroundResearch;
+using Ossastra.GroundResearch.Editor;
+using Ossastra.GroundSurfaces;
+using Ossastra.GroundSurfaces.Editor;
+using Funplay.Editor.Tools.Scripting;
+
+public sealed class KT03SurfaceSaveReopenContracts : IFunplayCommand
+{
+    public static string ResultJson="NOT_STARTED";static Runner active;
+    public void Execute(ExecutionContext ctx)
+    {
+        if(active!=null){ctx.ReturnValue=new{status="ALREADY_RUNNING",pollType="KT03SurfaceSaveReopenContracts"};return;}
+        active=new Runner();try{active.Start();}catch(Exception error){active.End(error.ToString());}
+        ctx.ReturnValue=new{status=active==null?"SETUP_FINISHED_OR_FAILED":"STARTED",pollType="KT03SurfaceSaveReopenContracts",pollField="ResultJson",result=ResultJson};
+    }
+    sealed class Step{public string name;public Action action;}
+    sealed class Runner
+    {
+        readonly string runId=Guid.NewGuid().ToString("N"),startedUtc=DateTime.UtcNow.ToString("O");
+        readonly Queue<Step> steps=new Queue<Step>();readonly List<object> checks=new List<object>(),trace=new List<object>();
+        Scene scene;GroundSurfaceBinding[] bindings;GroundWorkshopMap[] maps;Dictionary<string,string> authors,signatures;
+        Dictionary<string,string> firstIdentities;HashSet<string> initialAssets;GlobalObjectId[] priorSelection;
+        int passed,failed;double started,next;string phase="setup",receiptPath;bool reopened;
+        public void Start()
+        {
+            started=EditorApplication.timeSinceStartup;if(!GroundWorkshopOwnership.ContextReady(out string reason))throw new InvalidOperationException(reason);
+            scene=SceneManager.GetActiveScene();if(scene.path!=GroundSurfaceAuthoring.ScenePath||SceneManager.sceneCount!=1)throw new InvalidOperationException("Requires the exact KT03 Lab as the sole loaded scene; no other author scene is closed.");
+            if(GroundWorkshopAuthoring.HasPreview||scene.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<GroundSurfaceLabView>(true)).Any(v=>v.IsObserving))throw new InvalidOperationException("Finish current recipe/observation first.");
+            if(Resources.FindObjectsOfTypeAll<FrontierGroundBrush>().Any(b=>b.IsStrokeActive))throw new InvalidOperationException("A brush stroke is still active.");
+            Reacquire();authors=maps.ToDictionary(m=>m.registration.mapId,AuthorHash);signatures=bindings.ToDictionary(b=>b.SurfaceId,b=>Cache(b).signature);
+            initialAssets=new HashSet<string>(OwnedCachePaths(),StringComparer.Ordinal);priorSelection=Selection.objects.Select(GlobalObjectId.GetGlobalObjectIdSlow).ToArray();
+            var output=SessionState.GetString("GroundSurface.CacheTestOutput","");if(!string.IsNullOrEmpty(output)&&Directory.Exists(output))receiptPath=Path.Combine(output,"save-reopen_"+runId+".json");
+            Add("save-after-Undo",()=>{GroundSurfaceAuthoring.SaveLab();CheckAll("first-save",true);firstIdentities=OwnedCachePaths().ToDictionary(p=>p,AssetIdentity,StringComparer.Ordinal);});
+            Add("second-save-stable-assets",()=>{GroundSurfaceAuthoring.SaveLab();CheckAll("second-save",true);CheckStableFiles();});
+            Add("close-and-native-reopen",()=>{
+                if(scene.isDirty)throw new InvalidOperationException("Unexpected new dirty state before closing; no scene was discarded.");
+                EditorSceneManager.OpenScene(GroundSurfaceAuthoring.ScenePath,OpenSceneMode.Single);reopened=true;Reacquire();
+                // Before returning to the Editor event loop: inspect the actual serialized references read from disk.
+                CheckAll("immediate-native-reopen-before-delayed-refresh",true);CheckStableFiles();
+            });
+            Add("reopened-delayed-refresh",()=>{CheckAll("native-sceneOpened-refresh",false);CheckStableFiles();});
+            Add("final-save-current-refreshed-cache",()=>{GroundSurfaceAuthoring.SaveLab();CheckAll("final-save",true);CheckStableFiles();Check("no additional stable-cache files were created",new HashSet<string>(OwnedCachePaths(),StringComparer.Ordinal).SetEquals(initialAssets));});
+            Add("finish",()=>End(null));next=started+.8;EditorApplication.update+=Tick;Publish("RUNNING",null);
+        }
+        void Add(string name,Action action)=>steps.Enqueue(new Step{name=name,action=action});
+        void Reacquire()
+        {
+            scene=SceneManager.GetActiveScene();if(scene.path!=GroundSurfaceAuthoring.ScenePath)throw new InvalidOperationException("The wrong scene became active.");
+            bindings=GroundSurfaceAuthoring.GetBindings();maps=scene.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<GroundWorkshopMap>(true)).ToArray();
+            if(bindings.Length!=2||maps.Length!=3)throw new InvalidOperationException("Expected exactly two platforms and three registered maps.");
+            foreach(var map in maps)GroundWorkshopOwnership.Require(map);
+        }
+        static GroundSurfaceMeshCache Cache(GroundSurfaceBinding b)
+        {var c=b.cacheRoot==null?null:b.cacheRoot.GetComponent<GroundSurfaceMeshCache>();if(c==null||c.binding!=b)throw new InvalidOperationException("Missing cache ownership.");return c;}
+        void CheckAll(string label,bool persistent)
+        {
+            Check(label+": all three author records unchanged",maps.All(m=>AuthorHash(m)==authors[m.registration.mapId]));
+            var records=new List<object>();
+            foreach(var b in bindings)
+            {
+                var c=Cache(b);string folder=b.map.registration.assetFolder+"/SurfaceCache";
+                Check(label+": "+b.SurfaceId+" source signature preserved",c.signature==signatures[b.SurfaceId]&&string.IsNullOrEmpty(b.lastError));
+                Check(label+": "+b.SurfaceId+" exactly one cache/cap",b.GetComponentsInChildren<GroundSurfaceMeshCache>(true).Count(k=>k.binding==b)==1&&b.capCollider!=null&&b.capCollider.sharedMesh==c.colliderMesh&&b.capCollider.gameObject.activeInHierarchy&&b.GetComponentsInChildren<MeshCollider>(true).Count(k=>k.sharedMesh==c.colliderMesh)==1);
+                Check(label+": "+b.SurfaceId+" native sources and rendering references live",c.chunks.Length>0&&c.chunks.All(k=>k.filter!=null&&k.renderer!=null&&k.filter.sharedMesh!=null&&k.renderer.sharedMaterial!=null&&k.sourceTilemap!=null&&k.sourceCells.Length==k.filter.sharedMesh.triangles.Length/3&&k.sourceSprites.Length==k.sourceCells.Length));
+                if(persistent)
+                {
+                    var objects=c.chunks.Select(k=>(UnityEngine.Object)k.filter.sharedMesh).Concat(c.chunks.Select(k=>(UnityEngine.Object)k.renderer.sharedMaterial)).Concat(new UnityEngine.Object[]{c.colliderMesh}).Distinct().ToArray();
+                    Check(label+": "+b.SurfaceId+" exact owned persistent refs",objects.All(o=>EditorUtility.IsPersistent(o)&&GroundWorkshopOwnership.IsUnder(AssetDatabase.GetAssetPath(o),folder)));
+                }
+                records.Add(new{surfaceId=b.SurfaceId,c.rebuildCount,c.signature,renderers=c.chunks.Length,c.outputTriangles,
+                    meshPaths=c.chunks.Select(k=>AssetDatabase.GetAssetPath(k.filter.sharedMesh)).Distinct().OrderBy(p=>p).ToArray(),
+                    materialPaths=c.chunks.Select(k=>AssetDatabase.GetAssetPath(k.renderer.sharedMaterial)).Distinct().OrderBy(p=>p).ToArray(),cap=AssetDatabase.GetAssetPath(c.colliderMesh)});
+            }
+            if(persistent)Check(label+": exact Lab saved clean",!scene.isDirty);
+            trace.Add(new{label,seconds=EditorApplication.timeSinceStartup-started,persistent,dirty=scene.isDirty,records,
+                liveMeshes=Resources.FindObjectsOfTypeAll<Mesh>().Length,liveMaterials=Resources.FindObjectsOfTypeAll<Material>().Length,ownedCacheFiles=OwnedCachePaths().Length});
+        }
+        string[] OwnedCachePaths()=>bindings.SelectMany(b=>AssetDatabase.FindAssets("",new[]{b.map.registration.assetFolder+"/SurfaceCache"}).Select(AssetDatabase.GUIDToAssetPath)).Where(p=>!string.IsNullOrEmpty(p)&&!AssetDatabase.IsValidFolder(p)).Distinct().OrderBy(p=>p,StringComparer.Ordinal).ToArray();
+        void CheckStableFiles()
+        {
+            var paths=OwnedCachePaths();Check("stable cache filenames and identities across rebuild/save/reopen",firstIdentities!=null&&new HashSet<string>(paths,StringComparer.Ordinal).SetEquals(firstIdentities.Keys)&&paths.All(p=>AssetIdentity(p)==firstIdentities[p]));
+        }
+        static string AssetIdentity(string path)=>Id(AssetDatabase.LoadMainAssetAtPath(path));
+        static string Id(UnityEngine.Object value)
+        {
+            if(value==null)return "null";
+            if(AssetDatabase.TryGetGUIDAndLocalFileIdentifier(value,out string guid,out long localId))return guid+":"+localId;
+            return GlobalObjectId.GetGlobalObjectIdSlow(value).ToString();
+        }
+        void Check(string name,bool ok){checks.Add(new{name,passed=ok});if(ok)passed++;else{failed++;throw new InvalidOperationException(name);}}
+        void Tick()
+        {
+            try
+            {
+                var now=EditorApplication.timeSinceStartup;if(now<next)return;if(now-started>50)throw new TimeoutException("Bounded save/reopen contract timed out.");
+                if(EditorApplication.isCompiling||EditorApplication.isPlayingOrWillChangePlaymode||SceneManager.GetActiveScene().path!=GroundSurfaceAuthoring.ScenePath)throw new InvalidOperationException("Editor lifecycle changed; no further save or close.");
+                if(!GroundWorkshopOwnership.ContextReady(out _)){next=now+.1;return;}
+                if(steps.Count==0){End(null);return;}var step=steps.Dequeue();phase=step.name;Publish("RUNNING",null);step.action();next=now+.6;
+            }
+            catch(Exception error){End(error.ToString());}
+        }
+        public void End(string error)
+        {
+            EditorApplication.update-=Tick;
+            if(priorSelection!=null&&SceneManager.GetActiveScene().path==GroundSurfaceAuthoring.ScenePath)
+                Selection.objects=priorSelection.Select(GlobalObjectId.GlobalObjectIdentifierToObjectSlow).Where(o=>o!=null).ToArray();
+            if(error!=null)failed++;phase="finished";Publish(error==null&&failed==0?"COMPLETED":"FAILED",error);active=null;
+        }
+        void Publish(string status,string error)
+        {
+            ResultJson=Newtonsoft.Json.JsonConvert.SerializeObject(new{status,runId,startedUtc,phase,passed,failed,error,checks,trace,reopened,receiptPath,seconds=EditorApplication.timeSinceStartup-started,
+                scope="Actual one-scene KT03 Lab. Native SaveLab twice, OpenScene Single, inspect serialized Mesh/Material/cap refs before delayed rebuild, then save refreshed cache. Exact author/source identities persist; stable owned asset names and GUID/localIds do not grow. Opening the saved scene resets that scene's Native Undo history. No prior asset deletion or other scene close."},Newtonsoft.Json.Formatting.Indented);
+            if(!string.IsNullOrEmpty(receiptPath))File.WriteAllText(receiptPath,ResultJson,new UTF8Encoding(false));
+        }
+        static void Matrix(BinaryWriter w,Matrix4x4 m){for(int r=0;r<4;r++)for(int c=0;c<4;c++)w.Write(m[r,c]);}
+        static string AuthorHash(GroundWorkshopMap map)
+        {
+            using(var stream=new MemoryStream())
+            {
+                using(var w=new BinaryWriter(stream,Encoding.UTF8,true))
+                {
+                    w.Write(map.registration.mapId);w.Write(Id(map.theme));Matrix(w,map.transform.localToWorldMatrix);w.Write(map.surface.layers.Length);
+                    for(int i=0;i<map.surface.layers.Length;i++)
+                    {
+                        var layer=map.surface.layers[i];var tilemap=layer.tilemap;var owned=map.layerBindings[i];w.Write(Id(tilemap));w.Write(layer.isLocked);w.Write(map.theme.layers[i].locked);
+                        w.Write(owned.slotId??"");w.Write(Id(owned.recipe));w.Write(Id(owned.ownedTile));w.Write(Id(owned.ownedMaterial));Matrix(w,tilemap.transform.localToWorldMatrix);
+                        var bounds=tilemap.cellBounds;bounds.SetMinMax(Vector3Int.Min(bounds.min,map.surface.EditableCells.min),Vector3Int.Max(bounds.max,map.surface.EditableCells.max));
+                        if((long)bounds.size.x*bounds.size.y*bounds.size.z>262144)throw new InvalidOperationException("Snapshot cell bound exceeded.");
+                        foreach(var cell in bounds.allPositionsWithin){var color=tilemap.GetColor(cell);w.Write(cell.x);w.Write(cell.y);w.Write(cell.z);w.Write(Id(tilemap.GetTile(cell)));w.Write(color.r);w.Write(color.g);w.Write(color.b);w.Write(color.a);w.Write((int)tilemap.GetTileFlags(cell));Matrix(w,tilemap.GetTransformMatrix(cell));}
+                    }
+                    foreach(var d in map.GetComponentsInChildren<GroundDecorationInstance>(true).OrderBy(d=>d.instanceId,StringComparer.Ordinal))
+                    {w.Write(d.instanceId??"");w.Write(d.assetId??"");w.Write(d.generationGroup??"");w.Write(d.isLocked);w.Write(d.generated);w.Write(d.seed);w.Write(Id(d.definition));Matrix(w,d.transform.localToWorldMatrix);}
+                }
+                stream.Position=0;using(var hash=SHA256.Create())return Convert.ToBase64String(hash.ComputeHash(stream));
+            }
+        }
+    }
+}

@@ -1,0 +1,154 @@
+/* 实际Lab模型版本合同：A0→1→0、原生Undo/Redo及作者属性保留，不保存中间数据。
+ * 仅本轮新Lab；对单一哨兵格使用自有Undo夹具。finally恢复原模型/作者并清理本候选产生的游离缓存。
+ * 游离缓存清理不是产品通过：若Undo产生孤儿会先记真实失败；只销毁本候选观察到的新瞬态对象。
+ */
+using System;
+using System.IO;
+using System.Linq;
+using System.Collections.Generic;
+using System.Security.Cryptography;
+using System.Text;
+using Ossastra.GroundResearch;
+using Ossastra.GroundResearch.Editor;
+using Ossastra.GroundSurfaces;
+using Ossastra.GroundSurfaces.Editor;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEngine.Tilemaps;
+using UnityEditor;
+using Funplay.Editor.Tools.Scripting;
+using Object=UnityEngine.Object;
+
+public sealed class KT03LabModelVariantContracts : IFunplayCommand
+{
+    readonly List<string> passed=new List<string>(),failed=new List<string>();
+    readonly HashSet<GroundSurfaceMeshCache> createdCaches=new HashSet<GroundSurfaceMeshCache>();
+    readonly HashSet<MeshCollider> createdCaps=new HashSet<MeshCollider>();
+    readonly List<object> variantStates=new List<object>();
+    HashSet<int> baselineCacheIds;
+    static void Require(bool v,string m){if(!v)throw new InvalidOperationException(m);}
+    void Case(string name,Action action){try{action();passed.Add(name);}catch(Exception e){failed.Add(name+": "+(e.InnerException??e).Message);}}
+    static void Matrix(BinaryWriter w,Matrix4x4 m){for(int r=0;r<4;r++)for(int c=0;c<4;c++)w.Write(m[r,c]);}
+    static string Hash(Action<BinaryWriter> action)
+    {using(var stream=new MemoryStream()){using(var w=new BinaryWriter(stream,Encoding.UTF8,true))action(w);stream.Position=0;using(var h=SHA256.Create())return Convert.ToBase64String(h.ComputeHash(stream));}}
+    static string Authors(GroundWorkshopMap map)=>Hash(w=>
+    {
+        w.Write(map.registration.mapId);Matrix(w,map.transform.localToWorldMatrix);
+        foreach(var layer in map.surface.layers)
+        {
+            var t=layer.tilemap;w.Write(t.GetInstanceID());w.Write(layer.isLocked);w.Write(t.origin.x);w.Write(t.origin.y);w.Write(t.size.x);w.Write(t.size.y);Matrix(w,t.transform.localToWorldMatrix);
+            var bounds=t.cellBounds;bounds.SetMinMax(Vector3Int.Min(bounds.min,map.surface.EditableCells.min),Vector3Int.Max(bounds.max,map.surface.EditableCells.max));Require((long)bounds.size.x*bounds.size.y*bounds.size.z<262144,"快照有界");
+            foreach(var cell in bounds.allPositionsWithin){var tile=t.GetTile(cell);var color=t.GetColor(cell);w.Write(cell.x);w.Write(cell.y);w.Write(cell.z);w.Write(tile==null?0:tile.GetInstanceID());w.Write(color.r);w.Write(color.g);w.Write(color.b);w.Write(color.a);w.Write((int)t.GetTileFlags(cell));Matrix(w,t.GetTransformMatrix(cell));}
+        }
+    });
+    static string Sha(string path){using(var s=File.OpenRead(path))using(var h=SHA256.Create())return Convert.ToBase64String(h.ComputeHash(s));}
+    static double CellArea(GroundSurfaceBinding binding,Tilemap tilemap,Vector3Int cell,SurfaceDomain domain)
+    {
+        Vector3 a=binding.transform.InverseTransformPoint(tilemap.CellToWorld(cell)),b=binding.transform.InverseTransformPoint(tilemap.CellToWorld(cell+Vector3Int.right)),c=binding.transform.InverseTransformPoint(tilemap.CellToWorld(cell+Vector3Int.right+Vector3Int.up)),d=binding.transform.InverseTransformPoint(tilemap.CellToWorld(cell+Vector3Int.up));
+        var v=new List<ClipVertex>();var t=new List<int>();GroundSurfaceGeometry.ClipTriangle(new ClipVertex(a,Vector2.zero,Color.white),new ClipVertex(b,Vector2.zero,Color.white),new ClipVertex(c,Vector2.zero,Color.white),domain,v,t);GroundSurfaceGeometry.ClipTriangle(new ClipVertex(a,Vector2.zero,Color.white),new ClipVertex(c,Vector2.zero,Color.white),new ClipVertex(d,Vector2.zero,Color.white),domain,v,t);
+        double area=0;for(int i=0;i<t.Count;i+=3)area+=Math.Abs(Vector3.Cross(v[t[i+1]].position-v[t[i]].position,v[t[i+2]].position-v[t[i]].position).y)*.5;return area;
+    }
+    void Track(GroundSurfaceBinding binding)
+    {
+        foreach(var cache in binding.GetComponentsInChildren<GroundSurfaceMeshCache>(true))
+        {
+            if(cache.binding!=binding||baselineCacheIds.Contains(cache.GetInstanceID()))continue;createdCaches.Add(cache);
+            foreach(var cap in binding.GetComponentsInChildren<MeshCollider>(true))if(cap.transform.parent==binding.transform&&cap.sharedMesh==cache.colliderMesh&&cap.name.StartsWith("平台站立面_",StringComparison.Ordinal))createdCaps.Add(cap);
+        }
+    }
+    void OnlyOne(GroundSurfaceBinding binding)
+    {
+        var caches=binding.GetComponentsInChildren<GroundSurfaceMeshCache>(true).Where(c=>c.binding==binding).ToArray();
+        Require(caches.Length==1&&caches[0].transform==binding.cacheRoot,"Undo/Redo后游离缓存数="+caches.Length);
+        var caps=binding.GetComponentsInChildren<MeshCollider>(true).Where(c=>c.transform.parent==binding.transform&&c.name.StartsWith("平台站立面_",StringComparison.Ordinal)).ToArray();
+        Require(caps.Length==1&&caps[0]==binding.capCollider,"Undo/Redo后游离站立面数="+caps.Length);
+    }
+    void CheckVariant(GroundSurfaceBinding binding,int index,SurfaceDomain expected,string expectedAuthorHash,Vector2 probe,bool expectProbe)
+    {
+        Track(binding);var filter=binding.sideWalls[0];var sideCollider=filter.GetComponent<MeshCollider>();
+        variantStates.Add(new{expectedVariant=index,actualVariant=binding.currentModelVariant,sourceMesh=filter.sharedMesh==null?0:filter.sharedMesh.GetInstanceID(),cacheRoot=binding.cacheRoot==null?0:binding.cacheRoot.GetInstanceID(),cap=binding.capCollider==null?0:binding.capCollider.GetInstanceID(),cacheCount=binding.GetComponentsInChildren<GroundSurfaceMeshCache>(true).Count(c=>c.binding==binding),capCount=binding.GetComponentsInChildren<MeshCollider>(true).Count(c=>c.transform.parent==binding.transform&&c.name.StartsWith("平台站立面_",StringComparison.Ordinal)),boundaryRevision=binding.boundary.revision});
+        Require(binding.currentModelVariant==index&&filter.sharedMesh==binding.modelVariants[index]&&sideCollider!=null&&sideCollider.sharedMesh==filter.sharedMesh,"模型指针/版本/侧壁Collider未同步");
+        Require(binding.boundary.sourceFingerprint==GroundSurfaceModelReader.Fingerprint(binding),"Boundary来源指纹未同步");
+        Require(binding.boundary.sourceMeshGuids.SequenceEqual(binding.sideWalls.Select(m=>AssetDatabase.AssetPathToGUID(AssetDatabase.GetAssetPath(m.sharedMesh))).Distinct()),"Boundary源GUID证据不一致");
+        var domain=binding.GetDomain();Require(Math.Abs(domain.area-expected.area)<1e-4&&domain.ring.Length==expected.ring.Length,"真实读回域未同步");
+        Require(Authors(binding.map)==expectedAuthorHash,"模型变更重置了原生Tile/颜色/flags/手工矩阵");
+        var cache=binding.cacheRoot==null?null:binding.cacheRoot.GetComponent<GroundSurfaceMeshCache>();Require(cache!=null&&cache.binding==binding&&cache.colliderMesh==binding.capCollider.sharedMesh,"cache/Collider引用不完整");
+        foreach(var chunk in cache.chunks)foreach(var v in chunk.filter.sharedMesh.vertices)Require(Math.Abs(v.y-binding.boundary.localTopY)<1e-5&&GroundSurfaceGeometry.ContainsXZ(domain,new Vector2(v.x,v.z)),"缓存超出当前模型域或浮离封口平面");
+        Physics.SyncTransforms();var point=binding.transform.TransformPoint(new Vector3(probe.x,binding.boundary.localTopY,probe.y));
+        Require(binding.capCollider.Raycast(new Ray(point+Vector3.up*10,Vector3.down),out _,20)==expectProbe,"真实凹口顶碰撞没有随模型版本变化");OnlyOne(binding);
+    }
+    void CleanupOrphans(GroundSurfaceBinding binding)
+    {
+        // 只处理本候选操作期间记录的新对象；产品若泄漏已由OnlyOne合同真实报错。
+        var assets=new HashSet<Object>();
+        foreach(var cache in createdCaches.Where(c=>c!=null&&c.binding==binding&&c.transform!=binding.cacheRoot).ToArray())
+        {
+            Require(cache.transform.parent==binding.transform,"游离缓存不再属于本平台，保留未知现场");
+            if(cache.colliderMesh!=null)assets.Add(cache.colliderMesh);
+            foreach(var chunk in cache.chunks){if(chunk.filter!=null&&chunk.filter.sharedMesh!=null)assets.Add(chunk.filter.sharedMesh);if(chunk.renderer!=null&&chunk.renderer.sharedMaterial!=null)assets.Add(chunk.renderer.sharedMaterial);}
+            Object.DestroyImmediate(cache.gameObject);
+        }
+        foreach(var cap in createdCaps.Where(c=>c!=null&&c!=binding.capCollider).ToArray())
+        {
+            Require(cap.transform.parent==binding.transform&&cap.transform.childCount==0&&cap.GetComponents<Component>().All(c=>c is Transform||c is MeshCollider),"游离物理夹具含未知内容，保留");
+            if(cap.sharedMesh!=null)assets.Add(cap.sharedMesh);Object.DestroyImmediate(cap.gameObject);
+        }
+        foreach(var asset in assets)if(asset!=null&&!EditorUtility.IsPersistent(asset))Object.DestroyImmediate(asset);
+    }
+    public void Execute(ExecutionContext ctx)
+    {
+        GroundSurfaceBinding a=null;GroundWorkshopMap[] maps=null;FrontierGroundBrush brush=null;Dictionary<string,string> baseline=null,sentinel=null,files=null;
+        Dictionary<Transform,Matrix4x4> roots=null;Dictionary<Transform,Matrix4x4> decorations=null;int fixture=-1;float timescale=Time.timeScale;
+        Tilemap target=null;Vector3Int cell=default;TileBase oldTile=null;Color oldColor=default;TileFlags oldFlags=default;Matrix4x4 oldMatrix=default;
+        Vector2[] oldRim=null;string oldFingerprint=null;int oldRevision=0,oldVariant=0;Mesh oldMesh=null,oldSideColliderMesh=null;Vector2 probe=default;
+        try
+        {
+            var scene=SceneManager.GetActiveScene();Require(scene.path==GroundSurfaceAuthoring.ScenePath&&!Application.isPlaying&&!GroundWorkshopAuthoring.HasPreview,"仅精确Lab Edit且无预览");
+            var bindings=GroundSurfaceAuthoring.GetBindings();Require(bindings.Length==2,"两座已注册高台");a=bindings.OrderBy(b=>b.transform.position.y).First();Require(a.modelVariants.Length>=2&&a.currentModelVariant==0&&a.sideWalls[0].sharedMesh==a.modelVariants[0],"本合同从A原版0开始");
+            maps=scene.GetRootGameObjects().SelectMany(r=>r.GetComponentsInChildren<GroundWorkshopMap>(true)).ToArray();Require(maps.Length==3,"三Map身份");baseline=maps.ToDictionary(m=>m.registration.mapId,Authors);
+            var paths=new HashSet<string>{GroundSurfaceAuthoring.ScenePath,GroundWorkshopOwnership.ReferenceScene,GroundWorkshopOwnership.OriginalScene,FrontierGroundSceneBuilder.ScenePath};foreach(var map in maps)foreach(var path in Directory.GetFiles(map.registration.assetFolder,"*",SearchOption.AllDirectories))paths.Add(path);foreach(var mesh in bindings.SelectMany(b=>b.modelVariants)){string path=AssetDatabase.GetAssetPath(mesh);paths.Add(path);paths.Add(path+".meta");}files=paths.Where(File.Exists).ToDictionary(p=>p,Sha);
+            roots=scene.GetRootGameObjects().SelectMany(r=>r.GetComponentsInChildren<MonoBehaviour>(true)).Where(c=>c!=null&&(c.GetType().Name=="CharacterRoot"||c.GetType().Name=="EnemyRoot")).Select(c=>c.transform).Concat(scene.GetRootGameObjects().SelectMany(r=>r.GetComponentsInChildren<Camera>(true)).Select(c=>c.transform)).Distinct().ToDictionary(t=>t,t=>t.localToWorldMatrix);
+            decorations=maps.SelectMany(m=>m.decorationRoot.GetComponentsInChildren<GroundDecorationInstance>(true)).Select(d=>d.transform).ToDictionary(t=>t,t=>t.localToWorldMatrix);
+            baselineCacheIds=new HashSet<int>(a.GetComponentsInChildren<GroundSurfaceMeshCache>(true).Select(c=>c.GetInstanceID()));
+            oldRim=(Vector2[])a.boundary.rim.Clone();oldFingerprint=a.boundary.sourceFingerprint;oldRevision=a.boundary.revision;oldVariant=a.currentModelVariant;oldMesh=a.sideWalls[0].sharedMesh;oldSideColliderMesh=a.sideWalls[0].GetComponent<MeshCollider>().sharedMesh;
+            var original=GroundSurfaceModelReader.ReadDomain(a,a.modelVariants[0]);var smaller=GroundSurfaceModelReader.ReadDomain(a,a.modelVariants[1]);Require(smaller.area<original.area,"第二个已保存模型应缩小凹域");
+            int layer=Enumerable.Range(0,a.map.surface.layers.Length).Last(i=>!GroundWorkshopAuthoring.IsLayerLocked(a.map,i));target=a.map.surface.layers[layer].tilemap;
+            bool found=false;foreach(var c in a.map.surface.EditableCells.allPositionsWithin)if(CellArea(a,target,c,original)>1e-5&&CellArea(a,target,c,smaller)<1e-7){cell=c;found=true;break;}Require(found,"需要真实缩域后全外的原生格夹具");
+            oldTile=target.GetTile(cell);oldColor=target.GetColor(cell);oldFlags=target.GetTileFlags(cell);oldMatrix=target.GetTransformMatrix(cell);
+            bool sampled=false;for(int x=1;x<20&&!sampled;x++)for(int z=1;z<20&&!sampled;z++){var p=new Vector2(Mathf.Lerp(original.bounds.xMin,original.bounds.xMax,x/20f),Mathf.Lerp(original.bounds.yMin,original.bounds.yMax,z/20f));if(GroundSurfaceGeometry.ContainsXZ(original,p)&&!GroundSurfaceGeometry.ContainsXZ(smaller,p)&&p.y>original.bounds.center.y+1){probe=p;sampled=true;}}Require(sampled,"真实两模型差域碰撞采样");
+            Undo.IncrementCurrentGroup();fixture=Undo.GetCurrentGroup();Undo.SetCurrentGroupName("KT03模型合同受控哨兵");
+            brush=ScriptableObject.CreateInstance<FrontierGroundBrush>();Require(brush.Configure(a.map.surface,layer,1),"真实Brush配置哨兵层");brush.Paint(a.map.surface.grid,target.gameObject,cell);brush.FinishStroke(false);
+            Undo.RegisterCompleteObjectUndo(target,"KT03作者颜色flags矩阵哨兵");target.SetTileFlags(cell,TileFlags.None);target.SetColor(cell,new Color(.23f,.47f,.79f,.83f));target.SetTransformMatrix(cell,Matrix4x4.TRS(new Vector3(.13f,.07f,0),Quaternion.Euler(0,0,13),new Vector3(.91f,1.07f,1)));Undo.FlushUndoRecordObjects();
+            sentinel=maps.ToDictionary(m=>m.registration.mapId,Authors);string expected=sentinel[a.map.registration.mapId];
+            Case("A0到1同步真实模型侧壁Collider域缓存且作者不重置",()=>{try{GroundSurfaceAuthoring.UseModelVariant(a,1);Undo.FlushUndoRecordObjects();}finally{Track(a);}CheckVariant(a,1,smaller,expected,probe,false);Require(target.GetTile(cell)==brush.Layer.paintTile&&!a.map.surface.ContainsCell(cell),"缩域外Tile必须保留，新的域外笔画须拒绝");});
+            Case("A1到0恢复原轮廓并重新显示保留作者格",()=>{try{GroundSurfaceAuthoring.UseModelVariant(a,0);Undo.FlushUndoRecordObjects();}finally{Track(a);}CheckVariant(a,0,original,expected,probe,true);Require(a.map.surface.ContainsCell(cell)&&target.GetTile(cell)==brush.Layer.paintTile,"扩大后原Tile丢失");});
+            Case("真实Undo返回模型1并同步全部派生引用且无游离缓存",()=>{Undo.FlushUndoRecordObjects();Undo.PerformUndo();Track(a);try{GroundSurfaceAuthoring.Rebuild(a);}finally{Track(a);}CheckVariant(a,1,smaller,expected,probe,false);});
+            Case("真实Redo返回模型0保留手工属性且无游离缓存",()=>{Undo.PerformRedo();Track(a);try{GroundSurfaceAuthoring.Rebuild(a);}finally{Track(a);}CheckVariant(a,0,original,expected,probe,true);});
+            Case("模型切换不串低地B或重排现有装饰",()=>{Require(maps.Where(m=>m!=a.map).All(m=>Authors(m)==sentinel[m.registration.mapId]),"另两Map作者变化");Require(decorations.All(p=>p.Key!=null&&p.Key.localToWorldMatrix==p.Value),"锁定/手摆/既有装饰被移动或删除");});
+        }
+        catch(Exception e){failed.Add("模型合同设置/执行异常："+(e.InnerException??e));}
+        finally
+        {
+            if(brush!=null){brush.FinishStroke(false);Object.DestroyImmediate(brush);}
+            if(fixture>=0){Undo.FlushUndoRecordObjects();Undo.RevertAllDownToGroup(fixture);}
+            if(a!=null&&oldRim!=null)
+            {
+                try
+                {
+                    // 已报失败的Undo也不能把测试模型留给用户；只恢复明确捕获的本次模型/单格哨兵。
+                    if(a.currentModelVariant!=oldVariant||a.sideWalls[0].sharedMesh!=oldMesh||a.boundary.sourceFingerprint!=oldFingerprint||a.boundary.revision!=oldRevision)
+                    {failed.Add("作者Undo未完整恢复，使用明确基线恢复本次模型夹具");a.sideWalls[0].sharedMesh=oldMesh;a.sideWalls[0].GetComponent<MeshCollider>().sharedMesh=oldSideColliderMesh;a.currentModelVariant=oldVariant;a.boundary.rim=(Vector2[])oldRim.Clone();a.boundary.sourceFingerprint=oldFingerprint;a.boundary.revision=oldRevision;}
+                    a.InvalidateBoundary();Track(a);CleanupOrphans(a);
+                    if(target!=null&&baseline!=null&&Authors(a.map)!=baseline[a.map.registration.mapId])
+                    {failed.Add("作者Undo未完整恢复单格哨兵，恢复本次明确格快照");target.SetTile(cell,oldTile);target.SetTileFlags(cell,TileFlags.None);target.SetColor(cell,oldColor);target.SetTransformMatrix(cell,oldMatrix);target.SetTileFlags(cell,oldFlags);}
+                    GroundSurfaceAuthoring.Rebuild(a);OnlyOne(a);
+                }
+                catch(Exception e){failed.Add("模型夹具恢复未完成，禁止保存中间状态："+e.Message);}
+            }
+            if(baseline!=null)Case("finally三Map作者完整回到执行前hash",()=>Require(maps.All(m=>Authors(m)==baseline[m.registration.mapId]),"作者baseline未恢复"));
+            if(files!=null)Case("模型合同不保存中间数据且新旧源SHA保持",()=>Require(files.All(p=>File.Exists(p.Key)&&Sha(p.Key)==p.Value),"源文件被写"));
+            if(roots!=null)Case("模型验证不移动角色相机或改TimeScale",()=>Require(roots.All(p=>p.Key!=null&&p.Key.localToWorldMatrix==p.Value)&&Time.timeScale==timescale,"违反控制链边界"));
+        }
+        ctx.ReturnValue=new{passed=passed.Count,failed=failed.Count,passedCases=passed,failedCases=failed,baselineInputHashes=baseline,sentinelInputHashes=sentinel,shrinkCell=cell.ToString(),probe=probe.ToString(),trackedCreatedCaches=createdCaches.Count,variantStates=variantStates,scope="Actual saved model variants plus Native Undo/Redo; author data restored; direct API rather than physical SceneView gesture; no intermediate save"};
+    }
+}

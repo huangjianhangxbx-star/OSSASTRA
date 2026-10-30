@@ -1,0 +1,26 @@
+/* Read-only generic poll. Set GroundSurface.ContractPollType to one exact candidate type name, or leave empty for all three cache-loop candidates.
+ * All dynamic assemblies with that name are reported. Do not choose the first assembly after rerunning a fixture.
+ * startedUtc/runId identify the current run without executing any fixture a second time.
+ */
+using System;
+using System.Linq;
+using System.Reflection;
+using UnityEditor;
+using Newtonsoft.Json.Linq;
+using Funplay.Editor.Tools.Scripting;
+public sealed class KT03PollSurfaceCacheContracts : IFunplayCommand
+{
+    public void Execute(ExecutionContext ctx)
+    {
+        var requested=SessionState.GetString("GroundSurface.ContractPollType","");
+        var known=new[]{"KT03SurfacePreviewCacheLoopContracts","KT03SurfaceSaveReopenContracts","KT03SurfaceIdleRotationContracts","KT03SurfaceDisplayStateSyncContracts","KT03SurfaceMaskSaveOrderContracts","KT03SurfaceMeshReferenceGateContracts"};
+        if(!string.IsNullOrEmpty(requested)&&!known.Contains(requested))throw new ArgumentException("Unknown bounded cache contract type; no arbitrary reflection target.");
+        var names=string.IsNullOrEmpty(requested)?known:new[]{requested};
+        ctx.ReturnValue=names.SelectMany(name=>AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType(name,false)).Where(t=>t!=null).Select(t=>{
+            var field=t.GetField("ResultJson",BindingFlags.Static|BindingFlags.Public);string text=field==null?null:field.GetValue(null) as string;JToken result;
+            try{result=string.IsNullOrEmpty(text)||text=="NOT_STARTED"?new JObject(new JProperty("status",text??"MISSING_FIELD")):JToken.Parse(text);}
+            catch(Exception error){result=new JObject(new JProperty("status","INVALID_REPORT"),new JProperty("error",error.Message));}
+            return new{type=t.FullName,assembly=t.Assembly.FullName,moduleVersion=t.Module.ModuleVersionId.ToString("N"),result};
+        })).ToArray();
+    }
+}

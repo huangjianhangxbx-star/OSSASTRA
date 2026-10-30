@@ -1,0 +1,143 @@
+/* Actual Window visibility/mask/cache contract. Root Native only; direct public Window methods.
+ * SceneVisibility is Editor SceneView state. It must NOT be emulated by Renderer.enabled/forceOff,
+ * which changes GameView. Checks continue after an assertion failure so Show/Restore still execute.
+ * Own hidden utility Window is destroyed; its public ReleaseAuthoring restores only its own writes.
+ */
+using System;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Collections.Generic;
+using System.Security.Cryptography;
+using UnityEditor;
+using UnityEngine;
+using UnityEngine.Tilemaps;
+using UnityEngine.SceneManagement;
+using Ossastra.GroundResearch;
+using Ossastra.GroundResearch.Editor;
+using Ossastra.GroundSurfaces;
+using Ossastra.GroundSurfaces.Editor;
+using Funplay.Editor.Tools.Scripting;
+using Object=UnityEngine.Object;
+public sealed class KT03SurfaceDisplayStateSyncContracts : IFunplayCommand
+{
+    public static string ResultJson="NOT_STARTED";static Runner active;
+    public void Execute(ExecutionContext ctx)
+    {
+        if(active!=null){ctx.ReturnValue=new{status="ALREADY_RUNNING",pollType="KT03SurfaceDisplayStateSyncContracts"};return;}
+        active=new Runner();try{active.Start();}catch(Exception error){active.End(error.ToString());}
+        ctx.ReturnValue=new{status=active==null?"SETUP_FINISHED_OR_FAILED":"STARTED",pollType="KT03SurfaceDisplayStateSyncContracts",pollField="ResultJson",result=ResultJson};
+    }
+    sealed class Step{public string name;public Action action;public bool needsNewCache;}
+    sealed class Runner
+    {
+        const string SurfaceA="0544cd8ed8b24bbd81646cd2134def4a";const int Road=6;
+        readonly string runId=Guid.NewGuid().ToString("N"),startedUtc=DateTime.UtcNow.ToString("O");
+        readonly Queue<Step> steps=new Queue<Step>();readonly List<object> rows=new List<object>(),trace=new List<object>();
+        GroundSurfaceBinding binding;GroundWorkshopMap[] maps;GroundWorkshopWindow window;Scene scene;Tilemap native;
+        Dictionary<string,string> authors,otherDisplay;string originalNativeDisplay,receiptPath;int priorCache,passed,failed;
+        bool[] nativeEnabled,cacheEnabled,cacheForceOff;double started,next,waiting;string phase="setup",failure;bool ending;
+        public void Start()
+        {
+            started=EditorApplication.timeSinceStartup;if(!GroundWorkshopOwnership.ContextReady(out string reason))throw new InvalidOperationException(reason);
+            scene=SceneManager.GetActiveScene();if(scene.path!=GroundSurfaceAuthoring.ScenePath)throw new InvalidOperationException("Requires the actual KT03 Lab.");
+            if(GroundWorkshopAuthoring.HasPreview||scene.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<GroundSurfaceLabView>(true)).Any(v=>v.IsObserving))throw new InvalidOperationException("An existing preview/observation is owned by another operation.");
+            if(Resources.FindObjectsOfTypeAll<FrontierGroundBrush>().Any(b=>b.IsStrokeActive))throw new InvalidOperationException("A prior stroke is active.");
+            binding=GroundSurfaceAuthoring.GetBindings().Single(b=>b.SurfaceId==SurfaceA);native=binding.Surface.layers[Road].tilemap;
+            if(SceneVisibilityManager.instance.IsHidden(native.gameObject))throw new InvalidOperationException("Road is already hidden; fixture does not take over prior visibility.");
+            maps=scene.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<GroundWorkshopMap>(true)).ToArray();
+            authors=maps.ToDictionary(m=>m.registration.mapId,AuthorHash);otherDisplay=maps.Where(m=>m!=binding.map).ToDictionary(m=>m.registration.mapId,DisplayHash);
+            originalNativeDisplay=NativeDisplayHash(binding.map);nativeEnabled=binding.Surface.layers.Select(l=>l.tilemap.GetComponent<TilemapRenderer>().enabled).ToArray();
+            cacheEnabled=Cache().chunks.Select(c=>c.renderer.enabled).ToArray();cacheForceOff=Cache().chunks.Select(c=>c.renderer.forceRenderingOff).ToArray();
+            var output=SessionState.GetString("GroundSurface.CacheTestOutput","");if(!string.IsNullOrEmpty(output)&&Directory.Exists(output))receiptPath=Path.Combine(output,"display-state_"+runId+".json");
+            window=ScriptableObject.CreateInstance<GroundWorkshopWindow>();window.hideFlags=HideFlags.HideAndDontSave;window.SelectSurface(binding.Surface);
+            Add("hide-actual-Window-Road",()=>{priorCache=Cache().GetInstanceID();Check("public Window SetLayerVisible accepts Hide",window.SetLayerVisible(Road,false));});
+            Add("hidden-cache-after-event",()=>{CheckVisibility("Hide",true);CheckUnchanged();priorCache=Cache().GetInstanceID();Check("public Window SetLayerVisible accepts Show",window.SetLayerVisible(Road,true));},true);
+            Add("shown-cache-after-event",()=>{CheckVisibility("Show",false);CheckUnchanged();priorCache=Cache().GetInstanceID();Check("public Window SetMaskDebug accepts true",window.SetMaskDebug(true));},true);
+            Add("mask-cache-after-event",()=>{
+                Check("every actual Native source has DebugMask one",binding.Surface.layers.All(l=>Mathf.Approximately(DebugMask(l.tilemap.GetComponent<TilemapRenderer>()),1)));
+                Check("every new cap chunk mirrors DebugMask one",Cache().chunks.All(c=>Mathf.Approximately(DebugMask(c.renderer),1)));
+                Check("mask changes preserve actual recipe detail and source mask textures",Cache().chunks.All(c=>{var renderer=c.sourceTilemap.GetComponent<TilemapRenderer>();return Texture(c.renderer,"_SecondTex")==Texture(renderer,"_SecondTex")&&Texture(c.renderer,"_MainTex")==c.sourceSprites[0].texture;}));
+                CheckUnchanged();priorCache=Cache().GetInstanceID();window.ReleaseAuthoring();
+            },true);
+            Add("release-observation-after-event",()=>{
+                CheckVisibility("ReleaseAuthoring",false);Check("ReleaseAuthoring restores all original Native property/visibility states",NativeDisplayHash(binding.map)==originalNativeDisplay);
+                Check("restored cache DebugMask matches each actual source",Cache().chunks.All(c=>Mathf.Approximately(DebugMask(c.renderer),DebugMask(c.sourceTilemap.GetComponent<TilemapRenderer>()))));
+                CheckUnchanged();priorCache=Cache().GetInstanceID();Object.DestroyImmediate(window);window=null;
+            },true);
+            Add("final-cleanup-after-event",()=>{CheckUnchanged();Check("finally exactly one cache and live cap",binding.GetComponentsInChildren<GroundSurfaceMeshCache>(true).Count(c=>c.binding==binding)==1&&binding.capCollider!=null&&binding.capCollider.gameObject.activeInHierarchy&&binding.capCollider.sharedMesh==Cache().colliderMesh);End(null);},true);
+            next=started+.5;EditorApplication.update+=Tick;Publish("RUNNING");
+        }
+        GroundSurfaceMeshCache Cache()=>binding.cacheRoot.GetComponent<GroundSurfaceMeshCache>();
+        void Add(string name,Action action,bool needsNewCache=false)=>steps.Enqueue(new Step{name=name,action=action,needsNewCache=needsNewCache});
+        void CheckVisibility(string label,bool hidden)
+        {
+            var chunks=Cache().chunks.Where(c=>c.layerIndex==Road).ToArray();
+            Check(label+": original Native SceneVisibility is correct",SceneVisibilityManager.instance.IsHidden(native.gameObject)==hidden);
+            Check(label+": new cap chunks mirror SceneVisibility",chunks.Length>0&&chunks.All(c=>SceneVisibilityManager.instance.IsHidden(c.renderer.gameObject)==hidden));
+            Check(label+": SceneView Hide never disables Native Renderer for GameView",binding.Surface.layers.Select(l=>l.tilemap.GetComponent<TilemapRenderer>().enabled).SequenceEqual(nativeEnabled));
+            Check(label+": SceneView Hide never disables cap Renderer for GameView",Cache().chunks.Select(c=>c.renderer.enabled).SequenceEqual(cacheEnabled)&&Cache().chunks.Select(c=>c.renderer.forceRenderingOff).SequenceEqual(cacheForceOff));
+            trace.Add(new{label,hidden,cacheId=Cache().GetInstanceID(),Cache().rebuildCount,chunks=chunks.Select(c=>new{sceneHidden=SceneVisibilityManager.instance.IsHidden(c.renderer.gameObject),c.renderer.enabled,c.renderer.forceRenderingOff}).ToArray()});
+        }
+        void CheckUnchanged()
+        {
+            Check("all three map author/lock/decoration data unchanged",maps.All(m=>AuthorHash(m)==authors[m.registration.mapId]));
+            Check("lowland and B Native/cache display unchanged",maps.Where(m=>m!=binding.map).All(m=>DisplayHash(m)==otherDisplay[m.registration.mapId]));
+        }
+        void Check(string name,bool ok){rows.Add(new{name,passed=ok});if(ok)passed++;else failed++;}
+        void Tick()
+        {
+            try
+            {
+                double now=EditorApplication.timeSinceStartup;if(now<next)return;if(ending){Finish();return;}
+                if(now-started>30)throw new TimeoutException("Bounded Window display contract exceeded thirty seconds.");
+                if(EditorApplication.isPlayingOrWillChangePlaymode||EditorApplication.isCompiling||SceneManager.GetActiveScene()!=scene)throw new InvalidOperationException("Editor lifecycle changed; no more display mutations.");
+                var step=steps.Peek();if(phase!=step.name){phase=step.name;waiting=now;Publish("RUNNING");}
+                if(step.needsNewCache&&Cache().GetInstanceID()==priorCache){if(now-waiting>5)throw new TimeoutException("Real display event did not replace cache: "+binding.lastError);next=now+.1;return;}
+                steps.Dequeue();step.action();next=now+.35;
+            }
+            catch(Exception error){End(error.ToString());}
+        }
+        public void End(string error)
+        {
+            if(ending)return;ending=true;failure=error;
+            try{if(window!=null){window.ReleaseAuthoring();Object.DestroyImmediate(window);window=null;}}catch(Exception cleanup){failure=(failure??"")+"\nRecovery: "+cleanup;}
+            EditorApplication.update-=Tick;EditorApplication.update+=Tick;phase="cleanup-after-display-event";next=EditorApplication.timeSinceStartup+.5;Publish("CLEANUP_PENDING");
+        }
+        void Finish()
+        {
+            EditorApplication.update-=Tick;
+            if(authors!=null&&binding!=null)
+            {try{CheckUnchanged();Check("final Native observation state exactly restored",NativeDisplayHash(binding.map)==originalNativeDisplay);}catch(Exception error){failure=(failure??"")+"\nFinal: "+error;}}
+            if(failure!=null)failed++;phase="finished";Publish(failure==null&&failed==0?"COMPLETED":"FAILED");active=null;
+        }
+        void Publish(string status)
+        {
+            ResultJson=Newtonsoft.Json.JsonConvert.SerializeObject(new{status,runId,startedUtc,phase,passed,failed,failure,rows,trace,receiptPath,seconds=EditorApplication.timeSinceStartup-started,
+                scope="Actual private GroundWorkshopWindow on platform A. Public Hide/Show/Mask/ReleaseAuthoring, real delayed cache update, source/chunk SceneVisibility comparison. Renderer enabled/forceOff retained for GameView; no author mutation, manual Rebuild, Save, actor or Collider change. No physical mouse claim."},Newtonsoft.Json.Formatting.Indented);
+            if(!string.IsNullOrEmpty(receiptPath))File.WriteAllText(receiptPath,ResultJson,new UTF8Encoding(false));
+        }
+        static float DebugMask(Renderer renderer)
+        {var b=new MaterialPropertyBlock();renderer.GetPropertyBlock(b);return b.HasProperty(Shader.PropertyToID("_DebugMask"))?b.GetFloat("_DebugMask"):renderer.sharedMaterial.GetFloat("_DebugMask");}
+        static Texture Texture(Renderer renderer,string name)
+        {var b=new MaterialPropertyBlock();renderer.GetPropertyBlock(b);return b.HasProperty(Shader.PropertyToID(name))?b.GetTexture(name):renderer.sharedMaterial.GetTexture(name);}
+        static string NativeDisplayHash(GroundWorkshopMap map)
+        {return string.Join("|",map.surface.layers.Select(l=>{var r=l.tilemap.GetComponent<TilemapRenderer>();return l.tilemap.GetInstanceID()+":"+SceneVisibilityManager.instance.IsHidden(l.tilemap.gameObject)+":"+r.enabled+":"+r.forceRenderingOff+":"+DebugMask(r)+":"+(Texture(r,"_MainTex")==null?0:Texture(r,"_MainTex").GetInstanceID())+":"+(Texture(r,"_SecondTex")==null?0:Texture(r,"_SecondTex").GetInstanceID());}));}
+        static string DisplayHash(GroundWorkshopMap map)
+        {
+            string text=NativeDisplayHash(map);var binding=map.GetComponentInParent<GroundSurfaceBinding>();if(binding==null)return text;
+            var c=binding.cacheRoot.GetComponent<GroundSurfaceMeshCache>();return text+"/"+c.GetInstanceID()+"/"+c.rebuildCount+"/"+string.Join("|",c.chunks.Select(k=>SceneVisibilityManager.instance.IsHidden(k.renderer.gameObject)+":"+k.renderer.enabled+":"+k.renderer.forceRenderingOff+":"+DebugMask(k.renderer)));
+        }
+        static string AuthorHash(GroundWorkshopMap map)
+        {
+            var text=new StringBuilder();text.Append(map.registration.mapId).Append(map.theme.GetInstanceID()).Append(map.transform.localToWorldMatrix.ToString("R"));
+            for(int i=0;i<map.surface.layers.Length;i++)
+            {
+                var l=map.surface.layers[i];var t=l.tilemap;text.Append(t.GetInstanceID()).Append(l.isLocked).Append(map.theme.layers[i].locked).Append(t.transform.localToWorldMatrix.ToString("R"));
+                foreach(var cell in map.surface.EditableCells.allPositionsWithin){var tile=t.GetTile(cell);text.Append(cell).Append(tile==null?0:tile.GetInstanceID()).Append(t.GetColor(cell).ToString("R")).Append((int)t.GetTileFlags(cell)).Append(t.GetTransformMatrix(cell).ToString("R"));}
+            }
+            foreach(var d in map.GetComponentsInChildren<GroundDecorationInstance>(true).OrderBy(d=>d.instanceId,StringComparer.Ordinal))text.Append(d.instanceId).Append(d.isLocked).Append(d.generated).Append(d.transform.localToWorldMatrix.ToString("R"));
+            using(var hash=SHA256.Create())return Convert.ToBase64String(hash.ComputeHash(Encoding.UTF8.GetBytes(text.ToString())));
+        }
+    }
+}

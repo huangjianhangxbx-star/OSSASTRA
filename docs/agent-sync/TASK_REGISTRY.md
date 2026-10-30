@@ -11,6 +11,10 @@
 - 活动任务不得拥有重叠路径；同一时刻最多一个 `unity-writer`。
 - 暂停、阻塞或完成时，将记录移到历史并释放路径。
 
+## KT-GROUND-03 活动任务（2026-10-30）
+
+- `kt-ground-03` active/unity-writer：root唯一Unity writer，新增GroundSurfaces、Samples/KT-GROUND-03、新地图登记资源、Candidates/KT-GROUND-03与专题文档/本任务同步；现有GroundResearch窄扩展先逐文件登记。方案B独立侧壁+模型提边+薄顶盖，旧场/原37dirty/35度镜头/原控制链保护。分工和边界见tasks/2026-10-30-kt-ground-03.md。
+
 ## KT-GROUND-CAMERA 完成交接（2026-10-30）
 
 - `kt-ground-camera-angle` complete/read-only：Lab镜头42.857→35度，distance25/FOV35/yaw45保持；可选临时试玩继承作者pitch，真实进入/退出保持35、原图SHA相同、Console无error。原37dirty/模板/控制代码保护，全部writer/路径租约释放。见tasks/2026-10-30-kt-ground-camera-angle.md。

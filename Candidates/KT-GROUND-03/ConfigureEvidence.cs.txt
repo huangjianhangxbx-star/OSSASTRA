@@ -1,0 +1,2 @@
+using System.IO;using UnityEditor;using Funplay.Editor.Tools.Scripting;
+public sealed class ConfigureEvidence:IFunplayCommand{public void Execute(ExecutionContext ctx){string p="E:/WORLDCREATOR/XingHaiHuiLang/研究/开拓物语地表/KT-GROUND-03/02-visuals";Directory.CreateDirectory(p);SessionState.SetString("GroundSurface.CacheTestOutput",p);ctx.ReturnValue=new{output=p};}}

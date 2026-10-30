@@ -3,7 +3,7 @@
  * 功能：已登记地图的装饰手摆、定种子散布、局部清生成与保护锁作者事务。
  * 负责：地图/实例所有权预检、世界间距/道路排除、有界确定性、单操作Undo和自有材质账本。
  * 不负责：相机控制、角色、玩法碰撞、自动重撒、源图片导入或原生根之外的位置副本。
- * 协作：GroundWorkshopOwnership守写入边界，Maps复制复用同一Owned判定；Orientation只派生视觉与脚点补偿。
+ * 协作：Ownership守归属，可选物理域限制真实脚点；Orientation只派生视觉，不替代作者位置。
  * 关键约束：只清区域内本工具未锁生成根；手摆、锁、外部物件和外部Undo组始终保留。
  */
 #if UNITY_EDITOR
@@ -29,6 +29,8 @@ namespace Ossastra.GroundResearch.Editor
         {
             RequireMap(map); RequireDefinition(definition);
             Require(Finite(world) && map.surface.ContainsCell(Cell(map,world)),"装饰脚点必须在当前地图逻辑范围内。");
+            var domain=GroundSurfaceEditDomain.Find(map.surface);
+            Require(domain==null||domain.ContainsWorldPoint(world,domain.DecorationInset),"装饰脚点不在当前平台或不足配置边缘退让；未放到同XZ下层。");
             return Edit(map,"工坊放置装饰",tx =>
             {
                 Material material=MaterialFor(map,tx); OrientationFor(map,tx);
@@ -49,8 +51,10 @@ namespace Ossastra.GroundResearch.Editor
             BoundsInt clipped=Clip(map,area); if(clipped.size.x==0||clipped.size.y==0)return 0;
             Require((long)clipped.size.x*clipped.size.y<=262144,"一次散布区域超过262144逻辑格，请缩小选区。");
             int roadMargin=map.theme.roadExclusionCells;
+            var domain=GroundSurfaceEditDomain.Find(map.surface);
             Require(roadMargin>=0&&roadMargin<=3,"道路排除格数须在0到3之间。");
-            var removable=Instances(map).Where(i=>Owned(map,i)&&i.generated&&!i.isLocked&&clipped.Contains(Cell(map,i.transform.position))).ToArray();
+            var removable=Instances(map).Where(i=>Owned(map,i)&&i.generated&&!i.isLocked&&clipped.Contains(Cell(map,i.transform.position))&&
+                (domain==null||domain.ContainsWorldPoint(i.transform.position))).ToArray();
             var removableSet=new HashSet<GroundDecorationInstance>(removable);
             var spacingGrid=new SpacingGrid(spacing);
             // 连外部原生子物件也作为间距障碍，但不读取、修改或给它们补工具标记。
@@ -73,6 +77,7 @@ namespace Ossastra.GroundResearch.Editor
                 Vector3 world=start+alongX*random.Unit()+alongY*random.Unit();
                 Vector3Int cell=Cell(map,world);
                 if(!clipped.Contains(cell)||blocked.Contains(cell)||!spacingGrid.CanAdd(world))continue;
+                if(domain!=null&&!domain.ContainsWorldPoint(world,domain.DecorationInset))continue;
                 var definition=variants[random.Index(variants.Length)];
                 float scale=Mathf.Lerp(definition.scaleRange.x,definition.scaleRange.y,random.Unit());
                 bool mirror=definition.allowMirror&&random.Unit()<.5f;

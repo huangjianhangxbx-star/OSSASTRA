@@ -1,0 +1,98 @@
+/* V25 bounded regression. Root opens the old Lab deliberately before executing this.
+ * Does not switch or save Scenes, enter Play, change Prefabs/characters or replace the Palette brush.
+ * It uses a separate real FrontierGroundBrush API, a real Native Undo transaction, and assembly readback.
+ * Not a physical pointer, full combat or old 24-case gameplay rerun. */
+using System;
+using System.Linq;
+using System.Collections.Generic;
+using Funplay.Editor.Tools.Scripting;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEngine.Tilemaps;
+using Ossastra.GroundResearch;
+using Ossastra.GroundResearch.Editor;
+using Ossastra.GroundSurfaces;
+using C=Ossastra.Characters;
+using E=Ossastra.Enemies;
+using Ossastra.MapResearch;
+
+public sealed class KT03OldWorkshopSmokeContracts : IFunplayCommand
+{
+    sealed class Snapshot
+    {
+        public Tilemap map;public BoundsInt bounds;public TileBase[] tiles;public string attributes;
+        public bool Matches()=>map!=null&&tiles.SequenceEqual(map.GetTilesBlock(bounds))&&attributes==Attributes(map,bounds);
+    }
+    public void Execute(ExecutionContext ctx)
+    {
+        var rows=new List<object>();int passed=0,failed=0;string error=null;FrontierGroundBrush brush=null;int fixture=-1;
+        var scene=SceneManager.GetActiveScene();Snapshot[] snapshots=null;Dictionary<string,string> files=null;bool initialDirty=scene.isDirty;
+        object assemblyReadback=null;var beforePalette=UnityEditor.Tilemaps.GridPaintingState.gridBrush;var beforeTarget=UnityEditor.Tilemaps.GridPaintingState.scenePaintTarget;
+        try
+        {
+            if(!GroundWorkshopOwnership.ContextReady(out string reason))throw new InvalidOperationException(reason);
+            if(scene.path!=GroundWorkshopOwnership.ReferenceScene)throw new InvalidOperationException("Root must deliberately open the existing SC_GroundWorkshopLab; fixture does not switch Scenes.");
+            if(scene.isDirty||GroundWorkshopAuthoring.HasPreview)throw new InvalidOperationException("Preserve existing unsaved/preview state; reopen saved old Lab before this smoke test.");
+            if(Resources.FindObjectsOfTypeAll<FrontierGroundBrush>().Any(b=>b!=null&&b.IsStrokeActive))throw new InvalidOperationException("Prior brush stroke is active; preserved.");
+            var maps=InScene<GroundWorkshopMap>(scene);Check("old-Lab-has-one-authentic-registered-Map",maps.Length==1,rows,ref passed,ref failed);var map=maps.Single();GroundWorkshopOwnership.Require(map);
+            Check("old-Lab-keeps-original-native-path",InScene<GroundSurfaceBinding>(scene).Length==0,rows,ref passed,ref failed);
+            var actors=InScene<C.CharacterRoot>(scene);var enemies=InScene<E.EnemyRoot>(scene);var views=InScene<MapResearchRoot>(scene);
+            var actorPoses=actors.Select(a=>new{root=a,position=a.transform.localPosition,rotation=a.transform.localRotation,scale=a.transform.localScale,controller=a.GetComponent<UnityEngine.CharacterController>()}).ToArray();
+            Check("two-original-player-Roots-and-Controllers-remain-assembled",actors.Length==2&&actorPoses.All(p=>p.controller!=null),rows,ref passed,ref failed);
+            Check("one-original-enemy-remains-assembled",enemies.Length==1&&enemies[0].GetComponent<UnityEngine.CharacterController>()!=null,rows,ref passed,ref failed);
+            Check("one-original-MapResearch-root-retains-35-degree-camera-and-session",views.Length==1&&Mathf.Abs(views[0].pitch-35)<.001f&&views[0].gameplayCamera!=null&&views[0].sessionComponent!=null,rows,ref passed,ref failed);
+            var camera=views.Single();float pitch=camera.pitch,distance=camera.distance;Vector3 cameraPosition=camera.gameplayCamera.transform.position;Quaternion cameraRotation=camera.gameplayCamera.transform.rotation;
+            assemblyReadback=new{players=actorPoses.Select(p=>new{name=p.root.name,rootType=p.root.GetType().FullName,controller=p.controller.GetType().FullName}).ToArray(),enemies=enemies.Select(e=>new{e.name,type=e.GetType().FullName}).ToArray(),mapResearch=new{camera.pitch,camera.distance,gameplayCamera=camera.gameplayCamera.name,session=camera.sessionComponent.GetType().FullName}};
+            var surface=map.surface;snapshots=surface.layers.Where(l=>l!=null&&l.tilemap!=null).Select(l=>new Snapshot{map=l.tilemap,bounds=surface.EditableCells,tiles=l.tilemap.GetTilesBlock(surface.EditableCells),attributes=Attributes(l.tilemap,surface.EditableCells)}).ToArray();
+            var paths=new[]{scene.path,AssetDatabase.GetAssetPath(map.theme),AssetDatabase.GetAssetPath(map.registration),
+                "Assets/OSSASTRA/Prefabs/Characters/PlayerCharacter_BlueFiveFace.prefab","Assets/OSSASTRA/Prefabs/Characters/PlayerCharacter.prefab"}
+                .Concat(map.layerBindings.SelectMany(b=>new[]{AssetDatabase.GetAssetPath(b.ownedTile),AssetDatabase.GetAssetPath(b.ownedMaterial)})).Distinct().Where(p=>!string.IsNullOrEmpty(p)&&System.IO.File.Exists(Absolute(p))).ToArray();
+            files=paths.ToDictionary(p=>p,Hash);
+            int index=-1;Vector3Int cell=default;bool erase=false;
+            for(int i=surface.layers.Length-1;index<0&&i>=0;i--)
+            {
+                if(GroundWorkshopAuthoring.IsLayerLocked(map,i))continue;var layer=surface.layers[i];
+                foreach(var candidate in surface.EditableCells.allPositionsWithin)
+                {
+                    var tile=layer.tilemap.GetTile(candidate);
+                    if(tile!=layer.paintTile){index=i;cell=candidate;break;}
+                    if(tile!=layer.eraseReplacement){index=i;cell=candidate;erase=true;break;}
+                }
+            }
+            if(index<0)throw new InvalidOperationException("No unlocked real edit available; fixture does not clear user data.");
+            var selected=surface.layers[index];fixture=Undo.GetCurrentGroup();Undo.IncrementCurrentGroup();fixture=Undo.GetCurrentGroup();Undo.SetCurrentGroupName("KT03 old workshop bounded smoke");
+            brush=ScriptableObject.CreateInstance<FrontierGroundBrush>();brush.hideFlags=HideFlags.HideAndDontSave;
+            Check("old-real-brush-still-accepts-owned-layer",brush.Configure(surface,index,1),rows,ref passed,ref failed);
+            if(erase)brush.Erase(surface.grid,selected.tilemap.gameObject,cell);else brush.Paint(surface.grid,selected.tilemap.gameObject,cell);
+            brush.FinishStroke(false);var expected=erase?selected.eraseReplacement:selected.paintTile;
+            Check("one-real-brush-API-edit-changes-native-Tile-and-valid-Sprite",selected.tilemap.GetTile(cell)==expected&&(expected==null||selected.tilemap.GetSprite(cell)!=null),rows,ref passed,ref failed);
+            Undo.FlushUndoRecordObjects();Undo.PerformUndo();
+            Check("one-native-Undo-restores-all-original-author-data",snapshots.All(s=>s.Matches()),rows,ref passed,ref failed);
+            Check("brush-does-not-move-original-characters-or-camera",actorPoses.All(p=>p.root!=null&&p.root.transform.localPosition==p.position&&p.root.transform.localRotation==p.rotation&&p.root.transform.localScale==p.scale)&&
+                camera.pitch==pitch&&camera.distance==distance&&camera.gameplayCamera.transform.position==cameraPosition&&camera.gameplayCamera.transform.rotation==cameraRotation,rows,ref passed,ref failed);
+        }
+        catch(Exception failure){if(failed==0)failed++;error=failure.ToString();rows.Add(new{name="exception",passed=false,detail=error});}
+        finally
+        {
+            try
+            {
+                if(brush!=null)brush.FinishStroke(true);
+                if(fixture>=0&&scene==SceneManager.GetActiveScene()){Undo.RevertAllDownToGroup(fixture);Undo.IncrementCurrentGroup();}
+                if(snapshots!=null)Check("finally-author-baseline-restored",snapshots.All(s=>s.Matches()),rows,ref passed,ref failed);
+                if(files!=null)Check("old-Scene-owned-resources-and-basic-Prefab-files-byte-unchanged",files.All(p=>System.IO.File.Exists(Absolute(p.Key))&&Hash(p.Key)==p.Value),rows,ref passed,ref failed);
+                Check("existing-Palette-brush-and-target-not-replaced",UnityEditor.Tilemaps.GridPaintingState.gridBrush==beforePalette&&UnityEditor.Tilemaps.GridPaintingState.scenePaintTarget==beforeTarget,rows,ref passed,ref failed);
+            }
+            catch(Exception failure){if(failed==0)failed++;if(error==null)error=failure.ToString();rows.Add(new{name="cleanup",passed=false,detail=failure.ToString()});}
+            if(brush!=null)UnityEngine.Object.DestroyImmediate(brush);
+        }
+        ctx.ReturnValue=new{status=failed==0?"GREEN":"RED",passed,failed,error,rows,assemblyReadback,scene=scene.path,initialDirty,finalDirty=scene.isDirty,
+            fileHashes=files==null?null:files.Select(p=>new{path=p.Key,before=p.Value,after=System.IO.File.Exists(Absolute(p.Key))?Hash(p.Key):"MISSING"}).ToArray(),scope="old original brush API + Native Undo + unchanged assembly readback; no Scene switch/save/Play, no physical pointer or full historical gameplay certification"};
+    }
+    static T[] InScene<T>(Scene scene)where T:Component=>scene.GetRootGameObjects().SelectMany(r=>r.GetComponentsInChildren<T>(true)).ToArray();
+    static string Attributes(Tilemap map,BoundsInt bounds){var text=new System.Text.StringBuilder();foreach(var cell in bounds.allPositionsWithin){var tile=map.GetTile(cell);if(tile==null)continue;var flags=map.GetTileFlags(cell);text.Append(cell).Append(tile.GetInstanceID()).Append(map.GetColor(cell).ToString("F6")).Append((int)flags);if((flags&TileFlags.LockTransform)==0)text.Append(map.GetTransformMatrix(cell).ToString("F6"));}return text.ToString();}
+    static void Check(string name,bool value,List<object> rows,ref int passed,ref int failed){rows.Add(new{name,passed=value});if(value)passed++;else{failed++;throw new InvalidOperationException(name);}}
+    static string Absolute(string path)=>System.IO.Path.GetFullPath(System.IO.Path.Combine(Application.dataPath,"..",path));
+    static string Hash(string path){using(var stream=System.IO.File.OpenRead(Absolute(path)))using(var sha=System.Security.Cryptography.SHA256.Create())return Convert.ToBase64String(sha.ComputeHash(stream));}
+}

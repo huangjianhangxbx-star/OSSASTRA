@@ -1,0 +1,2 @@
+using System;using System.Linq;using System.Reflection;using UnityEditor;using Funplay.Editor.Tools.Scripting;
+public sealed class KT03ConsoleCounts:IFunplayCommand{public void Execute(ExecutionContext ctx){var t=typeof(EditorApplication).Assembly.GetType("UnityEditor.LogEntries");var m=t.GetMethod("GetCountsByType",BindingFlags.Static|BindingFlags.Public|BindingFlags.NonPublic);object[] values={0,0,0};m.Invoke(null,values);ctx.ReturnValue=m.GetParameters().Select((p,i)=>new{name=p.Name,count=values[i]}).ToArray();}}

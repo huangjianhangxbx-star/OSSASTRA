@@ -1,0 +1,158 @@
+/* 模型读回合同：只在独立临时Scene及唯一GUID夹具目录中创建自有Mesh。
+ * 生产Reader缺失时在创建任何夹具之前真实RED；已保存模型、UV缝和多子网格走实际Unity Mesh API。
+ * 清理仅删除本次精确Mesh路径及无未知内容的自有GUID目录，不保存或改写当前Lab。
+ */
+using System;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Collections.Generic;
+using System.Security.Cryptography;
+using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.SceneManagement;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+using Funplay.Editor.Tools.Scripting;
+
+public sealed class KT03ModelReaderContracts : IFunplayCommand
+{
+    readonly List<string> passed=new List<string>(),failed=new List<string>(),assets=new List<string>();
+    Type reader,bindingType,boundaryType;object binding,boundary;MeshFilter filter;Mesh source,variant;
+    const string Parent="Assets/OSSASTRA/GroundWorkshop/Samples/KT-GROUND-03/Contracts";
+    string folder;
+    Scene ownedScene;
+    static object Get(object o,string name)=>o.GetType().GetField(name).GetValue(o);
+    static void Set(object o,string name,object value)=>o.GetType().GetField(name).SetValue(o,value);
+    static Type Find(string full)=>AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType(full)).FirstOrDefault(t=>t!=null);
+    static void Require(bool value,string message){if(!value)throw new InvalidOperationException(message);}
+    static void Near(double value,double expected)=>Require(Math.Abs(value-expected)<1e-5,"actual="+value+" expected="+expected);
+    void Case(string name,Action action){try{action();passed.Add(name);}catch(Exception e){failed.Add(name+": "+(e.InnerException??e).Message);}}
+    string Fingerprint(Mesh replacement=null)=>(string)reader.GetMethod("Fingerprint").Invoke(null,new object[]{binding,replacement});
+    object Read(Mesh replacement=null)=>reader.GetMethod("ReadDomain").Invoke(null,new object[]{binding,replacement});
+    static string Hash(string path){using(var sha=SHA256.Create())using(var stream=File.OpenRead(path))return Convert.ToBase64String(sha.ComputeHash(stream));}
+    static Vector2[] L()=>new[]{new Vector2(0,0),new Vector2(3,0),new Vector2(3,1),new Vector2(1,1),new Vector2(1,3),new Vector2(0,3)};
+    static Mesh Wall(Vector2[] ring,string name)
+    {
+        var vertices=new List<Vector3>();var triangles=new List<int>();
+        for(int i=0;i<ring.Length;i++)
+        {
+            Vector2 a=ring[i],b=ring[(i+1)%ring.Length];int n=vertices.Count;
+            vertices.Add(new Vector3(a.x,0,a.y));vertices.Add(new Vector3(a.x,3,a.y));vertices.Add(new Vector3(b.x,3,b.y));vertices.Add(new Vector3(b.x,0,b.y));
+            triangles.AddRange(new[]{n,n+1,n+2,n,n+2,n+3});
+        }
+        var mesh=new Mesh{name=name};mesh.vertices=vertices.ToArray();mesh.subMeshCount=2;
+        mesh.SetTriangles(triangles.Take(triangles.Count/2).ToArray(),0);mesh.SetTriangles(triangles.Skip(triangles.Count/2).ToArray(),1);mesh.RecalculateBounds();return mesh;
+    }
+    void Save(Mesh mesh,string name)
+    {string path=folder+"/"+name+".asset";Require(!File.Exists(path)&&!File.Exists(path+".meta"),"夹具路径已存在");AssetDatabase.CreateAsset(mesh,path);assets.Add(path);AssetDatabase.SaveAssetIfDirty(mesh);}
+    static void EnsureFolder(string path)
+    {
+        if(AssetDatabase.IsValidFolder(path))return;string parent=path.Substring(0,path.LastIndexOf('/'));EnsureFolder(parent);
+        if(string.IsNullOrEmpty(AssetDatabase.CreateFolder(parent,path.Substring(path.LastIndexOf('/')+1))))throw new InvalidOperationException("夹具父目录创建失败："+path);
+    }
+    GameObject OwnObject(string name)
+    {
+        var go=new GameObject(name);
+        if(go.scene!=ownedScene)SceneManager.MoveGameObjectToScene(go,ownedScene);
+        return go;
+    }
+    void ExpectReject(bool fingerprint,string detail)
+    {
+        bool rejected=false;try{if(fingerprint)Fingerprint();else Read();}catch(TargetInvocationException e){rejected=e.InnerException is InvalidOperationException||e.InnerException is ArgumentException;Require(!string.IsNullOrEmpty(e.InnerException.Message),"拒绝必须有定位原因");}
+        Require(rejected,detail);
+    }
+    public void Execute(ExecutionContext ctx)
+    {
+        reader=Find("Ossastra.GroundSurfaces.Editor.GroundSurfaceModelReader");
+        if(reader==null){failed.Add("缺失只读真实模型Reader，必须真实RED");Finish(ctx);return;}
+        bindingType=Find("Ossastra.GroundSurfaces.GroundSurfaceBinding");boundaryType=Find("Ossastra.GroundSurfaces.GroundSurfaceBoundary");
+        if(bindingType==null||boundaryType==null){failed.Add("缺少真实Binding/Boundary类型");Finish(ctx);return;}
+        var previous=SceneManager.GetActiveScene();var protectedScenes=Enumerable.Range(0,SceneManager.sceneCount).Select(SceneManager.GetSceneAt).ToArray();
+        var dirty=protectedScenes.ToDictionary(s=>s.handle,s=>s.isDirty);Scene fixture=default;GameObject root=null;var temporary=new List<UnityEngine.Object>();
+        try
+        {
+            EnsureFolder(Parent);folder=Parent+"/ModelReader_"+Guid.NewGuid().ToString("N");Require(!Directory.Exists(folder)&&!File.Exists(folder+".meta"),"唯一夹具目录已存在");
+            string guid=AssetDatabase.CreateFolder(Parent,folder.Substring(folder.LastIndexOf('/')+1));Require(!string.IsNullOrEmpty(guid),"夹具目录创建失败");
+            source=Wall(L(),"SavedSeamedL");Save(source,"SavedSeamedL");
+            variant=Wall(new[]{new Vector2(0,0),new Vector2(4,0),new Vector2(4,1.5f),new Vector2(1.25f,1.5f),new Vector2(1.25f,4),new Vector2(0,4)},"SavedVariant");Save(variant,"SavedVariant");
+            fixture=EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Additive);ownedScene=fixture;
+            Require(fixture.IsValid()&&fixture.isLoaded&&!EditorSceneManager.IsPreviewScene(fixture),"NewScene必须返回有效已加载的普通自有Scene；handle="+fixture.handle);
+            // 某些执行上下文对已经active的Scene返回false；只读实际状态，不以该返回值误判。
+            if(SceneManager.GetActiveScene()!=fixture)SceneManager.SetActiveScene(fixture);
+            root=OwnObject("KT03 Reader isolated fixture");binding=root.AddComponent(bindingType);
+            boundary=ScriptableObject.CreateInstance(boundaryType);temporary.Add((UnityEngine.Object)boundary);Set(boundary,"localTopY",3f);Set(boundary,"sourceFingerprint","untouched-sentinel");Set(boundary,"revision",17);Set(binding,"boundary",boundary);
+            var wall=OwnObject("Saved side walls");wall.transform.SetParent(root.transform,false);filter=wall.AddComponent<MeshFilter>();filter.sharedMesh=source;Set(binding,"sideWalls",new[]{filter});
+            Case("已保存24缝顶点及两个子网格实际读回凹L",()=>{Require(source.isReadable&&source.subMeshCount==2,"真实Mesh前提");var d=Read();Near((double)Get(d,"area"),5);Require(((Vector2[])Get(d,"ring")).Length==6,"六点来源上沿");});
+            Case("指纹稳定且不以InstanceID代替来源内容",()=>
+            {
+                string first=Fingerprint();Require(first!=null&&first.Length==64&&first==Fingerprint(),"稳定SHA256");
+                var other=OwnObject("Equivalent recreated binding");try
+                {
+                    var copy=other.AddComponent(bindingType);Set(copy,"boundary",boundary);var child=OwnObject("Other filter name");child.transform.SetParent(other.transform,false);var mf=child.AddComponent<MeshFilter>();mf.sharedMesh=source;Set(copy,"sideWalls",new[]{mf});
+                    string second=(string)reader.GetMethod("Fingerprint").Invoke(null,new object[]{copy,null});Require(first==second,"等价重建物件应有相同内容指纹");
+                }finally{UnityEngine.Object.DestroyImmediate(other);}
+            });
+            Case("读回与指纹均不改源资产或Boundary",()=>
+            {
+                var before=assets.ToDictionary(p=>p,Hash);var vb=source.vertices;var t0=source.GetTriangles(0);var t1=source.GetTriangles(1);Read();Fingerprint();
+                Require(before.All(kv=>Hash(kv.Key)==kv.Value)&&source.vertices.SequenceEqual(vb)&&source.GetTriangles(0).SequenceEqual(t0)&&source.GetTriangles(1).SequenceEqual(t1),"源Mesh文件/数据被改");
+                Require((string)Get(boundary,"sourceFingerprint")=="untouched-sentinel"&&(int)Get(boundary,"revision")==17,"Reader不可提交Boundary");
+            });
+            Case("模型版本预检override不改MeshFilter引用",()=>{string old=Fingerprint();var d=Read(variant);Near((double)Get(d,"area"),9.125);Require(filter.sharedMesh==source&&Fingerprint(variant)!=old,"override只读预检");Near((double)Get(Read(),"area"),5);});
+            Case("相同GUID计数下顶点内容变化使指纹失效",()=>
+            {
+                string old=Fingerprint();var original=source.vertices;try{source.vertices=original.Select(p=>new Vector3(p.x*2,p.y,p.z)).ToArray();Require(Fingerprint()!=old,"不能只哈希GUID/顶点数");Near((double)Get(Read(),"area"),10);}finally{source.vertices=original;source.RecalculateBounds();AssetDatabase.SaveAssetIfDirty(source);}
+            });
+            Case("相同GUID计数下索引内容变化使指纹失效",()=>
+            {
+                string old=Fingerprint();var original=source.GetTriangles(0);try{var changed=(int[])original.Clone();int swap=changed[0];changed[0]=changed[1];changed[1]=swap;source.SetTriangles(changed,0);Require(Fingerprint()!=old,"不能只哈希索引数");}finally{source.SetTriangles(original,0);AssetDatabase.SaveAssetIfDirty(source);}
+            });
+            Case("相对水平TRS参与指纹并正确换算表面局部",()=>
+            {
+                string old=Fingerprint();try{filter.transform.localPosition=new Vector3(7,2,-4);filter.transform.localRotation=Quaternion.Euler(0,90,0);filter.transform.localScale=new Vector3(2,1,2);Set(boundary,"localTopY",5f);Require(Fingerprint()!=old,"TRS指纹");Near((double)Get(Read(),"area"),20);}
+                finally{filter.transform.localPosition=Vector3.zero;filter.transform.localRotation=Quaternion.identity;filter.transform.localScale=Vector3.one;Set(boundary,"localTopY",3f);}
+            });
+            Case("显式topY与容差参与指纹且不猜最高",()=>
+            {
+                string old=Fingerprint();try{Set(boundary,"localTopY",4f);Require(Fingerprint()!=old,"topY指纹");ExpectReject(false,"错误高度不得选最高");Set(boundary,"localTopY",3f);Set(boundary,"weldTolerance",.0002f);Require(Fingerprint()!=old,"焊接容差指纹");}finally{Set(boundary,"localTopY",3f);Set(boundary,"weldTolerance",.0001f);}
+            });
+            Case("未保存瞬态Mesh明确拒绝",()=>
+            {
+                var transient=Wall(L(),"NotSaved");try{filter.sharedMesh=transient;ExpectReject(false,"瞬态模型不能冒充保存来源");ExpectReject(true,"指纹也要验证来源");}finally{filter.sharedMesh=source;UnityEngine.Object.DestroyImmediate(transient);}
+            });
+            Case("foreign MeshFilter即使有合法源也拒绝",()=>
+            {
+                var foreign=OwnObject("Foreign wall");try{var mf=foreign.AddComponent<MeshFilter>();mf.sharedMesh=source;Set(binding,"sideWalls",new[]{mf});ExpectReject(false,"侧壁不属于平台");ExpectReject(true,"指纹不能消费外部侧壁");}finally{Set(binding,"sideWalls",new[]{filter});UnityEngine.Object.DestroyImmediate(foreign);}
+            });
+            Case("双负缩放即使矩阵等价Yaw也拒绝",()=>{try{root.transform.localScale=new Vector3(-1,1,-1);ExpectReject(false,"必须逐祖先验证正scale");ExpectReject(true,"指纹不得接受负scale");}finally{root.transform.localScale=Vector3.one;}});
+            Case("整个Binding倾斜不能靠相对矩阵抵消",()=>{try{root.transform.rotation=Quaternion.Euler(10,0,0);ExpectReject(false,"水平平台契约");ExpectReject(true,"世界水平验证");}finally{root.transform.rotation=Quaternion.identity;}});
+            Case("非Triangle子网格明确拒绝",()=>
+            {
+                var lines=new Mesh{name="SavedLines"};lines.vertices=new[]{Vector3.zero,Vector3.one};lines.SetIndices(new[]{0,1},MeshTopology.Lines,0);Save(lines,"SavedLines");try{filter.sharedMesh=lines;ExpectReject(false,"Line拓扑不可降成三角形");ExpectReject(true,"指纹须先验Triangle拓扑");}finally{filter.sharedMesh=source;}
+            });
+            Case("缺失边界或重复侧壁引用在读取前拒绝",()=>
+            {
+                try{Set(binding,"boundary",null);ExpectReject(false,"无显式topY配置");}finally{Set(binding,"boundary",boundary);}
+                try{Set(binding,"sideWalls",new[]{filter,filter});ExpectReject(false,"重复MF不能重复消费");}finally{Set(binding,"sideWalls",new[]{filter});}
+            });
+        }
+        catch(Exception e){failed.Add("夹具或合同异常："+(e.InnerException??e));}
+        finally
+        {
+            if(previous.IsValid()&&previous.isLoaded)SceneManager.SetActiveScene(previous);
+            if(fixture.IsValid()&&fixture.isLoaded)EditorSceneManager.CloseScene(fixture,true);
+            foreach(var value in temporary)if(value!=null)UnityEngine.Object.DestroyImmediate(value);
+            foreach(string path in assets.AsEnumerable().Reverse())if(File.Exists(path)&&!AssetDatabase.DeleteAsset(path))failed.Add("精确自有夹具删除失败："+path);
+            if(folder!=null&&Directory.Exists(folder))
+            {
+                if(Directory.EnumerateFileSystemEntries(folder).Any())failed.Add("夹具目录有未知内容，保留："+folder);
+                else if(!AssetDatabase.DeleteAsset(folder))failed.Add("自有空目录删除失败："+folder);
+            }
+            bool preserved=protectedScenes.All(s=>s.IsValid()&&s.isLoaded&&s.isDirty==dirty[s.handle]);
+            (preserved?passed:failed).Add("原加载场景与dirty状态保持");
+        }
+        Finish(ctx);
+    }
+    void Finish(ExecutionContext ctx)=>ctx.ReturnValue=new{passed=passed.Count,failed=failed.Count,passedCases=passed,failedCases=failed,fixtureFolder=folder,scope="Saved own Mesh readback in isolated temporary scene; exact own cleanup only"};
+}

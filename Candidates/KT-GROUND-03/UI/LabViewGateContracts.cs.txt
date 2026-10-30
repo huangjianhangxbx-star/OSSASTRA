@@ -1,0 +1,60 @@
+/* Real Native cold-state gate. Regression: diagnostics silently succeed with no valid surfaces,
+ * or retain temporary renderers after Restore. Root executes this; no production class is mocked. */
+using System;
+using System.Collections.Generic;
+using System.Reflection;
+using Funplay.Editor.Tools.Scripting;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+
+public sealed class GroundSurfaceLabViewGateContracts : IFunplayCommand
+{
+    public void Execute(ExecutionContext ctx)
+    {
+        var viewType=Find("Ossastra.GroundSurfaces.GroundSurfaceLabView");
+        var windowType=Find("Ossastra.GroundSurfaces.Editor.GroundSurfaceLabWindow");
+        if(viewType==null || windowType==null)
+        {
+            ctx.ReturnValue=new {status="RED",passed=0,failed=1,
+                reason="Missing the Lab View/Window: an unbound observation request has no implemented refusal or restoration boundary.",
+                viewFound=viewType!=null,windowFound=windowType!=null};
+            return;
+        }
+        var checks=new List<string>();int passed=0,failed=0;
+        var previous=SceneManager.GetActiveScene();Scene fixture=default;GameObject owner=null;
+        try
+        {
+            fixture=EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Additive);
+            SceneManager.SetActiveScene(fixture);
+            owner=new GameObject("KT03_ObservationGate_Transient");
+            ctx.RegisterObjectCreation(owner);
+            var view=owner.AddComponent(viewType);
+            var modeType=Find("Ossastra.GroundSurfaces.GroundSurfaceLabViewMode");
+            if(modeType==null)throw new InvalidOperationException("Missing public observation enum.");
+            int rootsBefore=fixture.rootCount;
+            bool accepted=(bool)viewType.GetMethod("SetMode").Invoke(view,new[]{Enum.Parse(modeType,"BareSeam")});
+            Check(!accepted,"unbound bare-seam request is refused",checks,ref passed,ref failed);
+            Check(viewType.GetProperty("Mode").GetValue(view).ToString()=="Final","refusal leaves normal display selected",checks,ref passed,ref failed);
+            Check(!string.IsNullOrWhiteSpace((string)viewType.GetProperty("LastMessage").GetValue(view)),"refusal explains its missing surface",checks,ref passed,ref failed);
+            Check((int)viewType.GetProperty("DiagnosticRendererCount").GetValue(view)==0 && fixture.rootCount==rootsBefore,"refusal creates no diagnostic object or renderer",checks,ref passed,ref failed);
+            viewType.GetMethod("Restore").Invoke(view,null);
+            viewType.GetMethod("Restore").Invoke(view,null);
+            Check(!(bool)viewType.GetProperty("IsObserving").GetValue(view) && (int)viewType.GetProperty("DiagnosticRendererCount").GetValue(view)==0,"repeated restore is harmless in cold state",checks,ref passed,ref failed);
+        }
+        catch(Exception error)
+        {failed++;checks.Add("FAIL "+error.GetBaseException().ToString());}
+        finally
+        {
+            if(owner!=null)UnityEngine.Object.DestroyImmediate(owner);
+            if(previous.IsValid()&&previous.isLoaded)SceneManager.SetActiveScene(previous);
+            if(fixture.IsValid()&&fixture.isLoaded)EditorSceneManager.CloseScene(fixture,true);
+        }
+        ctx.ReturnValue=new {status=failed==0?"GREEN":"RED",passed,failed,checks,physicalHardwareVerified=false};
+    }
+    private static Type Find(string name)
+    {foreach(var assembly in AppDomain.CurrentDomain.GetAssemblies()){var type=assembly.GetType(name,false);if(type!=null)return type;}return null;}
+    private static void Check(bool value,string name,List<string> checks,ref int passed,ref int failed)
+    {if(value)passed++;else failed++;checks.Add((value?"PASS ":"FAIL ")+name);}
+}

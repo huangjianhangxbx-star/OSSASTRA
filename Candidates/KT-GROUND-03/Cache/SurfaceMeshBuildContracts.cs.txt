@@ -1,0 +1,65 @@
+/* Native行为回归：真实Tilemap/Sprite→Mesh、半格裁剪UV、flatten开关、分块与未知Tile拒绝。
+ * 期望为手算局部矩形：x[1,2] z[-2,-1] y=.02，面积1；裁x<=1.5后面积.5，交点u=.5。
+ * 仅使用自有PreviewScene与瞬态对象，不创建资产；原生显示像素A/B仍由独立回归确认。
+ */
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using Funplay.Editor.Tools.Scripting;
+using UnityEditor.SceneManagement;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEngine.Tilemaps;
+using Ossastra.GroundResearch;
+using Ossastra.GroundSurfaces;
+using Ossastra.GroundSurfaces.Editor;
+
+public sealed class SurfaceMeshBuildContracts : IFunplayCommand
+{
+    public void Execute(ExecutionContext ctx)
+    {
+        var scene=EditorSceneManager.NewPreviewScene();var owned=new List<UnityEngine.Object>();var outputs=new List<Mesh>();int checks=0;
+        Action<bool,string> check=(ok,name)=>{checks++;if(!ok)throw new InvalidOperationException("Cache行为失败："+name);};
+        try
+        {
+            var root=new GameObject("缓存行为自有Preview");SceneManager.MoveGameObjectToScene(root,scene);
+            root.transform.SetPositionAndRotation(new Vector3(7,2,-5),Quaternion.Euler(0,37,0));root.transform.localScale=new Vector3(2,1,3);
+            var grid=root.AddComponent<Grid>();grid.cellSwizzle=GridLayout.CellSwizzle.XZY;grid.cellSize=Vector3.one;
+            var surface=root.AddComponent<GroundResearchSurface>();surface.grid=grid;surface.editableCells=new BoundsInt(-4,-4,0,8,8,1);
+            var map=root.AddComponent<GroundWorkshopMap>();map.surface=surface;map.registration=ScriptableObject.CreateInstance<GroundMapRegistration>();owned.Add(map.registration);map.registration.mapId=Guid.NewGuid().ToString("N");
+            var binding=root.AddComponent<GroundSurfaceBinding>();binding.map=map;binding.chunkSize=8;binding.flattenDisplay=false;
+            binding.boundary=ScriptableObject.CreateInstance<GroundSurfaceBoundary>();owned.Add(binding.boundary);binding.boundary.localTopY=0;
+            var layer=new GameObject("真实原生层");layer.transform.SetParent(root.transform,false);layer.transform.localPosition=new Vector3(1,.02f,-2);
+            var tiles=layer.AddComponent<Tilemap>();tiles.orientation=Tilemap.Orientation.XZ;tiles.tileAnchor=new Vector3(.5f,.5f,0);tiles.color=new Color(.5f,.75f,1,.5f);layer.AddComponent<TilemapRenderer>();
+            var texture=new Texture2D(4,4,TextureFormat.RGBA32,false);owned.Add(texture);texture.SetPixels(Enumerable.Repeat(Color.white,16).ToArray());texture.Apply();
+            var sprite=Sprite.Create(texture,new Rect(0,0,4,4),new Vector2(.5f,.5f),4,0,SpriteMeshType.FullRect);owned.Add(sprite);
+            var tile=ScriptableObject.CreateInstance<Tile>();owned.Add(tile);tile.sprite=sprite;tiles.SetTile(Vector3Int.zero,tile);tiles.SetTileFlags(Vector3Int.zero,TileFlags.None);tiles.SetColor(Vector3Int.zero,new Color(.2f,.4f,.6f,.8f));
+            surface.layers=new[]{new GroundLayer{tilemap=tiles,paintTile=tile}};
+            var material=new Material(Shader.Find("Ossastra/GroundResearch/MaskWorldTile"));owned.Add(material);
+            SurfaceDomain domain;GeometryIssue issue;
+            check(GroundSurfaceGeometry.TryBuildDomain(new[]{new Vector2(-3,-3),new Vector2(3,-3),new Vector2(3,3),new Vector2(-3,3)},new GeometryOptions(),out domain,out issue),"矩形域可构造");
+            var inputs=new[]{new SurfaceLayerInput(tiles,material,0)};
+            var result=GroundSurfaceMeshGenerator.Build(binding,domain,inputs,false);outputs.AddRange(result.chunks.Select(c=>c.mesh));
+            check(result.chunks.Length==1,"同层同纹理单块");var mesh=result.chunks[0].mesh;
+            check(Math.Abs(Area(mesh)-1)<1e-5,"原三角面积1");check(mesh.vertices.All(p=>Mathf.Abs(p.y-.02f)<1e-5),"flatten=false保留层局部Y");
+            check(Mathf.Abs(mesh.bounds.min.x-1)<1e-5&&Mathf.Abs(mesh.bounds.max.x-2)<1e-5&&Mathf.Abs(mesh.bounds.min.z+2)<1e-5&&Mathf.Abs(mesh.bounds.max.z+1)<1e-5,"完整父TRS消去后局部手算范围");
+            Color32 expectedColor=QualitySettings.activeColorSpace==ColorSpace.Linear?new Color32(3,19,81,102):new Color32(26,76,153,102);
+            check(mesh.colors32.All(c=>c.r==expectedColor.r&&c.g==expectedColor.g&&c.b==expectedColor.b&&c.a==expectedColor.a),"最终Tile×Tilemap色按Native色空间/UNorm8提交，非重复乘色");
+            check(result.chunks[0].cells.Length==mesh.triangles.Length/3&&result.chunks[0].sprites.All(s=>s==sprite),"逐三角来源可追溯");
+            check(GroundSurfaceGeometry.TryBuildDomain(new[]{new Vector2(-3,-3),new Vector2(1.5f,-3),new Vector2(1.5f,3),new Vector2(-3,3)},new GeometryOptions(),out domain,out issue),"半格裁剪域可构造");
+            binding.flattenDisplay=true;result=GroundSurfaceMeshGenerator.Build(binding,domain,inputs,true);outputs.AddRange(result.chunks.Select(c=>c.mesh));mesh=result.chunks.Single().mesh;
+            check(Math.Abs(Area(mesh)-.5)<1e-5&&mesh.vertices.All(p=>p.x<=1.50001f&&Mathf.Abs(p.y)<1e-5),"半格保留且压到物理封口平面");
+            check(mesh.vertices.Select((p,i)=>new{p,i}).Where(row=>Mathf.Abs(row.p.x-1.5f)<1e-5).All(row=>Mathf.Abs(mesh.uv[row.i].x-.5f)<1e-5),"新交点UV重心插值u=.5");
+            tiles.SetTile(new Vector3Int(1,0,0),tile);binding.chunkSize=1;result=GroundSurfaceMeshGenerator.Build(binding,domain,inputs,false);outputs.AddRange(result.chunks.Select(c=>c.mesh));
+            check(result.chunks.Length==2,"chunkSize1按作者格分组，无逐格默认对象创建");
+            var unknown=ScriptableObject.CreateInstance<CacheUnknownTile>();owned.Add(unknown);unknown.sprite=sprite;tiles.SetTile(new Vector3Int(2,0,0),unknown);
+            bool refused=false;try{var invalid=GroundSurfaceMeshGenerator.Build(binding,domain,inputs,false);outputs.AddRange(invalid.chunks.Select(c=>c.mesh));}catch(InvalidOperationException){refused=true;}
+            check(refused,"未知动态能力Tile子类明确拒绝");
+            ctx.ReturnValue=new{passed=true,checks,sourceUnchanged=tiles.GetTile(Vector3Int.zero)==tile,scope="真实Native数组与局部几何；非对称UV/非交换变换像素A/B另验，未扩大声称。"};
+        }
+        finally{foreach(var mesh in outputs.Distinct())if(mesh!=null)UnityEngine.Object.DestroyImmediate(mesh);EditorSceneManager.ClosePreviewScene(scene);foreach(var item in owned)if(item!=null)UnityEngine.Object.DestroyImmediate(item);}
+    }
+    private static double Area(Mesh mesh)
+    {double area=0;var v=mesh.vertices;var t=mesh.triangles;for(int i=0;i<t.Length;i+=3){Vector3 a=v[t[i]],b=v[t[i+1]],c=v[t[i+2]];area+=Math.Abs((double)(b.x-a.x)*(c.z-a.z)-(double)(b.z-a.z)*(c.x-a.x))*.5;}return area;}
+}
+public sealed class CacheUnknownTile : Tile { }

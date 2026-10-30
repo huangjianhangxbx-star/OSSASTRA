@@ -1,0 +1,137 @@
+/* Actual KT03 Lab render ablation. Native root only; run once in Edit with preview/observation off.
+ * Full / NoCaps / NoWalls / NoCapsOrWalls share one real MainCamera and all active actors/colliders.
+ * Only exact owned cap-chunk/side-wall Renderer.forceRenderingOff bits change; no GO/Collider disable.
+ * Camera.Render wall-clock is a synchronous Editor CPU proxy and may contain GPU/driver waits.
+ * This is an ablation, not an image-equivalent alternative renderer or a GPU/FPS benchmark.
+ */
+using System;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Collections.Generic;
+using System.Diagnostics;
+using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.SceneManagement;
+using UnityEditor;
+using Ossastra.GroundResearch;
+using Ossastra.GroundResearch.Editor;
+using Ossastra.GroundSurfaces;
+using Ossastra.GroundSurfaces.Editor;
+using Funplay.Editor.Tools.Scripting;
+using Object=UnityEngine.Object;
+
+public sealed class KT03SurfaceLabAblationContracts : IFunplayCommand
+{
+    const int Width=512,Height=288,Warm=3,Rounds=3,Samples=8;
+    sealed class Flag{public Renderer renderer;public bool original,lastWritten;public bool enabled,active;}
+    sealed class CacheState{public GroundSurfaceBinding binding;public int instance,count;public string signature;}
+    sealed class ColliderState{public Collider collider;public bool enabled,active;public int mesh;}
+    sealed class Pose{public Transform transform;public Matrix4x4 matrix;}
+    static object Live()=>new{meshes=Resources.FindObjectsOfTypeAll<Mesh>().Length,materials=Resources.FindObjectsOfTypeAll<Material>().Length,renderTextures=Resources.FindObjectsOfTypeAll<RenderTexture>().Length};
+    static double P(double[] a,double p){var b=a.OrderBy(v=>v).ToArray();return b[Math.Max(0,Math.Min(b.Length-1,(int)Math.Ceiling(b.Length*p)-1))];}
+    static bool Same(Matrix4x4 a,Matrix4x4 b){for(int r=0;r<4;r++)for(int c=0;c<4;c++)if(a[r,c]!=b[r,c])return false;return true;}
+    public void Execute(ExecutionContext ctx)
+    {
+        if(!GroundWorkshopOwnership.ContextReady(out string reason))throw new InvalidOperationException(reason);
+        var scene=SceneManager.GetActiveScene();if(scene.path!=GroundSurfaceAuthoring.ScenePath)throw new InvalidOperationException("Requires the exact actual KT03 Lab.");
+        if(GroundWorkshopAuthoring.HasPreview||scene.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<GroundSurfaceLabView>(true)).Any(v=>v.IsObserving))throw new InvalidOperationException("Finish existing recipe/observation first.");
+        var bindings=GroundSurfaceAuthoring.GetBindings();if(bindings.Length!=2||bindings.Any(b=>!b.useCache))throw new InvalidOperationException("Both actual platform caches must be displayed.");
+        var camera=Camera.main;if(camera==null||camera.gameObject.scene!=scene)throw new InvalidOperationException("The actual Lab MainCamera is required.");
+        float pitch=Mathf.DeltaAngle(0,camera.transform.eulerAngles.x);if(Mathf.Abs(pitch-35)>.1f)throw new InvalidOperationException("Current MainCamera is not the agreed 35-degree view; fixture does not reposition it.");
+        if(camera.clearFlags!=CameraClearFlags.SolidColor&&camera.clearFlags!=CameraClearFlags.Skybox)throw new InvalidOperationException("The real Camera must clear its own frame; fixture does not change its clear policy.");
+        var caps=bindings.SelectMany(b=>b.cacheRoot.GetComponent<GroundSurfaceMeshCache>().chunks.Select(c=>(Renderer)c.renderer)).Distinct().ToArray();
+        var walls=bindings.SelectMany(b=>b.sideWalls.Select(m=>m.GetComponent<MeshRenderer>())).Where(r=>r!=null).Cast<Renderer>().Distinct().ToArray();
+        if(caps.Length==0||walls.Length==0||caps.Intersect(walls).Any())throw new InvalidOperationException("The actual cap/wall renderer sets are incomplete or overlapping.");
+        foreach(var renderer in caps.Concat(walls))
+            if(renderer.gameObject.scene!=scene||!bindings.Any(b=>renderer.transform.IsChildOf(b.transform)))throw new InvalidOperationException("A target renderer is outside exact owned platform roots.");
+        var flags=caps.Concat(walls).Select(r=>new Flag{renderer=r,original=r.forceRenderingOff,lastWritten=r.forceRenderingOff,enabled=r.enabled,active=r.gameObject.activeInHierarchy}).ToArray();
+        var caches=bindings.Select(b=>{var c=b.cacheRoot.GetComponent<GroundSurfaceMeshCache>();return new CacheState{binding=b,instance=c.GetInstanceID(),count=c.rebuildCount,signature=c.signature};}).ToArray();
+        var physics=scene.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<Collider>(true)).Select(c=>new ColliderState{collider=c,enabled=c.enabled,active=c.gameObject.activeInHierarchy,mesh=c is MeshCollider m&&m.sharedMesh!=null?m.sharedMesh.GetInstanceID():0}).ToArray();
+        var actorRoots=scene.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<MonoBehaviour>(true)).Where(c=>c!=null&&(c.GetType().FullName=="Ossastra.Characters.CharacterRoot"||c.GetType().FullName=="Ossastra.Enemies.EnemyRoot")).Select(c=>c.transform).Distinct().ToArray();
+        if(actorRoots.Length<3)throw new InvalidOperationException("The actual dual-character/single-enemy Lab roots were not found; this is not the requested full-scene ablation.");
+        var poses=bindings.Select(b=>b.transform).Concat(actorRoots).Append(camera.transform).Distinct().Select(t=>new Pose{transform=t,matrix=t.localToWorldMatrix}).ToArray();
+        string parent=SessionState.GetString("GroundSurface.CacheTestOutput","");if(string.IsNullOrEmpty(parent)||!Directory.Exists(parent))throw new InvalidOperationException("Set the existing external GroundSurface.CacheTestOutput directory.");
+        string output=Path.Combine(parent,"ActualLabAblation_"+Guid.NewGuid().ToString("N"));Directory.CreateDirectory(output);
+        string receipt=Path.Combine(output,"actual-lab-ablation.json");var oldTarget=camera.targetTexture;var oldActive=RenderTexture.active;
+        var liveBefore=Live();var rt=new RenderTexture(Width,Height,24,RenderTextureFormat.ARGB32,RenderTextureReadWrite.sRGB);rt.Create();
+        var rows=new List<object>();var rounds=new List<object>();var visual=new Dictionary<string,object>();var times=new Dictionary<string,List<double>>();
+        var modes=new[]{"Full","NoCaps","NoWalls","NoCapsOrWalls"};foreach(var mode in modes)times[mode]=new List<double>();
+        bool restored=false,physicsSame=false,posesSame=false,cacheSame=false,fullRestored=false;string failure=null;Color32[] full=null;
+        double started=EditorApplication.timeSinceStartup;
+        Action<string> modeChange=mode=>{
+            foreach(var state in flags)
+            {
+                if(state.renderer==null||state.renderer.forceRenderingOff!=state.lastWritten)throw new InvalidOperationException("A target Renderer flag changed outside the fixture.");
+                bool suppress=(mode=="NoCaps"||mode=="NoCapsOrWalls")&&caps.Contains(state.renderer)||(mode=="NoWalls"||mode=="NoCapsOrWalls")&&walls.Contains(state.renderer);
+                state.lastWritten=state.original||suppress;state.renderer.forceRenderingOff=state.lastWritten;
+            }
+        };
+        try
+        {
+            camera.targetTexture=rt;
+            foreach(var mode in modes)
+            {
+                modeChange(mode);for(int i=0;i<Warm;i++)camera.Render();var pixels=Capture(camera,rt,Path.Combine(output,mode+".png"));
+                if(mode=="Full")full=pixels;visual[mode]=Difference(full,pixels);
+                rows.Add(new{mode,targets=new{caps=caps.Length,walls=walls.Length},visibleCapRenderers=caps.Count(r=>r.enabled&&r.gameObject.activeInHierarchy&&!r.forceRenderingOff),visibleWallRenderers=walls.Count(r=>r.enabled&&r.gameObject.activeInHierarchy&&!r.forceRenderingOff),resources=Live()});
+            }
+            for(int round=0;round<Rounds;round++)
+            {
+                var order=round%2==0?modes:modes.Reverse().ToArray();
+                foreach(var mode in order)
+                {
+                    modeChange(mode);camera.Render();var values=new double[Samples];
+                    for(int sample=0;sample<Samples;sample++)
+                    {
+                        if(EditorApplication.timeSinceStartup-started>45)throw new TimeoutException("Bounded actual-Lab render ablation exceeded 45 seconds.");
+                        var clock=Stopwatch.StartNew();camera.Render();clock.Stop();values[sample]=clock.Elapsed.TotalMilliseconds;
+                    }
+                    times[mode].AddRange(values);rounds.Add(new{round=round+1,mode,milliseconds=values,medianMs=P(values,.5),p95Ms=P(values,.95)});
+                }
+            }
+            modeChange("Full");var after=Capture(camera,rt,Path.Combine(output,"FullRestored.png"));fullRestored=Equal(full,after);visual["FullRestored"]=Difference(full,after);
+        }
+        catch(Exception error){failure=error.ToString();}
+        finally
+        {
+            camera.targetTexture=oldTarget;RenderTexture.active=oldActive;rt.Release();Object.DestroyImmediate(rt);
+            restored=true;
+            foreach(var state in flags)
+            {
+                if(state.renderer==null||state.renderer.forceRenderingOff!=state.lastWritten){restored=false;continue;}
+                state.renderer.forceRenderingOff=state.original;
+                if(state.renderer.forceRenderingOff!=state.original||state.renderer.enabled!=state.enabled||state.renderer.gameObject.activeInHierarchy!=state.active)restored=false;
+            }
+            physicsSame=physics.All(s=>s.collider!=null&&s.collider.enabled==s.enabled&&s.collider.gameObject.activeInHierarchy==s.active&&(s.collider is MeshCollider m&&m.sharedMesh!=null?m.sharedMesh.GetInstanceID():0)==s.mesh);
+            posesSame=poses.All(s=>s.transform!=null&&Same(s.matrix,s.transform.localToWorldMatrix));
+            cacheSame=caches.All(s=>s.binding!=null&&s.binding.cacheRoot!=null&&s.binding.cacheRoot.GetComponent<GroundSurfaceMeshCache>() is GroundSurfaceMeshCache c&&c.GetInstanceID()==s.instance&&c.rebuildCount==s.count&&c.signature==s.signature);
+            var report=new{format="ground-surface-actual-lab-ablation",schemaVersion=1,passed=failure==null&&restored&&physicsSame&&posesSame&&cacheSame&&fullRestored,failure,
+                cleanup=new{rendererFlagsRestored=restored,collidersUnchanged=physicsSame,platformActorCameraRootPosesUnchanged=posesSame,cachesNotRebuilt=cacheSame,strictFullFrameRestored=fullRestored},
+                conditions=new{scene=scene.path,unity=Application.unityVersion,graphicsApi=SystemInfo.graphicsDeviceType.ToString(),graphics=SystemInfo.graphicsDeviceName,cpu=SystemInfo.processorType,
+                    colorSpace=QualitySettings.activeColorSpace.ToString(),pipeline=GraphicsSettings.currentRenderPipeline==null?"Built-in":GraphicsSettings.currentRenderPipeline.name,
+                    width=Width,height=Height,pitch,camera.orthographic,camera.orthographicSize,camera.aspect,camera.allowHDR,camera.allowMSAA,camera.useOcclusionCulling,
+                    warmCallsPerMode=Warm,rounds=Rounds,samplesPerRoundPerMode=Samples,order="alternating forward/reverse; same camera, fixed pose/scene, no ReadPixels/PNG inside timing",actorRootCount=actorRoots.Length,colliderCount=physics.Length},
+                resources=bindings.Select(b=>{var c=b.cacheRoot.GetComponent<GroundSurfaceMeshCache>();return new{surfaceId=b.SurfaceId,capRenderers=c.chunks.Length,capMeshes=c.chunks.Select(k=>k.filter.sharedMesh).Distinct().Count(),capMaterials=c.chunks.Select(k=>k.renderer.sharedMaterial).Distinct().Count(),c.outputTriangles,c.outputVertices,wallRenderers=b.sideWalls.Select(m=>m.GetComponent<MeshRenderer>()).Where(r=>r!=null).Distinct().Count(),wallTriangles=b.sideWalls.Where(m=>m!=null&&m.sharedMesh!=null).Sum(m=>m.sharedMesh.triangles.Length/3)};}).ToArray(),
+                modes=rows,visualChecks=visual,cameraRenderCallTiming=times.Select(p=>new{mode=p.Key,samples=p.Value.Count,medianMs=p.Value.Count==0?(double?)null:P(p.Value.ToArray(),.5),p95Ms=p.Value.Count==0?(double?)null:P(p.Value.ToArray(),.95)}).ToArray(),perRound=rounds,
+                liveBefore,liveAfter=Live(),gpuMs=(double?)null,renderThreadMs=(double?)null,gpuStatus="未测",outputRoot=output,
+                measurement="Editor main-thread synchronous Camera.Render wall-clock proxy; may include driver/GPU waits. No GPU/FPS/draw-call claim. Actors, colliders, lowland Native terrain, lights and camera remain active. NoCaps/NoWalls are deliberate visual ablations, not equivalent geometry alternatives. A mode whose pixel difference is zero provides no visible-cost evidence at this exact camera; do not infer a saving from renderer count alone."};
+            File.WriteAllText(receipt,Newtonsoft.Json.JsonConvert.SerializeObject(report,Newtonsoft.Json.Formatting.Indented),new UTF8Encoding(false));
+            ctx.ReturnValue=new{report.passed,receiptPath=receipt,outputRoot=output,report.failure,gpuStatus="未测",restored,physicsSame,posesSame,cacheSame,fullRestored};
+        }
+    }
+    static Color32[] Capture(Camera camera,RenderTexture rt,string path)
+    {
+        camera.Render();var before=RenderTexture.active;var texture=new Texture2D(rt.width,rt.height,TextureFormat.RGBA32,false);
+        try{RenderTexture.active=rt;texture.ReadPixels(new Rect(0,0,rt.width,rt.height),0,0);texture.Apply();File.WriteAllBytes(path,texture.EncodeToPNG());return texture.GetPixels32();}
+        finally{RenderTexture.active=before;Object.DestroyImmediate(texture);}
+    }
+    static bool Equal(Color32[] a,Color32[] b)=>a!=null&&b!=null&&a.Length==b.Length&&a.Zip(b,(x,y)=>x.r==y.r&&x.g==y.g&&x.b==y.b&&x.a==y.a).All(v=>v);
+    static object Difference(Color32[] a,Color32[] b)
+    {
+        int changed=0,max=0;long total=0;
+        for(int i=0;i<a.Length;i++){int r=Math.Abs(a[i].r-b[i].r),g=Math.Abs(a[i].g-b[i].g),blue=Math.Abs(a[i].b-b[i].b),alpha=Math.Abs(a[i].a-b[i].a);int d=Math.Max(alpha,Math.Max(r,Math.Max(g,blue)));if(d>0)changed++;max=Math.Max(max,d);total+=r+g+blue;}
+        bool nonBlank=b.Any(p=>p.r!=b[0].r||p.g!=b[0].g||p.b!=b[0].b||p.a!=b[0].a);
+        return new{pixels=a.Length,changedPixels=changed,maxRgba=max,meanAbsoluteRgb=(double)total/(a.Length*3),nonBlank,visibleAblation=changed>0};
+    }
+}

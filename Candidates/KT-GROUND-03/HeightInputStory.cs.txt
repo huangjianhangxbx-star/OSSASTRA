@@ -1,0 +1,67 @@
+/* 实际InputAction→原Root→唯一CharacterController.Move的坡道往返与切控；不Teleport、不直接设置角色Y/Transform。 */
+using System;using System.Collections.Generic;using System.Linq;using System.Reflection;using UnityEditor;using UnityEngine;using UnityEngine.SceneManagement;using UnityEngine.InputSystem;using UnityEngine.InputSystem.Controls;using UnityEngine.InputSystem.LowLevel;using Funplay.Editor.Tools.Scripting;
+using C=Ossastra.Characters;using E=Ossastra.Enemies;using M=Ossastra.MapResearch;
+public sealed class KT03HeightInputStory:IFunplayCommand
+{
+ public static bool Running;public static object Report;
+ static Keyboard keyboard;static Mouse mouse;static Key[] keys=Array.Empty<Key>();static float wheel;
+ static M.MapResearchRoot map;static C.CharacterControlCoordinator control;static C.CharacterRoot first;static C.CharacterRoot beforeSwitch;
+ static List<object> checks,trace;static List<Filter> filters;static string phase,error;static int waypoint,orbit,lastFrame,passed,failed;static double started,entered,lastTrace,lastProgress;static float closest,maxY,lowY,switchYaw,switchSpan;static bool companionStartedHigh;
+ sealed class Filter{public InputActionMap map;public bool had;public InputDevice[] devices;}
+ static string imageFolder; static float expectedYaw; static int[] initialBuildCounts;
+ static Vector3[] route={new Vector3(12,0,-15),new Vector3(12,1.5f,-9),new Vector3(12,3,-3),new Vector3(12,3,1)};
+ public void Execute(ExecutionContext ctx)
+ {
+  if(Running)throw new InvalidOperationException("坡道输入故事已运行");
+  try{
+   var scene=SceneManager.GetActiveScene();if(!Application.isPlaying||scene.path!="Assets/OSSASTRA/GroundWorkshop/Samples/KT-GROUND-03/SC_CliffEdgeLab.unity"||Time.timeScale!=1||EditorApplication.isPaused)throw new InvalidOperationException("需新Lab正常Play");
+   map=InScene<M.MapResearchRoot>(scene).Single();control=InScene<C.CharacterControlCoordinator>(scene).Single();first=control.Current;
+   if(first==null||!map.IsValid||map.IsStructureMode||Mathf.Abs(map.pitch-35)>.001f)throw new InvalidOperationException("原角色/镜头尚未初始化");
+   checks=new List<object>();trace=new List<object>();filters=new List<Filter>();passed=failed=0;error="";waypoint=orbit=0;lastFrame=-1;maxY=first.transform.position.y;lowY=maxY;
+   keyboard=InputSystem.AddDevice<Keyboard>("KT03HeightKeyboard");mouse=InputSystem.AddDevice<Mouse>("KT03HeightMouse");
+   var actions=new HashSet<InputAction>();foreach(var actor in InScene<C.CharacterRoot>(scene))Collect(actor.GetComponent<C.CharacterInputHandler>(),actions);Collect(control,actions);Collect(map.cameraInput,actions);
+   foreach(var a in actions.Select(a=>a.actionMap).Where(a=>a!=null).Distinct()){var d=a.devices;filters.Add(new Filter{map=a,had=d.HasValue,devices=d.HasValue?d.Value.ToArray():null});a.devices=new InputDevice[]{keyboard,mouse};}
+   foreach(var enemy in InScene<E.EnemyRoot>(scene))if(enemy.AttacksEnabled)throw new InvalidOperationException("敌攻击必须初始关闭，测试不改战斗规则");
+   imageFolder="E:/WORLDCREATOR/XingHaiHuiLang/研究/开拓物语地表/KT-GROUND-03/02-visuals/HeightInput";System.IO.Directory.CreateDirectory(imageFolder);initialBuildCounts=InScene<Ossastra.GroundSurfaces.GroundSurfaceMeshCache>(scene).Select(c=>c.rebuildCount).ToArray();
+   keys=Array.Empty<Key>();wheel=0;started=lastProgress=lastTrace=EditorApplication.timeSinceStartup;Running=true;Enter("warmup");
+   InputSystem.onBeforeUpdate+=Before;EditorApplication.update+=Tick;EditorApplication.playModeStateChanged+=Mode;AssemblyReloadEvents.beforeAssemblyReload+=Reload;
+   var gameView=typeof(EditorWindow).Assembly.GetType("UnityEditor.GameView");if(gameView!=null)EditorWindow.GetWindow(gameView).Focus();Publish(false);ctx.ReturnValue=new{started=true,limitSeconds=150,route="low→ramp→topA→orbit→low→switch→controlled movement",physicalHardwareVerified=false};
+  }catch(Exception e){error=e.ToString();Cleanup();ctx.ReturnValue=Report;}
+ }
+ static void Before(){if(!Running||!Application.isPlaying||InputState.currentUpdateType!=InputUpdateType.Dynamic)return;InputSystem.QueueStateEvent(keyboard,new KeyboardState(keys));InputSystem.QueueStateEvent(mouse,new MouseState{position=new Vector2(Screen.width*.6f,Screen.height*.55f),scroll=new Vector2(0,wheel)});wheel=0;}
+ static void Tick()
+ {
+  if(!Running)return;
+  try{
+   if(!Application.isPlaying||EditorApplication.isPaused||Time.timeScale!=1)throw new InvalidOperationException("正常Play改变");
+   if(Time.frameCount==lastFrame)return;lastFrame=Time.frameCount;double now=EditorApplication.timeSinceStartup,elapsed=now-entered;if(now-started>150)throw new TimeoutException("坡道故事150秒上限，无通过推断");
+   var actor=control.Current;if(actor==null||!actor.IsAlive)throw new InvalidOperationException("主控无效");maxY=Mathf.Max(maxY,actor.transform.position.y);
+   if(now-lastTrace>.35){lastTrace=now;trace.Add(new{phase,frame=Time.frameCount,seconds=now-started,id=actor.ActorId,x=actor.transform.position.x,y=actor.transform.position.y,z=actor.transform.position.z,input=actor.GetComponent<C.CharacterInputHandler>().CurrentFrame.move.ToString("F3"),yaw=map.ActualYaw,cameraY=map.GameplayCamera.transform.position.y});}
+   switch(phase){
+    case "warmup":if(elapsed>1){Check("原控制资格与35度",control.IsIntentSamplingAllowed&&actor.CanSimulateIntent&&Mathf.Abs(map.GameplayCamera.transform.eulerAngles.x-35)<.01f);Enter("ascent");}break;
+    case "ascent":if(Walk(route[waypoint],.3f)){
+      if(waypoint==0)Check("低地脚点",actor.transform.position.y<.3f);
+      if(waypoint==1)Check("真实坡中高度",actor.transform.position.y>1.1f&&actor.transform.position.y<2.1f);
+      if(waypoint==2)Check("坡顶平坦接合",actor.transform.position.y>2.75f&&actor.transform.position.y<3.35f);
+      if(++waypoint==route.Length){Check("主控实际走上高台",actor==first&&actor.transform.position.y>2.75f&&maxY-lowY>2.6f);Enter("orbitRequest");}
+     }break;
+    case "orbitRequest":expectedYaw=Mathf.Repeat(map.TargetYaw+45,360);wheel=120;Enter("orbitWait");break;
+    case "orbitWait":if(elapsed>.65){ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(imageFolder,"yaw-"+orbit+".png"));Check("平台上旋转档"+orbit,Mathf.Abs(Mathf.DeltaAngle(map.TargetYaw,expectedYaw))<.1f&&Mathf.Abs(Mathf.DeltaAngle(map.ActualYaw,map.TargetYaw))<.1f&&Mathf.Abs(map.GameplayCamera.transform.eulerAngles.x-35)<.01f&&actor.transform.position.y>2.7f);orbit++;if(orbit==8){waypoint=2;Enter("descent");}else Enter("orbitRequest");}break;
+    case "descent":if(Walk(route[waypoint],.35f)){waypoint--;if(waypoint<0){Check("原角色沿坡回低地",actor==first&&actor.transform.position.y<.3f);beforeSwitch=actor;switchYaw=map.ActualYaw;switchSpan=Span();Enter("switch");keys=new[]{ReadKey(control.switchAction,null)};}}break;
+    case "switch":if(elapsed>.1)keys=Array.Empty<Key>();if(elapsed>.85){Check("真实切控",control.Current!=beforeSwitch);Check("切控保留yaw和缩放",Mathf.Abs(Mathf.DeltaAngle(map.ActualYaw,switchYaw))<.1f&&Mathf.Abs(Span()-switchSpan)<.3f);companionStartedHigh=control.Current.transform.position.y>2.5f;waypoint=companionStartedHigh?3:0;Enter("second");}break;
+    case "second":if(Walk(route[waypoint],.35f)){if(++waypoint==route.Length){Check("另一角色可在高台行走",control.Current!=first&&control.Current.transform.position.y>2.75f);Check("镜头高度跟随且仍35度",Mathf.Abs(map.GameplayCamera.transform.eulerAngles.x-35)<.01f);Cleanup();}}break;
+   }if(Running)Publish(false);
+  }catch(Exception e){error=e.ToString();Cleanup();}
+ }
+ static bool Walk(Vector3 target,float tolerance){var delta=target-control.Current.transform.position;delta.y=0;if(delta.magnitude<=tolerance){keys=Array.Empty<Key>();closest=float.PositiveInfinity;lastProgress=EditorApplication.timeSinceStartup;return true;}double now=EditorApplication.timeSinceStartup;if(delta.magnitude<closest-.05f){closest=delta.magnitude;lastProgress=now;}if(now-lastProgress>8)throw new TimeoutException("实际运动无进展："+phase+" waypoint"+waypoint+" pos"+control.Current.transform.position+" desired"+target);var direction=delta.normalized;float x=Vector3.Dot(direction,map.ViewRight),y=Vector3.Dot(direction,map.ViewForward);var action=control.Current.GetComponent<C.CharacterInputHandler>().movementAction;var next=new List<Key>();if(Mathf.Abs(x)>.25f)next.Add(ReadKey(action,x>0?"right":"left"));if(Mathf.Abs(y)>.25f)next.Add(ReadKey(action,y>0?"up":"down"));keys=next.ToArray();return false;}
+ static Key ReadKey(InputAction action,string part){foreach(var b in action.bindings){if(b.isComposite||part!=null&&(!b.isPartOfComposite||!string.Equals(b.name,part,StringComparison.OrdinalIgnoreCase)))continue;var p=b.effectivePath;if(!string.IsNullOrEmpty(p)&&p.StartsWith("<Keyboard>/",StringComparison.OrdinalIgnoreCase)&&keyboard[p.Substring(p.LastIndexOf('/')+1)] is KeyControl c)return c.keyCode;}throw new InvalidOperationException("缺当前配置键盘绑定 "+action.name+"/"+part);}
+ static void Collect(object o,HashSet<InputAction> a){foreach(var f in o.GetType().GetFields(BindingFlags.Instance|BindingFlags.Public))if(f.FieldType==typeof(InputAction)&&f.GetValue(o) is InputAction action)a.Add(action);}
+ static T[] InScene<T>(Scene s)where T:Component=>s.GetRootGameObjects().SelectMany(r=>r.GetComponentsInChildren<T>(true)).ToArray();
+ // 跟随中心会平滑追赶当前角色；角色到镜头的即时距离不是缩放状态。只读原Root实际zoom，不改相机状态。
+ static float Span()=>(float)typeof(M.MapResearchRoot).GetField("zoom",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(map);
+ static void Enter(string p){phase=p;entered=lastProgress=EditorApplication.timeSinceStartup;closest=float.PositiveInfinity;keys=Array.Empty<Key>();}
+ static void Check(string n,bool ok){checks.Add(new{name=n,passed=ok});if(ok)passed++;else failed++;}
+ static void Publish(bool done){Report=new{done,Running,status=done?(string.IsNullOrEmpty(error)&&failed==0?"PASS":"FAILED"):"RUNNING",phase,seconds=EditorApplication.timeSinceStartup-started,passed,failed,error,maxY,checks=checks?.ToArray(),trace=trace?.ToArray(),physicalHardwareVerified=false,noActorTransformWrites=true};}
+ static void Mode(PlayModeStateChange s){if(s==PlayModeStateChange.ExitingPlayMode)Cancel("Play退出");}static void Reload()=>Cancel("Domain重载");public static void Cancel(string why){if(!Running)return;error=why;Cleanup();}
+ static void Cleanup(){if(Running&&initialBuildCounts!=null)Check("行走旋转切控不重建顶盖",initialBuildCounts.SequenceEqual(InScene<Ossastra.GroundSurfaces.GroundSurfaceMeshCache>(SceneManager.GetActiveScene()).Select(c=>c.rebuildCount)));Running=false;EditorApplication.update-=Tick;InputSystem.onBeforeUpdate-=Before;EditorApplication.playModeStateChanged-=Mode;AssemblyReloadEvents.beforeAssemblyReload-=Reload;keys=Array.Empty<Key>();try{if(keyboard!=null)InputSystem.ResetDevice(keyboard);if(mouse!=null)InputSystem.ResetDevice(mouse);}catch(Exception e){error+=" 清输入失败:"+e.Message;}if(filters!=null)foreach(var f in filters)if(f.map!=null)f.map.devices=f.had?f.devices:null;if(keyboard!=null)InputSystem.RemoveDevice(keyboard);if(mouse!=null)InputSystem.RemoveDevice(mouse);keyboard=null;mouse=null;Publish(true);}
+}

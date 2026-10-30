@@ -1,0 +1,106 @@
+/* Real component fixture. Catches moving physical data for an exploded view, leaking diagnostics,
+ * showing Native+cache together, clobbering a foreign force flag, and re-hiding a disabled Binding. */
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using Funplay.Editor.Tools.Scripting;
+using UnityEditor.SceneManagement;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEngine.Rendering;
+using UnityEngine.Tilemaps;
+using Ossastra.GroundResearch;
+
+public sealed class GroundSurfaceLabOwnedStateContracts : IFunplayCommand
+{
+    public void Execute(ExecutionContext ctx)
+    {
+        Type viewType=Find("Ossastra.GroundSurfaces.GroundSurfaceLabView"), bindingType=Find("Ossastra.GroundSurfaces.GroundSurfaceBinding"),
+            cacheType=Find("Ossastra.GroundSurfaces.GroundSurfaceMeshCache"), chunkType=Find("Ossastra.GroundSurfaces.GroundSurfaceRenderChunk"),
+            boundaryType=Find("Ossastra.GroundSurfaces.GroundSurfaceBoundary"), modeType=Find("Ossastra.GroundSurfaces.GroundSurfaceLabViewMode");
+        if(new[]{viewType,bindingType,cacheType,chunkType,boundaryType,modeType}.Any(t=>t==null))
+        {ctx.ReturnValue=new{status="RED",passed=0,failed=1,reason="Missing observation/component boundary before a real state fixture can run."};return;}
+        var checks=new List<string>();int passed=0,failed=0;var owned=new List<UnityEngine.Object>();
+        Scene previous=SceneManager.GetActiveScene(),scene=default;Component view=null;
+        try
+        {
+            scene=EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Additive);SceneManager.SetActiveScene(scene);
+            GameObject root=new GameObject("KT03_ObservationFixture");ctx.RegisterObjectCreation(root);
+            var mapObject=Child(root,"map");mapObject.transform.position=new Vector3(3,0,5);mapObject.transform.localScale=new Vector3(1.5f,1,.75f);
+            var map=mapObject.AddComponent<GroundWorkshopMap>();var surface=mapObject.GetComponent<GroundResearchSurface>();
+            if(surface==null)surface=mapObject.AddComponent<GroundResearchSurface>();map.surface=surface;
+            var registration=ScriptableObject.CreateInstance<GroundMapRegistration>();owned.Add(registration);
+            registration.mapId=Guid.NewGuid().ToString("N");map.registration=registration;
+            var grid=mapObject.GetComponent<Grid>();if(grid==null)grid=mapObject.AddComponent<Grid>();grid.cellSwizzle=GridLayout.CellSwizzle.XZY;surface.grid=grid;
+            var nativeObject=Child(mapObject,"native");var tilemap=nativeObject.AddComponent<Tilemap>();var native=nativeObject.AddComponent<TilemapRenderer>();
+            surface.layers=new[]{new GroundLayer{tilemap=tilemap}};surface.editableCells=new BoundsInt(0,0,0,2,2,1);
+            var binding=(Behaviour)mapObject.AddComponent(bindingType);Set(binding,"map",map);
+            var boundary=ScriptableObject.CreateInstance(boundaryType);owned.Add(boundary);
+            Set(boundary,"rim",new[]{new Vector2(0,0),new Vector2(2,0),new Vector2(0,2)});Set(boundary,"localTopY",0f);Set(binding,"boundary",boundary);
+            var cacheRoot=Child(mapObject,"cache");Set(binding,"cacheRoot",cacheRoot.transform);
+            var topMesh=Triangle();owned.Add(topMesh);var top=Renderable(cacheRoot,"top",topMesh);
+            var wallMesh=Triangle();owned.Add(wallMesh);var wall=Renderable(mapObject,"wall",wallMesh);
+            Set(binding,"sideWalls",new[]{wall.GetComponent<MeshFilter>()});
+            var collider=Child(mapObject,"capCollider").AddComponent<MeshCollider>();collider.sharedMesh=topMesh;Set(binding,"capCollider",collider);
+            var cache=cacheRoot.AddComponent(cacheType);Set(cache,"binding",binding);Set(cache,"colliderMesh",topMesh);
+            var chunk=Activator.CreateInstance(chunkType);Set(chunk,"filter",top.GetComponent<MeshFilter>());Set(chunk,"renderer",top);Set(chunk,"sourceTilemap",tilemap);
+            var chunks=Array.CreateInstance(chunkType,1);chunks.SetValue(chunk,0);Set(cache,"chunks",chunks);
+            var decorRoot=Child(mapObject,"decor");map.decorationRoot=decorRoot.transform;var decor=Child(decorRoot,"decorVisual").AddComponent<SpriteRenderer>();
+            var material=new Material(Shader.Find("Hidden/Internal-Colored"));owned.Add(material);top.sharedMaterial=material;wall.sharedMaterial=material;native.sharedMaterial=material;
+            bindingType.GetMethod("SetCacheVisible").Invoke(binding,new object[]{true});
+            view=root.AddComponent(viewType);var bindings=Array.CreateInstance(bindingType,1);bindings.SetValue(binding,0);Set(view,"surfaces",bindings);Set(view,"decorationRoots",new[]{decorRoot.transform});
+            var topMatrix=top.localToWorldMatrix;var wallMatrix=wall.localToWorldMatrix;var colliderMatrix=collider.transform.localToWorldMatrix;
+            var colliderReference=collider.sharedMesh;var topReference=top.GetComponent<MeshFilter>().sharedMesh;
+            Func<string,bool> mode=name=>(bool)viewType.GetMethod("SetMode").Invoke(view,new[]{Enum.Parse(modeType,name)});
+            Action restore=()=>viewType.GetMethod("Restore").Invoke(view,null);
+
+            Check(mode("BareSeam")&&decor.forceRenderingOff,"bare seam hides only explicit decoration display",checks,ref passed,ref failed);
+            Check(!top.forceRenderingOff&&!wall.forceRenderingOff&&native.forceRenderingOff,"bare seam keeps actual top and wall with Native still hidden",checks,ref passed,ref failed);
+            restore();Check(!decor.forceRenderingOff,"bare seam restores original decoration force flag",checks,ref passed,ref failed);
+            mode("BareSeam");int firstLease=(int)viewType.GetProperty("ObservationRevision").GetValue(view);mode("BareSeam");
+            Check((int)viewType.GetProperty("ObservationRevision").GetValue(view)!=firstLease && (bool)viewType.GetProperty("IsObserving").GetValue(view),"a same-mode takeover invalidates the previous window lease",checks,ref passed,ref failed);restore();
+            decor.forceRenderingOff=true;mode("BareSeam");decor.forceRenderingOff=false;restore();
+            Check(!decor.forceRenderingOff,"restore preserves a foreign override of an originally hidden decoration",checks,ref passed,ref failed);
+
+            Check(mode("Exploded")&&(int)viewType.GetProperty("DiagnosticRendererCount").GetValue(view)>0,"exploded view creates temporary display renderers",checks,ref passed,ref failed);
+            var diagnostics=scene.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<MeshRenderer>(true)).Where(r=>r!=top&&r!=wall).ToArray();
+            Check(top.forceRenderingOff&&diagnostics.Any(r=>r.bounds.center.y>top.bounds.center.y+.5f),"only the temporary top is displaced upward",checks,ref passed,ref failed);
+            Check(top.localToWorldMatrix==topMatrix&&wall.localToWorldMatrix==wallMatrix&&collider.transform.localToWorldMatrix==colliderMatrix&&collider.sharedMesh==colliderReference&&top.GetComponent<MeshFilter>().sharedMesh==topReference,"explosion does not move or replace physical/author geometry",checks,ref passed,ref failed);
+            restore();Check(!top.forceRenderingOff&&(int)viewType.GetProperty("DiagnosticRendererCount").GetValue(view)==0,"explosion cleanup restores output and releases all owned renderers",checks,ref passed,ref failed);
+
+            bool nativeEnabled=native.enabled,topEnabled=top.enabled;
+            Check(mode("BeforeClip")&&!native.forceRenderingOff&&top.forceRenderingOff&&native.enabled==nativeEnabled&&top.enabled==topEnabled,"before-clip switches one display path without changing enabled",checks,ref passed,ref failed);
+            restore();Check(native.forceRenderingOff&&!top.forceRenderingOff,"before-clip restore returns cached display",checks,ref passed,ref failed);
+            mode("BeforeClip");binding.enabled=false;restore();
+            Check(!native.forceRenderingOff,"view does not re-hide Native after its Binding has released ownership",checks,ref passed,ref failed);
+            binding.enabled=true;
+
+            Check(mode("Structure"),"structure observation accepts a valid fixed fixture",checks,ref passed,ref failed);
+            diagnostics=scene.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<MeshRenderer>(true)).Where(r=>r!=top&&r!=wall).ToArray();
+            Check(diagnostics.Length>0&&diagnostics.Length<=8&&diagnostics.All(r=>r.GetComponent<MeshFilter>().sharedMesh.GetTopology(0)==MeshTopology.Lines),"wire structure is bounded batched Lines geometry, not per-triangle renderers",checks,ref passed,ref failed);
+            Check(diagnostics.All(r=>r.sharedMaterial!=null&&r.sharedMaterial.GetInt("_ZTest")== (int)CompareFunction.LessEqual),"structure uses local depth-tested material instead of Always",checks,ref passed,ref failed);
+            restore();
+            mode("Exploded");((Behaviour)view).enabled=false;
+            Check((int)viewType.GetProperty("DiagnosticRendererCount").GetValue(view)==0&&!top.forceRenderingOff&&native.forceRenderingOff,"component disable restores owned display and destroys temporary output",checks,ref passed,ref failed);
+            Check(top.localToWorldMatrix==topMatrix&&wall.localToWorldMatrix==wallMatrix&&collider.sharedMesh==colliderReference,"all observation cycles leave original matrices and collider reference intact",checks,ref passed,ref failed);
+            ((Behaviour)view).enabled=true;mode("BeforeClip");UnityEngine.Object.DestroyImmediate(binding);restore();
+            Check(!native.forceRenderingOff,"destroyed Binding ownership is not resurrected by a later observation restore",checks,ref passed,ref failed);
+        }
+        catch(Exception error){failed++;checks.Add("FAIL "+error.GetBaseException().ToString());}
+        finally
+        {
+            if(view!=null){try{viewType.GetMethod("Restore").Invoke(view,null);}catch{}}
+            if(previous.IsValid()&&previous.isLoaded)SceneManager.SetActiveScene(previous);
+            if(scene.IsValid()&&scene.isLoaded)EditorSceneManager.CloseScene(scene,true);
+            foreach(var item in owned)if(item!=null)UnityEngine.Object.DestroyImmediate(item);
+        }
+        ctx.ReturnValue=new{status=failed==0?"GREEN":"RED",passed,failed,checks,scope="real isolated component state; not rendering, physical input or gameplay validation"};
+    }
+    private static GameObject Child(GameObject parent,string name){var child=new GameObject(name);child.transform.SetParent(parent.transform,false);return child;}
+    private static MeshRenderer Renderable(GameObject parent,string name,Mesh mesh){var child=Child(parent,name);child.AddComponent<MeshFilter>().sharedMesh=mesh;return child.AddComponent<MeshRenderer>();}
+    private static Mesh Triangle(){var mesh=new Mesh{name="literal_triangle"};mesh.vertices=new[]{Vector3.zero,new Vector3(0,0,2),new Vector3(2,0,0)};mesh.triangles=new[]{0,1,2};mesh.uv=new[]{Vector2.zero,Vector2.up,Vector2.right};mesh.RecalculateNormals();mesh.RecalculateBounds();return mesh;}
+    private static void Set(object target,string field,object value){var info=target.GetType().GetField(field,BindingFlags.Public|BindingFlags.Instance);if(info==null)throw new MissingFieldException(target.GetType().FullName,field);info.SetValue(target,value);}
+    private static Type Find(string name){foreach(var assembly in AppDomain.CurrentDomain.GetAssemblies()){var type=assembly.GetType(name,false);if(type!=null)return type;}return null;}
+    private static void Check(bool value,string name,List<string> checks,ref int passed,ref int failed){if(value)passed++;else failed++;checks.Add((value?"PASS ":"FAIL ")+name);}
+}

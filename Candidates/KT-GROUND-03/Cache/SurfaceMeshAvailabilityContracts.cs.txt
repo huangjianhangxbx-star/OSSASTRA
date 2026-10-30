@@ -1,0 +1,35 @@
+/* Native RED/GREEN：只读确认薄顶面生成器及冻结的数据接口；不生成资产、不操作Scene。
+ * 缺少Generator是预期RED；不能把候选文件存在误当生产代码已编译可用。
+ */
+using System;
+using System.Linq;
+using System.Reflection;
+using Funplay.Editor.Tools.Scripting;
+using UnityEngine;
+using UnityEngine.Tilemaps;
+
+public sealed class SurfaceMeshAvailabilityContracts : IFunplayCommand
+{
+    public void Execute(ExecutionContext ctx)
+    {
+        Func<string,Type> find=name=>AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType(name,false)).FirstOrDefault(t=>t!=null);
+        var generator=find("Ossastra.GroundSurfaces.Editor.GroundSurfaceMeshGenerator");
+        if(generator==null)throw new InvalidOperationException("预期RED：生产GroundSurfaceMeshGenerator尚不存在，不能构建真实Tilemap薄Mesh。");
+        var input=find("Ossastra.GroundSurfaces.Editor.SurfaceLayerInput");
+        var result=find("Ossastra.GroundSurfaces.Editor.SurfaceMeshBuildResult");
+        var chunk=find("Ossastra.GroundSurfaces.Editor.SurfaceMeshChunk");
+        if(input==null||result==null||chunk==null)throw new InvalidOperationException("缓存接口类型未完整编译。");
+        var build=generator.GetMethod("Build",BindingFlags.Public|BindingFlags.Static);
+        if(build==null||build.ReturnType!=result)throw new InvalidOperationException("缺冻结Build方法/返回类型。");
+        string[] expected={"Ossastra.GroundSurfaces.GroundSurfaceBinding","Ossastra.GroundSurfaces.SurfaceDomain",input.FullName+"[]","System.Boolean"};
+        if(!build.GetParameters().Select(p=>p.ParameterType.FullName).SequenceEqual(expected))throw new InvalidOperationException("Build参数与冻结契约不一致。");
+        Action<Type,string,Type> field=(type,name,expectedType)=>
+        {var value=type.GetField(name,BindingFlags.Public|BindingFlags.Instance);if(value==null||value.FieldType!=expectedType)throw new InvalidOperationException(type.Name+"缺字段/类型："+name);};
+        field(input,"tilemap",typeof(Tilemap));field(input,"material",typeof(Material));field(input,"layerIndex",typeof(int));
+        field(result,"chunks",chunk.MakeArrayType());
+        field(chunk,"mesh",typeof(Mesh));field(chunk,"mainTexture",typeof(Texture));field(chunk,"sourceMaterial",typeof(Material));
+        field(chunk,"layerIndex",typeof(int));field(chunk,"chunk",typeof(Vector2Int));field(chunk,"sourceTilemap",typeof(Tilemap));
+        field(chunk,"cells",typeof(Vector3Int[]));field(chunk,"sprites",typeof(Sprite[]));
+        ctx.ReturnValue=new{passed=true,checks=16,built=false,readOnly=true,method=build.ToString(),scope="仅生产接口可用性，未提前认证Native显示矩阵或几何/性能正确。"};
+    }
+}

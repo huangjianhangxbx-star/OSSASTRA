@@ -1,7 +1,7 @@
 /* 脚本：GroundWorkshopAuthoring
  * 功能：提供注册地图的作者门、图层锁、显示刷新和自有配方/主题创建入口。
  * 边界：不保存第二份格子；刷新不会重置手绘。换材事务在同名partial中，磁盘创建有独立精确清单。
- * 协作：窗口与Brush读同一所有权/锁判定；地图主题以不可变快照接续，保存失败不会改坏旧Scene引用。
+ * 协作：窗口/Brush共享所有权；可选派生显示收到Rebuild通知，主题以不可变快照接续。
  */
 #if UNITY_EDITOR
 using System;
@@ -72,6 +72,7 @@ namespace Ossastra.GroundResearch.Editor
                 layer.tilemap.RefreshAllTiles();attributes.Restore();EditorUtility.SetDirty(material);
                 AssetDatabase.SaveAssetIfDirty(material);
             }
+            GroundWorkshopDisplayEvents.Notify(map);
             SceneView.RepaintAll();
         }
         public static GroundRecipe CreateRecipe(string displayName,Texture2D detail,GroundEdgeFamily edge,float period,float cutoff,string assetPath,string detailAssetId="")

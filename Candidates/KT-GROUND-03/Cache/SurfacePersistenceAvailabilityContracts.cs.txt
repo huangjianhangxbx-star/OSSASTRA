@@ -1,0 +1,21 @@
+/* Native RED/GREEN：更新队列、Persist与多平台唯一新Lab保存入口已实际编译；不写资产或Scene。 */
+using System;
+using System.Linq;
+using System.Reflection;
+using Funplay.Editor.Tools.Scripting;
+public sealed class SurfacePersistenceAvailabilityContracts : IFunplayCommand
+{
+    public void Execute(ExecutionContext ctx)
+    {
+        Func<string,Type> find=name=>AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType(name,false)).FirstOrDefault(t=>t!=null);
+        var persistence=find("Ossastra.GroundSurfaces.Editor.GroundSurfacePersistence");
+        var updates=find("Ossastra.GroundSurfaces.Editor.GroundSurfaceUpdates");
+        var authoring=find("Ossastra.GroundSurfaces.Editor.GroundSurfaceAuthoring");
+        if(persistence==null||updates==null||authoring==null)throw new InvalidOperationException("预期RED：薄顶面持久化/更新服务尚未完整实现。");
+        var persist=persistence.GetMethod("Persist",BindingFlags.Public|BindingFlags.Static);
+        var save=authoring.GetMethod("SaveLab",BindingFlags.Public|BindingFlags.Static);
+        if(persist==null||persist.GetParameters().Length!=1||persist.GetParameters()[0].ParameterType.FullName!="Ossastra.GroundSurfaces.GroundSurfaceBinding"||save==null||save.GetParameters().Length!=0)
+            throw new InvalidOperationException("Persist(binding)/SaveLab()入口缺失。");
+        ctx.ReturnValue=new{passed=true,checks=5,readOnly=true,scope="只确认公开入口，稳定资产路径/保存重开/变更合并需真实Native合同。"};
+    }
+}

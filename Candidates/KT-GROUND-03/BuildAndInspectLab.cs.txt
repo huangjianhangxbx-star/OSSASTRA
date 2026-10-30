@@ -1,0 +1,11 @@
+/* 首次执行生产样板入口并核验真实持久Mesh→连接环→顶盖链；只处理本轮新Lab。 */
+using System;using System.Linq;using UnityEngine;using UnityEditor;using UnityEngine.SceneManagement;using Funplay.Editor.Tools.Scripting;using Ossastra.GroundSurfaces;using Ossastra.GroundSurfaces.Editor;using G=Ossastra.GroundResearch;
+public sealed class BuildAndInspectLab:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx){
+  GroundSurfaceLabBuilder.Create();var scene=SceneManager.GetActiveScene();
+  var surfaces=GroundSurfaceAuthoring.GetBindings();
+  ctx.ReturnValue=new{path=scene.path,scene.isDirty,maps=scene.GetRootGameObjects().SelectMany(r=>r.GetComponentsInChildren<G.GroundWorkshopMap>(true)).Select(m=>new{m.name,mapId=m.registration.mapId,m.registration.assetFolder,layers=m.surface.layers.Length,authorCells=m.surface.EditableCells.size.x*m.surface.EditableCells.size.y}).ToArray(),
+   surfaces=surfaces.Select(b=>{var c=b.cacheRoot.GetComponent<GroundSurfaceMeshCache>();var domain=b.GetDomain();float gap=0;foreach(var p in domain.ring){Vector3 world=b.transform.TransformPoint(new Vector3(p.x,b.boundary.localTopY,p.y));float d=b.sideWalls.SelectMany(m=>m.sharedMesh.vertices.Select(v=>m.transform.TransformPoint(v))).Min(v=>Vector3.Distance(v,world));gap=Mathf.Max(gap,d);}return new{b.name,b.SurfaceId,height=b.transform.TransformPoint(new Vector3(0,b.boundary.localTopY,0)).y,model=AssetDatabase.GetAssetPath(b.sideWalls[0].sharedMesh),rimPoints=domain.ring.Length,domain.area,maxRimVertexGap=gap,renderers=c.chunks.Length,c.outputTriangles,c.outputVertices,c.rebuildCount,collider=AssetDatabase.GetAssetPath(b.capCollider.sharedMesh),colliderActive=b.capCollider.gameObject.activeInHierarchy,cachePersisted=c.chunks.All(x=>EditorUtility.IsPersistent(x.filter.sharedMesh)&&EditorUtility.IsPersistent(x.renderer.sharedMaterial))};}).ToArray()};
+ }
+}

@@ -1,7 +1,7 @@
 /*
  * 脚本：FrontierGroundBrush
  * 功能：为原生Tile Palette限定地表、格范围和单笔Undo事务，实际作者数据仍为Tilemap。
- * 边界：不持有第二份格数据、不实例化材质或推进角色；拒绝作者锁，拖动补点由原生Palette负责。
+ * 边界：不持有第二份格数据、不实例化材质或推进角色；拒绝作者锁及可选物理域外格，拖动补点由原生Palette负责。
  * 协作：Window显式配置图层；GridBrushEditor的原生入口开始事务，Esc取消，失焦提交已刷内容。
  */
 using System;
@@ -110,11 +110,13 @@ namespace Ossastra.GroundResearch.Editor
             for (int y = minY; y < maxY; y++) for (int x = minX; x < maxX; x++)
             {
                 var cell = new Vector3Int(x, y, 0);
+                if (!surface.ContainsCell(cell)) continue;
                 if (map.GetTile(cell) == tile) continue;
                 if (!IsStrokeActive && !BeginStroke(map)) return;
                 map.SetTile(cell, tile);
             }
             attributes.Restore();
+            GroundWorkshopDisplayEvents.Notify(surface.GetComponent<GroundWorkshopMap>());
         }
 
         public override void Pick(GridLayout gridLayout, GameObject brushTarget, BoundsInt position, Vector3Int pickStart)

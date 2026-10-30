@@ -1,0 +1,102 @@
+/* Actual KT03 Lab cache invariance under idle and a finite native Camera yaw sweep.
+ * Native root only. No Render timing/GPU claim, no Rebuild/Persist/Undo/Save/actor writes.
+ * Six-second bounded observation after settling; camera pose restored exactly if still fixture-owned.
+ */
+using System;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Collections.Generic;
+using UnityEditor;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using Ossastra.GroundResearch;
+using Ossastra.GroundResearch.Editor;
+using Ossastra.GroundSurfaces;
+using Ossastra.GroundSurfaces.Editor;
+using Funplay.Editor.Tools.Scripting;
+
+public sealed class KT03SurfaceIdleRotationContracts : IFunplayCommand
+{
+    public static string ResultJson="NOT_STARTED";static Runner active;
+    public void Execute(ExecutionContext ctx)
+    {
+        if(active!=null){ctx.ReturnValue=new{status="ALREADY_RUNNING",pollType="KT03SurfaceIdleRotationContracts"};return;}
+        active=new Runner();try{active.Start();}catch(Exception error){active.End(error.ToString());}
+        ctx.ReturnValue=new{status=active==null?"SETUP_FINISHED_OR_FAILED":"STARTED",pollType="KT03SurfaceIdleRotationContracts",pollField="ResultJson",result=ResultJson};
+    }
+    sealed class CacheState
+    {
+        public string surfaceId,signature;public int cacheId,rebuildCount,renderers,triangles;public int[] meshIds,materialIds;
+        public static CacheState Read(GroundSurfaceBinding b)
+        {
+            var c=b.cacheRoot==null?null:b.cacheRoot.GetComponent<GroundSurfaceMeshCache>();if(c==null||c.binding!=b)throw new InvalidOperationException("Missing owned cache.");
+            return new CacheState{surfaceId=b.SurfaceId,signature=c.signature,cacheId=c.GetInstanceID(),rebuildCount=c.rebuildCount,
+                renderers=c.chunks.Length,triangles=c.outputTriangles,
+                meshIds=c.chunks.Select(k=>k.filter.sharedMesh.GetInstanceID()).Concat(new[]{c.colliderMesh.GetInstanceID()}).Distinct().OrderBy(i=>i).ToArray(),
+                materialIds=c.chunks.Select(k=>k.renderer.sharedMaterial.GetInstanceID()).Distinct().OrderBy(i=>i).ToArray()};
+        }
+        public bool Same(CacheState b)=>surfaceId==b.surfaceId&&signature==b.signature&&cacheId==b.cacheId&&rebuildCount==b.rebuildCount&&renderers==b.renderers&&triangles==b.triangles&&meshIds.SequenceEqual(b.meshIds)&&materialIds.SequenceEqual(b.materialIds);
+    }
+    sealed class Runner
+    {
+        readonly string runId=Guid.NewGuid().ToString("N"),startedUtc=DateTime.UtcNow.ToString("O");
+        readonly List<object> rows=new List<object>();GroundSurfaceBinding[] bindings;CacheState[] baseline;
+        Camera camera;Transform cameraTransform;Vector3 position,scale;Quaternion rotation,lastWritten;Scene scene;
+        int sample,passed,failed;double started,next;string phase="settling",receiptPath;bool capturedPose,initialDirty;
+        public void Start()
+        {
+            if(!GroundWorkshopOwnership.ContextReady(out string reason))throw new InvalidOperationException(reason);
+            scene=SceneManager.GetActiveScene();if(scene.path!=GroundSurfaceAuthoring.ScenePath)throw new InvalidOperationException("Requires the exact KT03 Lab.");
+            if(GroundWorkshopAuthoring.HasPreview||scene.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<GroundSurfaceLabView>(true)).Any(v=>v.IsObserving))throw new InvalidOperationException("Finish current preview/observation; fixture does not take it over.");
+            bindings=GroundSurfaceAuthoring.GetBindings();if(bindings.Length!=2)throw new InvalidOperationException("Expected the two registered M1 platforms.");
+            camera=Camera.main;if(camera==null||camera.gameObject.scene!=scene)throw new InvalidOperationException("A unique current-Lab MainCamera is required.");
+            if(scene.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<Camera>(true)).Count(c=>c.CompareTag("MainCamera"))!=1)throw new InvalidOperationException("MainCamera ownership is ambiguous.");
+            cameraTransform=camera.transform;position=cameraTransform.localPosition;rotation=cameraTransform.localRotation;lastWritten=rotation;scale=cameraTransform.localScale;capturedPose=true;initialDirty=scene.isDirty;
+            string output=SessionState.GetString("GroundSurface.CacheTestOutput","");if(!string.IsNullOrEmpty(output)&&Directory.Exists(output))receiptPath=Path.Combine(output,"idle-rotation_"+runId+".json");
+            started=EditorApplication.timeSinceStartup;next=started+.8;EditorApplication.update+=Tick;Publish("RUNNING",null);
+        }
+        void Tick()
+        {
+            try
+            {
+                double now=EditorApplication.timeSinceStartup;if(now<next)return;
+                if(now-started>15)throw new TimeoutException("Finite camera/cache observation exceeded fifteen seconds.");
+                if(EditorApplication.isCompiling||EditorApplication.isPlayingOrWillChangePlaymode||scene!=SceneManager.GetActiveScene()||GroundWorkshopAuthoring.HasPreview)throw new InvalidOperationException("Editor lifecycle/preview changed; no further camera writes.");
+                if(cameraTransform==null||cameraTransform.localPosition!=position||cameraTransform.localScale!=scale||Quaternion.Angle(cameraTransform.localRotation,lastWritten)>.001f)throw new InvalidOperationException("Camera pose changed outside the fixture; refusing to overwrite it.");
+                if(baseline==null){baseline=bindings.Select(CacheState.Read).ToArray();phase="idle";sample=0;}
+                var current=bindings.Select(CacheState.Read).ToArray();bool stable=current.Zip(baseline,(a,b)=>a.Same(b)).All(v=>v);
+                bool healthy=bindings.All(b=>string.IsNullOrEmpty(b.lastError)&&b.capCollider!=null&&b.capCollider.gameObject.activeInHierarchy&&b.capCollider.sharedMesh!=null);
+                rows.Add(new{phase,sample,seconds=now-started,stable,healthy,states=current,
+                    liveMeshObjects=Resources.FindObjectsOfTypeAll<Mesh>().Length,liveMaterialObjects=Resources.FindObjectsOfTypeAll<Material>().Length});
+                if(!stable||!healthy){failed++;throw new InvalidOperationException("Idle/camera-only changes rebuilt the cache, replaced resources, or invalidated the cap.");}passed++;
+                sample++;
+                if(phase=="idle"&&sample>=12){phase="yaw-sweep";sample=0;}
+                else if(phase=="yaw-sweep"&&sample>=24){cameraTransform.localRotation=rotation;lastWritten=rotation;phase="restored-pose-idle";sample=0;}
+                else if(phase=="restored-pose-idle"&&sample>=8){End(null);return;}
+                if(phase=="yaw-sweep")
+                {
+                    float yaw=18f*Mathf.Sin(sample*Mathf.PI*2f/24f);lastWritten=Quaternion.AngleAxis(yaw,Vector3.up)*rotation;cameraTransform.localRotation=lastWritten;
+                }
+                next=now+(phase=="yaw-sweep"?.08:.12);Publish("RUNNING",null);
+            }
+            catch(Exception error){End(error.ToString());}
+        }
+        public void End(string error)
+        {
+            EditorApplication.update-=Tick;
+            bool restored=!capturedPose;
+            if(capturedPose&&cameraTransform!=null&&cameraTransform.localPosition==position&&cameraTransform.localScale==scale&&Quaternion.Angle(cameraTransform.localRotation,lastWritten)<.001f)
+            {cameraTransform.localRotation=rotation;restored=cameraTransform.localRotation==rotation;}
+            if(!restored){failed++;error=(error??"")+"\nCamera pose was changed externally; fixture did not overwrite it.";}
+            if(error!=null)failed++;phase="finished";Publish(error==null&&failed==0?"COMPLETED":"FAILED",error);active=null;
+        }
+        void Publish(string status,string error)
+        {
+            ResultJson=Newtonsoft.Json.JsonConvert.SerializeObject(new{status,runId,startedUtc,phase,passed,failed,error,rows,baseline,receiptPath,initialDirty,
+                finalDirty=scene.IsValid()?scene.isDirty:false,seconds=EditorApplication.timeSinceStartup-started,
+                scope="Actual saved Lab two caches; 12 idle + 24 real Camera yaw + 8 restored samples. Cache identity/count/signature and owned Mesh/Material identities unchanged. Global object counts are diagnostic, not a leak claim. No Render/CPU/GPU performance measurement, actor writes or Scene save."},Newtonsoft.Json.Formatting.Indented);
+            if(!string.IsNullOrEmpty(receiptPath))File.WriteAllText(receiptPath,ResultJson,new UTF8Encoding(false));
+        }
+    }
+}

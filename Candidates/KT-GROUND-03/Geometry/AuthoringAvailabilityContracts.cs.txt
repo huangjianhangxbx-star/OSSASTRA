@@ -1,0 +1,58 @@
+/* 平台作者服务入口合同：缺失方法真实RED；新建未注册Binding必须在任何缓存、Boundary或窗口写入前拒绝。
+ * 夹具仅为独立PreviewScene中的瞬态物件，不保存资产、不修改当前Lab或用户Undo。
+ */
+using System;
+using System.Linq;
+using System.Reflection;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+using Funplay.Editor.Tools.Scripting;
+
+public sealed class KT03AuthoringAvailabilityContracts : IFunplayCommand
+{
+    readonly List<string> passed=new List<string>(),failed=new List<string>();
+    static Type Find(string name)=>AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType(name)).FirstOrDefault(t=>t!=null);
+    static void Require(bool value,string message){if(!value)throw new InvalidOperationException(message);}
+    static object Get(object value,string field)=>value.GetType().GetField(field).GetValue(value);
+    static void Set(object value,string field,object data)=>value.GetType().GetField(field).SetValue(value,data);
+    void Case(string name,Action action){try{action();passed.Add(name);}catch(Exception e){failed.Add(name+": "+(e.InnerException??e).Message);}}
+    static bool Rebuilding(Type author)
+    {var p=author.GetProperty("IsRebuilding",BindingFlags.Public|BindingFlags.Static);return p!=null?(bool)p.GetValue(null):(bool)author.GetField("IsRebuilding").GetValue(null);}
+    static void Reject(Type author,string method,object[] args)
+    {
+        bool rejected=false;try{author.GetMethod(method,BindingFlags.Public|BindingFlags.Static).Invoke(null,args);}catch(TargetInvocationException e){rejected=e.InnerException is InvalidOperationException||e.InnerException is ArgumentException;Require(!string.IsNullOrEmpty(e.InnerException.Message),"拒绝没有定位原因");}
+        Require(rejected,"未注册Binding未被拒绝："+method);Require(!Rebuilding(author),"失败后IsRebuilding未释放");
+    }
+    public void Execute(ExecutionContext ctx)
+    {
+        var author=Find("Ossastra.GroundSurfaces.Editor.GroundSurfaceAuthoring");
+        string[] names={"GetBindings","Rebuild","SelectForPainting","UseModelVariant","DescribeSource","EffectiveInputs"};
+        if(author==null||names.Any(n=>author.GetMethod(n,BindingFlags.Public|BindingFlags.Static)==null))
+        {failed.Add("平台作者服务精确入口缺失，必须真实RED");Finish(ctx);return;}
+        Case("公开场景常量及重入标志",()=>{Require((string)author.GetField("ScenePath").GetRawConstantValue()=="Assets/OSSASTRA/GroundWorkshop/Samples/KT-GROUND-03/SC_CliffEdgeLab.unity","精确ScenePath");Require(!Rebuilding(author),"初始重入标志");});
+        Case("非新Lab的GetBindings只读返回空",()=>{if(SceneManager.GetActiveScene().path!=(string)author.GetField("ScenePath").GetRawConstantValue())Require(((Array)author.GetMethod("GetBindings").Invoke(null,null)).Length==0,"不能枚举其他场平台");});
+        Scene own=EditorSceneManager.NewPreviewScene();GameObject root=null;ScriptableObject boundary=null;
+        var active=SceneManager.GetActiveScene();var selected=Selection.activeObject;int undo=Undo.GetCurrentGroup();
+        try
+        {
+            root=new GameObject("KT03 unregistered Binding fixture");SceneManager.MoveGameObjectToScene(root,own);
+            var binding=root.AddComponent(Find("Ossastra.GroundSurfaces.GroundSurfaceBinding"));
+            boundary=ScriptableObject.CreateInstance(Find("Ossastra.GroundSurfaces.GroundSurfaceBoundary"));
+            Set(boundary,"sourceFingerprint","protected-sentinel");Set(boundary,"revision",17);Set(boundary,"rim",new[]{Vector2.zero,Vector2.right,Vector2.up});Set(binding,"boundary",boundary);Set(binding,"currentModelVariant",2);
+            var cache=new GameObject("Existing transient cache sentinel");SceneManager.MoveGameObjectToScene(cache,own);cache.transform.SetParent(root.transform,false);Set(binding,"cacheRoot",cache.transform);
+            Case("未注册Binding重建和重取均先拒绝",()=>{Reject(author,"Rebuild",new object[]{binding,false});Reject(author,"Rebuild",new object[]{binding,true});});
+            Case("未注册Binding选择绘制前拒绝不打开窗口",()=>Reject(author,"SelectForPainting",new object[]{binding}));
+            Case("未注册Binding换模型前拒绝",()=>Reject(author,"UseModelVariant",new object[]{binding,0}));
+            Case("未注册Binding有效输入不可借旧层回退",()=>Reject(author,"EffectiveInputs",new object[]{binding}));
+            Case("失败保留旧Boundary缓存引用和变体",()=>{Require((string)Get(boundary,"sourceFingerprint")=="protected-sentinel"&&(int)Get(boundary,"revision")==17,"Boundary被写");Require((Transform)Get(binding,"cacheRoot")==cache.transform&&cache!=null&&(int)Get(binding,"currentModelVariant")==2,"旧缓存或变体被改");});
+            Case("失败保持当前场选择及外部Undo",()=>Require(SceneManager.GetActiveScene()==active&&Selection.activeObject==selected&&Undo.GetCurrentGroup()==undo,"上下文或外部Undo发生变化"));
+        }
+        catch(Exception e){failed.Add("夹具异常："+(e.InnerException??e));}
+        finally{if(root!=null)UnityEngine.Object.DestroyImmediate(root);if(boundary!=null)UnityEngine.Object.DestroyImmediate(boundary);EditorSceneManager.ClosePreviewScene(own);}
+        Finish(ctx);
+    }
+    void Finish(ExecutionContext ctx)=>ctx.ReturnValue=new{passed=passed.Count,failed=failed.Count,passedCases=passed,failedCases=failed,scope="Exact entry presence and rejected unregistered transient binding; no product scene or asset writes"};
+}

@@ -4,7 +4,7 @@
  * 负责：唯一会话身份、准确SceneSetup/PlayStartScene快照、原生Prefab/Scene副本和精确清理。
  * 不负责：人物输入、运行时保存、作者格修改、全局素材清理或删除未知目录。
  * 协作：可选Builder装配双角色原链；Core Maps只保存作者图；SessionState保存Editor生命周期状态。
- * 关键约束：只关闭clean场；只删GUID/marker匹配的三个自有文件和空会话目录；失败保留可恢复现场。
+ * 关键约束：多Map在任何快照/目录创建前拒绝；只关闭clean场，只删GUID/marker匹配的自有临时文件。
  */
 #if UNITY_EDITOR
 using System;
@@ -54,6 +54,7 @@ namespace Ossastra.GroundResearch.Editor
 
         internal static void Begin(GroundWorkshopMap map)
         {
+            GroundWorkshopMaps.RequireSingleMapScene(map);
             if(HasSession)throw new InvalidOperationException("已有角色试玩恢复记录；先用“返回作者地图”恢复，不覆盖旧会话。");
             GroundWorkshopOwnership.Require(map);
             GroundWorkshopPlaygroundBuilder.RequireCleanContext(null);

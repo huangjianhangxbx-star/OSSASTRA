@@ -1,6 +1,6 @@
 /* 脚本：GroundWorkshopMaps
  * 功能：创建/另存注册地图、独立主题和每层材质/Tile，保存原生作者数据而不复制第二套格表。
- * 边界：拒绝覆盖已有场景和保护旧场；只保存明确目标，失败清理本次资产并恢复原clean场景设置。
+ * 边界：拒绝覆盖旧场；单Map保存/另存遇多表面在任何写入前拒绝，由专用场景编排保存。
  * 协作：所有权服务校验真实注册；配方只作定义，地图拥有独立生成对象，避免改图串材质。
  */
 #if UNITY_EDITOR
@@ -67,6 +67,7 @@ namespace Ossastra.GroundResearch.Editor
         }
         public static void Save(GroundWorkshopMap map)
         {
+            RequireSingleMapScene(map);
             GroundWorkshopOwnership.Require(map);GroundWorkshopAuthoring.CancelPreview();
             GroundWorkshopAuthoring.Rebuild(map);
             foreach(var binding in map.layerBindings){AssetDatabase.SaveAssetIfDirty(binding.ownedMaterial);AssetDatabase.SaveAssetIfDirty(binding.ownedTile);}
@@ -87,6 +88,7 @@ namespace Ossastra.GroundResearch.Editor
         }
         public static GroundWorkshopMap SaveAs(GroundWorkshopMap map,string scenePath)
         {
+            RequireSingleMapScene(map);
             GroundWorkshopOwnership.Require(map);RequireNewPath(scenePath);GroundWorkshopAuthoring.CancelPreview();
             for(int i=0;i<SceneManager.sceneCount;i++){var other=SceneManager.GetSceneAt(i);if(other!=map.gameObject.scene&&other.isDirty)
                 throw new InvalidOperationException("其他场景有未保存变更，保留现场："+other.path);}
@@ -110,6 +112,42 @@ namespace Ossastra.GroundResearch.Editor
                     Debug.LogError("另存的原生快照已保留，但新注册失败；副本只读供恢复，原文件未改："+oldPath);throw;
                 }
             }
+        }
+
+        /// <summary>在当前受控场复制一个独立作者表面；仅初建时裁取所需逻辑范围，不改源图。</summary>
+        public static GroundWorkshopMap CopyIntoOpenScene(GroundWorkshopMap source,Transform parent,BoundsInt cells)
+        {
+            GroundWorkshopOwnership.Require(source);
+            if(parent==null||parent.gameObject.scene!=source.gameObject.scene||cells.size.x<2||cells.size.y<2||cells.size.x>128||cells.size.y>128||cells.zMin!=0||cells.size.z!=1)
+                throw new InvalidOperationException("复制表面需当前场明确父节点及2—128逻辑格范围。");
+            var clone=UnityEngine.Object.Instantiate(source.gameObject,parent,false);
+            clone.name="平台作者地表";clone.transform.localPosition=Vector3.zero;
+            var map=clone.GetComponent<GroundWorkshopMap>();
+            if(map==null){UnityEngine.Object.DestroyImmediate(clone);throw new InvalidOperationException("原生复制未得到作者Map。");}
+            using(var ledger=new GroundAssetLedger())
+            {
+                try
+                {
+                    map.surface.editableCells=cells;
+                    foreach(var layer in map.surface.layers)
+                    {
+                        foreach(var cell in layer.tilemap.cellBounds.allPositionsWithin)
+                            if(!cells.Contains(cell))layer.tilemap.SetTile(cell,null);
+                        layer.tilemap.CompressBounds();
+                    }
+                    RegisterExisting(map.surface,source.theme,source.gameObject.scene.path,ledger,map);
+                    ledger.Commit();EditorSceneManager.MarkSceneDirty(source.gameObject.scene);return map;
+                }
+                catch{UnityEngine.Object.DestroyImmediate(clone);throw;}
+            }
+        }
+
+        internal static void RequireSingleMapScene(GroundWorkshopMap map)
+        {
+            if(map==null)return;
+            var scene=map.gameObject.scene;
+            if(scene.IsValid()&&scene.isLoaded&&scene.GetRootGameObjects().SelectMany(r=>r.GetComponentsInChildren<GroundWorkshopMap>(true)).Count()>1)
+                throw new InvalidOperationException("当前场景包含多个独立表面；请用高台样板的“保存本样板/直接Play”，单Map另存或临时试玩会遗漏其他平台，已在写入前拒绝。");
         }
 
         /// <summary>只为已另存的新工坊场登记现有Surface；调用方负责复制源场，绝不对保护源场注册。</summary>

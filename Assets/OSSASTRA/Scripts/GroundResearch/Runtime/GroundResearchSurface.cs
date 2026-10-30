@@ -2,7 +2,7 @@
  * 脚本：GroundResearchSurface
  * 功能：声明研究地表的逻辑 XY 编辑范围、受控图层和真实世界 XZ 投影面积。
  * 边界：不写入格子、不创建材质、不更新角色或相机；范围来自 Grid 四角，不能硬编码样地面积。
- * 协作：Editor 作者工具通过 Owns/ContainsCell 限制写入，只读面积及包围盒供检查与展示。
+ * 协作：Editor通过Owns/ContainsCell限制写入；可选物理域仅过滤编辑，不删除域外历史格。
  * 生命周期：无 Update；选中 Gizmo 仅画边界，缺配置或无有效地表时拒绝编辑。
  */
 using System;
@@ -65,7 +65,12 @@ namespace Ossastra.GroundResearch
         /// <summary>使用半开 XY 边界；非法配置及非零逻辑 z 都不能落笔。</summary>
         public bool ContainsCell(Vector3Int cell)
         {
-            return cell.z == 0 && TryGetWorldCorners(out _, out _, out _, out _) && editableCells.Contains(cell);
+            if (cell.z != 0 || !TryGetWorldCorners(out _, out _, out _, out _) || !editableCells.Contains(cell)) return false;
+            var domain = GroundSurfaceEditDomain.Find(this);
+            if (domain == null) return true;
+            foreach (var layer in layers)
+                if (layer != null && IsLocalTilemap(layer.tilemap)) return domain.IntersectsCell(layer.tilemap, cell);
+            return false;
         }
 
         private bool IsLocalTilemap(Tilemap target)
