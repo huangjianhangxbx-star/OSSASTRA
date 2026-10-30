@@ -1,0 +1,17 @@
+using System;using System.IO;using System.Linq;using System.Reflection;using UnityEngine;using UnityEngine.SceneManagement;using Funplay.Editor.Tools.Scripting;using Ossastra.MapResearch;
+public sealed class RenderAnglePair:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx){
+  if(!Application.isPlaying)throw new InvalidOperationException("需Play");var scene=SceneManager.GetActiveScene();var root=scene.GetRootGameObjects().SelectMany(r=>r.GetComponentsInChildren<MapResearchRoot>(true)).Single();
+  if(root.gameplayCamera==null||Mathf.Abs(root.pitch-35f)>.001f)throw new InvalidOperationException("试玩未继承35度");
+  var roots=scene.GetRootGameObjects().SelectMany(r=>r.GetComponentsInChildren<Transform>(true)).Where(t=>t.GetComponent<Camera>()==null).ToArray();var positions=roots.Select(t=>t.position).ToArray();
+  root.ResetView();var apply=typeof(MapResearchRoot).GetMethod("ApplyGameplayCamera",BindingFlags.NonPublic|BindingFlags.Instance);
+  if(apply==null)throw new InvalidOperationException("相机应用入口失效");
+  string folder=Path.Combine(Directory.GetParent(Application.dataPath).FullName,"Candidates/KT-GROUND-CAMERA/private");Directory.CreateDirectory(folder);
+  var cam=root.gameplayCamera;var oldTarget=cam.targetTexture;var oldActive=RenderTexture.active;var rt=new RenderTexture(1280,720,24);var tex=new Texture2D(1280,720,TextureFormat.RGBA32,false);string[] files=new string[2];
+  try{cam.targetTexture=rt;for(int i=0;i<2;i++){root.pitch=i==0?42.857f:35f;apply.Invoke(root,null);cam.Render();RenderTexture.active=rt;tex.ReadPixels(new Rect(0,0,1280,720),0,0);tex.Apply();files[i]=Path.Combine(folder,i==0?"SameViewBefore42.png":"SameViewAfter35.png");File.WriteAllBytes(files[i],tex.EncodeToPNG());}}
+  finally{cam.targetTexture=oldTarget;RenderTexture.active=oldActive;root.pitch=35f;apply.Invoke(root,null);UnityEngine.Object.DestroyImmediate(rt);UnityEngine.Object.DestroyImmediate(tex);}
+  bool unchanged=roots.Select((t,i)=>t.position==positions[i]).All(x=>x);
+  ctx.ReturnValue=new{scene=scene.path,root.pitch,root.distance,root.fieldOfView,root.ActualYaw,cameraX=cam.transform.eulerAngles.x,rootPositionsUnchanged=unchanged,files};
+ }
+}

@@ -1,0 +1,10 @@
+using System;using System.Linq;using UnityEngine;using UnityEditor;using UnityEngine.SceneManagement;using Funplay.Editor.Tools.Scripting;using Ossastra.MapResearch;
+public sealed class InspectCamera:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx){
+  var s=SceneManager.GetActiveScene();
+  ctx.ReturnValue=new{dataPath=Application.dataPath,playing=Application.isPlaying,compiling=EditorApplication.isCompiling,scene=s.path,s.isDirty,
+   roots=UnityEngine.Object.FindObjectsByType<MapResearchRoot>(FindObjectsInactive.Include,FindObjectsSortMode.None).Select(r=>new{id=r.GetInstanceID(),objectId=r.gameObject.GetInstanceID(),path=r.name,scene=r.gameObject.scene.path,r.pitch,r.distance,r.fieldOfView,r.initialYaw,r.followParticipant,r.orthographic,cameraId=r.gameplayCamera==null?0:r.gameplayCamera.GetInstanceID(),cameraObjectId=r.gameplayCamera==null?0:r.gameplayCamera.gameObject.GetInstanceID(),cameraX=r.gameplayCamera==null?-1:r.gameplayCamera.transform.eulerAngles.x}).ToArray(),
+   hasSession=Ossastra.GroundResearch.Editor.GroundWorkshopPlaygroundSession.HasSession};
+ }
+}

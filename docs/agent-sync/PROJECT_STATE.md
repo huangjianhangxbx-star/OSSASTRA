@@ -1,5 +1,7 @@
 # ANKALUTE 共享项目状态
 
+> 2026-10-30 地表工坊镜头按用户参考改为35°俯角（原42.857），配置在MapResearchRoot.pitch，距离25/FOV35/yaw45保持；当前Lab已Native保存，可选当前地图试玩只继承作者pitch、不改只读Frontier模板。实际Play/返回35°、原图SHA相同、clean/无Session、Console无error；源控制算法/角色不改，全部租约释放。见docs/ossastra/KT-GROUND-camera-angle.md。
+
 > 2026-10-30 KT-GROUND-02完成交接：原生工坊/原创3层/七层双角色单敌参考图、600项本机图鉴与八章教材已成；三次真实试玩返回clean、8+1角复验、换材/另存/笔刷/装饰与独立25源编译通过。83自有文件Core原生包及SourceZIP完成；最终参考场Edit ready/clean，预览/会话/临时资产0，18保护SHA未变；物理UI/空工程/Player未验。产品8cba9ffcd4de3e4ac566131d0094ad218326f8a8已GitHub main精确核验，全部writer/路径租约释放。原37dirty保留，参考媒体仅本机，详见docs/ossastra/KT-GROUND-02/README.md与tasks/2026-10-30-kt-ground-02.md。
 
 > 2026-10-29 DS-MAP-02已交付：独立SC_DontStarvePartyCombatLab复用双原角色/1原敌、共享yaw/zoom与平滑中心；真实实战35/35、旧单人11/11/Commerce15/15通过。研究DepthPlane共面局部条纹已因果修复及真实bounds修正，用户全部独立装备动态关联仍待验；不声称全部技能/实体手柄/Player验收。产品 ba94f58f447c248d14e57f3c74396535b3714312 已GitHub精确核验；新场Edit clean，原场/基础Prefab/管线及37dirty保护，所有租约释放，受限媒体仅本机。报告docs/ossastra/DS-MAP-02/validation.md，入口user-guide.md。

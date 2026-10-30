@@ -11,6 +11,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
+using Ossastra.MapResearch;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -57,6 +58,10 @@ namespace Ossastra.GroundResearch.Editor
             GroundWorkshopOwnership.Require(map);
             GroundWorkshopPlaygroundBuilder.RequireCleanContext(null);
             if(map.transform.parent!=null)throw new InvalidOperationException("角色试玩v1需要顶层地图根；未移动或重组作者对象。");
+            // 进入模板或临时场之前只读捕获作者观察角；纯作者地图没有观察根时沿用模板。
+            var authorViews=GroundWorkshopPlaygroundBuilder.InScene<MapResearchRoot>(map.gameObject.scene);
+            if(authorViews.Length>1)throw new InvalidOperationException("作者场有多个地图观察根，无法唯一继承俯仰角；未创建试玩文件。");
+            float? authorPitch=authorViews.Length==1?(float?)authorViews[0].pitch:null;
             string templatePath=FrontierGroundSceneBuilder.ScenePath;
             if(AssetDatabase.LoadAssetAtPath<SceneAsset>(templatePath)==null)throw new InvalidOperationException("缺少双角色Frontier模板；不创建替代控制器。");
             var setup=EditorSceneManager.GetSceneManagerSetup();
@@ -93,6 +98,12 @@ namespace Ossastra.GroundResearch.Editor
                     if(PrefabUtility.IsPartOfPrefabInstance(root))PrefabUtility.UnpackPrefabInstance(root,PrefabUnpackMode.Completely,InteractionMode.AutomatedAction);
                     root.transform.SetPositionAndRotation(position,rotation);root.transform.localScale=scale;
                     GroundWorkshopPlaygroundBuilder.AssembleTemporary(preview,root,id);
+                    if(authorPitch.HasValue)
+                    {
+                        // 仅配置本次临时副本；不改只读模板或作者相机，也不接管运行时Transform。
+                        var previewView=GroundWorkshopPlaygroundBuilder.InScene<MapResearchRoot>(preview).Single();
+                        previewView.pitch=authorPitch.Value;EditorUtility.SetDirty(previewView);
+                    }
                     if(!EditorSceneManager.SaveScene(preview,state.scenePath))throw new IOException("临时试玩地表装配保存失败。");
                     AssetDatabase.ImportAsset(state.scenePath,ImportAssetOptions.ForceSynchronousImport);
                     state.sceneGuid=AssetDatabase.AssetPathToGUID(state.scenePath);state.prefabGuid=AssetDatabase.AssetPathToGUID(state.prefabPath);

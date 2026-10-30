@@ -1,0 +1,18 @@
+using System;using UnityEditor;using UnityEditor.SceneManagement;using UnityEngine;using UnityEngine.SceneManagement;using Funplay.Editor.Tools.Scripting;using Ossastra.MapResearch;
+public sealed class SaveCamera35:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx){
+  if(Application.isPlaying||EditorApplication.isCompiling)throw new InvalidOperationException("需Edit idle");
+  var scene=SceneManager.GetActiveScene();if(scene.path!="Assets/OSSASTRA/Scenes/Research/SC_GroundWorkshopLab.unity")throw new InvalidOperationException("不是授权Lab");
+  var root=EditorUtility.InstanceIDToObject(73412) as MapResearchRoot;
+  if(root==null||root.gameObject.scene!=scene||root.gameplayCamera==null||root.gameplayCamera.GetInstanceID()!=73136)throw new InvalidOperationException("核验ID失效，未写入");
+  if(Mathf.Abs(root.pitch-42.857f)>.001f||Mathf.Abs(root.distance-25f)>.001f||Mathf.Abs(root.fieldOfView-35f)>.001f)throw new InvalidOperationException("相机起点配置已变化，未覆盖");
+  var cam=root.gameplayCamera;float oldPitch=root.pitch;Vector3 target=cam.transform.position+cam.transform.forward*root.distance;
+  ctx.RegisterObjectModification(root);ctx.RegisterObjectModification(cam.transform);
+  root.pitch=35f;var rotation=Quaternion.Euler(root.pitch,cam.transform.eulerAngles.y,0f);
+  cam.transform.SetPositionAndRotation(target-rotation*Vector3.forward*root.distance,rotation);
+  PrefabUtility.RecordPrefabInstancePropertyModifications(root);PrefabUtility.RecordPrefabInstancePropertyModifications(cam.transform);
+  EditorSceneManager.MarkSceneDirty(scene);if(!EditorSceneManager.SaveScene(scene))throw new InvalidOperationException("授权Lab保存失败");
+  ctx.ReturnValue=new{oldPitch,root.pitch,root.distance,root.fieldOfView,root.initialYaw,cameraX=cam.transform.eulerAngles.x,scene=scene.path,scene.isDirty,saved=true};
+ }
+}
