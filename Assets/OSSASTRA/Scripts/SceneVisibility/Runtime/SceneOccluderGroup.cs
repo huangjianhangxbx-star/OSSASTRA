@@ -10,11 +10,21 @@ using UnityEngine;
 
 namespace Ossastra.SceneVisibility
 {
+    // 0保留既有场景的显式透视登记；小型物件由作者选择保留正常前后遮挡。
+    public enum SceneOcclusionPolicy
+    {
+        [InspectorName("角色遮挡透视")] CharacterReveal = 0,
+        [InspectorName("保留自然遮挡（不透视）")] KeepNaturalOcclusion = 1
+    }
+
     [DisallowMultipleComponent]
     public sealed class SceneOccluderGroup : MonoBehaviour
     {
         [Header("明确的一件模型（不能指定整个世界）")]
         public string groupLabel = "环境模型";
+        [Tooltip("保留自然遮挡时，本组不参与角色局部开窗或整组淡出，也不占有限捕获名额；碰撞、受击与原材质不变。角色遮挡透视保持既有大墙/高台行为。")]
+        public SceneOcclusionPolicy occlusionPolicy = SceneOcclusionPolicy.CharacterReveal;
+        public bool AllowsCharacterReveal => occlusionPolicy == SceneOcclusionPolicy.CharacterReveal;
         public Renderer[] members = Array.Empty<Renderer>();
         [Tooltip("只做显示检测；始终查询未淡出的原Collider，透明不会关碰撞。显式Trigger也可使用。")]
         public Collider[] volumes = Array.Empty<Collider>();
@@ -25,7 +35,7 @@ namespace Ossastra.SceneVisibility
         [Tooltip("主控或被保护伙伴站立时必须保留的表面；高台缓存顶盖自动属于此类。")]
         public Renderer[] supportRenderers = Array.Empty<Renderer>();
         public Collider[] supportColliders = Array.Empty<Collider>();
-        [Header("整件淡出只对有限小模型显式开放")]
+        [Header("角色透视时的整组淡出（自然遮挡策略下不启用）")]
         public bool allowWholeFade;
         [Range(0, 1)] public float minimumOpacity;
         readonly List<Renderer> resolved = new List<Renderer>();

@@ -1,0 +1,77 @@
+/* Root Native only. One synchronous frame; no Play entry/save/movement/damage/profile mutation.
+ * Actual native source-only Sprite is the silhouette/color oracle. Same GameplayCamera and projection
+ * render source+actual ground, full world effect-off and effect-on. No private backend RT is expected data.
+ * Other Renderer.enabled values and camera/effect fields are restored in finally. PNG/JSON stay local.
+ */
+using System;using System.IO;using System.Linq;using System.Collections.Generic;
+using UnityEngine;using UnityEditor;using UnityEngine.SceneManagement;
+using UnityEngine.Experimental.Rendering;using Funplay.Editor.Tools.Scripting;
+using Ossastra.WorldProps;using Ossastra.SceneVisibility;using Ossastra.GroundSurfaces;
+
+public sealed class Vis03PropPixelDifferential:IFunplayCommand
+{
+ const string Main="Assets/OSSASTRA/GroundWorkshop/Samples/CRAFT-01/SC_CraftingIntegration.unity";
+ const string Profiles="E:/WORLDCREATOR/XingHaiHuiLang/研究/可见性修复/KT-VIS-03/profiles";
+ const float Tolerance=4f/1024f;const int Minimum=16;
+ public void Execute(ExecutionContext ctx)
+ {
+  var scene=SceneManager.GetActiveScene();
+  Need(Application.isPlaying&&!EditorApplication.isPaused&&!EditorApplication.isCompiling&&!EditorApplication.isUpdating&&Time.timeScale==1&&Application.dataPath=="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets"&&scene.path==Main&&AssetDatabase.AssetPathToGUID(Main)=="d694fa04240ccaf40808408e233c70ba","Wrong project/scene/Play readiness");
+  var components=scene.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<MonoBehaviour>(true)).Where(c=>c!=null).ToArray();
+  var world=components.OfType<WorldPropsRoot>().Single();var visibility=components.OfType<SceneVisibilityRoot>().Single();var commerce=world.commerce;
+  Need(commerce!=null&&commerce.profileId=="kt-vis03-01"&&commerce.saveDirectory==Profiles,"Explicit isolated profile/directory required");
+  var camera=visibility.gameplayCamera;Need(camera!=null&&camera==world.gameplayCamera&&camera.rect==new Rect(0,0,1,1),"Expected original full GameplayCamera");
+  string outputRoot=SessionState.GetString("KT-VIS-03.Output","");Need(!string.IsNullOrWhiteSpace(outputRoot)&&Directory.Exists(outputRoot)&&Path.GetFullPath(outputRoot).StartsWith("E:\\WORLDCREATOR\\XingHaiHuiLang\\研究\\可见性修复\\KT-VIS-03",StringComparison.OrdinalIgnoreCase),"Root must set existing KT-VIS-03.Output");
+  string output=Path.Combine(outputRoot,"PropPixel_"+Guid.NewGuid().ToString("N"));Directory.CreateDirectory(output);
+  string[] ids=SessionState.GetString("KT-VIS-03.PropProbe.Ids","stone-a,plant-a").Split(',');Need(ids.Length>0&&ids.Length<=4,"1..4 explicit source IDs");
+  var props=ids.Select(id=>world.props.Single(p=>p!=null&&p.instanceId==id)).ToArray();
+  var sources=props.Select(p=>p.visualRoot.GetComponentsInChildren<SpriteRenderer>(false).Single()).ToArray();
+  foreach(var source in sources)Need(source.enabled&&!source.forceRenderingOff&&source.sprite!=null&&source.sharedMaterial!=null&&source.sharedMaterial.shader.name=="Ossastra/GroundWorkshop/DecorationCutout","Need visible actual audited cutout Sprite");
+  int width=camera.pixelWidth,height=camera.pixelHeight;Need(width>=128&&height>=128&&width<=2048&&height<=2048,"Bounded actual viewport required");
+  var oldTarget=camera.targetTexture;var oldActive=RenderTexture.active;var oldClear=camera.clearFlags;var oldColor=camera.backgroundColor;bool oldEffect=visibility.effectEnabled,dirty=scene.isDirty;float oldAspect=camera.aspect;var oldProjection=camera.projectionMatrix;
+  var rt=new RenderTexture(width,height,32,RenderTextureFormat.ARGBHalf,RenderTextureReadWrite.Linear){name="KT-VIS-03 Own pixel differential",antiAliasing=1,hideFlags=HideFlags.HideAndDontSave};
+  rt.depthStencilFormat=GraphicsFormat.D32_SFloat_S8_UInt;Texture2D reader=null;Renderer[] renderers=null;bool[] enabled=null;var rows=new List<object>();string error=null;int onCaptures=0,onGroups=0;object result=null;
+  try
+  {
+   Need(rt.Create(),"Own Half/D32 target failed");reader=new Texture2D(width,height,TextureFormat.RGBAFloat,false,true){hideFlags=HideFlags.HideAndDontSave};camera.targetTexture=rt;camera.aspect=oldAspect;camera.projectionMatrix=oldProjection;camera.clearFlags=CameraClearFlags.SolidColor;camera.backgroundColor=Color.clear;
+   visibility.effectEnabled=false;var off=Render(camera,rt,reader,width,height);Save(off,width,height,Path.Combine(output,"full_effect_off.png"));
+   visibility.effectEnabled=true;var on=Render(camera,rt,reader,width,height);onCaptures=visibility.CaptureCount;onGroups=visibility.ActiveGroups;Save(on,width,height,Path.Combine(output,"full_effect_on.png"));
+   Need(string.IsNullOrEmpty(visibility.RenderError),"Capture diagnostic: "+visibility.RenderError);
+   // Capture can warm its own renderer caches. Take state only after that and restore exactly these values.
+   renderers=scene.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<Renderer>(true)).ToArray();enabled=renderers.Select(r=>r.enabled).ToArray();
+   var ground=new HashSet<Renderer>(components.OfType<GroundSurfaceMeshCache>().Where(c=>c.chunks!=null).SelectMany(c=>c.chunks).Where(c=>c!=null&&c.renderer!=null).Select(c=>(Renderer)c.renderer));
+   visibility.effectEnabled=false;for(int i=0;i<renderers.Length;i++)if(renderers[i]!=null)renderers[i].enabled=false;
+   var empty=Render(camera,rt,reader,width,height);Save(empty,width,height,Path.Combine(output,"no_scene_renderers.png"));
+   for(int n=0;n<sources.Length;n++)
+   {
+    var source=sources[n];for(int i=0;i<renderers.Length;i++)if(renderers[i]!=null)renderers[i].enabled=renderers[i]==source&&enabled[i];
+    var only=Render(camera,rt,reader,width,height);Save(only,width,height,Path.Combine(output,ids[n]+"_source_only.png"));
+    for(int i=0;i<renderers.Length;i++)if(renderers[i]!=null)renderers[i].enabled=enabled[i]&&(renderers[i]==source||ground.Contains(renderers[i]));
+    var grounded=Render(camera,rt,reader,width,height);Save(grounded,width,height,Path.Combine(output,ids[n]+"_actual_ground.png"));
+    int samples=0,groundMismatch=0,offMismatch=0,onMismatch=0,onVsOff=0;float groundMax=0,offMax=0,onMax=0,policyMax=0;
+    for(int y=1;y<height-1;y++)for(int x=1;x<width-1;x++)
+    {
+     bool opaque=true;for(int dy=-1;dy<=1&&opaque;dy++)for(int dx=-1;dx<=1;dx++){int q=(y+dy)*width+x+dx;if(only[q].a<.999f||Difference(only[q],empty[q])<.01f){opaque=false;break;}}if(!opaque)continue;
+     int p=y*width+x;samples++;float g=Difference(grounded[p],only[p]),a=Difference(off[p],only[p]),b=Difference(on[p],only[p]),c=Difference(on[p],off[p]);groundMax=Mathf.Max(groundMax,g);offMax=Mathf.Max(offMax,a);onMax=Mathf.Max(onMax,b);policyMax=Mathf.Max(policyMax,c);if(g>Tolerance)groundMismatch++;if(a>Tolerance)offMismatch++;if(b>Tolerance)onMismatch++;if(c>Tolerance)onVsOff++;
+    }
+    var vertices=source.sprite.vertices.Select(v=>source.transform.TransformPoint(v)).ToArray();
+    rows.Add(new{id=ids[n],valid=samples>=Minimum,samples,groundMismatch,offMismatch,onMismatch,onVsOff,groundMax,offMax,onMax,policyMax,foot=props[n].transform.position.ToString("R"),spritePivot=source.sprite.pivot.ToString("R"),spriteBounds=source.sprite.bounds.ToString("R"),worldVertexMinY=vertices.Min(v=>v.y),worldVertexMaxY=vertices.Max(v=>v.y),transformEuler=source.transform.eulerAngles.ToString("R"),sourceShader=source.sharedMaterial.shader.name,sourceMaterial=source.sharedMaterial.name,sourceSprite=source.sprite.name,groundRenderers=ground.Count});
+    for(int i=0;i<renderers.Length;i++)if(renderers[i]!=null)renderers[i].enabled=enabled[i];
+   }
+   result=new{status=rows.All(v=>(bool)v.GetType().GetProperty("valid").GetValue(v))?"MEASURED":"INSUFFICIENT_SOURCE_INTERIOR",sameFrame=Time.frameCount,rows,onCaptures,onGroups,width,height,actualColorFormat=rt.graphicsFormat.ToString(),actualDepthFormat=rt.depthStencilFormat.ToString(),minimum=Minimum,tolerance=Tolerance,output,interpretation="groundMismatch catches actual floor clipping; offMismatch can include legitimate other-world occlusion; onVsOff catches transparency/compositor changes. For positioned source-front contract, expected groundMismatch=0 and onVsOff=0. Inspect source-only PNG for already-half source texture/geometry. No all-world visual PASS inferred."};
+  }
+  catch(Exception ex){error=ex.ToString();}
+  finally
+  {
+   if(renderers!=null)for(int i=0;i<renderers.Length;i++)if(renderers[i]!=null)renderers[i].enabled=enabled[i];
+   visibility.effectEnabled=oldEffect;camera.targetTexture=oldTarget;camera.aspect=oldAspect;camera.projectionMatrix=oldProjection;camera.clearFlags=oldClear;camera.backgroundColor=oldColor;RenderTexture.active=oldActive;
+   if(reader!=null)UnityEngine.Object.DestroyImmediate(reader);rt.Release();UnityEngine.Object.DestroyImmediate(rt);
+  }
+  var final=new{error,result,sourceSceneDirtyBefore=dirty,sourceSceneDirtyNow=scene.isDirty,cameraTargetRestored=camera.targetTexture==oldTarget,effectRestored=visibility.effectEnabled==oldEffect,rendererEnabledRestored=renderers==null||renderers.Select((r,i)=>r==null||r.enabled==enabled[i]).All(v=>v),scope="Actual current source Sprite and actual current ground; camera-target/renderer/effect fixtures restored synchronously. No source asset, world state, input, physics, time, profile or save write."};
+  File.WriteAllText(Path.Combine(output,"result.json"),Newtonsoft.Json.JsonConvert.SerializeObject(final,Newtonsoft.Json.Formatting.Indented));ctx.ReturnValue=final;
+ }
+ static void Need(bool value,string message){if(!value)throw new InvalidOperationException(message);}
+ static float Difference(Color a,Color b)=>Mathf.Max(Mathf.Abs(a.r-b.r),Mathf.Max(Mathf.Abs(a.g-b.g),Mathf.Abs(a.b-b.b)));
+ static Color[] Render(Camera camera,RenderTexture target,Texture2D reader,int width,int height){camera.Render();RenderTexture.active=target;reader.ReadPixels(new Rect(0,0,width,height),0,0);reader.Apply();return reader.GetPixels();}
+ static void Save(Color[] pixels,int width,int height,string path){var tex=new Texture2D(width,height,TextureFormat.RGBA32,false,false);try{tex.SetPixels(pixels.Select(c=>new Color(Mathf.LinearToGammaSpace(c.r),Mathf.LinearToGammaSpace(c.g),Mathf.LinearToGammaSpace(c.b),c.a)).ToArray());tex.Apply();File.WriteAllBytes(path,tex.EncodeToPNG());}finally{UnityEngine.Object.DestroyImmediate(tex);}}
+}

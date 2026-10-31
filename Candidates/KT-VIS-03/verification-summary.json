@@ -1,0 +1,56 @@
+{
+  "schema": 1,
+  "scope": "KT-VIS-03 actual Native render/demand fixtures; local media/assets/saves excluded",
+  "evidence": [
+    {
+      "name": "policy-red.json",
+      "sha256": "5f7a840e9baf9ed4e9c7d089e3b4b5b4d99e6a09c9b8e5bd3647465555f73c7e"
+    },
+    {
+      "name": "prop-pixel-red.json",
+      "sha256": "44db81fd80070416ed0887e1a45fa2405e091693b59f105873882262c54e3b06"
+    },
+    {
+      "name": "policy-green.json",
+      "sha256": "2a7440db45ecedf35253d069c30e57e175f32843532d207f51fa13da49bb92d0"
+    },
+    {
+      "name": "prop-pixel-green.json",
+      "sha256": "38c89e7bbf9667eb4237599431eecd674e2ec2387d3ee88c5c6dbc30dd7726e7"
+    },
+    {
+      "name": "policy-regression-green.json",
+      "sha256": "3ae00df58701609adda7ff1d7082d47ac0bba665357cefd90c2ca167e3822594"
+    },
+    {
+      "name": "drop-pixel-before.json",
+      "sha256": "0904fab4a3325c2523ec434ed7523f910aa50d5d55e7d58b0819e841035b674b"
+    },
+    {
+      "name": "mesh-pixel-before.json",
+      "sha256": "fe65f56530bd5d61081fa43b7a8be162b33aa69ff9809ef1e39dd18bc3d3b420"
+    },
+    {
+      "name": "rotation-trial.json",
+      "sha256": "edaabdfb15614e3b2b49112a9790df6bf95067f5b93e5bc156568c7045c4ad75"
+    },
+    {
+      "name": "mesh-pixel-green.json",
+      "sha256": "89deb45e5c74ede6390400862fab0fa8ed663965bd8c73ca875fec0120386de9"
+    },
+    {
+      "name": "orbit-green.json",
+      "sha256": "356c3576becfb3fafd84919385014033ebac5bcf210a2c6f52b174dcc5981cb0"
+    }
+  ],
+  "source": [
+    {
+      "path": "Assets/OSSASTRA/Scripts/SceneVisibility/Runtime/SceneOccluderGroup.cs",
+      "sha256": "329df844fa53ce65c17bd83c4b22477b8f4e7a5aaa20ab9e27bada02eccef2d0"
+    },
+    {
+      "path": "Assets/OSSASTRA/Scripts/SceneVisibility/Runtime/SceneVisibilityRoot.cs",
+      "sha256": "a4fa68407005daf7d62510af69861339cdb157af36d72213dbfed6e58c3a691c"
+    }
+  ]
+}

@@ -71,6 +71,7 @@ namespace Ossastra.SceneVisibility
         sealed class GroupRuntime
         {
             public SceneOccluderGroup Group;
+            public bool RevealAllowed;
             public readonly VisibilityState[] State = new VisibilityState[2];
             public readonly VisibilityDemand[] Demand = new VisibilityDemand[2];
             public readonly CaptureCircle[] Circle = new CaptureCircle[2];
@@ -141,6 +142,7 @@ namespace Ossastra.SceneVisibility
                 if (newFrame) { lastFrame = Time.frameCount; lastTick = now; }
                 SelectTargets();
                 RemapTargets();
+                RefreshRevealPolicies();
                 for (int t = 0; t < 2; ++t)
                 {
                     bool previous = visible[t];
@@ -172,7 +174,7 @@ namespace Ossastra.SceneVisibility
                 for (int i = 0; i < runtime.Length; ++i)
                 {
                     var item = runtime[i]; var group = item.Group;
-                    bool active = group != null && group.isActiveAndEnabled;
+                    bool active = group != null && group.isActiveAndEnabled && group.AllowsCharacterReveal;
                     float score = 0f, whole = 0f;
                     for (int t = 0; t < 2; ++t)
                     {
@@ -254,12 +256,30 @@ namespace Ossastra.SceneVisibility
                 var item = runtime[i]; var group = item.Group;
                 for (int t = 0; t < 2; ++t)
                 {
-                    if (group == null || !group.isActiveAndEnabled || !visible[t]) { item.Demand[t] = new VisibilityDemand(false, 0, 0, false, item.Support); continue; }
+                    if (group == null || !group.isActiveAndEnabled || !group.AllowsCharacterReveal || !visible[t]) { item.Demand[t] = new VisibilityDemand(false, 0, 0, false, item.Support); continue; }
                     var probe = VisibilityProbe.Evaluate(gameplayCamera, selected[t].StablePoints, group.QueryVolumes, selected[t].actor.transform);
                     Queries += probe.Queries; UnsupportedInside += probe.UnsupportedInside;
                     item.Demand[t] = new VisibilityDemand(probe.Eligible, probe.Coverage, probe.InsideProxy > 0 ? 1f : 0f,
                         group.allowWholeFade && !item.Support, item.Support);
                 }
+            }
+        }
+
+        // 作者策略不走退出滞回：正常遮挡当帧归还原模型；重新许可须用当前相机/身体重新检测。
+        // 同时跟踪组件启停，避免物件恢复或运行时切换策略继承旧开窗需求。
+        void RefreshRevealPolicies()
+        {
+            foreach (var item in runtime)
+            {
+                var group = item.Group;
+                bool allowed = group != null && group.isActiveAndEnabled && group.AllowsCharacterReveal;
+                if (item.RevealAllowed == allowed) continue;
+                item.RevealAllowed = allowed;
+                for (int t = 0; t < 2; ++t)
+                {
+                    item.State[t].Reset(); item.Demand[t] = default; item.Circle[t] = default;
+                }
+                nextDetection = 0;
             }
         }
 

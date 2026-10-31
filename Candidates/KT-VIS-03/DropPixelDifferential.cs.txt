@@ -1,0 +1,75 @@
+/* Root Native only: actual loose-item Sprite reference vs actual ground and effect-off world.
+ * No movement/Grant/Drop/damage/ledger/save/profile mutations. Original view creates the samples.
+ * Same real GameplayCamera/projection; all temporary renderer/camera/effect fields restored finally.
+ */
+using System;using System.IO;using System.Linq;using System.Collections.Generic;
+using UnityEngine;using UnityEditor;using UnityEngine.SceneManagement;
+using UnityEngine.Experimental.Rendering;using Funplay.Editor.Tools.Scripting;
+using Ossastra.Inventory;using Ossastra.UserInterface;using Ossastra.SceneVisibility;using Ossastra.GroundSurfaces;
+
+public sealed class Vis03DropPixelDifferential:IFunplayCommand
+{
+ const string Main="Assets/OSSASTRA/GroundWorkshop/Samples/CRAFT-01/SC_CraftingIntegration.unity";
+ const string Profiles="E:/WORLDCREATOR/XingHaiHuiLang/研究/可见性修复/KT-VIS-03/profiles";
+ const string Prefix="GroundItemSprite_";const float Tolerance=4f/1024f;const int Minimum=8;
+ public void Execute(ExecutionContext ctx)
+ {
+  var scene=SceneManager.GetActiveScene();
+  Need(Application.isPlaying&&!EditorApplication.isPaused&&!EditorApplication.isCompiling&&!EditorApplication.isUpdating&&Time.timeScale==1&&Application.dataPath=="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets"&&scene.path==Main&&AssetDatabase.AssetPathToGUID(Main)=="d694fa04240ccaf40808408e233c70ba","Wrong project/scene/Play readiness");
+  var components=scene.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<MonoBehaviour>(true)).Where(c=>c!=null).ToArray();
+  var inventory=components.OfType<InventorySession>().Single();var visibility=components.OfType<SceneVisibilityRoot>().Single();var commerce=components.OfType<Ossastra.Commerce.Runtime.CommerceService>().Single();
+  Need(commerce.profileId=="kt-vis03-01"&&commerce.saveDirectory==Profiles&&commerce.inventory==inventory&&inventory.Ready,"Explicit isolated original inventory/commerce required");
+  var worldView=components.OfType<InventoryWorldView>().Single();var viewSession=new SerializedObject(worldView).FindProperty("session");Need(viewSession!=null&&viewSession.objectReferenceValue==inventory,"Original world view/session binding mismatch");
+  var camera=visibility.gameplayCamera;Need(camera!=null&&camera==Camera.main&&camera.rect==new Rect(0,0,1,1),"Original full GameplayCamera required");
+  string outputRoot=SessionState.GetString("KT-VIS-03.Output","");Need(!string.IsNullOrWhiteSpace(outputRoot)&&Directory.Exists(outputRoot)&&Path.GetFullPath(outputRoot).StartsWith("E:\\WORLDCREATOR\\XingHaiHuiLang\\研究\\可见性修复\\KT-VIS-03",StringComparison.OrdinalIgnoreCase),"Root must set existing KT-VIS-03.Output");
+  string output=Path.Combine(outputRoot,"DropPixel_"+Guid.NewGuid().ToString("N"));Directory.CreateDirectory(output);
+  var available=worldView.GetComponentsInChildren<SpriteRenderer>(false).Where(s=>s!=null&&s.name.StartsWith(Prefix,StringComparison.Ordinal)&&s.sprite!=null&&(s.sprite.name=="DS_StoneDrop"||s.sprite.name=="DS_FibreDrop")).OrderBy(s=>s.name,StringComparer.Ordinal).ToArray();
+  string explicitIds=SessionState.GetString("KT-VIS-03.DropProbe.ItemIds","");
+  var sources=string.IsNullOrWhiteSpace(explicitIds)?available:explicitIds.Split(',').Select(id=>available.Single(s=>s.name==Prefix+id)).ToArray();Need(sources.Length>0&&sources.Length<=4,"Need 1..4 exact original loose-item stone/fibre sprites; set DropProbe.ItemIds if more");
+  string[] ids=sources.Select(s=>s.name.Substring(Prefix.Length)).ToArray();
+  for(int i=0;i<sources.Length;i++){var s=sources[i];var item=inventory.Ledger.Find(ids[i]);Need(s.enabled&&!s.forceRenderingOff&&s.sharedMaterial!=null&&s.sharedMaterial.shader!=null&&s.sharedMaterial.shader.isSupported&&item!=null&&inventory.IsLoosePickup(item.Location.ContainerId)&&inventory.ContainerPosition(item.Location.ContainerId).HasValue,"Source is not current original visible ground-item sprite");Need(inventory.Definition(item.DefinitionId).icon==s.sprite,"Source Sprite differs from actual item definition icon");}
+  int width=camera.pixelWidth,height=camera.pixelHeight;Need(width>=128&&height>=128&&width<=2048&&height<=2048,"Bounded actual viewport required");
+  var oldTarget=camera.targetTexture;var oldActive=RenderTexture.active;var oldClear=camera.clearFlags;var oldColor=camera.backgroundColor;bool oldEffect=visibility.effectEnabled,dirty=scene.isDirty;float oldAspect=camera.aspect;var oldProjection=camera.projectionMatrix;
+  var rt=new RenderTexture(width,height,32,RenderTextureFormat.ARGBHalf,RenderTextureReadWrite.Linear){name="KT-VIS-03 Own drop pixel differential",antiAliasing=1,hideFlags=HideFlags.HideAndDontSave};rt.depthStencilFormat=GraphicsFormat.D32_SFloat_S8_UInt;
+  Texture2D reader=null;Renderer[] renderers=null;bool[] enabled=null;var rows=new List<object>();string error=null;object result=null;
+  try
+  {
+   Need(rt.Create(),"Own Half/D32 target failed");reader=new Texture2D(width,height,TextureFormat.RGBAFloat,false,true){hideFlags=HideFlags.HideAndDontSave};camera.targetTexture=rt;camera.aspect=oldAspect;camera.projectionMatrix=oldProjection;camera.clearFlags=CameraClearFlags.SolidColor;camera.backgroundColor=Color.clear;
+   visibility.effectEnabled=false;var off=Render(camera,rt,reader,width,height);Save(off,width,height,Path.Combine(output,"full_effect_off.png"));
+   renderers=scene.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<Renderer>(true)).ToArray();enabled=renderers.Select(r=>r.enabled).ToArray();
+   var ground=new HashSet<Renderer>(components.OfType<GroundSurfaceMeshCache>().Where(c=>c.chunks!=null).SelectMany(c=>c.chunks).Where(c=>c!=null&&c.renderer!=null).Select(c=>(Renderer)c.renderer));Need(ground.Count>0,"Actual ground chunk reference missing");
+   for(int i=0;i<renderers.Length;i++)if(renderers[i]!=null)renderers[i].enabled=false;var empty=Render(camera,rt,reader,width,height);Save(empty,width,height,Path.Combine(output,"no_scene_renderers.png"));
+   for(int n=0;n<sources.Length;n++)
+   {
+    var source=sources[n];for(int i=0;i<renderers.Length;i++)if(renderers[i]!=null)renderers[i].enabled=renderers[i]==source&&enabled[i];
+    var only=Render(camera,rt,reader,width,height);Save(only,width,height,Path.Combine(output,ids[n]+"_source_only.png"));
+    for(int i=0;i<renderers.Length;i++)if(renderers[i]!=null)renderers[i].enabled=enabled[i]&&(renderers[i]==source||ground.Contains(renderers[i]));
+    var grounded=Render(camera,rt,reader,width,height);Save(grounded,width,height,Path.Combine(output,ids[n]+"_actual_ground.png"));
+    int samples=0,groundMismatch=0,offMismatch=0,minX=width,minY=height,maxX=-1,maxY=-1;float groundMax=0,offMax=0;
+    for(int y=1;y<height-1;y++)for(int x=1;x<width-1;x++)
+    {
+     bool opaque=true;for(int dy=-1;dy<=1&&opaque;dy++)for(int dx=-1;dx<=1;dx++){int q=(y+dy)*width+x+dx;if(only[q].a<.999f||Difference(only[q],empty[q])<.01f){opaque=false;break;}}if(!opaque)continue;
+     int p=y*width+x;samples++;minX=Math.Min(minX,x);maxX=Math.Max(maxX,x);minY=Math.Min(minY,y);maxY=Math.Max(maxY,y);float g=Difference(grounded[p],only[p]),a=Difference(off[p],only[p]);groundMax=Mathf.Max(groundMax,g);offMax=Mathf.Max(offMax,a);if(g>Tolerance)groundMismatch++;if(a>Tolerance)offMismatch++;
+    }
+    var vertices=source.sprite.vertices.Select(v=>source.transform.TransformPoint(v)).ToArray();var item=inventory.Ledger.Find(ids[n]);var point=inventory.ContainerPosition(item.Location.ContainerId).Value;
+    var chain=new List<object>();for(var t=source.transform;t!=null;t=t.parent)chain.Add(new{name=t.name,position=t.localPosition.ToString("R"),rotation=t.localEulerAngles.ToString("R"),scale=t.localScale.ToString("R")});
+    rows.Add(new{itemId=ids[n],item.DefinitionId,item.Quantity,container=item.Location.ContainerId,valid=samples>=Minimum,samples,groundMismatch,offMismatch,groundMax,offMax,interiorPixelBounds=new[]{minX,minY,maxX,maxY},registeredDropPoint=point.ToString("R"),spriteCenter=source.transform.position.ToString("R"),spriteLocalScale=source.transform.localScale.ToString("R"),spriteLossyScale=source.transform.lossyScale.ToString("R"),spritePivot=source.sprite.pivot.ToString("R"),spriteBounds=source.sprite.bounds.ToString("R"),spriteTextureSize=new[]{source.sprite.texture.width,source.sprite.texture.height},worldVertexMinY=vertices.Min(v=>v.y),worldVertexMaxY=vertices.Max(v=>v.y),verticesBelowRegisteredGround=vertices.Count(v=>v.y<point.y),transformEuler=source.transform.eulerAngles.ToString("R"),sourceShader=source.sharedMaterial.shader.name,sourceMaterial=source.sharedMaterial.name,sourceSprite=source.sprite.name,groundRenderers=ground.Count,transformChain=chain});
+    for(int i=0;i<renderers.Length;i++)if(renderers[i]!=null)renderers[i].enabled=enabled[i];
+   }
+   bool valid=rows.All(v=>(bool)v.GetType().GetProperty("valid").GetValue(v));bool clipped=rows.Any(v=>(int)v.GetType().GetProperty("groundMismatch").GetValue(v)>0);
+   result=new{status=!valid?"INSUFFICIENT_SOURCE_INTERIOR":clipped?"GROUND_CLIP_RED":"GROUND_CLIP_GREEN",sameFrame=Time.frameCount,rows,width,height,actualColorFormat=rt.graphicsFormat.ToString(),actualDepthFormat=rt.depthStencilFormat.ToString(),minimum=Minimum,tolerance=Tolerance,output,interpretation="Independent actual native GroundItemSprite source-only image vs same source plus current actual ground. groundMismatch must be0 on legal unobstructed ground. offMismatch can contain legitimate other-world occlusion. Inspect source-only PNG to distinguish full supplied icon from authored crop. No self-comparison to copied proxy or private backend expected data."};
+  }
+  catch(Exception ex){error=ex.ToString();}
+  finally
+  {
+   if(renderers!=null)for(int i=0;i<renderers.Length;i++)if(renderers[i]!=null)renderers[i].enabled=enabled[i];
+   visibility.effectEnabled=oldEffect;camera.targetTexture=oldTarget;camera.aspect=oldAspect;camera.projectionMatrix=oldProjection;camera.clearFlags=oldClear;camera.backgroundColor=oldColor;RenderTexture.active=oldActive;
+   if(reader!=null)UnityEngine.Object.DestroyImmediate(reader);rt.Release();UnityEngine.Object.DestroyImmediate(rt);
+  }
+  var final=new{error,result,sourceSceneDirtyBefore=dirty,sourceSceneDirtyNow=scene.isDirty,cameraTargetRestored=camera.targetTexture==oldTarget,effectRestored=visibility.effectEnabled==oldEffect,rendererEnabledRestored=renderers==null||renderers.Select((r,i)=>r==null||r.enabled==enabled[i]).All(v=>v),scope="Actual original loose-item Sprite and current actual ground; synchronous view fixtures restored. No source asset, ledger, input, physics, time, profile or save write."};File.WriteAllText(Path.Combine(output,"result.json"),Newtonsoft.Json.JsonConvert.SerializeObject(final,Newtonsoft.Json.Formatting.Indented));ctx.ReturnValue=final;
+ }
+ static void Need(bool value,string message){if(!value)throw new InvalidOperationException(message);}
+ static float Difference(Color a,Color b)=>Mathf.Max(Mathf.Abs(a.r-b.r),Mathf.Max(Mathf.Abs(a.g-b.g),Mathf.Abs(a.b-b.b)));
+ static Color[] Render(Camera camera,RenderTexture target,Texture2D reader,int width,int height){camera.Render();RenderTexture.active=target;reader.ReadPixels(new Rect(0,0,width,height),0,0);reader.Apply();return reader.GetPixels();}
+ static void Save(Color[] pixels,int width,int height,string path){var tex=new Texture2D(width,height,TextureFormat.RGBA32,false,false);try{tex.SetPixels(pixels.Select(c=>new Color(Mathf.LinearToGammaSpace(c.r),Mathf.LinearToGammaSpace(c.g),Mathf.LinearToGammaSpace(c.b),c.a)).ToArray());tex.Apply();File.WriteAllBytes(path,tex.EncodeToPNG());}finally{UnityEngine.Object.DestroyImmediate(tex);}}
+}

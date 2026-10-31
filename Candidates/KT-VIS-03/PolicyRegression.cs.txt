@@ -1,0 +1,146 @@
+/* Root Native only: actual SceneVisibilityRoot/camera regression, not manufactured demands.
+ * Uses original Motor.Teleport position fixtures and an owned input capture; no pause/time/HP/items/save writes.
+ * Existing finite wall is the positive control. Normal small-stone policy bypasses reveal immediately,
+ * including same-frame switch, live-prop SetDepleted(false) and a fresh re-enable after moving away.
+ * Restores all original party positions, the stone policy, companion option and own input owner in finally.
+ * No focus callback is invoked; original focus states are observed only. Observe ResultJson; Cancel releases this runner.
+ */
+using System;using System.Linq;using System.Collections;using System.Collections.Generic;using System.Reflection;
+using UnityEngine;using UnityEngine.SceneManagement;using UnityEditor;using Newtonsoft.Json;using Funplay.Editor.Tools.Scripting;
+using Ossastra.SceneVisibility;using Ossastra.WorldProps;using Actor=Ossastra.Characters.CharacterRoot;using Motor=Ossastra.Characters.CharacterMovement;
+
+public sealed class Vis03PolicyRegression:IFunplayCommand
+{
+ const string Main="Assets/OSSASTRA/GroundWorkshop/Samples/CRAFT-01/SC_CraftingIntegration.unity";
+ const string Profiles="E:/WORLDCREATOR/XingHaiHuiLang/研究/可见性修复/KT-VIS-03/profiles";
+ const string Lease="KT-VIS-03.PolicyRegression.Running";
+ const BindingFlags Hidden=BindingFlags.Instance|BindingFlags.NonPublic;
+ static Runner runner;
+ public static bool Running=>runner!=null;
+ public static string ResultJson {get;private set;}="NOT_STARTED";
+ public void Execute(ExecutionContext ctx)
+ {
+  if(runner!=null||SessionState.GetBool(Lease,false))throw new InvalidOperationException("Existing policy regression; poll or cancel it, never duplicate.");
+  runner=new Runner();try{runner.Start(ctx);}catch(Exception ex){runner.Finish(ex.ToString());}
+  ctx.ReturnValue=new{Running,pollType=typeof(Vis03PolicyRegression).FullName,result=ResultJson};
+ }
+ public static string Cancel(){if(runner!=null)runner.Finish("Root cancelled; only this fixture restored.");return ResultJson;}
+ sealed class Runner
+ {
+  SceneVisibilityRoot root;WorldPropRoot stone;SceneOccluderGroup wall;Actor actor;Ossastra.Characters.CharacterControlCoordinator control;
+  Ossastra.Commerce.Runtime.CommerceService service;Actor[] party;Vector3[] originalPositions;Motor[] motors;
+  SceneOcclusionPolicy oldPolicy;bool oldCompanion,ownsCapture,subscribed,ownsPolicy,ownsPositions,finished;int phase;
+  double started,phaseAt;string error;readonly List<object> facts=new List<object>();bool focusBefore;bool[] actorFocusBefore;bool controlFocusBefore;
+  static void Need(bool valid,string why){if(!valid)throw new InvalidOperationException(why);}
+  static bool Focus(object target)=> (bool)target.GetType().GetField("focused",Hidden).GetValue(target);
+  static bool SafeScenes(){int authored=0;for(int i=0;i<SceneManager.sceneCount;i++){var s=SceneManager.GetSceneAt(i);if(!string.IsNullOrEmpty(s.path)){if(s.path!=Main)return false;authored++;}else if(!(s.name.StartsWith("__KT_VIS01_QueryPhysics_",StringComparison.Ordinal)||s.name.StartsWith("CharacterClearanceMath_",StringComparison.Ordinal))||s.GetRootGameObjects().Any(g=>g.GetComponentsInChildren<MonoBehaviour>(true).Any()))return false;}return authored==1;}
+  void Guard()
+  {
+   Need(Application.isPlaying&&!EditorApplication.isPaused&&!EditorApplication.isCompiling&&!EditorApplication.isUpdating&&Time.timeScale==1&&Application.dataPath=="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets"&&SafeScenes()&&SceneManager.GetActiveScene().path==Main&&AssetDatabase.AssetPathToGUID(Main)=="d694fa04240ccaf40808408e233c70ba","Unsafe project/scene/Play state.");
+   Need(service!=null&&service.profileId=="kt-vis03-01"&&service.saveDirectory==Profiles&&service.Ready&&root!=null&&root.isActiveAndEnabled&&root.effectEnabled&&!root.detectionOnly&&root.gameplayCamera!=null&&root.gameplayCamera.targetTexture==null&&root.mapView!=null&&root.mapView.IsValid&&!root.mapView.IsStructureMode,"Wrong isolated host or renderer context.");
+   Need(actor!=null&&actor.IsAlive&&control.Current==actor&&stone!=null&&stone.IsAlive&&wall!=null&&wall.isActiveAndEnabled&&wall.AllowsCharacterReveal,"Actor/resource/wall authority changed.");
+  }
+  public void Start(ExecutionContext ctx)
+  {
+   started=phaseAt=EditorApplication.timeSinceStartup;
+   var all=SceneManager.GetActiveScene().GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<MonoBehaviour>(true)).Where(c=>c!=null).ToArray();
+   root=all.OfType<SceneVisibilityRoot>().Single();service=all.OfType<Ossastra.Commerce.Runtime.CommerceService>().Single();control=root.coordinator;actor=control.Current;
+   stone=all.OfType<WorldPropRoot>().Single(p=>p.instanceId=="stone-a");wall=root.groups.Single(g=>g!=null&&g.groupLabel=="有限小墙_允许整件淡出");Guard();
+   Need(stone.visibilityGroup!=null&&root.groups.Contains(stone.visibilityGroup)&&stone.visibilityGroup.occlusionPolicy==SceneOcclusionPolicy.KeepNaturalOcclusion&&stone.visibilityGroup.enabled,"Expected actual configured stone KeepNaturalOcclusion.");
+   var crafting=all.OfType<Ossastra.Crafting.CraftingRoot>().Single();Need(crafting.userInterface!=null&&!crafting.userInterface.IsOpen&&crafting.inventoryView!=null&&!crafting.inventoryView.IsOpen&&!crafting.inventoryView.HasCommerceCapture,"Do not take an existing UI owner.");
+   party=control.Characters.ToArray();motors=party.Select(a=>a==null?null:a.GetComponent<Motor>()).ToArray();Need(party.Length==2&&motors.All(m=>m!=null)&&party.All(a=>a.IsAlive&&!a.ActionActive),"Need original live idle party/motors.");
+   originalPositions=party.Select(a=>a.transform.position).ToArray();oldPolicy=stone.visibilityGroup.occlusionPolicy;oldCompanion=root.protectCompanion;
+   focusBefore=Application.isFocused;controlFocusBefore=Focus(control);actorFocusBefore=party.Select(a=>Focus(a)).ToArray();
+   ctx.RegisterObjectModification(root);ctx.RegisterObjectModification(stone.visibilityGroup);foreach(var a in party)ctx.RegisterObjectModification(a.transform);
+   ownsPositions=ownsPolicy=true;root.protectCompanion=false;control.SetInputCapture(this,true);ownsCapture=true;
+   SessionState.SetBool(Lease,true);EditorApplication.update+=Tick;EditorApplication.playModeStateChanged+=ModeChanged;AssemblyReloadEvents.beforeAssemblyReload+=Reload;subscribed=true;
+   var volumes=wall.QueryVolumes.Where(c=>c!=null&&c.enabled&&c.gameObject.activeInHierarchy).ToArray();Need(volumes.Length>0,"Existing wall has no explicit live volume.");
+   var bounds=volumes[0].bounds;foreach(var v in volumes.Skip(1))bounds.Encapsulate(v.bounds);
+   var forward=Vector3.ProjectOnPlane(root.gameplayCamera.transform.forward,Vector3.up).normalized;Need(forward.sqrMagnitude>.9f,"No horizontal camera forward.");
+   float radius=Mathf.Abs(forward.x)*bounds.extents.x+Mathf.Abs(forward.z)*bounds.extents.z;
+   var point=bounds.center+forward*(radius+.85f);point.y=bounds.min.y+.02f;Place(point,"existing finite wall positive control",volumes);
+   facts.Add(new{test="setup",wall=wall.groupLabel,wallId=wall.GetInstanceID(),small=stone.instanceId,smallId=stone.visibilityGroup.GetInstanceID(),wallBoundsCenter=bounds.center.ToString("R"),wallBoundsSize=bounds.size.ToString("R"),focusCallbacksInvoked=false});Publish("RUNNING");
+  }
+  void Place(Vector3 point,string why,Collider[] ignored=null)
+  {
+   Need(!actor.ActionActive,"Accepted action still active; do not teleport through it.");
+   var hits=Physics.RaycastAll(point+Vector3.up*.4f,Vector3.down,.8f,~0,QueryTriggerInteraction.Ignore).Where(h=>h.normal.y>.7f&&Mathf.Abs(h.point.y-point.y)<.25f&&h.collider.GetComponentInParent<Actor>()==null&&(ignored==null||Array.IndexOf(ignored,h.collider)<0)).OrderBy(h=>h.distance).ToArray();
+   Need(hits.Length>0,"Explicit pose has no same-level floor; no fallback placement: "+point.ToString("R"));
+   var target=point;target.y=hits[0].point.y+.02f;var before=actor.transform.position;actor.GetComponent<Motor>().Teleport(target);
+   facts.Add(new{test="position-fixture",why,method="original CharacterMovement.Teleport",before=before.ToString("R"),requested=point.ToString("R"),actual=actor.transform.position.ToString("R"),floor=hits[0].collider.GetInstanceID()});
+   phaseAt=EditorApplication.timeSinceStartup;
+  }
+  object Runtime(SceneOccluderGroup group)=>((IEnumerable)typeof(SceneVisibilityRoot).GetField("runtime",Hidden).GetValue(root)).Cast<object>().Single(v=>(SceneOccluderGroup)v.GetType().GetField("Group").GetValue(v)==group);
+  float Local(SceneOccluderGroup group){var v=Runtime(group);return ((VisibilityState[])v.GetType().GetField("State").GetValue(v)).Max(s=>s.LocalStrength);}
+  float Whole(SceneOccluderGroup group){var v=Runtime(group);return ((VisibilityState[])v.GetType().GetField("State").GetValue(v)).Max(s=>s.WholeFade);}
+  bool Captured(SceneOccluderGroup group)
+  {
+   var backend=typeof(SceneVisibilityRoot).GetField("capture",Hidden).GetValue(root);Need(backend!=null,"Actual capture backend missing.");
+   var slots=(Array)backend.GetType().GetField("slots",Hidden).GetValue(backend);
+   return slots.Cast<object>().Any(v=>v!=null&&(int)v.GetType().GetField("Id").GetValue(v)==group.GetInstanceID()&&(bool)v.GetType().GetField("Active").GetValue(v)&&(bool)v.GetType().GetField("InFrame").GetValue(v));
+  }
+  object Read(SceneOccluderGroup group)=>new{group=group.groupLabel,policy=group.occlusionPolicy.ToString(),group.AllowsCharacterReveal,local=Local(group),whole=Whole(group),captured=Captured(group),root.CaptureCount,root.ActiveGroups,root.RenderError,Time.frameCount};
+  void Render(){root.gameplayCamera.Render();Need(root.isActiveAndEnabled&&string.IsNullOrEmpty(root.RenderError),"Original camera rendering failed: "+root.RenderError);}
+  void NeedOpaque(SceneOccluderGroup group,string test){Need(Local(group)==0&&Whole(group)==0&&!Captured(group),test+" retained reveal/capture: "+JsonConvert.SerializeObject(Read(group)));facts.Add(new{test,state=Read(group)});}
+  void Tick()
+  {
+   if(finished)return;
+   try
+   {
+    Guard();Need(EditorApplication.timeSinceStartup-started<25,"Bounded policy regression deadline exceeded.");double age=EditorApplication.timeSinceStartup-phaseAt;
+    if(phase==0&&age>=.75)
+    {
+     Render();Need(Local(wall)>.5f&&Captured(wall)&&root.CaptureCount>0,"Existing finite wall positive control did not occlude/capture; fail instead of assuming a passing placement: "+JsonConvert.SerializeObject(Read(wall)));facts.Add(new{test="large-existing-wall-still-reveals",state=Read(wall)});
+     var forward=Vector3.ProjectOnPlane(root.gameplayCamera.transform.forward,Vector3.up).normalized;Place(stone.transform.position+forward*1.05f,"actual stone normal-occlusion pose");phase=1;
+    }
+    else if(phase==1&&age>=.6)
+    {
+     Render();NeedOpaque(stone.visibilityGroup,"configured-small-stone-remains-natural");stone.visibilityGroup.occlusionPolicy=SceneOcclusionPolicy.CharacterReveal;phase=2;phaseAt=EditorApplication.timeSinceStartup;
+    }
+    else if(phase==2&&age>=.6)
+    {
+     Render();Need(Local(stone.visibilityGroup)>.5f&&Captured(stone.visibilityGroup),"Explicitly re-enabled small control never revealed: "+JsonConvert.SerializeObject(Read(stone.visibilityGroup)));facts.Add(new{test="explicit-reveal-positive-control",state=Read(stone.visibilityGroup)});
+     int sameFrame=Time.frameCount;stone.visibilityGroup.occlusionPolicy=SceneOcclusionPolicy.KeepNaturalOcclusion;Render();Need(Time.frameCount==sameFrame,"Same-frame policy contract escaped to a different frame.");NeedOpaque(stone.visibilityGroup,"same-frame-keep-clears-reveal-and-capture");
+     int hp=stone.Health.Current;stone.SetDepleted(false);Need(stone.IsAlive&&stone.Health.Current==hp&&stone.visibilityGroup.enabled&&stone.visibilityGroup.occlusionPolicy==SceneOcclusionPolicy.KeepNaturalOcclusion,"Alive prop initialization altered health/policy.");Render();NeedOpaque(stone.visibilityGroup,"alive-prop-reenable-keeps-author-policy");
+     var right=Vector3.ProjectOnPlane(root.gameplayCamera.transform.right,Vector3.up).normalized;Place(stone.transform.position+right*5f,"move away before fresh reveal re-enable");phase=3;
+    }
+    else if(phase==3&&age>=.3)
+    {
+     Render();NeedOpaque(stone.visibilityGroup,"keep-after-moving-away");stone.visibilityGroup.occlusionPolicy=SceneOcclusionPolicy.CharacterReveal;Render();NeedOpaque(stone.visibilityGroup,"reenable-detects-current-pose-without-old-window");phase=4;phaseAt=EditorApplication.timeSinceStartup;
+    }
+    else if(phase==4&&age>=.6){Render();NeedOpaque(stone.visibilityGroup,"reenabled-away-stays-without-stale-demand");Finish(null);}
+    if(!finished)Publish("RUNNING");
+   }
+   catch(Exception ex){Finish(ex.ToString());}
+  }
+  public void Finish(string failure)
+  {
+   if(finished)return;finished=true;error=failure;
+   if(subscribed){EditorApplication.update-=Tick;EditorApplication.playModeStateChanged-=ModeChanged;AssemblyReloadEvents.beforeAssemblyReload-=Reload;subscribed=false;}
+   bool touched=ownsCapture||ownsPolicy||ownsPositions;
+   try
+   {
+    if(ownsPolicy&&stone!=null&&stone.visibilityGroup!=null)stone.visibilityGroup.occlusionPolicy=oldPolicy;
+    if(ownsPolicy&&root!=null)root.protectCompanion=oldCompanion;
+    if(ownsPositions&&Application.isPlaying)for(int i=0;i<party.Length;i++)if(party[i]!=null&&motors[i]!=null)motors[i].Teleport(originalPositions[i]);
+   }
+   catch(Exception ex){error=(error??"")+"; cleanup: "+ex;}
+   finally
+   {
+    try{if(ownsCapture&&control!=null)control.SetInputCapture(this,false);ownsCapture=false;}
+    catch(Exception ex){error=(error??"")+"; cleanup-capture: "+ex;}
+    ownsPolicy=ownsPositions=false;
+   }
+   try
+   {
+    if(touched&&Application.isPlaying&&root!=null&&root.isActiveAndEnabled&&root.gameplayCamera!=null)Render();
+    facts.Add(new{test="cleanup",ownCaptureReleased=!ownsCapture,stonePolicyRestored=stone!=null&&stone.visibilityGroup!=null&&stone.visibilityGroup.occlusionPolicy==oldPolicy,positionsRestored=party==null||originalPositions==null?null:party.Select((a,i)=>a!=null&&(a.transform.position-originalPositions[i]).sqrMagnitude<1e-6f).ToArray(),focusCallbacksInvoked=false,applicationFocusBefore=focusBefore,applicationFocusAfter=Application.isFocused,controlFocusBefore,controlFocusAfter=control==null?(bool?)null:Focus(control),actorFocusBefore,actorFocusAfter=party==null?null:party.Select(a=>a!=null&&Focus(a)).ToArray()});
+   }
+   catch(Exception ex){error=(error??"")+"; cleanup-readback: "+ex;}
+   SessionState.SetBool(Lease,false);Publish(error==null?"PASS":"FAIL");runner=null;
+  }
+  void Publish(string status){ResultJson=JsonConvert.SerializeObject(new{status,phase,elapsedSeconds=EditorApplication.timeSinceStartup-started,error,facts,scope="Actual Root camera demand/capture states; original Motor explicit positions; existing large-wall positive and runtime small-policy switch controls. No pause/time/HP/items/save or focus callbacks. Root must separately review actual pixels and process/hardware limits."},Formatting.Indented);}
+  void ModeChanged(PlayModeStateChange mode){if(mode==PlayModeStateChange.ExitingPlayMode||mode==PlayModeStateChange.EnteredEditMode)Finish("Play mode changed; owned fixture restored.");}
+  void Reload(){Finish("Assembly reload; owned fixture restored.");}
+ }
+}
