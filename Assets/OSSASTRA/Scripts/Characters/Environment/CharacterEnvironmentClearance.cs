@@ -206,7 +206,11 @@ namespace Ossastra.Characters
                     if (!Physics.ComputePenetration(mathCapsule, foot + recovery, Quaternion.identity,
                         wall, wall.transform.position, wall.transform.rotation, out var normal, out var distance))
                     { Status = CharacterClearanceStatus.UnresolvedOverlap; return false; }
-                    if (distance <= .005f) continue;
+                    if (!Finite(normal) || !Finite(distance) || distance < 0)
+                    { Status = CharacterClearanceStatus.UnresolvedOverlap; return false; }
+                    // Even a tiny/zero valid MTD must acquire contactMargin before the sweep.
+                    // An overlapping cast origin can report distance zero and a normal opposite
+                    // the requested direction, which would also cancel movement AWAY from a wall.
                     // This list contains walls, not inferred support surfaces. An upward/downward MTD
                     // of a real wall is still unresolved overlap; never silently label it clear.
                     if (Mathf.Abs(normal.y) >= .7f)

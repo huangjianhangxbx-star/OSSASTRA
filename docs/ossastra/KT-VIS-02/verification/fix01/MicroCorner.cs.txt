@@ -1,0 +1,73 @@
+/* Bounded synchronous Play assertions against the REAL current module, with no Move/Teleport.
+ * Temporary known solid Box fixtures are removed before the next gameplay frame. Root is sole executor.
+ * The original module configuration and enabled state are restored in finally; no HP/input/time writes.
+ */
+using System;using System.Linq;using System.Collections.Generic;
+using UnityEngine;using UnityEngine.SceneManagement;
+using C=Ossastra.Characters;using Ossastra.Combat;using Funplay.Editor.Tools.Scripting;
+public sealed class VIS02MicroCornerRegression:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  var s=SceneManager.GetActiveScene();if(!Application.isPlaying||s.path!="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-01/SC_OcclusionVisibilityLab.unity")throw new InvalidOperationException("Need original lab Play");
+  var actor=s.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<C.CharacterControlCoordinator>()).Single().Current;
+  if(actor==null||!actor.IsAlive||actor.ActionActive)throw new InvalidOperationException("Need living idle original Current");
+  var module=actor.GetComponent<C.CharacterEnvironmentClearance>();var cc=actor.GetComponent<CharacterController>();var melee=actor.GetComponent<CombatMeleeHit>();if(module==null||cc==null||!cc.enabled||melee==null||!module.enabled)throw new InvalidOperationException("Need enabled original module, movement CC and melee profile");
+  if(module.environmentSolids==null||module.RegisteredSolidCount==0)throw new InvalidOperationException("Need original Root-initialized explicit environment list");
+  if(Mathf.Abs(module.coreRadius-.55f)>.0001f||Mathf.Abs(module.coreHeight-1.8f)>.0001f||Mathf.Abs(module.contactMargin-.015f)>.0001f)throw new InvalidOperationException("Fixture literal expectations require calibrated .55/1.8/.015 candidate");
+  var foot=actor.transform.position;var oldSolids=module.environmentSolids;var oldLayers=module.environmentLayers;bool oldEnabled=module.enabled;
+  float r=cc.radius,h=cc.height,skin=cc.skinWidth,step=cc.stepOffset,slope=cc.slopeLimit;var center=cc.center;int ccId=cc.GetInstanceID();
+  var fixtures=new List<GameObject>();var results=new List<object>();bool all=true,meshCovered=false;
+  int[] Query(Vector3 p,float radius)=>Physics.OverlapSphere(p,radius,Physics.AllLayers,QueryTriggerInteraction.Ignore).Select(c=>c.GetInstanceID()).OrderBy(i=>i).ToArray();
+  float probeRadius=melee.Radius;var edge=foot+Vector3.up*melee.Height+Vector3.right*(r+probeRadius+.05f);var originalEdge=Query(edge,probeRadius);
+  BoxCollider Box(string name,Vector3 offset,Vector3 size)
+  {var go=new GameObject("KTVIS02_Logic_"+name){hideFlags=HideFlags.HideAndDontSave};go.SetActive(false);SceneManager.MoveGameObjectToScene(go,s);go.transform.position=foot+offset;var b=go.AddComponent<BoxCollider>();b.size=size;fixtures.Add(go);return b;}
+  object Snapshot()=>new{module.Status,module.QueryCount,module.ContactCount,module.RecoveryIterations,module.SlideIterations,module.InitialPenetration,recovery=module.Recovery.ToString("R"),normal=module.LastContactNormal.ToString("R"),contact=module.LastContact==null?null:module.LastContact.name};
+  void Record(string name,bool pass,object facts){all&=pass;results.Add(new{name,pass,facts});}
+  try
+  {
+   // Actual original mesh at the current pose: no staging/position writes. Root should stage north of A.
+   var meshRequest=new Vector3(0,-.03f,-2);var actual=module.Constrain(meshRequest);bool meshContact=module.LastContact is MeshCollider;
+   if(!meshContact)foreach(var originalMesh in oldSolids.OfType<MeshCollider>().Where(c=>c!=null))
+   {var toward=originalMesh.bounds.center-foot;toward.y=0;if(toward.sqrMagnitude<.01f)continue;meshRequest=toward.normalized*Mathf.Min(40,toward.magnitude+2)+Vector3.down*.03f;actual=module.Constrain(meshRequest);meshContact=module.LastContact is MeshCollider;if(meshContact)break;}
+   meshCovered=meshContact&&actual.SideBlocked;
+   results.Add(new{name="actualOriginalMesh",status=meshCovered?"PASS":"NOT_COVERED_CURRENT_POSE",request=meshRequest.ToString("R"),displacement=actual.Displacement.ToString("R"),actual.SideBlocked,diagnostics=Snapshot(),scope="Real source MeshCollider swept virtually from current root, no actual locomotion or ramp-route claim"});
+   var wall=Box("SweepWall",new Vector3(1.5f,.9f,0),new Vector3(.2f,4,4));
+   var cornerX=Box("CornerX",new Vector3(.647f,.9f,0),new Vector3(.2f,4,4));
+   var cornerZ=Box("CornerZ",new Vector3(0,.9f,.647f),new Vector3(4,4,.2f));
+   var ceiling=Box("NonSide",new Vector3(0,1.75f,0),new Vector3(4,.2f,4));
+   module.environmentSolids=new Collider[]{wall,cornerX,cornerZ,ceiling};module.environmentLayers=~0;
+   if(!module.Initialize(actor.transform,cc))throw new InvalidOperationException("Fixture module binding rejected");
+   wall.gameObject.SetActive(true);
+   var sweep=module.Constrain(new Vector3(2,-.03f,0));
+   Record("knownBoxSweep",sweep.SideBlocked&&Mathf.Abs(sweep.Displacement.x-.835f)<.025f&&Mathf.Abs(sweep.Displacement.y+.03f)<.00001f&&Mathf.Abs(sweep.Displacement.z)<.00001f,new{expectedX=.835f,actual=sweep.Displacement.ToString("R"),diagnostics=Snapshot()});
+   var slide=module.Constrain(new Vector3(2,-.03f,1));
+   Record("knownBoxDiagonalSlide",slide.SideBlocked&&slide.Displacement.x>.80f&&slide.Displacement.x<.87f&&Mathf.Abs(slide.Displacement.z-1)<.02f,new{actual=slide.Displacement.ToString("R"),diagnostics=Snapshot()});
+   wall.gameObject.SetActive(false);cornerX.gameObject.SetActive(true);cornerZ.gameObject.SetActive(true);
+   var recovered=module.Constrain(new Vector3(.1f,-.03f,.1f));var predictedFoot=foot+recovered.Displacement;
+   var remaining=Physics.OverlapCapsule(predictedFoot+Vector3.up*.55f,predictedFoot+Vector3.up*1.25f,.55f,Physics.AllLayers,QueryTriggerInteraction.Ignore).Where(c=>c==cornerX||c==cornerZ).ToArray();
+   Record("twoWallMicroOverlapRecovery",recovered.SideBlocked&&module.Status==C.CharacterClearanceStatus.Recovered&&module.RecoveryIterations<=4&&module.Recovery.x<-.01f&&module.Recovery.z<-.01f&&remaining.Length==0,new{actual=recovered.Displacement.ToString("R"),remainingFixtureOverlaps=remaining.Length,diagnostics=Snapshot()});
+   cornerX.gameObject.SetActive(false);cornerZ.gameObject.SetActive(false);ceiling.gameObject.SetActive(true);
+   var unresolved=module.Constrain(new Vector3(.1f,-.03f,0));
+   Record("nonSideWallIsUnresolved",unresolved.SideBlocked&&module.Status==C.CharacterClearanceStatus.UnresolvedOverlap&&new Vector2(unresolved.Displacement.x,unresolved.Displacement.z).sqrMagnitude<.000001f,new{actual=unresolved.Displacement.ToString("R"),diagnostics=Snapshot()});
+   ceiling.gameObject.SetActive(false);
+   var beforeMath=Query(edge,probeRadius);module.enabled=false;bool released=!module.OwnsMathShape;var disabled=module.Constrain(new Vector3(.1f,-.03f,0));
+   module.enabled=true;bool lazy=!module.OwnsMathShape;var enabled=module.Constrain(new Vector3(.01f,-.03f,0));var afterMath=Query(edge,probeRadius);
+   Record("disableEnableAndPrivateShape",released&&lazy&&module.OwnsMathShape&&!disabled.SideBlocked&&Mathf.Abs(disabled.Displacement.x-.1f)<.00001f&&beforeMath.SequenceEqual(afterMath),new{released,lazy,hasPrivateShape=module.OwnsMathShape,mainQueryUnchanged=beforeMath.SequenceEqual(afterMath)});
+   int overflowBefore=module.OverflowCount;
+   for(int i=0;i<70;i++){var decoy=Box("Overflow"+i,new Vector3((i%7)*.002f,.9f,(i/7)*.002f),Vector3.one*.01f);decoy.gameObject.SetActive(true);}
+   var overflow=module.Constrain(new Vector3(.1f,-.03f,0));
+   Record("overflowFailsClosed",overflow.SideBlocked&&module.Status==C.CharacterClearanceStatus.QueryOverflow&&module.OverflowCount==overflowBefore+1&&new Vector2(overflow.Displacement.x,overflow.Displacement.z).sqrMagnitude<.000001f,new{actual=overflow.Displacement.ToString("R"),module.OverflowCount,diagnostics=Snapshot()});
+  }
+  finally
+  {
+   module.Dispose();foreach(var go in fixtures)if(go!=null)UnityEngine.Object.DestroyImmediate(go);
+   module.environmentSolids=oldSolids;module.environmentLayers=oldLayers;module.enabled=oldEnabled;
+   if(!module.Initialize(actor.transform,cc))throw new InvalidOperationException("Could not restore original module configuration");
+  }
+  var finalEdge=Query(edge,probeRadius);bool bodyUnchanged=ccId==cc.GetInstanceID()&&r==cc.radius&&h==cc.height&&skin==cc.skinWidth&&step==cc.stepOffset&&slope==cc.slopeLimit&&center==cc.center;
+  Record("originalHitCapsuleAndBoundary",bodyUnchanged&&originalEdge.SequenceEqual(finalEdge)&&!originalEdge.Contains(ccId),new{bodyUnchanged,edge=edge.ToString("R"),probeRadius,profile="current CombatMeleeHit radius/height, center 0.05m beyond original hit-capsule boundary",beforeIds=originalEdge,afterIds=finalEdge,originalCCOutsideProbe=!originalEdge.Contains(ccId),ccId,r,h,skin,step,slope});
+  bool positionUnchanged=actor.transform.position==foot;Record("noActorMovement",positionUnchanged,new{before=foot.ToString("R"),after=actor.transform.position.ToString("R")});
+  ctx.ReturnValue=new{status=!all?"FAIL":meshCovered?"PASS":"FIXTURE_PASS_MESH_NOT_COVERED",actor.ActorId,results,scope="Real module Constrain calls, no actual Move. Original-mesh coverage is reported separately and may require existing scene staging. Damage boundary assertion is geometric candidate protection, not a damage/HP execution test. Private-scene unload is async; Root must read final scene/resource counts after settled frames."};
+ }
+}

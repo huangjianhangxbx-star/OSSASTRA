@@ -11,6 +11,11 @@
 - 活动任务不得拥有重叠路径；同一时刻最多一个 `unity-writer`。
 - 暂停、阻塞或完成时，将记录移到历史并释放路径。
 
+## KT-VIS-02-FIX01 完成交接（2026-10-31）
+
+- `kt-vis02-fix01` complete/read-only：修复有效微量MTD被忽略造成初始cast拒绝离墙。84格RED30失败→0失败、336接触断言全过；原输入A/B退出、向内阻挡/切向移动及双墙3mm恢复通过。保留原单Move/CC/受击边界，未放宽未知重叠。
+- 最终Lab Edit ready/原dirty=true保留未保存，标记资源/私有物理场/输入租约0，197保护SHA及原37dirty状态保持；全部writer/路径释放。平台Mesh本轮未覆盖、渲染/闪避/受迫未重跑，详tasks/2026-10-31-kt-vis02-fix01.md与docs/ossastra/KT-VIS-02/FIX01-stuck-escape.md。
+
 ## KT-VIS-02 完成交接（2026-10-31）
 
 - `kt-vis-02` complete/read-only：固定环境身体净空（原CC/单Move保留）、独立过渡与空间柔边点阵、同场四预设已完成；实际输入/坡道/dodge/force/双角色切控与支撑、CPU26与GPU40合同、保存重开/退出清理已验证。

@@ -1,0 +1,244 @@
+{
+  "06-escape-grid-red.json": {
+    "status": "FAIL_ESCAPE",
+    "cases": 84,
+    "blocked": 30,
+    "actor": "temporary-a",
+    "original": "(12, 0.01999982, -18)",
+    "scope": "Real module, actual scene Box walls, CC-legal near-surface poses; outward .08m must not be zeroed. Original Motor staging only, no physics Move called by fixture.",
+    "representativeFailure": {
+      "name": "有限小墙_允许整件淡出",
+      "gap": -0.0049,
+      "pose": "(0.545100033, 0.02, -10)",
+      "escape": "(1, 0, 0)",
+      "allowed": "(0, -0.03, 0)",
+      "status": "Constrained",
+      "RecoveryIterations": 1,
+      "SlideIterations": 1,
+      "overlaps": [
+        "有限小墙_允许整件淡出"
+      ],
+      "mtd": true,
+      "distance": 0.00490003824,
+      "normal": "(1, 0, 0)",
+      "contactNormal": "(-1, 0, 0)"
+    },
+    "note": "Full failures retained in original local evidence file."
+  },
+  "14-escape-grid-green.json": {
+    "status": "PASS",
+    "cases": 84,
+    "blocked": 0,
+    "failures": [],
+    "actor": "temporary-a",
+    "original": "(12, 0.01999982, -18)",
+    "scope": "Real module, actual scene Box walls, CC-legal near-surface poses; outward .08m must not be zeroed. Original Motor staging only, no physics Move called by fixture."
+  },
+  "27-contact-regression.json": {
+    "status": "PASS",
+    "actor": "temporary-b",
+    "walls": 3,
+    "poses": 84,
+    "checks": 336,
+    "counts": {
+      "outward": 84,
+      "inward": 84,
+      "tangent": 84,
+      "idle": 84
+    },
+    "failed": 0,
+    "initialMtdCount": 120,
+    "failures": [],
+    "restored": "(-3.96139121, 0.0199997611, -13)",
+    "scope": "Real current clearance and three actual Box walls; 84 poses x outward/inward/tangent/idle. Original Motor.Teleport stages/restores only; no Move, Tick, simulated InputAction, source/configuration change or generated wall. Independent axis-aligned plane and native end-MTD checks complement module status; idle deliberately does not resolve overlap."
+  },
+  "28-module-regression.json": {
+    "status": "FIXTURE_PASS_MESH_NOT_COVERED",
+    "ActorId": "temporary-b",
+    "scope": "Real module Constrain calls, no actual Move. Original-mesh coverage is reported separately and may require existing scene staging. Damage boundary assertion is geometric candidate protection, not a damage/HP execution test. Private-scene unload is async; Root must read final scene/resource counts after settled frames.",
+    "assertions": [
+      {
+        "name": "actualOriginalMesh",
+        "pass": null,
+        "status": "NOT_COVERED_CURRENT_POSE"
+      },
+      {
+        "name": "knownBoxSweep",
+        "pass": true,
+        "status": null
+      },
+      {
+        "name": "knownBoxDiagonalSlide",
+        "pass": true,
+        "status": null
+      },
+      {
+        "name": "twoWallInitialRecovery",
+        "pass": true,
+        "status": null
+      },
+      {
+        "name": "nonSideWallIsUnresolved",
+        "pass": true,
+        "status": null
+      },
+      {
+        "name": "disableEnableAndPrivateShape",
+        "pass": true,
+        "status": null
+      },
+      {
+        "name": "overflowFailsClosed",
+        "pass": true,
+        "status": null
+      },
+      {
+        "name": "originalHitCapsuleAndBoundary",
+        "pass": true,
+        "status": null
+      },
+      {
+        "name": "noActorMovement",
+        "pass": true,
+        "status": null
+      }
+    ]
+  },
+  "29-micro-corner.json": {
+    "status": "FIXTURE_PASS_MESH_NOT_COVERED",
+    "ActorId": "temporary-b",
+    "scope": "Real module Constrain calls, no actual Move. Original-mesh coverage is reported separately and may require existing scene staging. Damage boundary assertion is geometric candidate protection, not a damage/HP execution test. Private-scene unload is async; Root must read final scene/resource counts after settled frames.",
+    "assertions": [
+      {
+        "name": "actualOriginalMesh",
+        "pass": null,
+        "status": "NOT_COVERED_CURRENT_POSE"
+      },
+      {
+        "name": "knownBoxSweep",
+        "pass": true,
+        "status": null
+      },
+      {
+        "name": "knownBoxDiagonalSlide",
+        "pass": true,
+        "status": null
+      },
+      {
+        "name": "twoWallMicroOverlapRecovery",
+        "pass": true,
+        "status": null
+      },
+      {
+        "name": "nonSideWallIsUnresolved",
+        "pass": true,
+        "status": null
+      },
+      {
+        "name": "disableEnableAndPrivateShape",
+        "pass": true,
+        "status": null
+      },
+      {
+        "name": "overflowFailsClosed",
+        "pass": true,
+        "status": null
+      },
+      {
+        "name": "originalHitCapsuleAndBoundary",
+        "pass": true,
+        "status": null
+      },
+      {
+        "name": "noActorMovement",
+        "pass": true,
+        "status": null
+      }
+    ]
+  },
+  "33-final-console.json": {
+    "errors": 0,
+    "warnings": 5,
+    "logs": 0,
+    "compiling": false,
+    "playing": false,
+    "compilationFailed": false,
+    "loadedMvid": "8ceed9e1-cda4-41d2-8e5c-f7daab1cd289",
+    "note": "Read-only original Console counts; no clearing"
+  },
+  "34-protection.json": {
+    "baselineDirtyCount": 37,
+    "originalStatusChanged": [],
+    "additionalTracked": [
+      " M Assets/OSSASTRA/Scripts/Characters/Environment/CharacterEnvironmentClearance.cs"
+    ],
+    "protectedSourceCount": 197,
+    "protectedSourceChanged": [],
+    "singleMoveCount": 1
+  },
+  "09-input-red-result.json": {
+    "status": "UNRESOLVED_OR_FAILED",
+    "actor": "temporary-a",
+    "start": "(-1.5499, 0.01999982, -13)",
+    "end": "(-1.5499, 0.01999982, -13)",
+    "displacement": 0.0,
+    "moveFrames": 153,
+    "blockedFrames": 153,
+    "environmentSideFrames": 153,
+    "requested": true,
+    "devicesRemoved": true,
+    "scope": "Explicit original focus-callback fixture (restored to Application.isFocused); desktop activation unavailable. 真实 InputSystem virtual events / 原 InputAction 消费；不是物理硬件。没有直接位置/HP/绑定/时钟写入；碰撞须同时有请求速度、实际受阻和原 CC Sides 或真实 LastEnvironmentSideBlocked（分开输出，不伪造CC flags；不单凭此断言命中具体哪件模型），攻击须捕获 Current 的 Applied 回执；dodge须实际绑定键输入、当前原Dodge活跃/新ActionId及活跃期真实侧阻；绝不直接Request Dodge。"
+  },
+  "17-input-green-result.json": {
+    "status": "PASS",
+    "actor": "temporary-a",
+    "start": "(-1.5499, 0.01999994, -13)",
+    "end": "(-3.96480274, 0.01999982, -13)",
+    "displacement": 2.41490269,
+    "moveFrames": 148,
+    "blockedFrames": 0,
+    "environmentSideFrames": 1,
+    "requested": true,
+    "devicesRemoved": true,
+    "scope": "Explicit original focus-callback fixture (restored to Application.isFocused); desktop activation unavailable. 真实 InputSystem virtual events / 原 InputAction 消费；不是物理硬件。没有直接位置/HP/绑定/时钟写入；碰撞须同时有请求速度、实际受阻和原 CC Sides 或真实 LastEnvironmentSideBlocked（分开输出，不伪造CC flags；不单凭此断言命中具体哪件模型），攻击须捕获 Current 的 Applied 回执；dodge须实际绑定键输入、当前原Dodge活跃/新ActionId及活跃期真实侧阻；绝不直接Request Dodge。"
+  },
+  "20-inward-result.json": {
+    "status": "PASS",
+    "actor": "temporary-a",
+    "start": "(-1.5499, 0.01999982, -13)",
+    "end": "(-1.56499982, 0.01999982, -13)",
+    "displacement": 0.0150997639,
+    "moveFrames": 152,
+    "blockedFrames": 151,
+    "environmentSideFrames": 152,
+    "requested": true,
+    "devicesRemoved": true,
+    "scope": "Explicit original focus-callback fixture (restored to Application.isFocused); desktop activation unavailable. 真实 InputSystem virtual events / 原 InputAction 消费；不是物理硬件。没有直接位置/HP/绑定/时钟写入；碰撞须同时有请求速度、实际受阻和原 CC Sides 或真实 LastEnvironmentSideBlocked（分开输出，不伪造CC flags；不单凭此断言命中具体哪件模型），攻击须捕获 Current 的 Applied 回执；dodge须实际绑定键输入、当前原Dodge活跃/新ActionId及活跃期真实侧阻；绝不直接Request Dodge。"
+  },
+  "23-tangent-result.json": {
+    "status": "PASS",
+    "actor": "temporary-a",
+    "start": "(-1.5499, 0.01999982, -13)",
+    "end": "(-1.565, 0.01999982, -11.165)",
+    "displacement": 1.83506215,
+    "moveFrames": 146,
+    "blockedFrames": 37,
+    "environmentSideFrames": 39,
+    "requested": true,
+    "devicesRemoved": true,
+    "scope": "Explicit original focus-callback fixture (restored to Application.isFocused); desktop activation unavailable. 真实 InputSystem virtual events / 原 InputAction 消费；不是物理硬件。没有直接位置/HP/绑定/时钟写入；碰撞须同时有请求速度、实际受阻和原 CC Sides 或真实 LastEnvironmentSideBlocked（分开输出，不伪造CC flags；不单凭此断言命中具体哪件模型），攻击须捕获 Current 的 Applied 回执；dodge须实际绑定键输入、当前原Dodge活跃/新ActionId及活跃期真实侧阻；绝不直接Request Dodge。"
+  },
+  "26-other-result.json": {
+    "status": "PASS",
+    "actor": "temporary-b",
+    "start": "(-1.5499, 0.01999982, -13)",
+    "end": "(-3.96139121, 0.01999982, -13)",
+    "displacement": 2.41149116,
+    "moveFrames": 198,
+    "blockedFrames": 0,
+    "environmentSideFrames": 1,
+    "requested": true,
+    "devicesRemoved": true,
+    "scope": "Explicit original focus-callback fixture (restored to Application.isFocused); desktop activation unavailable. 真实 InputSystem virtual events / 原 InputAction 消费；不是物理硬件。没有直接位置/HP/绑定/时钟写入；碰撞须同时有请求速度、实际受阻和原 CC Sides 或真实 LastEnvironmentSideBlocked（分开输出，不伪造CC flags；不单凭此断言命中具体哪件模型），攻击须捕获 Current 的 Applied 回执；dodge须实际绑定键输入、当前原Dodge活跃/新ActionId及活跃期真实侧阻；绝不直接Request Dodge。"
+  }
+}

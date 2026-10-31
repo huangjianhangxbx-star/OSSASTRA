@@ -1,5 +1,7 @@
 # ANKALUTE 共享项目状态
 
+> 2026-10-31 KT-VIS-02-FIX01：薄墙微穿入<=5mm被恢复阈值忽略，初始cast反扫描法线误吞向外请求；已改为有效非负MTD先补margin。84格30失败→0、336项接触断言/原输入双角色退出与入墙阻挡/3mm双墙恢复通过。原单Move/CC/受击边界保持，最终Edit ready且原dirty=true未保存；私有物理/标记资源/输入租约0，197保护SHA/37dirty状态保持。全部writer释放，Mesh/全渲染/闪避受迫未在本轮重跑；详docs/ossastra/KT-VIS-02/FIX01-stuck-escape.md。
+
 ## KT-VIS-02 已完成（2026-10-31）
 
 - 固定环境身体经可选ICharacterEnvironmentClearance接原Movement唯一Move前；原CC受击形状不变，原forced链消费环境侧阻。两场景角色组件仅显式5实墙，数学primitive在独立PhysicsScene且精确释放。

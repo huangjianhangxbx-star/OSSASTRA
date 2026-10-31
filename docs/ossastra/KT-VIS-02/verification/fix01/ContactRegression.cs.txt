@@ -1,0 +1,117 @@
+// KT-VIS-02-FIX01: module-only native physics regression, not an InputAction/Move test.
+// Original motor Teleport stages/restores the existing actor; this fixture never calls Move/Tick.
+using System;
+using System.Linq;
+using System.Collections.Generic;
+using System.Reflection;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using C = Ossastra.Characters;
+using Funplay.Editor.Tools.Scripting;
+
+public sealed class VIS02ContactRegression : IFunplayCommand
+{
+    const string Lab = "Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-01/SC_OcclusionVisibilityLab.unity";
+    const float Travel = .08f, Tolerance = .0005f;
+    static bool Finite(float v) => !float.IsNaN(v) && !float.IsInfinity(v);
+    static bool Finite(Vector3 v) => Finite(v.x) && Finite(v.y) && Finite(v.z);
+    public void Execute(ExecutionContext ctx)
+    {
+        var scene = SceneManager.GetActiveScene();
+        if (!Application.isPlaying || scene.path != Lab) throw new Exception("Exact Lab Play required");
+        var coordinator = scene.GetRootGameObjects().SelectMany(g => g.GetComponentsInChildren<C.CharacterControlCoordinator>()).Single();
+        var actor = coordinator.Current;
+        if (actor == null) throw new Exception("Existing Current actor required");
+        var motor = actor.GetComponent<C.CharacterMovement>();
+        var clearance = actor.GetComponent<C.CharacterEnvironmentClearance>();
+        if (motor == null || clearance == null || !clearance.enabled) throw new Exception("Enabled original motor/clearance required");
+        var walls = clearance.environmentSolids.OfType<BoxCollider>().Where(w => w.enabled && w.gameObject.activeInHierarchy && !w.isTrigger).ToArray();
+        if (walls.Length != 3) throw new Exception("Expected the three actual Lab Box walls, not generated fixture walls");
+        // The independent plane oracle below is deliberately restricted to axis-aligned actual walls.
+        foreach (var wall in walls)
+            foreach (var axis in new[] { wall.transform.right, wall.transform.up, wall.transform.forward })
+                if (Mathf.Max(Mathf.Abs(axis.x), Mathf.Abs(axis.y), Mathf.Abs(axis.z)) < .99999f)
+                    throw new Exception("Plane oracle requires axis-aligned Box walls: " + wall.name);
+        var original = actor.transform.position;
+        int poses = 0, checks = 0, failed = 0, initialMtdCount = 0;
+        var counts = new Dictionary<string, int>();
+        var failures = new List<object>();
+        try
+        {
+            // Lazily create the real enabled math shape; no main-scene collider or Rigidbody is added.
+            clearance.Constrain(Vector3.right * .001f + Vector3.down * .01f);
+            var shape = (CapsuleCollider)typeof(C.CharacterEnvironmentClearance)
+                .GetField("mathCapsule", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(clearance);
+            if (shape == null || !shape.enabled || !shape.gameObject.activeInHierarchy)
+                throw new Exception("Enabled native math shape unavailable; cannot claim an MTD test");
+            foreach (var wall in walls)
+            {
+                var bounds = wall.bounds;
+                foreach (var outward in new[] { Vector3.right, Vector3.left, Vector3.forward, Vector3.back })
+                foreach (float gap in new[] { -.0049f, -.0001f, 0f, .0001f, .005f, .015f, .03f })
+                {
+                    poses++;
+                    var pose = bounds.center; pose.y = .02f;
+                    if (outward.x != 0) pose.x = outward.x > 0 ? bounds.max.x + clearance.coreRadius + gap : bounds.min.x - clearance.coreRadius - gap;
+                    else pose.z = outward.z > 0 ? bounds.max.z + clearance.coreRadius + gap : bounds.min.z - clearance.coreRadius - gap;
+                    var tangent = Vector3.Cross(Vector3.up, outward);
+                    foreach (string kind in new[] { "outward", "inward", "tangent", "idle" })
+                    {
+                        motor.Teleport(pose);
+                        var actualStart = actor.transform.position;
+                        bool initialMtd = Physics.ComputePenetration(shape, actualStart, Quaternion.identity,
+                            wall, wall.transform.position, wall.transform.rotation, out var initialNormal, out float initialDistance);
+                        if (initialMtd) initialMtdCount++;
+                        var direction = kind == "outward" ? outward : kind == "inward" ? -outward : kind == "tangent" ? tangent : Vector3.zero;
+                        var request = direction * Travel + Vector3.down * .03f;
+                        var result = clearance.Constrain(request);
+                        var allowed = result.Displacement;
+                        var end = actualStart + allowed;
+                        float face = outward.x > 0 ? bounds.max.x : outward.x < 0 ? -bounds.min.x : outward.z > 0 ? bounds.max.z : -bounds.min.z;
+                        float startGap = Vector3.Dot(actualStart, outward) - face - clearance.coreRadius;
+                        float endGap = Vector3.Dot(end, outward) - face - clearance.coreRadius;
+                        var reasons = new List<string>();
+                        if (!Finite(allowed)) reasons.Add("non-finite displacement");
+                        if ((actor.transform.position - actualStart).sqrMagnitude > 1e-10f) reasons.Add("Constrain moved actor directly");
+                        if (Mathf.Abs(allowed.y - request.y) > Tolerance) reasons.Add("vertical request altered");
+                        if (initialMtd && (!Finite(initialNormal) || !Finite(initialDistance) || initialDistance < 0)) reasons.Add("invalid initial native MTD");
+                        if (gap < 0f && (!initialMtd || Vector3.Dot(initialNormal, outward) < .99f || Mathf.Abs(initialDistance + startGap) > Tolerance))
+                            reasons.Add("micro-overlap fixture not independently confirmed");
+                        if (kind == "idle")
+                        {
+                            if ((allowed - request).sqrMagnitude > 1e-10f || clearance.Recovery.sqrMagnitude > 1e-10f || clearance.Status != C.CharacterClearanceStatus.Idle || result.SideBlocked)
+                                reasons.Add("zero-horizontal request recovered/drifted");
+                            // This case intentionally remains at its initial overlap: no movement means no correction.
+                        }
+                        else
+                        {
+                            bool resolved = clearance.Status == C.CharacterClearanceStatus.Clear || clearance.Status == C.CharacterClearanceStatus.Constrained || clearance.Status == C.CharacterClearanceStatus.Recovered;
+                            if (!resolved) reasons.Add("unresolved module status " + clearance.Status);
+                            if (kind == "outward" && Vector3.Dot(allowed, outward) < Travel - Tolerance) reasons.Add("escape blocked");
+                            if (kind == "tangent" && Vector3.Dot(allowed, tangent) < Travel - Tolerance) reasons.Add("tangent blocked");
+                            if (kind == "inward" && endGap < Mathf.Min(startGap, clearance.contactMargin) - Tolerance) reasons.Add("inward advanced beyond allowed margin");
+                            if (endGap < -Tolerance) reasons.Add("independent Box plane still penetrated");
+                            if (clearance.Recovery.magnitude > clearance.maximumInitialRecovery + Tolerance) reasons.Add("recovery budget exceeded");
+                            // Validate the proposed pose, not only a positive exit component. A false MTD cannot
+                            // override a failed module status or the independent axis-aligned plane check above.
+                            foreach (var solid in clearance.environmentSolids.Where(s => s != null && s.enabled && s.gameObject.activeInHierarchy && !s.isTrigger))
+                                if (Physics.ComputePenetration(shape, end, Quaternion.identity, solid, solid.transform.position, solid.transform.rotation, out var endNormal, out float endDistance) &&
+                                    (!Finite(endNormal) || !Finite(endDistance) || endDistance > Tolerance))
+                                    reasons.Add("native candidate-end penetration: " + solid.name + " distance=" + endDistance.ToString("R"));
+                        }
+                        checks++;
+                        if (!counts.ContainsKey(kind)) counts[kind] = 0;
+                        counts[kind]++;
+                        if (reasons.Count > 0)
+                        {
+                            failed++;
+                            if (failures.Count < 24) failures.Add(new { wall = wall.name, gap, kind, start = actualStart.ToString("R"), requested = request.ToString("R"), allowed = allowed.ToString("R"), startGap, endGap, initialMtd, initialDistance, initialNormal = initialNormal.ToString("R"), status = clearance.Status.ToString(), recovery = clearance.Recovery.ToString("R"), clearance.RecoveryIterations, clearance.SlideIterations, reasons });
+                        }
+                    }
+                }
+            }
+        }
+        finally { motor.Teleport(original); }
+        ctx.ReturnValue = new { status = failed == 0 ? "PASS" : "FAIL_CONTACT_REGRESSION", actor = actor.ActorId, walls = walls.Length, poses, checks, counts, failed, initialMtdCount, failures, restored = actor.transform.position.ToString("R"), scope = "Real current clearance and three actual Box walls; 84 poses x outward/inward/tangent/idle. Original Motor.Teleport stages/restores only; no Move, Tick, simulated InputAction, source/configuration change or generated wall. Independent axis-aligned plane and native end-MTD checks complement module status; idle deliberately does not resolve overlap." };
+    }
+}
