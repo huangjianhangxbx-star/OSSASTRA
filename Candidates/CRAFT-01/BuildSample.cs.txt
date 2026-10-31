@@ -1,0 +1,64 @@
+using System;using System.IO;using System.Linq;using System.Collections.Generic;using UnityEngine;using UnityEngine.SceneManagement;using UnityEditor;using UnityEditor.SceneManagement;using Newtonsoft.Json.Linq;
+using Ossastra.Crafting;using Ossastra.Crafting.Presentation;using Ossastra.Inventory;using Ossastra.Characters;using Ossastra.WorldProps;using Ossastra.UserInterface;using Ossastra.Commerce.Runtime;using Ossastra.SceneVisibility;using Funplay.Editor.Tools.Scripting;
+public sealed class CraftBuildSample:IFunplayCommand
+{
+ const string Main="Assets/OSSASTRA/GroundWorkshop/Samples/CRAFT-01/SC_CraftingIntegration.unity",Folder="Assets/OSSASTRA/Crafting/Configs",Media="Assets/OSSASTRA/Art/CraftingReferenceLocal";
+ Scene scene;ExecutionContext ctx;
+ static void Need(bool v,string e){if(!v)throw new InvalidOperationException(e);}
+ T One<T>()where T:Component{var a=scene.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<T>(true)).ToArray();Need(a.Length==1,"预期唯一"+typeof(T).Name+"实际"+a.Length);return a[0];}
+ T Asset<T>(T value,string name)where T:UnityEngine.Object{value.name=name;string path=Folder+"/"+name+".asset";Need(AssetDatabase.LoadMainAssetAtPath(path)==null,"不覆盖资产"+path);AssetDatabase.CreateAsset(value,path);AssetDatabase.SaveAssetIfDirty(value);return value;}
+ void Set(UnityEngine.Object o,string name,UnityEngine.Object value){ctx.RegisterObjectModification(o);var so=new SerializedObject(o);var p=so.FindProperty(name);Need(p!=null,"缺属性"+name);p.objectReferenceValue=value;so.ApplyModifiedProperties();}
+ Sprite Sprite(string file,bool icon=false){var path=Media+"/"+file;var ti=AssetImporter.GetAtPath(path)as TextureImporter;Need(ti!=null,"缺选定素材"+path);ti.textureType=TextureImporterType.Sprite;ti.spriteImportMode=SpriteImportMode.Single;ti.spritePixelsPerUnit=100;var st=new TextureImporterSettings();ti.ReadTextureSettings(st);st.spriteAlignment=(int)(icon?SpriteAlignment.Center:SpriteAlignment.BottomCenter);st.spritePivot=icon?new Vector2(.5f,.5f):new Vector2(.5f,0);ti.SetTextureSettings(st);ti.alphaIsTransparency=true;ti.mipmapEnabled=false;ti.textureCompression=TextureImporterCompression.Uncompressed;ti.SaveAndReimport();return AssetDatabase.LoadAssetAtPath<Sprite>(path);}
+ Ossastra.Characters.ItemDefinitionSO Item(string id,string name,Sprite icon,Ossastra.Characters.EquipmentDefinitionSO gear=null){var d=ScriptableObject.CreateInstance<Ossastra.Characters.ItemDefinitionSO>();d.definitionId=id;d.displayName=name;d.description="CRAFT-01 SAMPLE；原团队库存中的真实物品";d.category=gear==null?"材料":"装备";d.inventoryGlyph=gear==null?"绳":"器";d.maxStack=gear==null?99:1;d.width=1;d.height=gear==null?1:2;d.icon=icon;d.equipment=gear;return Asset(d,id);}
+ CraftingRecipeSO Recipe(string id,string name,string category,CraftingIngredientAuthor[] costs,Ossastra.Characters.ItemDefinitionSO output,Sprite icon){var r=ScriptableObject.CreateInstance<CraftingRecipeSO>();r.recipeId=id;r.displayName=name;r.category=category;r.description="SAMPLE配方 · 每次制作都需要靠近装备台。只使用团队背包普通材料，整批即时结算。";r.ingredients=costs;r.outputs=new[]{new CraftingOutputAuthor{item=output,quantity=1,initialDurability=100}};r.icon=icon;r.maxBatch=8;r.Freeze();return Asset(r,id);}
+ CraftingIngredientAuthor Cost(Ossastra.Characters.ItemDefinitionSO d,int n)=>new CraftingIngredientAuthor{item=d,quantity=n};
+ CraftingStation Station(string id,string name,Vector3 at,CraftingStationDefinitionSO def,bool mesh,Camera camera,Material spriteMaterial,Mesh model,Material modelMat)
+ {
+  var go=new GameObject(name);ctx.RegisterObjectCreation(go);go.transform.position=at;var station=go.AddComponent<CraftingStation>();station.instanceId=id;station.mapId="crafting-main";station.definition=def;
+  var anchor=new GameObject("InteractionAnchor").transform;anchor.SetParent(go.transform,false);anchor.localPosition=new Vector3(0,0,-1.1f);station.interactionAnchor=anchor;
+  var box=go.AddComponent<BoxCollider>();box.size=new Vector3(mesh?1.75f:.9f,mesh?1.2f:1.1f,mesh?1.5f:.65f);box.center=new Vector3(0,box.size.y/2,0);station.ownedColliders=new Collider[]{box};
+  var visual=new GameObject("ReferenceVisual");visual.transform.SetParent(go.transform,false);Renderer renderer;
+  if(mesh){var mf=visual.AddComponent<MeshFilter>();mf.sharedMesh=model;var mr=visual.AddComponent<MeshRenderer>();mr.sharedMaterial=modelMat;visual.transform.localRotation=Quaternion.Euler(0,135,0);visual.transform.localScale=Vector3.one*1.3f;visual.transform.localPosition=new Vector3(0,-model.bounds.min.y*1.3f,0);renderer=mr;}
+  else{var sr=visual.AddComponent<SpriteRenderer>();sr.sprite=Sprite("researchlab-idle.png");sr.sharedMaterial=spriteMaterial;visual.transform.rotation=Quaternion.Euler(0,camera.transform.eulerAngles.y,0);station.billboardVisual=visual.transform;renderer=sr;}
+  var group=go.AddComponent<SceneOccluderGroup>();group.groupLabel=name;group.members=new[]{renderer};group.volumes=new Collider[]{box};group.allowWholeFade=true;group.minimumOpacity=.15f;
+  return station;
+ }
+ public void Execute(ExecutionContext context)
+ {
+  ctx=context;scene=SceneManager.GetActiveScene();Need(!EditorApplication.isPlayingOrWillChangePlaymode&&!EditorApplication.isCompiling&&SceneManager.sceneCount==1&&scene.path==Main&&!scene.isDirty&&PrefabStageUtility.GetCurrentPrefabStage()==null,"需已保存独立CRAFT主场Edit");
+  Need(scene.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<CraftingRoot>(true)).Count()==0,"已存在合成根，拒绝重复装配");Directory.CreateDirectory(Folder);AssetDatabase.Refresh();
+  var inventory=One<InventorySession>();var commerce=One<CommerceService>();var view=One<InventoryView>();var world=One<WorldPropsRoot>();var camera=One<Ossastra.MapResearch.MapResearchRoot>().gameplayCamera;
+  var invSO=new SerializedObject(inventory);var catalog=invSO.FindProperty("catalog");var items=Enumerable.Range(0,catalog.arraySize).Select(i=>catalog.GetArrayElementAtIndex(i).objectReferenceValue as Ossastra.Characters.ItemDefinitionSO).ToList();Need(items.All(i=>i!=null),"库存目录缺项");
+  var stone=items.Single(i=>i.definitionId=="world-stone");var fibre=items.Single(i=>i.definitionId=="world-fibre");
+  var rightTemplate=items.First(i=>i.equipment!=null&&i.equipment.mainHand&&i.equipment.actions!=null&&i.equipment.actions.Length>0);
+  var leftTemplate=items.First(i=>i.equipment!=null&&!i.equipment.mainHand&&i.equipment.offhandKind==Ossastra.CharacterCore.OffhandKind.Shield);
+  var right=UnityEngine.Object.Instantiate(rightTemplate.equipment);right.definitionId="craft-stone-blade";right.displayName="石刃 · SAMPLE";Asset(right,"craft-stone-blade-equipment");
+  var left=UnityEngine.Object.Instantiate(leftTemplate.equipment);left.definitionId="craft-stone-shield";left.displayName="石盾 · SAMPLE";Asset(left,"craft-stone-shield-equipment");
+  var ropeIcon=Sprite("rope-icon.png",true);var mainIcon=Sprite("spear-icon.png",true);var shieldIcon=Sprite("rocks-icon.png",true);
+  var binding=Item("craft-binding","纤维束 · SAMPLE",ropeIcon);var blade=Item(right.definitionId,right.displayName,mainIcon,right);var shield=Item(left.definitionId,left.displayName,shieldIcon,left);
+  items.AddRange(new[]{binding,blade,shield});ctx.RegisterObjectModification(inventory);catalog.arraySize=items.Count;for(int i=0;i<items.Count;i++)catalog.GetArrayElementAtIndex(i).objectReferenceValue=items[i];invSO.ApplyModifiedProperties();
+  var recipeBinding=Recipe("craft-binding-recipe","编扎纤维束","材料",new[]{Cost(fibre,2)},binding,ropeIcon);
+  var recipeBlade=Recipe("craft-blade-recipe","制作石刃","主手",new[]{Cost(stone,2),Cost(binding,1)},blade,mainIcon);
+  var recipeShield=Recipe("craft-shield-recipe","制作石盾","副手",new[]{Cost(stone,3),Cost(binding,1)},shield,shieldIcon);
+  var stationDef=ScriptableObject.CreateInstance<CraftingStationDefinitionSO>();stationDef.definitionId="craft-equipment-station";stationDef.displayName="装备台 · SAMPLE";stationDef.capabilities=new[]{"equipment"};Asset(stationDef,stationDef.definitionId);
+  var unsupported=ScriptableObject.CreateInstance<CraftingStationDefinitionSO>();unsupported.definitionId="craft-unavailable-station";unsupported.displayName="未接入设备";unsupported.capabilities=Array.Empty<string>();unsupported.supported=false;Asset(unsupported,unsupported.definitionId);
+  string geometry="E:/WORLDCREATOR/XingHaiHuiLang/研究/装备台合成/CRAFT-01/04-selected-assets/frontier/original/building_workbench.mesh.json";var data=JObject.Parse(File.ReadAllText(geometry))["mesh"];
+  var model=new Mesh{name="KTWorkbenchLocal"};model.vertices=data["vertices"].Select(v=>new Vector3((float)v[0],(float)v[1],(float)v[2])).ToArray();model.normals=data["normals"].Select(v=>new Vector3((float)v[0],(float)v[1],(float)v[2])).ToArray();model.uv=data["uv0"].Select(v=>new Vector2((float)v[0],(float)v[1])).ToArray();model.triangles=data["triangles"].SelectMany(t=>t.Select(v=>(int)v)).ToArray();model.RecalculateBounds();AssetDatabase.CreateAsset(model,Media+"/WorkbenchMesh.asset");AssetDatabase.SaveAssetIfDirty(model);
+  var mat=new Material(Shader.Find("Universal Render Pipeline/Lit"));Need(mat.shader!=null,"缺URP/Lit");mat.name="WorkbenchLocal";mat.mainTexture=AssetDatabase.LoadAssetAtPath<Texture2D>(Media+"/building_workbench_albedo.png");AssetDatabase.CreateAsset(mat,Media+"/Workbench.mat");AssetDatabase.SaveAssetIfDirty(mat);
+  var sm=AssetDatabase.LoadAssetAtPath<Material>("Assets/OSSASTRA/WorldProps/Configs/WorldPropSprite.mat");Need(sm!=null,"缺既有可透视Sprite材质");
+  var stations=new[]{Station("craft-station-a","EquipmentStation_A_2D",new Vector3(12,.02f,-14),stationDef,false,camera,sm,model,mat),Station("craft-station-b","EquipmentStation_B_3D",new Vector3(17,.02f,-17),stationDef,true,camera,sm,model,mat),Station("craft-station-unsupported","UnsupportedStation",new Vector3(18,.02f,-23),unsupported,false,camera,sm,model,mat)};
+  var goRoot=new GameObject("CraftingRoot");ctx.RegisterObjectCreation(goRoot);var root=goRoot.AddComponent<CraftingRoot>();var ui=goRoot.AddComponent<CraftingUIRoot>();root.inventory=inventory;root.commerce=commerce;root.inventoryView=view;root.userInterface=ui;root.mapView=One<Ossastra.MapResearch.MapResearchRoot>();root.gameplayCamera=camera;root.recipes=new[]{recipeBinding,recipeBlade,recipeShield};root.stationCatalog=new[]{stationDef,unsupported};root.stations=stations;root.mapId="crafting-main";
+  ctx.RegisterObjectModification(commerce);commerce.mapId=root.mapId;commerce.profileId="crafting-demo-01";commerce.saveDirectory="E:/WORLDCREATOR/XingHaiHuiLang/研究/装备台合成/CRAFT-01/05-unity-evidence/profiles";foreach(var c in commerce.worldContainers){ctx.RegisterObjectModification(c);c.mapId=root.mapId;}
+  ctx.RegisterObjectModification(world);world.mapId=root.mapId;
+  // 本轮独立的低耐久采集SAMPLE，真实原受击/掉落/F链不变；其他样板物件不改。
+  var sampleStone=UnityEngine.Object.Instantiate(world.definitions.Single(d=>d.definitionId=="resource-stone"));sampleStone.definitionId="craft-resource-stone";sampleStone.maximumDurability=8;Asset(sampleStone,sampleStone.definitionId);
+  var samplePlant=UnityEngine.Object.Instantiate(world.definitions.Single(d=>d.definitionId=="resource-plant"));samplePlant.definitionId="craft-resource-plant";samplePlant.maximumDurability=8;Asset(samplePlant,samplePlant.definitionId);world.definitions=world.definitions.Concat(new[]{sampleStone,samplePlant}).ToArray();
+  foreach(var prop in world.props.Where(p=>p.instanceId=="stone-a"||p.instanceId=="stone-b")){ctx.RegisterObjectModification(prop);prop.definition=sampleStone;}
+  foreach(var prop in world.props.Where(p=>p.instanceId=="plant-a"||p.instanceId=="line-0")){ctx.RegisterObjectModification(prop);prop.definition=samplePlant;}
+  Set(One<InventoryInteraction>(),"crafting",root);
+  var visibility=One<SceneVisibilityRoot>();ctx.RegisterObjectModification(visibility);visibility.groups=visibility.groups.Concat(stations.Select(s=>s.GetComponent<SceneOccluderGroup>())).ToArray();
+  foreach(var travel in scene.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<WorldPropTravel>(true))){ctx.RegisterObjectModification(travel);travel.destinationScene="Assets/OSSASTRA/GroundWorkshop/Samples/CRAFT-01/SC_CraftingTransit.unity";travel.buttonLabel="保存并进入合成中转";}
+  EditorSceneManager.MarkSceneDirty(scene);Need(EditorSceneManager.SaveScene(scene),"新场保存失败");
+  context.ReturnValue=new{success=true,scene=scene.path,sceneGuid=AssetDatabase.AssetPathToGUID(Main),profile=commerce.profileId,saveDirectory=commerce.saveDirectory,catalog=items.Count,recipes=root.recipes.Select(r=>r.recipeId).ToArray(),stations=stations.Select(s=>new{s.instanceId,definition=s.definition.definitionId,position=s.transform.position.ToString()}).ToArray(),sourceMainEquipment=rightTemplate.definitionId,sourceLeftEquipment=leftTemplate.definitionId,meshVertices=model.vertexCount,meshTriangles=model.triangles.Length/3,meshBounds=model.bounds.ToString()};
+ }
+}

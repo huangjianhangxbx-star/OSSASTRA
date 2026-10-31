@@ -1,7 +1,7 @@
 /* 脚本：CommerceService
  * 功能：本地图唯一交易与共同保存组装根；接入账本、uGUI及显式领域值载荷，同修订串行保存。
  * 时序：Awake注入库存启动适配器；库存建立定义后先恢复，只有Missing才播种；Ready后才开放交互。
- * 退出：禁用先在主线程冻结最新快照并排空；销毁在解绑/释放领域前等待关闭，不能只排空旧请求。
+ * 退出：普通/退出保存统一记录已接受快照的修订与序号；依赖释放后只复用匹配的完整检查点，仍等待原writer排空。
  * 边界：不更新角色子模块、动画或音声，不暂停世界。后台只接收主线程冻结的字节。
  */
 using System;
@@ -53,6 +53,7 @@ namespace Ossastra.Commerce.Runtime
         private string sessionId;
         private bool finalizingPersistence;
         private byte[] lifecyclePayload;
+        private long lifecycleRevision=-1,lifecycleSaveSequence=-1;
         private string lifecycleFailure;
         /// <summary>Awake组装期登记；库存开始恢复后封口，不能绕过已验证的共同快照边界。</summary>
         public void RegisterSnapshotParticipant(ICommerceSnapshotParticipant participant)
@@ -196,8 +197,18 @@ namespace Ossastra.Commerce.Runtime
         {
             if(!Ready||closing||saves==null)return;
             var snapshot=Capture();var bytes=CommerceSnapshotCodec.Encode(snapshot);
-            saves.RequestSave(revision,bytes,2,Economy.DefinitionFingerprint);lastSavedSimulation=Economy.SimulationTime;
+            QueueFrozenSnapshot(snapshot,bytes);
         }
+        /// <summary>只有原协调器成功接受完整冻结字节后，才发布对应缓存见证；拒绝排队不得覆盖上一检查点。</summary>
+        private void QueueFrozenSnapshot(CommerceRuntimeSnapshot snapshot,byte[] bytes)
+        {
+            var sequence=saves.RequestSave(snapshot.revision,bytes,2,snapshot.economy.definitionFingerprint);
+            lifecyclePayload=bytes;lifecycleRevision=snapshot.revision;lifecycleSaveSequence=sequence;
+            lastSavedSimulation=snapshot.economy.simulationTime;
+        }
+        /// <summary>证明当前最新已排队检查点，不证明依赖释放后的未通知瞬时资源零丢失；是否落盘由后续Flush/Close决定。</summary>
+        private bool HasCurrentFrozenCheckpoint(CommerceSaveStatus status)
+            =>lifecyclePayload!=null&&status!=null&&lifecycleRevision==revision&&lifecycleRevision==status.StateRevision&&lifecycleSaveSequence==status.SaveSequence;
         /// <summary>正常地图加载器必须先等待此屏障；卸载仅清表现，当前经济档落盘成功才允许切图。</summary>
         public System.Threading.Tasks.Task<bool> FlushBeforeSceneChangeAsync()
         {
@@ -311,20 +322,17 @@ namespace Ossastra.Commerce.Runtime
                 {
                     try
                     {
-                        // 同一宿主先禁用Inventory也可只读捕获；若它已销毁，仅可沿用此前已排空的最终字节。
+                        // Inventory先禁用仍可只读捕获；若已销毁，只能沿用当前修订/序号精确匹配的完整检查点。
+                        // 最新请求可能仍在写，不能提前要求IsSaved；下方原Flush/Close必须真实排空成功。
                         if(inventory==null||inventory.Ledger==null||Economy==null)
                         {
-                            if(lifecyclePayload==null||!saves.Status.IsSaved)throw new InvalidOperationException("最后快照的库存/经济依赖已释放");
+                            if(!HasCurrentFrozenCheckpoint(saves.Status))throw new InvalidOperationException("最后快照的库存/经济依赖已释放，且没有匹配当前修订/序号的完整检查点");
                         }
                         else
                         {
-                            var bytes=CommerceSnapshotCodec.Encode(Capture());
+                            var snapshot=Capture();var bytes=CommerceSnapshotCodec.Encode(snapshot);
                             // Quit、Disable、Destroy可连续到来；内容未变不重复排队，内容变了即使修订相同也保存新序号。
-                            if(lifecyclePayload==null||!lifecyclePayload.SequenceEqual(bytes))
-                            {
-                                saves.RequestSave(revision,bytes,2,Economy.DefinitionFingerprint);
-                                lifecyclePayload=bytes;lastSavedSimulation=Economy.SimulationTime;
-                            }
+                            if(!HasCurrentFrozenCheckpoint(saves.Status)||!lifecyclePayload.SequenceEqual(bytes))QueueFrozenSnapshot(snapshot,bytes);
                         }
                     }
                     catch(Exception error){failure="最后快照捕获失败："+error.Message;}
@@ -333,7 +341,7 @@ namespace Ossastra.Commerce.Runtime
                 try
                 {
                     var success=(closeWriter?saves.CloseAsync():saves.FlushAsync()).GetAwaiter().GetResult();
-                    if(!success)failure=(failure==null?"":failure+"；")+"经济档写入失败："+(saves.Status.LastError??"最新修订尚未落盘");
+                    if(!success||!saves.Status.IsSaved)failure=(failure==null?"":failure+"；")+"经济档写入失败："+(saves.Status.LastError??"最新修订尚未落盘");
                 }
                 catch(Exception error){failure=(failure==null?"":failure+"；")+"保存收口异常："+error.Message;}
                 if(failure!=null)

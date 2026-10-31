@@ -1,0 +1,128 @@
+/* WORLD-PROP-01真实输入夹具：仅向原InputAction发送有界虚拟键鼠事件。
+ * 不Teleport/Move/Request/Resolve/OnHit，不改HP、物品、时钟或绑定；Root负责实际场景摆位。
+ * 显式调用原焦点回调仅用于后台Editor夹具，结束恢复Application.isFocused；不是实体硬件验收。
+ */
+using System;using System.Linq;using System.Reflection;using System.Collections.Generic;
+using UnityEngine;using UnityEngine.SceneManagement;using UnityEditor;
+using UnityEngine.InputSystem;using UnityEngine.InputSystem.Controls;using UnityEngine.InputSystem.LowLevel;
+using Ossastra.WorldProps;using Ossastra.Inventory;using Ossastra.UserInterface;using C=Ossastra.Characters;
+using Funplay.Editor.Tools.Scripting;using Newtonsoft.Json;
+
+public sealed class CRAFT01PresentationInputProbe:IFunplayCommand
+{
+ public static bool Running;public static string ResultJson="NOT_STARTED";
+ const string Lab="Assets/OSSASTRA/GroundWorkshop/Samples/CRAFT-01/SC_CraftingIntegration.unity";
+ const BindingFlags Hidden=BindingFlags.Instance|BindingFlags.NonPublic;
+ sealed class Filter{public InputActionMap map;public bool had;public InputDevice[] old;}
+ sealed class GroundRow{public string containerId,itemId,definitionId;public int quantity;}
+ static Keyboard keyboard;static Mouse mouse;static Key pulseKey;static Key[] keys=Array.Empty<Key>();static bool mouseDown;
+ static WorldPropsRoot root;static WorldPropRoot target;static C.CharacterControlCoordinator control;static C.CharacterRoot actor;static C.CharacterInputHandler input;
+ static InventorySession session;static InventoryInteraction interaction;static InventoryView view;
+ static List<Filter> filters;static List<object> trace;static string mode,error,runId,expectedPickupDefinition,expectedPickupContainer;
+ static float seconds;static double began,lastTrace;static int lastFrame,releaseBefore,releaseAfter,hpBefore,hpAfter,attackFrames,interactionPressedFrames,togglePressedFrames,externalFilters;
+ static string phaseBefore,phaseAfter;static bool openBefore,openAfter,initialPhysicalIdle,devicesRemoved,focusChanged,finishedSnapshot;
+ static Vector3 positionBefore,positionAfter;static Vector2 pointer;static Dictionary<string,int> teamBefore,teamAfter;static GroundRow[] groundBefore,groundAfter;
+ public void Execute(ExecutionContext ctx)
+ {
+  if(Running)throw new InvalidOperationException("Probe is already running; poll/cancel instead");
+  root=null;target=null;control=null;actor=null;input=null;session=null;interaction=null;view=null;keyboard=null;mouse=null;
+  filters=new List<Filter>();trace=new List<object>();teamBefore=teamAfter=new Dictionary<string,int>();groundBefore=groundAfter=Array.Empty<GroundRow>();
+  keys=Array.Empty<Key>();mouseDown=false;pulseKey=Key.None;error="";mode="preflight";runId=Guid.NewGuid().ToString("N");expectedPickupDefinition=expectedPickupContainer=null;
+  mouseBaselineSet=false;initialPhysicalIdle=focusChanged=finishedSnapshot=false;devicesRemoved=true;attackFrames=interactionPressedFrames=togglePressedFrames=externalFilters=0;releaseBefore=releaseAfter=hpBefore=hpAfter=0;openBefore=openAfter=false;phaseBefore=phaseAfter=null;began=lastTrace=EditorApplication.timeSinceStartup;seconds=0;lastFrame=-1;
+  try
+  {
+   var scene=SceneManager.GetActiveScene();if(!Application.isPlaying||scene.path!=Lab||EditorApplication.isPaused||Time.timeScale!=1)throw new InvalidOperationException("Need exact WORLD-PROP-01 Lab normal Play/timeScale1");
+   if(!string.IsNullOrEmpty(SessionState.GetString("SceneVisibility.M1.InputLeaseModule",""))||InputSystem.devices.Any(d=>d.name.StartsWith("WP",StringComparison.Ordinal)||d.name.StartsWith("KTVIS",StringComparison.Ordinal)||d.name.StartsWith("KT02",StringComparison.Ordinal)||d.name.StartsWith("KT03",StringComparison.Ordinal)))throw new InvalidOperationException("Existing diagnostic input lease/device; not overlapping or removing it");
+   initialPhysicalIdle=PhysicalIdle();if(!initialPhysicalIdle)throw new InvalidOperationException("Physical keyboard/mouse/gamepad is active");
+   root=InScene<WorldPropsRoot>(scene).Single();if(!root.Ready)throw new InvalidOperationException("Original WorldPropsRoot is not ready");
+   control=root.coordinator;session=root.inventory;actor=control==null?null:control.Current;
+   if(actor==null||!actor.IsAlive||session==null||!session.Ready)throw new InvalidOperationException("Need living original Current and inventory");
+   input=actor.GetComponent<C.CharacterInputHandler>();interaction=InScene<InventoryInteraction>(scene).Single();view=InScene<InventoryView>(scene).Single();
+   if(input==null||interaction==null||view==null||!interaction.isActiveAndEnabled||!view.isActiveAndEnabled)throw new InvalidOperationException("Original input, interaction or view missing/disabled");
+   mode=SessionState.GetString("CRAFT01.InputMode","attack");if(mode!="attack"&&mode!="interact"&&mode!="inventory")throw new InvalidOperationException("Mode must be attack/interact/inventory");
+   seconds=Mathf.Clamp(SessionState.GetFloat("CRAFT01.Seconds",3),.9f,6); // 总时限包含warm/release，绝不无限持键。
+   target=root.props.SingleOrDefault(p=>p!=null&&p.instanceId==SessionState.GetString("CRAFT01.TargetInstance","stone-a"));
+   if(mode=="attack"&&(target==null||target.State==null||!target.IsAlive||actor.ActionActive||root.gameplayCamera==null))throw new InvalidOperationException("Attack needs an idle Current and the configured living actual prop in camera");
+   if(mode=="attack"&&!input.rightHandAction.bindings.Any(b=>!b.isComposite&&!b.isPartOfComposite&&string.Equals(b.effectivePath,"<Mouse>/leftButton",StringComparison.OrdinalIgnoreCase)))throw new InvalidOperationException("Original rightHandAction lacks mouse-left binding; no binding changed");
+   Focus(true);focusChanged=true;
+   if(mode!="inventory"&&(!actor.CanSimulateIntent||!control.IsIntentSamplingAllowed||!input.HasPlayerInput))throw new InvalidOperationException("Original world/UI capture gate rejects this action; no bypass");
+   if(mode=="interact")
+   {
+    expectedPickupContainer=session.AccessibleExternal.OrderBy(id=>Vector3.SqrMagnitude((session.ContainerPosition(id)??actor.transform.position)-actor.transform.position)).FirstOrDefault(session.IsLoosePickup);
+    expectedPickupDefinition=expectedPickupContainer==null?null:session.Ledger.Items.FirstOrDefault(i=>i.Location.ContainerId==expectedPickupContainer)?.DefinitionId;
+    if(expectedPickupDefinition==null)throw new InvalidOperationException("No accessible actual loose item; not sending F into merchant/campfire context");
+   }
+   keyboard=InputSystem.AddDevice<Keyboard>("CRAFT01ProbeKeyboard");devicesRemoved=false;mouse=InputSystem.AddDevice<Mouse>("CRAFT01ProbeMouse");
+   if(mode=="interact")pulseKey=ReadButtonKey(interaction.interactAction);else if(mode=="inventory")pulseKey=ReadButtonKey(view.toggleAction);
+   var actions=new HashSet<InputAction>();foreach(var item in control.Characters){Collect(item.GetComponent<C.CharacterInputHandler>(),actions);var layout=item.GetComponent<C.CharacterInputHandler>()?.inputLayout;if(layout!=null)foreach(var action in layout.ConfiguredActions())actions.Add(action);}
+   Collect(control,actions);Collect(interaction,actions);Collect(view,actions);if(root.gameplayCamera!=null){var map=InScene<Ossastra.MapResearch.MapResearchRoot>(scene).SingleOrDefault();if(map!=null&&map.cameraInput!=null)Collect(map.cameraInput,actions);}
+   foreach(var map in actions.Where(a=>a!=null).Select(a=>a.actionMap).Where(a=>a!=null).Distinct()){var old=map.devices;filters.Add(new Filter{map=map,had=old.HasValue,old=old.HasValue?old.Value.ToArray():null});map.devices=new InputDevice[]{keyboard,mouse};}
+   positionBefore=actor.transform.position;releaseBefore=actor.ReleaseCount;hpBefore=target==null||target.Health==null?-1:target.Health.Current;phaseBefore=target?.State?.Phase.ToString();openBefore=view.IsOpen;teamBefore=Team();groundBefore=Ground();
+   pointer=mode=="attack"?ProjectTarget():new Vector2(Screen.width*.5f,Screen.height*.5f);began=lastTrace=EditorApplication.timeSinceStartup;Running=true;
+   interaction.interactAction.performed+=InteractPerformed;view.toggleAction.performed+=TogglePerformed;InputSystem.onBeforeUpdate+=Before;EditorApplication.update+=Tick;EditorApplication.playModeStateChanged+=ModeChanged;AssemblyReloadEvents.beforeAssemblyReload+=Reload;
+   var gameView=typeof(EditorWindow).Assembly.GetType("UnityEditor.GameView");if(gameView!=null)EditorWindow.GetWindow(gameView).Focus();
+   Publish(false);ctx.ReturnValue=new{started=true,runId,mode,totalSeconds=seconds,actor=actor.ActorId,target=target==null?null:target.instanceId,keyboardKey=pulseKey.ToString(),deviceFilterMaps=filters.Count,pollType="CRAFT01PresentationInputProbe",pollField="ResultJson",scope="Original InputAction virtual events only; explicit original focus callbacks, no gameplay API calls"};
+  }
+  catch(Exception ex){error=ex.ToString();Cleanup();ctx.ReturnValue=new{started=false,result=ResultJson};}
+ }
+ static void InteractPerformed(InputAction.CallbackContext context){if(Running)interactionPressedFrames++;}
+ static void TogglePerformed(InputAction.CallbackContext context){if(Running)togglePressedFrames++;}
+ static void Before()
+ {
+  if(!Running||!Application.isPlaying||keyboard==null||mouse==null||InputState.currentUpdateType!=InputUpdateType.Dynamic)return;
+  // Editor后台新增device会被InputManager单独禁用；只恢复本夹具拥有的虚拟设备，不改全局后台策略。
+  if(!keyboard.enabled)InputSystem.EnableDevice(keyboard);if(!mouse.enabled)InputSystem.EnableDevice(mouse);
+  InputSystem.QueueStateEvent(keyboard,new KeyboardState(keys));InputSystem.QueueStateEvent(mouse,new MouseState{position=pointer,buttons=mouseDown?(ushort)1:(ushort)0});
+ }
+ static void Tick()
+ {
+  if(!Running)return;
+  try
+  {
+   double now=EditorApplication.timeSinceStartup,elapsed=now-began;if(elapsed>seconds+2)throw new TimeoutException("Bounded probe exceeded deadline");
+   if(!Application.isPlaying||SceneManager.GetActiveScene().path!=Lab||EditorApplication.isPaused||Time.timeScale!=1||root==null||!root.Ready||control==null||control.Current!=actor||actor==null||!actor.IsAlive)throw new InvalidOperationException("Original scene/Current/life/time changed; cancelling only owned input");
+   if(!PhysicalIdle())throw new InvalidOperationException("Physical input detected; probe relinquishes its devices");
+   if(lastFrame==Time.frameCount)return;lastFrame=Time.frameCount;
+   if(input.CurrentFrame.attackHeld||input.CurrentFrame.attackPressed)attackFrames++;if(mode=="interact"&&keyboard!=null&&pulseKey!=Key.None&&keyboard[pulseKey].isPressed)interactionPressedFrames++;
+   if(elapsed>=seconds){Cleanup();return;}
+   keys=Array.Empty<Key>();mouseDown=false;
+   if(mode=="attack"&&elapsed>=.35&&elapsed<seconds-.15){pointer=ProjectTarget();mouseDown=(elapsed-.35)%.65<.18;}
+   else if(mode!="attack"&&elapsed>=.35&&elapsed<.50)keys=new[]{pulseKey};
+   if(now-lastTrace>=.15&&trace.Count<45){lastTrace=now;trace.Add(new{seconds=elapsed,Time.frameCount,actor.ReleaseCount,targetHP=target==null||target.Health==null?-1:target.Health.Current,targetPhase=target?.State?.Phase.ToString(),viewOpen=view.IsOpen,interaction.Prompt,input.CurrentFrame.attackHeld,input.CurrentFrame.attackPressed,input.CurrentFrame.attackPointerBlocked,framePointer=input.CurrentFrame.pointer.ToString("R"),virtualPointer=mouse.position.ReadValue().ToString("R"),frameHasPointer=input.CurrentFrame.hasPointer,aim=input.CurrentFrame.aimSource.ToString(),canSim=actor.CanSimulateIntent,hasPlayer=input.HasPlayerInput,input.InventoryCaptured,controlSampling=control.IsIntentSamplingAllowed,virtualKey=pulseKey==Key.None?false:keyboard[pulseKey].isPressed,virtualMouse=mouse.leftButton.isPressed,team=Team(),groundQuantity=Ground().Sum(r=>r.quantity)});}
+   Publish(false);
+  }catch(Exception ex){error=ex.ToString();Cleanup();}
+ }
+ static Vector2 ProjectTarget(){if(target==null||root==null||root.gameplayCamera==null)throw new InvalidOperationException("Actual target/camera unavailable");var p=root.gameplayCamera.WorldToScreenPoint(target.WorldPosition);if(p.z<=0||p.x<0||p.y<0||p.x>=Screen.width||p.y>=Screen.height)throw new InvalidOperationException("Actual target is outside GameView; no fabricated hit");return new Vector2(p.x,p.y);}
+ // 后台GameView会保留上次鼠标按下；不重置实体Mouse，记录并要求该基线在夹具内不变。
+ static bool mouseBaselineSet,mouseBaselineHeld;
+ static bool PhysicalIdle(){bool held=InputSystem.devices.Where(d=>d!=mouse).OfType<Mouse>().Any(m=>m.leftButton.isPressed||m.rightButton.isPressed||m.middleButton.isPressed);if(!mouseBaselineSet){mouseBaselineSet=true;mouseBaselineHeld=held;}return held==mouseBaselineHeld&&InputSystem.devices.Where(d=>d!=keyboard&&d!=mouse).All(d=>!(d is Keyboard k&&k.allKeys.Any(c=>c!=null&&c.isPressed))&&!(d is Gamepad g&&(g.leftStick.ReadValue().sqrMagnitude>.04f||g.rightStick.ReadValue().sqrMagnitude>.04f||g.allControls.OfType<ButtonControl>().Any(b=>b.isPressed))));}
+ static Key ReadButtonKey(InputAction action){foreach(var b in action.bindings){if(b.isComposite||b.isPartOfComposite)continue;var path=b.effectivePath;if(path!=null&&path.StartsWith("<Keyboard>/",StringComparison.OrdinalIgnoreCase)&&keyboard[path.Substring(path.LastIndexOf('/')+1)] is KeyControl key)return key.keyCode;}throw new InvalidOperationException("Original action has no supported direct keyboard binding: "+action.name);}
+ static void Collect(object owner,HashSet<InputAction> actions){if(owner==null)return;foreach(var f in owner.GetType().GetFields(BindingFlags.Instance|BindingFlags.Public))if(f.FieldType==typeof(InputAction)&&f.GetValue(owner) is InputAction action)actions.Add(action);}
+ static T[] InScene<T>(Scene scene)where T:Component=>scene.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<T>(true)).ToArray();
+ static Dictionary<string,int> Team()=>session==null||session.Ledger==null?new Dictionary<string,int>():session.Ledger.Items.Where(i=>i.Location.ContainerId=="team").GroupBy(i=>i.DefinitionId).ToDictionary(g=>g.Key,g=>g.Sum(i=>i.Quantity),StringComparer.Ordinal);
+ static GroundRow[] Ground(){if(session==null||session.Ledger==null)return Array.Empty<GroundRow>();var ids=new HashSet<string>(session.GroundContainers,StringComparer.Ordinal);return session.Ledger.Items.Where(i=>ids.Contains(i.Location.ContainerId)).Select(i=>new GroundRow{containerId=i.Location.ContainerId,itemId=i.Id,definitionId=i.DefinitionId,quantity=i.Quantity}).ToArray();}
+ static void Focus(bool focused){var actors=control==null?Array.Empty<C.CharacterRoot>():control.Characters.ToArray();if(control!=null)typeof(C.CharacterControlCoordinator).GetMethod("OnApplicationFocus",Hidden)?.Invoke(control,new object[]{focused});foreach(var item in actors)if(item!=null)typeof(C.CharacterRoot).GetMethod("OnApplicationFocus",Hidden)?.Invoke(item,new object[]{focused});if(interaction!=null)typeof(InventoryInteraction).GetMethod("OnApplicationFocus",Hidden)?.Invoke(interaction,new object[]{focused});if(view!=null)typeof(InventoryView).GetMethod("OnApplicationFocus",Hidden)?.Invoke(view,new object[]{focused});}
+ static void ModeChanged(PlayModeStateChange mode){if(mode==PlayModeStateChange.ExitingPlayMode)Cancel("Play mode exited");}static void Reload()=>Cancel("Domain reload");
+ public static void Cancel(string reason){error=reason;Cleanup();}
+ static void CaptureEnd(){releaseAfter=actor==null?releaseBefore:actor.ReleaseCount;positionAfter=actor==null?positionBefore:actor.transform.position;hpAfter=target==null||target.Health==null?-1:target.Health.Current;phaseAfter=target?.State?.Phase.ToString();openAfter=view!=null&&view.IsOpen;teamAfter=Team();groundAfter=Ground();finishedSnapshot=true;}
+ static void Cleanup()
+ {
+  Running=false;if(interaction!=null)interaction.interactAction.performed-=InteractPerformed;if(view!=null)view.toggleAction.performed-=TogglePerformed;EditorApplication.update-=Tick;InputSystem.onBeforeUpdate-=Before;EditorApplication.playModeStateChanged-=ModeChanged;AssemblyReloadEvents.beforeAssemblyReload-=Reload;keys=Array.Empty<Key>();mouseDown=false;
+  try{CaptureEnd();}catch(Exception ex){error+="\nEnd snapshot: "+ex.Message;}
+  try{if(keyboard!=null)InputSystem.ResetDevice(keyboard);if(mouse!=null)InputSystem.ResetDevice(mouse);}catch(Exception ex){error+="\nOwned input reset: "+ex.Message;}
+  foreach(var filter in filters)try{var now=filter.map.devices;if(now.HasValue&&now.Value.Count==2&&now.Value.Contains(keyboard)&&now.Value.Contains(mouse))filter.map.devices=filter.had?filter.old:null;else externalFilters++;}catch(Exception ex){error+="\nFilter restore: "+ex.Message;}
+  try{if(keyboard!=null&&InputSystem.devices.Contains(keyboard))InputSystem.RemoveDevice(keyboard);}catch(Exception ex){error+="\nKeyboard cleanup: "+ex.Message;}
+  try{if(mouse!=null&&InputSystem.devices.Contains(mouse))InputSystem.RemoveDevice(mouse);}catch(Exception ex){error+="\nMouse cleanup: "+ex.Message;}
+  devicesRemoved=(keyboard==null||!InputSystem.devices.Contains(keyboard))&&(mouse==null||!InputSystem.devices.Contains(mouse));keyboard=null;mouse=null;
+  if(focusChanged)try{Focus(Application.isFocused);}catch(Exception ex){error+="\nFocus restore: "+ex.Message;}
+  Publish(true);
+ }
+ static void Publish(bool done)
+ {
+  if(!done)CaptureEnd();int Before(string id)=>id!=null&&teamBefore.TryGetValue(id,out var n)?n:0;int After(string id)=>id!=null&&teamAfter.TryGetValue(id,out var n)?n:0;
+  int groundExpectedBefore=groundBefore.Where(r=>r.definitionId==expectedPickupDefinition).Sum(r=>r.quantity),groundExpectedAfter=groundAfter.Where(r=>r.definitionId==expectedPickupDefinition).Sum(r=>r.quantity);
+  bool behavior=mode=="attack"?attackFrames>0&&releaseAfter>releaseBefore&&hpAfter>=0&&hpBefore>hpAfter:mode=="interact"?interactionPressedFrames>0&&After(expectedPickupDefinition)>Before(expectedPickupDefinition)&&groundExpectedAfter<groundExpectedBefore:mode=="inventory"&&togglePressedFrames>0&&openAfter!=openBefore;
+  bool passed=string.IsNullOrEmpty(error)&&finishedSnapshot&&behavior&&devicesRemoved&&externalFilters==0;
+  ResultJson=JsonConvert.SerializeObject(new{done,Running,status=!done?"RUNNING":passed?"PASS":"UNRESOLVED_OR_FAILED",runId,mode,error,actor=actor==null?null:actor.ActorId,target=target==null?null:target.instanceId,totalSeconds=EditorApplication.timeSinceStartup-began,initialPhysicalStateStable=initialPhysicalIdle,mouseBaselineHeld,keyboardKey=pulseKey.ToString(),hpBefore,hpAfter,phaseBefore,phaseAfter,releaseBefore,releaseAfter,attackFrames,interactionPressedFrames,togglePressedFrames,positionBefore=positionBefore.ToString("R"),positionAfter=positionAfter.ToString("R"),teamBefore,teamAfter,groundBefore,groundAfter,expectedPickupDefinition,expectedPickupContainer,viewBefore=openBefore,viewAfterInput=openAfter,viewAfterFocusRestore=view!=null&&view.IsOpen,devicesRemoved,externalFiltersPreserved=externalFilters,trace,scope="Bounded original InputSystem virtual events; explicit original focus-callback fixture restored to Application.isFocused. Own virtual devices explicitly enabled in Dynamic update because the Editor background device flag differs from domain focus; no physical device changes. Not OS/hardware coverage. No Teleport/Move/HP/items/time/binding writes, no direct Request/Resolve/OnHit. Input result is captured before focus restoration (which may close UI when the application is unfocused), reported separately from post-restoration UI."});
+ }
+}

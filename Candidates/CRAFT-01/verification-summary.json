@@ -1,0 +1,147 @@
+{
+  "schema": 1,
+  "task": "CRAFT-01",
+  "verifiedDate": "2026-11-01",
+  "baseline": "8c419d8639c67549eb97cd4d58f2c6f12dbf575d",
+  "hostTests": {
+    "core": 74,
+    "conversion": 17,
+    "sessionConversion": 5,
+    "legacyInventory": 28,
+    "legacyReward": 6,
+    "serviceLifecycle": 9,
+    "persistence": 41,
+    "total": 180
+  },
+  "nativeEvidence": [
+    {
+      "name": "walkthrough-03.json",
+      "sha256": "6776b791355b71fc012e2d71935f15277c468676eb4c8686fe4468d900260ffb",
+      "bytes": 94275,
+      "status": "PASS"
+    },
+    {
+      "name": "strict-snapshot-green.json",
+      "sha256": "13b71319fe98ca74a6933388fa82da36ccea06760fb16710906960f01f7293b9",
+      "bytes": 2028,
+      "status": "PASS"
+    },
+    {
+      "name": "patched-lifecycle-transit.json",
+      "sha256": "a2f4010e76479f55f2cf54b4375ee4e7070d733fc4adbb32b0cc4577ddc9932d",
+      "bytes": 486,
+      "status": "PASS"
+    },
+    {
+      "name": "patched-lifecycle-return.json",
+      "sha256": "0a9f9e3356b9d6d0fb80cb8425c2fba7162d39035305305a5ca0ed382c1b71b5",
+      "bytes": 527,
+      "status": "PASS"
+    },
+    {
+      "name": "iofault-green.json",
+      "sha256": "4aca470dc9171882835cd6a83dcb317aadf929a10f91e2d67ce50f6bd9a37ecf",
+      "bytes": 6372,
+      "status": "PASS"
+    },
+    {
+      "name": "final-editor-20261101.json",
+      "sha256": "e4e66a903369cd1cf0e0804e3dd6a622e0a9819d7bff3fd93368e73625c144f4",
+      "bytes": 1203,
+      "status": "PASS"
+    },
+    {
+      "name": "final-console-20261101.json",
+      "sha256": "f8c25896f52ab52e84b6f8abfe3e5096374b7bf88a1348639d6e1433f78ed0b1",
+      "bytes": 247,
+      "status": true
+    }
+  ],
+  "sourceSHA256": [
+    {
+      "path": "Assets/OSSASTRA/Scripts/Characters/Core/Inventory/InventoryConversion.cs",
+      "sha256": "2eaff0e2fde77a89617b48c6763ffffffdfd03ee78dc8397c87ef73cace73659"
+    },
+    {
+      "path": "Assets/OSSASTRA/Scripts/Commerce/Runtime/CommerceService.cs",
+      "sha256": "f0f9ca33664d5744ee9260bc2d5f875a30bd5113099089930b73429cf001a794"
+    },
+    {
+      "path": "Assets/OSSASTRA/Scripts/Crafting/Core/CraftIdentity.cs",
+      "sha256": "43c25f079cc681cafaa7e4151c0b3ec9f80b5f731aea0fe46cf08a74976aa79d"
+    },
+    {
+      "path": "Assets/OSSASTRA/Scripts/Crafting/Core/CraftMaterialPlan.cs",
+      "sha256": "a724752e16191852959a8cb8568c3887c4de9b3ccf1987a2063e1ffae7f58660"
+    },
+    {
+      "path": "Assets/OSSASTRA/Scripts/Crafting/Core/CraftPlanner.cs",
+      "sha256": "12d225efcd2191ae0d85ae6a14b453a3570e4cf809c898b267e40791ca3440cc"
+    },
+    {
+      "path": "Assets/OSSASTRA/Scripts/Crafting/Core/CraftReceiptJournal.cs",
+      "sha256": "8994fde4ad8ed018393b9feeb6d86eb70ff2a53871e5b357c969944af06490f9"
+    },
+    {
+      "path": "Assets/OSSASTRA/Scripts/Crafting/Core/CraftRecipe.cs",
+      "sha256": "0d8b46fb6a2474eded44902c16cfee179d5821b315416560e1756efc1556877c"
+    },
+    {
+      "path": "Assets/OSSASTRA/Scripts/Crafting/Editor/CraftingAuthoring.cs",
+      "sha256": "34e8838fb03b22bbc2f1512a544e16cc482bf3e58378e58c402a889cc273ccec"
+    },
+    {
+      "path": "Assets/OSSASTRA/Scripts/Crafting/Presentation/CraftingPresentationContracts.cs",
+      "sha256": "61f4b3e73b4dfbe89334aec789db59f1685494181e35291072cd4fb264b6c2bc"
+    },
+    {
+      "path": "Assets/OSSASTRA/Scripts/Crafting/Presentation/CraftingUIRoot.cs",
+      "sha256": "b8156cc9bcbb6336564032c28199c572750e48dc3485903ffb6ee5d8f5c1b143"
+    },
+    {
+      "path": "Assets/OSSASTRA/Scripts/Crafting/Presentation/CraftingUIWidgets.cs",
+      "sha256": "368b469aed7d0a132043d8ac5257874ca669a0feba4ff7a1591026df6bd192db"
+    },
+    {
+      "path": "Assets/OSSASTRA/Scripts/Crafting/Runtime/CraftingPersistence.cs",
+      "sha256": "4fb4e17507c3472829370f69ddfb6512763ad0bb8b39a71e0e44056863e3220b"
+    },
+    {
+      "path": "Assets/OSSASTRA/Scripts/Crafting/Runtime/CraftingRecipeSO.cs",
+      "sha256": "afb09f4484dfc2caa45503ba0a3da4f3b4fa34dc9f34eb63a97390119dddac5b"
+    },
+    {
+      "path": "Assets/OSSASTRA/Scripts/Crafting/Runtime/CraftingRoot.cs",
+      "sha256": "d64199a7e495d932aa3df273c4d75f66678a60aefd2e88043063f62b487edaf6"
+    },
+    {
+      "path": "Assets/OSSASTRA/Scripts/Crafting/Runtime/CraftingStation.cs",
+      "sha256": "e405c724216bc6ab7184eb99afa16f3bcf3a7b0ddcf34404efc21a5cf70e9df2"
+    },
+    {
+      "path": "Assets/OSSASTRA/Scripts/Crafting/Runtime/CraftingStationDefinitionSO.cs",
+      "sha256": "e670a1b7d807d03da12a4a73144f9aec5b9df230cddf608887fd0d9be69dda4c"
+    },
+    {
+      "path": "Assets/OSSASTRA/Scripts/Crafting/Runtime/CraftingTransactions.cs",
+      "sha256": "c8018deaf914f186de87e56704a198b80413a84e0af9f848b791b1a4b57b21ae"
+    },
+    {
+      "path": "Assets/OSSASTRA/Scripts/GroundSurfaces/Editor/GroundSurfaceSceneAccess.cs",
+      "sha256": "0c4602010304693b0c3a373723eed2468910cd3cdfd7c8dca09b084db939c9a7"
+    },
+    {
+      "path": "Assets/OSSASTRA/Scripts/Inventory/InventoryInteraction.cs",
+      "sha256": "6b85cbb7b716b5d31a71972c0b5d3db32367aba535e9bead1cd17b8594e39d76"
+    },
+    {
+      "path": "Assets/OSSASTRA/Scripts/Inventory/InventorySessionConversion.cs",
+      "sha256": "defa8830a0ae621261e52318b0216578b171fa065decab2e3dad8fdcd06f4d9a"
+    },
+    {
+      "path": "Assets/OSSASTRA/Scripts/MapResearch/Runtime/MapResearchRoot.cs",
+      "sha256": "f4036782fdb8a50edfc5d4bae48b656cf75c69756e87c045ba21a0dbeeb1b34f"
+    }
+  ],
+  "scope": "Virtual original InputAction and uGUI; original Motor position/focus fixtures; no hardware, Player, process-restart or final art certification. Actual media/scenes/assets/maps/savefiles stay local. This file contains evidence names/hashes and counts only, no save payloads or derived media."
+}

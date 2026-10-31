@@ -1,0 +1,68 @@
+{
+  "scope": "Pure Core and own Editor authoring source/CoreTests only; no Native/Unity or Git operations",
+  "language": "C#7.3",
+  "red": {
+    "passed": 0,
+    "failed": 41,
+    "log": "red.log"
+  },
+  "coreFinalGreen": {
+    "passed": 46,
+    "failed": 0,
+    "log": "green-final.log"
+  },
+  "receiptRed": {
+    "passed": 46,
+    "failed": 27,
+    "log": "receipt-red.log"
+  },
+  "guidBoundaryRed": {
+    "passed": 73,
+    "failed": 1,
+    "log": "receipt-guid-red.log"
+  },
+  "finalGreen": {
+    "passed": 74,
+    "failed": 0,
+    "log": "receipt-green-final.log"
+  },
+  "editorOfflineCompile": {
+    "warnings": 0,
+    "errors": 0,
+    "log": "editor-compile.log",
+    "nativeExecution": "NOT_TESTED: Root must validate menu/Inspector/Undo in real Editor"
+  },
+  "files": [
+    {
+      "path": "E:\\WORLDCREATOR\\new\\Project_ANKALUTE\\Assets\\OSSASTRA\\Scripts\\Crafting\\Core\\CraftIdentity.cs",
+      "sha256": "43c25f079cc681cafaa7e4151c0b3ec9f80b5f731aea0fe46cf08a74976aa79d",
+      "lines": 94
+    },
+    {
+      "path": "E:\\WORLDCREATOR\\new\\Project_ANKALUTE\\Assets\\OSSASTRA\\Scripts\\Crafting\\Core\\CraftMaterialPlan.cs",
+      "sha256": "a724752e16191852959a8cb8568c3887c4de9b3ccf1987a2063e1ffae7f58660",
+      "lines": 61
+    },
+    {
+      "path": "E:\\WORLDCREATOR\\new\\Project_ANKALUTE\\Assets\\OSSASTRA\\Scripts\\Crafting\\Core\\CraftPlanner.cs",
+      "sha256": "12d225efcd2191ae0d85ae6a14b453a3570e4cf809c898b267e40791ca3440cc",
+      "lines": 72
+    },
+    {
+      "path": "E:\\WORLDCREATOR\\new\\Project_ANKALUTE\\Assets\\OSSASTRA\\Scripts\\Crafting\\Core\\CraftReceiptJournal.cs",
+      "sha256": "8994fde4ad8ed018393b9feeb6d86eb70ff2a53871e5b357c969944af06490f9",
+      "lines": 268
+    },
+    {
+      "path": "E:\\WORLDCREATOR\\new\\Project_ANKALUTE\\Assets\\OSSASTRA\\Scripts\\Crafting\\Core\\CraftRecipe.cs",
+      "sha256": "0d8b46fb6a2474eded44902c16cfee179d5821b315416560e1756efc1556877c",
+      "lines": 139
+    },
+    {
+      "path": "E:\\WORLDCREATOR\\new\\Project_ANKALUTE\\Assets\\OSSASTRA\\Scripts\\Crafting\\Editor\\CraftingAuthoring.cs",
+      "sha256": "34e8838fb03b22bbc2f1512a544e16cc482bf3e58378e58c402a889cc273ccec",
+      "lines": 337
+    }
+  ],
+  "writerReleased": true
+}

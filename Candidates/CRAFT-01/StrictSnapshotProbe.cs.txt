@@ -1,0 +1,45 @@
+/* 纯候选恢复验收：不发布、不改活状态、不写文件。只能在本轮隔离场的已制作档上执行。 */
+using System;using System.Linq;using UnityEngine;using Newtonsoft.Json;using Newtonsoft.Json.Linq;using Ossastra.Commerce.Runtime;using Funplay.Editor.Tools.Scripting;
+public sealed class CraftStrictSnapshotProbe:IFunplayCommand
+{
+ public void Execute(ExecutionContext c)
+ {
+  var r=UnityEngine.Object.FindObjectOfType<Ossastra.Crafting.CraftingRoot>();if(!Application.isPlaying||r==null||!r.Ready||r.commerce.profileId!="crafting-walkthrough-03"||r.ReceiptCount!=3)throw new Exception("需本轮连续验证完成后的隔离同快照");
+  var aggregate=r.commerce.Capture();var original=r.Capture();var before=original.payload;long revision=r.inventory.Ledger.MutationRevision;var facts=new System.Collections.Generic.List<object>();
+  if(!r.TryPrepareRestore(original,aggregate,out var valid,out var reason)||valid==null)throw new Exception("有效section不能准备："+reason);
+  facts.Add(new{test="valid-section",accepted=true});
+  foreach(string kind in new[]{"schema","missing-payload-schema","malformed-json","catalog-fingerprint","recipe-version","unknown-recipe","unknown-station-definition","wrong-request-fingerprint","wrong-material-total","wrong-output-total","existing-output-identity-conflict"})
+  {
+   var section=new CommerceSnapshotSection{key=original.key,schema=original.schema,payload=original.payload};var agg=CommerceSnapshotCodec.Decode(CommerceSnapshotCodec.Encode(aggregate));
+   var j=JObject.Parse(section.payload);var receipt=(JObject)j["receipts"][1];
+   switch(kind)
+   {
+    case "schema":section.schema=99;break;
+    case "missing-payload-schema":j.Remove("schema");break;
+    case "malformed-json":section.payload="{";break;
+    case "catalog-fingerprint":j["catalogFingerprint"]="invalid";break;
+    case "recipe-version":receipt["version"]=99;break;
+    case "unknown-recipe":receipt["recipeId"]="unknown-craft-recipe";break;
+    case "unknown-station-definition":receipt["stationDefinitionId"]="unknown-station";break;
+    case "wrong-request-fingerprint":receipt["fingerprint"]=new string('0',64);break;
+    case "wrong-material-total":receipt["consumptions"][0]["quantity"]=99;break;
+    case "wrong-output-total":receipt["outputs"][0]["quantity"]=99;break;
+    case "existing-output-identity-conflict":
+     var outputId=(string)receipt["outputs"][0]["itemId"];var live=agg.economy.inventory.items.Single(i=>i.id==outputId);live.definitionId="world-stone";break;
+   }
+   if(kind!="malformed-json")section.payload=j.ToString(Formatting.None);
+   bool accepted=r.TryPrepareRestore(section,agg,out var candidate,out reason);facts.Add(new{test=kind,accepted,reason});
+   if(accepted||candidate!=null||string.IsNullOrEmpty(reason))throw new Exception("坏section未明确拒绝："+kind);
+   if(r.Capture().payload!=before||r.inventory.Ledger.MutationRevision!=revision)throw new Exception("恢复准备污染活状态："+kind);
+  }
+  var participants=(CommerceSnapshotParticipants)typeof(CommerceService).GetField("snapshotParticipants",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(r.commerce);
+  foreach(string kind in new[]{"missing-crafting-section","unknown-section"})
+  {
+   var agg=CommerceSnapshotCodec.Decode(CommerceSnapshotCodec.Encode(aggregate));
+   agg.sections=kind=="missing-crafting-section"?agg.sections.Where(s=>s.key!=r.SnapshotKey).ToArray():agg.sections.Concat(new[]{new CommerceSnapshotSection{key="unknown.domain",schema=1,payload="{}"}}).ToArray();
+   bool accepted=participants.TryPrepareRestore(agg,out var candidate,out reason);facts.Add(new{test=kind,accepted,reason});
+   if(accepted||candidate!=null||string.IsNullOrEmpty(reason)||r.Capture().payload!=before||r.inventory.Ledger.MutationRevision!=revision)throw new Exception("共同section集合准备错误："+kind);
+  }
+  c.ReturnValue=new{status="PASS",facts=facts.ToArray(),liveStateUnchanged=true,receiptCount=r.ReceiptCount,profile=r.commerce.profileId,scope="真实参与者的候选Prepare，未Publish/改档；不代替完整损坏文件IO测试"};
+ }
+}

@@ -1,0 +1,204 @@
+/* CRAFT-01：真实磁盘写锁失败夹具；仅Root在Main/fault隔离档执行，不是自然操作验收。
+ * Execute启动；静态Observe()轮询到failure-held后，ReleaseAndRetry()；Cancel()随时精确释放自有锁。
+ * 只临时延后fault宿主自动checkpoint，防止其覆盖待证明的上一主档备份；finally恢复原deadline。
+ * 不删档、不改权限、不恢复旧档、不写生产资产，不另建库存/保存宿主，不直接发布恢复候选。
+ */
+using System;
+using System.IO;
+using System.Linq;
+using System.Collections.Generic;
+using System.Reflection;
+using System.Security.Cryptography;
+using System.Text;
+using System.Threading.Tasks;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEditor;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using Ossastra.Crafting;
+using Ossastra.Commerce.Runtime;
+using Ossastra.Commerce.Persistence;
+using Funplay.Editor.Tools.Scripting;
+
+public sealed class CraftSaveFailureProbe:IFunplayCommand
+{
+    const string Main="Assets/OSSASTRA/GroundWorkshop/Samples/CRAFT-01/SC_CraftingIntegration.unity";
+    const string Profile="crafting-fault-01";
+    const string Profiles="E:/WORLDCREATOR/XingHaiHuiLang/研究/装备台合成/CRAFT-01/05-unity-evidence/profiles";
+    const string LeaseKey="CRAFT-01.SaveFailureProbe.Running";
+    public static bool Running {get;private set;}
+    public static string ResultJson {get;private set;}="NOT_STARTED";
+    static CraftingRoot root;
+    static CommerceService service;
+    static CommerceSaveCoordinator coordinator;
+    static CraftingStation station;
+    static CraftingRecipeSO recipe;
+    static FileStream ownedLock;
+    static FieldInfo checkpointField;
+    static float oldCheckpoint;
+    static bool ownsDeadline,ownsWindow,passed;
+    static Task<bool> flush;
+    static string stage,error,path,baselineMainHash,baselineBackupHash,requestId,receiptJson,committedLayout;
+    static string[] newIds;
+    static int startFrame,initialReceiptCount;
+    static double started;
+    static readonly List<object> facts=new List<object>();
+
+    static void Need(bool value,string why){if(!value)throw new InvalidOperationException(why);}
+    static string Full(string value)=>Path.GetFullPath(value).TrimEnd(Path.DirectorySeparatorChar,Path.AltDirectorySeparatorChar);
+    static string BytesHash(byte[] bytes){using(var sha=SHA256.Create())return BitConverter.ToString(sha.ComputeHash(bytes)).Replace("-","").ToLowerInvariant();}
+    static string FileHash(string value)=>File.Exists(value)?BytesHash(File.ReadAllBytes(value)):null;
+    static string Hash(object value)=>BytesHash(Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(value)));
+    static string Layout(Ossastra.Inventory.InventoryLedgerSnapshot value)=>Hash(value.items.OrderBy(i=>i.id,StringComparer.Ordinal).Select(i=>new{i.id,i.definitionId,i.quantity,i.containerId,i.x,i.y,equipmentId=i.equipment==null?null:i.equipment.id}).ToArray());
+    static string Layout()=>Layout(root.inventory.Ledger.Capture());
+    static JObject Payload()=>JObject.Parse(root.Capture().payload);
+    static JToken Receipt(string id)=>Payload()["receipts"].SingleOrDefault(r=>(string)r["requestId"]==id);
+    static string[] EquipmentIds()=>root.inventory.Ledger.Items.Where(i=>i.Equipment!=null).Select(i=>i.Id).OrderBy(i=>i,StringComparer.Ordinal).ToArray();
+    static object Status()=>new{service.SaveStatus.StateRevision,service.SaveStatus.PersistedRevision,service.SaveStatus.SaveSequence,service.SaveStatus.IsSaved,service.SaveStatus.HasFailure,service.SaveStatus.IsSaving,service.SaveStatus.CanEdit,service.SaveStatus.LastError,inventoryCanEdit=root.inventory.CanEditInventory};
+    static bool SafeScenes()
+    {
+        int authored=0;
+        for(int i=0;i<SceneManager.sceneCount;i++)
+        {
+            var s=SceneManager.GetSceneAt(i);
+            if(!string.IsNullOrEmpty(s.path)){if(s.path!=Main)return false;authored++;}
+            else if(!(s.name.StartsWith("__KT_VIS01_QueryPhysics_",StringComparison.Ordinal)||s.name.StartsWith("CharacterClearanceMath_",StringComparison.Ordinal))||s.GetRootGameObjects().Any(g=>g.GetComponentsInChildren<MonoBehaviour>(true).Any()))return false;
+        }
+        return authored==1;
+    }
+    static void Guard(bool requireEdit)
+    {
+        Need(Application.isPlaying&&!EditorApplication.isPaused&&Time.timeScale==1&&SafeScenes()&&SceneManager.GetActiveScene().path==Main&&AssetDatabase.AssetPathToGUID(Main)=="d694fa04240ccaf40808408e233c70ba","只允许CRAFT Main正常Play及两个无业务脚本的原私有物理Scene");
+        var scene=SceneManager.GetActiveScene();
+        Need(root!=null&&service!=null&&root.Ready&&service.Ready&&root.commerce==service&&service.inventory==root.inventory&&root.inventory.CurrentMapId=="crafting-main"&&root.mapId=="crafting-main"&&service.mapId==root.mapId,"唯一原宿主、库存、地图或Ready已变化");
+        Need(scene.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<CraftingRoot>(true)).Single()==root,"存在重复合成根");
+        var hosts=Resources.FindObjectsOfTypeAll<CommerceService>().Where(c=>c!=null&&!EditorUtility.IsPersistent(c)&&c.gameObject.scene.IsValid()&&c.gameObject.scene.isLoaded).ToArray();
+        Need(hosts.Length==1&&hosts[0]==service,"发现其他保存宿主");
+        Need(service.profileId==Profile&&!string.IsNullOrWhiteSpace(service.saveDirectory)&&StringComparer.OrdinalIgnoreCase.Equals(Full(service.saveDirectory),Full(Profiles)),"不是明确CRAFT fault隔离档，未修改profile");
+        Need(!string.IsNullOrWhiteSpace(service.SavePath)&&Full(service.SavePath).StartsWith(Full(Profiles)+Path.DirectorySeparatorChar,StringComparison.OrdinalIgnoreCase)&&Full(service.SavePath)==Full(new CommerceFileSaveStore(Profiles).PathForProfile(Profile)),"实际SavePath不符");
+        Need(root.inventory.Coordinator.Current!=null&&root.inventory.Coordinator.Current.IsAlive,"Current角色不可用");
+        if(requireEdit)Need(root.inventory.CanEditInventory&&service.SaveStatus.CanEdit,"已有保存/库存故障，不开始新的材料提交");
+    }
+    public void Execute(ExecutionContext ctx)
+    {
+        Need(!Running&&!SessionState.GetBool(LeaseKey,false),"已有同名探针运行；只轮询原类或Cancel，不重复安装");
+        facts.Clear();root=null;service=null;coordinator=null;station=null;recipe=null;ownedLock=null;checkpointField=null;ownsDeadline=ownsWindow=passed=false;error=null;path=null;requestId=null;newIds=null;stage="preflight";started=EditorApplication.timeSinceStartup;
+        try
+        {
+            Need(Application.isPlaying&&SceneManager.GetActiveScene().path==Main,"先由Root硬门进入Main/fault Play");
+            root=SceneManager.GetActiveScene().GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<CraftingRoot>(true)).Single();service=root.commerce;Guard(true);
+            // Root's explicit position fixture may hold this exact window against physical held-input.
+            // Transfer only its marked owner in the same frame; never close an unmarked user window.
+            if(SessionState.GetBool("CRAFT-01.SaveFailurePosition.OwnedWindow",false))
+            {Need(root.userInterface!=null&&root.userInterface.IsOpen,"Root夹具窗口标记不匹配");root.userInterface.Close();SessionState.SetBool("CRAFT-01.SaveFailurePosition.OwnedWindow",false);}
+            Need(root.userInterface!=null&&!root.userInterface.IsOpen&&root.inventoryView!=null&&!root.inventoryView.IsOpen&&!root.inventoryView.HasCommerceCapture,"已有窗口；不接管用户owner");
+            Need(!SessionState.GetBool("CRAFT-01.RuntimeValidation.Running",false)&&!SessionState.GetBool("CRAFT-01.Walkthrough.Running",false)&&!SessionState.GetBool("CRAFT-01.GamepadUIProbe.Running",false),"其他任务探针仍运行");
+            var actor=root.inventory.Coordinator.Current;
+            Need(actor.CanSimulateIntent,"Current缺真实可用控制态；本探针不改焦点/传送");
+            station=root.stations.Where(s=>s!=null&&s.definition!=null&&s.definition.supported&&s.CheckAccess(actor)==null).OrderBy(s=>(s.Anchor-actor.transform.position).sqrMagnitude).FirstOrDefault();
+            Need(station!=null,"Current未靠近可用工位；由Root先显式位置夹具，本探针不搬台/角色");
+            recipe=root.recipes.Single(r=>r.recipeId=="craft-blade-recipe");
+            Need(recipe.outputs.Length==1&&recipe.outputs[0].quantity==1&&recipe.outputs[0].item.equipment!=null&&root.ReceiptCount<127,"需既有单件装备配方和有界回执余量");
+            coordinator=(CommerceSaveCoordinator)typeof(CommerceService).GetField("saves",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(service);
+            checkpointField=typeof(CommerceService).GetField("nextCheckpoint",BindingFlags.Instance|BindingFlags.NonPublic);
+            Need(coordinator!=null&&checkpointField!=null,"原协调器/deadline接缝缺失");
+            oldCheckpoint=(float)checkpointField.GetValue(service);checkpointField.SetValue(service,Time.unscaledTime+120f);ownsDeadline=true;
+            path=Full(service.SavePath);initialReceiptCount=root.ReceiptCount;
+            Need(root.Open(station)&&root.userInterface.IsOpen,"真实Root.Open未打开uGUI");ownsWindow=true;
+            facts.Add(new{test="strict-preflight",mode="EXPLICIT_API_AND_PHYSICAL_FILE_LOCK_FIXTURE",scene=Main,guid=AssetDatabase.AssetPathToGUID(Main),profile=Profile,savePath=path,recipe=recipe.recipeId,station=station.instanceId,receiptCount=initialReceiptCount,oldCheckpoint,temporaryCheckpoint=(float)checkpointField.GetValue(service),defaultProfileTouched=false});
+            stage="settle-ui";startFrame=Time.frameCount;Running=true;SessionState.SetBool(LeaseKey,true);
+            EditorApplication.update+=Tick;EditorApplication.playModeStateChanged+=ModeChanged;AssemblyReloadEvents.beforeAssemblyReload+=Reload;
+            Publish();ctx.ReturnValue=new{started=true,pollType=typeof(CraftSaveFailureProbe).FullName,pollAssembly=typeof(CraftSaveFailureProbe).Assembly.FullName,result=ResultJson};
+        }
+        catch(Exception ex){error=ex.ToString();Finish(false);ctx.ReturnValue=new{started=false,result=ResultJson};}
+    }
+    static void Tick()
+    {
+        if(!Running)return;
+        try
+        {
+            Need(EditorApplication.timeSinceStartup-started<100,"磁盘失败夹具超时；已释放自有文件锁，不自动重放制作");Guard(false);
+            if(stage=="settle-ui")
+            {
+                if(Time.frameCount-startFrame<3)return;
+                Need(root.IsSessionValid&&root.userInterface.IsOpen,"等待UI时会话失效");
+                service.RequestSave();flush=coordinator.FlushAsync();stage="baseline-flush";Publish();return;
+            }
+            if(stage=="baseline-flush")
+            {
+                if(!flush.IsCompleted)return;Need(flush.GetAwaiter().GetResult()&&service.SaveStatus.IsSaved,"基线写盘未完成，未安装写失败夹具");Guard(true);
+                baselineMainHash=FileHash(path);baselineBackupHash=FileHash(path+".bak");Need(baselineMainHash!=null&&File.Exists(path+".write.lock"),"缺已保存主档/既有写锁文件");
+                // 同一主线程同步段：无Update插入，不创建锁文件/不触碰主档/备份权限。
+                ownedLock=new FileStream(path+".write.lock",FileMode.Open,FileAccess.ReadWrite,FileShare.None);
+                var beforeIds=EquipmentIds();var beforeLayout=Layout();var preview=root.Preview(recipe.recipeId,1);
+                Need(preview!=null&&preview.Ok&&!string.IsNullOrWhiteSpace(preview.RequestId),"真实材料/容量预览失败："+preview?.Reason);requestId=preview.RequestId;
+                var result=root.Confirm(requestId);Need(result!=null&&result.Ok,"Root.Confirm未提交："+result?.Reason);
+                committedLayout=Layout();newIds=EquipmentIds().Except(beforeIds,StringComparer.Ordinal).ToArray();
+                Need(root.ReceiptCount==initialReceiptCount+1&&newIds.Length==1&&beforeLayout!=committedLayout,"成功未产生唯一真实新装备/回执");
+                receiptJson=Receipt(requestId)?.ToString(Formatting.None);Need(receiptJson!=null,"成功缺原领域回执");
+                service.RequestSave();
+                facts.Add(new{test="craft-commits-before-physical-writer-fails",requestId,newEquipmentIds=newIds,receiptCount=root.ReceiptCount,baselineMainHash,baselineBackupHash,beforeLayout,committedLayout,status=Status(),heldLockPath=path+".write.lock"});
+                stage="await-write-failure";Publish();return;
+            }
+            if(stage=="await-write-failure")
+            {
+                if(!service.SaveStatus.HasFailure||service.SaveStatus.IsSaving)return;
+                Need(ownedLock!=null&&!service.SaveStatus.CanEdit&&!root.inventory.CanEditInventory,"真实失败后保存/库存编辑门未锁定");
+                Need(FileHash(path)==baselineMainHash&&FileHash(path+".bak")==baselineBackupHash,"锁失败修改了旧主档或备份");
+                Need(root.ReceiptCount==initialReceiptCount+1&&Layout()==committedLayout,"失败回滚或改写了已提交内存事实");
+                var result=root.Confirm(requestId);
+                Need(result!=null&&result.Ok&&root.ReceiptCount==initialReceiptCount+1&&Layout()==committedLayout&&Receipt(requestId).ToString(Formatting.None)==receiptJson,"保存失败中重试同请求再次扣料/产出或改变回执");
+                facts.Add(new{test="physical-write-failure-keeps-old-files-and-new-memory",requestId,status=Status(),mainHash=FileHash(path),backupHash=FileHash(path+".bak"),sameRequestReturnedOriginalReceipt=true,newEquipmentIds=newIds,receiptCount=root.ReceiptCount});
+                stage="failure-held";Publish();return;
+            }
+            if(stage=="retry-flush")
+            {
+                if(!flush.IsCompleted)return;
+                Need(flush.GetAwaiter().GetResult()&&service.SaveStatus.IsSaved&&!service.SaveStatus.HasFailure&&service.SaveStatus.CanEdit&&root.inventory.CanEditInventory,"原RetrySave/Flush未恢复保存/编辑门");
+                Need(root.ReceiptCount==initialReceiptCount+1&&Layout()==committedLayout,"重试写盘再次改变了物品/回执");
+                var disk=new CommerceFileSaveStore(Profiles).Load(Profile,s=>
+                {
+                    if(s.PayloadSchema!=2||s.DefinitionFingerprint!=service.Economy.DefinitionFingerprint)return "原保存schema/定义指纹不符";
+                    var value=CommerceSnapshotCodec.Decode(s.Payload);
+                    return (string)typeof(CommerceService).GetMethod("ValidateSnapshot",BindingFlags.Instance|BindingFlags.NonPublic).Invoke(service,new object[]{value,root.inventory.Coordinator.Characters.Select(c=>c.ActorId).ToArray()});
+                });
+                Need(disk.Status==CommerceSaveLoadStatus.Loaded,"实际文件原完整校验失败："+disk.Error);
+                var decoded=CommerceSnapshotCodec.Decode(disk.Snapshot.Payload);var section=decoded.sections.Single(s=>s.key==root.SnapshotKey);var rows=JObject.Parse(section.payload)["receipts"];
+                Need(rows.Count()==initialReceiptCount+1&&rows.Single(r=>(string)r["requestId"]==requestId).ToString(Formatting.None)==receiptJson,"实际文件未保存同一回执/总数");
+                Need(Layout(decoded.economy.inventory)==committedLayout&&newIds.All(id=>decoded.economy.inventory.items.Count(i=>i.id==id)==1),"实际文件未保存同一唯一装备实例/材料布局");
+                Need(FileHash(path+".bak")==baselineMainHash,"原File.Replace未将旧主档保留为备份");
+                facts.Add(new{test="release-own-lock-retry-original-writer-and-read-file",requestId,status=Status(),diskStateRevision=disk.Snapshot.StateRevision,diskSaveSequence=disk.Snapshot.SaveSequence,diskReceiptCount=rows.Count(),newEquipmentIds=newIds,sameReceipt=true,oneOutputPerId=true,layoutMatches=true,mainHash=FileHash(path),backupHash=FileHash(path+".bak"),oldMainRetainedAsBackup=true,restoreCandidateValidatedOnly=true,publishRestoreCalled=false});
+                stage="completed";Finish(true);
+            }
+        }
+        catch(Exception ex){error=ex.ToString();Finish(false);}
+    }
+    public static string Observe(){Publish();return ResultJson;}
+    public static string ReleaseAndRetry()
+    {
+        try
+        {
+            Need(Running&&stage=="failure-held","必须先Observe确认failure-held；未重新制作/触碰其他lease");Guard(false);
+            Need(FileHash(path)==baselineMainHash&&root.ReceiptCount==initialReceiptCount+1&&Layout()==committedLayout,"释放前事实已变，停止并清理锁");
+            ReleaseOwnLock();service.RetrySave();flush=coordinator.FlushAsync();stage="retry-flush";
+            facts.Add(new{test="retry-entry",originalServiceRetrySave=true,originalCoordinatorFlushOnly=true,newCraftCommand=false,status=Status()});Publish();
+        }
+        catch(Exception ex){error=ex.ToString();Finish(false);}
+        return ResultJson;
+    }
+    static void ReleaseOwnLock(){var value=ownedLock;ownedLock=null;value?.Dispose();}
+    static void Publish(){ResultJson=JsonConvert.SerializeObject(new{status=Running?"RUNNING":passed?"PASS":"FAIL",stage,elapsedSeconds=EditorApplication.timeSinceStartup-started,profile=Profile,requestId,newEquipmentIds=newIds,ownedFileLock=ownedLock!=null,temporaryCheckpointOwned=ownsDeadline,error,facts},Formatting.Indented);}
+    static void Finish(bool ok)
+    {
+        Running=false;passed=ok;
+        EditorApplication.update-=Tick;EditorApplication.playModeStateChanged-=ModeChanged;AssemblyReloadEvents.beforeAssemblyReload-=Reload;
+        try{ReleaseOwnLock();}catch(Exception ex){passed=false;error=(error??"")+"; cleanup-lock: "+ex;}
+        try{if(ownsDeadline&&service!=null&&checkpointField!=null)checkpointField.SetValue(service,oldCheckpoint);}catch(Exception ex){passed=false;error=(error??"")+"; cleanup-deadline: "+ex;}finally{ownsDeadline=false;}
+        try{if(ownsWindow&&root!=null&&root.userInterface!=null)root.userInterface.Close();}catch(Exception ex){passed=false;error=(error??"")+"; cleanup-window: "+ex;}finally{ownsWindow=false;}
+        SessionState.SetBool(LeaseKey,false);Publish();
+    }
+    public static string Cancel(){if(Running){error="Root明确取消；仅清理自有锁/临时deadline/window，不回滚已提交事实";stage="cancelled";Finish(false);}else ReleaseOwnLock();return ResultJson;}
+    static void ModeChanged(PlayModeStateChange mode){if(mode==PlayModeStateChange.ExitingPlayMode||mode==PlayModeStateChange.EnteredEditMode)Cancel();}
+    static void Reload(){Cancel();}
+}

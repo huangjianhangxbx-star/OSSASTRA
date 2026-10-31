@@ -1,0 +1,326 @@
+ACTUAL_DIAGNOSTIC [COM-01] 退出保存未完成，旧主档保留：最后快照捕获失败：最后快照的库存/经济依赖已释放
+FAIL completed explicit flush with unchanged authority tolerates inventory-first exit: false exit failure although exact current aggregate was already durably flushed
+ACTUAL_DIAGNOSTIC [COM-01] 退出保存未完成，旧主档保留：最后快照捕获失败：最后快照的库存/经济依赖已释放；经济档写入失败：最新修订尚未落盘
+PASS unpersisted later ledger mutation must remain an exit failure
+ACTUAL_DIAGNOSTIC [COM-01] 退出保存未完成，旧主档保留：最后快照捕获失败：最后快照的库存/经济依赖已释放
+FAIL latest frozen request still writing can be drained after inventory release: false capture error survived even after latest frozen request completed
+PASS inventory alive finalizer captures later domain mutation before closing
+ACTUAL_DIAGNOSTIC [COM-01] 退出保存未完成，旧主档保留：最后快照捕获失败：最后快照的库存/经济依赖已释放
+FAIL later ordinary saved snapshot refreshes lifecycle checkpoint witness: latest ordinary RequestSave was durable but lifecycle witness was stale/missing
+ACTUAL_DIAGNOSTIC [COM-01] 退出保存未完成，旧主档保留：最后快照捕获失败：最后快照的库存/经济依赖已释放；经济档写入失败：IOException: injected lifecycle write failure
+PASS real failed writer cannot be hidden by successful earlier flush
+ACTUAL_DIAGNOSTIC [COM-01] 退出保存未完成，旧主档保留：最后快照捕获失败：最后快照的库存/经济依赖已释放
+PASS same host revision does not prove unchanged economy snapshot
+PASS live dependency same revision equipment change must queue newer bytes
+PASS synchronously rejected queue cannot publish a false lifecycle witness
+FACTS [
+  {
+    "test": "no-change-after-proven-flush",
+    "before": {
+      "hostRevision": 1,
+      "economyRevision": 0,
+      "economyTime": 0.0,
+      "ledgerRevision": 11,
+      "persistedRevision": 1,
+      "stateRevision": 1,
+      "saveSequence": 2,
+      "saved": true,
+      "closed": false,
+      "lifecyclePayloadPresent": false,
+      "currentStone": 3,
+      "persistedStone": 3,
+      "diagnostic": "尚未初始化",
+      "errors": []
+    },
+    "after": {
+      "hostRevision": 1,
+      "economyRevision": 0,
+      "economyTime": 0.0,
+      "ledgerRevision": 11,
+      "persistedRevision": 1,
+      "stateRevision": 1,
+      "saveSequence": 2,
+      "saved": true,
+      "closed": true,
+      "lifecyclePayloadPresent": false,
+      "currentStone": 3,
+      "persistedStone": 3,
+      "diagnostic": "退出保存未完成，旧主档保留：最后快照捕获失败：最后快照的库存/经济依赖已释放",
+      "errors": [
+        "[COM-01] 退出保存未完成，旧主档保留：最后快照捕获失败：最后快照的库存/经济依赖已释放"
+      ]
+    },
+    "persistedAggregateStillExact": true
+  },
+  {
+    "test": "true-later-dirty-state-lost",
+    "before": {
+      "hostRevision": 2,
+      "economyRevision": 1,
+      "economyTime": 0.0,
+      "ledgerRevision": 12,
+      "persistedRevision": 1,
+      "stateRevision": 2,
+      "saveSequence": 2,
+      "saved": false,
+      "closed": false,
+      "lifecyclePayloadPresent": false,
+      "currentStone": 4,
+      "persistedStone": 3,
+      "diagnostic": "尚未初始化",
+      "errors": []
+    },
+    "after": {
+      "hostRevision": 2,
+      "economyRevision": 1,
+      "economyTime": 0.0,
+      "ledgerRevision": 12,
+      "persistedRevision": 1,
+      "stateRevision": 2,
+      "saveSequence": 2,
+      "saved": false,
+      "closed": false,
+      "lifecyclePayloadPresent": false,
+      "currentStone": 4,
+      "persistedStone": 3,
+      "diagnostic": "退出保存未完成，旧主档保留：最后快照捕获失败：最后快照的库存/经济依赖已释放；经济档写入失败：最新修订尚未落盘",
+      "errors": [
+        "[COM-01] 退出保存未完成，旧主档保留：最后快照捕获失败：最后快照的库存/经济依赖已释放；经济档写入失败：最新修订尚未落盘"
+      ]
+    }
+  },
+  {
+    "test": "pending-latest-frozen-snapshot-drained",
+    "before": {
+      "hostRevision": 2,
+      "economyRevision": 1,
+      "economyTime": 0.0,
+      "ledgerRevision": 12,
+      "persistedRevision": 1,
+      "stateRevision": 2,
+      "saveSequence": 3,
+      "saved": false,
+      "closed": false,
+      "lifecyclePayloadPresent": false,
+      "currentStone": 4,
+      "persistedStone": 3,
+      "diagnostic": "尚未初始化",
+      "errors": []
+    },
+    "after": {
+      "hostRevision": 2,
+      "economyRevision": 1,
+      "economyTime": 0.0,
+      "ledgerRevision": 12,
+      "persistedRevision": 2,
+      "stateRevision": 2,
+      "saveSequence": 3,
+      "saved": true,
+      "closed": true,
+      "lifecyclePayloadPresent": false,
+      "currentStone": 4,
+      "persistedStone": 4,
+      "diagnostic": "退出保存未完成，旧主档保留：最后快照捕获失败：最后快照的库存/经济依赖已释放",
+      "errors": [
+        "[COM-01] 退出保存未完成，旧主档保留：最后快照捕获失败：最后快照的库存/经济依赖已释放"
+      ]
+    }
+  },
+  {
+    "test": "inventory-alive-final-capture",
+    "before": {
+      "hostRevision": 2,
+      "economyRevision": 1,
+      "economyTime": 0.0,
+      "ledgerRevision": 12,
+      "persistedRevision": 1,
+      "stateRevision": 2,
+      "saveSequence": 2,
+      "saved": false,
+      "closed": false,
+      "lifecyclePayloadPresent": false,
+      "currentStone": 4,
+      "persistedStone": 3,
+      "diagnostic": "尚未初始化",
+      "errors": []
+    },
+    "after": {
+      "hostRevision": 2,
+      "economyRevision": 1,
+      "economyTime": 0.0,
+      "ledgerRevision": 12,
+      "persistedRevision": 2,
+      "stateRevision": 2,
+      "saveSequence": 3,
+      "saved": true,
+      "closed": true,
+      "lifecyclePayloadPresent": true,
+      "currentStone": 4,
+      "persistedStone": 4,
+      "diagnostic": "尚未初始化",
+      "errors": []
+    }
+  },
+  {
+    "test": "newer-ordinary-request-updates-checkpoint",
+    "before": {
+      "hostRevision": 2,
+      "economyRevision": 1,
+      "economyTime": 0.0,
+      "ledgerRevision": 12,
+      "persistedRevision": 2,
+      "stateRevision": 2,
+      "saveSequence": 3,
+      "saved": true,
+      "closed": false,
+      "lifecyclePayloadPresent": false,
+      "currentStone": 4,
+      "persistedStone": 4,
+      "diagnostic": "尚未初始化",
+      "errors": []
+    },
+    "after": {
+      "hostRevision": 2,
+      "economyRevision": 1,
+      "economyTime": 0.0,
+      "ledgerRevision": 12,
+      "persistedRevision": 2,
+      "stateRevision": 2,
+      "saveSequence": 3,
+      "saved": true,
+      "closed": true,
+      "lifecyclePayloadPresent": false,
+      "currentStone": 4,
+      "persistedStone": 4,
+      "diagnostic": "退出保存未完成，旧主档保留：最后快照捕获失败：最后快照的库存/经济依赖已释放",
+      "errors": [
+        "[COM-01] 退出保存未完成，旧主档保留：最后快照捕获失败：最后快照的库存/经济依赖已释放"
+      ]
+    },
+    "persistedAggregateStillExact": true
+  },
+  {
+    "test": "real-write-failure",
+    "before": {
+      "hostRevision": 2,
+      "economyRevision": 1,
+      "economyTime": 0.0,
+      "ledgerRevision": 12,
+      "persistedRevision": 1,
+      "stateRevision": 2,
+      "saveSequence": 3,
+      "saved": false,
+      "closed": false,
+      "lifecyclePayloadPresent": false,
+      "currentStone": 4,
+      "persistedStone": 3,
+      "diagnostic": "尚未初始化",
+      "errors": []
+    },
+    "after": {
+      "hostRevision": 2,
+      "economyRevision": 1,
+      "economyTime": 0.0,
+      "ledgerRevision": 12,
+      "persistedRevision": 1,
+      "stateRevision": 2,
+      "saveSequence": 3,
+      "saved": false,
+      "closed": false,
+      "lifecyclePayloadPresent": false,
+      "currentStone": 4,
+      "persistedStone": 3,
+      "diagnostic": "退出保存未完成，旧主档保留：最后快照捕获失败：最后快照的库存/经济依赖已释放；经济档写入失败：IOException: injected lifecycle write failure",
+      "errors": [
+        "[COM-01] 退出保存未完成，旧主档保留：最后快照捕获失败：最后快照的库存/经济依赖已释放；经济档写入失败：IOException: injected lifecycle write failure"
+      ]
+    }
+  },
+  {
+    "test": "same-host-revision-later-economy-content",
+    "before": {
+      "hostRevision": 1,
+      "economyRevision": 1,
+      "economyTime": 0.25,
+      "ledgerRevision": 11,
+      "persistedRevision": 1,
+      "stateRevision": 1,
+      "saveSequence": 2,
+      "saved": true,
+      "closed": false,
+      "lifecyclePayloadPresent": false,
+      "currentStone": 3,
+      "persistedStone": 3,
+      "diagnostic": "尚未初始化",
+      "errors": []
+    },
+    "after": {
+      "hostRevision": 1,
+      "economyRevision": 1,
+      "economyTime": 0.25,
+      "ledgerRevision": 11,
+      "persistedRevision": 1,
+      "stateRevision": 1,
+      "saveSequence": 2,
+      "saved": true,
+      "closed": true,
+      "lifecyclePayloadPresent": false,
+      "currentStone": 3,
+      "persistedStone": 3,
+      "diagnostic": "退出保存未完成，旧主档保留：最后快照捕获失败：最后快照的库存/经济依赖已释放",
+      "errors": [
+        "[COM-01] 退出保存未完成，旧主档保留：最后快照捕获失败：最后快照的库存/经济依赖已释放"
+      ]
+    },
+    "payloadChangedBeforeDependencyRelease": true
+  },
+  {
+    "test": "live-same-revision-new-equipment-content",
+    "before": {
+      "hostRevision": 1,
+      "economyRevision": 0,
+      "economyTime": 0.0,
+      "ledgerRevision": 13,
+      "persistedRevision": 1,
+      "stateRevision": 1,
+      "saveSequence": 2,
+      "saved": true,
+      "closed": false,
+      "lifecyclePayloadPresent": false,
+      "currentStone": 3,
+      "persistedStone": 3,
+      "diagnostic": "尚未初始化",
+      "errors": []
+    },
+    "after": {
+      "hostRevision": 1,
+      "economyRevision": 0,
+      "economyTime": 0.0,
+      "ledgerRevision": 13,
+      "persistedRevision": 1,
+      "stateRevision": 1,
+      "saveSequence": 3,
+      "saved": true,
+      "closed": true,
+      "lifecyclePayloadPresent": true,
+      "currentStone": 3,
+      "persistedStone": 3,
+      "diagnostic": "尚未初始化",
+      "errors": []
+    },
+    "savedDurability": 99,
+    "savedAmmo": 3
+  },
+  {
+    "test": "queue-rejection-preserves-witness",
+    "refused": true,
+    "cacheReferencePreserved": true,
+    "cachedRevisionBefore": null,
+    "cachedRevisionAfter": null,
+    "cachedSequenceBefore": null,
+    "cachedSequenceAfter": null,
+    "saveSequenceBefore": 1,
+    "saveSequenceAfter": 1
+  }
+]
+RESULT passed=6 failed=3

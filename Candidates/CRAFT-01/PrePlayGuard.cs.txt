@@ -1,0 +1,22 @@
+/* 每次自动Play的硬门；成功回执和prepare_editor(play)必须分两步。此命令从不进入Play。 */
+using System;using System.IO;using System.Linq;using UnityEngine;using UnityEngine.SceneManagement;using UnityEditor;using UnityEditor.SceneManagement;using Funplay.Editor.Tools.Scripting;
+public sealed class CraftPrePlayGuard:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  if(EditorApplication.isPlayingOrWillChangePlaymode||EditorApplication.isCompiling||EditorApplication.isUpdating||SceneManager.sceneCount!=1||PrefabStageUtility.GetCurrentPrefabStage()!=null)throw new Exception("编辑器/附加场景/Prefab状态不安全");
+  var s=SceneManager.GetActiveScene();string main="Assets/OSSASTRA/GroundWorkshop/Samples/CRAFT-01/SC_CraftingIntegration.unity",transit="Assets/OSSASTRA/GroundWorkshop/Samples/CRAFT-01/SC_CraftingTransit.unity";
+  if(s.path!=main&&s.path!=transit)throw new Exception("不是本轮新场；拒绝启动");
+  string guid=AssetDatabase.AssetPathToGUID(s.path);if(guid!=(s.path==main?"d694fa04240ccaf40808408e233c70ba":"1bf89c4ed293e60448f15987beb4fd22"))throw new Exception("场景GUID不匹配");
+  var start=EditorSceneManager.playModeStartScene;if(start!=null&&AssetDatabase.GetAssetPath(start)!=s.path)throw new Exception("存在其他Play启动场override，拒绝启动");
+  var comps=s.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<MonoBehaviour>(true)).Where(c=>c!=null).ToArray();
+  var cs=comps.OfType<Ossastra.Commerce.Runtime.CommerceService>().ToArray();var inv=comps.OfType<Ossastra.Inventory.InventorySession>().ToArray();var roots=comps.OfType<Ossastra.Crafting.CraftingRoot>().ToArray();
+  if(cs.Length!=1||inv.Length!=1||roots.Length!=1||cs[0].inventory!=inv[0]||roots[0].inventory!=inv[0]||roots[0].commerce!=cs[0]||!cs[0].isActiveAndEnabled||!roots[0].isActiveAndEnabled)throw new Exception("唯一保存/库存/合成根或引用不符");
+  var c=cs[0];if(c.profileId!="crafting-natural-01"&&c.profileId!="crafting-fault-01"&&c.profileId!="crafting-demo-01"&&c.profileId!="crafting-walkthrough-01"&&c.profileId!="crafting-walkthrough-02"&&c.profileId!="crafting-walkthrough-03")throw new Exception("非CRAFT隔离profile");
+  string safe=Path.GetFullPath("E:/WORLDCREATOR/XingHaiHuiLang/研究/装备台合成/CRAFT-01/05-unity-evidence/profiles").TrimEnd(Path.DirectorySeparatorChar,Path.AltDirectorySeparatorChar);
+  if(string.IsNullOrWhiteSpace(c.saveDirectory)||!string.Equals(Path.GetFullPath(c.saveDirectory).TrimEnd(Path.DirectorySeparatorChar,Path.AltDirectorySeparatorChar),safe,StringComparison.OrdinalIgnoreCase))throw new Exception("保存目录不是明确CRAFT隔离目录");
+  if(c.mapId!=(s.path==main?"crafting-main":"crafting-transit")||roots[0].mapId!=c.mapId||comps.OfType<Ossastra.WorldProps.WorldPropsRoot>().Single().mapId!=c.mapId)throw new Exception("领域地图身份不一致");
+  if(!File.Exists("Assets/OSSASTRA/Crafting/PrivateCheckpoints/BeforeCrafting.unity"))throw new Exception("缺原dirty现场Native checkpoint");
+  ctx.ReturnValue=new{safeToPlay=true,scene=s.path,guid,profile=c.profileId,saveDirectory=Path.GetFullPath(c.saveDirectory),map=c.mapId,inventory=inv[0].GetInstanceID(),persistenceHost=c.GetInstanceID(),craftingRoot=roots[0].GetInstanceID(),playModeStartScene=start==null?null:AssetDatabase.GetAssetPath(start),defaultPersistentPath=Application.persistentDataPath,sceneDirty=s.isDirty};
+ }
+}

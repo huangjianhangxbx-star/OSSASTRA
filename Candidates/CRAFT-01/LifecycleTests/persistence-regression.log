@@ -1,0 +1,45 @@
+ISOLATED_ROOT E:\WORLDCREATOR\new\Project_ANKALUTE\Candidates\CRAFT-01\LifecycleTests\bin\Artifacts\20261031-121636-2acf8319bcf349bf800488f8f1cdab8f
+PASS caller mutation cannot change captured bytes
+PASS A completion cannot label dirty B as saved
+PASS flush waits through latest queued snapshot
+PASS queued latest B wins over older A and intermediate snapshots
+PASS snapshot getter cannot mutate saved bytes
+PASS close drains the writer before closing
+PASS closed generation rejects stale UI save requests
+PASS new profile writes independently
+PASS old pending write finishes only its own profile
+PASS late old callback cannot write new profile
+PASS old completion cannot alter new coordinator status
+PASS new same-profile generation commits its own state
+PASS late old session cannot overwrite reopened same profile
+PASS unknown-outcome retry of identical saved sequence is idempotent
+PASS same sequence different content cannot replace valid save
+PASS first valid snapshot is committed
+PASS real disk denial blocks only new commerce edits
+PASS existing domain changes remain dirty during save failure
+PASS failed replacement preserves previous valid main file
+PASS explicit retry persists newest memory state
+PASS retry never replays transaction or older failed snapshot
+PASS successful replacement preserves previous valid backup
+PASS success and denial clean owned temporary file
+PASS missing profile is distinguishable from invalid profile
+PASS recovering an absent backup reports missing without creating a save directory
+PASS domain validator rejects missing definitions without seeding
+PASS unknown payload schema is rejected before domain activation
+PASS corrupt snapshot is rejected and preserved unchanged
+PASS backup can be inspected without silently replacing corrupt main
+PASS explicit backup recovery restores a validated version
+PASS explicit recovery retains corrupt evidence and recovered version
+PASS orphan interrupted temporary file is never loaded as current save
+PASS invalid existing main refuses save instead of replacing evidence with seed data
+PASS invalid existing main leaves explicit recovery state
+PASS flush cannot label uncaptured newer domain revision as saved or closed
+RESTORED coins=23;stock=4;ground=item-a;hands=weapon-7;clock=19
+PASS different terminated processes write and restore the same economy bytes
+PASS restart reads persisted economy payload without initial grants
+PROCESS_EVIDENCE writer=65744 reader=66300
+PASS backup recovery fences an already queued old writer instead of letting it overwrite recovered bytes
+PASS expired backup preview is rejected without altering main backup marker or evidence
+PASS preview comparison includes frozen bytes rather than trusting matching revision and sequence
+PASS confirmed current preview restores exact backup creates a new fence and retains previous main evidence
+TOTAL 41

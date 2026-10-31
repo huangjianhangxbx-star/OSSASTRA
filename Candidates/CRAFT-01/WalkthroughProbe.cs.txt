@@ -1,0 +1,460 @@
+/* CRAFT-01录像候选：只有Root通过Native执行；本文件不是生产脚本。
+ * 位移仅原CharacterMovement.Teleport摆位夹具，每次记录；其余只发自有虚拟键鼠或原uGUI事件。
+ * 不Grant、不改HP、不Request/Confirm合成、不Inventory.Move/直接换装、不另写存档。
+ * 原F完成拾取、开窗和纤维束确认；产物ID只从真实Ledger读取。原WorldPropTravel负责共同保存跨场。
+ */
+using System;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEngine.EventSystems;
+using UnityEngine.UI;
+using UnityEditor;
+using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.UI;
+using UnityEngine.InputSystem.Controls;
+using UnityEngine.InputSystem.LowLevel;
+using Ossastra.Crafting;
+using Ossastra.Inventory;
+using Ossastra.UserInterface;
+using Ossastra.WorldProps;
+using C=Ossastra.Characters;
+using Funplay.Editor.Tools.Scripting;
+using Newtonsoft.Json;
+
+public sealed class CraftWalkthroughProbe:IFunplayCommand
+{
+    const string Main="Assets/OSSASTRA/GroundWorkshop/Samples/CRAFT-01/SC_CraftingIntegration.unity";
+    const string Transit="Assets/OSSASTRA/GroundWorkshop/Samples/CRAFT-01/SC_CraftingTransit.unity";
+    const string Profile="crafting-walkthrough-03";
+    const string Profiles="E:/WORLDCREATOR/XingHaiHuiLang/研究/装备台合成/CRAFT-01/05-unity-evidence/profiles";
+    const string Lease="CRAFT-01.Walkthrough.Running";
+    const BindingFlags Hidden=BindingFlags.Instance|BindingFlags.NonPublic;
+    static readonly string[] PropIds={"stone-a","stone-b","plant-a","line-0"};
+    sealed class Filter{public InputActionMap map;public bool had;public InputDevice[] old;}
+    public static bool Running{get;private set;}
+    public static string ResultJson{get;private set;}="NOT_STARTED";
+    static CraftingRoot root;
+    static WorldPropsRoot world;
+    static WorldPropRoot target;
+    static InventorySession inventory;
+    static InventoryView view;
+    static InventoryInteraction interaction;
+    static C.CharacterControlCoordinator control;
+    static C.CharacterRoot actor;
+    static C.CharacterInputHandler input;
+    static C.CharacterMovement motor;
+    static Keyboard keyboard;
+    static Mouse mouse;
+    static Key interactKey,toggleKey;
+    static Key[] keys=Array.Empty<Key>();
+    static ushort mouseButtons;
+    static Vector2 pointer;
+    static List<Filter> filters;
+    static List<object> facts,trace;
+    static Dictionary<int,string> physicalMouseBaseline;
+    static string stage,error,runId,actorId,bladeId,shieldId,oldRightId,oldLeftId;
+    static string beforeTravelLayout;
+    static int propIndex,lastFrame,guardFrames,attackFrames,externalFilters,stageFrame;
+    static int targetHpBefore,releaseBefore;
+    static double began,phaseAt,lastTrace;
+    static bool passed,focusApplied,devicesRemoved,finished,travelInvoked,ownsLease;
+    static InventoryPointerTarget dragSource;
+    static PointerEventData dragData;
+    static Vector2 dragFrom,dragTo;
+    static string dragItem,dragContainer;
+    static int dragSlot;
+
+    public void Execute(ExecutionContext ctx)
+    {
+        if(Running)throw new InvalidOperationException("Walkthrough正在运行，请轮询或Cancel。");
+        root=null;world=null;target=null;inventory=null;view=null;interaction=null;control=null;actor=null;input=null;motor=null;
+        keyboard=null;mouse=null;keys=Array.Empty<Key>();mouseButtons=0;filters=new List<Filter>();facts=new List<object>();trace=new List<object>();
+        physicalMouseBaseline=new Dictionary<int,string>();stage="preflight";error=null;runId=Guid.NewGuid().ToString("N");actorId=bladeId=shieldId=oldRightId=oldLeftId=beforeTravelLayout=null;
+        propIndex=0;lastFrame=-1;guardFrames=attackFrames=externalFilters=0;passed=focusApplied=finished=travelInvoked=ownsLease=false;devicesRemoved=true;dragSource=null;dragData=null;
+        began=phaseAt=lastTrace=EditorApplication.timeSinceStartup;
+        try
+        {
+            Need(Application.isPlaying&&!EditorApplication.isPaused&&Time.timeScale==1,"需要正常Play/timeScale1。");
+            Need(SafeScenes(Main,false),"严格CRAFT Main作者场及最多两个原无Mono私有物理Scene。");
+            Need(!SessionState.GetBool(Lease,false)&&!SessionState.GetBool("CRAFT-01.RuntimeValidation.Running",false)&&!SessionState.GetBool("CRAFT-01.GamepadUIProbe.Running",false)&&string.IsNullOrEmpty(SessionState.GetString("SceneVisibility.M1.InputLeaseModule","")),"已有诊断输入租约。");
+            Need(!InputSystem.devices.Any(d=>d.name.StartsWith("CRAFT01",StringComparison.Ordinal)||d.name.StartsWith("CraftShield",StringComparison.Ordinal)||d.name.StartsWith("CraftGamepad",StringComparison.Ordinal)||d.name.StartsWith("CraftWalk",StringComparison.Ordinal)||d.name.StartsWith("WP",StringComparison.Ordinal)||d.name.StartsWith("KTVIS",StringComparison.Ordinal)),"已有诊断设备，拒绝重叠。");
+            CapturePhysicalBaseline();Need(PhysicalIdle(),"物理Keyboard/Gamepad有真实输入。");
+            Bind(SceneManager.GetActiveScene(),true);
+            Need(root.ReceiptCount==0&&!inventory.Ledger.Items.Any(i=>i.Location.ContainerId=="team"),"必须fresh Team空且零合成回执。");
+            Need(!root.userInterface.IsOpen&&!view.IsOpen,"初始原背包与制作UI必须关闭。");
+            Need(root.recipes.Length==3&&root.recipes.Select(r=>r.recipeId).OrderBy(s=>s,StringComparer.Ordinal).SequenceEqual(new[]{"craft-binding-recipe","craft-blade-recipe","craft-shield-recipe"}),"必须本轮三真实配方。");
+            foreach(string id in PropIds)
+            {
+                var p=world.props.Single(prop=>prop!=null&&prop.instanceId==id);
+                Need(p.IsAlive&&p.Health.Current==8&&p.Health.Maximum==8,"材料物必须初始真实8HP Alive："+id);
+            }
+            actorId=actor.ActorId;
+            var right=inventory.Ledger.EquipmentAt(InventorySession.HandId(actorId,InventoryHand.Right));
+            var left=inventory.Ledger.EquipmentAt(InventorySession.HandId(actorId,InventoryHand.Left));
+            Need(right!=null&&left!=null&&right.DefinitionId=="temporary-a.vc02.main","Current需原默认主手与盾，不能借预装新装备完成录像。");
+            oldRightId=right.Id;oldLeftId=left.Id;
+            Need(input.rightHandAction.bindings.Any(b=>!b.isComposite&&!b.isPartOfComposite&&string.Equals(b.effectivePath,"<Mouse>/leftButton",StringComparison.OrdinalIgnoreCase)),"原主手缺Mouse left绑定。");
+            Need(input.leftHandAction.bindings.Any(b=>!b.isComposite&&!b.isPartOfComposite&&string.Equals(b.effectivePath,"<Mouse>/rightButton",StringComparison.OrdinalIgnoreCase)),"原副手缺Mouse right绑定。");
+            focusApplied=true;Focus(true); // 唯一初始后台焦点夹具；UI打开后绝不重复推进ControlRevision。
+            Need(actor.CanSimulateIntent&&input.HasPlayerInput&&control.IsIntentSamplingAllowed,"初始原角色/输入capture门不允许操作。");
+            keyboard=InputSystem.AddDevice<Keyboard>("CraftWalkKeyboard");devicesRemoved=false;
+            mouse=InputSystem.AddDevice<Mouse>("CraftWalkMouse");
+            interactKey=ReadKey(interaction.interactAction);toggleKey=ReadKey(view.toggleAction);
+            Need(interactKey==Key.F&&toggleKey==Key.Tab,"录像按当前原F/Tab绑定，未修改任何绑定。");
+            FilterOwnedInput();pointer=new Vector2(Screen.width*.5f,Screen.height*.5f);
+            SessionState.SetBool(Lease,true);ownsLease=true;Running=true;
+            InputSystem.onBeforeUpdate+=Before;EditorApplication.update+=Tick;EditorApplication.playModeStateChanged+=ModeChanged;AssemblyReloadEvents.beforeAssemblyReload+=Reload;
+            Add("preflight",new{actor=actorId,oldRightId,oldLeftId,profile=root.commerce.profileId,saveDirectory=Full(root.commerce.saveDirectory),savePath=root.commerce.SavePath,physicalMouseBaseline=physicalMouseBaseline.ToArray(),deviceFilterMaps=filters.Count,team=Team(),receipts=root.ReceiptCount});
+            Enter("opening-hold");Publish(false);
+            ctx.ReturnValue=new{started=true,runId,pollAssembly=typeof(CraftWalkthroughProbe).Assembly.FullName,pollType=typeof(CraftWalkthroughProbe).FullName,pollProperties=new[]{"Running","ResultJson"},cancelMethod="Cancel",minimumFilmSeconds=45,hardDeadlineSeconds=90,scope="位置夹具 + 原InputAction虚拟键鼠/真实uGUI事件；非实体硬件；Root另开原生录像"};
+        }
+        catch(Exception ex){error=ex.ToString();Finish(false);ctx.ReturnValue=new{started=false,result=ResultJson};}
+    }
+
+    static void Tick()
+    {
+        if(!Running)return;
+        try
+        {
+            double now=EditorApplication.timeSinceStartup;
+            Need(now-began<=90,"录像夹具超过90秒硬上限。");
+            Need(Application.isPlaying&&!EditorApplication.isPaused&&Time.timeScale==1,"Play/暂停/时标已变化。");
+            Need(PhysicalIdle(),"物理Keyboard/Gamepad输入或Mouse按钮基线变化，立即交还输入。");
+            if(lastFrame==Time.frameCount)return;lastFrame=Time.frameCount;
+            keys=Array.Empty<Key>();mouseButtons=0;
+            bool travelling=stage=="travel"||stage=="transit-hold";
+            if(!travelling)
+            {
+                Need(SafeScenes(Main,false)&&root!=null&&root.Ready&&world!=null&&world.Ready,"主作者场/原领域宿主失效。");
+                CheckIsolation(root);Need(control.Current==actor&&actor!=null&&actor.IsAlive&&actor.ActorId==actorId,"Current或生命已变化。");
+            }
+            double age=now-phaseAt;
+            switch(stage)
+            {
+                case "opening-hold": if(age>=1.2)StartProp();break;
+                case "attack-prop":
+                    Need(age<11,"采集物原输入攻击未在时限内耗尽："+target.instanceId);
+                    if(input.CurrentFrame.attackPressed||input.CurrentFrame.attackHeld)attackFrames++;
+                    if(target.State.Phase==WorldPropPhase.Depleted&&!actor.ActionActive&&age>.6)
+                    {
+                        Add("prop-depleted",new{id=target.instanceId,hpBefore=targetHpBefore,hpAfter=target.Health.Current,phase=target.State.Phase.ToString(),releases=actor.ReleaseCount-releaseBefore});
+                        Place(target.transform.position+Vector3.right*1.1f,"原F拾取的落物附近摆位");Enter("pickup-prop");
+                    }
+                    else if(age>=.35&&target.IsAlive){pointer=Project(target.WorldPosition);mouseButtons=(age-.35)%1.5<.18?(ushort)1:(ushort)0;}
+                    break;
+                case "pickup-prop":
+                    Need(age<8,"原F拾取未获得预期材料："+target.instanceId);
+                    Need(!root.userInterface.IsOpen&&!view.IsOpen,"拾取F意外进入其他UI，停止而不伪造材料。");
+                    int expectedStone=Math.Min(propIndex+1,2)*3,expectedFibre=Math.Max(0,propIndex-1)*2;
+                    if(Count("world-stone")==expectedStone&&Count("world-fibre")==expectedFibre)
+                    {
+                        Add("original-F-pickup",new{id=target.instanceId,expectedStone,expectedFibre,team=Team(),ground=Ground()});Enter("between-props");
+                    }
+                    else if(age>=.35&&HasPickup(propIndex<2?"world-stone":"world-fibre"))Pulse(interactKey,age,.35,1.5);
+                    break;
+                case "between-props": if(age>=.7){propIndex++;if(propIndex<PropIds.Length)StartProp();else {NeedMaterials(6,4,0);Enter("collection-hold");}}break;
+                case "collection-hold":
+                    if(age>=1.8){var station=root.stations.Single(s=>s!=null&&s.instanceId=="craft-station-a");Place(station.Anchor+Vector3.back*.6f,"装备台A(craft-station-a)锚点后0.6m摆位");Enter("open-station");}break;
+                case "open-station":
+                    Need(age<5,"原F未打开装备台A。");
+                    if(root.userInterface.IsOpen&&age>=.7)
+                    {Need(root.ReceiptCount==0,"开窗F误成交。");NeedMaterials(6,4,0);Add("open-F-no-craft",new{root.userInterface.IsOpen,receipts=root.ReceiptCount,root.StationName,team=Team()});Enter("binding-select");}
+                    else Pulse(interactKey,age,.35);
+                    break;
+                case "binding-select":if(age>=.6){ClickCraft("Recipe_craft-binding-recipe");Enter("binding-plus");}break;
+                case "binding-plus":
+                    if(age>=.7){Need(root.userInterface.SelectedRecipeId=="craft-binding-recipe","真实配方选择未生效。");ClickCraft("PlusQuantity");Enter("binding-F-confirm");}break;
+                case "binding-F-confirm":
+                    Need(age<5,"原F未完成2份纤维束。");
+                    Need(!root.userInterface.IsQuantityFocused,"数量InputField处于焦点，不能用F替代输入文本。");
+                    Need(CraftInput("Quantity").text=="2","真实数量不是2。");
+                    if(root.ReceiptCount==1&&Count("craft-binding")==2){NeedMaterials(6,0,2);Add("binding-confirmed-by-original-F",new{receipts=root.ReceiptCount,team=Team(),root.userInterface.ResultNotice});Enter("blade-select");}
+                    else {Need(root.ReceiptCount<2,"纤维束误重复成交。");Pulse(interactKey,age,.45);}
+                    break;
+                case "blade-select":if(age>=.8){ClickCraft("Recipe_craft-blade-recipe");Enter("blade-confirm");}break;
+                case "blade-confirm":
+                    if(age>=.8){Need(root.userInterface.SelectedRecipeId=="craft-blade-recipe","未选择石刃。");ClickCraft("ConfirmCraft");Enter("blade-result");}break;
+                case "blade-result":
+                    Need(age<5,"石刃制作没有真实回执。");
+                    if(age>=.8&&root.ReceiptCount==2){NeedMaterials(4,0,1);bladeId=TeamGear("craft-stone-blade");Add("blade-real-ledger-output",new{bladeId,receipts=root.ReceiptCount,team=Team(),root.userInterface.ResultNotice});Enter("shield-select");}break;
+                case "shield-select":if(age>=.8){ClickCraft("Recipe_craft-shield-recipe");Enter("shield-confirm");}break;
+                case "shield-confirm":
+                    if(age>=.8){Need(root.userInterface.SelectedRecipeId=="craft-shield-recipe","未选择石盾。");ClickCraft("ConfirmCraft");Enter("shield-result");}break;
+                case "shield-result":
+                    Need(age<5,"石盾制作没有真实回执。");
+                    if(age>=.8&&root.ReceiptCount==3){NeedMaterials(1,0,0);shieldId=TeamGear("craft-stone-shield");Need(inventory.Ledger.Find(bladeId).Location.ContainerId=="team","制作不应自动装备。");Add("shield-real-ledger-output",new{bladeId,shieldId,receipts=root.ReceiptCount,team=Team(),root.userInterface.ResultNotice});ClickCraft("Close");Enter("close-crafting");}break;
+                case "close-crafting":
+                    if(age>=.7){Need(!root.userInterface.IsOpen&&!view.IsOpen,"原Close未关闭制作窗口。");Enter("open-inventory");}break;
+                case "open-inventory":
+                    Need(age<5,"原Tab未打开背包。");
+                    if(view.IsOpen&&age>=.8){Need(!root.userInterface.IsOpen,"制作与背包不能重叠捕获。");Enter("inventory-settle");}
+                    else Pulse(toggleKey,age,.35);
+                    break;
+                case "inventory-settle":if(age>=.7){StartDrag(bladeId,InventorySession.HandId(actorId,InventoryHand.Right),0);Enter("drag-blade");}break;
+                case "drag-blade":if(AdvanceDrag(age))Enter("blade-equipped");break;
+                case "blade-equipped":
+                    if(age>=.6){Need(Hand(InventoryHand.Right)==bladeId&&inventory.Ledger.Find(oldRightId).Location.ContainerId=="team","原UI主手换装失败："+view.Notice);Add("equipped-right-via-original-UI",new{bladeId,oldRightId,notice=view.Notice,layout=LayoutRows()});StartDrag(oldRightId,"safe",0);Enter("drag-old-main-safe");}break;
+                case "drag-old-main-safe":if(AdvanceDrag(age))Enter("old-main-safe");break;
+                case "old-main-safe":
+                    if(age>=.6){var old=inventory.Ledger.Find(oldRightId);Need(old!=null&&old.Location.ContainerId=="safe"&&old.Location.X==0,"旧主手原UI移入safe slot0失败："+view.Notice);Add("old-main-safe-via-original-UI",new{oldRightId,notice=view.Notice,layout=LayoutRows()});StartDrag(shieldId,InventorySession.HandId(actorId,InventoryHand.Left),0);Enter("drag-shield");}break;
+                case "drag-shield":if(AdvanceDrag(age))Enter("shield-equipped");break;
+                case "shield-equipped":
+                    if(age>=.6){Need(Hand(InventoryHand.Right)==bladeId&&Hand(InventoryHand.Left)==shieldId,"原UI盾换装失败："+view.Notice);Add("both-new-instance-IDs-equipped",new{bladeId,shieldId,oldLeftId,notice=view.Notice,layout=LayoutRows()});Enter("close-inventory");}break;
+                case "close-inventory":
+                    Need(age<5,"原Tab未关闭背包。");
+                    if(!view.IsOpen&&age>=.7){target=world.props.Single(p=>p!=null&&p.instanceId=="mesh-a");Need(target.IsAlive,"mesh-a必须是实际存活物件。");Place(target.transform.position+Vector3.right*1.1f,"新石刃实际攻击mesh-a前摆位");targetHpBefore=target.Health.Current;releaseBefore=actor.ReleaseCount;Enter("crafted-blade-attack");}
+                    else Pulse(toggleKey,age,.35);
+                    break;
+                case "crafted-blade-attack":
+                    Need(age<8,"新石刃原左键未令实际HP下降。");Need(Hand(InventoryHand.Right)==bladeId,"主手不再是刚制得的实例。");
+                    if(input.CurrentFrame.attackPressed||input.CurrentFrame.attackHeld)attackFrames++;
+                    if(target.Health.Current<targetHpBefore){Add("crafted-blade-real-hit",new{bladeId,target=target.instanceId,hpBefore=targetHpBefore,hpAfter=target.Health.Current,releases=actor.ReleaseCount-releaseBefore});Enter("combat-settle");}
+                    else if(age>=.35){pointer=Project(target.WorldPosition);mouseButtons=(age-.35)%1.5<.18?(ushort)1:(ushort)0;}
+                    break;
+                case "combat-settle":Need(age<6,"原主动作尚未结束。");if(age>=.9&&!actor.ActionActive){pointer=Project(actor.transform.position+Vector3.forward*2);Enter("shield-original-right-hold");}break;
+                case "shield-original-right-hold":
+                    Need(Hand(InventoryHand.Left)==shieldId,"副手不再是刚制得的实例。");
+                    if(age>=.35&&age<1.35)mouseButtons=2;
+                    if(Guarding())guardFrames++;
+                    if(age>=1.9){Need(guardFrames>0,"原右鼠标hold未观察到实际Guarding。");Add("crafted-shield-original-right-hold",new{shieldId,guardFrames,holdSeconds=1.0});Enter("before-travel");}break;
+                case "before-travel":
+                    Need(age<6,"世界奖励/原动作未结清。");
+                    if(age>=.8&&!actor.ActionActive&&world.PendingCount==0)
+                    {
+                        Need(root.ReceiptCount==3&&Count("world-stone")==1&&Count("world-fibre")==0&&Count("craft-binding")==0,"跨场前回执/材料结余不符。");
+                        Need(Hand(InventoryHand.Right)==bladeId&&Hand(InventoryHand.Left)==shieldId,"跨场前装备ID不符。");
+                        var travel=InScene<WorldPropTravel>(SceneManager.GetActiveScene()).Single(t=>t.commerce==root.commerce&&t.destinationScene==Transit);
+                        beforeTravelLayout=JsonConvert.SerializeObject(LayoutRows());
+                        Add("original-travel-save-barrier",new{receipts=root.ReceiptCount,bladeId,shieldId,layout=LayoutRows(),savePath=root.commerce.SavePath});
+                        Enter("travel");travelInvoked=true;travel.Travel();
+                    }break;
+                case "travel":
+                    Need(age<18,"原保存跨区未在18秒内完成。");
+                    if(SceneManager.GetActiveScene().path==Transit&&SafeScenes(Transit,false))
+                    {
+                        var found=InScene<CraftingRoot>(SceneManager.GetActiveScene()).Single();
+                        if(!found.Ready)break;
+                        Bind(SceneManager.GetActiveScene(),false); // 只重找新实例，不重复焦点夹具或发放。
+                        Need(actor.ActorId==actorId&&root.ReceiptCount==3,"新区域操作者/同3条回执未恢复。");
+                        Need(Hand(InventoryHand.Right)==bladeId&&Hand(InventoryHand.Left)==shieldId,"跨场不是同两件装备实例。");
+                        Need(Count("world-stone")==1&&Count("world-fibre")==0&&Count("craft-binding")==0,"跨场材料结余不一致。");
+                        Need(JsonConvert.SerializeObject(LayoutRows())==beforeTravelLayout,"跨场库存身份/位置/数量变化，不能声称无新grant。");
+                        Add("transit-restored-same-facts",new{map=root.mapId,profile=root.commerce.profileId,receipts=root.ReceiptCount,bladeId,shieldId,team=Team(),layout=LayoutRows(),savePath=root.commerce.SavePath});Enter("transit-hold");
+                    }
+                    else Need(SafeScenes(Main,true)||SafeScenes(Transit,true),"跨场出现未授权作者场或有Mono的额外场。");
+                    break;
+                case "transit-hold":
+                    Need(SafeScenes(Transit,false)&&root.Ready,"中转恢复后的真实宿主失效。");CheckIsolation(root);
+                    Need(root.ReceiptCount==3&&Hand(InventoryHand.Right)==bladeId&&Hand(InventoryHand.Left)==shieldId&&Count("world-stone")==1,"末尾观察期事实不一致。");
+                    if(age>=2&&now-began>=45)Finish(true);
+                    break;
+                default: throw new InvalidOperationException("未知FSM状态："+stage);
+            }
+            if(Running&&now-lastTrace>=.3&&trace.Count<310)
+            {
+                lastTrace=now;trace.Add(new{seconds=now-began,stage,frame=Time.frameCount,actor=actor==null?null:actor.ActorId,position=actor==null?null:actor.transform.position.ToString("R"),receipts=root==null?-1:root.ReceiptCount,craftUI=root!=null&&root.userInterface.IsOpen,inventoryUI=view!=null&&view.IsOpen,controlRevision=control==null?-1:control.ControlRevision,hp=target==null||target.Health==null?-1:target.Health.Current,guarding=actor!=null&&Guarding(),team=Team()});Publish(false);
+            }
+        }
+        catch(Exception ex){error=ex.ToString();Finish(false);}
+    }
+
+    static void StartProp()
+    {
+        Need(!actor.ActionActive&&actor.CanSimulateIntent,"采集摆位前原动作尚未结束或无世界输入资格。");
+        target=world.props.Single(p=>p!=null&&p.instanceId==PropIds[propIndex]);Need(target.IsAlive,"采集物已经被耗尽。");
+        targetHpBefore=target.Health.Current;releaseBefore=actor.ReleaseCount;
+        Place(target.transform.position+Vector3.right*1.1f,"采集"+target.instanceId+"原输入攻击前摆位");pointer=new Vector2(Screen.width*.5f,Screen.height*.5f);Enter("attack-prop");
+    }
+    static void Enter(string next){keys=Array.Empty<Key>();mouseButtons=0;stage=next;phaseAt=EditorApplication.timeSinceStartup;stageFrame=Time.frameCount;Add("stage",new{name=stage,frame=stageFrame});}
+    static void Pulse(Key key,double age,double warm,double repeat=0)
+    {double offset=age-warm;if(offset>=0&&(repeat>0?offset%repeat:offset)<.18)keys=new[]{key};}
+    static void Place(Vector3 point,string why)
+    {
+        Need(motor!=null&&!actor.ActionActive,"Teleport夹具必须经原Motor且原动作已结束。");
+        Need(Physics.RaycastAll(point+Vector3.up*.4f,Vector3.down,.9f,~0,QueryTriggerInteraction.Ignore).Any(h=>h.normal.y>.7f&&Mathf.Abs(h.point.y-point.y)<.3f&&h.collider.GetComponentInParent<C.CharacterRoot>()==null),"位置夹具缺同层地面，拒绝摆到样地外："+point);
+        var before=actor.transform.position;motor.Teleport(point);
+        Add("position-fixture",new{why,method="原CharacterMovement.Teleport",before=before.ToString("R"),requested=point.ToString("R"),actual=actor.transform.position.ToString("R")});
+    }
+    static Vector2 Project(Vector3 point)
+    {var p=root.gameplayCamera.WorldToScreenPoint(point);Need(p.z>0&&p.x>=0&&p.x<Screen.width&&p.y>=0&&p.y<Screen.height,"真实目标不在当前GameView中。");return new Vector2(p.x,p.y);}
+    static bool Guarding(){var a=actor.GetComponent<C.CharacterAbilities>();var b=actor.GetComponent<C.ShieldGuard>();return a!=null&&a.IsGuarding||b!=null&&b.IsGuarding;}
+    static string Hand(InventoryHand hand)=>inventory.Ledger.EquipmentAt(InventorySession.HandId(actorId,hand))?.Id;
+    static int Count(string definition)=>inventory==null||inventory.Ledger==null?0:inventory.Ledger.Items.Where(i=>i.Location.ContainerId=="team"&&i.DefinitionId==definition).Sum(i=>i.Quantity);
+    static Dictionary<string,int> Team()=>inventory==null||inventory.Ledger==null?new Dictionary<string,int>():inventory.Ledger.Items.Where(i=>i.Location.ContainerId=="team").GroupBy(i=>i.DefinitionId).ToDictionary(g=>g.Key,g=>g.Sum(i=>i.Quantity),StringComparer.Ordinal);
+    static void NeedMaterials(int stone,int fibre,int binding){Need(Count("world-stone")==stone&&Count("world-fibre")==fibre&&Count("craft-binding")==binding,"实际材料数量不符："+JsonConvert.SerializeObject(Team()));}
+    static string TeamGear(string definition){var item=inventory.Ledger.Items.Single(i=>i.Location.ContainerId=="team"&&i.DefinitionId==definition&&i.Equipment!=null);Need(item.Quantity==1,"新装备不是独立单件。");return item.Id;}
+    static object[] LayoutRows()=>inventory==null||inventory.Ledger==null?Array.Empty<object>():inventory.Ledger.Items.OrderBy(i=>i.Id,StringComparer.Ordinal).Select(i=>(object)new{id=i.Id,definition=i.DefinitionId,quantity=i.Quantity,container=i.Location.ContainerId,x=i.Location.X,y=i.Location.Y,equipmentId=i.Equipment?.Id}).ToArray();
+    static object[] Ground(){var ids=inventory==null?new HashSet<string>():new HashSet<string>(inventory.GroundContainers,StringComparer.Ordinal);return inventory==null||inventory.Ledger==null?Array.Empty<object>():inventory.Ledger.Items.Where(i=>ids.Contains(i.Location.ContainerId)).Select(i=>(object)new{i.Id,i.DefinitionId,i.Quantity,i.Location.ContainerId}).ToArray();}
+    static bool HasPickup(string definition)=>inventory.AccessibleExternal.Any(id=>inventory.IsLoosePickup(id)&&inventory.Ledger.Items.Any(i=>i.Location.ContainerId==id&&i.DefinitionId==definition));
+
+    static void ClickCraft(string name)
+    {
+        Need(root!=null&&root.userInterface.IsOpen,"需要真实打开的CraftingCanvas。");
+        var canvas=root.userInterface.GetComponentsInChildren<Canvas>(true).Single(c=>c.name=="CraftingCanvas"&&c.isActiveAndEnabled&&c.gameObject.activeInHierarchy);
+        var button=canvas.GetComponentsInChildren<Button>(false).Single(b=>b.name==name&&b.gameObject.activeInHierarchy);
+        Need(button.IsInteractable(),"真实按钮不可用："+name+" / "+root.userInterface.Notice);
+        pointer=Center(button.transform as RectTransform);Need(EventSystem.current!=null,"缺原EventSystem。");
+        var data=new PointerEventData(EventSystem.current){button=PointerEventData.InputButton.Left,position=pointer,pointerId=-117};
+        Need(ExecuteEvents.Execute(button.gameObject,data,ExecuteEvents.pointerClickHandler),"真实按钮没有pointerClick handler。");
+        Add("original-uGUI-button",new{button=name,canvas=canvas.name,pointer=pointer.ToString("R"),selected=root.userInterface.SelectedRecipeId,receipts=root.ReceiptCount});
+    }
+    static InputField CraftInput(string name)
+    {
+        var canvas=root.userInterface.GetComponentsInChildren<Canvas>(true).Single(c=>c.name=="CraftingCanvas"&&c.isActiveAndEnabled&&c.gameObject.activeInHierarchy);
+        return canvas.GetComponentsInChildren<InputField>(false).Single(i=>i.name==name);
+    }
+    static InventoryPointerTarget[] InventoryTargets()
+    {
+        Need(view!=null&&view.IsOpen,"原背包必须打开。");
+        var canvases=view.GetComponentsInChildren<Canvas>(true).Where(c=>c.name=="InventoryCanvas"&&c.isActiveAndEnabled&&c.gameObject.activeInHierarchy).ToArray();
+        Need(canvases.Length==1,"原InventoryCanvas必须当前唯一。");
+        return canvases[0].GetComponentsInChildren<InventoryPointerTarget>(false).Where(t=>t.View==view&&t.gameObject.activeInHierarchy).ToArray();
+    }
+    static Vector2 Center(RectTransform rect)
+    {Need(rect!=null,"缺真实RectTransform。");return RectTransformUtility.WorldToScreenPoint(null,rect.TransformPoint(rect.rect.center));}
+    static void StartDrag(string id,string container,int slot)
+    {
+        Canvas.ForceUpdateCanvases();var targets=InventoryTargets();
+        dragSource=targets.Single(t=>t.ItemId==id);
+        var destination=targets.Single(t=>t.ContainerId==container&&t.Slot==slot&&t.Grid==null);
+        dragFrom=Center(dragSource.transform as RectTransform);dragTo=Center(destination.transform as RectTransform);pointer=dragFrom;
+        Need(EventSystem.current!=null,"原拖拽缺EventSystem。");
+        dragItem=id;dragContainer=container;dragSlot=slot;
+        dragData=new PointerEventData(EventSystem.current){button=PointerEventData.InputButton.Left,pointerId=-118,position=dragFrom,pressPosition=dragFrom,pointerPress=dragSource.gameObject,rawPointerPress=dragSource.gameObject,pointerDrag=dragSource.gameObject,dragging=true,useDragThreshold=false,eligibleForClick=false};
+        ExecuteEvents.Execute(dragSource.gameObject,dragData,ExecuteEvents.pointerDownHandler);
+        ExecuteEvents.Execute(dragSource.gameObject,dragData,ExecuteEvents.beginDragHandler);
+        Add("original-uGUI-drag-begin",new{item=id,container,slot,from=dragFrom.ToString("R"),to=dragTo.ToString("R")});
+    }
+    static bool AdvanceDrag(double age)
+    {
+        Need(dragSource!=null&&dragData!=null,"原拖拽对象在完成前失效。");
+        dragData.position=Vector2.Lerp(dragFrom,dragTo,Mathf.Clamp01((float)(age/.85)));pointer=dragData.position;
+        ExecuteEvents.Execute(dragSource.gameObject,dragData,ExecuteEvents.dragHandler);
+        if(age<1.0)return false;
+        dragData.position=dragTo;pointer=dragTo;
+        var hits=new List<RaycastResult>();EventSystem.current.RaycastAll(dragData,hits);
+        var actual=hits.Select(h=>h.gameObject.GetComponentInParent<InventoryPointerTarget>()).FirstOrDefault(t=>t!=null);
+        Need(actual!=null&&actual.ContainerId==dragContainer&&actual.Slot==dragSlot,"实际射线未落在指定原槽，不调用Move绕过。");
+        ExecuteEvents.Execute(dragSource.gameObject,dragData,ExecuteEvents.endDragHandler);
+        Add("original-uGUI-drag-end",new{item=dragItem,container=dragContainer,slot=dragSlot,actualRaycast=actual.ContainerId,notice=view.Notice});
+        dragSource=null;dragData=null;return true;
+    }
+
+    static void Bind(Scene scene,bool initial)
+    {
+        root=InScene<CraftingRoot>(scene).Single();world=InScene<WorldPropsRoot>(scene).Single();inventory=InScene<InventorySession>(scene).Single();
+        view=InScene<InventoryView>(scene).Single();interaction=InScene<InventoryInteraction>(scene).Single();
+        Need(root.Ready&&world.Ready&&inventory.Ready&&root.inventory==inventory&&root.inventoryView==view&&root.commerce==world.commerce,"原领域宿主Ready/同引用失败。");
+        CheckIsolation(root);control=inventory.Coordinator;actor=control==null?null:control.Current;
+        Need(actor!=null&&actor.IsAlive,"缺真实存活Current。");input=actor.GetComponent<C.CharacterInputHandler>();motor=actor.GetComponent<C.CharacterMovement>();
+        Need(input!=null&&motor!=null&&root.gameplayCamera!=null&&interaction.isActiveAndEnabled&&view.isActiveAndEnabled,"原输入/Motor/镜头/交互缺失。");
+        if(!initial)Need(root.mapId=="crafting-transit","跨场新Root不是中转地图。");
+    }
+    static void CheckIsolation(CraftingRoot value)
+    {
+        Need(value.commerce!=null&&value.commerce.profileId==Profile,"必须crafting-walkthrough-03隔离profile。");
+        Need(!string.IsNullOrWhiteSpace(value.commerce.saveDirectory)&&string.Equals(Full(value.commerce.saveDirectory),Full(Profiles),StringComparison.OrdinalIgnoreCase),"不是CRAFT明确外部profiles目录。");
+        Need(!string.IsNullOrWhiteSpace(value.commerce.SavePath)&&Full(value.commerce.SavePath).StartsWith(Full(Profiles)+Path.DirectorySeparatorChar,StringComparison.OrdinalIgnoreCase),"实际共同存档路径越界。");
+        Need(value.mapId==value.commerce.mapId&&value.inventory==value.commerce.inventory,"地图或保存宿主引用不符。");
+    }
+    static bool SafeScenes(string authoredPath,bool permitTransitionGap)
+    {
+        int authored=0,hidden=0;
+        for(int i=0;i<SceneManager.sceneCount;i++)
+        {
+            var scene=SceneManager.GetSceneAt(i);if(!scene.isLoaded)continue;
+            if(!string.IsNullOrEmpty(scene.path)){if(scene.path!=authoredPath)return false;authored++;}
+            else
+            {
+                if(!(scene.name.StartsWith("__KT_VIS01_QueryPhysics_",StringComparison.Ordinal)||scene.name.StartsWith("CharacterClearanceMath_",StringComparison.Ordinal))||scene.GetRootGameObjects().Any(g=>g.GetComponentsInChildren<MonoBehaviour>(true).Any()))return false;
+                hidden++;
+            }
+        }
+        return hidden<=2&&(authored==1||permitTransitionGap&&authored==0)&&(!permitTransitionGap||authored<=1);
+    }
+    static T[] InScene<T>(Scene scene)where T:Component=>scene.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<T>(true)).ToArray();
+    static string Full(string path)=>Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar,Path.AltDirectorySeparatorChar);
+    static void Need(bool condition,string message){if(!condition)throw new InvalidOperationException(message);}
+    static void Before()
+    {
+        if(!Running||!Application.isPlaying||InputState.currentUpdateType!=InputUpdateType.Dynamic||keyboard==null||mouse==null)return;
+        if(!keyboard.enabled)InputSystem.EnableDevice(keyboard);if(!mouse.enabled)InputSystem.EnableDevice(mouse);
+        InputSystem.QueueStateEvent(keyboard,new KeyboardState(keys));InputSystem.QueueStateEvent(mouse,new MouseState{position=pointer,buttons=mouseButtons});
+    }
+    static Key ReadKey(InputAction action)
+    {
+        foreach(var binding in action.bindings)
+        {
+            if(binding.isComposite||binding.isPartOfComposite)continue;var path=binding.effectivePath;
+            if(path!=null&&path.StartsWith("<Keyboard>/",StringComparison.OrdinalIgnoreCase)&&keyboard[path.Substring(path.LastIndexOf('/')+1)] is KeyControl control)return control.keyCode;
+        }
+        throw new InvalidOperationException("原Action缺直接键盘绑定："+action.name);
+    }
+    static void FilterOwnedInput()
+    {
+        var actions=new HashSet<InputAction>();
+        foreach(var member in control.Characters){var handler=member.GetComponent<C.CharacterInputHandler>();Collect(handler,actions);if(handler!=null&&handler.inputLayout!=null)foreach(var action in handler.inputLayout.ConfiguredActions())actions.Add(action);}
+        Collect(control,actions);Collect(interaction,actions);Collect(view,actions);
+        var map=InScene<Ossastra.MapResearch.MapResearchRoot>(SceneManager.GetActiveScene()).SingleOrDefault();if(map!=null)Collect(map.cameraInput,actions);
+        var module=EventSystem.current==null?null:EventSystem.current.GetComponent<InputSystemUIInputModule>();
+        if(module!=null&&module.actionsAsset!=null)foreach(var action in module.actionsAsset)actions.Add(action);
+        foreach(var actionMap in actions.Where(a=>a!=null).Select(a=>a.actionMap).Where(a=>a!=null).Distinct())
+        {var old=actionMap.devices;filters.Add(new Filter{map=actionMap,had=old.HasValue,old=old.HasValue?old.Value.ToArray():null});actionMap.devices=new InputDevice[]{keyboard,mouse};}
+    }
+    static void Collect(object owner,HashSet<InputAction> actions)
+    {if(owner!=null)foreach(var field in owner.GetType().GetFields(BindingFlags.Instance|BindingFlags.Public))if(field.FieldType==typeof(InputAction)&&field.GetValue(owner) is InputAction action)actions.Add(action);}
+    static string MouseStateOf(Mouse value)=>string.Join("",new[]{value.leftButton.isPressed,value.rightButton.isPressed,value.middleButton.isPressed,value.forwardButton.isPressed,value.backButton.isPressed}.Select(b=>b?"1":"0"));
+    static void CapturePhysicalBaseline(){foreach(var value in InputSystem.devices.OfType<Mouse>())physicalMouseBaseline.Add(value.deviceId,MouseStateOf(value));}
+    static bool PhysicalIdle()
+    {
+        var mice=InputSystem.devices.Where(d=>d!=mouse).OfType<Mouse>().ToArray();
+        if(mice.Length!=physicalMouseBaseline.Count||mice.Any(m=>!physicalMouseBaseline.TryGetValue(m.deviceId,out var baseline)||baseline!=MouseStateOf(m)))return false;
+        return InputSystem.devices.Where(d=>d!=mouse&&d!=keyboard).All(d=>!(d is Keyboard k&&k.allKeys.Any(c=>c!=null&&c.isPressed))&&!(d is Gamepad g&&(g.leftStick.ReadValue().sqrMagnitude>.04f||g.rightStick.ReadValue().sqrMagnitude>.04f||g.allControls.OfType<ButtonControl>().Any(b=>b.isPressed))));
+    }
+    static void Focus(bool value)
+    {
+        if(control!=null)typeof(C.CharacterControlCoordinator).GetMethod("OnApplicationFocus",Hidden)?.Invoke(control,new object[]{value});
+        if(control!=null)foreach(var member in control.Characters)if(member!=null)typeof(C.CharacterRoot).GetMethod("OnApplicationFocus",Hidden)?.Invoke(member,new object[]{value});
+        if(interaction!=null)typeof(InventoryInteraction).GetMethod("OnApplicationFocus",Hidden)?.Invoke(interaction,new object[]{value});
+        if(view!=null)typeof(InventoryView).GetMethod("OnApplicationFocus",Hidden)?.Invoke(view,new object[]{value});
+        if(root!=null)typeof(CraftingRoot).GetMethod("OnApplicationFocus",Hidden)?.Invoke(root,new object[]{value});
+    }
+    static void Add(string kind,object value){if(facts!=null)facts.Add(new{seconds=EditorApplication.timeSinceStartup-began,kind,value});}
+    public static void Cancel(){if(Running){error="Root取消候选录像夹具。";Finish(false);}}
+    static void ModeChanged(PlayModeStateChange value){if(value==PlayModeStateChange.ExitingPlayMode&&Running){error="原Play已退出。";Finish(false);}}
+    static void Reload(){if(Running){error="域重载，夹具已停止。";Finish(false);}}
+    static void Finish(bool ok)
+    {
+        if(finished)return;finished=true;passed=ok&&error==null;Running=false;keys=Array.Empty<Key>();mouseButtons=0;
+        EditorApplication.update-=Tick;InputSystem.onBeforeUpdate-=Before;EditorApplication.playModeStateChanged-=ModeChanged;AssemblyReloadEvents.beforeAssemblyReload-=Reload;
+        try{Add("end-before-focus-restore",new{stage,passed,receipts=root==null?-1:root.ReceiptCount,team=Team(),layout=LayoutRows(),bladeId,shieldId,physicalBaselineStable=physicalMouseBaseline!=null&&PhysicalIdle()});}catch(Exception ex){error=(error??"")+"\nEndSnapshot: "+ex.Message;passed=false;}
+        try
+        {
+            if(dragSource!=null&&dragData!=null&&EventSystem.current!=null)
+            {
+                // 失败拖拽只释放已有UI手势；不在另一个落点重试、丢物或操作账本。
+                ExecuteEvents.Execute(dragSource.gameObject,dragData,ExecuteEvents.pointerUpHandler);
+                if(view!=null)view.CancelDrag();
+            }
+            dragSource=null;dragData=null;
+            if(keyboard!=null)InputSystem.ResetDevice(keyboard);if(mouse!=null)InputSystem.ResetDevice(mouse);
+        }catch(Exception ex){error=(error??"")+"\nOwn reset: "+ex.Message;passed=false;}
+        if(filters!=null)foreach(var filter in filters)
+            try{var current=filter.map.devices;if(current.HasValue&&current.Value.Count==2&&current.Value.Contains(keyboard)&&current.Value.Contains(mouse))filter.map.devices=filter.had?filter.old:null;else externalFilters++;}
+            catch(Exception ex){error=(error??"")+"\nFilter restore: "+ex.Message;passed=false;}
+        try{if(keyboard!=null&&InputSystem.devices.Contains(keyboard))InputSystem.RemoveDevice(keyboard);}catch(Exception ex){error=(error??"")+"\nKeyboard removal: "+ex.Message;passed=false;}
+        try{if(mouse!=null&&InputSystem.devices.Contains(mouse))InputSystem.RemoveDevice(mouse);}catch(Exception ex){error=(error??"")+"\nMouse removal: "+ex.Message;passed=false;}
+        devicesRemoved=(keyboard==null||!InputSystem.devices.Contains(keyboard))&&(mouse==null||!InputSystem.devices.Contains(mouse));keyboard=null;mouse=null;
+        if(focusApplied)try{Focus(Application.isFocused);}catch(Exception ex){error=(error??"")+"\nFocus restore: "+ex.Message;passed=false;}
+        if(ownsLease){SessionState.SetBool(Lease,false);ownsLease=false;}
+        Publish(true);
+    }
+    static void Publish(bool done)
+    {
+        ResultJson=JsonConvert.SerializeObject(new{done,Running,status=!done?"RUNNING":passed?"PASS":"FAILED_OR_CANCELLED",runId,stage,error,seconds=EditorApplication.timeSinceStartup-began,actorId,bladeId,shieldId,oldRightId,oldLeftId,attackFrames,guardFrames,travelInvoked,devicesRemoved,externalFiltersPreserved=externalFilters,physicalMouseBaseline=physicalMouseBaseline==null?null:physicalMouseBaseline.ToArray(),facts,trace,scope="原Motor.Teleport逐次记录的纯位置夹具；原InputAction虚拟Keyboard/Mouse及原Canvas/EventSystem事件；原F拾取/开窗/2份纤维束确认；真实背包拖拽换装和实际攻击/守卫；WorldPropTravel原保存屏障跨场。没有直接Grant/HP/Request/Confirm/Inventory.Move/装备赋值或另写档。初始一次原焦点夹具，结束恢复Application.isFocused；不重置实体Mouse、Keyboard或Gamepad。虚拟输入与位置夹具，不是实体硬件或步行路径验收。"});
+    }
+}

@@ -1,0 +1,292 @@
+/* CRAFT-01 bounded virtual Gamepad/UI-module probe. Root executes in Native only.
+ * Root must first place the real actor, establish focus once, and open the actual station UI.
+ * One initial EventSystem selection is a fixture. All subsequent navigation/submit/cancel
+ * comes from our own Gamepad state events; never ExecuteEvents, Confirm, Grant or Save.
+ * Poll CraftGamepadUIProbe.Running / ResultJson in the returned dynamic assembly.
+ */
+using System;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.UI;
+using UnityEngine.SceneManagement;
+using UnityEngine.EventSystems;
+using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.Controls;
+using UnityEngine.InputSystem.LowLevel;
+using UnityEngine.InputSystem.UI;
+using UnityEditor;
+using Newtonsoft.Json;
+using Ossastra.Crafting;
+using Ossastra.Commerce.Runtime;
+using Funplay.Editor.Tools.Scripting;
+using Object=UnityEngine.Object;
+
+// An observation-only component: it does not select, submit, cancel, or consume events.
+public sealed class CraftGamepadUIWitness:MonoBehaviour,IMoveHandler,ISubmitHandler,ICancelHandler
+{
+    public Action<string,BaseEventData> Observe;
+    public void OnMove(AxisEventData data){Observe?.Invoke("move:"+data.moveDir,data);}
+    public void OnSubmit(BaseEventData data){Observe?.Invoke("submit",data);}
+    public void OnCancel(BaseEventData data){Observe?.Invoke("cancel",data);}
+}
+
+public sealed class CraftGamepadUIProbe:IFunplayCommand
+{
+    const string Main="Assets/OSSASTRA/GroundWorkshop/Samples/CRAFT-01/SC_CraftingIntegration.unity";
+    const string MainGuid="d694fa04240ccaf40808408e233c70ba";
+    const string Profiles="E:/WORLDCREATOR/XingHaiHuiLang/研究/装备台合成/CRAFT-01/05-unity-evidence/profiles";
+    const string LockKey="CRAFT-01.GamepadUIProbe.Running";
+    const BindingFlags Hidden=BindingFlags.Instance|BindingFlags.NonPublic;
+
+    // 原透视/净空系统会建立两个无业务脚本的私有物理查询Scene；它们不含保存宿主。
+    static bool SafeSceneSet(){int authored=0;for(int i=0;i<SceneManager.sceneCount;i++){var s=SceneManager.GetSceneAt(i);if(!string.IsNullOrEmpty(s.path)){if(s.path!=Main)return false;authored++;}else if(!(s.name.StartsWith("__KT_VIS01_QueryPhysics_",StringComparison.Ordinal)||s.name.StartsWith("CharacterClearanceMath_",StringComparison.Ordinal))||s.GetRootGameObjects().Any(g=>g.GetComponentsInChildren<MonoBehaviour>(true).Any()))return false;}return authored==1;}
+    public static bool Running{get;private set;}
+    public static string ResultJson{get;private set;}="NOT_STARTED";
+    static CraftingRoot root;
+    static Ossastra.Characters.CharacterRoot actor;
+    static EventSystem events;
+    static InputSystemUIInputModule module;
+    static InputAction moveInput,submitInput,cancelInput,inventoryCancelInput;
+    static Gamepad pad;
+    static Button first,target;
+    static CraftGamepadUIWitness firstWitness,targetWitness;
+    static readonly List<object> facts=new List<object>();
+    static double began,phaseAt;
+    static string stage,error,beforeSelected,afterSelected,recipeBefore,recipeAfter,targetRecipe,deviceName,moduleClass,cancelRoute;
+    static int lastFrame,phaseDynamic,dynamicCount,ownMoveActions,ownSubmitActions,ownCancelActions,ownInventoryCancelActions,moveWitness,submitWitness,cancelWitness,cancelPressFrame,cancelConsumedFrame;
+    static int capturesBefore,capturesAfter,menuBefore,menuAfter,cameraBefore,cameraAfter,receiptsBefore,receiptsAfter;
+    static long revisionBefore,revisionAfter;
+    static bool holdDown,holdA,holdB,bClosed,cancelUsed,ownDeviceRemoved,finished,ownsLock,initialSelectionPlaced;
+    static object actionInfo;
+    static string Full(string value)=>Path.GetFullPath(value).TrimEnd(Path.DirectorySeparatorChar,Path.AltDirectorySeparatorChar);
+    static void Need(bool ok,string reason){if(!ok)throw new InvalidOperationException(reason);}
+    static ICollection<object> Owners(object owner,string field)
+    {
+        Need(owner!=null,"Missing capture owner host: "+field);
+        var info=owner.GetType().GetField(field,Hidden);
+        Need(info!=null,"Missing explicit capture field: "+field);
+        var values=info.GetValue(owner) as ICollection<object>;
+        Need(values!=null,"Unexpected capture collection: "+field);return values;
+    }
+    static int Captures()=>Owners(root.inventory.Coordinator,"inventoryCaptures").Count;
+    static int MenuCaptures()
+    {
+        var gate=root.inventoryView.GetType().GetField("commerceMenuGate",Hidden)?.GetValue(root.inventoryView);
+        return Owners(gate,"owners").Count;
+    }
+    static int CameraCaptures()=>Owners(root.mapView,"uiCameraCaptures").Count;
+    static string Selected()=>events==null||events.currentSelectedGameObject==null?null:events.currentSelectedGameObject.name;
+    static string RecipeId(Button button)=>button==null?null:button.name.Substring("Recipe_".Length);
+    static void Guard(bool needOpen)
+    {
+        var scene=SceneManager.GetActiveScene();
+        Need(Application.isPlaying&&!EditorApplication.isPaused&&Time.timeScale==1&&SafeSceneSet()&&scene.path==Main,"Exact single CRAFT Main normal Play required");
+        Need(AssetDatabase.AssetPathToGUID(scene.path)==MainGuid,"Main scene GUID mismatch");
+        var roots=scene.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<CraftingRoot>(true)).ToArray();
+        Need(root!=null&&roots.Length==1&&roots[0]==root&&root.Ready,"Unique original CraftingRoot must remain Ready");
+        var hosts=Resources.FindObjectsOfTypeAll<CommerceService>().Where(c=>c!=null&&!EditorUtility.IsPersistent(c)&&c.gameObject.scene.IsValid()&&c.gameObject.scene.isLoaded).ToArray();
+        Need(hosts.Length==1&&hosts[0]==root.commerce&&root.commerce.inventory==root.inventory,"Unique original persistence/inventory references required");
+        Need(root.commerce.profileId=="crafting-fault-01"&&!string.IsNullOrWhiteSpace(root.commerce.saveDirectory)&&string.Equals(Full(root.commerce.saveDirectory),Full(Profiles),StringComparison.OrdinalIgnoreCase),"Exact CRAFT fault profile / explicit save directory required");
+        Need(!string.IsNullOrWhiteSpace(root.commerce.SavePath)&&Full(root.commerce.SavePath).StartsWith(Full(Profiles)+Path.DirectorySeparatorChar,StringComparison.OrdinalIgnoreCase),"Actual SavePath outside isolated profiles directory");
+        Need(root.mapId=="crafting-main"&&root.inventory.CurrentMapId==root.mapId&&root.commerce.mapId==root.mapId,"Original map identity changed");
+        Need(actor!=null&&actor==root.inventory.Coordinator.Current&&actor.IsAlive&&actor.CanSimulateIntent,"Original controlled actor/life/intent changed");
+        Need(events!=null&&EventSystem.current==events&&module!=null&&events.currentInputModule==module&&module.isActiveAndEnabled&&events.sendNavigationEvents,"Actual enabled InputSystemUIInputModule / EventSystem changed");
+        if(needOpen)Need(root.userInterface!=null&&root.userInterface.IsOpen&&root.IsSessionValid&&!root.userInterface.IsQuantityFocused,"Root must pre-open a valid station session; quantity editing is not allowed");
+        Need(PhysicalIdle(),"Other device input detected; relinquishing only this probe's Gamepad");
+    }
+    static bool mouseBaselineSet,mouseBaselineHeld;
+    static bool PhysicalIdle()
+    {
+        bool held=InputSystem.devices.OfType<Mouse>().Any(m=>m.leftButton.isPressed||m.rightButton.isPressed||m.middleButton.isPressed);if(!mouseBaselineSet){mouseBaselineSet=true;mouseBaselineHeld=held;}
+        return held==mouseBaselineHeld&& InputSystem.devices.Where(d=>d!=pad).All(d=>
+            !(d is Keyboard k&&k.allKeys.Any(c=>c!=null&&c.isPressed))&&
+            !(d is Gamepad g&&(g.leftStick.ReadValue().sqrMagnitude>.04f||g.rightStick.ReadValue().sqrMagnitude>.04f||g.allControls.OfType<ButtonControl>().Any(b=>b.isPressed))));
+    }
+    public void Execute(ExecutionContext ctx)
+    {
+        Need(!Running&&!SessionState.GetBool(LockKey,false)&&!SessionState.GetBool("CRAFT-01.RuntimeValidation.Running",false),"Existing probe lease; poll/cancel that run instead");
+        mouseBaselineSet=false;root=null;actor=null;events=null;module=null;pad=null;first=target=null;firstWitness=targetWitness=null;
+        moveInput=submitInput=cancelInput=inventoryCancelInput=null;
+        facts.Clear();error=null;stage="preflight";beforeSelected=afterSelected=recipeBefore=recipeAfter=targetRecipe=null;
+        holdDown=holdA=holdB=bClosed=cancelUsed=finished=ownsLock=initialSelectionPlaced=false;ownDeviceRemoved=true;
+        dynamicCount=phaseDynamic=ownMoveActions=ownSubmitActions=ownCancelActions=ownInventoryCancelActions=moveWitness=submitWitness=cancelWitness=0;
+        cancelPressFrame=cancelConsumedFrame=-1;cancelRoute=moduleClass=deviceName=null;actionInfo=null;
+        capturesBefore=capturesAfter=menuBefore=menuAfter=cameraBefore=cameraAfter=receiptsBefore=receiptsAfter=0;revisionBefore=revisionAfter=0;
+        began=phaseAt=EditorApplication.timeSinceStartup;lastFrame=-1;
+        try
+        {
+            var scene=SceneManager.GetActiveScene();
+            Need(Application.isPlaying&&scene.path==Main&&SafeSceneSet(),"Root must enter the exact isolated CRAFT Main first");
+            root=scene.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<CraftingRoot>(true)).Single();
+            Need(root.inventory!=null&&root.inventory.Coordinator!=null,"Original inventory/coordinator missing");
+            actor=root.inventory.Coordinator.Current;events=EventSystem.current;
+            module=events==null?null:events.currentInputModule as InputSystemUIInputModule;Guard(true);
+            Need(root.inventoryView!=null&&!root.inventoryView.IsOpen&&root.mapView!=null,"Existing inventory must be closed and original map view present");
+            Need(module.move?.action!=null&&module.submit?.action!=null&&module.cancel?.action!=null&&module.move.action.enabled&&module.submit.action.enabled&&module.cancel.action.enabled,"Actual UI move/submit/cancel actions must already be enabled; probe never enables or replaces them");
+            moveInput=module.move.action;submitInput=module.submit.action;cancelInput=module.cancel.action;inventoryCancelInput=root.inventoryView.cancelAction;
+            capturesBefore=Captures();menuBefore=MenuCaptures();cameraBefore=CameraCaptures();
+            Need(capturesBefore==1&&Owners(root.inventory.Coordinator,"inventoryCaptures").Contains(root.userInterface)&&menuBefore==1&&cameraBefore==1&&Owners(root.mapView,"uiCameraCaptures").Contains(root),"Expected only the already-open crafting UI/camera capture; cannot steal another owner");
+            Need(Owners(root.inventory.Coordinator,"inputCaptures").Count==0,"Other global menu/input capture present");
+            Need(root.Recipes!=null&&root.Recipes.Count>=2,"Need at least two actual visible recipe rows");
+            moduleClass=module.GetType().FullName;
+            actionInfo=new{move=module.move.action.ToString(),submit=module.submit.action.ToString(),cancel=module.cancel.action.ToString(),
+                moveBindings=module.move.action.bindings.Select(b=>b.effectivePath).ToArray(),submitBindings=module.submit.action.bindings.Select(b=>b.effectivePath).ToArray(),cancelBindings=module.cancel.action.bindings.Select(b=>b.effectivePath).ToArray(),
+                moveDevices=module.move.action.actionMap?.devices?.Select(d=>d.name).ToArray(),submitDevices=module.submit.action.actionMap?.devices?.Select(d=>d.name).ToArray(),cancelDevices=module.cancel.action.actionMap?.devices?.Select(d=>d.name).ToArray()};
+            revisionBefore=root.inventory.Ledger.MutationRevision;receiptsBefore=root.ReceiptCount;inventoryBefore=InventoryIdentity();
+            deviceName="CRAFT01_UI_Gamepad_"+Guid.NewGuid().ToString("N");
+            pad=InputSystem.AddDevice<Gamepad>(deviceName);ownDeviceRemoved=false;
+            Running=true;ownsLock=true;SessionState.SetBool(LockKey,true);
+            InputSystem.onBeforeUpdate+=Before;
+            moveInput.performed+=MoveAction;submitInput.performed+=SubmitAction;cancelInput.performed+=CancelAction;
+            if(inventoryCancelInput!=null)inventoryCancelInput.performed+=InventoryCancelAction;
+            EditorApplication.update+=Tick;EditorApplication.playModeStateChanged+=ModeChanged;AssemblyReloadEvents.beforeAssemblyReload+=Reload;
+            SetStage("warm-neutral");Publish(false);
+            ctx.ReturnValue=new{started=true,pollAssembly=typeof(CraftGamepadUIProbe).Assembly.FullName,pollType=typeof(CraftGamepadUIProbe).FullName,pollProperties=new[]{"Running","ResultJson"},timeoutSeconds=8,inputModule=moduleClass,scope="Own virtual Gamepad; one initial selection fixture; no focus callbacks, binding/device filters, crafting calls, inventory grants or save calls"};
+        }
+        catch(Exception ex){error=ex.ToString();Finish(false);ctx.ReturnValue=new{started=false,result=ResultJson};}
+    }
+    static void Before()
+    {
+        if(!Running||pad==null||InputState.currentUpdateType!=InputUpdateType.Dynamic)return;
+        try
+        {
+            if(EditorApplication.timeSinceStartup-began>=8){error="Eight-second total deadline exceeded before input update";Finish(false);return;}
+            // Editor may background-disable a newly added device. Only our own device is enabled.
+            if(!pad.enabled)InputSystem.EnableDevice(pad);
+            var state=new GamepadState();if(holdDown)state=state.WithButton(GamepadButton.DpadDown);
+            if(holdA)state=state.WithButton(GamepadButton.South);if(holdB)state=state.WithButton(GamepadButton.East);
+            InputSystem.QueueStateEvent(pad,state);dynamicCount++;
+        }
+        catch(Exception ex){error=ex.ToString();Finish(false);}
+    }
+    static void MoveAction(InputAction.CallbackContext c){if(Running&&c.control?.device==pad)ownMoveActions++;}
+    static void SubmitAction(InputAction.CallbackContext c){if(Running&&c.control?.device==pad)ownSubmitActions++;}
+    static void CancelAction(InputAction.CallbackContext c){if(Running&&c.control?.device==pad)ownCancelActions++;}
+    static void InventoryCancelAction(InputAction.CallbackContext c){if(Running&&c.control?.device==pad)ownInventoryCancelActions++;}
+    static void Witness(string type,BaseEventData data)
+    {
+        if(!Running)return;
+        if(type=="move:Down")moveWitness++;
+        if(type=="submit")submitWitness++;
+        if(type=="cancel"){cancelWitness++;cancelUsed|=data.used;}
+        facts.Add(new{kind="actual-ui-event",type,used=data.used,selected=Selected(),recipe=root.userInterface.SelectedRecipeId,uiOpen=root.userInterface.IsOpen,frame=Time.frameCount});
+    }
+    static void SetStage(string next){stage=next;phaseAt=EditorApplication.timeSinceStartup;phaseDynamic=dynamicCount;facts.Add(new{kind="phase",stage,seconds=phaseAt-began,frame=Time.frameCount,selected=Selected()});}
+    static string inventoryBefore;
+    static string InventoryIdentity()=>string.Join(";",root.inventory.Ledger.Items.OrderBy(i=>i.Id,StringComparer.Ordinal).Select(i=>i.Id+"|"+i.DefinitionId+"|"+i.Quantity+"|"+i.Location.ContainerId+"|"+i.Location.X+"|"+i.Location.Y));
+    static void NoConversion()
+    {
+        Need(InventoryIdentity()==inventoryBefore&&root.ReceiptCount==receiptsBefore,"Unexpected inventory/receipt mutation: A must select a row, never convert materials");
+    }
+    static void Tick()
+    {
+        if(!Running)return;
+        try
+        {
+            var now=EditorApplication.timeSinceStartup;
+            Need(now-began<8,"Eight-second total deadline exceeded");
+            Guard(stage!="cancel-down"&&stage!="cancel-release");NoConversion();
+            if(lastFrame==Time.frameCount)return;lastFrame=Time.frameCount;
+            if(stage=="warm-neutral")
+            {
+                if(dynamicCount-phaseDynamic<2)return;
+                first=root.userInterface.GetComponentsInChildren<Button>(false).SingleOrDefault(b=>b.name=="Recipe_"+root.Recipes[0].Id);
+                Need(first!=null&&first.IsActive()&&first.IsInteractable(),"First real recipe button missing/not available");
+                target=first.navigation.selectOnDown as Button;
+                Need(target!=null&&target.IsActive()&&target.IsInteractable()&&target.name.StartsWith("Recipe_",StringComparison.Ordinal)&&target!=first,"Explicit Down navigation must target a different available recipe row");
+                recipeBefore=root.userInterface.SelectedRecipeId;targetRecipe=RecipeId(target);
+                Need(recipeBefore==RecipeId(first)&&recipeBefore!=targetRecipe,"Initial UI must already show the first recipe; probe will not call SelectRecipe");
+                firstWitness=first.gameObject.AddComponent<CraftGamepadUIWitness>();targetWitness=target.gameObject.AddComponent<CraftGamepadUIWitness>();
+                firstWitness.Observe=Witness;targetWitness.Observe=Witness;
+                events.SetSelectedGameObject(first.gameObject);initialSelectionPlaced=true;beforeSelected=Selected(); // the sole initial selection fixture
+                holdDown=true;SetStage("navigate-down");
+            }
+            else if(stage=="navigate-down")
+            {
+                if(events.currentSelectedGameObject==target.gameObject&&moveWitness>0&&ownMoveActions>0)
+                {afterSelected=Selected();holdDown=false;SetStage("navigate-release");}
+                else Need(now-phaseAt<1.5,"Virtual dpad did not move actual EventSystem focus to the second recipe");
+            }
+            else if(stage=="navigate-release")
+            {
+                if(dynamicCount-phaseDynamic<2)return;
+                Need(events.currentSelectedGameObject==target.gameObject&&root.userInterface.SelectedRecipeId==recipeBefore,"Navigation should change focus, not silently activate a recipe");
+                holdA=true;SetStage("submit-down");
+            }
+            else if(stage=="submit-down")
+            {
+                if(root.userInterface.SelectedRecipeId==targetRecipe&&submitWitness>0&&ownSubmitActions>0)
+                {recipeAfter=root.userInterface.SelectedRecipeId;holdA=false;NoConversion();SetStage("submit-release");}
+                else Need(now-phaseAt<1.5,"Virtual A did not submit the focused recipe through the actual UI module");
+            }
+            else if(stage=="submit-release")
+            {
+                if(dynamicCount-phaseDynamic<2)return;
+                Need(events.currentSelectedGameObject==target.gameObject,"Submit unexpectedly moved focus; no selection repair is allowed");
+                cancelPressFrame=Time.frameCount;holdB=true;SetStage("cancel-down");
+            }
+            else if(stage=="cancel-down")
+            {
+                if(!root.userInterface.IsOpen)
+                {
+                    bClosed=true;holdB=false;capturesAfter=Captures();menuAfter=MenuCaptures();cameraAfter=CameraCaptures();
+                    var consumed=root.inventoryView.GetType().GetField("commerceCancelFrame",Hidden)?.GetValue(root.inventoryView);
+                    cancelConsumedFrame=consumed is int value?value:-1;
+                    if(ownCancelActions>0&&cancelWitness>0&&cancelUsed)cancelRoute="ui-selected-control-relay";
+                    else if(ownInventoryCancelActions>0&&cancelConsumedFrame>=cancelPressFrame)cancelRoute="inventory-cancel-before-EventSystem";
+                    else throw new InvalidOperationException("B closed UI without an observed configured cancel route");
+                    Need(capturesAfter==capturesBefore-1&&menuAfter==menuBefore-1&&cameraAfter==cameraBefore-1,"B close did not release exactly the existing crafting/camera capture");
+                    SetStage("cancel-release");
+                }
+                else Need(now-phaseAt<1.5,"Virtual B did not close the actual crafting UI");
+            }
+            else if(stage=="cancel-release")
+            {
+                if(dynamicCount-phaseDynamic<2)return;
+                Need(!root.userInterface.IsOpen&&!root.IsSessionValid,"Closed UI reopened or left a valid crafting session");NoConversion();Finish(true);return;
+            }
+            Publish(false);
+        }
+        catch(Exception ex){error=ex.ToString();Finish(false);}
+    }
+    static void ModeChanged(PlayModeStateChange value){if(value==PlayModeStateChange.ExitingPlayMode)Cancel("Play mode exited");}
+    static void Reload(){Cancel("Domain reload");}
+    public static void Cancel(string reason="Cancelled by Root"){if(Running){error=reason;Finish(false);}}
+    static void Finish(bool ok)
+    {
+        if(finished)return;finished=true;Running=false;holdDown=holdA=holdB=false;
+        InputSystem.onBeforeUpdate-=Before;EditorApplication.update-=Tick;EditorApplication.playModeStateChanged-=ModeChanged;AssemblyReloadEvents.beforeAssemblyReload-=Reload;
+        // Keep the action references so cleanup also works after their Unity module is destroyed.
+        if(moveInput!=null)moveInput.performed-=MoveAction;
+        if(submitInput!=null)submitInput.performed-=SubmitAction;
+        if(cancelInput!=null)cancelInput.performed-=CancelAction;
+        if(inventoryCancelInput!=null)inventoryCancelInput.performed-=InventoryCancelAction;
+        try{if(pad!=null&&InputSystem.devices.Contains(pad))InputSystem.RemoveDevice(pad);}
+        catch(Exception ex){error=(error??"")+"\nOwned Gamepad removal: "+ex;ok=false;}
+        ownDeviceRemoved=pad==null||!InputSystem.devices.Contains(pad);
+        try{if(firstWitness!=null){firstWitness.Observe=null;Object.DestroyImmediate(firstWitness);}if(targetWitness!=null){targetWitness.Observe=null;Object.DestroyImmediate(targetWitness);}}
+        catch(Exception ex){error=(error??"")+"\nOwned witness removal: "+ex;ok=false;}
+        try
+        {
+            if(root!=null&&root.inventory!=null&&root.inventory.Ledger!=null){revisionAfter=root.inventory.Ledger.MutationRevision;receiptsAfter=root.ReceiptCount;capturesAfter=Captures();menuAfter=MenuCaptures();cameraAfter=CameraCaptures();}
+        }
+        catch(Exception ex){error=(error??"")+"\nFinal observation: "+ex;ok=false;}
+        if(ownsLock){SessionState.SetBool(LockKey,false);ownsLock=false;}
+        // Failure does not invoke Close/Confirm or remove a capture on the user's behalf.
+        stage=ok&&error==null&&ownDeviceRemoved?"PASS":"FAILED";Publish(true);pad=null;
+    }
+    static void Publish(bool done)
+    {
+        ResultJson=JsonConvert.SerializeObject(new{status=done?stage:"RUNNING",stage,Running,error,elapsed=EditorApplication.timeSinceStartup-began,
+            inputModule=moduleClass,actions=actionInfo,deviceName,ownDeviceRemoved,initialSelectionFixture=initialSelectionPlaced,beforeSelected,afterSelected,
+            recipeBefore,targetRecipe,recipeAfter,aSelectedDifferentRecipe=recipeBefore!=null&&recipeAfter==targetRecipe&&recipeAfter!=recipeBefore,
+            ownMoveActions,ownSubmitActions,ownCancelActions,ownInventoryCancelActions,moveWitness,submitWitness,cancelWitness,cancelUsed,bClosed,cancelRoute,cancelPressFrame,cancelConsumedFrame,
+            capturesBefore,capturesAfter,menuBefore,menuAfter,cameraBefore,cameraAfter,revisionBefore,revisionAfter,receiptsBefore,receiptsAfter,
+            economicStateUnchanged=InventoryIdentity()==inventoryBefore&&receiptsBefore==receiptsAfter,facts,
+            hooksRemoved=done,ownWitnessesRemoved=done&&firstWitness==null&&targetWitness==null,
+            scope="Actual InputSystemUIInputModule with only an owned virtual Gamepad; not physical-controller acceptance. No focus callbacks, manual input updates, action-map/device filtering, crafting/grant/save API or production source changes."});
+    }
+}

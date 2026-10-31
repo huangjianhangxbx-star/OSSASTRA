@@ -1,0 +1,33 @@
+using System;using System.Linq;using UnityEngine;using UnityEngine.SceneManagement;using UnityEditor;using UnityEngine.InputSystem;using UnityEngine.InputSystem.LowLevel;using Funplay.Editor.Tools.Scripting;using Newtonsoft.Json;
+public sealed class CraftShieldInputProbe:IFunplayCommand
+{
+ public static bool Running;public static string ResultJson="NOT_STARTED";
+ static Mouse mouse;static Keyboard keyboard;static Ossastra.Characters.CharacterRoot actor;static Ossastra.Crafting.CraftingRoot root;static double began;static bool held,sawGuard;static Vector2 pointer;static int frames;static string error;
+ public void Execute(ExecutionContext c)
+ {
+  if(Running||!Application.isPlaying||SceneManager.GetActiveScene().path!="Assets/OSSASTRA/GroundWorkshop/Samples/CRAFT-01/SC_CraftingIntegration.unity")throw new Exception("scope");
+  root=UnityEngine.Object.FindObjectOfType<Ossastra.Crafting.CraftingRoot>();if(root==null||!root.Ready||root.commerce.profileId!="crafting-natural-01"||root.userInterface.IsOpen||root.inventoryView.IsOpen)throw new Exception("ready/profile/UI");
+  actor=root.inventory.Coordinator.Current;if(actor==null||!actor.CanSimulateIntent||root.inventory.Ledger.EquipmentAt("hand:"+actor.ActorId+":Left")?.DefinitionId!="craft-stone-shield")throw new Exception("crafted shield required");
+  keyboard=InputSystem.AddDevice<Keyboard>("CraftShieldKeyboard");mouse=InputSystem.AddDevice<Mouse>("CraftShieldMouse");pointer=root.gameplayCamera.WorldToScreenPoint(actor.transform.position+Vector3.forward*2);
+  sawGuard=held=false;frames=0;error=null;began=EditorApplication.timeSinceStartup;Running=true;InputSystem.onBeforeUpdate+=Before;EditorApplication.update+=Tick;
+  c.ReturnValue=new{started=true,pollType="CraftShieldInputProbe",scope="原右鼠标InputSystem虚拟输入，只操作自有设备，不直接请求技能/改状态",leftId=root.inventory.Ledger.EquipmentAt("hand:"+actor.ActorId+":Left").Id};
+ }
+ static void Before(){if(!Running||InputState.currentUpdateType!=InputUpdateType.Dynamic)return;if(!keyboard.enabled)InputSystem.EnableDevice(keyboard);if(!mouse.enabled)InputSystem.EnableDevice(mouse);InputSystem.QueueStateEvent(keyboard,new KeyboardState());InputSystem.QueueStateEvent(mouse,new MouseState{position=pointer,buttons=held?(ushort)2:(ushort)0});}
+ static void Tick()
+ {
+  try
+  {
+   if(!Running)return;if(!Application.isPlaying||actor==null||root==null||!root.Ready)throw new Exception("session changed");
+   var elapsed=EditorApplication.timeSinceStartup-began;held=elapsed>=.3&&elapsed<1.5;
+   var abilities=actor.GetComponent<Ossastra.Characters.CharacterAbilities>();var legacy=actor.GetComponent<Ossastra.Characters.ShieldGuard>();if(abilities!=null&&abilities.IsGuarding||legacy!=null&&legacy.IsGuarding){sawGuard=true;frames++;}
+   if(elapsed>2)Finish();
+  }
+  catch(Exception ex){error=ex.ToString();Finish();}
+ }
+ static void Finish()
+ {
+  Running=false;held=false;InputSystem.onBeforeUpdate-=Before;EditorApplication.update-=Tick;
+  if(mouse!=null&&InputSystem.devices.Contains(mouse))InputSystem.RemoveDevice(mouse);if(keyboard!=null&&InputSystem.devices.Contains(keyboard))InputSystem.RemoveDevice(keyboard);
+  ResultJson=JsonConvert.SerializeObject(new{status=sawGuard&&error==null?"PASS":"FAILED",sawGuard,guardFrames=frames,error,leftId=actor==null?null:root.inventory.Ledger.EquipmentAt("hand:"+actor.ActorId+":Left")?.Id,ownDevicesRemoved=!InputSystem.devices.Any(d=>d==mouse||d==keyboard),scope="原副手按键实际守卫执行；无直接Request/HP/耐久/技能写入；非实体硬件测试"});mouse=null;keyboard=null;
+ }
+}

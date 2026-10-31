@@ -1,0 +1,47 @@
+PASS ingredient rejects whitespace identity
+PASS ingredient rejects zero quantity
+PASS output rejects negative quantity
+PASS source rejects empty item identity
+PASS source rejects zero quantity
+PASS consumption rejects invalid quantity
+PASS recipe checked aggregates same material
+PASS recipe ingredients are frozen from caller array
+PASS recipe outputs are frozen from caller array
+PASS recipe rejects material aggregate overflow
+PASS recipe rejects total material overflow
+PASS recipe rejects invalid version
+PASS recipe rejects missing capability
+PASS recipe rejects maxbatch 100
+PASS recipe rejects output budget above 99
+PASS recipe rejects empty materials
+PASS recipe rejects empty outputs
+PASS catalog rejects duplicate recipe identity
+PASS catalog freezes caller array
+PASS catalog resolves exact case-sensitive identity
+PASS planner allocates ordinal definitions and item IDs
+PASS planner permutation does not alter allocation
+PASS planner excludes whole reserved stack
+PASS planner excludes equipment from materials
+PASS planner rejection never exposes partial consumption
+PASS planner rejects duplicate identity across definitions
+PASS planner rejects duplicate even when one reserved
+PASS planner rejects zero batch
+PASS planner accepts bounded batch 99
+PASS planner rejects missing source list
+PASS planner rejects null source record
+PASS planner rejects batch above recipe limit
+PASS planner rejects final output budget above 99
+PASS planner rejects batched material overflow
+PASS planner rejects available count overflow
+PASS planner never mutates source snapshots
+PASS planner freezes its returned facts
+PASS fingerprint is 64 lowercase hex
+PASS fingerprint matches independent canonical golden
+PASS fingerprint canonicalizes source order
+PASS fingerprint changes for every command fact
+PASS fingerprint changes for material item definition and quantity
+PASS fingerprint length prefixes prevent delimiter ambiguity
+PASS fingerprint rejects duplicate material item IDs
+PASS fingerprint rejects negative ledger revision
+PASS fingerprint unicode byte-length matches independent golden
+TOTAL 46 passed, 0 failed

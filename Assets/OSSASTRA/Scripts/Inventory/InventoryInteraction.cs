@@ -12,6 +12,7 @@ using Ossastra.Characters;
 using Ossastra.UserInterface;
 using Ossastra.Commerce.Runtime;
 using Ossastra.Commerce.Presentation;
+using Ossastra.Crafting;
 namespace Ossastra.Inventory
 {
     public sealed class InventoryInteraction:MonoBehaviour
@@ -22,6 +23,8 @@ namespace Ossastra.Inventory
         [SerializeField] private HealingBottleService healing;
         [SerializeField] private CommerceService commerce;
         [SerializeField] private CommerceUIRoot commerceUi;
+        [Header("可选合成根 / 同一交互Action，不新增F")]
+        [SerializeField] private CraftingRoot crafting;
         public InputAction interactAction=new InputAction("InventoryInteract",InputActionType.Button,"<Keyboard>/f");
         private bool focused=true;
         private readonly DeviceActionSampler sampler=new DeviceActionSampler();
@@ -38,6 +41,7 @@ namespace Ossastra.Inventory
             var pressed=sampler.Devices.Any(d=>d.Pressed(interactAction)&&!d.ConsumedByComposite(interactAction));
             // 商店捕获会关闭角色玩家源，但不应同时切断这个已打开窗口自己的确认入口。
             if(commerceUi!=null&&commerceUi.IsOpen){Prompt="";if(pressed)commerceUi.TryConfirmInteraction();return;}
+            if(crafting!=null&&crafting.userInterface!=null&&crafting.userInterface.IsOpen){Prompt="";if(pressed)crafting.userInterface.TryConfirmInteraction();return;}
             if(!actor.GetComponent<CharacterInputHandler>().HasPlayerInput||!actor.CanSimulateIntent||EventSystem.current?.currentSelectedGameObject?.GetComponent<InputField>()?.isFocused==true){sampler.Suppress();Prompt="";return;}
             var nearest=session.AccessibleExternal.OrderBy(id=>Vector3.SqrMagnitude((session.ContainerPosition(id)??actor.transform.position)-actor.transform.position)).ToArray();
             var manual=nearest.FirstOrDefault(id=>session.IsLoosePickup(id));
@@ -46,9 +50,13 @@ namespace Ossastra.Inventory
             var containerDistance=nearest.Length==0?float.PositiveInfinity:(session.ContainerPosition(nearest[0]).Value-actor.transform.position).sqrMagnitude;
             var fireAvailable=campfire!=null&&campfire.CanRefill(healing);
             var fireDistance=fireAvailable?(campfire.transform.position-actor.transform.position).sqrMagnitude:float.PositiveInfinity;
-            var useFire=fireAvailable&&fireDistance<containerDistance&&fireDistance<merchantDistance;
-            var useMerchant=merchant!=null&&merchantDistance<=containerDistance&&merchantDistance<=fireDistance;
-            Prompt=manual!=null?"交互 拾取":useFire?"交互 篝火补给":useMerchant?"交互 "+merchant.displayName:nearest.Length>0?"交互 打开容器":"";
+            var station=crafting==null?null:crafting.NearestTarget();
+            var stationDistance=station==null?float.PositiveInfinity:(station.Anchor-actor.transform.position).sqrMagnitude;
+            // 平距时按工位→商人→容器→篝火固定优先；各类内部均按稳定身份排序。
+            var useStation=station!=null&&stationDistance<=containerDistance&&stationDistance<=merchantDistance&&stationDistance<=fireDistance;
+            var useFire=fireAvailable&&fireDistance<containerDistance&&fireDistance<merchantDistance&&fireDistance<stationDistance;
+            var useMerchant=merchant!=null&&merchantDistance<=containerDistance&&merchantDistance<=fireDistance&&merchantDistance<stationDistance;
+            Prompt=manual!=null?"交互 拾取":useStation?"交互 "+station.definition.displayName:useFire?"交互 篝火补给":useMerchant?"交互 "+merchant.displayName:nearest.Length>0?"交互 打开容器":"";
             if(!pressed)return;
             // 优先散落条目；容器/篝火分支互斥，绝不对同一次F继续向后派发。
             if(manual!=null)
@@ -56,6 +64,7 @@ namespace Ossastra.Inventory
                 var item=session.Ledger.Items.FirstOrDefault(i=>i.Location.ContainerId==manual);if(item==null)return;
                 var result=session.Move(session.Ledger.Plan(item.Id,"team"));view.Feedback(result.Ok?"已拾取 "+session.Definition(item.DefinitionId).displayName:result.Reason);session.ReclaimEmptyGround();return;
             }
+            if(useStation){crafting.Open(station);return;}
             if(useFire){healing.TryRefill(campfire);view.Feedback(healing.LastResult);return;}
             if(useMerchant){commerce.OpenRole(merchant);return;}
             if(nearest.Length>0){view.OpenExternal(nearest[0]);return;}

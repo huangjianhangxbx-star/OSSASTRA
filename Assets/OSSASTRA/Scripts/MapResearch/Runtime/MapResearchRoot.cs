@@ -15,6 +15,14 @@ namespace Ossastra.MapResearch
     [RequireComponent(typeof(MapResearchCameraInput))]
     public sealed class MapResearchRoot : MonoBehaviour, ICharacterViewContext
     {
+        private readonly System.Collections.Generic.HashSet<object> uiCameraCaptures=new System.Collections.Generic.HashSet<object>();
+        /// <summary>窗口只捕获镜头指令；按owner释放，不切角色控制，也不暂停。边沿丢弃旧滚轮。</summary>
+        public void SetUiCameraCapture(object owner,bool captured)
+        {
+            if(owner==null)return;
+            var changed=captured?uiCameraCaptures.Add(owner):uiCameraCaptures.Remove(owner);
+            if(changed&&cameraInput!=null)cameraInput.DiscardPending();
+        }
         [Header("场景显式装配：不扫描/替换正式场景")]
         public Camera gameplayCamera;
         public Camera observerCamera;
@@ -167,7 +175,7 @@ namespace Ossastra.MapResearch
             if (!bound || !inputOwned || gameplayCamera == null || observerCamera == null) return;
             if (session != null ? sessionComponent == null : participantComponent == null) { Release(); return; }
             // 本实验没有文本输入框；IMGUI拥有键盘/拖动时不把同一滚轮或快捷键再当镜头指令。
-            bool blocked = !hasFocus || GUIUtility.keyboardControl != 0 || GUIUtility.hotControl != 0;
+            bool blocked = !hasFocus || uiCameraCaptures.Count>0 || GUIUtility.keyboardControl != 0 || GUIUtility.hotControl != 0;
             MapResearchCameraInput.Frame frame = cameraInput.ReadFrame(blocked);
             if ((frame.structure || uiToggle) && hasFocus) SetStructureMode(!structureMode);
             if ((frame.side || uiSide) && hasFocus) { if (SetStructureMode(true)) observerTop = false; }

@@ -1,0 +1,299 @@
+/* CRAFT-01：仅Root Native执行的隔离事务/生命周期夹具，不是自然键盘验收。
+ * 入口：CraftRuntimeValidation.Execute；异步静态属性Running/ResultJson供Root反射轮询，Cancel()精确清理本夹具。
+ * 必须已在CRAFT Main Play、唯一原保存宿主、crafting-fault-01及指定外部profiles目录，且Current真实靠近一个可用工位。
+ * 只显式Grant配方普通材料；不传送角色、不改角色模型/能力/HP、不改profile、不写源资产、不另绑输入。
+ * 所有拒绝用例都是同步临时字段/自有Collider/原公开控制API夹具，finally恢复；控制与库存revision保持单调，不倒写。
+ */
+using System;
+using System.IO;
+using System.Linq;
+using System.Collections.Generic;
+using System.Reflection;
+using System.Security.Cryptography;
+using System.Text;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEditor;
+using Newtonsoft.Json;
+using Ossastra.Crafting;
+using Ossastra.Crafting.Presentation;
+using Ossastra.Inventory;
+using Ossastra.Commerce.Runtime;
+using Funplay.Editor.Tools.Scripting;
+using Actor=Ossastra.Characters.CharacterRoot;
+using Object=UnityEngine.Object;
+
+public sealed class CraftRuntimeValidation:IFunplayCommand
+{
+    const string Main="Assets/OSSASTRA/GroundWorkshop/Samples/CRAFT-01/SC_CraftingIntegration.unity";
+    const string Profile="crafting-fault-01";
+    const string Profiles="E:/WORLDCREATOR/XingHaiHuiLang/研究/装备台合成/CRAFT-01/05-unity-evidence/profiles";
+    const string LockKey="CRAFT-01.RuntimeValidation.Running";
+
+    // 原透视/净空系统会建立两个无业务脚本的私有物理查询Scene；它们不含保存宿主。
+    static bool SafeSceneSet(){int authored=0;for(int i=0;i<SceneManager.sceneCount;i++){var s=SceneManager.GetSceneAt(i);if(!string.IsNullOrEmpty(s.path)){if(s.path!=Main)return false;authored++;}else if(!(s.name.StartsWith("__KT_VIS01_QueryPhysics_",StringComparison.Ordinal)||s.name.StartsWith("CharacterClearanceMath_",StringComparison.Ordinal))||s.GetRootGameObjects().Any(g=>g.GetComponentsInChildren<MonoBehaviour>(true).Any()))return false;}return authored==1;}
+    public static bool Running {get;private set;}
+    public static string ResultJson {get;private set;}="NOT_STARTED";
+    static CraftingRoot root;
+    static CraftingStation station;
+    static CraftingRecipeSO recipe;
+    static Actor initialActor;
+    static string stage,error,requestOne;
+    static int frameAt,lastFrame,faultIndex;
+    static double started,phaseAt;
+    static bool success,ownsFixture;
+    static readonly object captureOwner=new object();
+    static readonly List<object> facts=new List<object>();
+    static readonly List<Guid> reservations=new List<Guid>();
+    static readonly List<string> firstEquipmentIds=new List<string>();
+    static GameObject wall;
+    static int initialCaptureCount;
+    static readonly string[] FaultNames={"int-max-quantity","stale-inventory-revision","control-generation","switch-current","root-disabled","station-component-disabled","station-unavailable","station-map-changed","station-id-changed","anchor-changed","real-los-blocker","reserved-material-excluded","close-releases-capture"};
+
+    static void Need(bool value,string why){if(!value)throw new InvalidOperationException(why);}
+    static string Full(string path)=>Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar,Path.AltDirectorySeparatorChar);
+    static string Hash(object value)
+    {
+        using(var h=SHA256.Create())return BitConverter.ToString(h.ComputeHash(Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(value)))).Replace("-","").ToLowerInvariant();
+    }
+    static int Captures()
+    {
+        var coordinator=root.inventory.Coordinator;
+        var values=typeof(Ossastra.Characters.CharacterControlCoordinator).GetField("inventoryCaptures",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(coordinator) as ICollection<object>;
+        Need(values!=null,"原Coordinator库存capture检查接缝不存在，未猜测owner状态");return values.Count;
+    }
+    sealed class State
+    {
+        public string layoutHash,fullInventoryHash;
+        public long revision,access;
+        public int receiptCount,captures;
+        public object[] team;
+        public string[] equipmentIds;
+    }
+    static State Snapshot()
+    {
+        var ledger=root.inventory.Ledger;var snapshot=ledger.Capture();
+        // fullInventoryHash包含真实装备时钟；layoutHash专看数量/位置/身份/耐久，跨帧自然推进不冒充物品变化。
+        var authority=new{snapshot.accessGeneration,snapshot.mutationRevision,snapshot.containers,snapshot.requests,snapshot.wipes,
+            items=snapshot.items.Select(i=>new{i.id,i.definitionId,i.quantity,i.containerId,i.x,i.y,
+                equipment=i.equipment==null?null:new{i.equipment.id,i.equipment.definitionId,i.equipment.kind,i.equipment.durability}}).ToArray()};
+        return new State{layoutHash=Hash(authority),fullInventoryHash=Hash(snapshot),revision=ledger.MutationRevision,access=ledger.AccessGeneration,
+            receiptCount=root.ReceiptCount,captures=Captures(),
+            equipmentIds=ledger.Items.Where(i=>i.Equipment!=null).Select(i=>i.Id).OrderBy(i=>i,StringComparer.Ordinal).ToArray(),
+            team=ledger.Items.Where(i=>i.Location.ContainerId=="team").OrderBy(i=>i.Id,StringComparer.Ordinal)
+                .Select(i=>(object)new{i.Id,i.DefinitionId,i.Quantity,container=i.Location.ContainerId,x=i.Location.X,y=i.Location.Y,equipment=i.Equipment!=null}).ToArray()};
+    }
+    static void Guard()
+    {
+        var scene=SceneManager.GetActiveScene();
+        Need(Application.isPlaying&&!EditorApplication.isPaused&&Time.timeScale==1&&SafeSceneSet()&&scene.path==Main,"只允许唯一CRAFT Main正常Play；不退出安全场找备用入口");
+        var roots=scene.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<CraftingRoot>(true)).ToArray();
+        Need(roots.Length==1&&roots[0]==root&&root!=null&&root.Ready,"需唯一已Ready原CraftingRoot");
+        var services=Resources.FindObjectsOfTypeAll<CommerceService>().Where(c=>c!=null&&!EditorUtility.IsPersistent(c)&&c.gameObject.scene.IsValid()&&c.gameObject.scene.isLoaded).ToArray();
+        Need(services.Length==1&&services[0]==root.commerce&&services[0].gameObject.scene==scene,"发现重复或外场保存宿主，停止夹具");
+        Need(root.commerce.profileId==Profile&&!string.IsNullOrWhiteSpace(root.commerce.saveDirectory)&&StringComparer.OrdinalIgnoreCase.Equals(Full(root.commerce.saveDirectory),Full(Profiles)),"profile或最终外部保存目录不符，未作任何profile更改");
+        Need(!string.IsNullOrWhiteSpace(root.commerce.SavePath)&&Full(root.commerce.SavePath).StartsWith(Full(Profiles)+Path.DirectorySeparatorChar,StringComparison.OrdinalIgnoreCase),"实际SavePath未落在显式外部profiles目录");
+        Need(root.inventory.CanEditInventory&&root.inventory.CurrentMapId==root.mapId&&root.mapId==root.commerce.mapId,"原库存编辑/地图/保存门不Ready");
+    }
+    public void Execute(ExecutionContext ctx)
+    {
+        Need(!Running&&!SessionState.GetBool(LockKey,false),"已有Native验证运行；只轮询原类或Cancel，不重复安装状态机");
+        facts.Clear();reservations.Clear();firstEquipmentIds.Clear();root=null;station=null;recipe=null;initialActor=null;wall=null;error=null;success=ownsFixture=false;requestOne=null;faultIndex=0;lastFrame=-1;stage="preflight";started=phaseAt=EditorApplication.timeSinceStartup;
+        try
+        {
+            var scene=SceneManager.GetActiveScene();
+            Need(Application.isPlaying&&scene.path==Main&&SafeSceneSet(),"必须先由Root配置并读回隔离fault profile，再进入唯一CRAFT Main Play");
+            root=scene.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<CraftingRoot>(true)).Single();Guard();
+            Need(root.userInterface!=null&&!root.userInterface.IsOpen&&!root.inventoryView.HasCommerceCapture&&!root.inventoryView.IsOpen,"需先关闭窗口，不能抢用户已有UI owner");
+            initialCaptureCount=Captures();Need(initialCaptureCount==0,"已有库存capture，不接管或撤销他人owner");
+            var inputOwners=typeof(Ossastra.Characters.CharacterControlCoordinator).GetField("inputCaptures",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(root.inventory.Coordinator) as ICollection<object>;
+            Need(inputOwners!=null&&inputOwners.Count==0,"已有系统菜单等全局输入owner，不接管用户窗口");
+            initialActor=root.inventory.Coordinator.Current;Need(initialActor!=null&&initialActor.CanSimulateIntent,"缺真实可用Current");
+            Need(root.inventory.Coordinator.Characters.Count==2&&root.inventory.Coordinator.Characters.All(c=>c!=null&&c.IsAlive&&c.isActiveAndEnabled),"切控夹具需两个既有存活角色，不生成/复活角色");
+            station=root.stations.Where(s=>s!=null&&s.definition!=null&&s.definition.supported&&s.CheckAccess(initialActor)==null)
+                .OrderBy(s=>(s.Anchor-initialActor.transform.position).sqrMagnitude).ThenBy(s=>s.instanceId,StringComparer.Ordinal).FirstOrDefault();
+            Need(station!=null,"Current未在任何支持工位的真实同层/距离/LOS内；请先走到工位，本命令不传送角色或搬台");
+            recipe=root.recipes.FirstOrDefault(r=>r!=null&&station.definition.capabilities.Contains(r.stationCapability)&&r.outputs.Any(o=>o.item!=null&&o.item.equipment!=null));
+            Need(recipe!=null,"可访问工位没有现有装备配方");Need(root.ReceiptCount<=125,"当前回执窗口临近上限，本夹具不清理原历史");ownsFixture=true;
+            facts.Add(new{test="strict-preflight",actual=true,mode="API_FIXTURE_NOT_NATURAL_KEYBOARD",scene=scene.path,guid=AssetDatabase.AssetPathToGUID(Main),profile=root.commerce.profileId,saveDirectory=Full(root.commerce.saveDirectory),savePath=Full(root.commerce.SavePath),actor=initialActor.ActorId,station=station.instanceId,recipe=recipe.recipeId,before=Snapshot()});
+            // 明确仅为fault档种材料；不代签采集、F拾取或普通配方前置链。
+            foreach(var group in recipe.ingredients.GroupBy(c=>c.item.definitionId,StringComparer.Ordinal))
+            {
+                int count=checked(group.Sum(c=>c.quantity)*12);var before=Snapshot();var result=root.inventory.Ledger.Grant("team",group.Key,count);
+                facts.Add(new{test="fixture-grant-material",fixture=true,definitionId=group.Key,quantity=count,ok=result.Ok,reason=result.Reason,before,after=Snapshot()});
+                Need(result.Ok,"显式材料fixture入包失败，未清理/挪动旧物品："+result.Reason);
+            }
+            Need(root.Open(station)&&root.userInterface.IsOpen,"Root.Open未打开真实uGUI");
+            stage="settle-first-ui";frameAt=Time.frameCount;phaseAt=EditorApplication.timeSinceStartup;Running=true;SessionState.SetBool(LockKey,true);
+            EditorApplication.update+=Tick;EditorApplication.playModeStateChanged+=ModeChanged;AssemblyReloadEvents.beforeAssemblyReload+=Reload;
+            Publish();ctx.ReturnValue=new{started=true,stage,profile=Profile,pollAssembly=typeof(CraftRuntimeValidation).Assembly.FullName,pollType=typeof(CraftRuntimeValidation).FullName,pollProperties=new[]{"Running","ResultJson"},scope="Explicit API fixtures only; real natural keyboard/collection/combat/save cold-read must be recorded separately"};
+        }
+        catch(Exception ex){error=ex.ToString();Finish(false);ctx.ReturnValue=new{started=false,result=ResultJson};}
+    }
+    static void Tick()
+    {
+        if(!Running)return;
+        try
+        {
+            Guard();Need(EditorApplication.timeSinceStartup-started<90,"夹具超时，停止并精确清理自有状态机");
+            if(Time.frameCount==lastFrame)return;lastFrame=Time.frameCount;
+            if(stage=="settle-first-ui")
+            {
+                if(Time.frameCount-frameAt<3)return;Need(root.userInterface.IsOpen&&root.IsSessionValid,"UI稳定期会话失效");
+                var before=Snapshot();var preview=root.Preview(recipe.recipeId,1);Need(preview!=null&&preview.Ok&&!string.IsNullOrWhiteSpace(preview.RequestId),"初次合法预览失败："+preview?.Reason);
+                requestOne=preview.RequestId;facts.Add(new{test="explicit-preview-after-real-ui-frames",fixture=true,waitedFrames=Time.frameCount-frameAt,requestId=requestOne,preview.Ok,preview.Reason,before,after=Snapshot()});
+                stage="wait-two-seconds";phaseAt=EditorApplication.timeSinceStartup;frameAt=Time.frameCount;Publish();return;
+            }
+            if(stage=="wait-two-seconds")
+            {
+                if(EditorApplication.timeSinceStartup-phaseAt<2||Time.frameCount-frameAt<2)return;
+                var before=Snapshot();var result=root.Confirm(requestOne);var after=Snapshot();
+                facts.Add(new{test="confirm-after-two-seconds-live-world",fixture=true,elapsed=EditorApplication.timeSinceStartup-phaseAt,elapsedFrames=Time.frameCount-frameAt,requestId=requestOne,ok=result!=null&&result.Ok,reason=result?.Reason,before,after});
+                Need(result!=null&&result.Ok&&after.receiptCount==before.receiptCount+1,"跨帧合法确认未提交一次回执："+result?.Reason);
+                firstEquipmentIds.AddRange(after.equipmentIds.Except(before.equipmentIds,StringComparer.Ordinal));Need(firstEquipmentIds.Count>0,"成功未产生新的真实装备ID");
+                CheckReplayAndConflict();CloseAndCheck("first-success-close");
+                Need(root.Open(station),"第二次独立开窗失败");stage="settle-second-ui";frameAt=Time.frameCount;Publish();return;
+            }
+            if(stage=="settle-second-ui")
+            {
+                if(Time.frameCount-frameAt<3)return;
+                var preview=root.Preview(recipe.recipeId,1);Need(preview!=null&&preview.Ok&&preview.RequestId!=requestOne,"第二个新票据无效");var before=Snapshot();var result=root.Confirm(preview.RequestId);var after=Snapshot();var ids=after.equipmentIds.Except(before.equipmentIds,StringComparer.Ordinal).ToArray();
+                facts.Add(new{test="independent-second-command",fixture=true,requestId=preview.RequestId,ok=result!=null&&result.Ok,reason=result?.Reason,newEquipmentIds=ids,before,after});
+                Need(result!=null&&result.Ok&&after.receiptCount==before.receiptCount+1&&ids.Length>0&&!ids.Intersect(firstEquipmentIds,StringComparer.Ordinal).Any(),"新确认未提交独立装备");
+                CloseAndCheck("second-success-close");BeginFault();return;
+            }
+            if(stage=="fault-ui-settle")
+            {
+                if(Time.frameCount-frameAt<3)return;
+                RunFault(FaultNames[faultIndex]);CloseAndCheck("fault-close:"+FaultNames[faultIndex]);faultIndex++;
+                if(faultIndex==FaultNames.Length){stage="completed";Finish(true);}else BeginFault();
+            }
+        }
+        catch(Exception ex){error=ex.ToString();Finish(false);}
+    }
+    static void CheckReplayAndConflict()
+    {
+        var before=Snapshot();var repeated=root.Confirm(requestOne);var after=Snapshot();
+        facts.Add(new{test="same-request-replayed",fixture=true,requestId=requestOne,ok=repeated!=null&&repeated.Ok,reason=repeated?.Reason,before,after});
+        Need(repeated!=null&&repeated.Ok&&before.layoutHash==after.layoutHash&&before.receiptCount==after.receiptCount,"同请求重试再次改变物品或回执");
+        var saved=JsonConvert.DeserializeObject<Newtonsoft.Json.Linq.JObject>(root.Capture().payload);var fingerprint=(string)saved["receipts"].Last["fingerprint"];
+        var different=(fingerprint[0]=='0'?"1":"0")+fingerprint.Substring(1);
+        before=Snapshot();var conflict=root.ConfirmCommand(requestOne,different);after=Snapshot();
+        facts.Add(new{test="same-request-different-hash",fixture=true,requestId=requestOne,ok=conflict!=null&&conflict.Ok,reason=conflict?.Reason,before,after});
+        Need(conflict!=null&&!conflict.Ok&&before.layoutHash==after.layoutHash&&before.receiptCount==after.receiptCount,"同ID换hash未安全拒绝");
+    }
+    static void BeginFault()
+    {
+        Need(root.Open(station)&&root.userInterface.IsOpen,"故障用例开窗失败："+FaultNames[faultIndex]);stage="fault-ui-settle";frameAt=Time.frameCount;Publish();
+    }
+    static void Rejected(string name,string request)
+    {
+        var before=Snapshot();var result=root.Confirm(request);var after=Snapshot();
+        bool passed=result!=null&&!result.Ok&&before.layoutHash==after.layoutHash&&before.receiptCount==after.receiptCount;
+        facts.Add(new{test=name,fixture=true,expected="reject-without-inventory-or-receipt-change",passed,requestId=request,ok=result!=null&&result.Ok,reason=result?.Reason,before,after});
+        Need(passed,"失效请求未保持原物品/回执："+name);
+    }
+    static void RunFault(string name)
+    {
+        if(name=="int-max-quantity")
+        {
+            var before=Snapshot();var value=root.Preview(recipe.recipeId,int.MaxValue);var after=Snapshot();
+            facts.Add(new{test=name,fixture=true,quantity=int.MaxValue,ok=value!=null&&value.Ok,reason=value?.Reason,before,after});
+            Need(value!=null&&!value.Ok&&before.layoutHash==after.layoutHash&&before.receiptCount==after.receiptCount,"超量预览未安全拒绝");return;
+        }
+        if(name=="reserved-material-excluded")
+        {
+            string id=recipe.ingredients[0].item.definitionId;var stacks=root.inventory.Ledger.Items.Where(i=>i.Location.ContainerId=="team"&&i.DefinitionId==id&&i.Equipment==null).ToArray();Need(stacks.Length>0,"缺预留材料夹具");
+            try
+            {
+                foreach(var item in stacks){var token=Guid.NewGuid();Need(root.inventory.Ledger.Reserve(item.Id,1,token).Ok,"材料已有其他动作预留，不抢占");reservations.Add(token);}
+                var before=Snapshot();var value=root.Preview(recipe.recipeId,1);var after=Snapshot();
+                facts.Add(new{test=name,fixture=true,definitionId=id,reservedWholeStackIds=stacks.Select(i=>i.Id).ToArray(),ok=value!=null&&value.Ok,reason=value?.Reason,materials=value?.MaterialsSummary,before,after});
+                Need(value!=null&&!value.Ok&&before.layoutHash==after.layoutHash&&before.receiptCount==after.receiptCount,"原动作预留未从可用材料排除");
+            }
+            finally{foreach(var token in reservations)root.inventory.Ledger.CancelReservation(token);reservations.Clear();}
+            return;
+        }
+        var preview=root.Preview(recipe.recipeId,1);Need(preview!=null&&preview.Ok,"故障前合法预览失败："+name+" / "+preview?.Reason);var request=preview.RequestId;
+        if(name=="stale-inventory-revision")
+        {
+            var before=Snapshot();var row=recipe.ingredients[0];var grant=root.inventory.Ledger.Grant("team",row.item.definitionId,1);
+            facts.Add(new{test="fixture-revision-change-grant",fixture=true,definitionId=row.item.definitionId,quantity=1,ok=grant.Ok,reason=grant.Reason,before,after=Snapshot()});Need(grant.Ok,"修订变化夹具Grant失败");Rejected(name,request);return;
+        }
+        if(name=="control-generation")
+        {try{root.inventory.Coordinator.SetInventoryCapture(captureOwner,true);Rejected(name,request);}finally{root.inventory.Coordinator.SetInventoryCapture(captureOwner,false);}return;}
+        if(name=="switch-current")
+        {
+            var original=root.inventory.Coordinator.Current;root.userInterface.Close();
+            try{Need(root.inventory.Coordinator.SwitchNext()&&root.inventory.Coordinator.Current!=original,"原公开切控门未切换，不伪造Current");Rejected(name,request);}
+            finally{RestoreActor(original);}return;
+        }
+        if(name=="root-disabled")
+        {bool old=root.enabled;try{root.enabled=false;Rejected(name,request);}finally{root.enabled=old;}return;}
+        if(name=="station-component-disabled")
+        {bool old=station.enabled;try{station.enabled=false;Rejected(name,request);}finally{station.enabled=old;}return;}
+        if(name=="station-unavailable")
+        {bool old=station.available;try{station.available=false;Rejected(name,request);}finally{station.available=old;}return;}
+        if(name=="station-map-changed")
+        {string old=station.mapId;try{station.mapId=old+":fixture-other";Rejected(name,request);}finally{station.mapId=old;}return;}
+        if(name=="station-id-changed")
+        {string old=station.instanceId;try{station.instanceId=old+":fixture-other";Rejected(name,request);}finally{station.instanceId=old;}return;}
+        if(name=="anchor-changed")
+        {var old=station.interactionAnchor.position;try{station.interactionAnchor.position=old+Vector3.right*.25f;Rejected(name,request);}finally{station.interactionAnchor.position=old;}return;}
+        if(name=="real-los-blocker")
+        {
+            var actor=root.inventory.Coordinator.Current;var start=actor.transform.position+Vector3.up*station.sightHeight;var end=station.Anchor+Vector3.up*station.sightHeight;var delta=end-start;Need(delta.magnitude>.4f,"LOS夹具需要角色与锚点间至少0.4m，不移动角色凑结果");
+            int layer=-1;for(int i=0;i<32;i++)if((station.obstacleLayers.value&(1<<i))!=0){layer=i;break;}Need(layer>=0,"工位obstacleLayers为空，无法放入真实LOS阻挡夹具");
+            try
+            {
+                wall=new GameObject("CRAFT-01_RuntimeValidation_OwnedLOSBlocker");SceneManager.MoveGameObjectToScene(wall,root.gameObject.scene);wall.layer=layer;wall.transform.position=(start+end)*.5f;
+                var collider=wall.AddComponent<BoxCollider>();collider.size=Vector3.one*Mathf.Min(.2f,delta.magnitude*.3f);Physics.SyncTransforms();
+                Need(station.CheckAccess(actor)!=null,"自有真实Collider没有阻挡工位LOS，不宣称拒绝验证通过");Rejected(name,request);
+            }
+            finally{if(wall!=null){Object.DestroyImmediate(wall);wall=null;Physics.SyncTransforms();}}return;
+        }
+        if(name=="close-releases-capture")
+        {root.userInterface.Close();Need(!root.inventoryView.HasCommerceCapture&&Captures()==initialCaptureCount,"Close后自有capture未释放");Rejected(name,request);return;}
+        throw new InvalidOperationException("未知故障用例："+name);
+    }
+    static void RestoreActor(Actor original)
+    {
+        if(root==null||original==null)return;
+        if(root.userInterface!=null)root.userInterface.Close();
+        for(int i=0;i<root.inventory.Coordinator.Characters.Count+1&&root.inventory.Coordinator.Current!=original;i++)
+            Need(root.inventory.Coordinator.SwitchNext(),"原公开切控门无法恢复夹具开始时角色，未反射倒写Current");
+        Need(root.inventory.Coordinator.Current==original,"切控夹具未恢复原角色");
+    }
+    static void CloseAndCheck(string name)
+    {
+        var before=Snapshot();root.userInterface.Close();var after=Snapshot();
+        facts.Add(new{test=name,fixture=true,uiOpen=root.userInterface.IsOpen,commerceCapture=root.inventoryView.HasCommerceCapture,before,after});
+        Need(!root.userInterface.IsOpen&&!root.inventoryView.HasCommerceCapture&&after.captures==initialCaptureCount,"窗口关闭未精确释放自有capture");
+    }
+    static void Publish()
+    {
+        ResultJson=JsonConvert.SerializeObject(new{running=Running,success,stage,error,elapsedSeconds=EditorApplication.timeSinceStartup-started,profile=Profile,
+            scope="API fixtures, including explicit original Ledger.Grant; NOT natural keyboard/collection/equipment combat/save cold-read certification",facts=facts.ToArray()},Formatting.Indented);
+    }
+    static void Finish(bool passed)
+    {
+        EditorApplication.update-=Tick;EditorApplication.playModeStateChanged-=ModeChanged;AssemblyReloadEvents.beforeAssemblyReload-=Reload;Running=false;SessionState.SetBool(LockKey,false);success=passed;
+        try
+        {
+            if(wall!=null){Object.DestroyImmediate(wall);wall=null;Physics.SyncTransforms();}
+            if(ownsFixture&&root!=null&&root.inventory!=null)
+            {
+                foreach(var token in reservations)root.inventory.Ledger.CancelReservation(token);reservations.Clear();
+                root.inventory.Coordinator.SetInventoryCapture(captureOwner,false);
+                if(root.userInterface!=null)root.userInterface.Close();RestoreActor(initialActor);
+                facts.Add(new{test="final-cleanup",fixture=true,uiOpen=root.userInterface!=null&&root.userInterface.IsOpen,hasCommerceCapture=root.inventoryView.HasCommerceCapture,captures=Captures(),ownedWallRemaining=wall!=null,final=Snapshot()});
+                Need(Captures()==initialCaptureCount&&!root.inventoryView.HasCommerceCapture,"最终capture与基线不一致");
+            }
+        }
+        catch(Exception ex){success=false;error=(error??"")+"\nCleanup: "+ex;}
+        Publish();
+    }
+    public static void Cancel(){if(!Running)return;error="Root cancelled API fixture";stage="cancelled";Finish(false);}
+    static void ModeChanged(PlayModeStateChange value){if(Running&&value==PlayModeStateChange.ExitingPlayMode){error="Play退出中止夹具，未把剩余项记通过";stage="play-exit";Finish(false);}}
+    static void Reload(){if(Running){error="Assembly reload中止夹具，未把剩余项记通过";stage="assembly-reload";Finish(false);}}
+}

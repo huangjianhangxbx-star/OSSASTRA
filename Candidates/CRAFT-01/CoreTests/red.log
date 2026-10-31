@@ -1,0 +1,42 @@
+FAIL ingredient rejects whitespace identity: 尚未实现核心类型 CraftIngredient
+FAIL ingredient rejects zero quantity: 尚未实现核心类型 CraftIngredient
+FAIL output rejects negative quantity: 尚未实现核心类型 CraftOutput
+FAIL source rejects empty item identity: 尚未实现核心类型 CraftMaterialStack
+FAIL source rejects zero quantity: 尚未实现核心类型 CraftMaterialStack
+FAIL consumption rejects invalid quantity: 尚未实现核心类型 CraftMaterialConsumption
+FAIL recipe checked aggregates same material: 尚未实现核心类型 CraftIngredient
+FAIL recipe ingredients are frozen from caller array: 尚未实现核心类型 CraftIngredient
+FAIL recipe outputs are frozen from caller array: 尚未实现核心类型 CraftOutput
+FAIL recipe rejects material aggregate overflow: 尚未实现核心类型 CraftIngredient
+FAIL recipe rejects total material overflow: 尚未实现核心类型 CraftIngredient
+FAIL recipe rejects invalid version: 尚未实现核心类型 CraftIngredient
+FAIL recipe rejects missing capability: 尚未实现核心类型 CraftIngredient
+FAIL recipe rejects maxbatch 100: 尚未实现核心类型 CraftIngredient
+FAIL recipe rejects output budget above 99: 尚未实现核心类型 CraftIngredient
+FAIL recipe rejects empty materials: 尚未实现核心类型 CraftIngredient
+FAIL recipe rejects empty outputs: 尚未实现核心类型 CraftIngredient
+FAIL catalog rejects duplicate recipe identity: 尚未实现核心类型 CraftIngredient
+FAIL catalog freezes caller array: 尚未实现核心类型 CraftIngredient
+FAIL planner allocates ordinal definitions and item IDs: 尚未实现核心类型 CraftIngredient
+FAIL planner permutation does not alter allocation: 尚未实现核心类型 CraftMaterialStack
+FAIL planner excludes whole reserved stack: 尚未实现核心类型 CraftIngredient
+FAIL planner excludes equipment from materials: 尚未实现核心类型 CraftIngredient
+FAIL planner rejection never exposes partial consumption: 尚未实现核心类型 CraftIngredient
+FAIL planner rejects duplicate identity across definitions: 尚未实现核心类型 CraftIngredient
+FAIL planner rejects duplicate even when one reserved: 尚未实现核心类型 CraftIngredient
+FAIL planner rejects zero batch: 尚未实现核心类型 CraftIngredient
+FAIL planner rejects batch above recipe limit: 尚未实现核心类型 CraftIngredient
+FAIL planner rejects final output budget above 99: 尚未实现核心类型 CraftIngredient
+FAIL planner rejects batched material overflow: 尚未实现核心类型 CraftIngredient
+FAIL planner rejects available count overflow: 尚未实现核心类型 CraftIngredient
+FAIL planner never mutates source snapshots: 尚未实现核心类型 CraftMaterialStack
+FAIL planner freezes its returned facts: 尚未实现核心类型 CraftIngredient
+FAIL fingerprint is 64 lowercase hex: 尚未实现核心类型 CraftMaterialConsumption
+FAIL fingerprint canonicalizes source order: 尚未实现核心类型 CraftMaterialConsumption
+FAIL fingerprint changes for every command fact: 尚未实现核心类型 CraftMaterialConsumption
+FAIL fingerprint changes for material item definition and quantity: 尚未实现核心类型 CraftMaterialConsumption
+FAIL fingerprint length prefixes prevent delimiter ambiguity: 尚未实现核心类型 CraftMaterialConsumption
+FAIL fingerprint rejects duplicate material item IDs: 尚未实现核心类型 CraftMaterialConsumption
+FAIL fingerprint rejects negative ledger revision: 尚未实现核心类型 CraftMaterialConsumption
+FAIL fingerprint handles unicode and embedded separators: 尚未实现核心类型 CraftMaterialConsumption
+TOTAL 0 passed, 41 failed

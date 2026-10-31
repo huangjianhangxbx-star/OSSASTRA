@@ -1,0 +1,75 @@
+PASS ingredient rejects whitespace identity
+PASS ingredient rejects zero quantity
+PASS output rejects negative quantity
+PASS source rejects empty item identity
+PASS source rejects zero quantity
+PASS consumption rejects invalid quantity
+PASS recipe checked aggregates same material
+PASS recipe ingredients are frozen from caller array
+PASS recipe outputs are frozen from caller array
+PASS recipe rejects material aggregate overflow
+PASS recipe rejects total material overflow
+PASS recipe rejects invalid version
+PASS recipe rejects missing capability
+PASS recipe rejects maxbatch 100
+PASS recipe rejects output budget above 99
+PASS recipe rejects empty materials
+PASS recipe rejects empty outputs
+PASS catalog rejects duplicate recipe identity
+PASS catalog freezes caller array
+PASS catalog resolves exact case-sensitive identity
+PASS planner allocates ordinal definitions and item IDs
+PASS planner permutation does not alter allocation
+PASS planner excludes whole reserved stack
+PASS planner excludes equipment from materials
+PASS planner rejection never exposes partial consumption
+PASS planner rejects duplicate identity across definitions
+PASS planner rejects duplicate even when one reserved
+PASS planner rejects zero batch
+PASS planner accepts bounded batch 99
+PASS planner rejects missing source list
+PASS planner rejects null source record
+PASS planner rejects batch above recipe limit
+PASS planner rejects final output budget above 99
+PASS planner rejects batched material overflow
+PASS planner rejects available count overflow
+PASS planner never mutates source snapshots
+PASS planner freezes its returned facts
+PASS fingerprint is 64 lowercase hex
+PASS fingerprint matches independent canonical golden
+PASS fingerprint canonicalizes source order
+PASS fingerprint changes for every command fact
+PASS fingerprint changes for material item definition and quantity
+PASS fingerprint length prefixes prevent delimiter ambiguity
+PASS fingerprint rejects duplicate material item IDs
+PASS fingerprint rejects negative ledger revision
+PASS fingerprint unicode byte-length matches independent golden
+PASS receipt append returns new immutable journal
+PASS receipt lookup absent is false with no error
+PASS receipt lookup exact request and hash returns fact
+PASS receipt lookup changed hash reports conflict
+PASS receipt append snapshots nested caller arrays
+PASS receipt returned records and lookup are deep copies
+PASS receipt duplicate exact request never overwrites
+PASS receipt duplicate changed content never overwrites
+PASS receipt keeps newest 128 and evicts oldest
+PASS receipt rejects request not in Guid N format
+PASS receipt rejects whitespace padded Guid even if hash matches
+PASS receipt rejects session not in Guid N format
+PASS receipt rejects malformed lowercase digest
+PASS receipt rejects duplicate source identity
+PASS receipt rejects duplicate output identity
+PASS receipt rejects zero output quantity
+PASS receipt rejects output budget above 99
+PASS receipt rejects negative revision
+PASS receipt restore accepts valid records without global output uniqueness
+PASS receipt restore rejects over-capacity persisted history
+PASS receipt restore rejects duplicate persisted request
+PASS receipt restore rejects tampered material cost even resigned
+PASS receipt restore rejects tampered output quantity
+PASS receipt restore rejects tampered output definition
+PASS receipt restore rejects tampered fingerprint
+PASS receipt restore rejects changed recipe version even resigned
+PASS receipt restore rejects quantity above recipe max even resigned
+PASS receipt DTO JSON roundtrip preserves journal facts
+TOTAL 74 passed, 0 failed

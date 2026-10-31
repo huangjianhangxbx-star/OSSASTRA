@@ -1,0 +1,129 @@
+/* WORLD-PROP-01：从已保存VIS样板复制、独立重注册三Map/Boundary，再经原SaveLab重建持久缓存。
+ * 仅Root Native执行；不保存原dirty场，需既有Native checkpoint。失败保留本次部分输出，不自动重试/删原资产。 */
+using System;using System.IO;using System.Linq;using System.Reflection;using System.Collections.Generic;using System.Security.Cryptography;using System.Text;
+using UnityEngine;using UnityEngine.SceneManagement;using UnityEngine.Tilemaps;using UnityEditor;using UnityEditor.SceneManagement;
+using Ossastra.GroundResearch;using Ossastra.GroundResearch.Editor;using Ossastra.GroundSurfaces;using Ossastra.GroundSurfaces.Editor;using Ossastra.SceneVisibility;
+using Funplay.Editor.Tools.Scripting;using Object=UnityEngine.Object;
+public sealed class CraftingForkTransit:IFunplayCommand
+{
+ const string Source="Assets/OSSASTRA/GroundWorkshop/Samples/CRAFT-01/SC_CraftingIntegration.unity";
+ const string Target="Assets/OSSASTRA/GroundWorkshop/Samples/CRAFT-01/SC_CraftingTransit.unity";
+ static readonly string[] SourceIds={"9887762321334e789192d98ad087e90b","f7a2ac40df6e4074ae67d44d2318e810","b4a83999244349eb8acdd35311609311"};
+ static void Need(bool value,string reason){if(!value)throw new InvalidOperationException(reason);}
+ static string Abs(string path)=>Path.GetFullPath(Path.Combine(Application.dataPath,"..",path));
+ static string Hash(string file){using(var f=File.OpenRead(file))using(var h=SHA256.Create())return BitConverter.ToString(h.ComputeHash(f)).Replace("-","");}
+ static GroundWorkshopMap[] Maps(Scene s)=>s.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<GroundWorkshopMap>(true)).ToArray();
+ static GroundSurfaceBinding[] Platforms(Scene s)=>s.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<GroundSurfaceBinding>(true)).ToArray();
+ static string AuthorHash(GroundWorkshopMap map)
+ {
+  var text=new StringBuilder(map.transform.localToWorldMatrix.ToString("R")).Append('|').Append(map.surface.EditableCells.ToString());
+  foreach(var layer in map.surface.layers)
+  {
+   var tilemap=layer.tilemap;var bounds=tilemap.cellBounds;Need((long)bounds.size.x*bounds.size.y*bounds.size.z<=262144,"Tile作者范围超限");
+   text.Append('|').Append(layer.isLocked).Append('|').Append(tilemap.transform.localToWorldMatrix.ToString("R")).Append('|').Append(tilemap.color.ToString("R"));
+   foreach(var cell in bounds.allPositionsWithin)
+   {
+    if(tilemap.GetTile(cell)==null)continue;var sprite=tilemap.GetSprite(cell);string guid="";long local=0;
+    if(sprite!=null)Need(AssetDatabase.TryGetGUIDAndLocalFileIdentifier(sprite,out guid,out local),"原作者Sprite未保存");
+    text.Append('|').Append(cell.ToString()).Append(':').Append(guid).Append(':').Append(local).Append(':').Append(tilemap.GetColor(cell).ToString("R"));
+    text.Append(':').Append((int)tilemap.GetTileFlags(cell)).Append(':').Append(tilemap.GetTransformMatrix(cell).ToString("R"));
+   }
+  }
+  using(var h=SHA256.Create())return Convert.ToBase64String(h.ComputeHash(Encoding.UTF8.GetBytes(text.ToString())));
+ }
+ public void Execute(ExecutionContext ctx)
+ {
+  string stage="preflight",error=null;bool success=false,copied=false,retained=false,sourceSame=false;
+  object ledger=null;MethodInfo commit=null;var protectedFiles=new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);
+  var results=new List<object>();string[] created=Array.Empty<string>(),folders=Array.Empty<string>();int normalizedReferences=0;
+  try
+  {
+   Need(GroundWorkshopOwnership.ContextReady(out var reason),reason);var original=SceneManager.GetActiveScene();
+   Need(SceneManager.sceneCount==1&&original.path==Source,"需当前单一VIS来源场；未切换其他用户场");
+   Need(File.Exists(Abs("Assets/OSSASTRA/Crafting/PrivateCheckpoints/BeforeCrafting.unity")),"缺Root既有Native checkpoint，不丢弃dirty现场");
+   Need(GroundWorkshopAuthoring.ActivePreview==null,"配方预览仍活跃，保留现场");
+   Need(!File.Exists(Abs(Target))&&!File.Exists(Abs(Target+".meta"))&&AssetDatabase.LoadMainAssetAtPath(Target)==null,"新样板已存在；拒绝覆盖或重复登记");
+   var sourceMaps=Maps(original);Need(sourceMaps.Length==3&&sourceMaps.All(m=>m.registration!=null)&&sourceMaps.Select(m=>m.registration.mapId).OrderBy(x=>x).SequenceEqual(SourceIds.OrderBy(x=>x)),"来源三Map身份不符");
+   foreach(var map in sourceMaps)
+   {
+    GroundWorkshopOwnership.Require(map);Need(map.registration.scenePath==Source,"来源注册路径不符");
+    var path=Abs(map.registration.assetFolder);var files=Directory.GetFiles(path,"*",SearchOption.AllDirectories);Need(files.Length<=1024,"保护Map文件范围超限");
+    foreach(var file in files)protectedFiles[file]=Hash(file);if(File.Exists(path+".meta"))protectedFiles[path+".meta"]=Hash(path+".meta");
+   }
+   protectedFiles[Abs(Source)]=Hash(Abs(Source));protectedFiles[Abs(Source+".meta")]=Hash(Abs(Source+".meta"));
+   var ledgerType=typeof(GroundWorkshopMaps).Assembly.GetType("Ossastra.GroundResearch.Editor.GroundAssetLedger");Need(ledgerType!=null,"缺已审GroundAssetLedger类型");
+   var flags=BindingFlags.Public|BindingFlags.Instance;commit=ledgerType.GetMethod("Commit",flags,null,Type.EmptyTypes,null);
+   var reserve=ledgerType.GetMethod("Reserve",flags,null,new[]{typeof(string)},null);var create=ledgerType.GetMethod("Create",flags);
+   var register=typeof(GroundWorkshopMaps).GetMethod("RegisterExisting",BindingFlags.NonPublic|BindingFlags.Static,null,new[]{typeof(GroundResearchSurface),typeof(GroundTheme),typeof(string),ledgerType,typeof(GroundWorkshopMap)},null);
+   Need(commit!=null&&reserve!=null&&create!=null&&create.IsGenericMethodDefinition&&register!=null,"已审五参数注册/ledger签名已变；停止而不猜测");
+   ledger=Activator.CreateInstance(ledgerType,true);Need(ledger is IDisposable,"ledger缺释放合同");reserve.Invoke(ledger,new object[]{Target});
+   stage="copy-saved-scene";Need(AssetDatabase.CopyAsset(Source,Target),"CopyAsset失败；未保存来源场");copied=true;
+   var scene=EditorSceneManager.OpenScene(Target,OpenSceneMode.Single);Need(scene.path==Target&&SceneManager.GetActiveScene()==scene,"副本未成为当前场");
+   var maps=Maps(scene);var platforms=Platforms(scene);Need(maps.Length==3&&platforms.Length==2,"副本不是三Map/两高台");
+   Need(maps.All(m=>m.registration!=null)&&maps.Select(m=>m.registration.mapId).OrderBy(x=>x).SequenceEqual(SourceIds.OrderBy(x=>x)),"磁盘副本Map身份不符");
+   stage="register-independent-maps";
+   foreach(var map in maps)
+   {
+    string oldId=map.registration.mapId;var before=AuthorHash(map);var materials=map.layerBindings.Select(b=>b.ownedMaterial).ToArray();
+    ctx.RegisterObjectModification(map);ctx.RegisterObjectModification(map.surface);
+    foreach(var layer in map.surface.layers){ctx.RegisterObjectModification(layer.tilemap);ctx.RegisterObjectModification(layer.tilemap.GetComponent<TilemapRenderer>());}
+    Need((GroundWorkshopMap)register.Invoke(null,new object[]{map.surface,map.theme,Target,ledger,map})==map,"注册意外替换Map组件");
+    Need(map.registration.mapId!=oldId&&map.registration.scenePath==Target,"未取得独立Map注册");
+    for(int i=0;i<materials.Length;i++){map.layerBindings[i].ownedMaterial.CopyPropertiesFromMaterial(materials[i]);EditorUtility.SetDirty(map.layerBindings[i].ownedMaterial);AssetDatabase.SaveAssetIfDirty(map.layerBindings[i].ownedMaterial);}
+    GroundWorkshopOwnership.Require(map);var after=AuthorHash(map);Need(before==after,"重注册改变作者格/颜色/矩阵/显示Sprite："+oldId);
+    results.Add(new{sourceMapId=oldId,mapId=map.registration.mapId,assetFolder=map.registration.assetFolder,authorBefore=before,authorAfter=after});
+   }
+   stage="clone-boundaries";
+   foreach(var binding in platforms)
+   {
+    Need(binding.map!=null&&maps.Contains(binding.map)&&binding.boundary!=null&&binding.cacheRoot!=null&&binding.capCollider!=null,"副本高台不完整");
+    Need(binding.cacheRoot.parent==binding.transform&&binding.cacheRoot.gameObject.scene==scene,"旧缓存不是副本的自有直属对象");
+    var oldRoot=binding.cacheRoot;var oldCap=binding.capCollider;ctx.RegisterObjectModification(binding);
+    var boundary=Object.Instantiate(binding.boundary);boundary.name="SurfaceBoundary";
+    binding.boundary=(GroundSurfaceBoundary)create.MakeGenericMethod(typeof(GroundSurfaceBoundary)).Invoke(ledger,new object[]{boundary,binding.map.registration.assetFolder+"/SurfaceBoundary.asset"});
+    binding.InvalidateBoundary();Need(binding.boundary.sourceFingerprint==GroundSurfaceModelReader.Fingerprint(binding),"模型/变换与保存上沿不匹配，拒绝重取改变地形");
+    // 既有平台组从Binding动态读取缓存/cap。副本若还存了旧短命引用，归还给既有动态路线，保留墙与其他成员。
+    foreach(var group in scene.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<SceneOccluderGroup>(true)).Where(g=>g.platform==binding))
+    {
+     ctx.RegisterObjectModification(group);int before=group.members.Length+group.supportRenderers.Length+group.volumes.Length+group.supportColliders.Length;
+     group.members=group.members.Where(r=>r!=null&&!r.transform.IsChildOf(oldRoot)).ToArray();group.supportRenderers=group.supportRenderers.Where(r=>r!=null&&!r.transform.IsChildOf(oldRoot)).ToArray();
+     group.volumes=group.volumes.Where(c=>c!=null&&c!=oldCap).ToArray();group.supportColliders=group.supportColliders.Where(c=>c!=null&&c!=oldCap).ToArray();
+     normalizedReferences+=before-group.members.Length-group.supportRenderers.Length-group.volumes.Length-group.supportColliders.Length;EditorUtility.SetDirty(group);
+    }
+    EditorUtility.SetDirty(binding);
+   }
+   stage="rebuild-persist-save-owned-lab";
+   // 已核对SaveLab实际调用Rebuild(binding,false)→PersistMany，再仅SaveScene当前新场。
+   // Rebuild自己的DestroyOwnedCache只删副本cache/cap GO，并保留旧已持久Mesh/Material资产。
+   GroundSurfaceAuthoring.SaveLab();Need(!scene.isDirty,"新样板保存后仍dirty");
+   foreach(var binding in platforms)
+   {
+    var cache=binding.cacheRoot==null?null:binding.cacheRoot.GetComponent<GroundSurfaceMeshCache>();
+    Need(cache!=null&&binding.capCollider!=null&&cache.colliderMesh==binding.capCollider.sharedMesh&&EditorUtility.IsPersistent(cache.colliderMesh),"新顶盖物理缓存未持久化");
+    Need(cache.chunks.All(c=>c!=null&&c.filter!=null&&c.renderer!=null&&EditorUtility.IsPersistent(c.filter.sharedMesh)&&EditorUtility.IsPersistent(c.renderer.sharedMaterial)),"新顶盖显示缓存未持久化");
+    Need(GroundWorkshopOwnership.IsUnder(AssetDatabase.GetAssetPath(cache.colliderMesh),binding.map.registration.assetFolder),"新cap仍指源缓存");
+   }
+   Need(protectedFiles.All(p=>File.Exists(p.Key)&&Hash(p.Key)==p.Value),"源场或源Map文件改变");sourceSame=true;
+   commit.Invoke(ledger,null);success=true;stage="complete";
+  }
+  catch(Exception ex)
+  {
+   error=(ex is TargetInvocationException&&ex.InnerException!=null?ex.InnerException:ex).ToString();
+   // 保留精确部分输出供Root读回，避免删除已接到新场内存的资产形成悬空；不保存/重试任何源场。
+   if(ledger!=null&&commit!=null){commit.Invoke(ledger,null);retained=true;}
+  }
+  finally
+  {
+   GroundSurfaceUpdates.ClearPending();
+   if(ledger!=null)
+   {
+    var t=ledger.GetType();created=((IEnumerable<string>)t.GetField("created",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(ledger)).ToArray();
+    folders=((IEnumerable<string>)t.GetField("folders",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(ledger)).ToArray();((IDisposable)ledger).Dispose();
+   }
+   if(protectedFiles.Count>0)sourceSame=protectedFiles.All(p=>File.Exists(p.Key)&&Hash(p.Key)==p.Value);
+  }
+  ctx.ReturnValue=new{success,stage,error,copied,partialOutputsRetained=retained,sourceSame,sourceProtectedFiles=protectedFiles.Count,newMaps=results,createdPaths=created,createdFolders=folders,normalizedReferences,
+   activeScene=SceneManager.GetActiveScene().path,dirty=SceneManager.GetActiveScene().isDirty,sceneCount=SceneManager.sceneCount,originalCheckpoint="Assets/OSSASTRA/Crafting/PrivateCheckpoints/BeforeCrafting.unity",
+   scope="Saved-source fork only; no save of original dirty scene. Independent Map/Tile/material/Boundary, original Rebuild/PersistMany/SaveLab. Original reference textures/models remain read-only local dependencies."};
+ }
+}
