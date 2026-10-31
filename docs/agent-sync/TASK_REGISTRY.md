@@ -1,13 +1,11 @@
 # ANKALUTE 并行任务登记表
 
-## WORLD-PROP-01 活动任务（2026-10-31）
+## WORLD-PROP-01 完成交接（2026-10-31）
 
-- `world-prop-01` active/unity-writer；Root唯一Unity writer。按用户附件执行双原作研究及场景物破坏→真实掉落/原拾取/原背包→同快照保存恢复；原37dirty与参考源保护。
-- 独占：`Assets/OSSASTRA/Scripts/WorldProps/`、`Assets/OSSASTRA/WorldProps/`、`Assets/OSSASTRA/Art/WorldPropsReferenceLocal/`、`Assets/OSSASTRA/GroundWorkshop/Samples/WORLD-PROP-01/`、`Candidates/WORLD-PROP-01/`、`docs/ossastra/WORLD-PROP-01/`、`docs/agent-sync/tasks/2026-10-31-world-prop-01.md`；既有Inventory/Commerce/Combat/SceneVisibility窄接口另在查明后登记精确文件。
-- 精确共享接缝租约：`Assets/OSSASTRA/Scripts/Characters/Core/Health.cs`归Root；`Assets/OSSASTRA/Scripts/Characters/Core/Inventory/InventoryContainerGrant.cs`、`Assets/OSSASTRA/Scripts/Inventory/InventorySessionRuntimeState.cs`、`Assets/OSSASTRA/Scripts/Inventory/InventoryGroundRewards.cs`、`Assets/OSSASTRA/Scripts/Inventory/InventoryInteraction.cs`、`Assets/OSSASTRA/Scripts/UI/InventoryWorldView.cs`、`Assets/OSSASTRA/Scripts/Commerce/Runtime/CommerceRuntimeSnapshot.cs`、`Assets/OSSASTRA/Scripts/Commerce/Runtime/CommerceSnapshotParticipants.cs`、`Assets/OSSASTRA/Scripts/Commerce/Runtime/CommerceService.cs`由子代理worldprop_inventory_audit作代码写入，Root负责单次编译/Native验证；该子代理仅可写上述文件及Candidates/WORLD-PROP-01/InventorySeams*，不操作Unity/Git。
-- 补充Root精确地表接缝：`Assets/OSSASTRA/Scripts/GroundSurfaces/Editor/GroundSurfaceSceneAccess.cs`仅加入本轮两个确切样板；`Assets/OSSASTRA/GroundWorkshop/Maps/`仅本轮新注册身份/缓存子目录写入，已有Map全部只读并定向SHA保护。表现子代理独占WorldProps/Presentation/WorldPropView.cs；Root不并改该文件。
-- 收口租约交回：库存代理八文件已停止写入，Root接管；表现代理临时独占 `WorldProps/Runtime/WorldPropsRoot.cs`、`WorldProps/Presentation/WorldPropView.cs`、`Scripts/UI/InventoryWorldView.cs` 的32/64表现预算和新WorldProps格式整理，Root只修Travel并已完成，不并改。库存代理只写候选压力/边界脚本；研究代理只写外部图鉴和本轮使用指南。不操作Unity/Git；同步索引仅Root维护。
-- 子代理研究只读各原作/必要既有实现，各写本轮独立外部证据目录；不操作Unity/共享源/存档。同步索引仅Root维护。
+- world-prop-01 complete/read-only；功能 697c3db94d01926880cdc93191b8dcc67e5921af 已GitHub精确核验，51项自有源码/测试/文档；媒体/场景/Prefab/档案仅本机。
+- 独立17实例Main/原攻击与Health/真实落物/原F与背包/共同保存闭环；三态磁盘恢复、跨场、拒绝重试、满包、高台、透视注销及200候选/反馈32/显示64有定向证据。纯合同56与原文件持久41通过，不代签原作动态/Player/GPU/实体硬件/全技能。
+- 事故例外：误入原SC_CommerceIntegration约30秒，commerce-main被本次自动保存覆盖；主/bak同会话，无已确认启动前副本，未自动回滚。4份现状保留，源197SHA/原37dirty保持不等于默认档未动，详旧档误入事故说明。
+- 最终Main Edit ready/clean、worldprops-demo-01；所有Unity/源码/文档writer与路径租约释放。详本轮task与验收报告。
 
 本表只记录任务状态和写入租约。任务细节写在 `tasks/` 下的独立文件中。
 

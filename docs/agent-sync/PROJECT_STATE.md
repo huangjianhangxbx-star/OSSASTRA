@@ -1,5 +1,12 @@
 # ANKALUTE 共享项目状态
 
+## WORLD-PROP-01 已交付（2026-10-31）
+
+- WorldProps独立根/纯状态，以原Health、Combat网关、InventorySession/Ledger、F/UI与Commerce同快照形成闭环。Main17实例、worldprops-demo-01；2D/3D模板/SO/作者教程/离线研究和实录已交付。新定义/实例布局严格新档或显式迁移，不静默播种。
+- 48HP/未取2纤维同ID/已取6石料同轮磁盘恢复、真实跨场/拒绝重试/满包F、高台及透视注销通过；200候选/400单位/反馈32/显示64与自有清理有定向证据。supportSurface读取稳定Binding当前cap，Sprite接已有DecorationCutout。最终Edit clean；纯合同56及原持久41通过，原作动态/Player/GPU/实体硬件/全技能未签。
+- 功能 697c3db94d01926880cdc93191b8dcc67e5921af 已GitHub精确核验，51自有文件；原37dirty和197保护SHA保持，媒体/场景/Prefab/档案未公开，全部writer释放。详docs/ossastra/WORLD-PROP-01/验收报告.md。
+- 默认档事故必须保留：旧入口临时场打开失败后仍启动原场，commerce-main约30秒会话自动写入；现主/bak同session，无启动前已确认副本，未自动恢复。4份现状与只读审计已保留，不能声称正式档未动。详本轮旧档误入事故说明。
+
 > 2026-10-31 KT-VIS-02-FIX01：薄墙微穿入<=5mm被恢复阈值忽略，初始cast反扫描法线误吞向外请求；已改为有效非负MTD先补margin。84格30失败→0、336项接触断言/原输入双角色退出与入墙阻挡/3mm双墙恢复通过。原单Move/CC/受击边界保持，最终Edit ready且原dirty=true未保存；私有物理/标记资源/输入租约0，197保护SHA/37dirty状态保持。全部writer释放，Mesh/全渲染/闪避受迫未在本轮重跑；详docs/ossastra/KT-VIS-02/FIX01-stuck-escape.md。
 
 ## KT-VIS-02 已完成（2026-10-31）
