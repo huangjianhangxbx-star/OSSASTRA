@@ -1,7 +1,8 @@
 /* 脚本：InventoryWorldView
  * 功能：用同一物品Sprite绘制场景掉落，投影可点击/拖动的轻量标签和容器入口。
- * 边界：只观察库存位置，不创建条目；显隐不改变拾取资格，销毁只回收自有表现。
+ * 边界：当前地图地面掉落仅显示最近的有界数量、固定箱保留；显隐不改变账本或拾取资格，销毁只回收自有表现。
  */
+using System;
 using System.Linq;
 using System.Collections.Generic;
 using UnityEngine;
@@ -13,6 +14,10 @@ namespace Ossastra.UserInterface
     {
         [SerializeField] private InventorySession session;
         [SerializeField] private InventoryView view;
+        [Tooltip("只限制地面掉落的显示，固定箱保留；原账本、访问和F拾取不受显示预算影响。")]
+        [Range(1,256)] public int maximumGroundMarkers=64;
+        public int OwnedMarkerCount=>marks.Count;
+        public int SelectedGroundMarkerCount {get;private set;}
         private Canvas canvas;private RectTransform root;private Font font;
         private sealed class Mark{public RectTransform rect;public Text text;public InventoryPointerTarget target;public SpriteRenderer sprite;}
         private readonly Dictionary<string,Mark> marks=new Dictionary<string,Mark>();
@@ -23,12 +28,25 @@ namespace Ossastra.UserInterface
         private void LateUpdate()
         {
             if(session==null||!session.Ready||view==null||Camera.main==null||root==null)return;
-            var ids=session.WorldContainerIds.ToArray();
-            foreach(var id in marks.Keys.Where(id=>!ids.Contains(id)).ToArray()){Destroy(marks[id].rect.gameObject);if(marks[id].sprite!=null)Destroy(marks[id].sprite.gameObject);marks.Remove(id);}
+            var worldIds=session.WorldContainerIds.ToArray(); // 会话已按当前地图过滤，不能把其他区域掉落显示进来。
+            var groundIds=new HashSet<string>(session.GroundContainers,StringComparer.Ordinal);
+            var actor=session.Coordinator?.Current;
+            var origin=actor==null?Camera.main.transform.position:actor.transform.position;
+            var selectedGround=worldIds.Where(groundIds.Contains).Where(id=>session.ContainerPosition(id).HasValue)
+                .OrderBy(id=>Vector3.SqrMagnitude(session.ContainerPosition(id).Value-origin))
+                .ThenBy(id=>id,StringComparer.Ordinal).Take(Mathf.Clamp(maximumGroundMarkers,1,256)).ToArray();
+            SelectedGroundMarkerCount=selectedGround.Length;
+            var ids=worldIds.Where(id=>!groundIds.Contains(id)).Concat(selectedGround).ToArray();
+            var selectedIds=new HashSet<string>(ids,StringComparer.Ordinal);
+            // 仅回收不再显示的表现，绝不回收逻辑物品/容器；走近后可从同一账本重建。
+            foreach(var id in marks.Keys.Where(id=>!selectedIds.Contains(id)).ToArray()){Destroy(marks[id].rect.gameObject);if(marks[id].sprite!=null)Destroy(marks[id].sprite.gameObject);marks.Remove(id);}
+            // 一次索引当前条目，避免每份已选掉落都从头扫描整个Ledger。
+            var firstItems=session.Ledger.Items.Where(item=>selectedIds.Contains(item.Location.ContainerId))
+                .GroupBy(item=>item.Location.ContainerId).ToDictionary(group=>group.Key,group=>group.First(),StringComparer.Ordinal);
             foreach(var id in ids)
             {
                 var position=session.ContainerPosition(id);if(!position.HasValue)continue;
-                var item=id.StartsWith("drop:manual:")?session.Ledger.Items.FirstOrDefault(i=>i.Location.ContainerId==id):null;var definition=session.Definition(item?.DefinitionId);
+                var item=session.IsLoosePickup(id)&&firstItems.TryGetValue(id,out var first)?first:null;var definition=session.Definition(item?.DefinitionId);
                 if(!marks.TryGetValue(id,out var mark))
                 {
                     mark=new Mark();var go=new GameObject("Mark_"+id,typeof(RectTransform),typeof(Image));go.transform.SetParent(root,false);mark.rect=(RectTransform)go.transform;mark.rect.anchorMin=mark.rect.anchorMax=new Vector2(0,0);mark.rect.pivot=new Vector2(.5f,0);mark.rect.sizeDelta=item==null?new Vector2(110,28):new Vector2(70,52);go.GetComponent<Image>().color=item==null?new Color32(11,20,29,218):Color.clear;mark.target=go.AddComponent<InventoryPointerTarget>();mark.target.View=view;mark.target.ContainerId=id;

@@ -1,5 +1,5 @@
 /* 脚本：InventoryInteraction
- * 功能：唯一交互输入上下文；散落物优先，其余从商人、合法容器与篝火中选最近项。
+ * 功能：唯一交互输入上下文；明确类型的散落物优先（手动丢弃/自然奖励），其余从商人、合法容器与篝火中选最近项。
  * 边界：一次按键只提交一个命令；打开角色菜单后由UI消费同一输入，不创建第二套F绑定。
  * 协作：距离/LOS/容量仍由会话服务复验，篝火沿原服务，旧场原输入不变。
  */
@@ -40,7 +40,7 @@ namespace Ossastra.Inventory
             if(commerceUi!=null&&commerceUi.IsOpen){Prompt="";if(pressed)commerceUi.TryConfirmInteraction();return;}
             if(!actor.GetComponent<CharacterInputHandler>().HasPlayerInput||!actor.CanSimulateIntent||EventSystem.current?.currentSelectedGameObject?.GetComponent<InputField>()?.isFocused==true){sampler.Suppress();Prompt="";return;}
             var nearest=session.AccessibleExternal.OrderBy(id=>Vector3.SqrMagnitude((session.ContainerPosition(id)??actor.transform.position)-actor.transform.position)).ToArray();
-            var manual=nearest.FirstOrDefault(id=>id.StartsWith("drop:manual:"));
+            var manual=nearest.FirstOrDefault(id=>session.IsLoosePickup(id));
             var merchant=commerce==null?null:commerce.NearestTarget();
             var merchantDistance=merchant==null?float.PositiveInfinity:(merchant.transform.position-actor.transform.position).sqrMagnitude;
             var containerDistance=nearest.Length==0?float.PositiveInfinity:(session.ContainerPosition(nearest[0]).Value-actor.transform.position).sqrMagnitude;

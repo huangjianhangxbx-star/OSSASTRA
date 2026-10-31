@@ -1,0 +1,9 @@
+<Project>
+  <PropertyGroup>
+    <!-- 每个候选项目独占增量/输出；防同目录多csproj复用旧apphost或CoreCompile缓存。 -->
+    <BaseIntermediateOutputPath>obj/$(MSBuildProjectName)/</BaseIntermediateOutputPath>
+    <BaseOutputPath>bin/$(MSBuildProjectName)/</BaseOutputPath>
+    <UseAppHost>false</UseAppHost>
+    <UseSharedCompilation>false</UseSharedCompilation>
+  </PropertyGroup>
+</Project>

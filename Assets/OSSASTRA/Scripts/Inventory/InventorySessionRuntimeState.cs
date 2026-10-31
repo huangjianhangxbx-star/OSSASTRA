@@ -1,6 +1,6 @@
 /* 脚本：InventorySessionRuntimeState
  * 功能：唯一库存的宿主字段快照与多世界容器注册；领域物品/装备仍由Ledger保存。
- * 边界：不存窗口/拖拽令牌，不以显示代理增删逻辑物；完整验证后才安装全部运行字段。
+ * 边界：不存窗口/拖拽令牌；明确世界容器类型与支撑面，旧记录按既有来源迁移，完整验证后才安装全部字段。
  * 协作：Commerce先恢复领域候选，再安装本快照；地图切换只改变访问/表现，不重新授予箱内物资。
  */
 using System;
@@ -13,7 +13,8 @@ namespace Ossastra.Inventory
     [Serializable]
     public sealed class InventoryWorldContainerState
     {
-        public string id, mapId, displayName;
+        public string id, mapId, displayName, surfaceId;
+        public InventoryWorldContainerKind kind;
         public float x, y, z;
         public int width, height;
         public bool isGround, isEmpty;
@@ -143,7 +144,8 @@ namespace Ossastra.Inventory
         private static bool IsPlayerContainer(string id) => id == "team" || id == "safe" || id == "reserve" ||
             id != null && id.StartsWith("hand:", StringComparison.Ordinal);
         private static InventoryWorldContainerState Record(string id, string mapId, Vector3 point, int width, int height, string name, bool ground)
-            => new InventoryWorldContainerState { id = id, mapId = mapId, x = point.x, y = point.y, z = point.z, width = width, height = height, displayName = name, isGround = ground };
+            => new InventoryWorldContainerState { id = id, mapId = mapId, x = point.x, y = point.y, z = point.z, width = width, height = height, displayName = name, isGround = ground,
+                kind = !ground ? InventoryWorldContainerKind.Container : id.StartsWith("drop:manual:", StringComparison.Ordinal) ? InventoryWorldContainerKind.ManualDrop : InventoryWorldContainerKind.WipeDrop };
         private void RegisterLegacyExternal()
         {
             worldContainers["external"] = Record("external", CurrentMapId, chest.position, 5, 8, "试验物资箱", false);
@@ -167,7 +169,7 @@ namespace Ossastra.Inventory
                 worldContainers = worldContainers.Values.OrderBy(r => r.id, StringComparer.Ordinal).Select(r => new InventoryWorldContainerState
                 {
                     id = r.id, mapId = r.mapId, x = r.x, y = r.y, z = r.z, width = r.width, height = r.height,
-                    displayName = r.displayName, isGround = r.isGround,
+                    displayName = r.displayName, isGround = r.isGround, kind = KindOf(r), surfaceId = r.surfaceId,
                     isEmpty = !Ledger.Items.Any(i => i.Location.ContainerId == r.id)
                 }).ToArray()
             };
@@ -206,7 +208,7 @@ namespace Ossastra.Inventory
                 if (row == null || string.IsNullOrWhiteSpace(row.id) || string.IsNullOrWhiteSpace(row.mapId) || string.IsNullOrWhiteSpace(row.displayName) ||
                     !seen.Add(row.id) || IsPlayerContainer(row.id) || !Finite(row.x) || !Finite(row.y) || !Finite(row.z) || row.width < 1 || row.height < 1 ||
                     !containers.TryGetValue(row.id, out var container) || container.columns != row.width || container.rows != row.height || container.slots ||
-                    row.isGround != row.id.StartsWith("drop:", StringComparison.Ordinal) ||
+                    row.isGround != row.id.StartsWith("drop:", StringComparison.Ordinal) || !ValidKind(row) ||
                     row.isEmpty != !inventorySnapshot.items.Any(i => i != null && i.containerId == row.id)) return "世界箱/掉落快照身份、布局或搜空状态无效";
             }
             if (containers.Keys.Any(id => !IsPlayerContainer(id) && !seen.Contains(id)) || !seen.Contains("external")) return "库存容器缺少完整世界记录";
@@ -227,7 +229,7 @@ namespace Ossastra.Inventory
         {
             error = ValidateRuntimeState(value, inventorySnapshot); if (error != null) return null;
             var world = value.worldContainers.ToDictionary(row => row.id,
-                row => Record(row.id, row.mapId, new Vector3(row.x, row.y, row.z), row.width, row.height, row.displayName, row.isGround), StringComparer.Ordinal);
+                row => CopyWorldRecord(row), StringComparer.Ordinal);
             var groundPoints = world.Values.Where(r => r.isGround).ToDictionary(r => r.id, r => new Vector3(r.x, r.y, r.z), StringComparer.Ordinal);
             return new PreparedInventoryRuntimeState
             {

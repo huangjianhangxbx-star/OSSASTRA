@@ -2,7 +2,7 @@
  * 脚本：Health
  * 功能：保存目标身份与唯一可写的当前HP，限制伤害结果不低于零。
  * 边界：不管理动画、控制权、敌人AI或正式死亡流程。
- * 协作：AttackRelease经内部ApplyDamage写入；真实目标和开发重置保留同一个Health引用。
+ * 协作：AttackRelease经内部ApplyDamage写入；恢复器可在开放交互前从已验证快照创建，不重播伤害/死亡。
  */
 using System;
 
@@ -22,6 +22,15 @@ namespace Ossastra.CharacterCore
             Id = id;
             Maximum = maximum;
             Current = maximum;
+        }
+
+        /// <summary>持久化恢复构造：只创建尚未发布的生命对象，不对已运行实体任意赋值或重播命中。</summary>
+        public static Health FromSnapshot(string id, int maximum, int current)
+        {
+            if (current < 0 || current > maximum) throw new ArgumentOutOfRangeException(nameof(current));
+            var restored = new Health(id, maximum);
+            restored.Current = current;
+            return restored;
         }
 
         /// <summary>唯一治疗入口：返回实际恢复值；正值、存活且不超过上限。</summary>

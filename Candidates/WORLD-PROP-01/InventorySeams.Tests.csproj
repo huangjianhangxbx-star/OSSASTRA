@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+<PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net9.0</TargetFramework><EnableDefaultCompileItems>false</EnableDefaultCompileItems><Nullable>disable</Nullable><NoWarn>CS0649</NoWarn></PropertyGroup>
+<ItemGroup><Compile Include="InventorySeamsTests.cs"/><Compile Include="../COM01/SessionTests/HostStubs.cs"/><Compile Include="../../Assets/OSSASTRA/Scripts/Inventory/InventorySession*.cs"/><Compile Include="../../Assets/OSSASTRA/Scripts/Inventory/InventoryGroundRewards.cs" Condition="Exists('../../Assets/OSSASTRA/Scripts/Inventory/InventoryGroundRewards.cs')"/><Compile Include="../../Assets/OSSASTRA/Scripts/Inventory/IInventoryStartupAdapter.cs"/><Compile Include="../../Assets/OSSASTRA/Scripts/Characters/Core/**/*.cs"/></ItemGroup>
+</Project>

@@ -1,5 +1,5 @@
 /* 脚本：CommerceService
- * 功能：本地图唯一交易组装根；接入账本、可信距离访问、uGUI、完整经济快照和串行保存。
+ * 功能：本地图唯一交易与共同保存组装根；接入账本、uGUI及显式领域值载荷，同修订串行保存。
  * 时序：Awake注入库存启动适配器；库存建立定义后先恢复，只有Missing才播种；Ready后才开放交互。
  * 退出：禁用先在主线程冻结最新快照并排空；销毁在解绑/释放领域前等待关闭，不能只排空旧请求。
  * 边界：不更新角色子模块、动画或音声，不暂停世界。后台只接收主线程冻结的字节。
@@ -38,6 +38,7 @@ namespace Ossastra.Commerce.Runtime
         public string Diagnostic {get;private set;}="尚未初始化";
         public string SavePath=>store?.PathForProfile(profileId);
         public long Revision=>revision;
+        private readonly CommerceSnapshotParticipants snapshotParticipants=new CommerceSnapshotParticipants();
         private CommerceFileSaveStore store;
         private CommerceSaveCoordinator saves;
         private readonly Dictionary<string,MerchantShop> targets=new Dictionary<string,MerchantShop>(StringComparer.Ordinal);
@@ -53,6 +54,12 @@ namespace Ossastra.Commerce.Runtime
         private bool finalizingPersistence;
         private byte[] lifecyclePayload;
         private string lifecycleFailure;
+        /// <summary>Awake组装期登记；库存开始恢复后封口，不能绕过已验证的共同快照边界。</summary>
+        public void RegisterSnapshotParticipant(ICommerceSnapshotParticipant participant)
+        {
+            if(initialized||restoring||closing)throw new InvalidOperationException("领域必须在库存恢复前登记");
+            snapshotParticipants.Register(participant);
+        }
         private void Awake()
         {
             if(inventory==null){Diagnostic="CommerceService缺少InventorySession";enabled=false;return;}
@@ -63,7 +70,7 @@ namespace Ossastra.Commerce.Runtime
         /// <summary>不把坏档当空档。所有配置及身份先校验，恢复成功之前没有初始物品授予。</summary>
         public bool RestoreOrSeed(InventorySession session,out bool seed,out string error)
         {
-            seed=false;error=null;restoring=true;
+            seed=false;error=null;snapshotParticipants.FreezeRegistration();restoring=true;
             try
             {
                 sessionId=Guid.NewGuid().ToString("N");
@@ -98,9 +105,11 @@ namespace Ossastra.Commerce.Runtime
                 {
                     var runtimeCandidate=session.PrepareRuntimeState(decoded.inventoryRuntime,decoded.economy.inventory,out error);
                     if(runtimeCandidate==null)throw new InvalidOperationException(error);
+                    if(!snapshotParticipants.TryPrepareRestore(decoded,out var sectionsCandidate,out error))throw new InvalidOperationException(error);
                     var restored=Economy.Restore(decoded.economy);if(!restored.Ok)throw new InvalidOperationException(restored.Reason);
                     // Start仍在同步启动门内，尚无消费/界面订阅；这之后只发布预分配宿主引用。
                     session.PublishRuntimeState(runtimeCandidate);
+                    snapshotParticipants.PublishRestore(sectionsCandidate);
                     session.SetActiveMap(mapId);
                     foreach(var target in targets.Values)
                         if(!Economy.HasMerchant(target.Id))Economy.RegisterMerchant(target.definition.Freeze(),target.Id);
@@ -138,12 +147,14 @@ namespace Ossastra.Commerce.Runtime
                 foreach(var target in targets.Values)economy.RegisterMerchant(target.definition.Freeze(),target.Id);
                 var result=economy.Restore(value.economy);if(!result.Ok)return result.Reason;
             }
-            return inventory.ValidateRuntimeState(value.inventoryRuntime,value.economy.inventory);
+            var runtimeError=inventory.ValidateRuntimeState(value.inventoryRuntime,value.economy.inventory);
+            if(runtimeError!=null)return runtimeError;
+            return snapshotParticipants.TryPrepareRestore(value,out var prepared,out var sectionError)?null:sectionError;
         }
         public void OnInventoryReady(InventorySession session)
         {
             if(saves==null||Economy==null)return;
-            initialized=true;inventory.RuntimeChanged+=MarkDirty;Economy.Changed+=MarkDirty;
+            initialized=true;inventory.RuntimeChanged+=MarkDirty;Economy.Changed+=MarkDirty;snapshotParticipants.Changed+=MarkDirty;
             MarkDirty();RequestSave();nextCheckpoint=Time.unscaledTime+checkpointSeconds;
         }
         private void MarkDirty()
@@ -179,7 +190,7 @@ namespace Ossastra.Commerce.Runtime
             economy.dialogueFlags=dialogueFlags.OrderBy(x=>x,StringComparer.Ordinal).ToArray();
             economy.ownerKeys=inventory.Coordinator.Characters.Select(c=>c.ActorId).ToArray();
             return new CommerceRuntimeSnapshot{revision=revision,economy=economy,inventoryRuntime=inventory.CaptureRuntimeState(),dialogueFlags=economy.dialogueFlags,
-                merchantIds=economy.merchants.Select(m=>m.instanceId).OrderBy(x=>x,StringComparer.Ordinal).ToArray(),ownerIds=economy.ownerKeys};
+                merchantIds=economy.merchants.Select(m=>m.instanceId).OrderBy(x=>x,StringComparer.Ordinal).ToArray(),ownerIds=economy.ownerKeys,sections=snapshotParticipants.Capture()};
         }
         public void RequestSave()
         {
@@ -349,6 +360,7 @@ namespace Ossastra.Commerce.Runtime
             // 此时领域和订阅仍完整，先捕获最后变化再等待串行writer真正关闭。
             FinalizePersistence(true);
             if(inventory!=null){inventory.RuntimeChanged-=MarkDirty;inventory.ConfigureEditGate(null);}
+            snapshotParticipants.Changed-=MarkDirty;snapshotParticipants.Dispose();
             if(Economy!=null){Economy.Changed-=MarkDirty;Economy.Dispose();}
         }
     }
