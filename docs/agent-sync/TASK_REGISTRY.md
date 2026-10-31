@@ -1,5 +1,12 @@
 # ANKALUTE 并行任务登记表
 
+## CRAFT-01 完成交接（2026-11-01）
+
+- craft-01 complete/read-only；M0—M7完成，产品8f8831c0ba5763716a8e784a9ef24ca0155e57b4已GitHub main精确核验，98项自有代码/测试/文档；媒体/派生物/场景/Prefab/SO/Map/真实档仅本机。
+- 两设备同合同、三配方，原采集/F/uGUI制作→原背包装备→实际攻击/格挡→共同快照双向跨场/同Editor重建冷读通过；180核心/宿主/受影响回归、Native坏section13拒绝/1有效、真实实盘锁失败→原RetrySave同回执/唯一装备通过。
+- 最终CRAFT Main Edit ready/单场/clean、crafting-demo-01未生成档、自有设备/探针租约0、startup override空；原37dirty（Registry原17行）与默认档当前四文件保持。原作动态/硬件/Player/进程重启/最终美术手感未代签，详本轮task/验收报告。
+- 全部Unity、源码、候选与文档writer及独占路径已释放；未执行计划外系统或电源动作。
+
 ## WORLD-PROP-01 完成交接（2026-10-31）
 
 - world-prop-01 complete/read-only；功能 697c3db94d01926880cdc93191b8dcc67e5921af 已GitHub精确核验，51项自有源码/测试/文档；媒体/场景/Prefab/档案仅本机。

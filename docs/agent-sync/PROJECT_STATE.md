@@ -1,5 +1,13 @@
 # ANKALUTE 共享项目状态
 
+
+## CRAFT-01 已完成（2026-11-01）
+
+- 自有固定装备台合成根、配方/工位/实例分离、team普通材料稳定分配、原Ledger最终容量转换、独立装备payload与共同快照回执已接入。原唯一F/uGUI导航/数量/返回、两工位同合同及至少主手＋副手＋中间材料闭环完成；不暂停、不自动装备、不另建库存/保存器。
+- 自然原攻击/F拾取→三配方→原UI换装→实际攻击60至30/守卫→Main/Transit双向与同Editor宿主重建冷读保持身份；Core/库存/Service/原持久回归180项、坏section13拒绝/1有效、真实写锁失败后原保存重试不重复产出通过。45.005秒连续虚拟输入/位置夹具通过，52.033秒无音轨录像仅本机。
+- 产品8f8831c0ba5763716a8e784a9ef24ca0155e57b4已GitHub main精确核验，98项自有代码/测试/文档；两场、Prefab/SO/6新Map、参考媒体/派生物/真实档均本机。最终Main Edit clean/单场、新鲜crafting-demo-01、0自有设备与探针租约、无startup override；全部writer/路径释放。
+- 本轮保护基线37dirty及默认档现状四文件保持，不抹去前轮默认档事故。原作动态、实体硬件、Player、进程重启、任意帧断电零丢与用户美术/手感/最终架构验收未代签。入口docs/ossastra/CRAFT-01/使用指南.md及验收报告.md，细节tasks/2026-10-31-craft-01.md。
+
 ## WORLD-PROP-01 已交付（2026-10-31）
 
 - WorldProps独立根/纯状态，以原Health、Combat网关、InventorySession/Ledger、F/UI与Commerce同快照形成闭环。Main17实例、worldprops-demo-01；2D/3D模板/SO/作者教程/离线研究和实录已交付。新定义/实例布局严格新档或显式迁移，不静默播种。
