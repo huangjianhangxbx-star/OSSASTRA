@@ -1,5 +1,12 @@
 # ANKALUTE 并行任务登记表
 
+## KT-VIS-03 完成交接（2026-11-01）
+
+- kt-vis-03 complete/read-only；产品d4a3ce313e7fecc67a21963a1ff9b91c7fece970已GitHub main精确核验，27项自有代码/验证/文档；场景/模板/媒体/截图/真实档仅本机。
+- 当前CRAFT场20小物/设备保持自然遮挡，5墙/平台保留透视；真实Root动态切换/同帧撤销/大墙阳性通过。开口石壳遗漏原Y135，已用既有视觉yaw跟随+局部Y90适配3实例，保留Cull2/网格/根/碰撞；8档/244帧验证通过。
+- 最终Main Edit ready/单场/clean、原demo配置恢复、0自有RT/材质/探针租约；原37dirty及8个保护档SHA保持，全部Unity/源码/候选/文档writer与路径释放。
+- 限当前主场/四模板/CRAFT构建候选，未批改全部历史场。原作动态、Player、实体硬件与最终审美未代签；详tasks/2026-11-01-kt-vis-03.md及docs/ossastra/KT-VIS-03/修复说明.md。
+
 ## CRAFT-01 完成交接（2026-11-01）
 
 - craft-01 complete/read-only；M0—M7完成，产品8f8831c0ba5763716a8e784a9ef24ca0155e57b4已GitHub main精确核验，98项自有代码/测试/文档；媒体/派生物/场景/Prefab/SO/Map/真实档仅本机。
