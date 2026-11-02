@@ -52,7 +52,7 @@ Shader "Hidden/Ossastra/Rooms/SightSpine"
     #if defined(_STRAIGHT_ALPHA_INPUT)
      texel.rgb*=texel.a;
     #endif
-    O output;output.color=texel*input.color;output.depth=deviceDepth;return output;
+    O output;output.color=RoomSightFogColor(texel*input.color,logicalWorld,1);output.depth=deviceDepth;return output;
    }
    ENDHLSL
   }
@@ -90,7 +90,7 @@ Shader "Hidden/Ossastra/Rooms/SightSpine"
     #if defined(_STRAIGHT_ALPHA_INPUT)
      texel.rgb*=texel.a;
     #endif
-    return texel*input.color;
+    return RoomSightFogColor(texel*input.color,logicalWorld,1);
    }
    ENDHLSL
   }

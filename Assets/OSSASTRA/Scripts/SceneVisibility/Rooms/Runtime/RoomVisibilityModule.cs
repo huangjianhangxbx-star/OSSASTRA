@@ -1,4 +1,4 @@
-/* 功能：在唯一SceneVisibilityRoot调度下解析原主控建筑/房间；许可仅来自当前种子及有限门窗。
+/* 功能：在唯一SceneVisibilityRoot调度下解析原主控建筑/房间；人物许可来自当前种子及自然/有限门窗。
  * 边界：不拥有Current、位置、HP、物理、灯光或存档；不逐帧扫描全场，不订阅第二套相机回调。
  * 协作：纯MembershipResolver计算身份；作者组件提供范围/成员；RoomMaskRendererFeature消费明确相机帧。
  * 生命周期：Begin提交同栋顶盖、前墙与正向绘制的相机临时scope，End只归还scope；禁用/异常/卸载释放自己登记。
@@ -70,6 +70,13 @@ namespace Ossastra.SceneVisibility.Rooms
             if (sharedSurfaces == null) { reason = "跨空间地面列表为null"; return false; }
             if (sightBlockers == null || sightBlockers.Length > 64 || !RoomRegion.Finite(observerHeight) || observerHeight <= 0f)
             { reason = "观察高度必须为正数；不透光Box列表不能为空或超过64项"; return false; }
+            if(staticEnvironmentSurfaces==null||staticEnvironmentRoots==null||movingSightBlockers==null||fog==null||!RoomRegion.Finite(fog.InitialVisibility)||fog.InitialVisibility<0||fog.InitialVisibility>1||
+                !RoomRegion.Finite(fog.GainSeconds)||fog.GainSeconds<.01f||fog.GainSeconds>.5f||
+                !RoomRegion.Finite(fog.LossSeconds)||fog.LossSeconds<.01f||fog.LossSeconds>.3f||
+                !RoomRegion.Finite(fog.SpreadSeconds)||fog.SpreadSeconds<0||fog.SpreadSeconds>=Mathf.Min(fog.GainSeconds,fog.LossSeconds)||
+                !RoomRegion.Finite(fog.SpreadRadius)||fog.SpreadRadius<=0||!RoomRegion.Finite(fog.InwardFeather)||fog.InwardFeather<0||
+                !RoomRegion.Finite(fog.DitherCellSize)||fog.DitherCellSize<=0||!RoomRegion.Finite(fog.DitherStrength)||fog.DitherStrength<0||fog.DitherStrength>1)
+            { reason="静态名单不能为空；黑幕显现须0.01—0.5秒、退场0.01—0.3秒，扩散须短于两者，柔边/点阵参数须有限有效";return false; }
             var buildingNames = new HashSet<string>(StringComparer.Ordinal);
             var roomNames = new HashSet<string>(StringComparer.Ordinal);
             var roofNames = new HashSet<string>(StringComparer.Ordinal);
@@ -221,7 +228,7 @@ namespace Ossastra.SceneVisibility.Rooms
             if (roomResolver == null) roomResolver = new RoomMembershipResolver(roomIds);
             else roomResolver.SetRegisteredRooms(roomIds);
             discovered.RemoveWhere(id => Array.IndexOf(roomIds, id) < 0);
-            InitializeSightRegistration();
+            InitializeSightRegistration();InitializePresentationRegistration();
             initialized = true; immediateRequested = true; Status = "已登记；等待主控空间采样";
             // 首次Canvas标签创建前公布本相机使用可选房间策略；此时Enabled=false，不创建GPU遮罩。
             // UI可从一开始绑定专用材质，避免入室首帧晚于Canvas重建才切换材质。
@@ -250,7 +257,7 @@ namespace Ossastra.SceneVisibility.Rooms
             RoomMaskCameraRegistry.Publish(this, camera, frame);
             if (statusBuilding != ActiveBuilding || statusRoom != ActiveRoom || statusDiscoveryCount != discovered.Count)
             {
-                Status = ActiveBuilding == null ? "室外；整顶保留，门窗只给有限预览" :
+                Status = ActiveBuilding == null ? "室外；整顶保留，门窗提供局部视野" :
                     "建筑 " + ActiveBuilding.buildingId + " / 区域 " + (ActiveRoom == null ? "过渡范围" : ActiveRoom.roomId) +
                     " / 历史到达（无显示权） " + discovered.Count;
                 statusBuilding = ActiveBuilding; statusRoom = ActiveRoom; statusDiscoveryCount = discovered.Count;
@@ -385,6 +392,7 @@ namespace Ossastra.SceneVisibility.Rooms
         static bool MarginsValid(float enter, float exit) => RoomRegion.Finite(enter) && RoomRegion.Finite(exit) && enter >= 0f && exit >= 0f;
         void PublishDisabled()
         {
+            presentationSampled=false;
             frame.Enabled = false;
             frame.PositiveRenderingEnabled = false;
             if (boundCamera != null) RoomMaskCameraRegistry.Publish(this, boundCamera, frame);

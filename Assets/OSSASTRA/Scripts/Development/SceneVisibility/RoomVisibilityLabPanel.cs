@@ -66,7 +66,7 @@ namespace Ossastra.Development.SceneVisibility
      {
       var a=aperture[i];var b=aperture[(i+1)%aperture.Count];DrawWorldLine(new Vector3(a.X,a.Y,a.Z),new Vector3(b.X,b.Y,b.Z),Color.cyan);
       var delta=a-origin;float along=Ossastra.SceneVisibility.Rooms.Core.SightVector3.Dot(delta,normal);
-      if(along>.0001f){var far=origin+delta*((along+volume.MaxSightDistance)/along);DrawWorldLine(new Vector3(a.X,a.Y,a.Z),new Vector3(far.X,far.Y,far.Z),new Color(1,.6f,0,.6f));}
+      if(along>.0001f){float drawnDistance=module.naturalPlayerVision?20:volume.MaxSightDistance;var far=origin+delta*((along+drawnDistance)/along);DrawWorldLine(new Vector3(a.X,a.Y,a.Z),new Vector3(far.X,far.Y,far.Z),new Color(1,.6f,0,.6f));}
      }
     }
    }
@@ -75,9 +75,13 @@ namespace Ossastra.Development.SceneVisibility
    GUILayout.Label(module.SightStatus);
    module.positiveRenderingEnabled=GUILayout.Toggle(module.positiveRenderingEnabled,"启用合法视域合成（关闭用于原图对照）");
    module.truthMode=GUILayout.Toggle(module.truthMode,"纯色真值：整房 / 单跳片段 / 顶盖");
-   showPortalProjection=GUILayout.Toggle(showPortalProjection,"开口投影与有限视域截面（青框/橙线）");
+   showPortalProjection=GUILayout.Toggle(showPortalProjection,"开口与方向示意（橙线不代表视距）");
    module.localObjectRevealEnabled=GUILayout.Toggle(module.localObjectRevealEnabled,"局部物件透视接口（默认关闭）");
-   foreach(var building in module.buildings)if(building!=null)foreach(var portal in building.portals)if(portal!=null&&Vector3.Distance(module.ObserverPosition,portal.transform.position)<portal.observerRange+1)
+   module.naturalPlayerVision=GUILayout.Toggle(module.naturalPlayerVision,"自然视野180°（不限制旧6/8米）");
+   module.realWindowScenery=GUILayout.Toggle(module.realWindowScenery,"真实窗孔外景（不扩大人物许可）");
+   if(module.fog!=null){module.fog.Enabled=GUILayout.Toggle(module.fog.Enabled,"静态环境快速展开与内向柔边");module.fog.DitherEnabled=GUILayout.Toggle(module.fog.DitherEnabled,"稳定世界点阵边缘");}
+   GUILayout.Label("过渡参数：RoomVisibilityModule → 黑幕呈现；静态名单 "+module.StaticEnvironmentCount);
+   foreach(var building in module.buildings)if(building!=null)foreach(var portal in building.portals)if(portal!=null)
     GUILayout.Label(portal.portalId+"  "+(portal.inside==null?"室外":portal.inside.roomId)+" ↔ "+(portal.outside==null?"室外":portal.outside.roomId)+"  "+(portal.open&&portal.canSeeThrough?"通视":"封闭"));
    GUILayout.BeginHorizontal();if(GUILayout.Button("左转45°"))map?.RequestRotationStep(-1);if(GUILayout.Button("右转45°"))map?.RequestRotationStep(1);GUILayout.EndHorizontal();
    if(shutterPortal!=null&&GUILayout.Button(shutterPortal.open?"关闭西窗实体遮板":"打开西窗实体遮板"))SetShutterOpen(!shutterPortal.open);

@@ -88,7 +88,7 @@ Shader "Hidden/Ossastra/Rooms/SightThinTop"
     mask=lerp(mask,1,saturate(_BaseCoverage));clip(mask*input.color.a-_Cutoff);
     half3 detail=SAMPLE_TEXTURE2D(_SecondTex,sampler_SecondTex,input.world.xz/max(_WorldPeriod,.0001)).rgb;
     FragmentOutput output;
-    output.color=half4(lerp(detail,mask.xxx,saturate(_DebugMask))*input.color.rgb,1);
+    output.color=RoomSightFogColor(half4(lerp(detail,mask.xxx,saturate(_DebugMask))*input.color.rgb,1),logicalWorld,0);
     output.depth=deviceDepth;return output;
    }
    ENDHLSL

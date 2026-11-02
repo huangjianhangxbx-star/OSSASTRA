@@ -34,6 +34,13 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
         public bool TruthMode = true;
         public bool ExteriorView;
         public Vector3 ObserverPosition;
+        public Vector3 CameraObserverPosition;
+        public RoomSightDomain[] WindowSightDomains = Array.Empty<RoomSightDomain>();
+        public RoomMaskVolume[] CameraOpaqueBlockers = Array.Empty<RoomMaskVolume>();
+        public RoomFogSettings Fog = new RoomFogSettings();
+        // 主控、传送、门窗/阻挡拓扑改变时递增；旧世界域不能跨权威重置延续。
+        public int VisibilityEpoch;
+        public double PresentationTime = -1;
         public Func<Vector3, bool> AllowsPoint;
         public RoomMaskVolume[] SeedVolumes = Array.Empty<RoomMaskVolume>();
         public RoomMaskVolume[] BuildingVolumes = Array.Empty<RoomMaskVolume>();
@@ -62,9 +69,22 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
     /// <summary>平面内侧为 dot(normal, world)+w >= 0；室外目标额外排除所有建筑体积。</summary>
     public sealed class RoomSightDomain
     {
+        public Vector3 ObserverPosition;
+        public bool IsCameraWindow;
         public Vector4[] Planes = Array.Empty<Vector4>();
         public RoomMaskVolume[] TargetVolumes = Array.Empty<RoomMaskVolume>();
         public bool TargetExterior;
+    }
+
+    [Serializable]
+    public sealed class RoomFogSettings
+    {
+        public bool Enabled = true;
+        public float InitialVisibility = .3f, GainSeconds = .5f, LossSeconds = .3f;
+        public float SpreadSeconds = .12f, SpreadRadius = 8, InwardFeather = .35f;
+        public bool DitherEnabled;
+        public float DitherCellSize = .06f, DitherStrength = .12f;
+        public Color Color = Color.black;
     }
 
     public enum RoomPositiveSurfaceKind { Full, Partial, Roof }
@@ -77,6 +97,8 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
         public bool OwnerExterior;
         // 原业务表现登记强制只读源材质；动态Lit组由有限筛选位保持URP逐对象光照。
         public bool IndependentDraw;
+        // 由作者/组织者明确登记；角色、敌人、动画、可破坏物与门窗活动片不得猜作静态历史。
+        public bool StaticEnvironment;
         public uint DrawMask;
         public Material DrawMaterial;
     }
@@ -86,6 +108,8 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
         public int Width, Height, Msaa, SurfaceDraws, PortalDraws, UnexploredVolumeDraws;
         public int OwnedMeshCount;
         public int OwnedTextureCount, OwnedMaterialCount, UnsupportedMaterialCount, PmaApproximationCount;
+        public int OwnedBufferCount;
+        public long EstimatedBufferBytes;
         public int OwnedPropertyBlockCount;
         public int SourceMaterialBucketCount, RetainedMaterialConflicts;
         public long EstimatedTextureBytes;

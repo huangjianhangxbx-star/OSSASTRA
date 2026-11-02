@@ -38,7 +38,7 @@ Shader "Hidden/Ossastra/Rooms/SightDecoration"
    {
     clip(RoomSightPartialContains(RoomSightWorldFromDeviceDepth(input.positionCS.xy,input.positionCS.z))?1:-1);
     half4 color=SAMPLE_TEXTURE2D(_MainTex,sampler_MainTex,input.uv)*input.color;
-    clip(color.a-_Cutoff);return half4(color.rgb,1);
+    clip(color.a-_Cutoff);return RoomSightFogColor(half4(color.rgb,1),RoomSightWorldFromDeviceDepth(input.positionCS.xy,input.positionCS.z),0);
    }
    ENDHLSL
   }

@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+ <PropertyGroup><TargetFramework>net9.0</TargetFramework><EnableDefaultCompileItems>false</EnableDefaultCompileItems><ImplicitUsings>disable</ImplicitUsings><NoWarn>CS0436</NoWarn></PropertyGroup>
+ <ItemGroup>
+  <Compile Include="../../../Assets/OSSASTRA/Scripts/SceneVisibility/Rooms/Rendering/*.cs"/>
+  <Compile Include="FogRendererContract.cs.txt"/>
+  <Reference Include="E:/unity/Tuanjie Hub/2022.3.62t16/Editor/Data/Managed/UnityEngine/*.dll"/>
+  <Reference Include="../../../Library/ScriptAssemblies/*.dll"/>
+ </ItemGroup>
+</Project>

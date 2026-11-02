@@ -1,5 +1,5 @@
 /* 功能：从原Current稳定观察点求解种子房间及双向单跳门窗视域，生成正向绘制帧。
- * 边界：不从镜头位置授予视野、不递归Partial、不推进发现/经济/物理业务；未知内容不保留投影泄漏。
+ * 边界：镜头窗景只给洞口像素不授予人物视野；不递归Partial、不推进发现/经济/物理业务。
  * 协作：Core负责几何；Rendering只画显式登记的合法片元；原Root持有唯一相机生命周期。
  */
 using System;
@@ -12,7 +12,7 @@ namespace Ossastra.SceneVisibility.Rooms
 {
  public sealed partial class RoomVisibilityModule
  {
-  [Header("门窗有限观察；相机旋转不改变人物观察权威")]
+  [Header("当帧观察权威；相机旋转不改变人物观察权威")]
   public bool positiveRenderingEnabled=true;
   public bool truthMode=true;
   public bool localObjectRevealEnabled=false;
@@ -77,12 +77,12 @@ namespace Ossastra.SceneVisibility.Rooms
    }
    if(allBuildingBoxes.Count>32||sightBlockers.Length>64)throw new InvalidOperationException("观察范围超过32建筑盒/64不透光盒预算；拒绝截断放行");
    var snapshot=new ObserverSnapshot(ActiveRoom==null?ObserverSnapshot.Exterior:ActiveRoom.roomId,S(ObserverPosition),S(ObserverForward));
-   sightResult=validObserver?PortalSightSolver.Solve(snapshot,sightPortals):null;
+   sightResult=validObserver?PortalSightSolver.Solve(snapshot,sightPortals,naturalPlayerVision?PortalSightPolicy.PlayerNatural:PortalSightPolicy.Legacy):null;
    if(sightResult!=null)foreach(var volume in sightResult.Volumes)
    {
     var planes=new Vector4[volume.ClipPlanes.Count];for(int i=0;i<planes.Length;i++){var p=volume.ClipPlanes[i];planes[i]=new Vector4(p.Normal.X,p.Normal.Y,p.Normal.Z,p.Distance);}
     var targets=new List<RoomMaskVolume>();foreach(var r in registeredRooms)if(r!=null&&r.roomId==volume.TargetSpaceId)r.AppendMaskVolumes(targets);
-    sightDomains.Add(new RoomSightDomain{Planes=planes,TargetVolumes=targets.ToArray(),TargetExterior=volume.TargetSpaceId==ObserverSnapshot.Exterior});
+    sightDomains.Add(new RoomSightDomain{Planes=planes,ObserverPosition=ObserverPosition,TargetVolumes=targets.ToArray(),TargetExterior=volume.TargetSpaceId==ObserverSnapshot.Exterior});
    }
    foreach(var box in sightBlockers)
    {
@@ -102,6 +102,7 @@ namespace Ossastra.SceneVisibility.Rooms
     }
     if(revealRoofs)foreach(var roof in ActiveBuilding.roofGroups)foreach(var c in roof.labelRaycastExclusions)if(c!=null)labelRaycastExclusionScratch.Add(c);
    }
+   BuildCameraWindowFrame();UpdatePresentationEpoch();
    dynamicPresentations.Clear();RoomPresentationRegistry.Append(dynamicPresentations);
    if(validObserver)foreach(var e in dynamicPresentations)if(e.Renderer!=null&&e.Renderer.gameObject.scene==gameObject.scene)
    {
@@ -129,7 +130,7 @@ namespace Ossastra.SceneVisibility.Rooms
    frame.PreviewRoofSurfaces=previewRoofs.ToArray();
    frame.LabelRaycastExclusions=labelRaycastExclusionScratch.ToArray();frame.AllowsPoint=AllowsSightPoint;
    frame.KnownVolumes=frame.SeedVolumes;frame.Volumes=frame.BuildingVolumes;
-   SightStatus="观察 "+ObserverPosition.ToString("F2")+" 朝向 "+ObserverForward.ToString("F2")+" / 单跳片段 "+PartialViewCount+" / 前墙 "+HiddenFrontWallCount;
+   SightStatus="观察 "+ObserverPosition.ToString("F2")+" 朝向 "+ObserverForward.ToString("F2")+" / 人物片段 "+PartialViewCount+" / 真窗景 "+WindowViewCount+" / 前墙 "+HiddenFrontWallCount;
   }
   void AddPositiveSurface(Renderer r,Vector3? anchor,bool forcePartial=false)
   {
@@ -153,7 +154,9 @@ namespace Ossastra.SceneVisibility.Rooms
    else if(contentOwners.TryGetValue(r,out var contentRoom))ownerRoom=contentRoom;
    else if(!permanentMembers.Contains(r)&&!roofMembers.Contains(r)&&Array.IndexOf(sharedSurfaces,r)<0)ownerExterior=true;
    var ownerVolumes=new List<RoomMaskVolume>();if(ownerRoom!=null)ownerRoom.AppendMaskVolumes(ownerVolumes);
-   positiveSurfaces.Add(new RoomPositiveSurface{Renderer=r,Kind=kind,OwnerVolumes=ownerVolumes.ToArray(),OwnerExterior=ownerExterior,IndependentDraw=presentationMembers.Contains(r)});
+   bool staticEnvironment=IsStaticEnvironment(r);
+   if(staticEnvironment&&fog!=null&&fog.Enabled&&kind==RoomPositiveSurfaceKind.Full)kind=RoomPositiveSurfaceKind.Partial;
+   positiveSurfaces.Add(new RoomPositiveSurface{Renderer=r,Kind=kind,OwnerVolumes=ownerVolumes.ToArray(),OwnerExterior=ownerExterior,IndependentDraw=presentationMembers.Contains(r),StaticEnvironment=staticEnvironment});
   }
   void ApplyPositiveRegistration()
   {
@@ -164,7 +167,8 @@ namespace Ossastra.SceneVisibility.Rooms
    {
     uint bits=RoomPositiveRenderingLayers.GetMask(surface);
     // 非全房内容不保留整件投影；结构/顶盖遮光仍由原Caster承担。
-    bool shadowOff=surface.Kind==RoomPositiveSurfaceKind.Partial&&!permanentMembers.Contains(surface.Renderer)&&!roofMembers.Contains(surface.Renderer)&&!Array.Exists(sharedSurfaces,r=>r==surface.Renderer);
+    bool staticFullRoom=surface.StaticEnvironment&&contentOwners.TryGetValue(surface.Renderer,out var contentRoom)&&contentRoom==ActiveRoom;
+    bool shadowOff=surface.Kind==RoomPositiveSurfaceKind.Partial&&!staticFullRoom&&!permanentMembers.Contains(surface.Renderer)&&!roofMembers.Contains(surface.Renderer)&&!Array.Exists(sharedSurfaces,r=>r==surface.Renderer);
     positiveScope.Apply(surface.Renderer,bits,shadowOff);
    }
   }
@@ -188,9 +192,9 @@ namespace Ossastra.SceneVisibility.Rooms
   void PublishRejectedFrame(string reason)
   {
    // 当前已启用观察策略时，作者预算/快照失效只撤销许可，不撤销黑底合成注册。
-   positiveScope.Dispose();visualScope.Dispose();validObserver=false;
+   positiveScope.Dispose();visualScope.Dispose();validObserver=false;presentationSampled=false;++presentationEpoch;
    frame.Enabled=true;frame.PositiveRenderingEnabled=true;frame.ExteriorView=false;frame.TruthMode=truthMode;
-   frame.SeedVolumes=Array.Empty<RoomMaskVolume>();frame.BuildingVolumes=Array.Empty<RoomMaskVolume>();frame.SightDomains=Array.Empty<RoomSightDomain>();frame.OpaqueBlockers=Array.Empty<RoomMaskVolume>();frame.PositiveSurfaces=Array.Empty<RoomPositiveSurface>();frame.PreviewRoofSurfaces=Array.Empty<Renderer>();frame.LabelRaycastExclusions=Array.Empty<Collider>();frame.AllowsPoint=AllowsSightPoint;
+   frame.SeedVolumes=Array.Empty<RoomMaskVolume>();frame.BuildingVolumes=Array.Empty<RoomMaskVolume>();frame.SightDomains=Array.Empty<RoomSightDomain>();frame.WindowSightDomains=Array.Empty<RoomSightDomain>();frame.CameraOpaqueBlockers=Array.Empty<RoomMaskVolume>();frame.OpaqueBlockers=Array.Empty<RoomMaskVolume>();frame.PositiveSurfaces=Array.Empty<RoomPositiveSurface>();frame.PreviewRoofSurfaces=Array.Empty<Renderer>();frame.LabelRaycastExclusions=Array.Empty<Collider>();frame.AllowsPoint=AllowsSightPoint;frame.VisibilityEpoch=presentationEpoch;
    Status="显示许可被拒绝："+reason;SightStatus=Status;
    RoomMaskCameraRegistry.Publish(this,boundCamera,frame);
   }

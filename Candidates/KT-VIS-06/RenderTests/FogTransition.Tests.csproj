@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+ <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net9.0</TargetFramework><EnableDefaultCompileItems>false</EnableDefaultCompileItems><ImplicitUsings>disable</ImplicitUsings></PropertyGroup>
+ <ItemGroup><Compile Include="FogTransitionTests.cs"/><Compile Include="../../../Assets/OSSASTRA/Scripts/SceneVisibility/Rooms/Rendering/RoomFogTransitionMath.cs" Condition="Exists('../../../Assets/OSSASTRA/Scripts/SceneVisibility/Rooms/Rendering/RoomFogTransitionMath.cs')"/></ItemGroup>
+</Project>

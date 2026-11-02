@@ -1,0 +1,212 @@
+/* 功能：06隔离Lab现有实时局部灯ON/OFF实际颜色与Caster有界合同；不新建灯、GI或相机。
+ * 边界：原Current仅公开Teleport定位；真实endFrame读回屏幕；手工Begin/End仅验作用域状态。
+ * 生命周期：正常/失败/9秒超时/退出Play均恢复原灯、原角色姿态、原镜头和本夹具输入owner。
+ */
+using System;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.SceneManagement;
+using UnityEditor;
+using Funplay.Editor.Tools.Scripting;
+using Newtonsoft.Json;
+using Ossastra.SceneVisibility;
+using Ossastra.SceneVisibility.Rooms;
+using Ossastra.SceneVisibility.Rooms.Rendering;
+using Ossastra.MapResearch;
+
+public sealed class NativeLightingContract : IFunplayCommand
+{
+    const string Lab="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity";
+    const string DirectoryPath="E:/WORLDCREATOR/XingHaiHuiLang/研究/可见性修复/KT-VIS-06/native-lighting";
+    const string Profiles="E:/WORLDCREATOR/XingHaiHuiLang/研究/可见性修复/KT-VIS-06/profiles";
+    const BindingFlags F=BindingFlags.Instance|BindingFlags.NonPublic;
+    static readonly object Lease=new object();
+    static readonly List<object> facts=new List<object>();
+    static readonly List<string> restoreErrors=new List<string>();
+    static readonly List<Vector3> points=new List<Vector3>();
+    static Scene scene;
+    static SceneVisibilityRoot root;
+    static RoomVisibilityModule module;
+    static Camera camera;
+    static MapResearchRoot map;
+    static Ossastra.Development.SceneVisibility.RoomVisibilityLabPanel panel;
+    static Ossastra.Characters.CharacterRoot actor;
+    static Ossastra.Characters.CharacterRoot[] actors;
+    static Vector3[] actorPositions,actorDirections,actorAttackDirections;
+    static Light local;
+    static bool oldLightEnabled,oldRootDiagnostics,oldPanel,oldProjection,oldMapOverlay,oldFollow,oldFocus;
+    static float oldSmooth;
+    static Vector3 oldFixedTarget,oldCameraPosition;
+    static Quaternion oldCameraRotation;
+    static FieldInfo[] mapFields;
+    static object[] mapValues;
+    static FieldInfo focusField;
+    static MethodInfo focusCallback;
+    static Renderer floor,cabinet;
+    static Renderer[] roofRenderers,guardedRenderers;
+    static Collider[] guardedColliders;
+    static object lightsBefore,renderersBefore,collidersBefore;
+    static string lightsBeforeJson,renderersBeforeJson,collidersBeforeJson;
+    static Color[] onColors;
+    static int stage,endSerial,processedSerial,startSerial;
+    static double began,stageAt;
+    static string error;
+    static bool acquired,restored;
+    public static bool Running{get;private set;}
+    public static object Result{get;private set;}
+    public static string ResultJson{get;private set;}
+    static void Need(bool value,string message){if(!value)throw new InvalidOperationException(message);}
+    static T[] All<T>() where T:Component=>scene.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<T>(true)).ToArray();
+    static float[] Vec(Vector3 v)=>new[]{v.x,v.y,v.z};
+    static float[] Rgba(Color v)=>new[]{v.r,v.g,v.b,v.a};
+    static float[] Matrix(Transform t){var m=t.localToWorldMatrix;var values=new float[16];for(int i=0;i<16;i++)values[i]=m[i];return values;}
+    static object LightSnapshots()=>All<Light>().OrderBy(l=>l.GetInstanceID()).Select(l=>(object)new{
+        id=l.GetInstanceID(),l.name,l.enabled,active=l.gameObject.activeSelf,layer=l.gameObject.layer,type=(int)l.type,color=Rgba(l.color),l.intensity,l.range,l.spotAngle,l.innerSpotAngle,l.bounceIntensity,
+        shadows=(int)l.shadows,l.shadowStrength,l.shadowBias,l.shadowNormalBias,l.shadowNearPlane,shadowResolution=(int)l.shadowResolution,l.shadowCustomResolution,
+        l.cullingMask,l.renderingLayerMask,renderMode=(int)l.renderMode,bakeType=(int)l.lightmapBakeType,cookieId=l.cookie==null?0:l.cookie.GetInstanceID(),matrix=Matrix(l.transform)}).ToArray();
+    static object RendererSnapshots()=>guardedRenderers.Select(r=>(object)new{id=r.GetInstanceID(),r.name,r.enabled,r.forceRenderingOff,shadow=(int)r.shadowCastingMode,r.receiveShadows,r.renderingLayerMask,materials=r.sharedMaterials.Select(m=>m==null?0:m.GetInstanceID()).ToArray()}).ToArray();
+    static object ColliderSnapshots()=>guardedColliders.Select(c=>(object)new{id=c.GetInstanceID(),c.name,c.enabled,c.isTrigger,active=c.gameObject.activeSelf,c.gameObject.layer,matrix=Matrix(c.transform),center=c is BoxCollider?Vec(((BoxCollider)c).center):null,size=c is BoxCollider?Vec(((BoxCollider)c).size):null,mesh=c is MeshCollider&&((MeshCollider)c).sharedMesh!=null?((MeshCollider)c).sharedMesh.GetInstanceID():0}).ToArray();
+
+    public void Execute(ExecutionContext ctx)
+    {
+        Need(!Running,"Lighting contract already running");scene=SceneManager.GetActiveScene();
+        Need(Application.isPlaying&&scene.path==Lab&&Enumerable.Range(0,SceneManager.sceneCount).Count(i=>!string.IsNullOrEmpty(SceneManager.GetSceneAt(i).path))==1,"Exact 06 Lab Play required");
+        var commerce=All<Ossastra.Commerce.Runtime.CommerceService>().Single();
+        Need(commerce.profileId=="kt-vis06-natural-01"&&!string.IsNullOrWhiteSpace(commerce.saveDirectory)&&string.Equals(Path.GetFullPath(commerce.saveDirectory),Path.GetFullPath(Profiles),StringComparison.OrdinalIgnoreCase),"Exact 06 profile/directory required");
+        root=All<SceneVisibilityRoot>().Single();module=root.roomModule;camera=root.gameplayCamera;panel=root.GetComponent<Ossastra.Development.SceneVisibility.RoomVisibilityLabPanel>();map=panel==null?null:panel.map;
+        Need(root.enabled&&module!=null&&module.IsReady&&module.positiveRenderingEnabled&&!module.truthMode&&module.revealRoofs&&camera!=null&&camera.enabled&&camera.targetTexture==null&&map!=null&&map.IsValid&&!map.IsStructureMode,"Need actual final main camera and room module");
+        Need(module.SuppressedRendererCount==0,"Must capture original source state outside a borrowed camera scope");
+        actor=root.coordinator.Current;actors=root.coordinator.Characters.ToArray();Need(actor!=null&&actors.All(a=>a!=null&&a.IsAlive),"Need original alive actors");
+        actorPositions=actors.Select(a=>a.transform.position).ToArray();actorDirections=actors.Select(a=>a.LogicalDirection).ToArray();actorAttackDirections=actors.Select(a=>a.GetComponent<Ossastra.Characters.CharacterOrientation>().AttackDirection).ToArray();
+        var room=module.buildings.SelectMany(b=>b.regions).Single(r=>r.roomId=="room-a");
+        floor=room.members.Single(r=>r!=null&&r.name=="Floor");cabinet=room.members.Single(r=>r!=null&&r.name=="TallCabinet_A");
+        Need(floor.GetComponent<Collider>()!=null&&floor.receiveShadows&&floor.sharedMaterials.Any(m=>m!=null&&m.shader!=null&&m.shader.name.Contains("Lit")&&!m.shader.name.Contains("Unlit")),"Need real Lit A Floor receiving shadows");
+        local=All<Light>().Single(l=>l.name=="InteriorLocalLight_A");Need(local.type==LightType.Point&&local.gameObject.activeInHierarchy&&local.intensity>0,"Need existing original interior point light");
+        roofRenderers=module.buildings.Single(b=>b.regions.Contains(room)).roofGroups.SelectMany(g=>g.members).Distinct().ToArray();
+        Need(roofRenderers.Length>0&&roofRenderers.All(r=>r!=null&&r.enabled&&!r.forceRenderingOff&&r.shadowCastingMode!=ShadowCastingMode.Off),"Original roofs must be real enabled casters");
+        Need(cabinet.shadowCastingMode!=ShadowCastingMode.Off&&!cabinet.forceRenderingOff,"Known cabinet must originally cast");
+        guardedRenderers=roofRenderers.Concat(new[]{cabinet}).ToArray();guardedColliders=guardedRenderers.SelectMany(r=>r.GetComponents<Collider>()).Distinct().OrderBy(c=>c.GetInstanceID()).ToArray();
+        lightsBefore=LightSnapshots();renderersBefore=RendererSnapshots();collidersBefore=ColliderSnapshots();
+        lightsBeforeJson=JsonConvert.SerializeObject(lightsBefore);renderersBeforeJson=JsonConvert.SerializeObject(renderersBefore);collidersBeforeJson=JsonConvert.SerializeObject(collidersBefore);
+        oldLightEnabled=local.enabled;oldRootDiagnostics=root.showDiagnostics;oldPanel=panel.showPanel;oldProjection=panel.showPortalProjection;oldMapOverlay=map.showOverlay;
+        oldFollow=map.followParticipant;oldSmooth=map.followSmoothTime;oldFixedTarget=map.fixedTarget;oldCameraPosition=camera.transform.position;oldCameraRotation=camera.transform.rotation;
+        mapFields=new[]{"orbit","followCenter","followVelocity","followCenterInitialized"}.Select(n=>typeof(MapResearchRoot).GetField(n,F)).ToArray();
+        focusField=root.coordinator.GetType().GetField("focused",F);focusCallback=root.coordinator.GetType().GetMethod("OnApplicationFocus",F);
+        Need(mapFields.All(f=>f!=null)&&focusField!=null&&focusCallback!=null,"Original camera/focus seam changed");mapValues=mapFields.Select(f=>f.GetValue(map)).ToArray();oldFocus=(bool)focusField.GetValue(root.coordinator);
+        facts.Clear();restoreErrors.Clear();points.Clear();error=null;stage=0;endSerial=processedSerial=0;restored=false;began=EditorApplication.timeSinceStartup;stageAt=began;startSerial=0;Running=true;acquired=true;
+        try
+        {
+            if(!oldFocus)focusCallback.Invoke(root.coordinator,new object[]{true});foreach(var a in actors)a.SetViewInputCapture(Lease,true);map.SetUiCameraCapture(Lease,true);
+            map.followParticipant=false;map.followSmoothTime=0;map.fixedTarget=new Vector3(-16,0,-12);mapFields[0].SetValue(map,new MapOrbitState(0));map.showOverlay=false;
+            root.showDiagnostics=false;panel.showPanel=panel.showPortalProjection=false;
+            actor.GetComponent<Ossastra.Characters.CharacterMovement>().Teleport(new Vector3(-15,.1f,-14.4f));var o=actor.GetComponent<Ossastra.Characters.CharacterOrientation>();o.OrientTowards(actor.transform.position+Vector3.back*5);o.FaceAttackDirection();module.RequestImmediateMembershipRefresh();
+            local.enabled=true;Directory.CreateDirectory(DirectoryPath);
+            RenderPipelineManager.endCameraRendering+=OnEnd;RenderPipelineManager.endFrameRendering+=OnFrameEnd;EditorApplication.update+=Watchdog;EditorApplication.playModeStateChanged+=OnPlayMode;
+            Result=new{status="running",expectedSeconds=3,deadlineSeconds=9,light=local.name,originalIntensity=local.intensity,originalColor=Rgba(local.color),scope="Existing realtime light enabled/disabled only; no light created or GI change"};ctx.ReturnValue=Result;
+        }
+        catch(Exception e){error=e.ToString();Finish();throw;}
+    }
+    static void OnEnd(ScriptableRenderContext context,Camera current){if(Running&&current==camera)endSerial++;}
+    static void OnFrameEnd(ScriptableRenderContext context,Camera[] rendered)
+    {
+        if(!Running||endSerial==processedSerial)return;processedSerial=endSerial;
+        try
+        {
+            Need(Application.isPlaying&&root!=null&&module!=null&&camera!=null&&SceneManager.GetActiveScene().path==Lab,"Play context changed");
+            if(EditorApplication.timeSinceStartup-stageAt<(stage==0?.8:.3)||endSerial-startSerial<2)return;
+            Need(module.SuppressedRendererCount==0,"Must sample after original real camera scope cleanup");
+            Need(RoomMaskCameraRegistry.TryGet(camera,out var frame)&&frame.Enabled&&frame.PositiveRenderingEnabled&&!frame.TruthMode,"No actual final frame");
+            Need(RoomMaskCameraRegistry.TryGetStatistics(camera,out var stats)&&stats.Active&&string.IsNullOrEmpty(stats.Error),"Actual backend error: "+(stats==null?"missing":stats.Error));
+            if(stage==0)
+            {
+                Need(module.ActiveRoom!=null&&module.ActiveRoom.roomId=="room-a"&&root.coordinator.Current==actor,"Original Current did not resolve actual A");
+                SelectFloorPoints(frame);CheckCasterScope();onColors=Capture("original-interior-light-on");local.enabled=false;
+                facts.Add(new{stage="light-on",frame=Time.frameCount,actualEnd=endSerial,samples=points.Count,pointLightIntensity=local.intensity,color=Rgba(local.color)});Advance(1);
+            }
+            else if(stage==1)
+            {
+                var off=Capture("original-interior-light-off");float max=0,sum=0;int detected=0;var rows=new List<object>();
+                for(int i=0;i<off.Length;i++){float d=Luma(onColors[i])-Luma(off[i]);max=Mathf.Max(max,d);sum+=d;if(d>.01f)detected++;rows.Add(new{world=Vec(points[i]),on=Rgba(onColors[i]),off=Rgba(off[i]),onMinusOffLuma=d});}
+                facts.Add(new{stage="light-difference",frame=Time.frameCount,actualEnd=endSerial,maxOnMinusOffLuma=max,meanOnMinusOffLuma=sum/off.Length,detectedAbovePointZeroOne=detected,rows});
+                Need(max>.01f&&detected>=2,"Existing local light ON/OFF actual Lit-floor delta insufficient; max="+max+", detected="+detected);
+                RestoreState();Need(restoreErrors.Count==0,"Initial restore failed");Advance(2);
+            }
+            else
+            {
+                var lightAfter=LightSnapshots();var rendererAfter=RendererSnapshots();var colliderAfter=ColliderSnapshots();
+                bool lightsEqual=JsonConvert.SerializeObject(lightAfter)==lightsBeforeJson,renderersEqual=JsonConvert.SerializeObject(rendererAfter)==renderersBeforeJson,collidersEqual=JsonConvert.SerializeObject(colliderAfter)==collidersBeforeJson;
+                facts.Add(new{stage="actual-restored-frame",frame=Time.frameCount,actualEnd=endSerial,lightsEqual,renderersEqual,collidersEqual,lightsBefore,lightAfter});
+                Need(lightsEqual&&renderersEqual&&collidersEqual,"Original Light/roof/cabinet/collision primitive snapshot changed after restored real frame");
+                Need(root.coordinator.Current==actor,"Original Current changed");Finish();
+            }
+        }
+        catch(Exception e){error="stage "+stage+": "+e;Finish();}
+    }
+    static void Advance(int next){stage=next;stageAt=EditorApplication.timeSinceStartup;startSerial=endSerial;}
+    static float Luma(Color c)=>c.r*.2126f+c.g*.7152f+c.b*.0722f;
+    static void SelectFloorPoints(RoomMaskFrame frame)
+    {
+        var floorCollider=floor.GetComponent<Collider>();var bounds=floor.bounds;var physics=scene.GetPhysicsScene();var hits=new RaycastHit[64];var candidates=new List<Vector3>();
+        for(int z=0;z<9;z++)for(int x=0;x<9;x++)
+        {
+            var p=new Vector3(Mathf.Lerp(bounds.min.x+.65f,bounds.max.x-.65f,x/8f),bounds.max.y+.002f,Mathf.Lerp(bounds.min.z+.65f,bounds.max.z-.65f,z/8f));
+            if(actors.Any(a=>new Vector2(a.transform.position.x-p.x,a.transform.position.z-p.z).sqrMagnitude<1.3f*1.3f))continue;
+            var view=camera.WorldToViewportPoint(p);if(view.z<=0||view.x<.04f||view.x>.96f||view.y<.04f||view.y>.96f)continue;
+            var ray=camera.ViewportPointToRay(view);float distance=Vector3.Dot(p-ray.origin,ray.direction);int count=physics.Raycast(ray.origin,ray.direction,hits,distance+.08f,camera.cullingMask,QueryTriggerInteraction.Ignore);
+            if(count==hits.Length)continue;Collider nearest=null;float nearestDistance=float.PositiveInfinity;
+            for(int i=0;i<count;i++)if(hits[i].collider!=null&&Array.IndexOf(frame.LabelRaycastExclusions,hits[i].collider)<0&&hits[i].distance<nearestDistance){nearest=hits[i].collider;nearestDistance=hits[i].distance;}
+            if(nearest==floorCollider)candidates.Add(p);
+        }
+        points.AddRange(candidates.OrderBy(p=>(p-local.transform.position).sqrMagnitude).Take(24));Need(points.Count>=4,"Need >=4 actual Lit Floor ROI, not wall/cabinet/actor pixels");
+    }
+    static void CheckCasterScope()
+    {
+        string before=JsonConvert.SerializeObject(RendererSnapshots()),physicsBefore=JsonConvert.SerializeObject(ColliderSnapshots());var cabinetMode=cabinet.shadowCastingMode;bool cabinetOff=cabinet.forceRenderingOff;bool entered=false;
+        try
+        {
+            module.BeginCamera(root,camera,true);entered=true;
+            Need(module.ActiveRoom!=null&&module.ActiveRoom.roomId=="room-a","Manual scope seed lost A");
+            Need(cabinet.shadowCastingMode==cabinetMode&&cabinet.shadowCastingMode!=ShadowCastingMode.Off&&cabinet.forceRenderingOff==cabinetOff,"Known static cabinet lost original Caster");
+            Need(roofRenderers.All(r=>r.shadowCastingMode==ShadowCastingMode.ShadowsOnly&&!r.forceRenderingOff&&r.enabled),"Entered building roof must keep ShadowsOnly, never Off");
+            Need(JsonConvert.SerializeObject(ColliderSnapshots())==physicsBefore,"Collider changed inside manual display scope");
+            facts.Add(new{stage="manual-caster-scope",cabinetMode=(int)cabinet.shadowCastingMode,roofs=roofRenderers.Select(r=>new{id=r.GetInstanceID(),mode=(int)r.shadowCastingMode,r.forceRenderingOff}).ToArray(),collidersUnchanged=true});
+        }
+        finally{if(entered)module.EndCamera(root,camera);}
+        Need(JsonConvert.SerializeObject(RendererSnapshots())==before,"Manual End did not return original roof/cabinet source state/materials");
+    }
+    static Color[] Capture(string label)
+    {
+        Texture2D image=null;
+        try
+        {
+            image=ScreenCapture.CaptureScreenshotAsTexture();Need(image!=null&&image.width==Screen.width&&image.height==Screen.height,"Actual main endFrame screen readback failed");
+            var colors=new Color[points.Count];for(int i=0;i<points.Count;i++){var pixel=camera.WorldToScreenPoint(points[i]);Need(pixel.z>0&&pixel.x>=3&&pixel.y>=3&&pixel.x<image.width-3&&pixel.y<image.height-3,"Floor ROI left actual Game View");int x=Mathf.RoundToInt(pixel.x),y=Mathf.RoundToInt(pixel.y);Color sum=Color.clear;for(int dy=-1;dy<=1;dy++)for(int dx=-1;dx<=1;dx++)sum+=image.GetPixel(x+dx,y+dy);colors[i]=sum/9;}
+            string path=Path.Combine(DirectoryPath,label+".png");File.WriteAllBytes(path,image.EncodeToPNG());facts.Add(new{stage="actual-color-capture",label,path,width=image.width,height=image.height,samples=colors.Length});return colors;
+        }
+        finally{if(image!=null)UnityEngine.Object.Destroy(image);}
+    }
+    static void Restore(Action action,string label){try{action();}catch(Exception e){restoreErrors.Add(label+": "+e.Message);}}
+    static void RestoreState()
+    {
+        if(!acquired||restored)return;
+        Restore(()=>{if(local!=null)local.enabled=oldLightEnabled;},"original local light");
+        if(actors!=null)for(int i=0;i<actors.Length;i++){int index=i;Restore(()=>{var a=actors[index];if(a!=null){a.GetComponent<Ossastra.Characters.CharacterMovement>().Teleport(actorPositions[index]);var o=a.GetComponent<Ossastra.Characters.CharacterOrientation>();o.OrientTowards(actorPositions[index]+actorDirections[index]*5);o.FaceAttackDirection();o.OrientTowards(actorPositions[index]+actorAttackDirections[index]*5);}},"actor pose");Restore(()=>{if(actors[index]!=null)actors[index].SetViewInputCapture(Lease,false);},"actor input lease");}
+        Restore(()=>{if(map!=null){map.followParticipant=oldFollow;map.followSmoothTime=oldSmooth;map.fixedTarget=oldFixedTarget;map.showOverlay=oldMapOverlay;for(int i=0;i<mapFields.Length;i++)mapFields[i].SetValue(map,mapValues[i]);}},"camera map/orbit");
+        Restore(()=>{if(map!=null)map.SetUiCameraCapture(Lease,false);},"camera input lease");
+        Restore(()=>{if(camera!=null)camera.transform.SetPositionAndRotation(oldCameraPosition,oldCameraRotation);},"camera pose");
+        Restore(()=>{if(root!=null){root.showDiagnostics=oldRootDiagnostics;module.RequestImmediateMembershipRefresh();if(!oldFocus)focusCallback.Invoke(root.coordinator,new object[]{false});}if(panel!=null){panel.showPanel=oldPanel;panel.showPortalProjection=oldProjection;}},"UI/focus");
+        restored=true;
+    }
+    static void Watchdog(){if(Running&&(!Application.isPlaying||EditorApplication.timeSinceStartup-began>9)){error=error??"Play interrupted / 9-second watchdog";Finish();}}
+    static void OnPlayMode(PlayModeStateChange state){if(Running&&state==PlayModeStateChange.ExitingPlayMode){error=error??"Play exit requested";Finish();}}
+    static void Finish()
+    {
+        RenderPipelineManager.endCameraRendering-=OnEnd;RenderPipelineManager.endFrameRendering-=OnFrameEnd;EditorApplication.update-=Watchdog;EditorApplication.playModeStateChanged-=OnPlayMode;Running=false;RestoreState();acquired=false;
+        Result=new{status=error==null&&restoreErrors.Count==0&&stage==2?"passed":"failed",error,seconds=EditorApplication.timeSinceStartup-began,actualMainEnds=endSerial,stage,facts,restoreErrors,originalCurrentRestored=root!=null&&root.coordinator.Current==actor,originalOrbitReferenceRestored=map!=null&&ReferenceEquals(mapFields[0].GetValue(map),mapValues[0]),originalLightPrimitiveSnapshots=lightsBefore,scope="Existing realtime InteriorLocalLight_A ON/OFF actual Lit Floor pixels and roof/cabinet Caster state only; no full external daylight, GI, baking, reflection, SSAO, Player or hardware certification"};
+        ResultJson=JsonConvert.SerializeObject(Result,Formatting.Indented);try{Directory.CreateDirectory(DirectoryPath);File.WriteAllText(Path.Combine(DirectoryPath,"native-lighting-contract.json"),ResultJson);}catch(Exception e){ResultJson+="\nEvidence write failure: "+e.Message;}
+    }
+}

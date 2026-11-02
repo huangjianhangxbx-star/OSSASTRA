@@ -74,7 +74,7 @@ Shader "Hidden/Ossastra/Rooms/SightSprite"
     clip(RoomSightPartialContains(logicalWorld)?1:-1);
     // 与UnitySprites.cginc的SpriteFrag逐式相同，不反预乘、不改alpha、不加颜色裁剪。
     fixed4 color=SampleSpriteTexture(input.texcoord)*input.color;color.rgb*=color.a;
-    O output;output.color=color;output.depth=deviceDepth;return output;
+    O output;output.color=RoomSightFogColor(color,logicalWorld,1);output.depth=deviceDepth;return output;
    }
    ENDCG
   }
@@ -133,7 +133,7 @@ Shader "Hidden/Ossastra/Rooms/SightSprite"
     clip(RoomSightPartialContains(logicalWorld)?1:-1);
     // 与UnitySprites.cginc的SpriteFrag逐式相同，不反预乘、不改alpha、不加颜色裁剪。
     fixed4 color=SampleSpriteTexture(input.texcoord)*input.color;color.rgb*=color.a;
-    return color;
+    return RoomSightFogColor(color,logicalWorld,1);
    }
    ENDCG
   }

@@ -119,6 +119,7 @@ Pass
                     , outRenderingLayers
                 #endif
                 );
+                outColor=RoomSightFogColor(outColor,input.sightWorld,0);
             }
             ENDHLSL
         }

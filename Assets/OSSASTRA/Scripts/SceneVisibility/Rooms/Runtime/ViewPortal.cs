@@ -19,9 +19,9 @@ namespace Ossastra.SceneVisibility.Rooms
         public bool open = true;
         public bool canSeeThrough = true;
         public bool canTraverse;
-        [Min(.1f), Tooltip("观察点到真实孔洞的最大距离（米）；超过即收回预览。")]
+        [Min(.1f), Tooltip("仅有限策略：观察点到孔洞最大距离；玩家自然视野与相机窗景不使用此限制。")]
         public float observerRange=6f;
-        [Min(.1f), Tooltip("从孔洞沿行进法线继续延伸的最大距离（米）。")]
+        [Min(.1f), Tooltip("仅有限策略：从孔洞法线延伸上限；玩家自然视野与相机窗景不使用此限制。")]
         public float maxSightDistance=8f;
 
         public Vector3[] GetWorldAperture()

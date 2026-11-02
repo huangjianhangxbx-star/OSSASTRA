@@ -1,0 +1,211 @@
+/* 功能：固定原主相机，以A/C之间1.2米门槛夹具采集真实Shader静态显现/退场与动态立即撤权。
+ * 边界：不调用Camera.Render、不停用Root取参考、不调用CPU时序公式、不消费存档；不是WASD或原敌人完整验收。
+ * 生命周期：只占自己的输入/相机lease，精确恢复原姿态/相机/门状态；自有无碰撞洋红片、Mesh、Material、Registry登记在两主帧后验证归零。
+ */
+using System;using System.IO;using System.Linq;using System.Reflection;using System.Collections.Generic;
+using UnityEngine;using UnityEngine.SceneManagement;using UnityEngine.Rendering;using UnityEditor;
+using Funplay.Editor.Tools.Scripting;using Newtonsoft.Json;
+using Ossastra.SceneVisibility;using Ossastra.SceneVisibility.Rooms;using Ossastra.SceneVisibility.Rooms.Rendering;
+using Ossastra.MapResearch;
+
+public sealed class NativeTransitionContract:IFunplayCommand
+{
+ const string ScenePath="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity";
+ const string Profile="kt-vis06-natural-01";
+ const string SaveDirectory="E:/WORLDCREATOR/XingHaiHuiLang/研究/可见性修复/KT-VIS-06/profiles";
+ const string Evidence="E:/WORLDCREATOR/XingHaiHuiLang/研究/可见性修复/KT-VIS-06/native-transition";
+ const BindingFlags F=BindingFlags.Instance|BindingFlags.NonPublic;
+ static readonly object Lease=new object();
+ static readonly string[] Labels={"stable-A-reference","dynamic-A-reference","loss-to-C","gain-to-A","second-loss-to-C","second-gain-to-A"};
+ static readonly double[] Durations={1.05,.35,.85,.85,.85,.85};
+ static readonly Vector3 A=new Vector3(-12.6f,.1f,-12),C=new Vector3(-11.4f,.1f,-12);
+ static SceneVisibilityRoot root;static RoomVisibilityModule module;static Camera camera;static MapResearchRoot map;
+ static Ossastra.Development.SceneVisibility.RoomVisibilityLabPanel panel;
+ static Ossastra.Characters.CharacterRoot original;
+ static readonly List<ActorState> actors=new List<ActorState>();
+ static readonly List<Sample> samples=new List<Sample>();static readonly List<object> checks=new List<object>();static readonly List<string> restoreErrors=new List<string>();
+ static readonly List<Vector3> points=new List<Vector3>();static Color[] reference,blackReference;static Color markerReference;
+ static Renderer floor,marker;static GameObject ownedGo;static Mesh ownedMesh;static Material ownedMaterial;static Vector3 markerPoint;
+ static FieldInfo orbitField,centerField,velocityField,initializedField,focusField;static MethodInfo focusCallback;
+ static MapOrbitState oldOrbit;static Vector3 oldCenter,oldVelocity,oldTarget,oldCameraPosition,oldDoorPosition;static Quaternion oldCameraRotation,oldDoorRotation;
+ static bool oldInitialized,oldFollow,oldOverlay,oldDiagnostics,oldPanel,oldProjection,oldFocus,oldDoorOpen,oldDoorSee;
+ static float oldSmooth;static int stage,serial,processed,stageStartSerial,expectedEpoch,cleanupStartSerial;
+ static double began,stageAt,lastPng;static string error,insufficient;static bool acquired,cleanup,restored,dynamicFirstDeniedObserved;
+ static int dynamicDeniedFrames;static bool dynamicPixelsPassed=true;static readonly RaycastHit[] hits=new RaycastHit[64];
+ public static bool Running{get;private set;}public static object Result{get;private set;}public static string ResultJson{get;private set;}
+ sealed class ActorState{public Ossastra.Characters.CharacterRoot Actor;public Vector3 Position,Presentation,Attack;}
+ sealed class EvidenceUnavailable:Exception{public EvidenceUnavailable(string message):base(message){}}
+ sealed class Sample{public string Phase;public int Frame,Serial,Epoch;public double Elapsed,Total;public Color[] Colors;public Color Marker;public bool Eye,Window,StaticFlag;public string Png;public float CaptureMilliseconds;}
+ static void Need(bool v,string m){if(!v)throw new InvalidOperationException(m);}
+ static void EvidenceNeed(bool v,string m){if(!v)throw new EvidenceUnavailable(m);}
+ static string PathKey(string p)=>Path.GetFullPath(p).TrimEnd('/','\\');
+ public void Execute(ExecutionContext ctx)
+ {
+  Need(!Running,"Transition contract already running");var scene=SceneManager.GetActiveScene();
+  Need(Application.isPlaying&&scene.path==ScenePath&&AssetDatabase.AssetPathToGUID(ScenePath)=="06c38225927c1824b886f59fc011a473","Exact Lab Play required");
+  var scenes=Enumerable.Range(0,SceneManager.sceneCount).Select(SceneManager.GetSceneAt).ToArray();
+  Need(scenes.Count(s=>!string.IsNullOrEmpty(s.path))==1,"Exactly one asset scene required");
+  foreach(var helper in scenes.Where(s=>string.IsNullOrEmpty(s.path)))Need(!helper.GetRootGameObjects().Any(g=>g.GetComponentsInChildren<Renderer>(true).Length>0||g.GetComponentsInChildren<MonoBehaviour>(true).Length>0),"Unexpected content in unnamed helper scene");
+  var all=scene.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<MonoBehaviour>(true)).Where(v=>v!=null).ToArray();
+  var commerce=all.OfType<Ossastra.Commerce.Runtime.CommerceService>().Single();
+  Need(commerce.profileId==Profile&&commerce.mapId=="kt-vis04-room-lab"&&!string.IsNullOrWhiteSpace(commerce.saveDirectory)&&string.Equals(PathKey(commerce.saveDirectory),PathKey(SaveDirectory),StringComparison.OrdinalIgnoreCase),"Exact06 isolated save host required");
+  root=all.OfType<SceneVisibilityRoot>().Single();module=root.roomModule;camera=root.gameplayCamera;panel=root.GetComponent<Ossastra.Development.SceneVisibility.RoomVisibilityLabPanel>();map=panel==null?null:panel.map;
+  Need(root.enabled&&module!=null&&module.IsReady&&module.positiveRenderingEnabled&&!module.truthMode&&module.naturalPlayerVision&&module.realWindowScenery&&module.fog!=null&&module.fog.Enabled,"Final06 backend and fog required");
+  Need(camera!=null&&camera.enabled&&camera.targetTexture==null&&map!=null&&map.IsValid&&!map.IsStructureMode&&Mathf.Abs(map.pitch-45)<.02f,"Need original 45-degree screen camera");
+  original=root.coordinator.Current;Need(original!=null&&original.IsAlive,"Need original alive Current");
+  var room=module.buildings.SelectMany(b=>b.regions).Single(r=>r.roomId=="room-a");
+  floor=room.members.Single(r=>r!=null&&r.name=="Floor");Need(module.staticEnvironmentSurfaces.Contains(floor)&&floor.GetComponent<Collider>()!=null,"A Floor must be explicit static and have its original Collider");
+  Need(panel.doorPortal!=null&&panel.doorLeaf!=null&&panel.doorPortal.portalId=="portal-a-c","Original A/C door required");
+  actors.Clear();foreach(var a in root.coordinator.Characters){Need(a!=null&&a.IsAlive,"Original actors must be alive");var o=a.GetComponent<Ossastra.Characters.CharacterOrientation>();actors.Add(new ActorState{Actor=a,Position=a.transform.position,Presentation=a.LogicalDirection,Attack=o.AttackDirection});}
+  orbitField=typeof(MapResearchRoot).GetField("orbit",F);centerField=typeof(MapResearchRoot).GetField("followCenter",F);velocityField=typeof(MapResearchRoot).GetField("followVelocity",F);initializedField=typeof(MapResearchRoot).GetField("followCenterInitialized",F);
+  focusField=root.coordinator.GetType().GetField("focused",F);focusCallback=root.coordinator.GetType().GetMethod("OnApplicationFocus",F);
+  Need(orbitField!=null&&centerField!=null&&velocityField!=null&&initializedField!=null&&focusField!=null&&focusCallback!=null,"Original map/focus seam changed");
+  oldOrbit=(MapOrbitState)orbitField.GetValue(map);oldCenter=(Vector3)centerField.GetValue(map);oldVelocity=(Vector3)velocityField.GetValue(map);oldInitialized=(bool)initializedField.GetValue(map);
+  oldFollow=map.followParticipant;oldSmooth=map.followSmoothTime;oldTarget=map.fixedTarget;oldOverlay=map.showOverlay;oldDiagnostics=root.showDiagnostics;oldPanel=panel.showPanel;oldProjection=panel.showPortalProjection;oldFocus=(bool)focusField.GetValue(root.coordinator);
+  oldCameraPosition=camera.transform.position;oldCameraRotation=camera.transform.rotation;oldDoorPosition=panel.doorLeaf.position;oldDoorRotation=panel.doorLeaf.rotation;oldDoorOpen=panel.doorPortal.open;oldDoorSee=panel.doorPortal.canSeeThrough;
+  samples.Clear();checks.Clear();restoreErrors.Clear();points.Clear();reference=blackReference=null;error=insufficient=null;marker=null;ownedGo=null;ownedMesh=null;ownedMaterial=null;cleanup=restored=false;dynamicFirstDeniedObserved=false;dynamicDeniedFrames=0;dynamicPixelsPassed=true;stage=serial=processed=0;expectedEpoch=-1;
+  began=EditorApplication.timeSinceStartup;acquired=true;Running=true;
+  try
+  {
+   RenderPipelineManager.endCameraRendering+=EndCamera;RenderPipelineManager.endFrameRendering+=EndFrame;EditorApplication.update+=Watchdog;EditorApplication.playModeStateChanged+=PlayChanged;
+   if(!oldFocus)focusCallback.Invoke(root.coordinator,new object[]{true});foreach(var a in actors)a.Actor.SetViewInputCapture(Lease,true);
+   map.SetUiCameraCapture(Lease,true);map.followParticipant=false;map.followSmoothTime=0;map.fixedTarget=new Vector3(-15.5f,0,-12);map.showOverlay=false;orbitField.SetValue(map,new MapOrbitState(0));
+   root.showDiagnostics=false;panel.showPanel=false;panel.showPortalProjection=false;panel.SetDoorOpen(true);panel.doorPortal.canSeeThrough=true;
+   Directory.CreateDirectory(Evidence);Pose(A,Vector3.left);BeginStage();
+   Result=new{status="running",phases=Labels,normalSeconds="about10-15 depending on readback",hardDeadlineSeconds=30,source="Actual endFrame screen RGB, no CPU timing model",fixture="1.2m A/C step and owned nonStatic no-collision magenta patch; not original enemy certification"};ctx.ReturnValue=Result;
+  }
+  catch(Exception e){if(e is EvidenceUnavailable)insufficient=e.Message;else error=e.ToString();StartCleanup();}
+ }
+ static void Pose(Vector3 p,Vector3 d){Need(root.coordinator.Current==original,"Unexpected Current change");original.GetComponent<Ossastra.Characters.CharacterMovement>().Teleport(p);var o=original.GetComponent<Ossastra.Characters.CharacterOrientation>();o.OrientTowards(p+d*5);o.FaceAttackDirection();module.RequestImmediateMembershipRefresh();}
+ static void BeginStage(){stageAt=EditorApplication.timeSinceStartup;stageStartSerial=serial;lastPng=-1;}
+ static void EndCamera(ScriptableRenderContext context,Camera rendered){if(Running&&rendered==camera)serial++;}
+ static void EndFrame(ScriptableRenderContext context,Camera[] rendered)
+ {
+  if(!Running||serial==processed)return;processed=serial;
+  try
+  {
+   if(cleanup){if(serial-cleanupStartSerial>=2){Need(ownedGo==null&&ownedMesh==null&&ownedMaterial==null,"Concrete probe resources survived two real main frames");Finish();}return;}
+   Need(Application.isPlaying&&root!=null&&camera!=null&&SceneManager.GetActiveScene().path==ScenePath,"Context changed");Need(root.coordinator.Current==original,"Current changed during sample");
+   Need(RoomMaskCameraRegistry.TryGet(camera,out var frame)&&frame.Enabled&&frame.PositiveRenderingEnabled&&!frame.TruthMode,"No real final frame");
+   Need(RoomMaskCameraRegistry.TryGetStatistics(camera,out var stats)&&stats.Active&&string.IsNullOrEmpty(stats.Error),"Actual backend rejected frame: "+(stats==null?"none":stats.Error));
+   Need(module.SuppressedRendererCount==0,"Take measurements after actual scope return");
+   double elapsed=EditorApplication.timeSinceStartup-stageAt;
+   if(stage==0)
+   {
+    if(elapsed<Durations[0]||serial-stageStartSerial<2)return;
+    Need(module.ActiveRoom!=null&&module.ActiveRoom.roomId=="room-a","Initial A seed unavailable");Need(frame.PositiveSurfaces.Any(s=>s.Renderer==floor&&s.StaticEnvironment),"Actual Floor not static in GPU frame");
+    SelectFloorPoints(frame);expectedEpoch=module.PresentationEpoch;CreateMarker();stage=1;BeginStage();return;
+   }
+   Need(module.PresentationEpoch==expectedEpoch,"Small1.2m step unexpectedly reset epoch; cannot prove non-reset transition");
+   string expected=stage==2||stage==4?"corridor-c":"room-a";Need(module.ActiveRoom!=null&&module.ActiveRoom.roomId==expected,"Step did not resolve expected seed "+expected);
+   Texture2D image=null;double captureAt=EditorApplication.timeSinceStartup;
+   try
+   {
+    image=ScreenCapture.CaptureScreenshotAsTexture();EvidenceNeed(image!=null&&image.width==Screen.width&&image.height==Screen.height,"Actual Game View readback unavailable");
+    var colors=points.Select(p=>Patch(image,p)).ToArray();var markerColor=Patch(image,markerPoint);bool eye=module.AllowsWorldPoint(markerPoint),window=CameraAllows(frame,markerPoint);
+    var probe=frame.PositiveSurfaces.Where(s=>s.Renderer==marker).ToArray();Need(probe.Length==1&&!probe[0].StaticEnvironment,"Owned dynamic probe missing or incorrectly static");
+    if(stage==1){markerReference=markerColor;EvidenceNeed(Magenta(markerColor)>.15f,"Actual magenta dynamic fixture not visible; cannot test immediate removal");}
+    if(stage==2||stage==4)
+    {
+     Need(!eye&&!window,"Dynamic point retains current eye/window permission; fixture cannot test historical removal");
+     dynamicDeniedFrames++;dynamicFirstDeniedObserved=true;bool removed=Magenta(markerColor)<Mathf.Max(.055f,Magenta(markerReference)*.22f);dynamicPixelsPassed&=removed;Need(removed,"Dynamic magenta survives current permission removal in actual Shader");
+    }
+    string png=null;if(lastPng<0||elapsed-lastPng>=.10||elapsed>=Durations[stage]){png=Path.Combine(Evidence,stage.ToString("00")+"-"+Labels[stage]+"-frame"+Time.frameCount+".png");File.WriteAllBytes(png,image.EncodeToPNG());lastPng=elapsed;}
+    samples.Add(new Sample{Phase=Labels[stage],Frame=Time.frameCount,Serial=serial,Epoch=module.PresentationEpoch,Elapsed=elapsed,Total=EditorApplication.timeSinceStartup-began,Colors=colors,Marker=markerColor,Eye=eye,Window=window,StaticFlag=probe[0].StaticEnvironment,Png=png,CaptureMilliseconds=(float)((EditorApplication.timeSinceStartup-captureAt)*1000)});
+   }
+   finally{if(image!=null)UnityEngine.Object.Destroy(image);}
+   if(elapsed<Durations[stage])return;
+   if(stage==1){stage=2;Pose(C,Vector3.right);BeginStage();return;}
+   if(stage==2){blackReference=samples.Where(s=>s.Phase==Labels[2]).Last().Colors;EvidenceNeed(Contrast(reference,blackReference)>.055f,"Floor reference/hidden colors have inadequate contrast; evidence insufficient");stage=3;Pose(A,Vector3.left);BeginStage();return;}
+   if(stage==3){stage=4;Pose(C,Vector3.right);BeginStage();return;}
+   if(stage==4){stage=5;Pose(A,Vector3.left);BeginStage();return;}
+   Evaluate();StartCleanup();
+  }
+  catch(Exception e){if(e is EvidenceUnavailable)insufficient=e.Message;else error=e.ToString();StartCleanup();}
+ }
+ static Color Patch(Texture2D image,Vector3 p)
+ {
+  Vector3 s=camera.WorldToScreenPoint(p);EvidenceNeed(s.z>0&&s.x>=4&&s.y>=4&&s.x<image.width-4&&s.y<image.height-4,"Actual sample out of Game View: "+p);
+  int x=Mathf.RoundToInt(s.x),y=Mathf.RoundToInt(s.y);Color c=Color.clear;for(int dy=-1;dy<=1;dy++)for(int dx=-1;dx<=1;dx++)c+=image.GetPixel(x+dx,y+dy);return c/9;
+ }
+ static float Magenta(Color c)=>Mathf.Min(c.r,c.b)-c.g;
+ static float Distance(Color a,Color b)=>new Vector3(a.r-b.r,a.g-b.g,a.b-b.b).magnitude;
+ static float Contrast(Color[] a,Color[] b)=>a.Select((c,i)=>Distance(c,b[i])).Average();
+ static float Progress(Sample s)
+ {
+  float total=0;for(int i=0;i<reference.Length;i++){Vector3 d=new Vector3(reference[i].r-blackReference[i].r,reference[i].g-blackReference[i].g,reference[i].b-blackReference[i].b);Vector3 c=new Vector3(s.Colors[i].r-blackReference[i].r,s.Colors[i].g-blackReference[i].g,s.Colors[i].b-blackReference[i].b);total+=Vector3.Dot(c,d)/Mathf.Max(.0001f,d.sqrMagnitude);}return total/reference.Length;
+ }
+ static void SelectFloorPoints(RoomMaskFrame frame)
+ {
+  Texture2D image=null;try
+  {
+   image=ScreenCapture.CaptureScreenshotAsTexture();EvidenceNeed(image!=null,"No reference screen");var collider=floor.GetComponent<Collider>();var excluded=new HashSet<Collider>(frame.LabelRaycastExclusions??new Collider[0]);var physics=SceneManager.GetActiveScene().GetPhysicsScene();
+   foreach(float z in new[]{-14.5f,-13.5f,-12.5f,-11.5f})foreach(float x in new[]{-17.2f,-16.2f,-15.2f,-14.2f})
+   {
+    var p=new Vector3(x,floor.bounds.max.y+.002f,z);var s=camera.WorldToScreenPoint(p);if(s.z<=0||s.x<12||s.y<12||s.x>=image.width-12||s.y>=image.height-12)continue;
+    var delta=p-camera.transform.position;int count=physics.Raycast(camera.transform.position,delta.normalized,hits,delta.magnitude+.1f,~0,QueryTriggerInteraction.Ignore);if(count==hits.Length)continue;
+    Collider nearest=null;float distance=float.PositiveInfinity;for(int i=0;i<count;i++)if(hits[i].collider!=null&&!excluded.Contains(hits[i].collider)&&hits[i].distance<distance){nearest=hits[i].collider;distance=hits[i].distance;}
+    if(nearest!=collider)continue;var color=Patch(image,p);if(Mathf.Max(color.r,Mathf.Max(color.g,color.b))<.04f)continue;points.Add(p);
+   }
+   EvidenceNeed(points.Count>=4,"Fewer than4 actual clear floor pixels; evidence insufficient, no fallback wall sample");
+   markerPoint=points.Last()+Vector3.up*.025f;points.RemoveAt(points.Count-1);if(points.Count>5)points.RemoveRange(5,points.Count-5);
+   EvidenceNeed(points.All(p=>Vector3.Distance(p,markerPoint)>.6f),"Marker overlaps static samples; evidence insufficient");reference=points.Select(p=>Patch(image,p)).ToArray();File.WriteAllBytes(Path.Combine(Evidence,"00-stable-A-floor-reference.png"),image.EncodeToPNG());
+  }finally{if(image!=null)UnityEngine.Object.Destroy(image);}
+ }
+ static void CreateMarker()
+ {
+  Shader shader=Shader.Find("Universal Render Pipeline/Unlit");Need(shader!=null&&shader.isSupported,"Original supported unlit family needed for no-collision dynamic probe");
+  ownedGo=new GameObject("KT_VIS06_owned_dynamic_transition_probe");ownedGo.hideFlags=HideFlags.DontSave;SceneManager.MoveGameObjectToScene(ownedGo,SceneManager.GetActiveScene());ownedGo.transform.position=markerPoint;
+  ownedMesh=new Mesh{name="KT_VIS06_owned_dynamic_patch_mesh",hideFlags=HideFlags.DontSave};ownedMesh.vertices=new[]{new Vector3(-.22f,0,-.22f),new Vector3(-.22f,0,.22f),new Vector3(.22f,0,.22f),new Vector3(.22f,0,-.22f)};ownedMesh.triangles=new[]{0,1,2,0,2,3};ownedMesh.uv=new[]{Vector2.zero,Vector2.up,Vector2.one,Vector2.right};ownedMesh.RecalculateNormals();ownedMesh.RecalculateBounds();
+  ownedMaterial=new Material(shader){name="KT_VIS06_owned_magenta_unlit",hideFlags=HideFlags.DontSave};ownedMaterial.SetColor("_BaseColor",new Color(1,0,1,1));if(ownedMaterial.HasProperty("_Cull"))ownedMaterial.SetFloat("_Cull",0);
+  ownedGo.AddComponent<MeshFilter>().sharedMesh=ownedMesh;marker=ownedGo.AddComponent<MeshRenderer>();marker.sharedMaterial=ownedMaterial;marker.shadowCastingMode=ShadowCastingMode.Off;marker.receiveShadows=false;
+  Need(ownedGo.scene==root.gameObject.scene&&ownedGo.GetComponent<Collider>()==null,"Probe must remain in actual scene and have no collider");RoomPresentationRegistry.Register(Lease,marker,markerPoint,true,null,false);
+ }
+ static bool InBox(RoomMaskVolume b,Vector3 p){var l=b.WorldToLocal.MultiplyPoint3x4(p);return Mathf.Abs(l.x)<=b.HalfExtents.x+.0002f&&Mathf.Abs(l.y)<=b.HalfExtents.y+.0002f&&Mathf.Abs(l.z)<=b.HalfExtents.z+.0002f;}
+ static bool CameraAllows(RoomMaskFrame f,Vector3 point)
+ {
+  if(f.BuildingVolumes.Any(b=>InBox(b,point)))return false;
+  foreach(var d in f.WindowSightDomains){if(!d.TargetExterior||!d.IsCameraWindow)continue;bool inside=d.Planes.All(p=>Vector4.Dot(p,new Vector4(point.x,point.y,point.z,1))>=0);if(inside)return true;}return false;
+ }
+ static void Evaluate()
+ {
+  foreach(int i in new[]{2,3,4,5})
+  {
+   var rows=samples.Where(s=>s.Phase==Labels[i]).ToArray();bool gain=i==3||i==5;var early=rows.Where(s=>s.Elapsed<.48).ToArray();var late=rows.Where(s=>s.Elapsed>=.50&&s.Elapsed<=.65).ToArray();
+   if(early.Length<2||late.Length==0){insufficient="Too few actual early/settled frames to establish transition timing";checks.Add(new{phase=Labels[i],status="insufficient",earlyFrames=early.Length,lateFrames=late.Length});continue;}
+   var progress=rows.Select(s=>new{frame=s.Frame,time=s.Elapsed,displayColorProgress=Progress(s)}).ToArray();bool intermediate=early.Any(s=>Progress(s)>.06f&&Progress(s)<.96f);
+   if(!intermediate){Need(!(early.Length>=3&&early[0].Elapsed<.18),"Dense actual early frames demonstrate a static hard cut: "+Labels[i]);insufficient="No actual intermediate static pixel captured; hard-cut or insufficient frame cadence remains unresolved";checks.Add(new{phase=Labels[i],status="insufficient",progress});continue;}
+   var lossCheck=rows.FirstOrDefault(s=>s.Elapsed>=.34&&s.Elapsed<=.65);
+   bool settled=gain?Progress(late[0])>=.88f&&Progress(late[0])<=1.16f:lossCheck!=null&&Progress(lossCheck)<.13f;
+   Need(settled,"Actual static Shader did not settle in bounded gain/loss window: "+Labels[i]);checks.Add(new{phase=Labels[i],status="passed",intermediate,settled,progress,interpretation="Display-color projection between actual hidden/reference frames; not linear alpha or CPU transition evaluation"});
+  }
+  Need(dynamicFirstDeniedObserved&&dynamicDeniedFrames>=2&&dynamicPixelsPassed,"No actual first-denied dynamic pixel proof");
+ }
+ static void Restore(Action a,string label){try{a();}catch(Exception e){restoreErrors.Add(label+": "+e.Message);}}
+ static void RestoreScene()
+ {
+  if(restored||!acquired)return;restored=true;
+  foreach(var a in actors){Restore(()=>{if(a.Actor!=null){a.Actor.GetComponent<Ossastra.Characters.CharacterMovement>().Teleport(a.Position);var o=a.Actor.GetComponent<Ossastra.Characters.CharacterOrientation>();o.OrientTowards(a.Position+a.Presentation*5);o.FaceAttackDirection();o.OrientTowards(a.Position+a.Attack*5);}},"actor pose");Restore(()=>{if(a.Actor!=null)a.Actor.SetViewInputCapture(Lease,false);},"actor lease");}
+  Restore(()=>{if(panel!=null){panel.doorLeaf.SetPositionAndRotation(oldDoorPosition,oldDoorRotation);panel.doorPortal.open=oldDoorOpen;panel.doorPortal.canSeeThrough=oldDoorSee;panel.showPanel=oldPanel;panel.showPortalProjection=oldProjection;}},"door/panel");
+  Restore(()=>{if(map!=null){map.followParticipant=oldFollow;map.followSmoothTime=oldSmooth;map.fixedTarget=oldTarget;map.showOverlay=oldOverlay;orbitField.SetValue(map,oldOrbit);centerField.SetValue(map,oldCenter);velocityField.SetValue(map,oldVelocity);initializedField.SetValue(map,oldInitialized);map.SetUiCameraCapture(Lease,false);}},"map");
+  Restore(()=>{if(camera!=null)camera.transform.SetPositionAndRotation(oldCameraPosition,oldCameraRotation);if(root!=null){root.showDiagnostics=oldDiagnostics;module.RequestImmediateMembershipRefresh();if(!oldFocus)focusCallback.Invoke(root.coordinator,new object[]{false});}},"camera/focus");
+ }
+ static void StartCleanup()
+ {
+  if(cleanup)return;cleanup=true;cleanupStartSerial=serial;RoomPresentationRegistry.Release(Lease);
+  if(ownedGo!=null)UnityEngine.Object.Destroy(ownedGo);if(ownedMesh!=null)UnityEngine.Object.Destroy(ownedMesh);if(ownedMaterial!=null)UnityEngine.Object.Destroy(ownedMaterial);RestoreScene();
+  Result=new{status="cleanup-running",error,insufficient,waitingForTwoRealMainFrames=true};
+  if(!Application.isPlaying)Finish();
+ }
+ static void Watchdog(){if(!Running)return;if(!Application.isPlaying||EditorApplication.timeSinceStartup-began>30){error=error??"Play interrupted or hard30s deadline; not PASS";StartCleanup();Finish();}}
+ static void PlayChanged(PlayModeStateChange state){if(Running&&state==PlayModeStateChange.ExitingPlayMode){error=error??"Play exited before bounded contract completed";StartCleanup();Finish();}}
+ static void Finish()
+ {
+  RenderPipelineManager.endCameraRendering-=EndCamera;RenderPipelineManager.endFrameRendering-=EndFrame;EditorApplication.update-=Watchdog;EditorApplication.playModeStateChanged-=PlayChanged;Running=false;RestoreScene();
+  var entries=new List<RoomPresentationRegistry.Entry>();RoomPresentationRegistry.Append(entries);bool registered=entries.Any(e=>ReferenceEquals(e.Owner,Lease));bool resourcesGone=ownedGo==null&&ownedMesh==null&&ownedMaterial==null;
+  bool originalCurrent=root!=null&&root.coordinator.Current==original;bool orbitRestored=map!=null&&ReferenceEquals(orbitField.GetValue(map),oldOrbit);
+  string status=error!=null||restoreErrors.Count>0||registered||!resourcesGone||!originalCurrent||!orbitRestored?"failed":insufficient!=null?"insufficient":"passed";
+  Result=new{status,error,insufficient,seconds=EditorApplication.timeSinceStartup-began,profile=Profile,scene=ScenePath,source="Actual main endFrame ScreenCapture RGB only; no Camera.Render, no Root disable/reference, no CPU transition formula",fixture="Same Current A/C1.2m public Teleport; not WASD or original enemy full acceptance",staticWorldPoints=points.Select(p=>p.ToString("R")).ToArray(),referenceRgb=reference?.Select(c=>new[]{c.r,c.g,c.b}).ToArray(),hiddenReferenceRgb=blackReference?.Select(c=>new[]{c.r,c.g,c.b}).ToArray(),checks,samples=samples.Select(s=>new{s.Phase,s.Frame,s.Serial,s.Epoch,s.Elapsed,s.Total,rgb=s.Colors.Select(c=>new[]{c.r,c.g,c.b}).ToArray(),markerRgb=new[]{s.Marker.r,s.Marker.g,s.Marker.b},s.Eye,s.Window,s.StaticFlag,s.Png,s.CaptureMilliseconds}).ToArray(),dynamicFirstDeniedObserved,dynamicDeniedFrames,dynamicPixelsPassed,registered,resourcesGone,originalCurrent,orbitRestored,restoreErrors,boundary="PNG cadence/readback may miss earliest30% alpha; insufficient intermediate evidence is never PASS. Owned magenta probe is not original enemy certification."};
+  ResultJson=JsonConvert.SerializeObject(Result,Formatting.Indented);try{Directory.CreateDirectory(Evidence);File.WriteAllText(Path.Combine(Evidence,"native-transition-contract.json"),ResultJson);}catch(Exception e){ResultJson+="\nEvidence write failed: "+e.Message;}
+ }
+}

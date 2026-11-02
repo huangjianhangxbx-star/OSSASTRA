@@ -55,6 +55,12 @@ namespace Ossastra.SceneVisibility.Rooms.Editor
             { "truthMode", RoomInspectorFields.Label("纯色真值诊断", "用纯色检查实际允许像素；关闭恢复原材质适配。") },
             { "localObjectRevealEnabled", RoomInspectorFields.Label("局部物件透视", "独立扩展入口，本轮默认关闭；不扩大房间或门窗权限。") },
             { "observerHeight", RoomInspectorFields.Label("稳定观察点高度", "从原Current脚点向世界上方偏移的米数；不使用相机位置作视线权威。") },
+            { "naturalPlayerVision", RoomInspectorFields.Label("玩家自然视野", "前方180°、不套旧6/8米门窗距离；关闭仅作有限策略对照。") },
+            { "realWindowScenery", RoomInspectorFields.Label("真实窗孔外景", "相机只通过当前房间通往室外的洞口显示真实景物，不给人物标签、锁定或邻室许可。") },
+            { "fog", RoomInspectorFields.Label("黑幕呈现", "柔边向合法域内部收缩；只有明确静态环境允许短暂退场。") },
+            { "staticEnvironmentSurfaces", RoomInspectorFields.Label("静态过渡环境名单", "明确登记地表、地板、固定墙/柜；角色、动画、可破坏物与活动门窗不得登记。移动后即时降级。") },
+            { "movingSightBlockers", RoomInspectorFields.Label("活动门窗遮挡盒", "明确登记活动门板、窗板；绝不保留静态退场，不修改碰撞和业务。") },
+            { "staticEnvironmentRoots", RoomInspectorFields.Label("固定地表作者根", "初始化时登记其生成显示叶；禁止混入角色、可破坏物和业务根，不逐帧扫场。") },
             { "sightBlockers", RoomInspectorFields.Label("不透光实体遮挡盒", "明确登记真实墙、窗板、门板和高柜的BoxCollider；透明玻璃不登记，最多64项。") },
             { "immediateResolveDistance", RoomInspectorFields.Label("立即重判位移阈值", "同一角色跨越此世界距离视作传送，绕过旧门槛滞回重新判定；不会移动角色。") }
         };
@@ -176,14 +182,29 @@ namespace Ossastra.SceneVisibility.Rooms.Editor
             { "apertureMesh", RoomInspectorFields.Label("真实孔洞网格", "位于本地XY平面的可读Mesh，形状与实体墙洞吻合；不使用静态假窗贴图。") },
             { "open", RoomInspectorFields.Label("开口处于开放状态", "控制本开口的观察许可；真实遮板或门的几何状态应由原有适配或样板控件同步。") },
             { "canSeeThrough", RoomInspectorFields.Label("允许透过观察", "是否允许通过真实孔洞看到当前帧景物；仍需满足房间资格与实际深度。") },
-            { "observerRange", RoomInspectorFields.Label("观察有效距离", "人物稳定观察点到真实孔洞多边形的最短距离上限（米）。") },
-            { "maxSightDistance", RoomInspectorFields.Label("窗洞延伸距离", "从孔洞沿进入目标空间的法线继续延伸上限（米）；只允许单跳。") },
+            { "observerRange", RoomInspectorFields.Label("有限策略 · 观察距离", "只供独立有限观察策略；玩家自然视野和真实窗景忽略此上限。") },
+            { "maxSightDistance", RoomInspectorFields.Label("有限策略 · 延伸距离", "只供独立有限观察策略；玩家自然视野和真实窗景忽略此上限。") },
             { "canTraverse", RoomInspectorFields.Label("允许通行（作者信息）", "与观察许可独立；本组件不会据此修改碰撞、攻击或拾取规则。") }
         };
 
         public override void OnInspectorGUI()
         {
             RoomInspectorFields.Draw(serializedObject, labels);
+        }
+    }
+
+    [CustomPropertyDrawer(typeof(Ossastra.SceneVisibility.Rooms.Rendering.RoomFogSettings))]
+    public sealed class RoomFogSettingsDrawer : PropertyDrawer
+    {
+        static readonly string[] names={"Enabled","InitialVisibility","GainSeconds","LossSeconds","SpreadSeconds","SpreadRadius","InwardFeather","Color","DitherEnabled","DitherCellSize","DitherStrength"};
+        static readonly string[] labels={"启用静态过渡与柔边","初始可见度","显现时间（最多0.5秒）","退场时间（最多0.3秒）","扩散时间","扩散参考半径","内向柔边宽度","黑幕颜色","稳定世界点阵","点阵单元尺寸","点阵边缘强度"};
+        public override float GetPropertyHeight(SerializedProperty property, GUIContent label)=>EditorGUIUtility.singleLineHeight+(property.isExpanded?names.Length*(EditorGUIUtility.singleLineHeight+EditorGUIUtility.standardVerticalSpacing):0);
+        public override void OnGUI(Rect rect,SerializedProperty property,GUIContent label)
+        {
+            EditorGUI.BeginProperty(rect,label,property);float line=EditorGUIUtility.singleLineHeight,step=line+EditorGUIUtility.standardVerticalSpacing;
+            property.isExpanded=EditorGUI.Foldout(new Rect(rect.x,rect.y,rect.width,line),property.isExpanded,label,true);
+            if(property.isExpanded){++EditorGUI.indentLevel;for(int i=0;i<names.Length;i++)EditorGUI.PropertyField(new Rect(rect.x,rect.y+step*(i+1),rect.width,line),property.FindPropertyRelative(names[i]),new GUIContent(labels[i]));--EditorGUI.indentLevel;}
+            EditorGUI.EndProperty();
         }
     }
 

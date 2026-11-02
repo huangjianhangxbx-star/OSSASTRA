@@ -1,0 +1,24 @@
+/* 验收：有限世界历史容量、离散房间换入、epoch隔离、禁用释放与重入；只创建自有buffer，不改变场景。 */
+using System;using System.Reflection;using System.Collections;using UnityEngine;using Funplay.Editor.Tools.Scripting;using Ossastra.SceneVisibility.Rooms.Rendering;
+public class FogRendererContract:IFunplayCommand{
+ static void Need(bool value,string error){if(!value)throw new Exception(error);}
+ public void Execute(ExecutionContext ctx){
+  var t=typeof(RoomMaskFrame).Assembly.GetType("Ossastra.SceneVisibility.Rooms.Rendering.RoomFogWorldHistory");Need(t!=null,"Missing world-domain history");
+  var h=Activator.CreateInstance(t,true);var flags=BindingFlags.Instance|BindingFlags.Public|BindingFlags.NonPublic;
+  var update=t.GetMethod("Update",flags);var count=t.GetProperty("Count",flags);var buffer=t.GetProperty("Buffer",flags);var bytes=t.GetProperty("Bytes",flags);
+  var f=new RoomMaskFrame{Fog=new RoomFogSettings(),SeedVolumes=new[]{new RoomMaskVolume{WorldToLocal=Matrix4x4.identity,HalfExtents=new Vector3(4,4,4)}}};
+  try{
+   update.Invoke(h,new object[]{f,10d});Need((int)count.GetValue(h)==2,"First permission needs explicit black-to-current boundary");
+   var b=(ComputeBuffer)buffer.GetValue(h);Need(b!=null&&b.IsValid()&&(long)bytes.GetValue(h)==56064,"Unexpected owned buffer footprint");
+   f.CameraObserverPosition=new Vector3(1,20,3);update.Invoke(h,new object[]{f,10.05d});Need((int)count.GetValue(h)==2,"Camera motion resets presentation history");
+   for(int i=1;i<=12;++i)update.Invoke(h,new object[]{f,10d+i/6d});Need((int)count.GetValue(h)==4,"History not bounded to four world snapshots");
+   f.SeedVolumes=new[]{new RoomMaskVolume{WorldToLocal=Matrix4x4.Translate(new Vector3(-10,0,0)),HalfExtents=new Vector3(4,4,4)}};
+   update.Invoke(h,new object[]{f,12.01d});Need((int)count.GetValue(h)==4,"Room change unexpectedly clears exit history");
+   f.VisibilityEpoch++;update.Invoke(h,new object[]{f,12.02d});Need((int)count.GetValue(h)==2&&ReferenceEquals(b,buffer.GetValue(h)),"Epoch must clear authority while reusing only owned storage");
+   f.Fog.Enabled=false;update.Invoke(h,new object[]{f,12.03d});Need((int)count.GetValue(h)==0&&buffer.GetValue(h)==null&&!b.IsValid(),"Disabled fog retains world history/buffer");
+   f.Fog.Enabled=true;update.Invoke(h,new object[]{f,12.04d});Need((int)count.GetValue(h)==2&&((ComputeBuffer)buffer.GetValue(h)).IsValid(),"Reentry failed");
+   ((IDisposable)h).Dispose();Need(buffer.GetValue(h)==null&&(long)bytes.GetValue(h)==0,"Dispose retained GPU resource");
+   ctx.ReturnValue=new{passed=true,checks=8,boundedWorldSnapshots=4,ownedStructuredBufferBytes=56064,screenHistory=false};
+  }finally{((IDisposable)h).Dispose();}
+ }
+}

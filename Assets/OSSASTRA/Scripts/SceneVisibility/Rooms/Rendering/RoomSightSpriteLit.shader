@@ -167,11 +167,12 @@ Pass
             {
                 UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
                 clip(RoomSightPartialContains(input.positionWS.xyz) ? 1 : -1);
-                return ForwardPassFragmentSprite(input
+                half4 color=ForwardPassFragmentSprite(input
                 #ifdef USE_WRITE_RENDERING_LAYERS
                     , outRenderingLayers
                 #endif
                 );
+                return RoomSightFogColor(color,input.positionWS.xyz,1);
             }
             ENDHLSL
 		}

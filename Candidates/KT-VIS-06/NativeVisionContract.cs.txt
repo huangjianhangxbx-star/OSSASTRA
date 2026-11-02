@@ -1,0 +1,350 @@
+/* KT-VIS-06 有界真实帧合同候选：唯一主相机每案实际 endFrame 后取样，不调用 Camera.Render。
+ * 定位仅通过原 Movement.Teleport / Orientation 公开入口，不冒充原输入行走认证。
+ * 只允许同一 Lab、06 隔离档；成功、断言失败、超时和退出 Play 均按自己的 lease 恢复现场。
+ */
+using System;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEngine.Rendering;
+using UnityEditor;
+using Funplay.Editor.Tools.Scripting;
+using Newtonsoft.Json;
+using Ossastra.SceneVisibility;
+using Ossastra.SceneVisibility.Rooms;
+using Ossastra.SceneVisibility.Rooms.Core;
+using Ossastra.SceneVisibility.Rooms.Rendering;
+using Ossastra.Characters;
+using Ossastra.MapResearch;
+
+public sealed class NativeVisionContract : IFunplayCommand
+{
+    const string ScenePath="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity";
+    const string Profile="kt-vis06-natural-01";
+    const string SaveDirectory="E:/WORLDCREATOR/XingHaiHuiLang/研究/可见性修复/KT-VIS-06/profiles";
+    const string EvidenceDirectory="E:/WORLDCREATOR/XingHaiHuiLang/研究/可见性修复/KT-VIS-06/native-vision";
+    const BindingFlags Fields=BindingFlags.Instance|BindingFlags.NonPublic;
+    static readonly object Lease=new object();
+    static readonly List<object> facts=new List<object>();
+    static readonly List<string> restoreErrors=new List<string>();
+    static readonly string[] Labels={"avatar-back-camera-north-window","natural-beyond-old-six-eight-metres","west-window-open","west-solid-shutter-portal-still-open","west-window-logically-closed","small-boundary-step-A","small-boundary-step-C-no-epoch-reset","original-SwitchNext-resets-epoch","same-actor-large-Teleport-resets-epoch","camera-yaw-only-preserves-epoch"};
+    static SceneVisibilityRoot root;
+    static RoomVisibilityModule module;
+    static Camera camera;
+    static Ossastra.Development.SceneVisibility.RoomVisibilityLabPanel panel;
+    static MapResearchRoot map;
+    static Ossastra.Characters.CharacterRoot original;
+    static ActorState[] actors;
+    static PortalState[] portals;
+    static TransformState shutter,door;
+    static ViewPortal north,west;
+    static FieldInfo orbitField,followCenterField,followVelocityField,followInitializedField,focusField;
+    static MethodInfo focusCallback;
+    static MapOrbitState oldOrbit;
+    static Vector3 oldCenter,oldVelocity,oldFixedTarget,oldCameraPosition;
+    static Quaternion oldCameraRotation;
+    static bool oldFollowInitialized,oldFollow,oldRootDiagnostics,oldPanel,oldProjection,oldMapOverlay,oldFocus;
+    static float oldSmooth;
+    static int stage,mainEndSerial,processedEndSerial,stageStartSerial,previousEpoch;
+    static double began,stageAt;
+    static string error;
+    static bool acquired;
+    static Color openWestColor;
+    static bool hasOpenWestColor;
+    public static bool Running{get;private set;}
+    public static object Result{get;private set;}
+    public static string ResultJson{get;private set;}
+
+    sealed class ActorState
+    {
+        public Ossastra.Characters.CharacterRoot Actor;
+        public Vector3 Position,Presentation,Attack;
+    }
+    sealed class PortalState
+    {
+        public ViewPortal Portal;
+        public bool Open,CanSee;
+    }
+    sealed class TransformState
+    {
+        public Transform Transform;
+        public Vector3 Position;
+        public Quaternion Rotation;
+        public TransformState(Transform t){Transform=t;Position=t.position;Rotation=t.rotation;}
+        public void Restore(){if(Transform!=null)Transform.SetPositionAndRotation(Position,Rotation);}
+    }
+    static void Need(bool condition,string message){if(!condition)throw new InvalidOperationException(message);}
+    static Vector3 U(SightVector3 value)=>new Vector3(value.X,value.Y,value.Z);
+
+    public void Execute(ExecutionContext ctx)
+    {
+        Need(!Running,"Vision contract already running");
+        var scene=SceneManager.GetActiveScene();
+        Need(Application.isPlaying&&scene.path==ScenePath&&Enumerable.Range(0,SceneManager.sceneCount).Count(i=>!string.IsNullOrEmpty(SceneManager.GetSceneAt(i).path))==1,"Exact isolated Lab Play required");
+        var all=scene.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<MonoBehaviour>(true)).Where(v=>v!=null).ToArray();
+        root=all.OfType<SceneVisibilityRoot>().Single();module=root.roomModule;camera=root.gameplayCamera;
+        panel=root.GetComponent<Ossastra.Development.SceneVisibility.RoomVisibilityLabPanel>();map=panel==null?null:panel.map;
+        var commerce=all.OfType<Ossastra.Commerce.Runtime.CommerceService>().Single();
+        Need(commerce.profileId==Profile&&string.Equals(Path.GetFullPath(commerce.saveDirectory),Path.GetFullPath(SaveDirectory),StringComparison.OrdinalIgnoreCase),"Wrong save profile or directory; fixture refused");
+        Need(root.enabled&&module!=null&&module.IsReady&&module.positiveRenderingEnabled&&!module.truthMode&&module.naturalPlayerVision&&module.realWindowScenery,"Need ready final natural/window backend");
+        Need(camera!=null&&camera.enabled&&camera.targetTexture==null&&map!=null&&map.IsValid&&!map.IsStructureMode,"Need original main screen camera and normal map view");
+        Need(Mathf.Abs(map.pitch-45)<.02f,"This candidate uses the current 45 degree Lab camera");
+        original=root.coordinator.Current;
+        Need(original!=null&&original.IsAlive,"Need alive original Current");
+        actors=root.coordinator.Characters.Select(a=>new ActorState{Actor=a,Position=a==null?Vector3.zero:a.transform.position,Presentation=a==null?Vector3.zero:a.LogicalDirection,Attack=a==null?Vector3.zero:a.GetComponent<Ossastra.Characters.CharacterOrientation>().AttackDirection}).ToArray();
+        Need(actors.Length==2&&actors.All(a=>a.Actor!=null&&a.Actor.IsAlive),"Need original two alive actors");
+        var worldPortals=module.buildings.SelectMany(b=>b.portals).ToArray();
+        north=worldPortals.Single(p=>p.portalId=="portal-a-north");west=worldPortals.Single(p=>p.portalId=="portal-a-west");
+        Need(panel.shutterPortal==west&&panel.shutter!=null&&panel.doorPortal!=null&&panel.doorLeaf!=null,"Need existing real shutter and door links");
+        portals=worldPortals.Select(p=>new PortalState{Portal=p,Open=p.open,CanSee=p.canSeeThrough}).ToArray();
+        shutter=new TransformState(panel.shutter);door=new TransformState(panel.doorLeaf);
+        orbitField=typeof(MapResearchRoot).GetField("orbit",Fields);followCenterField=typeof(MapResearchRoot).GetField("followCenter",Fields);
+        followVelocityField=typeof(MapResearchRoot).GetField("followVelocity",Fields);followInitializedField=typeof(MapResearchRoot).GetField("followCenterInitialized",Fields);
+        focusField=root.coordinator.GetType().GetField("focused",Fields);focusCallback=root.coordinator.GetType().GetMethod("OnApplicationFocus",Fields);
+        Need(orbitField!=null&&followCenterField!=null&&followVelocityField!=null&&followInitializedField!=null&&focusField!=null&&focusCallback!=null,"Existing camera/focus observation seam changed");
+        oldOrbit=(MapOrbitState)orbitField.GetValue(map);oldCenter=(Vector3)followCenterField.GetValue(map);oldVelocity=(Vector3)followVelocityField.GetValue(map);oldFollowInitialized=(bool)followInitializedField.GetValue(map);
+        oldFollow=map.followParticipant;oldSmooth=map.followSmoothTime;oldFixedTarget=map.fixedTarget;oldMapOverlay=map.showOverlay;
+        oldRootDiagnostics=root.showDiagnostics;oldPanel=panel.showPanel;oldProjection=panel.showPortalProjection;oldFocus=(bool)focusField.GetValue(root.coordinator);
+        oldCameraPosition=camera.transform.position;oldCameraRotation=camera.transform.rotation;
+        facts.Clear();restoreErrors.Clear();error=null;hasOpenWestColor=false;stage=0;mainEndSerial=processedEndSerial=0;previousEpoch=module.PresentationEpoch;
+        began=EditorApplication.timeSinceStartup;Running=true;acquired=true;
+        try
+        {
+            if(!oldFocus)focusCallback.Invoke(root.coordinator,new object[]{true});
+            foreach(var item in actors)item.Actor.SetViewInputCapture(Lease,true);
+            map.SetUiCameraCapture(Lease,true);map.followParticipant=false;map.followSmoothTime=0;map.fixedTarget=new Vector3(-16,0,-12);map.showOverlay=false;
+            root.showDiagnostics=false;panel.showPanel=false;panel.showPortalProjection=false;
+            north.open=north.canSeeThrough=true;panel.SetDoorOpen(true);panel.SetShutterOpen(false);
+            Directory.CreateDirectory(EvidenceDirectory);
+            RenderPipelineManager.endCameraRendering+=OnEnd;RenderPipelineManager.endFrameRendering+=OnFrameEnd;
+            EditorApplication.update+=Watchdog;EditorApplication.playModeStateChanged+=OnPlayMode;
+            Apply();
+            Result=new{status="running",cases=Labels,deadlineSeconds=18,expectedSeconds=10,positionFixture="Original Teleport and Orientation only; small threshold step is not WASD certification",profile=commerce.profileId,savePath=commerce.SavePath};
+            ctx.ReturnValue=Result;
+        }
+        catch(Exception e){error=e.ToString();Finish();throw;}
+    }
+
+    static void Pose(Vector3 position,Vector3 direction)
+    {
+        var actor=root.coordinator.Current;Need(actor!=null,"Current missing during pose");
+        actor.GetComponent<Ossastra.Characters.CharacterMovement>().Teleport(position);
+        var orientation=actor.GetComponent<Ossastra.Characters.CharacterOrientation>();orientation.OrientTowards(position+direction*5);orientation.FaceAttackDirection();
+        module.RequestImmediateMembershipRefresh();
+    }
+    static void Aim(float yaw){orbitField.SetValue(map,new MapOrbitState(yaw));}
+    static void Apply()
+    {
+        stageAt=EditorApplication.timeSinceStartup;stageStartSerial=mainEndSerial;
+        switch(stage)
+        {
+            case 0: Aim(0);Pose(new Vector3(-16,.1f,-10.4f),Vector3.back);break;
+            case 1: Pose(new Vector3(-16,.1f,-15.3f),Vector3.forward);break;
+            case 2: Aim(270);panel.SetShutterOpen(true);Pose(new Vector3(-18,.1f,-11),Vector3.left);break;
+            case 3: panel.SetShutterOpen(false);west.open=true;break; // 实体封板仍在；故意不改几何open以验证真实OBB。
+            case 4: west.open=false;break;
+            case 5: panel.SetDoorOpen(true);Pose(new Vector3(-12.6f,.1f,-12),Vector3.right);break;
+            case 6: Pose(new Vector3(-11.4f,.1f,-12),Vector3.right);break;
+            case 7:
+                Need(root.coordinator.SwitchNext(),"Original SwitchNext refused");
+                Pose(new Vector3(-6,.1f,-13.2f),Vector3.left);break;
+            case 8: Pose(new Vector3(-16,.1f,-12),Vector3.back);break;
+            case 9: Aim(45);break;
+        }
+    }
+    static void OnEnd(ScriptableRenderContext context,Camera rendered){if(Running&&rendered==camera)mainEndSerial++;}
+    static void OnFrameEnd(ScriptableRenderContext context,Camera[] rendered)
+    {
+        if(!Running||mainEndSerial==processedEndSerial)return;
+        processedEndSerial=mainEndSerial;
+        try
+        {
+            Need(Application.isPlaying&&root!=null&&module!=null&&camera!=null&&SceneManager.GetActiveScene().path==ScenePath,"Play context changed");
+            if(EditorApplication.timeSinceStartup-stageAt<.72||mainEndSerial-stageStartSerial<2)return;
+            Need(module.SuppressedRendererCount==0,"Sample must follow actual scope return");
+            Need(RoomMaskCameraRegistry.TryGet(camera,out var frame)&&frame.Enabled&&frame.PositiveRenderingEnabled&&!frame.TruthMode,"No actual final frame");
+            Need(RoomMaskCameraRegistry.TryGetStatistics(camera,out var stats)&&stats.Active&&string.IsNullOrEmpty(stats.Error),"Actual rendering failed: "+(stats==null?"missing statistics":stats.Error));
+            Need(frame.VisibilityEpoch==module.PresentationEpoch,"Frame epoch differs from current module");
+            bool passed=true;object detail=null;object pixels=null;
+            var room=module.ActiveRoom==null?null:module.ActiveRoom.roomId;
+            var northPoint=new Vector3(-16,1.5f,-5.5f);var westPoint=new Vector3(-22,1.5f,-11);var neighbour=new Vector3(-6,.12f,-12);
+            if(stage==0)
+            {
+                var center=Center(north);Need(room=="room-a","Need actual A seed");
+                Need(Vector3.Dot(module.ObserverForward,center-module.ObserverPosition)<-.1f,"Avatar was not truly back-facing north aperture");
+                Need(!module.AllowsWorldPoint(northPoint),"Camera window incorrectly grants avatar sight");
+                Need(frame.WindowSightDomains.Length>0&&frame.WindowSightDomains.All(d=>d.IsCameraWindow&&d.TargetExterior&&(d.ObserverPosition-camera.transform.position).sqrMagnitude<.000001f),"Camera domains lost exterior-only or actual camera origin");
+                Need(!module.AllowsWorldPoint(neighbour)&&!CameraAllows(frame,neighbour),"Neighbour room leaked via camera window");
+                pixels=CaptureWindow(frame,north,"north-avatar-back",true);
+                detail=new{avatarDeniedNorth=true,cameraWindows=frame.WindowSightDomains.Length,neighbourDenied=true};
+            }
+            else if(stage==1)
+            {
+                var center=Center(north);float distance=Mathf.Abs(Vector3.Dot(module.ObserverPosition-center,north.OutwardNormal));
+                var far=center+north.OutwardNormal*20;
+                Need(room=="room-a"&&distance>north.observerRange+.2f,"Fixture does not exceed actual old near-window range");
+                Need(module.AllowsWorldPoint(northPoint)&&module.AllowsWorldPoint(far),"Natural sight still has old near/far cutoff or actual line is blocked");
+                Need(module.ObserverSightVolumes.Any(v=>v.PortalId==north.portalId&&v.ContainsPoint(new SightVector3(far.x,far.y,far.z))&&float.IsPositiveInfinity(v.MaxSightDistance)),"Runtime did not consume unbounded natural core volume");
+                detail=new{oldObserverRange=north.observerRange,actualDistance=distance,oldFar=north.maxSightDistance,actualFarFromPortal=20,nearAllowed=true,farAllowed=true};
+            }
+            else if(stage>=2&&stage<=4)
+            {
+                Need(room=="room-a","West fixture lost A seed");
+                bool shouldAllow=stage==2;bool eye=module.AllowsWorldPoint(westPoint);
+                Need(eye==shouldAllow,"West actual shutter eye permission mismatch");
+                var windowGround=WindowGround(west);bool cameraAllowed=CameraAllows(frame,windowGround);
+                Need(cameraAllowed==shouldAllow,"West actual shutter camera permission mismatch");
+                if(stage==3)Need(west.open&&Vector3.Distance(panel.shutter.position,panel.shutterClosedPosition)<.001f,"Physical shutter negative control not present");
+                pixels=CaptureWindow(frame,west,stage==2?"west-open":stage==3?"west-solid-only":"west-closed",shouldAllow);
+                detail=new{portalOpen=west.open,physicalShutter=panel.shutter.position.ToString("R"),eye,cameraAllowed,oldEpoch=previousEpoch,newEpoch=module.PresentationEpoch};
+            }
+            else if(stage==5)Need(room=="room-a","A-side small-step seed incorrect");
+            else if(stage==6)
+            {
+                Need(room=="corridor-c","Small boundary fixture did not enter C");
+                Need(module.PresentationEpoch==previousEpoch,"Ordinary small room transition reset visual history epoch");
+                detail=new{positionFixture="1.2m public Teleport across open doorway; not input walking",distance=1.2f,epochPreserved=true};
+            }
+            else if(stage==7)
+            {
+                Need(root.coordinator.Current!=original&&room=="room-b","Original control coordinator did not switch to B");
+                Need(module.PresentationEpoch>previousEpoch,"Current identity change did not reset history epoch");
+                Need(!module.AllowsWorldPoint(new Vector3(-16,1.5f,-12)),"A retained business permission after actual Current changed");
+                detail=new{current=root.coordinator.Current.ActorId,epochReset=true,oldRoomDenied=true};
+            }
+            else if(stage==8)
+            {
+                Need(root.coordinator.Current!=original&&room=="room-a","Same actor large teleport did not resolve A");
+                Need(module.PresentationEpoch>previousEpoch,"Large Teleport did not reset visual history epoch");
+                Need(!module.AllowsWorldPoint(neighbour),"Previous B room retained permission after teleport");
+                detail=new{sameCurrent=true,epochReset=true,previousRoomDenied=true};
+            }
+            else if(stage==9)
+            {
+                Need(Mathf.Abs(Mathf.DeltaAngle(map.ActualYaw,45))<.02f,"Original map did not consume yaw fixture");
+                Need(module.PresentationEpoch==previousEpoch,"Camera yaw reset observer history identity");
+                detail=new{yaw=map.ActualYaw,epochPreserved=true};
+            }
+            facts.Add(new{label=Labels[stage],passed,frame=Time.frameCount,mainEndSerial,settledActualFrames=mainEndSerial-stageStartSerial,seconds=EditorApplication.timeSinceStartup-stageAt,room,current=root.coordinator.Current.ActorId,epoch=module.PresentationEpoch,previousEpoch,eyeDomains=module.PartialViewCount,cameraDomains=module.WindowViewCount,observer=module.ObserverPosition.ToString("R"),forward=module.ObserverForward.ToString("R"),cameraPosition=camera.transform.position.ToString("R"),stats.Error,detail,pixels});
+            previousEpoch=module.PresentationEpoch;stage++;
+            if(stage==Labels.Length){Finish();return;}Apply();
+        }
+        catch(Exception e){error="case "+stage+" "+(stage<Labels.Length?Labels[stage]:"restore")+": "+e;Finish();}
+    }
+
+    static Vector3 Center(ViewPortal portal){var points=portal.GetWorldAperture();Need(points.Length>=3,"No actual aperture");Vector3 sum=Vector3.zero;foreach(var p in points)sum+=p;return sum/points.Length;}
+    static Vector3 WindowGround(ViewPortal portal)
+    {
+        var center=Center(portal);var delta=center-camera.transform.position;
+        Need(Mathf.Abs(delta.y)>.001f,"Camera/aperture ray does not reach ground");
+        float amount=(.08f-camera.transform.position.y)/delta.y;
+        Need(amount>1,"Ground sample is not behind actual window");
+        return camera.transform.position+delta*amount;
+    }
+    static bool InBox(RoomMaskVolume box,Vector3 point)
+    {
+        var p=box.WorldToLocal.MultiplyPoint3x4(point);var e=box.HalfExtents;
+        return Mathf.Abs(p.x)<=e.x+.0002f&&Mathf.Abs(p.y)<=e.y+.0002f&&Mathf.Abs(p.z)<=e.z+.0002f;
+    }
+    static bool Blocked(RoomMaskVolume[] boxes,Vector3 origin,Vector3 target)
+    {
+        foreach(var box in boxes)
+        {
+            Vector3 a=box.WorldToLocal.MultiplyPoint3x4(origin),delta=box.WorldToLocal.MultiplyPoint3x4(target)-a;
+            float enter=0,leave=1-.02f/Mathf.Max(Vector3.Distance(origin,target),.02f);bool hit=true;
+            for(int axis=0;axis<3;axis++)
+            {
+                float extent=box.HalfExtents[axis];
+                if(Mathf.Abs(delta[axis])<.0000001f){if(Mathf.Abs(a[axis])>extent){hit=false;break;}}
+                else{float first=(-extent-a[axis])/delta[axis],second=(extent-a[axis])/delta[axis];enter=Mathf.Max(enter,Mathf.Min(first,second));leave=Mathf.Min(leave,Mathf.Max(first,second));if(enter>leave){hit=false;break;}}
+            }
+            if(hit&&leave>=enter&&leave>=0)return true;
+        }
+        return false;
+    }
+    static bool CameraAllows(RoomMaskFrame frame,Vector3 point)
+    {
+        if(frame.BuildingVolumes.Any(v=>InBox(v,point)))return false;
+        foreach(var domain in frame.WindowSightDomains)
+        {
+            if(!domain.TargetExterior||!domain.IsCameraWindow)continue;
+            bool inside=true;foreach(var p in domain.Planes)if(Vector4.Dot(p,new Vector4(point.x,point.y,point.z,1))<0){inside=false;break;}
+            if(inside&&!Blocked(frame.CameraOpaqueBlockers,domain.ObserverPosition,point))return true;
+        }
+        return false;
+    }
+    static Color Patch(Texture2D image,Vector3 world,out Vector3 projected)
+    {
+        projected=camera.WorldToScreenPoint(world);
+        Need(projected.z>0&&projected.x>=3&&projected.y>=3&&projected.x<image.width-3&&projected.y<image.height-3,"Chosen actual world sample outside Game View: "+world+" => "+projected);
+        int x=Mathf.RoundToInt(projected.x),y=Mathf.RoundToInt(projected.y);Color sum=Color.clear;
+        for(int dy=-1;dy<=1;dy++)for(int dx=-1;dx<=1;dx++)sum+=image.GetPixel(x+dx,y+dy);
+        return sum/9;
+    }
+    static object CaptureWindow(RoomMaskFrame frame,ViewPortal portal,string label,bool expectExterior)
+    {
+        Texture2D image=null;
+        try
+        {
+            // 此调用仅发生于真实主相机 endFrame；不更换目标RT、不引入额外camera或手工重渲。
+            image=ScreenCapture.CaptureScreenshotAsTexture();Need(image!=null&&image.width>0&&image.height>0,"No actual screen readback");
+            Need(image.width==Screen.width&&image.height==Screen.height,"Unexpected screen capture dimensions");
+            var point=WindowGround(portal);var color=Patch(image,point,out var projected);
+            Need(CameraAllows(frame,point)==expectExterior,"Actual camera-to-hole exterior sample has wrong current geometric permission");
+            Vector3 tangent=Vector3.Cross(Vector3.up,portal.OutwardNormal).normalized;Need(tangent.sqrMagnitude>.9f,"Expected a vertical Lab aperture");
+            var outside=point+tangent*5;bool outsideCamera=CameraAllows(frame,outside),outsideEye=module.AllowsWorldPoint(outside);
+            Need(!outsideCamera,"Camera cone leaked five metres to side of actual opening");
+            Need(!outsideEye,"Side-of-opening exterior point unexpectedly gained avatar permission");
+            Color? outsideColor=null;Vector3 outsideProjected=camera.WorldToScreenPoint(outside);
+            if(outsideProjected.z>0&&outsideProjected.x>=3&&outsideProjected.y>=3&&outsideProjected.x<image.width-3&&outsideProjected.y<image.height-3)outsideColor=Patch(image,outside,out outsideProjected);
+            var neighbour=new Vector3(-6,.12f,-12);Color? neighbourColor=null;Vector3 neighbourProjected=camera.WorldToScreenPoint(neighbour);
+            if(neighbourProjected.z>0&&neighbourProjected.x>=3&&neighbourProjected.y>=3&&neighbourProjected.x<image.width-3&&neighbourProjected.y<image.height-3)
+            {
+                neighbourColor=Patch(image,neighbour,out neighbourProjected);
+                if(label=="north-avatar-back")Need(Mathf.Max(neighbourColor.Value.r,Mathf.Max(neighbourColor.Value.g,neighbourColor.Value.b))<.06f,"Actual unknown-neighbour pixel is not black");
+            }
+            if(expectExterior)Need(Mathf.Max(color.r,Mathf.Max(color.g,color.b))>.025f,"Real window aperture remains black despite valid camera exterior ray");
+            float? closedDelta=null;
+            if(label=="west-open"){openWestColor=color;hasOpenWestColor=true;}
+            else if(label=="west-solid-only"&&hasOpenWestColor){closedDelta=Mathf.Abs(color.r-openWestColor.r)+Mathf.Abs(color.g-openWestColor.g)+Mathf.Abs(color.b-openWestColor.b);Need(closedDelta>.02f,"Actual closed shutter pixel did not differ from open exterior pixel");}
+            string path=Path.Combine(EvidenceDirectory,label+".png");File.WriteAllBytes(path,image.EncodeToPNG());
+            return new{path,width=image.width,height=image.height,source="actual main endFrame ScreenCapture readback",world=point.ToString("R"),screen=projected.ToString("R"),rgb=new[]{color.r,color.g,color.b},expectExterior,cameraAllowed=CameraAllows(frame,point),eyeAllowed=module.AllowsWorldPoint(point),outsideWorld=outside.ToString("R"),outsideCamera,outsideEye,outsideScreen=outsideProjected.ToString("R"),outsideRgb=outsideColor.HasValue?new[]{outsideColor.Value.r,outsideColor.Value.g,outsideColor.Value.b}:null,neighbourScreen=neighbourProjected.ToString("R"),neighbourRgb=neighbourColor.HasValue?new[]{neighbourColor.Value.r,neighbourColor.Value.g,neighbourColor.Value.b}:null,closedDelta,scope="outside-opening colour may be solid wall; it is not required to be black"};
+        }
+        finally{if(image!=null)UnityEngine.Object.Destroy(image);}
+    }
+    static void Watchdog()
+    {
+        if(!Running)return;
+        if(!Application.isPlaying||EditorApplication.timeSinceStartup-began>18){error=error??"Play interrupted or 18-second watchdog deadline";Finish();}
+    }
+    static void OnPlayMode(PlayModeStateChange state){if(Running&&state==PlayModeStateChange.ExitingPlayMode){error=error??"Play exit requested";Finish();}}
+    static void Restore(Action action,string label){try{action();}catch(Exception e){restoreErrors.Add(label+": "+e.Message);}}
+    static void Finish()
+    {
+        RenderPipelineManager.endCameraRendering-=OnEnd;RenderPipelineManager.endFrameRendering-=OnFrameEnd;
+        EditorApplication.update-=Watchdog;EditorApplication.playModeStateChanged-=OnPlayMode;Running=false;
+        if(acquired)
+        {
+            Restore(()=>{if(root!=null&&root.coordinator.Current!=original)Need(root.coordinator.SwitchNext()&&root.coordinator.Current==original,"Could not restore original Current");},"Current");
+            if(actors!=null)foreach(var item in actors)
+            {
+                Restore(()=>{if(item.Actor!=null){item.Actor.GetComponent<Ossastra.Characters.CharacterMovement>().Teleport(item.Position);var o=item.Actor.GetComponent<Ossastra.Characters.CharacterOrientation>();o.OrientTowards(item.Position+item.Presentation*5);o.FaceAttackDirection();o.OrientTowards(item.Position+item.Attack*5);}},"actor pose");
+                Restore(()=>{if(item.Actor!=null)item.Actor.SetViewInputCapture(Lease,false);},"actor input lease");
+            }
+            Restore(()=>{if(shutter!=null)shutter.Restore();if(door!=null)door.Restore();},"door/shutter transforms");
+            Restore(()=>{if(portals!=null)foreach(var p in portals)if(p.Portal!=null){p.Portal.open=p.Open;p.Portal.canSeeThrough=p.CanSee;}},"portal flags");
+            Restore(()=>{if(map!=null){map.followParticipant=oldFollow;map.followSmoothTime=oldSmooth;map.fixedTarget=oldFixedTarget;map.showOverlay=oldMapOverlay;orbitField.SetValue(map,oldOrbit);followCenterField.SetValue(map,oldCenter);followVelocityField.SetValue(map,oldVelocity);followInitializedField.SetValue(map,oldFollowInitialized);map.SetUiCameraCapture(Lease,false);}},"map/orbit/input lease");
+            Restore(()=>{if(camera!=null)camera.transform.SetPositionAndRotation(oldCameraPosition,oldCameraRotation);},"camera pose");
+            Restore(()=>{if(root!=null){root.showDiagnostics=oldRootDiagnostics;module.RequestImmediateMembershipRefresh();if(!oldFocus)focusCallback.Invoke(root.coordinator,new object[]{false});}if(panel!=null){panel.showPanel=oldPanel;panel.showPortalProjection=oldProjection;}},"UI/focus");
+        }
+        acquired=false;
+        bool restoredCurrent=root!=null&&root.coordinator.Current==original;
+        bool restoredOrbit=map!=null&&ReferenceEquals(orbitField.GetValue(map),oldOrbit);
+        Result=new{status=error==null&&restoreErrors.Count==0?"passed":"failed",error,seconds=EditorApplication.timeSinceStartup-began,passedCases=facts.Count,expectedCases=Labels.Length,mainEndSerial,facts,restoreErrors,restoredCurrent,restoredOrbit,profile=Profile,saveDirectory=SaveDirectory,boundary="Public position/orientation fixtures, actual frame rendering and limited pixel samples; not hardware/WASD/whole-video/Player certification"};
+        ResultJson=JsonConvert.SerializeObject(Result,Formatting.Indented);
+        try{Directory.CreateDirectory(EvidenceDirectory);File.WriteAllText(Path.Combine(EvidenceDirectory,"native-vision-contract.json"),ResultJson);}catch(Exception e){ResultJson+="\nEvidence write failed: "+e.Message;}
+    }
+}

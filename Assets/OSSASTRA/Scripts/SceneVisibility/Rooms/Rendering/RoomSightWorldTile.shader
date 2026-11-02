@@ -40,7 +40,7 @@ Shader "Hidden/Ossastra/Rooms/SightWorldTile"
     half mask=SAMPLE_TEXTURE2D(_MainTex,sampler_MainTex,i.uv).a;
     mask=lerp(mask,1,saturate(_BaseCoverage));clip(mask*i.color.a-_Cutoff);
     half3 detail=SAMPLE_TEXTURE2D(_SecondTex,sampler_SecondTex,i.world.xz/max(_WorldPeriod,.0001)).rgb;
-    return half4(lerp(detail,mask.xxx,saturate(_DebugMask))*i.color.rgb,1);
+    return RoomSightFogColor(half4(lerp(detail,mask.xxx,saturate(_DebugMask))*i.color.rgb,1),RoomSightWorldFromDeviceDepth(i.positionCS.xy,i.positionCS.z),0);
    }
    ENDHLSL
   }

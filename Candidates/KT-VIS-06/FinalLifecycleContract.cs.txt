@@ -1,0 +1,305 @@
+/* 实际后端生命周期：捕获当前mainCamera的具体positive资源，暂禁用原Root走原Release，两帧后核对，再原位重接。
+ * 不销毁原Camera/Root/Module，不建替身Camera，不移动Current，不触碰存档。public static Result供另次Native读取。
+ */
+using System;using System.Linq;using System.Collections;using System.Collections.Generic;using System.Reflection;
+using UnityEngine;using UnityEditor;using UnityEngine.Rendering;using UnityEngine.SceneManagement;
+using Ossastra.SceneVisibility;using Ossastra.SceneVisibility.Rooms;using Ossastra.SceneVisibility.Rooms.Rendering;
+using Ossastra.Characters.Rendering;using Ossastra.Commerce.Runtime;using Funplay.Editor.Tools.Scripting;using Object=UnityEngine.Object;
+
+public sealed class RoomFinalLifecycleContract:IFunplayCommand
+{
+ const string ScenePath="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity";
+ const string SaveDirectory="E:/WORLDCREATOR/XingHaiHuiLang/研究/可见性修复/KT-VIS-06/profiles";
+ const BindingFlags F=BindingFlags.Instance|BindingFlags.Public|BindingFlags.NonPublic;
+ static readonly string[] ClipKeys={"_RoomSightOwnerCount","_RoomSightOwnerExterior","_RoomSightOwnerMatrices","_RoomSightOwnerExtents","_RoomSightRoofMode","_RoomSightCutRoof"};
+ public const string ContractVersion="V5-world-fog-buffer-and-v4-owned-helper-contract";
+ static ComputeBuffer fogBuffer;static bool fogBufferReleased;
+ public static object Result;
+ static SceneVisibilityRoot root;static RoomVisibilityModule module;static Camera main;static RoomMaskRendererFeature feature;
+ static object pass,scope,buckets;static RoomMaskStatistics disposedStats;static IDictionary positiveEntries;
+ static bool running,disabledRoot,originalRootEnabled;static int mainEndSerial,processedEndSerial;static int stage,settled,mainId,rootId,moduleId;
+ static int textures,materials,blocks,bucketCount,registeredCount,rendererCount,remainingAtRelease;
+ static bool registryRemoved,featureRemoved,rendererRestored,cacheZero;static string actorId;static double deadline;
+ static readonly List<Object> owned=new List<Object>();static readonly HashSet<int> ownedIds=new HashSet<int>();
+ static readonly List<RendererState> rendererStates=new List<RendererState>();
+ static readonly List<object> stateDifferences=new List<object>();static int helperCount,excludedUnrelated,dynamicOwnerCount,dynamicDestroyedCount;
+ static readonly HashSet<int> recordedDynamicDeaths=new HashSet<int>();
+ static object rootCapture;static readonly List<RendererState> rootCaptureRenderers=new List<RendererState>();static int rootCaptureRemaining;
+ static readonly MaterialPropertyBlock scratch=new MaterialPropertyBlock();
+ sealed class Values
+ {
+  public bool Foot,Normal,Enabled;public Vector4 FootValue,NormalValue;public float EnabledValue;
+ }
+ sealed class RendererState
+ {
+  public Renderer R;public int Id;public string Name;public bool Enabled,Off,Registered;public ShadowCastingMode Shadow;public uint Layer,SourceLayerBefore;
+  public object PresentationOwner;public string PresentationOwnerType;public int PresentationOwnerId;public int[] MaterialIdsBefore;
+  public CharacterUprightDepth DepthOwner;public CharacterOpaqueCoverage Coverage;public Renderer CoverageSource;public int OwnerActiveCameraBefore;
+  public Material[] Materials;public Values Global;public Values[] Slots,MaterialValues;public Transform Actor;public Vector3 ActorBefore;
+ }
+ static void Need(bool condition,string message){if(!condition)throw new InvalidOperationException(message);}
+ static object Field(object value,string name)=>value.GetType().GetField(name,F).GetValue(value);
+ static int PropertyCount(object value,string name)=>(int)value.GetType().GetProperty(name,F).GetValue(value);
+ static IDictionary RegistryEntries()=>(IDictionary)typeof(RoomMaskCameraRegistry).GetField("entries",BindingFlags.Static|BindingFlags.NonPublic).GetValue(null);
+ static void Hold(Object value){if(value!=null&&ownedIds.Add(value.GetInstanceID()))owned.Add(value);}
+ static Values ReadBlock(Renderer renderer,int slot)
+ {
+  if(slot<0)renderer.GetPropertyBlock(scratch);else renderer.GetPropertyBlock(scratch,slot);
+  return new Values{Foot=scratch.HasVector("_VisualDepthFoot"),Normal=scratch.HasVector("_VisualDepthNormal"),Enabled=scratch.HasFloat("_VisualDepthEnabled"),
+   FootValue=scratch.GetVector("_VisualDepthFoot"),NormalValue=scratch.GetVector("_VisualDepthNormal"),EnabledValue=scratch.GetFloat("_VisualDepthEnabled")};
+ }
+ static Values ReadMaterial(Material material)
+ {
+  if(material==null)return new Values();
+  bool foot=material.HasProperty("_VisualDepthFoot"),normal=material.HasProperty("_VisualDepthNormal"),enabled=material.HasProperty("_VisualDepthEnabled");
+  return new Values{Foot=foot,Normal=normal,Enabled=enabled,FootValue=foot?material.GetVector("_VisualDepthFoot"):Vector4.zero,
+   NormalValue=normal?material.GetVector("_VisualDepthNormal"):Vector4.zero,EnabledValue=enabled?material.GetFloat("_VisualDepthEnabled"):0};
+ }
+ static bool HasClipMetadata(Renderer renderer,int slot)
+ {
+  if(slot<0)renderer.GetPropertyBlock(scratch);else renderer.GetPropertyBlock(scratch,slot);
+  foreach(string key in ClipKeys)if(scratch.HasProperty(key))return true;return false;
+ }
+ static bool SameValues(Values before,Values after,RendererState state)
+ {
+  if(before.Foot!=after.Foot||before.Normal!=after.Normal||before.Enabled!=after.Enabled)return false;
+  if(before.Normal&&(before.NormalValue-after.NormalValue).sqrMagnitude>1e-10f)return false;
+  if(before.Enabled&&Mathf.Abs(before.EnabledValue-after.EnabledValue)>1e-6f)return false;
+  if(!before.Foot||(before.FootValue-after.FootValue).sqrMagnitude<1e-10f)return true;
+  // 角色仍在正常运行：只容许原脚点随同一个实际Actor发生的真实位移，不把任意MPB差异当恢复。
+  if(state.Actor==null||Mathf.Abs(before.FootValue.w-after.FootValue.w)>1e-6f)return false;
+  return ((Vector3)before.FootValue-state.ActorBefore).sqrMagnitude<1e-8f&&
+         ((Vector3)after.FootValue-state.Actor.position).sqrMagnitude<1e-8f;
+ }
+ static void ResolveCoverageOwnership(RendererState state)
+ {
+  foreach(var owner in state.R.GetComponentsInParent<CharacterUprightDepth>(true))
+  {
+   if(!owner.OwnsRenderer(state.R))continue;
+   foreach(object binding in (IEnumerable)Field(owner,"sources"))
+   {
+    var coverage=Field(binding,"coverage") as CharacterOpaqueCoverage;
+    if(coverage==null||!coverage.OwnsRenderer(state.R))continue;
+    state.DepthOwner=owner;state.Coverage=coverage;state.CoverageSource=Field(coverage,"source") as Renderer;
+    var active=Field(coverage,"activeCamera") as Camera;state.OwnerActiveCameraBefore=active==null?0:active.GetInstanceID();return;
+   }
+   throw new InvalidOperationException("公开OwnsRenderer证实辅助体，但未找到实际coverage实例："+state.R.GetInstanceID());
+  }
+ }
+ static object Modes(RendererState state,bool before)
+ {
+  var r=state.R;var active=state.Coverage==null?null:Field(state.Coverage,"activeCamera") as Camera;
+  return new{renderer=state.Id,name=state.Name,alive=r!=null,
+   enabled=before?state.Enabled:r!=null&&r.enabled,off=before?state.Off:r==null||r.forceRenderingOff,
+   shadow=before?state.Shadow.ToString():r==null?"destroyed":r.shadowCastingMode.ToString(),
+   layer=before?state.Layer:r==null?0:r.renderingLayerMask,
+   owner=state.DepthOwner==null?0:state.DepthOwner.GetInstanceID(),source=state.CoverageSource==null?0:state.CoverageSource.GetInstanceID(),
+   ownerActiveCamera=before?state.OwnerActiveCameraBefore:active==null?0:active.GetInstanceID(),
+   sourceLayer=before?state.SourceLayerBefore:state.CoverageSource==null?0:state.CoverageSource.renderingLayerMask,
+   materialIds=before?state.MaterialIdsBefore:(r==null?new Material[0]:r.sharedMaterials).Select(m=>m==null?0:m.GetInstanceID()).ToArray()};
+ }
+ static void ValidateCoverageOwnedState(RendererState state,bool requireSourceSync)
+ {
+  var r=state.R;var owner=state.DepthOwner;var coverage=state.Coverage;var source=state.CoverageSource;
+  Need(owner!=null&&owner.OwnsRenderer(r)&&coverage!=null&&coverage.OwnsRenderer(r),"辅助体ownership证据不再成立："+r.GetInstanceID());
+  Need(source!=null&&ReferenceEquals(Field(coverage,"source"),source),"辅助体原source改变："+r.GetInstanceID());
+  var active=Field(coverage,"activeCamera") as Camera;
+  Need(active==null&&r.forceRenderingOff,"endFrame后原角色辅助体仍处于相机活动状态："+r.GetInstanceID());
+  Need(r.shadowCastingMode==ShadowCastingMode.Off&&!r.receiveShadows&&r.lightProbeUsage==LightProbeUsage.Off&&r.reflectionProbeUsage==ReflectionProbeUsage.Off,
+   "角色辅助深度体必须保持无Caster/探针："+r.GetInstanceID());
+  var expected=new List<Material>();foreach(object value in (IEnumerable)Field(coverage,"materials"))expected.Add(value as Material);
+  var actual=r.sharedMaterials;Need(actual.Length==expected.Count&&expected.Count==coverage.OwnedMaterialCount,"辅助体当前材质数量不属原owner");
+  for(int i=0;i<actual.Length;i++)Need(ReferenceEquals(actual[i],expected[i]),"辅助体材质引用不是原coverage实例所拥有："+r.GetInstanceID()+"/"+i);
+  for(int i=-1;i<actual.Length;i++)
+  {
+   if(i<0)r.GetPropertyBlock(scratch);else r.GetPropertyBlock(scratch,i);
+   Need(scratch.GetFloat("_CharacterCoverageEnabled")==0&&scratch.GetFloat("_VisualDepthEnabled")==0,"辅助体endFrame深度开关未关闭："+r.GetInstanceID()+"/"+i);
+  }
+  if(requireSourceSync)
+  {
+   Need(r.enabled==source.enabled&&r.renderingLayerMask==source.renderingLayerMask,"两帧后辅助体未同步其真实source模式："+r.GetInstanceID());
+   Need((source.renderingLayerMask&RoomPositiveRenderingLayers.ReservedMask)==0,"真实source保留房间临时渲染位："+source.GetInstanceID());
+   for(int i=-1;i<actual.Length;i++)Need(!HasClipMetadata(r,i),"两帧后辅助体仍保留本模块clip数据："+r.GetInstanceID()+"/"+i);
+  }
+ }
+ static void CaptureRenderers(RoomMaskFrame frame)
+ {
+  var registered=new HashSet<Renderer>(frame.PositiveSurfaces.Where(s=>s.Renderer!=null).Select(s=>s.Renderer));registeredCount=registered.Count;
+  var initialized=new HashSet<Renderer>((Renderer[])Field(module,"sceneSurfaces"));
+  var captureOwned=new HashSet<Renderer>();rootCapture=Field(root,"capture");
+  if(rootCapture!=null)
+  {
+   Need(rootCapture is Ossastra.SceneVisibility.Rendering.FiniteGroupCapture,"Root.capture不是已核对的FiniteGroupCapture；不能推断其自有范围");
+   foreach(object value in (IEnumerable)Field(rootCapture,"proxies"))if(value is Renderer proxy&&proxy!=null)captureOwned.Add(proxy);
+   foreach(object group in (IEnumerable)Field(rootCapture,"slots"))if(group!=null)
+    foreach(object source in (IEnumerable)Field(group,"Sources"))if(source!=null&&Field(source,"Copy") is Renderer copy&&copy!=null)captureOwned.Add(copy);
+   foreach(var renderer in captureOwned)rootCaptureRenderers.Add(new RendererState{R=renderer,Id=renderer.GetInstanceID(),Name=renderer.name});
+  }
+  var dynamicEntries=new List<RoomPresentationRegistry.Entry>();RoomPresentationRegistry.Append(dynamicEntries);
+  var presentations=dynamicEntries.Where(e=>e.Renderer!=null).ToDictionary(e=>e.Renderer,e=>e);
+  foreach(var r in main.gameObject.scene.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<Renderer>(true)))
+  {
+   // 仅排除Root原后端明确持有的代理引用；它们由本次真实Release销毁，不是用户稳定源。
+   if(captureOwned.Contains(r))continue;
+   var mats=r.sharedMaterials;var actor=r.GetComponentInParent<Ossastra.Characters.CharacterRoot>();var enemy=r.GetComponentInParent<Ossastra.Enemies.EnemyRoot>();
+   Transform actorTransform=actor!=null?actor.transform:enemy!=null?enemy.transform:null;
+   var state=new RendererState{R=r,Id=r.GetInstanceID(),Name=r.name,Enabled=r.enabled,Off=r.forceRenderingOff,Shadow=r.shadowCastingMode,Layer=r.renderingLayerMask,
+    Registered=registered.Contains(r),Materials=mats,Global=ReadBlock(r,-1),Slots=new Values[mats.Length],MaterialValues=new Values[mats.Length],Actor=actorTransform,ActorBefore=actorTransform==null?Vector3.zero:actorTransform.position};
+   ResolveCoverageOwnership(state);
+   if(state.Coverage!=null){helperCount++;state.SourceLayerBefore=state.CoverageSource==null?0:state.CoverageSource.renderingLayerMask;}
+   if(presentations.TryGetValue(r,out var presentation))
+   {state.PresentationOwner=presentation.Owner;state.PresentationOwnerType=presentation.Owner.GetType().FullName;
+    var unityOwner=presentation.Owner as Object;state.PresentationOwnerId=unityOwner==null?0:unityOwner.GetInstanceID();dynamicOwnerCount++;}
+   // 只核对本模块实际可能借用的源；未触及的全场短命表现不属于本资源恢复合同。
+   if(!initialized.Contains(r)&&!state.Registered&&state.Coverage==null){excludedUnrelated++;continue;}
+   state.MaterialIdsBefore=mats.Select(m=>m==null?0:m.GetInstanceID()).ToArray();
+   for(int i=0;i<mats.Length;i++){state.Slots[i]=ReadBlock(r,i);state.MaterialValues[i]=ReadMaterial(mats[i]);}
+   if(state.Registered&&state.Coverage==null)
+   {
+    Need(!HasClipMetadata(r,-1),"相机End后登记源仍有本模块Renderer级临时MPB："+r.name);
+    for(int i=0;i<mats.Length;i++)Need(!HasClipMetadata(r,i),"相机End后登记源仍有本模块槽级临时MPB："+r.name);
+   }
+   rendererStates.Add(state);
+  }
+  rendererCount=rendererStates.Count;
+ }
+ static void AssertRendererRestoration(bool requireHelperSourceSync)
+ {
+  foreach(var state in rendererStates)
+  {
+   var r=state.R;
+   if(r==null&&state.PresentationOwner!=null)
+   {
+    // 此Renderer在取样时已有独立业务owner精确登记；本模块不拥有它的存活期。
+    if(recordedDynamicDeaths.Add(state.Id)){dynamicDestroyedCount++;stateDifferences.Add(new{phase=requireHelperSourceSync?"after-two-main-ends":"immediate-release",
+     dynamicBusinessLifetime=true,renderer=state.Id,name=state.Name,ownerType=state.PresentationOwnerType,ownerId=state.PresentationOwnerId});}continue;
+   }
+   Need(r!=null,"稳定源Renderer在探针期间被销毁："+state.Name+" #"+state.Id+"；无已捕获的动态业务owner，不能代签");
+   bool modesSame=r.enabled==state.Enabled&&r.forceRenderingOff==state.Off&&r.shadowCastingMode==state.Shadow&&r.renderingLayerMask==state.Layer;
+   bool refsSame=r.sharedMaterials.Length==state.Materials.Length&&r.sharedMaterials.Zip(state.Materials,(a,b)=>ReferenceEquals(a,b)).All(v=>v);
+   if(!modesSame||!refsSame||state.Coverage!=null)
+    stateDifferences.Add(new{phase=requireHelperSourceSync?"after-two-main-ends":"immediate-release",characterDepthOwned=state.Coverage!=null,before=Modes(state,true),after=Modes(state,false)});
+   if(state.Coverage!=null){ValidateCoverageOwnedState(state,requireHelperSourceSync);continue;}
+   if(requireHelperSourceSync&&state.PresentationOwner!=null)
+   {
+    // 已登记业务表现可在两帧内正常播放/回池/换图；仅本轮借用状态必须已归还。
+    Need((r.renderingLayerMask&RoomPositiveRenderingLayers.ReservedMask)==0,"动态业务表现仍保留临时渲染位："+state.Name+" #"+state.Id);
+    var currentMaterials=r.sharedMaterials;
+    foreach(var material in currentMaterials)Need(material==null||!ownedIds.Contains(material.GetInstanceID()),"动态业务表现仍借用已释放后端材质："+state.Name+" #"+state.Id);
+    for(int i=-1;i<currentMaterials.Length;i++)Need(!HasClipMetadata(r,i),"动态业务表现仍保留临时clip数据："+state.Name+" #"+state.Id+"/"+i);
+    continue;
+   }
+   Need(modesSame,"原Renderer开关/阴影/层未还原："+r.name+" #"+r.GetInstanceID()+
+    " enabled "+state.Enabled+"→"+r.enabled+" off "+state.Off+"→"+r.forceRenderingOff+" shadow "+state.Shadow+"→"+r.shadowCastingMode+" layer "+state.Layer+"→"+r.renderingLayerMask);
+   var mats=r.sharedMaterials;Need(mats.Length==state.Materials.Length,"原材质槽数量变更："+r.name);
+   Need(SameValues(state.Global,ReadBlock(r,-1),state),"原Renderer级脚点/深度参数变更："+r.name);
+   for(int i=0;i<mats.Length;i++)
+   {
+    Need(ReferenceEquals(mats[i],state.Materials[i]),"原材质引用未还原："+r.name+"/"+i);
+    Need(SameValues(state.Slots[i],ReadBlock(r,i),state)&&SameValues(state.MaterialValues[i],ReadMaterial(mats[i]),state),"原槽/材质脚点参数未还原："+r.name+"/"+i);
+    if(state.Registered)Need(!HasClipMetadata(r,i),"登记槽仍保留临时clip数据："+r.name);
+   }
+   if(state.Registered)Need(!HasClipMetadata(r,-1),"登记源仍保留临时clip数据："+r.name);
+  }
+  rendererRestored=true;
+ }
+ public void Execute(ExecutionContext ctx)
+ {
+  Need(!running,"已有实际后端生命周期探针，禁止重复启动");
+  var scene=SceneManager.GetActiveScene();Need(Application.isPlaying&&scene.path==ScenePath,"仅当前同一Lab的Play允许此验证");
+  Need(AssetDatabase.AssetPathToGUID(ScenePath)=="06c38225927c1824b886f59fc011a473","Lab GUID不匹配");
+  var all=scene.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<MonoBehaviour>(true)).Where(v=>v!=null).ToArray();
+  var store=all.OfType<CommerceService>().Single();Need(store.profileId=="kt-vis06-natural-01"&&store.mapId=="kt-vis04-room-lab"&&
+   !string.IsNullOrWhiteSpace(store.saveDirectory)&&string.Equals(System.IO.Path.GetFullPath(store.saveDirectory).TrimEnd('/','\\'),System.IO.Path.GetFullPath(SaveDirectory).TrimEnd('/','\\'),StringComparison.OrdinalIgnoreCase),"不是隔离档真实host");
+  root=all.OfType<SceneVisibilityRoot>().Single();module=root.roomModule;main=root.gameplayCamera;
+  Need(root.enabled&&module!=null&&module.enabled&&module.IsReady&&module.positiveRenderingEnabled&&!module.truthMode&&main!=null&&main.enabled,"需要实际final后端已运行且唯一原相机可继续绘制");
+  Need(root.coordinator.Current!=null&&root.coordinator.Current.IsAlive,"需要真实存活Current");
+  originalRootEnabled=root.enabled;actorId=root.coordinator.Current.ActorId;mainId=main.GetInstanceID();rootId=root.GetInstanceID();moduleId=module.GetInstanceID();
+  stage=settled=0;disabledRoot=false;registryRemoved=featureRemoved=rendererRestored=cacheZero=false;
+  owned.Clear();ownedIds.Clear();rendererStates.Clear();stateDifferences.Clear();recordedDynamicDeaths.Clear();rootCaptureRenderers.Clear();rootCapture=null;rootCaptureRemaining=0;helperCount=excludedUnrelated=dynamicOwnerCount=dynamicDestroyedCount=0;mainEndSerial=processedEndSerial=0;pass=scope=buckets=null;feature=null;positiveEntries=null;disposedStats=null;
+  textures=materials=blocks=bucketCount=remainingAtRelease=registeredCount=rendererCount=0;
+  running=true;deadline=EditorApplication.timeSinceStartup+20;
+  Result=new{version=ContractVersion,status="running",stage="await-real-main-end",mainCamera=mainId,root=rootId,module=moduleId,scene=ScenePath};
+  RenderPipelineManager.endCameraRendering+=OnEnd;RenderPipelineManager.endFrameRendering+=OnFrameEnd;EditorApplication.update+=Watchdog;EditorApplication.playModeStateChanged+=OnPlayMode;ctx.ReturnValue=Result;
+ }
+ static void OnEnd(ScriptableRenderContext context,Camera camera)
+ {if(running&&camera==main)mainEndSerial++;}
+ // endFrame严格晚于所有endCamera订阅者；不能依赖本探针在CharacterDepth之后订阅的偶然顺序。
+ static void OnFrameEnd(ScriptableRenderContext context,Camera[] cameras)
+ {
+  if(!running||mainEndSerial==processedEndSerial)return;
+  processedEndSerial=mainEndSerial;
+  try
+  {
+   Need(Application.isPlaying&&root!=null&&module!=null&&main!=null&&SceneManager.GetActiveScene().path==ScenePath,"生命周期期间上下文改变");
+   Need(root.coordinator.Current!=null&&root.coordinator.Current.ActorId==actorId,"原Current改变；探针不接管切控");
+   if(stage==0)
+   {
+    Need(module.SuppressedRendererCount==0,"必须在实际原Root End已归还作用域后取样");
+    Need(RoomMaskCameraRegistry.TryGet(main,out var frame)&&frame.Enabled&&frame.PositiveRenderingEnabled&&!frame.TruthMode,"缺少真实final帧");
+    Need(RoomMaskCameraRegistry.TryGetStatistics(main,out var statistics)&&statistics.Active&&string.IsNullOrEmpty(statistics.Error),"实际final Feature尚未完成干净绘制");
+    foreach(var candidate in Resources.FindObjectsOfTypeAll<RoomMaskRendererFeature>())
+    {
+     var dictionary=(IDictionary)typeof(RoomMaskRendererFeature).GetField("positiveCameras",F).GetValue(candidate);
+     if(dictionary!=null&&dictionary.Contains(mainId)){Need(feature==null,"实际相机有多个positive Feature owner");feature=candidate;positiveEntries=dictionary;}
+    }
+    Need(feature!=null&&positiveEntries!=null,"找不到实际main的positive资源条目");pass=positiveEntries[mainId];
+    disposedStats=(RoomMaskStatistics)Field(pass,"Statistics");scope=Field(pass,"propertyScope");buckets=Field(pass,"materialBuckets");
+    Need(PropertyCount(buckets,"RetainedConflictCount")==0,"已有外部材质借用冲突，不能代签无残留");
+    foreach(string name in new[]{"previewCoverage","previewDepth","labelPermission"}){var handle=Field(pass,name) as RTHandle;if(handle!=null&&handle.rt!=null)Hold(handle.rt);}
+    foreach(object value in ((IDictionary)Field(pass,"materials")).Values)Hold(value as Material);
+    foreach(object bucket in ((IDictionary)Field(buckets,"cache")).Values){Hold(Field(bucket,"Clone") as Material);Hold(Field(bucket,"Adapter") as Material);}
+    textures=owned.Count(v=>v is RenderTexture);materials=owned.Count(v=>v is Material);blocks=PropertyCount(scope,"BlockCount");bucketCount=statistics.SourceMaterialBucketCount;
+    Need(textures>0&&materials>0&&blocks>0&&bucketCount>0,"没有实际分配，不能以空样本证明资源释放");
+    Need(textures==statistics.OwnedTextureCount&&materials==statistics.OwnedMaterialCount,"具体对象与实际Feature资源计数不一致");
+    fogBuffer=Field(Field(pass,"fogHistory"),"buffer") as ComputeBuffer;fogBufferReleased=false;
+    Need(fogBuffer!=null&&fogBuffer.IsValid()&&statistics.OwnedBufferCount==1&&statistics.EstimatedBufferBytes==56064,"实际fog有界Buffer未分配");
+    CaptureRenderers(frame);
+    // 走原Root的OnDisable→Release，并显式再调用原Module.Release验证幂等；原Camera及组件始终存活。
+    disabledRoot=true;root.enabled=false;module.Release(root);
+    registryRemoved=!RegistryEntries().Contains(mainId)&&!RoomMaskCameraRegistry.TryGet(main,out _);
+    featureRemoved=!positiveEntries.Contains(mainId);Need(registryRemoved&&featureRemoved,"实际main的Registry/Feature资源条目未撤销");
+    fogBufferReleased=!fogBuffer.IsValid();Need(fogBufferReleased&&disposedStats.OwnedBufferCount==0&&disposedStats.EstimatedBufferBytes==0,"实际fog Buffer未立即释放");
+    AssertRendererRestoration(false);stage=1;settled=0;
+    Result=new{version=ContractVersion,status="running",stage="release-wait-two-real-main-frames",mainCamera=mainId,textures,materials,blocks,bucketCount};return;
+   }
+   if(stage==1)
+   {
+    if(++settled<2)return;
+    remainingAtRelease=owned.Count(v=>v!=null);
+    Need(remainingAtRelease==0,"两次原main End之后仍有具体自有RT/Material对象："+remainingAtRelease);
+    cacheZero=PropertyCount(scope,"BlockCount")==0&&PropertyCount(buckets,"OwnedMaterialCount")==0&&disposedStats.OwnedTextureCount==0&&
+     disposedStats.OwnedMaterialCount==0&&disposedStats.OwnedPropertyBlockCount==0&&disposedStats.SourceMaterialBucketCount==0;
+    Need(cacheZero,"旧实际Pass的RT/材质/MPB缓存计数未归零");AssertRendererRestoration(true);
+    rootCaptureRemaining=rootCaptureRenderers.Count(v=>v.R!=null);
+    foreach(var state in rootCaptureRenderers)stateDifferences.Add(new{phase="after-two-main-ends",rootOwnedLifecycle=true,renderer=state.Id,name=state.Name,alive=state.R!=null});
+    Need(rootCaptureRemaining==0,"原Root.capture精确自有代理在Release两帧后仍存活："+rootCaptureRemaining);
+    Need(root.gameplayCamera==main&&main.GetInstanceID()==mainId&&root.roomModule==module,"原Camera/Module引用被改变");
+    root.enabled=originalRootEnabled;disabledRoot=false;Need(module.IsReady,"原Root重新启用未实际Initialize原Module");stage=2;
+    Result=new{version=ContractVersion,status="running",stage="await-restored-real-final-frame",remainingAtRelease,cacheZero,settledMainFrames=settled};return;
+   }
+   Need(RoomMaskCameraRegistry.TryGet(main,out var restoredFrame)&&restoredFrame.Enabled&&restoredFrame.PositiveRenderingEnabled&&!restoredFrame.TruthMode,"重接后实际final帧未恢复");
+   Need(RoomMaskCameraRegistry.TryGetStatistics(main,out var restoredStats)&&restoredStats.Active&&string.IsNullOrEmpty(restoredStats.Error),"重接后实际Feature出错/未绘制："+(restoredStats==null?"no stats":restoredStats.Error));
+   Need(restoredStats.OwnedTextureCount>0&&restoredStats.OwnedMaterialCount>0&&restoredStats.OwnedBufferCount==1&&restoredStats.EstimatedBufferBytes==56064,"重接后的实际后端没有恢复真实资源");
+   Need(root.GetInstanceID()==rootId&&module.GetInstanceID()==moduleId&&root.gameplayCamera==main&&main.GetInstanceID()==mainId,"重接必须保持原对象身份");
+   Finish(true,null,true,restoredStats.OwnedTextureCount,restoredStats.OwnedMaterialCount);
+  }
+  catch(Exception error){Finish(false,error.ToString(),true,0,0);}
+ }
+ static void Watchdog(){if(running&&EditorApplication.timeSinceStartup>deadline)Finish(false,"等待实际主相机生命周期超时；不是通过",true,0,0);}
+ static void OnPlayMode(PlayModeStateChange change){if(running&&change==PlayModeStateChange.ExitingPlayMode)Finish(false,"Play提前结束",false,0,0);}
+ static void Finish(bool passed,string error,bool restore,int restoredTextures,int restoredMaterials)
+ {
+  running=false;RenderPipelineManager.endCameraRendering-=OnEnd;RenderPipelineManager.endFrameRendering-=OnFrameEnd;EditorApplication.update-=Watchdog;EditorApplication.playModeStateChanged-=OnPlayMode;
+  if(restore&&disabledRoot&&root!=null&&Application.isPlaying&&root.gameObject.scene.path==ScenePath)
+  {try{root.enabled=originalRootEnabled;disabledRoot=false;}catch(Exception cleanup){passed=false;error=(error??"")+" cleanup:"+cleanup;}}
+  int remainingNow=owned.Count(v=>v!=null);bool originalObjectsAlive=root!=null&&module!=null&&main!=null&&root.GetInstanceID()==rootId&&module.GetInstanceID()==moduleId&&main.GetInstanceID()==mainId;
+  Result=new{version=ContractVersion,status="completed",passed,stage,scene=ScenePath,profile="kt-vis06-natural-01",mainCamera=mainId,root=rootId,module=moduleId,
+   originalObjectsAlive,fogBufferReleased,allocatedFogBytes=56064,allocatedTextures=textures,allocatedMaterials=materials,allocatedPropertyBlocks=blocks,allocatedSourceBuckets=bucketCount,
+   stableSourceRestored=rendererRestored,dynamicBusinessLifetimePolicy="captured registry owner; exact immediate restore, no borrowed state after two frames",
+   registeredSources=registeredCount,snapshottedRenderers=rendererCount,characterDepthOwnedHelpers=helperCount,excludedUnrelatedRenderers=excludedUnrelated,dynamicOwnersCaptured=dynamicOwnerCount,dynamicBusinessRenderersDestroyed=dynamicDestroyedCount,rootCaptureOwnedRenderers=rootCaptureRenderers.Count,rootCaptureOwnedRemainingAfterTwoFrames=rootCaptureRemaining,captureAfterAllCameraCallbacks=true,stateDifferences=stateDifferences.ToArray(),registryRemoved,featureRemoved,rendererRestored,cacheZero,
+   concreteOwnedRemainingAtRelease=remainingAtRelease,concreteOwnedRemainingNow=remainingNow,settledMainFrames=settled,
+   restoredTextures,restoredMaterials,reinitialized=passed,rootEnabled=root!=null&&root.enabled,error};
+  owned.Clear();ownedIds.Clear();rendererStates.Clear();stateDifferences.Clear();recordedDynamicDeaths.Clear();rootCaptureRenderers.Clear();rootCapture=null;scratch.Clear();root=null;module=null;main=null;feature=null;pass=scope=buckets=null;positiveEntries=null;disposedStats=null;
+ }
+}

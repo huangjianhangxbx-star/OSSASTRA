@@ -1,0 +1,139 @@
+/* 功能：在真实主相机endFrame只读取同一Lab的06合同快照；不将快照冒称整轮验收通过。
+ * 边界：不进入Play、不移动角色/镜头/挡板、不切Current、不调用Begin/End/Release、不写资产或存档。
+ * 生命周期：只订阅一次真实endFrame及有界超时；成功、异常、退出Play均精确撤销自己的订阅。
+ * 运行：由唯一Unity writer在精确06 Play上下文执行；ReturnValue先返回running，后另次读取静态Result。
+ */
+using System;
+using System.Linq;
+using System.Reflection;
+using System.Collections.Generic;
+using System.IO;
+using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.SceneManagement;
+using UnityEditor;
+using Funplay.Editor.Tools.Scripting;
+using Ossastra.SceneVisibility;
+using Ossastra.SceneVisibility.Rooms;
+using Ossastra.SceneVisibility.Rooms.Rendering;
+using Ossastra.Commerce.Runtime;
+
+public sealed class VerifyContracts06 : IFunplayCommand
+{
+    const string ScenePath = "Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity";
+    const string SceneGuid = "06c38225927c1824b886f59fc011a473";
+    const string Profile = "kt-vis06-natural-01";
+    const string SaveDirectory = "E:/WORLDCREATOR/XingHaiHuiLang/研究/可见性修复/KT-VIS-06/profiles";
+    const BindingFlags Fields = BindingFlags.Instance | BindingFlags.Public;
+    static readonly string[] RequiredFrameFields = { "WindowSightDomains", "CameraObserverPosition", "CameraOpaqueBlockers", "Fog", "VisibilityEpoch", "PresentationTime" };
+    static SceneVisibilityRoot root;
+    static RoomVisibilityModule module;
+    static Camera main;
+    static bool running;
+    static double deadline;
+    public static object Result;
+
+    static void Need(bool value, string error) { if (!value) throw new InvalidOperationException(error); }
+    static string NormalPath(string value) { return Path.GetFullPath(value).TrimEnd('/', '\\'); }
+    static object Scalar(object value)
+    {
+        if (value == null) return null;
+        var type = value.GetType();
+        if (type.IsPrimitive || type.IsEnum || value is decimal || value is string) return value.ToString();
+        if (value is Vector3 v) return new { x = v.x, y = v.y, z = v.z };
+        if (value is Color c) return new { r = c.r, g = c.g, b = c.b, a = c.a };
+        if (value is Array array) return new { count = array.Length, elementType = type.GetElementType().FullName };
+        if (value is UnityEngine.Object unity) return new { name = unity == null ? null : unity.name, id = unity == null ? 0 : unity.GetInstanceID() };
+        return new { type = type.FullName };
+    }
+    static object PublicFields(object value)
+    {
+        return value == null ? null : value.GetType().GetFields(Fields).Select(f => new { name = f.Name, value = Scalar(f.GetValue(value)) }).ToArray();
+    }
+    public void Execute(ExecutionContext ctx)
+    {
+        Need(!running, "06 snapshot already running");
+        var scene = SceneManager.GetActiveScene();
+        Need(Application.isPlaying && !EditorApplication.isCompiling && !EditorApplication.isUpdating && Enumerable.Range(0,SceneManager.sceneCount).Count(i=>!string.IsNullOrEmpty(SceneManager.GetSceneAt(i).path)) == 1 && scene.path == ScenePath, "Exact ready Lab Play required");
+        Need(AssetDatabase.AssetPathToGUID(scene.path) == SceneGuid, "Exact Lab GUID required");
+        Need(string.Equals(NormalPath(Application.dataPath), NormalPath("E:/WORLDCREATOR/new/Project_ANKALUTE/Assets"), StringComparison.OrdinalIgnoreCase), "Wrong project");
+        var all = scene.GetRootGameObjects().SelectMany(g => g.GetComponentsInChildren<MonoBehaviour>(true)).Where(v => v != null).ToArray();
+        var commerce = all.OfType<CommerceService>().Single();
+        Need(commerce.profileId == Profile && commerce.mapId == "kt-vis04-room-lab" && !string.IsNullOrWhiteSpace(commerce.saveDirectory) && string.Equals(NormalPath(commerce.saveDirectory), NormalPath(SaveDirectory), StringComparison.OrdinalIgnoreCase), "Exact06 profile/map/directory required; do not run on05 or default saves");
+        root = all.OfType<SceneVisibilityRoot>().Single(); module = root.roomModule; main = root.gameplayCamera;
+        Need(root.isActiveAndEnabled && module != null && module.IsReady && module.positiveRenderingEnabled && !module.truthMode && main != null && main.enabled, "Actual final positive backend required");
+        Need(root.coordinator != null && root.coordinator.Current != null && root.coordinator.Current.IsAlive, "Real alive Current required");
+        running = true; deadline = EditorApplication.timeSinceStartup + 6;
+        Result = new { status = "running", fullAcceptanceExecuted = false, scene = scene.path, profile = Profile, note = "Awaiting one actual main-camera endFrame; this is a read-only snapshot" };
+        RenderPipelineManager.endFrameRendering += EndFrame;
+        EditorApplication.update += Watchdog;
+        EditorApplication.playModeStateChanged += PlayChanged;
+        ctx.ReturnValue = Result;
+    }
+    static void EndFrame(ScriptableRenderContext context, Camera[] cameras)
+    {
+        if (!running || main == null || !cameras.Contains(main)) return;
+        try
+        {
+            Need(Application.isPlaying && root != null && module != null && SceneManager.GetActiveScene().path == ScenePath, "Snapshot context changed");
+            Need(RoomMaskCameraRegistry.TryGet(main, out var frame) && frame != null && frame.Enabled && frame.PositiveRenderingEnabled && !frame.TruthMode, "No actual final frame");
+            Need(RoomMaskCameraRegistry.TryGetStatistics(main, out var stats) && stats != null && stats.Active, "No actual completed positive draw");
+            var missing = RequiredFrameFields.Where(n => frame.GetType().GetField(n, Fields) == null).ToArray();
+            var staticField = typeof(RoomPositiveSurface).GetField("StaticEnvironment", Fields);
+            var fogField = frame.GetType().GetField("Fog", Fields);
+            var surfaces = frame.PositiveSurfaces ?? new RoomPositiveSurface[0];
+            var entries = new List<RoomPresentationRegistry.Entry>(); RoomPresentationRegistry.Append(entries);
+            var registry = new HashSet<Renderer>(entries.Where(e => e.Renderer != null).Select(e => e.Renderer));
+            var surfaceRows = surfaces.Where(s => s.Renderer != null).Select(s => new
+            {
+                id = s.Renderer.GetInstanceID(), name = s.Renderer.name, kind = s.Kind.ToString(),
+                staticEnvironment = staticField == null ? (bool?)null : (bool)staticField.GetValue(s),
+                independent = RoomPositiveRenderingLayers.RequiresIndependentDraw(s), registeredPresentation = registry.Contains(s.Renderer),
+                businessPresentation = registry.Contains(s.Renderer) || s.Renderer.GetComponentInParent<Ossastra.Characters.CharacterRoot>() != null ||
+                    s.Renderer.GetComponentInParent<Ossastra.Enemies.EnemyRoot>() != null || s.Renderer.GetComponentInParent<Ossastra.WorldProps.WorldPropView>() != null,
+                enabled = s.Renderer.enabled, off = s.Renderer.forceRenderingOff,
+                renderingMask = s.Renderer.renderingLayerMask,
+                materials = s.Renderer.sharedMaterials.Select(m => new { id = m == null ? 0 : m.GetInstanceID(), alive = m != null && m.shader != null }).ToArray()
+            }).ToArray();
+            var staticConflicts = surfaceRows.Where(s => s.staticEnvironment == true && s.businessPresentation).ToArray();
+            var portals = module.buildings.Where(b => b != null).SelectMany(b => b.portals).Where(p => p != null).Select(p => new
+            {
+                id = p.portalId, from = p.inside == null ? "Exterior" : p.inside.roomId, to = p.outside == null ? "Exterior" : p.outside.roomId,
+                p.open, p.canSeeThrough, p.observerRange, p.maxSightDistance,
+                normal = Scalar(p.OutwardNormal), aperture = p.GetWorldAperture().Select(v => Scalar(v)).ToArray()
+            }).ToArray();
+            Finish(new
+            {
+                status = "snapshot-only", fullAcceptanceExecuted = false,
+                scene = ScenePath, profile = Profile, frame = Time.frameCount, realtime = Time.realtimeSinceStartupAsDouble,
+                current = root.coordinator.Current.ActorId, room = module.ActiveRoom == null ? null : module.ActiveRoom.roomId,
+                camera = main.GetInstanceID(), pitch = main.transform.eulerAngles.x,
+                module.localObjectRevealEnabled, module.SuppressedRendererCount,
+                interfacePresent = missing.Length == 0 && staticField != null, missingFrameFields = missing, hasStaticField = staticField != null,
+                frameFields = PublicFields(frame), fogFields = fogField == null ? null : PublicFields(fogField.GetValue(frame)),
+                moduleFields = PublicFields(module), stats = PublicFields(stats), portals, sources = surfaceRows,
+                staticWhitelistConflicts = staticConflicts,
+                note = "N00 diagnostic snapshot only; dynamic policy/window pixels/timing/topology/lighting/resource release remain separate Native assertions. IndependentDraw is diagnostic and never used to infer static eligibility."
+            });
+        }
+        catch (Exception error) { Finish(new { status = "failed", fullAcceptanceExecuted = false, error = error.ToString() }); }
+    }
+    static void Watchdog()
+    {
+        if (running && (!Application.isPlaying || EditorApplication.timeSinceStartup > deadline))
+            Finish(new { status = "failed", fullAcceptanceExecuted = false, error = "No actual main-camera endFrame before deadline/context exit" });
+    }
+    static void PlayChanged(PlayModeStateChange change)
+    {
+        if (running && change == PlayModeStateChange.ExitingPlayMode)
+            Finish(new { status = "failed", fullAcceptanceExecuted = false, error = "Play exited before snapshot" });
+    }
+    static void Finish(object result)
+    {
+        running = false;
+        RenderPipelineManager.endFrameRendering -= EndFrame;
+        EditorApplication.update -= Watchdog;
+        EditorApplication.playModeStateChanged -= PlayChanged;
+        Result = result; root = null; module = null; main = null;
+    }
+}

@@ -1,0 +1,2 @@
+using System.Linq;using UnityEngine.SceneManagement;using UnityEditor.SceneManagement;using Funplay.Editor.Tools.Scripting;
+public class SceneInventory06:IFunplayCommand{public void Execute(ExecutionContext c){c.ReturnValue=Enumerable.Range(0,SceneManager.sceneCount).Select(i=>{var s=SceneManager.GetSceneAt(i);return new{s.name,s.path,s.handle,s.isLoaded,s.isDirty,preview=EditorSceneManager.IsPreviewScene(s),roots=s.GetRootGameObjects().Select(g=>g.name).ToArray()};}).ToArray();}}

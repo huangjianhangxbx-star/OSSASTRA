@@ -23,10 +23,13 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
         readonly List<IndependentItem> independentItems = new List<IndependentItem>(32);
         struct IndependentItem { internal RoomPositiveSurface Surface; internal Material Source; internal int Slot, Queue, Layer, Order; internal float Distance; }
         readonly Matrix4x4[] seedMatrices = new Matrix4x4[8], buildingMatrices = new Matrix4x4[32],
-            targetMatrices = new Matrix4x4[64], blockerMatrices = new Matrix4x4[64], ownerMatrices = new Matrix4x4[8];
+            targetMatrices = new Matrix4x4[64], blockerMatrices = new Matrix4x4[64], ownerMatrices = new Matrix4x4[8], cameraBlockerMatrices = new Matrix4x4[64];
         readonly Vector4[] seedExtents = new Vector4[8], buildingExtents = new Vector4[32],
             targetExtents = new Vector4[64], blockerExtents = new Vector4[64], planes = new Vector4[80],
-            meta = new Vector4[8], exterior = new Vector4[8], ownerExtents = new Vector4[8];
+            meta = new Vector4[8], exterior = new Vector4[8], ownerExtents = new Vector4[8], cameraBlockerExtents = new Vector4[64],
+            windowPlanes = new Vector4[80], windowMeta = new Vector4[8];
+        readonly RoomFogWorldHistory fogHistory = new RoomFogWorldHistory();
+        double presentationTime;
         RoomMaskFrame frame;
         RoomMaskRendererFeature feature;
         Shader truthShader;
@@ -84,6 +87,8 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
             try
             {
                 if (!Validate(out string error)) { preparationError = error; return; }
+                presentationTime = next.PresentationTime >= 0 ? next.PresentationTime : Time.unscaledTimeAsDouble;
+                fogHistory.Update(next, presentationTime);
                 if (!next.TruthMode)
                 {
                     // 原Shader克隆只借用独立队列，不改变其Caster；真正颜色随后用独立Sight材质与URP PerObjectData绘制。
@@ -126,6 +131,7 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
             Statistics.RetainedMaterialConflicts = materialBuckets.RetainedConflictCount;
             Statistics.OwnedMaterialCount = materials.Count + materialBuckets.OwnedMaterialCount;
             Statistics.OwnedPropertyBlockCount = propertyScope.BlockCount;
+            Statistics.OwnedBufferCount = fogHistory.Buffer == null ? 0 : 1; Statistics.EstimatedBufferBytes = fogHistory.Bytes;
             Statistics.OwnedTextureCount = Statistics.OwnedMeshCount = 0;
             Statistics.EstimatedTextureBytes = 0;
             previewEnabled = ready && frame.ExteriorView && frame.PreviewRoofSurfaces != null && frame.PreviewRoofSurfaces.Length > 0;
@@ -178,7 +184,8 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
             { error = "缺少可运行PositiveTruth Shader显式引用。"; return false; }
             if (!CopyVolumes(frame.SeedVolumes, seedMatrices, seedExtents) ||
                 !CopyVolumes(frame.BuildingVolumes, buildingMatrices, buildingExtents) ||
-                !CopyVolumes(frame.OpaqueBlockers, blockerMatrices, blockerExtents))
+                !CopyVolumes(frame.OpaqueBlockers, blockerMatrices, blockerExtents) ||
+                !CopyVolumes(frame.CameraOpaqueBlockers, cameraBlockerMatrices, cameraBlockerExtents))
             { error = "种子/建筑/不透明阻挡盒无效或超出8/32/64预算。"; return false; }
             var domains = frame.SightDomains;
             if (domains == null || domains.Length > 8)
@@ -196,7 +203,7 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
                     Vector4 plane = domain.Planes[p];
                     if (!Finite(plane) || new Vector3(plane.x, plane.y, plane.z).sqrMagnitude < .000001f)
                     { error = "门户平面非法；拒绝渲染。"; return false; }
-                    planes[planeOffset + p] = plane;
+                    planes[planeOffset + p] = plane / new Vector3(plane.x, plane.y, plane.z).magnitude;
                 }
                 for (int v = 0; v < domain.TargetVolumes.Length; ++v)
                 {
@@ -209,6 +216,30 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
                 exterior[i] = new Vector4(domain.TargetExterior ? 1 : 0, 0, 0, 0);
                 planeOffset += domain.Planes.Length; targetOffset += domain.TargetVolumes.Length;
             }
+            if (frame.WindowSightDomains == null || frame.WindowSightDomains.Length > 8 || !Finite(frame.CameraObserverPosition))
+            { error = "相机窗景超过8个或观察点无效。"; return false; }
+            int windowOffset = 0;
+            for (int i=0;i<frame.WindowSightDomains.Length;++i)
+            {
+                var domain=frame.WindowSightDomains[i];
+                if(domain==null||!domain.IsCameraWindow||!domain.TargetExterior||domain.Planes==null||domain.Planes.Length<4||domain.Planes.Length>10||
+                    domain.TargetVolumes==null||domain.TargetVolumes.Length!=0)
+                { error="相机窗景只接受4—10平面且目标仅室外的明确窗孔。";return false; }
+                for(int p=0;p<domain.Planes.Length;++p)
+                {
+                    var plane=domain.Planes[p];float length=new Vector3(plane.x,plane.y,plane.z).magnitude;
+                    if(!Finite(plane)||length<.000001f){error="相机窗孔平面无效。";return false;}
+                    windowPlanes[windowOffset+p]=plane/length;
+                }
+                windowMeta[i]=new Vector4(windowOffset,domain.Planes.Length,0,0);windowOffset+=domain.Planes.Length;
+            }
+            var fog=frame.Fog;
+            if(fog!=null&&fog.Enabled&&(!Finite(new Vector4(fog.InitialVisibility,fog.GainSeconds,fog.LossSeconds,fog.SpreadSeconds))||
+               !Finite(new Vector4(fog.SpreadRadius,fog.InwardFeather,fog.DitherCellSize,fog.DitherStrength))||
+               fog.InitialVisibility<0||fog.InitialVisibility>1||fog.GainSeconds<=0||fog.GainSeconds>.5f||fog.LossSeconds<=0||fog.LossSeconds>.35f||
+               fog.SpreadSeconds<0||fog.SpreadSeconds>=Mathf.Min(fog.GainSeconds,fog.LossSeconds)||fog.SpreadRadius<=0||fog.InwardFeather<0||
+               fog.DitherCellSize<=0||fog.DitherStrength<0||fog.DitherStrength>1))
+            {error="黑幕时序/柔边配置非法或超出四快照的0.5秒预算。";return false;}
             if (frame.PositiveSurfaces == null || frame.PositiveSurfaces.Length > 4096)
             { error = "显式表面列表为空或超过4096预算。"; return false; }
             foreach (var surface in frame.PositiveSurfaces)
@@ -279,6 +310,21 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
             cmd.SetGlobalMatrix("_RoomSightInverseViewProjection", (renderingData.cameraData.GetGPUProjectionMatrix() * renderingData.cameraData.GetViewMatrix()).inverse);
             cmd.SetGlobalVector("_RoomSightTargetSize", new Vector4(Statistics.Width, Statistics.Height, 1f / Statistics.Width, 1f / Statistics.Height));
             cmd.SetGlobalVector("_RoomSightObserver", frame.ObserverPosition);
+            cmd.SetGlobalVector("_RoomSightCameraObserver", frame.CameraObserverPosition);
+            cmd.SetGlobalInteger("_RoomSightCameraBlockerCount", frame.CameraOpaqueBlockers.Length);
+            cmd.SetGlobalMatrixArray("_RoomSightCameraBlockerMatrices", cameraBlockerMatrices);
+            cmd.SetGlobalVectorArray("_RoomSightCameraBlockerExtents", cameraBlockerExtents);
+            cmd.SetGlobalInteger("_RoomSightWindowCount", frame.WindowSightDomains.Length);
+            cmd.SetGlobalVectorArray("_RoomSightWindowPlanes", windowPlanes);cmd.SetGlobalVectorArray("_RoomSightWindowMeta", windowMeta);
+            cmd.SetGlobalInteger("_RoomSightPassMode", 0);
+            var fog=frame.Fog??new RoomFogSettings{Enabled=false};
+            cmd.SetGlobalVector("_RoomFogTiming",new Vector4(fog.InitialVisibility,fog.GainSeconds,fog.LossSeconds,fog.SpreadSeconds));
+            cmd.SetGlobalVector("_RoomFogStyle",new Vector4(fog.Enabled?1:0,fog.InwardFeather,fog.SpreadRadius,0));
+            cmd.SetGlobalVector("_RoomFogDither",new Vector4(fog.DitherEnabled?1:0,fog.DitherCellSize,fog.DitherStrength,0));
+            cmd.SetGlobalColor("_RoomFogColor",fog.Color);
+            cmd.SetGlobalFloat("_RoomFogNow",fogHistory.Time(presentationTime));
+            cmd.SetGlobalInteger("_RoomFogHistoryCount",fogHistory.Count);
+            if(fogHistory.Buffer!=null)cmd.SetGlobalBuffer("_RoomFogHistory",fogHistory.Buffer);
             cmd.SetGlobalInteger("_RoomSightExteriorView", frame.ExteriorView ? 1 : 0);
             cmd.SetGlobalInteger("_RoomSightSeedCount", frame.SeedVolumes.Length);
             cmd.SetGlobalMatrixArray("_RoomSightSeedMatrices", seedMatrices); cmd.SetGlobalVectorArray("_RoomSightSeedExtents", seedExtents);
@@ -325,6 +371,7 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
                     cmd.SetGlobalFloat("_RoomPositiveCoverageMode", 0);
                     if (frame.TruthMode)
                     {
+                        cmd.SetGlobalInteger("_RoomSightPassMode", 2);
                         foreach (var surface in frame.PositiveSurfaces) DrawTruth(cmd, surface);
                     }
                     else
@@ -333,10 +380,12 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
                         materialBuckets.RefreshAdapters();
                         Statistics.OwnedPropertyBlockCount = propertyScope.BlockCount;
                         cmd.SetGlobalInteger("_RoomSightOwnerCount", 0); cmd.SetGlobalInteger("_RoomSightOwnerExterior", 0);
+                        cmd.SetGlobalInteger("_RoomSightPassMode", 1);
                         context.ExecuteCommandBuffer(cmd); cmd.Clear();
                         DrawFinalWorld(context, cmd, ref renderingData);
                         // 标签许可只消费刚刚重建的合法世界深度，绝不复用旧世界遮挡。
                         CoreUtils.SetRenderTarget(cmd, labelPermission, renderer.cameraDepthTargetHandle, ClearFlag.Color, Color.black);
+                        cmd.SetGlobalInteger("_RoomSightPassMode", 0);
                         cmd.SetGlobalFloat("_RoomPositivePermissionMode", 1);
                         foreach (var surface in frame.PositiveSurfaces) DrawTruth(cmd, surface, true);
                         if (labelPermission.rt.antiAliasing > 1) cmd.ResolveAntiAliasedSurface(labelPermission.rt);
@@ -437,6 +486,7 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
             int count = surface.OwnerVolumes == null ? 0 : surface.OwnerVolumes.Length;
             cmd.SetGlobalInteger("_RoomSightOwnerCount", count);
             cmd.SetGlobalInteger("_RoomSightOwnerExterior", surface.OwnerExterior ? 1 : 0);
+            cmd.SetGlobalFloat("_RoomSightStaticEnvironment",surface.StaticEnvironment?1:0);
             if (count > 0)
             {
                 CopyVolumes(surface.OwnerVolumes, ownerMatrices, ownerExtents);
@@ -502,7 +552,7 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
         public override void OnCameraCleanup(CommandBuffer cmd)
         {
             CancelPreparedState();
-            if (cmd != null) { cmd.SetGlobalFloat("_RoomPositiveCoverageMode", 0); cmd.SetGlobalFloat("_RoomPositivePermissionMode", 0); }
+            if (cmd != null) { cmd.SetGlobalFloat("_RoomPositiveCoverageMode", 0); cmd.SetGlobalFloat("_RoomPositivePermissionMode", 0);cmd.SetGlobalInteger("_RoomSightPassMode",0); }
         }
 
         void DrawTruth(CommandBuffer cmd, RoomPositiveSurface surface, bool permission = false)
@@ -562,7 +612,7 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
         { if (value != null) { if (Application.isPlaying) Object.Destroy(value); else Object.DestroyImmediate(value); } }
         public void Dispose()
         {
-            CancelPreparedState(); ClearMaterials(); propertyScope.Clear(); materialBuckets.Dispose(); Statistics.OwnedPropertyBlockCount = 0; Statistics.Active = false;
+            CancelPreparedState(); ClearMaterials(); propertyScope.Clear(); materialBuckets.Dispose(); fogHistory.Dispose(); Statistics.OwnedPropertyBlockCount = Statistics.OwnedBufferCount = 0; Statistics.EstimatedBufferBytes = 0; Statistics.Active = false;
             independentItems.Clear(); independentLitGroups.Clear(); slots.Clear(); used.Clear(); stale.Clear();
             Statistics.OwnedMaterialCount = materialBuckets.OwnedMaterialCount;
             Statistics.SourceMaterialBucketCount = 0; Statistics.RetainedMaterialConflicts = materialBuckets.RetainedConflictCount;

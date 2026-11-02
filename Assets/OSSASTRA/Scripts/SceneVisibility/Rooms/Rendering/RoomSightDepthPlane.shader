@@ -45,7 +45,7 @@ Shader "Hidden/Ossastra/Rooms/SightDepthPlane"
     half4 texel=SAMPLE_TEXTURE2D(_MainTex,sampler_MainTex,input.uv);
     if(_PmaInput>.5h)texel.rgb/=max(texel.a,.001h);
     half4 color=texel*input.color;clip(color.a-_Cutoff);
-    O output;output.color=color;output.depth=deviceDepth;return output;
+    O output;output.color=RoomSightFogColor(color,logicalWorld,0);output.depth=deviceDepth;return output;
    }
    ENDHLSL
   }
@@ -78,7 +78,7 @@ Shader "Hidden/Ossastra/Rooms/SightDepthPlane"
     clip(RoomSightPartialContains(RoomSightWorldFromDeviceDepth(input.positionCS.xy,input.positionCS.z))?1:-1);
     half4 texel=SAMPLE_TEXTURE2D(_MainTex,sampler_MainTex,input.uv);
     if(_PmaInput>.5h)texel.rgb/=max(texel.a,.001h);
-    half4 color=texel*input.color;clip(color.a-_Cutoff);return color;
+    half4 color=texel*input.color;clip(color.a-_Cutoff);return RoomSightFogColor(color,RoomSightWorldFromDeviceDepth(input.positionCS.xy,input.positionCS.z),0);
    }
    ENDHLSL
   }

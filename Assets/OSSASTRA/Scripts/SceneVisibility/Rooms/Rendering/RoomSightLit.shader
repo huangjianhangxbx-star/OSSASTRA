@@ -206,6 +206,12 @@ Pass
                     , outRenderingLayers
                 #endif
                 );
+                if (_RoomSightRoofMode < .5)
+                {
+                    // 退场仅保留静态表面原色；不继续显示不可见动态角色的新阴影/实时光照信息。
+                    if(RoomSightIsHistoryOnly(input.positionWS.xyz))outColor.rgb=SAMPLE_TEXTURE2D(_BaseMap,sampler_BaseMap,input.uv).rgb*_BaseColor.rgb;
+                    outColor=RoomSightFogColor(outColor,input.positionWS.xyz,0);
+                }
             }
             ENDHLSL
         }

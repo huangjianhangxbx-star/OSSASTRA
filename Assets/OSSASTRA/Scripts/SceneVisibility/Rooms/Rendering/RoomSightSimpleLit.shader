@@ -165,6 +165,8 @@ Pass
                     , outRenderingLayers
                 #endif
                 );
+                if(RoomSightIsHistoryOnly(input.positionWS.xyz))outColor.rgb=SAMPLE_TEXTURE2D(_BaseMap,sampler_BaseMap,input.uv).rgb*_BaseColor.rgb;
+                outColor=RoomSightFogColor(outColor,input.positionWS.xyz,0);
             }
             ENDHLSL
         }
