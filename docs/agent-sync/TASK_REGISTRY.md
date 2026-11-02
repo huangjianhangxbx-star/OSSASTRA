@@ -1080,3 +1080,11 @@ kt-vis-04 root追加自有Development/SceneVisibility/RoomVisibilityLabPanel.cs�
 2026-11-02 kt-vis-04 technical-complete/docs-writer：同一任务v1.1核心接入与B级模块验证/模板/教程已完成；Unity与所有源码租约释放，所有并行者停止写入；只保留本任务文档与GitHub定向发布回执。范围/真实结果/未测边界见任务记录及验证与交付.md，不冒签完整人工矩阵。原场/档/dirty保护，35°最新值不变；最后只读为本Lab Play，保留运行现场，无电源动作。
 
 2026-11-02 kt-vis-04 complete/read-only：产品 4c2ac6653022716aed69f741d5c4ca1cbb1c0061 已GitHub main精确核SHA；87自有代码/检查/文档，全部Unity/源码/文档/发布租约释放。场/模板/Map/SO/媒体/原档仅本机；234/37保护一致，35°与原dirty保持。最新只读为本Lab Play，保留现场；有限验收/未测边界见交付报告，无后续自动任务或电源动作。
+
+## KT-VIS-04 接续 KT-VIS-05 v1.1（2026-11-02）
+
+active/unity-writer=root：同一建筑任务/同一Lab增量，user授权v1.0及双向窗洞v1.1。冻结旧Discovery双幕主链扩展；当前45°。独占Rooms/Core/Runtime/Rendering/Editor、SceneVisibilityRoot与RoomLabPanel必要接线、UI世界表现注册seam及已知shader最小适配、新KT-VIS-05候选/文档、当前Lab自有墙段/门板/Renderer配置。源场/原Map/旧档/既有dirty保护。只有root操作Unity/Git，子代理只在随后明确互斥代码子目录写入。先Core/真值单窗双向M1，再最终表现；不改原角色/地图/物理/业务根、不改共享Q/E、不每窗相机，局部主动透视默认关。详见当前任务记录新增阶段。
+
+2026-11-02 KT-VIS-05 同任务动态表现源码子租约：portal_core仅负责RoomPresentationRegistry/RoomVisibilitySight+表现登记叶、CombatFeedbackView/CombatDeliveryQueue/CombatIceWorld/CharacterOffhand/CharacterEquipmentSpineView/EnemyAttackWarning/WorldPropView最小表现登记接缝；positive_render独占Rendering/Shader；root唯一Unity/Git。不改既有dirty CharacterEquipmentView、不改业务与源资产。FX强制片元许可，逐件生命周期撤销。
+
+2026-11-02 KT-VIS-05 v1.1 technical-complete/docs-writer：同任务/同Lab增量已完成有限观察与最终静态/动态绘制接入；原Current唯一Seed、双向首跳门窗、前墙、整栋揭顶权威分离；最后材质引用与真实释放重接已通过。Unity/所有生产源码/子代理租约释放，仅Root维护本轮文档及R11定向GitHub发布。234原保护SHA与40原dirty保留，当前Lab Native Edit已保存重开45°/正式模式/局部透视关/Renderer15/默认0/缺失0。完整人工/实体设备/Player/任意Mesh/多层/全材质/光照边界未代签，详见ossastra/KT-VIS-05/当前实现与验证交付.md。

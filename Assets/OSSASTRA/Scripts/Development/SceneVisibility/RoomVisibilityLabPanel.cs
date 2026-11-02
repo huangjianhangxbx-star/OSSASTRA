@@ -20,11 +20,16 @@ namespace Ossastra.Development.SceneVisibility
   public ViewPortal shutterPortal;
   public Transform shutter;
   public Vector3 shutterClosedPosition, shutterOpenPosition;
+  public ViewPortal doorPortal;
+  public Transform doorLeaf;
+  public Vector3 doorClosedPosition, doorOpenPosition;
   [Header("调试定位点；不替代正常走门体验")]
   public Vector3 exteriorPosition, knownRoomPosition, unknownRoomPosition;
   public bool showPanel=true;
+  public bool showPortalProjection=true;
   bool captured;
-  Rect Area=>new Rect(Mathf.Max(5,Screen.width-370),145,360,330);
+  Vector2 scroll;
+  Rect Area=>new Rect(Mathf.Max(5,Screen.width-400),145,390,440);
   void Capture(bool value)
   {
    if(captured==value)return;captured=value;
@@ -35,6 +40,11 @@ namespace Ossastra.Development.SceneVisibility
   {
    if(shutterPortal==null||shutter==null)return;
    shutter.position=value?shutterOpenPosition:shutterClosedPosition;shutterPortal.open=value;
+  }
+  public void SetDoorOpen(bool value)
+  {
+   if(doorPortal==null||doorLeaf==null)return;
+   doorLeaf.position=value?doorOpenPosition:doorClosedPosition;doorPortal.open=value;
   }
   public bool PlaceCurrent(Vector3 position)
   {
@@ -47,20 +57,44 @@ namespace Ossastra.Development.SceneVisibility
   {
    if(!Application.isPlaying||!showPanel||visibility==null||visibility.roomModule==null){Capture(false);return;}
    Capture(Area.Contains(Event.current.mousePosition));var module=visibility.roomModule;
-   GUILayout.BeginArea(Area,GUI.skin.box);GUILayout.Label("建筑可见性样板 · 开发诊断");
+   if(showPortalProjection&&Event.current.type==EventType.Repaint)
+   {
+    foreach(var volume in module.ObserverSightVolumes)
+    {
+     var aperture=volume.Aperture;var origin=volume.Observer.Position;var normal=volume.TravelNormal;
+     for(int i=0;i<aperture.Count;i++)
+     {
+      var a=aperture[i];var b=aperture[(i+1)%aperture.Count];DrawWorldLine(new Vector3(a.X,a.Y,a.Z),new Vector3(b.X,b.Y,b.Z),Color.cyan);
+      var delta=a-origin;float along=Ossastra.SceneVisibility.Rooms.Core.SightVector3.Dot(delta,normal);
+      if(along>.0001f){var far=origin+delta*((along+volume.MaxSightDistance)/along);DrawWorldLine(new Vector3(a.X,a.Y,a.Z),new Vector3(far.X,far.Y,far.Z),new Color(1,.6f,0,.6f));}
+     }
+    }
+   }
+   GUILayout.BeginArea(Area,GUI.skin.box);scroll=GUILayout.BeginScrollView(scroll);GUILayout.Label("建筑可见性样板 · 开发诊断");
    GUILayout.Label(module.Status);
-   module.exteriorBlackoutEnabled=GUILayout.Toggle(module.exteriorBlackoutEnabled,"室外隔离黑幕");
-   module.interiorUnexploredEnabled=GUILayout.Toggle(module.interiorUnexploredEnabled,"室内探索黑幕（本次运行记忆）");
-   module.maskDebugMode=GUILayout.Toolbar(module.maskDebugMode,new[]{"正常","室外R","室内G","最终许可"});
+   GUILayout.Label(module.SightStatus);
+   module.positiveRenderingEnabled=GUILayout.Toggle(module.positiveRenderingEnabled,"启用合法视域合成（关闭用于原图对照）");
+   module.truthMode=GUILayout.Toggle(module.truthMode,"纯色真值：整房 / 单跳片段 / 顶盖");
+   showPortalProjection=GUILayout.Toggle(showPortalProjection,"开口投影与有限视域截面（青框/橙线）");
+   module.localObjectRevealEnabled=GUILayout.Toggle(module.localObjectRevealEnabled,"局部物件透视接口（默认关闭）");
+   foreach(var building in module.buildings)if(building!=null)foreach(var portal in building.portals)if(portal!=null&&Vector3.Distance(module.ObserverPosition,portal.transform.position)<portal.observerRange+1)
+    GUILayout.Label(portal.portalId+"  "+(portal.inside==null?"室外":portal.inside.roomId)+" ↔ "+(portal.outside==null?"室外":portal.outside.roomId)+"  "+(portal.open&&portal.canSeeThrough?"通视":"封闭"));
    GUILayout.BeginHorizontal();if(GUILayout.Button("左转45°"))map?.RequestRotationStep(-1);if(GUILayout.Button("右转45°"))map?.RequestRotationStep(1);GUILayout.EndHorizontal();
    if(shutterPortal!=null&&GUILayout.Button(shutterPortal.open?"关闭西窗实体遮板":"打开西窗实体遮板"))SetShutterOpen(!shutterPortal.open);
-   if(GUILayout.Button("重置本次运行的到达记录"))module.ResetSessionDiscovery();
+   if(doorPortal!=null&&GUILayout.Button(doorPortal.open?"关闭 A—走廊实体门":"打开 A—走廊实体门"))SetDoorOpen(!doorPortal.open);
+   if(GUILayout.Button("清除到达历史（不授予显示权）"))module.ResetSessionDiscovery();
    GUILayout.Label("以下为调试定位；正常体验请走门：");GUILayout.BeginHorizontal();
    if(GUILayout.Button("室外"))PlaceCurrent(exteriorPosition);if(GUILayout.Button("A室"))PlaceCurrent(knownRoomPosition);if(GUILayout.Button("B室"))PlaceCurrent(unknownRoomPosition);GUILayout.EndHorizontal();
    if(RoomMaskCameraRegistry.TryGetStatistics(visibility.gameplayCamera,out var stats)){GUILayout.Label("mask绘制 "+stats.SurfaceDraws+" / 门窗 "+stats.PortalDraws+" / RT "+stats.OwnedTextureCount);if(!string.IsNullOrEmpty(stats.Error))GUILayout.Label(stats.Error);}
-   GUILayout.EndArea();
+   GUILayout.EndScrollView();GUILayout.EndArea();
   }
   void OnDisable()=>Capture(false);
   void OnDestroy()=>Capture(false);
+  void DrawWorldLine(Vector3 from,Vector3 to,Color color)
+  {
+   var camera=visibility.gameplayCamera;if(camera==null)return;var a=camera.WorldToScreenPoint(from);var b=camera.WorldToScreenPoint(to);if(a.z<=0||b.z<=0)return;
+   Vector2 start=new Vector2(a.x,Screen.height-a.y),end=new Vector2(b.x,Screen.height-b.y);var delta=end-start;if(delta.sqrMagnitude<1)return;
+   var old=GUI.matrix;var oldColor=GUI.color;GUI.color=color;GUIUtility.RotateAroundPivot(Mathf.Atan2(delta.y,delta.x)*Mathf.Rad2Deg,start);GUI.DrawTexture(new Rect(start.x,start.y,delta.magnitude,1.5f),Texture2D.whiteTexture);GUI.matrix=old;GUI.color=oldColor;
+  }
  }
 }

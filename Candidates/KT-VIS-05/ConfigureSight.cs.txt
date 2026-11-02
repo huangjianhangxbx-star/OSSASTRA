@@ -1,0 +1,38 @@
+/* 原Lab增量配置，唯一Unity写入；不复制场景、不清理旧业务或覆盖原档。 */
+using System;using System.Linq;using UnityEngine;using UnityEditor;using UnityEngine.SceneManagement;using UnityEditor.SceneManagement;using Funplay.Editor.Tools.Scripting;using Ossastra.SceneVisibility.Rooms;using Ossastra.SceneVisibility.Rooms.Rendering;
+public sealed class ConfigureSight:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  var go=EditorUtility.InstanceIDToObject(69572) as GameObject;
+  if(go==null||Application.isPlaying||go.scene.path!="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity"||SceneManager.sceneCount!=1)throw new Exception("Exact owned Edit context required");
+  var m=go.GetComponent<RoomVisibilityModule>();if(m==null)throw new Exception("No module");ctx.RegisterObjectModification(m);
+  m.positiveRenderingEnabled=true;m.truthMode=true;m.localObjectRevealEnabled=false;m.observerHeight=1.4f;
+  var blockers=m.buildings.SelectMany(b=>b.structuralMembers.Concat(b.regions.SelectMany(r=>r.members))).Where(r=>r!=null).Select(r=>r.GetComponent<BoxCollider>()).Where(c=>c!=null&&!c.isTrigger).Distinct().ToArray();
+  if(blockers.Length>64)throw new Exception("Blocker budget");m.sightBlockers=blockers;
+  foreach(var b in m.buildings)
+  {
+   if(b.frontWalls.Length>0)throw new Exception("Wall authoring already present; readback instead of replay");
+   var groups=new System.Collections.Generic.List<FrontWallGroup>();
+   foreach(var r in b.structuralMembers)
+   {
+    if(r==null||r.name.Contains("Shutter"))continue;
+    RoomRegion room=null;Vector3 normal=Vector3.zero;var center=r.bounds.center;
+    foreach(var candidate in b.regions)
+    {
+     if(r.bounds.size.z<r.bounds.size.x){if(candidate.Contains(center-Vector3.forward*.2f)){room=candidate;normal=Vector3.forward;break;}if(candidate.Contains(center+Vector3.forward*.2f)){room=candidate;normal=Vector3.back;break;}}
+     else {if(candidate.Contains(center-Vector3.right*.2f)){room=candidate;normal=Vector3.right;break;}if(candidate.Contains(center+Vector3.right*.2f)){room=candidate;normal=Vector3.left;break;}}
+    }
+    if(room==null)continue;
+    RoomRegion other=b.regions.FirstOrDefault(c=>c!=room&&c.Contains(center+normal*.2f));
+    var g=r.gameObject.AddComponent<FrontWallGroup>();ctx.RegisterObjectCreation(g);g.wallId=b.buildingId+"/"+r.name;g.primaryRoom=room;g.secondaryRoom=other;g.localOutwardNormal=r.transform.InverseTransformDirection(normal);g.members=new[]{r};groups.Add(g);
+   }
+   ctx.RegisterObjectModification(b);b.frontWalls=groups.ToArray();EditorUtility.SetDirty(b);
+  }
+  var all=go.scene.GetRootGameObjects().SelectMany(r=>r.GetComponentsInChildren<MonoBehaviour>(true)).Where(v=>v!=null).ToArray();
+  var c=all.OfType<Ossastra.Commerce.Runtime.CommerceService>().Single();ctx.RegisterObjectModification(c);c.profileId="kt-vis05-window-01";c.saveDirectory="E:/WORLDCREATOR/XingHaiHuiLang/研究/可见性修复/KT-VIS-05/profiles";System.IO.Directory.CreateDirectory(c.saveDirectory);EditorUtility.SetDirty(c);
+  var data=AssetDatabase.LoadAssetAtPath<UnityEngine.Rendering.Universal.UniversalRendererData>("Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/Rendering/RoomVisibilityRenderer.asset");if(data==null)throw new Exception("Missing owned renderer");var feature=data.rendererFeatures.OfType<RoomMaskRendererFeature>().Single();ctx.RegisterObjectModification(feature);feature.positiveTruthShader=Shader.Find("Hidden/Ossastra/Rooms/PositiveTruth");if(feature.positiveTruthShader==null)throw new Exception("Missing truthshader");EditorUtility.SetDirty(feature);data.SetDirty();EditorUtility.SetDirty(data);AssetDatabase.SaveAssetIfDirty(data);
+  EditorUtility.SetDirty(m);EditorSceneManager.MarkSceneDirty(go.scene);Ossastra.GroundSurfaces.Editor.GroundSurfaceAuthoring.SaveLab();Ossastra.GroundSurfaces.Editor.GroundSurfaceUpdates.ClearPending();
+  ctx.ReturnValue=new{saved=!go.scene.isDirty,profile=c.profileId,blockers=blockers.Length,frontWalls=m.buildings.Sum(b=>b.frontWalls.Length),featureShader=feature.positiveTruthShader.name,spinePaths=go.scene.GetRootGameObjects().SelectMany(r=>r.GetComponentsInChildren<Renderer>(true)).SelectMany(r=>r.sharedMaterials).Where(v=>v!=null&&v.shader!=null&&v.shader.name=="Universal Render Pipeline/Spine/Sprite").Select(v=>AssetDatabase.GetAssetPath(v.shader)).Distinct().ToArray(),post=Camera.main==null?false:Camera.main.GetComponent<UnityEngine.Rendering.Universal.UniversalAdditionalCameraData>().renderPostProcessing};
+ }
+}

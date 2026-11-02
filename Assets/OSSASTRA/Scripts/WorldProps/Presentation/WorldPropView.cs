@@ -176,6 +176,7 @@ namespace Ossastra.WorldProps
             renderer.sharedMaterial = barMaterial;
             renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             renderer.receiveShadows = false;
+            Ossastra.SceneVisibility.Rooms.RoomPresentationBinding.Attach(renderer,transform.position,true,transform,true);
             var block = new MaterialPropertyBlock();
             block.SetColor("_Color", color);
             block.SetColor("_BaseColor", color);

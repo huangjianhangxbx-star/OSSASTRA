@@ -1,6 +1,6 @@
-/* 功能：为显式登记的GameplayCamera生成房间/真实开口许可mask，并在后处理后、Overlay HUD前蒙黑。
- * 边界：不另开世界相机、不读取GPU像素到CPU、不改原材质/Layer/Renderer状态；只适配明确已知的alpha/depth合同。
- * 生命周期：资源按相机尺寸复用；登记释放、Renderer重建与Dispose准确释放；其它相机不入队。
+/* 功能：为登记GameplayCamera建立有限源绘制范围，再以合法表面重建颜色/深度与标签许可。
+ * 边界：Full使用原材质；静态源按材质桶，动态Lit按只读源筛选位，动态无光照源用独立适配绘制。
+ * 生命周期：唯一组织者发布帧；公开EndScope与真实Cleanup幂等归还借用范围，撤销与Dispose释放自有资源。
  */
 using System;
 using System.Collections.Generic;
@@ -19,21 +19,54 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
         public Shader compositeShader;
         [Tooltip("世界标签Shader的显式构建引用；视图只在已登记相机中按同名创建自有UI材质。")]
         public Shader worldLabelShader;
+        [Tooltip("正向许可绘制的纯色真值Shader；未登记的世界颜色与深度不会保留。")]
+        public Shader positiveTruthShader;
+        public Shader positiveSpriteLitTruthShader;
+        public Shader positiveLitShader, positiveUnlitShader, positiveSimpleLitShader;
+        public Shader positiveThinTopShader, positiveWorldTileShader, positiveDecorationShader;
+        public Shader positiveDepthPlaneShader, positiveSpineShader, positiveSpriteShader, positiveSpriteLitShader;
         readonly Dictionary<int, CameraPasses> cameras = new Dictionary<int, CameraPasses>();
+        readonly Dictionary<int, RoomPositivePass> positiveCameras = new Dictionary<int, RoomPositivePass>();
+        ScriptableRenderer rendererOwner;
         bool subscribed;
 
         public override void Create()
         {
             DisposeResources();
-            RoomMaskCameraRegistry.Released += ReleaseCamera; subscribed = true;
+            RoomMaskCameraRegistry.Released += ReleaseCamera;
+            RoomMaskCameraRegistry.FramePublished += PreparePublishedFrame;
+            RoomMaskCameraRegistry.ScopeEnded += EndCameraScope;
+            subscribed = true;
+        }
+
+        void PreparePublishedFrame(Camera camera)
+        {
+            if (camera == null || rendererOwner == null || camera.cameraType != CameraType.Game) return;
+            // 只有这个Feature真正所属的Renderer可以借用源材质，避免未使用资产的Create订阅重复写入。
+            if (!camera.TryGetComponent<UniversalAdditionalCameraData>(out var data) || data.scriptableRenderer != rendererOwner) return;
+            int id = camera.GetInstanceID();
+            if (!RoomMaskCameraRegistry.TryGet(camera, out var frame)) return;
+            if (!positiveCameras.TryGetValue(id, out var positive))
+            { positive = new RoomPositivePass(camera); positiveCameras.Add(id, positive); }
+            positive.PrepareBeforeCulling(frame, this);
         }
 
         public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
         {
+            rendererOwner = renderer;
             var camera = renderingData.cameraData.camera;
             if (camera == null || camera.cameraType != CameraType.Game ||
                 !RoomMaskCameraRegistry.TryGet(camera, out var frame)) return;
             int id = camera.GetInstanceID();
+            if (frame.PositiveRenderingEnabled)
+            {
+                if (!positiveCameras.TryGetValue(id, out var positive))
+                { positive = new RoomPositivePass(camera); positiveCameras.Add(id, positive); }
+                positive.SetFrame(frame, this);
+                RoomMaskCameraRegistry.SetStatistics(camera, positive.Statistics);
+                if (frame.Enabled) renderer.EnqueuePass(positive);
+                return;
+            }
             if (!cameras.TryGetValue(id, out var pair))
             {
                 pair = new CameraPasses(this, camera); cameras.Add(id, pair);
@@ -47,11 +80,24 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
         }
 
         void ReleaseCamera(int id)
-        { if (cameras.TryGetValue(id, out var pair)) { pair.Dispose(); cameras.Remove(id); } }
+        {
+            if (cameras.TryGetValue(id, out var pair)) { pair.Dispose(); cameras.Remove(id); }
+            if (positiveCameras.TryGetValue(id, out var positive)) { positive.Dispose(); positiveCameras.Remove(id); }
+        }
+        void EndCameraScope(int id)
+        { if (positiveCameras.TryGetValue(id, out var positive)) positive.EndScope(); }
         void DisposeResources()
         {
-            if (subscribed) { RoomMaskCameraRegistry.Released -= ReleaseCamera; subscribed = false; }
+            if (subscribed)
+            {
+                RoomMaskCameraRegistry.Released -= ReleaseCamera;
+                RoomMaskCameraRegistry.FramePublished -= PreparePublishedFrame;
+                RoomMaskCameraRegistry.ScopeEnded -= EndCameraScope;
+                subscribed = false;
+            }
             foreach (var pair in cameras.Values) pair.Dispose(); cameras.Clear();
+            foreach (var pair in positiveCameras.Values) pair.Dispose(); positiveCameras.Clear();
+            rendererOwner = null;
         }
         protected override void Dispose(bool disposing) { DisposeResources(); }
 
@@ -150,10 +196,10 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
             internal void Draw(CommandBuffer cmd)
             {
                 long started = System.Diagnostics.Stopwatch.GetTimestamp();
-                cmd.SetGlobalInt("_RoomVolumeCount", Frame.Volumes.Length);
+                cmd.SetGlobalInteger("_RoomVolumeCount", Frame.Volumes.Length);
                 cmd.SetGlobalMatrixArray("_RoomWorldToLocal", roomMatrices);
                 cmd.SetGlobalVectorArray("_RoomHalfExtents", halfExtents);
-                cmd.SetGlobalInt("_RoomKnownVolumeCount", Frame.KnownVolumes == null ? 0 : Frame.KnownVolumes.Length);
+                cmd.SetGlobalInteger("_RoomKnownVolumeCount", Frame.KnownVolumes == null ? 0 : Frame.KnownVolumes.Length);
                 cmd.SetGlobalMatrixArray("_RoomKnownWorldToLocal", knownMatrices);
                 cmd.SetGlobalVectorArray("_RoomKnownHalfExtents", knownExtents);
                 used.Clear();

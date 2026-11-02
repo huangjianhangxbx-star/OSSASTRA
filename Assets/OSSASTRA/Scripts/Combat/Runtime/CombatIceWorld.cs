@@ -116,6 +116,7 @@ namespace Ossastra.Combat
    var line=obj.AddComponent<LineRenderer>();line.sharedMaterial=material;line.useWorldSpace=false;line.widthMultiplier=.035f;line.loop=true;line.startColor=line.endColor=new Color(.3f,.85f,1,.75f);line.sortingOrder=25;
    if(pillar){line.positionCount=4;line.SetPositions(new[]{new Vector3(-radius,.08f,0),new Vector3(0,1,0),new Vector3(radius,.08f,0),new Vector3(0,.35f,radius)});}
    else{line.positionCount=24;for(int i=0;i<24;i++){var angle=i*Mathf.PI/12;line.SetPosition(i,new Vector3(Mathf.Cos(angle)*radius,.025f,Mathf.Sin(angle)*radius));}}
+   Ossastra.SceneVisibility.Rooms.RoomPresentationBinding.Attach(line,position,true);
    return obj;
   }
   public void Clear()

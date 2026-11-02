@@ -1,0 +1,246 @@
+/* 功能：只在本轮隔离Lab验证原工位/背包、一个原资源物破坏掉落拾取及一次原公开动作请求。
+ * 边界：不创建业务Root、不新建动作SO、不直接写HP/库存；只消耗当前档仍存活的一件原prop。
+ * 夹具：允许原Movement.Teleport定位；Released事实回调仅用原Orientation对准，原Runtime/物理/网关结算。
+ * 若公开请求拒绝/空挥，明确记录有限项；剩余耐久可用具名领域Release经原Gateway破坏，不冒充玩家攻击。
+ * 不重置/重生/删除旧档；完整profile/path/map guard在每次不可逆操作前重复检查。
+ * 异步：执行后读取public static Result，最长18秒；自动归还本脚本输入capture、事件与原位置。
+ */
+using System;
+using System.Linq;
+using System.Collections.Generic;
+using System.IO;
+using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.SceneManagement;
+using UnityEditor;
+using Funplay.Editor.Tools.Scripting;
+using Ossastra.SceneVisibility;
+using Ossastra.SceneVisibility.Rooms;
+using Ossastra.CharacterCore;
+using Ossastra.Characters;
+using Ossastra.Combat;
+using Ossastra.Inventory;
+using Ossastra.Crafting;
+using Ossastra.UserInterface;
+using Ossastra.WorldProps;
+using Ossastra.Commerce.Runtime;
+using ActorRoot=Ossastra.Characters.CharacterRoot;
+using ActorMotor=Ossastra.Characters.CharacterMovement;
+using ActorOrientation=Ossastra.Characters.CharacterOrientation;
+using ActorInput=Ossastra.Characters.CharacterInputHandler;
+using ActorGear=Ossastra.Characters.CharacterEquipment;
+
+public sealed class BusinessSmoke:IFunplayCommand
+{
+ const string Lab="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity";
+ const string Profile="kt-vis05-window-01",Map="kt-vis04-room-lab";
+ const string SaveDir="E:/WORLDCREATOR/XingHaiHuiLang/研究/可见性修复/KT-VIS-05/profiles";
+ public static object Result;
+ sealed class Row{public string name,status,detail;}
+ static readonly List<Row> rows=new List<Row>();
+ static SceneVisibilityRoot visibility;static CommerceService commerce;static InventorySession inventory;
+ static CraftingRoot craft;static InventoryView bag;static WorldPropsRoot world;static WorldPropRoot prop;
+ static ActorRoot actor;static ActorMotor motor;static ActorOrientation orientation;static ActorInput input;
+ static Vector3 originalPosition,originalAim;static string originalActorId,dropId;static int propHpBefore;
+ static Guid publicActionId;static ActionDefinitionSO action;static object captureOwner;
+ static bool running,captured,bagOpened,requested,accepted,released,terminal,contactBatch,contactApplied,irreversible;
+ static int stage;static double deadline,stageDeadline;static string failure,publicLimit;
+ static Dictionary<string,int> expectedDrops;
+ static void Need(bool condition,string reason){if(!condition)throw new InvalidOperationException(reason);}
+ static void RowResult(string name,string status,string detail){rows.Add(new Row{name=name,status=status,detail=detail});}
+ static void Guard()
+ {
+  Need(Application.isPlaying&&Application.dataPath=="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets"&&SceneManager.GetActiveScene().path==Lab,"Exact project/Lab Play required");
+  Need(commerce!=null&&commerce.Ready&&commerce.profileId==Profile&&commerce.mapId==Map&&!string.IsNullOrWhiteSpace(commerce.saveDirectory)&&
+   Path.GetFullPath(commerce.saveDirectory)==Path.GetFullPath(SaveDir),"Wrong current isolated profile/path/map; mutation refused");
+  Need(inventory!=null&&inventory.Ready&&inventory.CurrentMapId==Map&&commerce.inventory==inventory&&world!=null&&world.commerce==commerce&&world.inventory==inventory&&world.mapId==Map&&
+   craft!=null&&craft.commerce==commerce&&craft.inventory==inventory&&craft.mapId==Map,"Original unique business host bindings changed");
+  Need(actor!=null&&actor.IsAlive&&visibility!=null&&visibility.coordinator.Current==actor&&actor.ActorId==originalActorId,"Original Current changed/unavailable");
+  if(prop!=null)Need(prop.State!=null&&prop.State.MapId==Map&&world.props.Contains(prop)&&prop.gameObject.scene.path==Lab,"Selected original prop left exact map/scene/owner");
+ }
+ static void Place(Vector3 point)
+ {Guard();motor.Teleport(point);Physics.SyncTransforms();visibility.roomModule.RequestImmediateMembershipRefresh();}
+ static Dictionary<string,int> TeamTotals()=>inventory.Ledger.Items.Where(i=>i.Location.ContainerId=="team")
+  .GroupBy(i=>i.DefinitionId).ToDictionary(g=>g.Key,g=>g.Sum(i=>i.Quantity),StringComparer.Ordinal);
+ static int Quantity(Dictionary<string,int> values,string id)=>values.TryGetValue(id,out var count)?count:0;
+ static void ScopeReadback()
+ {
+  var ledger=inventory.Ledger;long revision=ledger.MutationRevision;
+  Need(!bag.IsOpen&&craft.userInterface!=null&&!craft.userInterface.IsOpen,"Close pre-existing business UI before smoke; it is not owned by this fixture");
+  bag.SetOpen(true);bagOpened=bag.IsOpen;Need(bag.IsOpen&&inventory.CaptureRuntimeState().currentMapId==Map,"Original bag/session did not open/read back");bag.SetOpen(false);bagOpened=false;
+  Need(!bag.IsOpen&&ReferenceEquals(ledger,inventory.Ledger)&&ledger.MutationRevision==revision,"Bag open/readback mutated or replaced Ledger");
+  RowResult("原背包session","passed","SetOpen true/false；同一Ledger与地图回读；无物品变动");
+  var station=craft.stations.FirstOrDefault(s=>s!=null&&s.instanceId=="craft-station-a");
+  if(station==null){RowResult("原工位Open/Close","limited","未找到当前场原craft-station-a，未创建替代工位");return;}
+  bool accessible=false;
+  foreach(var offset in new[]{Vector3.back,Vector3.right,Vector3.left,Vector3.forward})
+  {Place(station.Anchor+offset);if(station.CheckAccess(actor)==null){accessible=true;break;}}
+  if(!accessible){RowResult("原工位Open/Close","limited",station.CheckAccess(actor));return;}
+  try
+  {
+   bool opened=craft.Open(station);Need(opened&&craft.userInterface.IsOpen&&craft.IsSessionValid,"Original CraftingRoot.Open rejected valid original station");
+   visibility.roomModule.BeginCamera(visibility,visibility.gameplayCamera,true);visibility.roomModule.EndCamera(visibility,visibility.gameplayCamera);
+   Need(craft.IsSessionValid&&ReferenceEquals(ledger,inventory.Ledger)&&ledger.MutationRevision==revision,"Display frame altered original crafting/inventory session");
+   RowResult("原工位Open/Close","passed",station.instanceId+" 正常Open/会话读回/显示回调/Close；无制作交易");
+  }
+  finally{craft.userInterface.Close();craft.CloseSession();}
+ }
+ static bool TryAttackPose(WorldPropRoot candidate,out Vector3 pose)
+ {
+  pose=default;var melee=actor.GetComponent<CombatMeleeHit>();if(melee==null||candidate.ownedColliders==null)return false;
+  var body=candidate.ownedColliders.FirstOrDefault(c=>c!=null&&c.enabled);if(body==null)return false;
+  var center=body.bounds.center;center.y=candidate.transform.position.y;
+  foreach(float distance in new[]{1.15f,1.4f,1.7f})for(int index=0;index<8;index++)
+  {
+   float angle=index*Mathf.PI/4;var around=center+new Vector3(Mathf.Cos(angle),0,Mathf.Sin(angle))*distance;
+   var floors=Physics.RaycastAll(around+Vector3.up*1.5f,Vector3.down,3,~0,QueryTriggerInteraction.Ignore)
+    .Where(h=>h.normal.y>.7f&&Mathf.Abs(h.point.y-center.y)<.5f&&CombatSpatialTarget.Find(h.collider)==null).OrderBy(h=>h.distance).ToArray();
+   if(floors.Length==0)continue;var point=floors[0].point;var direction=center-point;direction.y=0;if(direction.sqrMagnitude<.0001f)continue;direction.Normalize();
+   var queryCenter=point+Vector3.up*melee.Height+direction*melee.Reach;
+   var targets=Physics.OverlapSphere(queryCenter,melee.Radius,~0,QueryTriggerInteraction.Collide).Select(CombatSpatialTarget.Find)
+    .Where(CombatTargetValidity.IsAvailable).Where(t=>!ReferenceEquals(t,actor.Vitals)).Distinct().ToArray();
+   // 不为一次可视性回归误伤第二件资源或额外敌人；不放宽实际Melee/LOS。
+   if(!targets.Contains(candidate)||targets.Any(t=>!ReferenceEquals(t,candidate)))continue;
+   // 角色尚在旧点；只用拟站位置作等高预检，忽略两本体自有Collider，正式释放仍自己复验LOS。
+   var ray=candidate.transform.position+Vector3.up*melee.Height-(point+Vector3.up*melee.Height);
+   if(Physics.RaycastAll(point+Vector3.up*melee.Height,ray.normalized,ray.magnitude,~0,QueryTriggerInteraction.Ignore)
+     .Any(h=>!h.transform.IsChildOf(actor.transform)&&!h.transform.IsChildOf(candidate.transform)))continue;
+   pose=point;return true;
+  }
+  return false;
+ }
+ public void Execute(ExecutionContext ctx)
+ {
+  Need(!running,"Business smoke already running; poll Result instead");
+  var scene=SceneManager.GetActiveScene();Need(Application.isPlaying&&scene.path==Lab,"Exact Lab Play required");
+  var all=scene.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<MonoBehaviour>(true)).Where(m=>m!=null).ToArray();
+  visibility=all.OfType<SceneVisibilityRoot>().Single();commerce=all.OfType<CommerceService>().Single();inventory=all.OfType<InventorySession>().Single();
+  craft=all.OfType<CraftingRoot>().Single();bag=craft.inventoryView;world=all.OfType<WorldPropsRoot>().Single();actor=visibility.coordinator.Current;
+  Need(actor!=null&&actor.CanSimulateIntent&&!actor.ActionActive&&bag!=null&&world.Ready&&craft.Ready&&visibility.roomModule!=null,"Original modules/idle Current not ready");
+  originalActorId=actor.ActorId;originalPosition=actor.transform.position;originalAim=actor.DataBus.AttackDirection;
+  motor=actor.GetComponent<ActorMotor>();orientation=actor.GetComponent<ActorOrientation>();input=actor.GetComponent<ActorInput>();
+  Need(motor!=null&&orientation!=null&&input!=null,"Original movement/orientation/input missing");Guard();
+  rows.Clear();failure=publicLimit=dropId=null;prop=null;requested=accepted=released=terminal=contactBatch=contactApplied=irreversible=captured=bagOpened=false;publicActionId=Guid.Empty;captureOwner=new object();stage=0;
+  try
+  {
+   ScopeReadback();Place(originalPosition);
+   Need(inventory.CanEditInventory,"Original inventory edit/persistence gate closed");
+   foreach(var candidate in world.props.Where(p=>p!=null&&p.IsAvailable).OrderBy(p=>p.Health.Current).ThenBy(p=>p.instanceId,StringComparer.Ordinal))
+   {
+    var forecast=candidate.definition.Freeze().Roll("break:"+candidate.State.StateKey);
+    if(forecast.Length==0||!TryAttackPose(candidate,out var pose))continue;
+    prop=candidate;expectedDrops=forecast.GroupBy(d=>d.definitionId).ToDictionary(g=>g.Key,g=>g.Sum(d=>d.quantity),StringComparer.Ordinal);Place(pose);break;
+   }
+   if(prop==null){RowResult("资源物/公开攻击","limited","没有仍活且可隔离接触并有确定掉落的一件原prop；不重置旧档或另建目标");Finish();ctx.ReturnValue=Result;return;}
+   propHpBefore=prop.Health.Current;
+   var gear=actor.GetComponent<ActorGear>();var library=gear?.RightDefinition?.actions;
+   action=library!=null?library.FirstOrDefault(a=>a!=null):null;if(action==null)action=actor.Definition?.basicAttacks?.FirstOrDefault(a=>a!=null);
+   actor.ActionObserved+=OnFact;CombatContactGateway.Resolved+=OnContact;
+   running=true;deadline=EditorApplication.timeSinceStartup+18;stageDeadline=EditorApplication.timeSinceStartup+3;
+   RenderPipelineManager.endCameraRendering+=OnEnd;EditorApplication.update+=Watchdog;EditorApplication.playModeStateChanged+=OnPlayMode;
+   Publish("running");ctx.ReturnValue=Result;
+  }
+  catch(Exception error){failure=error.ToString();Finish();ctx.ReturnValue=Result;}
+ }
+ static void OnFact(ActionFact fact)
+ {
+  if(!running||fact.ActionId!=publicActionId)return;
+  if(fact.Kind==ActionFactKind.Released){released=true;if(prop!=null)orientation.OrientTowards(prop.transform.position);}
+  if(fact.Kind==ActionFactKind.Finished||fact.Kind==ActionFactKind.Cancelled)terminal=true;
+ }
+ static void OnContact(CombatContactBatch batch)
+ {
+  if(!running||batch.Source!=actor?.Vitals||batch.ActionId!=publicActionId)return;
+  contactBatch=true;
+  if(prop!=null&&batch.Receipts.Any(r=>r.TargetId==prop.Health.Id&&r.Outcome.Reason==HitReason.Applied)){contactApplied=true;irreversible=true;}
+ }
+ static void OnEnd(ScriptableRenderContext context,Camera rendered)
+ {
+  if(!running||visibility==null||rendered!=visibility.gameplayCamera)return;
+  try
+  {
+   Guard();
+   if(stage==0)
+   {
+    if(!actor.HasPlayerInput&&EditorApplication.timeSinceStartup<stageDeadline)return;
+    requested=true;orientation.OrientTowards(prop.transform.position);
+    if(action!=null)accepted=actor.TryConfiguredAction(action,CharacterActionSource.Player,"kt-vis05-business-smoke",out publicActionId);
+    if(accepted){input.SetInventoryCapture(captureOwner,true,true);captured=true;stageDeadline=EditorApplication.timeSinceStartup+Math.Min(7,Math.Max(3,action.Freeze().FinishAt+2));stage=1;}
+    else{publicLimit=action==null?"当前没有原动作定义":actor.LastFact;RowResult("原公开动作请求/contact","limited",publicLimit);stage=2;}
+   }
+   else if(stage==1)
+   {
+    if(!terminal&&EditorApplication.timeSinceStartup<stageDeadline)return;
+    if(!terminal&&actor.ActionActive&&actor.DataBus.ActionId==publicActionId)actor.CancelAction("business-smoke-own-action-timeout");
+    RowResult("原公开动作请求/contact",contactApplied?"passed":"limited","accepted="+accepted+" released="+released+" terminal="+terminal+" actualGatewayBatch="+contactBatch+" appliedSelectedProp="+contactApplied+"；定位/Released朝向夹具，非实体按键认证");
+    if(captured){input.SetInventoryCapture(captureOwner,false,true);captured=false;}stage=2;
+   }
+   else if(stage==2)
+   {
+    Guard();Need(inventory.CanEditInventory,"Persistence/edit gate closed before irreversible prop completion");
+    if(prop.IsAlive)
+    {
+     Need(prop.IsAvailable,"Selected original prop no longer available");
+     var release=AttackRelease.ForEmission(Guid.NewGuid(),0,actor.ActorId,prop.Health.Current+1,0);
+     var outcomes=CombatContactGateway.Resolve(release,actor.Vitals,new IHitTarget[]{prop},actor.transform.position);
+     Need(outcomes.Any(o=>o.TargetId==prop.Health.Id&&o.Reason==HitReason.Applied),"Original Gateway completion rejected");
+     RowResult("原Prop领域网关破坏","passed","补剩余耐久的显式领域Release经真实Gateway；不是第二次玩家输入");
+    }
+    else RowResult("原Prop领域网关破坏","passed","所选原prop已由本次公开动作的原接触链击碎，无需领域补刀");
+    irreversible=true;Need(!prop.IsAlive&&prop.Health.Current==0,"Selected prop was not depleted through actual contact");
+    dropId="drop:resource:"+prop.State.BreakId;stage=3;stageDeadline=EditorApplication.timeSinceStartup+5;Publish("waiting-original-reward");
+   }
+   else if(stage==3)
+   {
+    if(prop.State.Phase!=WorldPropPhase.Depleted||!inventory.WorldContainerIds.Contains(dropId))
+    {
+     if(EditorApplication.timeSinceStartup<stageDeadline)return;
+     throw new InvalidOperationException("Original reward still pending; kept same depleted/Pending state without reset: "+world.Diagnostic);
+    }
+    Guard();Need(inventory.IsLoosePickup(dropId),"Actual original drop not recognized as loose pickup");
+    var drops=inventory.Ledger.Items.Where(i=>i.Location.ContainerId==dropId).ToArray();Need(drops.Length>0,"Original drop is empty");
+    foreach(var plan in expectedDrops)Need(drops.Where(i=>i.DefinitionId==plan.Key).Sum(i=>i.Quantity)==plan.Value,"Original reward differs from stable drop plan");
+    RowResult("原drop自然生成","passed",dropId+"；等原WorldProps.Update提交，未直接发物/写Ledger");
+    var position=inventory.ContainerPosition(dropId);Need(position.HasValue,"Original drop world position missing");Place(position.Value+Vector3.right*.4f);
+    Need(inventory.CanAccessContainer(dropId),"Actual pickup range/LOS rejected after position fixture");
+    var before=TeamTotals();
+    foreach(var item in drops)
+    {
+     Guard();var receipt=inventory.Move(inventory.Ledger.Plan(item.Id,"team"));
+     Need(receipt.Ok,"Original pickup receipt rejected; resource/drop kept, no capacity override: "+receipt.Reason);
+    }
+    inventory.ReclaimEmptyGround();var after=TeamTotals();
+    foreach(var plan in expectedDrops)Need(Quantity(after,plan.Key)-Quantity(before,plan.Key)==plan.Value,"Team inventory quantity receipt mismatch");
+    Need(!inventory.Ledger.Items.Any(i=>i.Location.ContainerId==dropId),"Picked original drop still contains items");
+    Need(inventory.CaptureRuntimeState().currentMapId==Map&&ReferenceEquals(world.inventory,inventory)&&ReferenceEquals(craft.inventory,inventory),"Original inventory shared-host readback changed");
+    RowResult("原公开拾取/库存回执","passed","与原F分支相同的Session.Move(Ledger.Plan(...,team)) + ReclaimEmptyGround；实际数量增加，未代签物理F");
+    Guard();commerce.RequestSave();RowResult("隔离档保存请求","requested",commerce.SavePath+"；未冒签磁盘flush/进程重启恢复");Finish();
+   }
+  }
+  catch(Exception error){failure=error.ToString();Finish();}
+ }
+ static void Watchdog(){if(running&&EditorApplication.timeSinceStartup>deadline){failure="18s bounded smoke timed out; original resource/drop state preserved";Finish();}}
+ static void OnPlayMode(PlayModeStateChange state){if(running&&state==PlayModeStateChange.ExitingPlayMode){failure="Play exited during smoke";Finish();}}
+ static void Publish(string status)
+ {
+  Result=new{status,passed=failure==null&&rows.All(r=>r.status!="limited"),scene=Lab,profile=Profile,map=Map,checks=rows.ToArray(),failure,
+   selectedOriginalProp=prop==null?null:prop.instanceId,propHpBefore,propHpNow=prop?.Health?.Current,propPhase=prop?.State?.Phase.ToString(),dropId,
+   publicRequested=requested,publicAccepted=accepted,publicReleased=released,publicActualGatewayBatch=contactBatch,publicAppliedToSelectedProp=contactApplied,
+   irreversibleChangeInNewProfile=irreversible||(prop!=null&&prop.Health.Current<propHpBefore),limits="公开入口/原Runtime/物理接触 + 位置朝向/显式领域补刀夹具；非自然键鼠手柄/完整持久化认证"};
+ }
+ static void Finish()
+ {
+  running=false;RenderPipelineManager.endCameraRendering-=OnEnd;EditorApplication.update-=Watchdog;EditorApplication.playModeStateChanged-=OnPlayMode;
+  if(actor!=null)actor.ActionObserved-=OnFact;CombatContactGateway.Resolved-=OnContact;
+  try
+  {
+   if(captured&&input!=null){input.SetInventoryCapture(captureOwner,false,true);captured=false;}
+   if(bagOpened&&bag!=null&&bag.IsOpen)bag.SetOpen(false);bagOpened=false;
+   if(actor!=null&&publicActionId!=Guid.Empty&&actor.ActionActive&&actor.DataBus.ActionId==publicActionId)actor.CancelAction("business-smoke-cleanup-owned-action");
+   if(craft!=null&&craft.userInterface!=null&&craft.userInterface.IsOpen){craft.userInterface.Close();craft.CloseSession();}
+   if(motor!=null&&actor!=null){motor.Teleport(originalPosition);Physics.SyncTransforms();if(orientation!=null)orientation.OrientTowards(originalPosition+originalAim);visibility?.roomModule?.RequestImmediateMembershipRefresh();}
+  }
+  catch(Exception error){if(failure==null)failure="Own fixture restoration failed: "+error;}
+  Publish(failure==null?(rows.Any(r=>r.status=="limited")?"partial":"complete"):"failed");
+ }
+}

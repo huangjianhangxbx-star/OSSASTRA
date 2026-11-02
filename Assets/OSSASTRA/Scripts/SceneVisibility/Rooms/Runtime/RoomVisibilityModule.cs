@@ -1,7 +1,7 @@
-/* 功能：在唯一SceneVisibilityRoot调度下解析主控建筑/区域、会话到达、整栋揭顶与双黑幕需求。
+/* 功能：在唯一SceneVisibilityRoot调度下解析原主控建筑/房间；许可仅来自当前种子及有限门窗。
  * 边界：不拥有Current、位置、HP、物理、灯光或存档；不逐帧扫描全场，不订阅第二套相机回调。
  * 协作：纯MembershipResolver计算身份；作者组件提供范围/成员；RoomMaskRendererFeature消费明确相机帧。
- * 生命周期：Begin提交同栋顶盖与未知内容的相机临时scope，End只归还scope；禁用/异常/卸载释放自己登记。
+ * 生命周期：Begin提交同栋顶盖、前墙与正向绘制的相机临时scope，End只归还scope；禁用/异常/卸载释放自己登记。
  */
 using System;
 using System.Collections.Generic;
@@ -13,7 +13,7 @@ using Ossastra.SceneVisibility.Rooms.Rendering;
 namespace Ossastra.SceneVisibility.Rooms
 {
     [DisallowMultipleComponent]
-    public sealed class RoomVisibilityModule : MonoBehaviour
+    public sealed partial class RoomVisibilityModule : MonoBehaviour
     {
         [Header("作者登记；不根据名称、Layer或门户连通猜建筑")]
         public BuildingVisibilityRoot[] buildings = Array.Empty<BuildingVisibilityRoot>();
@@ -22,12 +22,6 @@ namespace Ossastra.SceneVisibility.Rooms
         [Header("独立显示需求；不暂停世界")]
         public bool effectEnabled = true;
         public bool revealRoofs = true;
-        public bool exteriorBlackoutEnabled = true;
-        public bool interiorUnexploredEnabled = true;
-        public Color exteriorColor = Color.black;
-        public Color interiorColor = Color.black;
-        [Range(0, 3), Tooltip("0正常，1室外许可R，2室内已知G，3最终许可。")]
-        public int maskDebugMode;
         [Min(.1f), Tooltip("同一角色跨越此距离视作传送，绕过旧门槛滞回；不改变角色位置。")]
         public float immediateResolveDistance = 3f;
 
@@ -45,14 +39,8 @@ namespace Ossastra.SceneVisibility.Rooms
         readonly HashSet<Renderer> roofMembers = new HashSet<Renderer>();
         readonly RoomRendererScope visualScope = new RoomRendererScope();
         readonly RoomMaskFrame frame = new RoomMaskFrame();
-        readonly List<RoomMaskSurface> buildingSurfaceScratch = new List<RoomMaskSurface>(128);
-        readonly List<RoomMaskSurface> knownSurfaceScratch = new List<RoomMaskSurface>(128);
-        readonly List<RoomMaskVolume> volumeScratch = new List<RoomMaskVolume>(8);
         readonly List<RoomMaskVolume> knownVolumeScratch = new List<RoomMaskVolume>(8);
-        readonly List<RoomMaskVolume> unknownVolumeScratch = new List<RoomMaskVolume>(8);
-        readonly List<RoomMaskPortal> portalScratch = new List<RoomMaskPortal>(16);
         readonly List<Collider> labelRaycastExclusionScratch = new List<Collider>(16);
-        readonly List<Renderer> actorRenderers = new List<Renderer>(32);
         readonly List<RoomRegion> regionScratch = new List<RoomRegion>(16);
         readonly List<BuildingVisibilityRoot> regionOwnerScratch = new List<BuildingVisibilityRoot>(16);
         SceneVisibilityRoot owner;
@@ -80,6 +68,8 @@ namespace Ossastra.SceneVisibility.Rooms
             if (buildings == null || buildings.Length == 0)
             { reason = "房间模块没有登记建筑"; return false; }
             if (sharedSurfaces == null) { reason = "跨空间地面列表为null"; return false; }
+            if (sightBlockers == null || sightBlockers.Length > 64 || !RoomRegion.Finite(observerHeight) || observerHeight <= 0f)
+            { reason = "观察高度必须为正数；不透光Box列表不能为空或超过64项"; return false; }
             var buildingNames = new HashSet<string>(StringComparer.Ordinal);
             var roomNames = new HashSet<string>(StringComparer.Ordinal);
             var roofNames = new HashSet<string>(StringComparer.Ordinal);
@@ -130,7 +120,20 @@ namespace Ossastra.SceneVisibility.Rooms
                 }
                 foreach (var member in building.structuralMembers)
                     if (member == null) { reason = building.buildingId + "：永久结构引用为空"; return false; }
-                    else allStructure.Add(member);
+                    else if (!allStructure.Add(member)) { reason = building.buildingId + "：结构成员跨建筑重复登记"; return false; }
+                if (building.frontWalls == null) { reason = building.buildingId + "：前墙列表为null"; return false; }
+                var wallIds = new HashSet<string>(StringComparer.Ordinal); var wallMembers = new HashSet<Renderer>();
+                foreach (var wall in building.frontWalls)
+                {
+                    if (wall == null || string.IsNullOrWhiteSpace(wall.wallId) || !wallIds.Add(wall.wallId) ||
+                        wall.primaryRoom == null || !ownRooms.Contains(wall.primaryRoom) ||
+                        (wall.secondaryRoom != null && !ownRooms.Contains(wall.secondaryRoom)) ||
+                        !RoomRegion.Finite(wall.OutwardNormal) || wall.OutwardNormal.sqrMagnitude < .001f || wall.members == null || wall.members.Length == 0)
+                    { reason = building.buildingId + "：前墙段身份、所属区域或法线无效"; return false; }
+                    foreach (var member in wall.members)
+                        if (member == null || Array.IndexOf(building.structuralMembers, member) < 0 || !wallMembers.Add(member))
+                        { reason = wall.wallId + "：前墙成员不属于本栋结构或重复登记"; return false; }
+                }
                 if (building.portals == null) { reason = building.buildingId + "：门户列表为null"; return false; }
                 foreach (var portal in building.portals)
                     if (portal == null || string.IsNullOrWhiteSpace(portal.portalId) || !portalNames.Add(portal.portalId) ||
@@ -139,6 +142,15 @@ namespace Ossastra.SceneVisibility.Rooms
                         portal.apertureMesh == null || !portal.apertureMesh.isReadable || portal.apertureMesh.vertexCount < 3 ||
                         !RoomRegion.Finite(portal.transform.lossyScale))
                     { reason = building.buildingId + "：门户ID/所属区域/真实孔洞引用无效"; return false; }
+                foreach (var portal in building.portals)
+                {
+                    Vector3[] polygon = portal.GetWorldAperture(); var points = new SightVector3[polygon.Length];
+                    for (int i = 0; i < points.Length; i++) points[i] = new SightVector3(polygon[i].x, polygon[i].y, polygon[i].z);
+                    if (polygon.Length < 3 || polygon.Length > 7 || !RoomRegion.Finite(portal.observerRange) || portal.observerRange <= 0f ||
+                        !RoomRegion.Finite(portal.maxSightDistance) || portal.maxSightDistance <= 0f ||
+                        !PortalSightGeometry.ValidatePolygon(points, new SightVector3(portal.OutwardNormal.x, portal.OutwardNormal.y, portal.OutwardNormal.z), out var ignoredCenter))
+                    { reason = portal.portalId + "：需要3—7边真实凸孔洞及正的观察/延伸距离；不取填充凸包"; return false; }
+                }
             }
             foreach (var member in allRoofs)
                 if (allStructure.Contains(member) || allContent.Contains(member) || Array.IndexOf(sharedSurfaces, member) >= 0)
@@ -209,6 +221,7 @@ namespace Ossastra.SceneVisibility.Rooms
             if (roomResolver == null) roomResolver = new RoomMembershipResolver(roomIds);
             else roomResolver.SetRegisteredRooms(roomIds);
             discovered.RemoveWhere(id => Array.IndexOf(roomIds, id) < 0);
+            InitializeSightRegistration();
             initialized = true; immediateRequested = true; Status = "已登记；等待主控空间采样";
             // 首次Canvas标签创建前公布本相机使用可选房间策略；此时Enabled=false，不创建GPU遮罩。
             // UI可从一开始绑定专用材质，避免入室首帧晚于Canvas重建才切换材质。
@@ -221,42 +234,40 @@ namespace Ossastra.SceneVisibility.Rooms
             if (context == null || camera == null || camera != context.gameplayCamera) return;
             if (!initialized || owner != context || boundCamera != camera) Initialize(context);
             visualScope.Dispose();
+            positiveScope.Dispose();
             globalEnabled = enabled && effectEnabled && isActiveAndEnabled;
-            if (!globalEnabled) { PublishDisabled(); return; }
+            if (!globalEnabled || !positiveRenderingEnabled) { globalEnabled = false; PublishDisabled(); return; }
             long start = System.Diagnostics.Stopwatch.GetTimestamp();
             ResolveMembership();
             MembershipMilliseconds = (System.Diagnostics.Stopwatch.GetTimestamp() - start) * 1000d / System.Diagnostics.Stopwatch.Frequency;
-            BuildFrame();
+            try { BuildPositiveFrame(); }
+            catch (Exception error) { PublishRejectedFrame(error.Message); return; }
             // 同栋所有顶组在同一快照内先提交，不能按房间或预算逐帧交换屋顶。
-            if (ActiveBuilding != null && revealRoofs)
+            if (frame.PositiveRenderingEnabled && ActiveBuilding != null && revealRoofs)
                 foreach (var roof in ActiveBuilding.roofGroups) if (roof != null)
                     foreach (var member in roof.members) visualScope.Suppress(member);
-            if (ActiveBuilding != null && interiorUnexploredEnabled)
-            {
-                foreach (var region in ActiveBuilding.regions)
-                    if (region != null && (!region.isActiveAndEnabled || !IsDiscovered(region)))
-                        foreach (var member in region.members) visualScope.Suppress(member);
-                SuppressUnknownActors();
-            }
+            ApplyPositiveRegistration();
             RoomMaskCameraRegistry.Publish(this, camera, frame);
             if (statusBuilding != ActiveBuilding || statusRoom != ActiveRoom || statusDiscoveryCount != discovered.Count)
             {
-                Status = ActiveBuilding == null ? "室外；顶盖与外景正常" :
+                Status = ActiveBuilding == null ? "室外；整顶保留，门窗只给有限预览" :
                     "建筑 " + ActiveBuilding.buildingId + " / 区域 " + (ActiveRoom == null ? "过渡范围" : ActiveRoom.roomId) +
-                    " / 本会话到达 " + discovered.Count;
+                    " / 历史到达（无显示权） " + discovered.Count;
                 statusBuilding = ActiveBuilding; statusRoom = ActiveRoom; statusDiscoveryCount = discovered.Count;
             }
         }
 
         public void EndCamera(SceneVisibilityRoot context, Camera camera)
         {
-            if (context == owner && camera == boundCamera) visualScope.Dispose();
+            if (context != owner || camera != boundCamera) return;
+            try { visualScope.Dispose(); positiveScope.Dispose(); }
+            finally { RoomMaskCameraRegistry.EndScope(this, camera); }
         }
 
         public void SuspendCamera(SceneVisibilityRoot context)
         {
             if (context != owner) return;
-            visualScope.Dispose(); globalEnabled = false;
+            visualScope.Dispose(); positiveScope.Dispose(); globalEnabled = false;
             if (isActiveAndEnabled) PublishDisabled();
             else ReleaseOwnedState();
         }
@@ -281,10 +292,7 @@ namespace Ossastra.SceneVisibility.Rooms
         public bool IsDiscovered(RoomRegion region) => region != null && discovered.Contains(region.roomId);
         public bool ContainsActiveKnownPoint(Vector3 world)
         {
-            if (ActiveBuilding == null) return false;
-            foreach (var region in ActiveBuilding.regions)
-                if (region != null && region.isActiveAndEnabled && IsDiscovered(region) && region.Contains(world)) return true;
-            return false;
+            return ActiveRoom != null && ActiveRoom.isActiveAndEnabled && ActiveRoom.Contains(world);
         }
 
         public bool CanRevealTarget(VisibilityTarget target)
@@ -292,19 +300,19 @@ namespace Ossastra.SceneVisibility.Rooms
             if (!globalEnabled || ActiveBuilding == null) return true;
             if (target == null || target.actor == null) return false;
             var room = RoomForActor(target.actor);
-            return room != null && RoomBuilding(room) == ActiveBuilding && (!interiorUnexploredEnabled || IsDiscovered(room));
+            return room != null && room == ActiveRoom;
         }
 
         public bool AllowsLocalGroup(SceneOccluderGroup group)
         {
             if (group == null) return false;
             if (!globalEnabled) return true;
+            if (!localObjectRevealEnabled) return false;
             foreach (var member in group.Resolved)
             {
                 if (member == null) continue;
                 if (roofMembers.Contains(member) || permanentMembers.Contains(member) || Array.IndexOf(sharedSurfaces, member) >= 0) return false;
-                if (interiorUnexploredEnabled && ActiveBuilding != null && contentOwners.TryGetValue(member, out var room) &&
-                    RoomBuilding(room) == ActiveBuilding && !IsDiscovered(room)) return false;
+                if (contentOwners.TryGetValue(member, out var room) && room != ActiveRoom) return false;
             }
             return true;
         }
@@ -312,28 +320,7 @@ namespace Ossastra.SceneVisibility.Rooms
         /// <summary>供世界标签作空间许可粗筛；最终像素边界仍由同相机mask控制，不授予攻击/交互LOS。</summary>
         public bool AllowsWorldPoint(Vector3 world)
         {
-            if (!globalEnabled || ActiveBuilding == null || boundCamera == null) return true;
-            if (ActiveBuilding.Contains(world, .001f))
-            {
-                if (!interiorUnexploredEnabled) return true;
-                var room = RoomAt(world, ActiveBuilding);
-                return room != null && IsDiscovered(room);
-            }
-            if (!exteriorBlackoutEnabled) return true;
-            Vector3 projected = boundCamera.WorldToViewportPoint(world);
-            if (projected.z <= 0f) return false;
-            Ray ray = boundCamera.ViewportPointToRay(projected);
-            float pointDistance = Vector3.Dot(world - ray.origin, ray.direction);
-            foreach (var portal in ActiveBuilding.portals)
-            {
-                if (!EligibleExteriorPortal(portal)) continue;
-                float denominator = Vector3.Dot(ray.direction, portal.OutwardNormal);
-                if (denominator <= .00001f) continue;
-                float distance = Vector3.Dot(portal.transform.position - ray.origin, portal.OutwardNormal) / denominator;
-                if (distance <= 0f || distance >= pointDistance || !portal.ContainsWorldPoint(ray.GetPoint(distance))) continue;
-                if (portal.inside.Contains(ray.GetPoint(Mathf.Max(0f, distance - .03f)), .01f)) return true;
-            }
-            return false;
+            return !globalEnabled || AllowsSightPoint(world);
         }
 
         void ResolveMembership()
@@ -378,75 +365,6 @@ namespace Ossastra.SceneVisibility.Rooms
             immediateRequested = false;
         }
 
-        void BuildFrame()
-        {
-            buildingSurfaceScratch.Clear(); knownSurfaceScratch.Clear(); volumeScratch.Clear(); knownVolumeScratch.Clear();
-            unknownVolumeScratch.Clear(); portalScratch.Clear(); labelRaycastExclusionScratch.Clear();
-            frame.Enabled = ActiveBuilding != null && (exteriorBlackoutEnabled || interiorUnexploredEnabled);
-            frame.ExteriorBlackoutEnabled = exteriorBlackoutEnabled; frame.InteriorUnexploredEnabled = interiorUnexploredEnabled;
-            frame.ExteriorColor = exteriorColor; frame.InteriorColor = interiorColor; frame.DebugMode = maskDebugMode;
-            if (ActiveBuilding != null)
-            {
-                RoomRegion.AppendBoxes(ActiveBuilding.transform, ActiveBuilding.occupancyVolumes, volumeScratch);
-                // 仅已揭顶的明确顶盖Collider免于标签可见性射线；未知内容/墙的遮挡绝不跟着豁免。
-                if (revealRoofs) foreach (var roof in ActiveBuilding.roofGroups) if (roof != null)
-                    foreach (var collider in roof.labelRaycastExclusions)
-                        if (collider != null && !labelRaycastExclusionScratch.Contains(collider)) labelRaycastExclusionScratch.Add(collider);
-                foreach (var region in ActiveBuilding.regions) if (region != null)
-                {
-                    bool known = region.isActiveAndEnabled && IsDiscovered(region);
-                    region.AppendMaskVolumes(known ? knownVolumeScratch : unknownVolumeScratch);
-                    foreach (var member in region.members)
-                    {
-                        // 未知内容仍属于本栋(R)，只是不取得室内已知许可(G)。其R限制在Building体积内，
-                        // 避免已退出原颜色绘制的高家具在建筑外背景上留下许可孔洞。
-                        AddSurface(buildingSurfaceScratch, member, !known && interiorUnexploredEnabled);
-                        if (known || !interiorUnexploredEnabled) AddSurface(knownSurfaceScratch, member, false);
-                    }
-                }
-                foreach (var member in ActiveBuilding.structuralMembers)
-                { AddSurface(buildingSurfaceScratch, member, false); AddSurface(knownSurfaceScratch, member, false); }
-                foreach (var member in sharedSurfaces)
-                { AddSurface(buildingSurfaceScratch, member, true); AddSurface(knownSurfaceScratch, member, true); }
-                if (!revealRoofs) foreach (var roof in ActiveBuilding.roofGroups) if (roof != null) foreach (var member in roof.members)
-                { AddSurface(buildingSurfaceScratch, member, false); AddSurface(knownSurfaceScratch, member, false); }
-                foreach (var portal in ActiveBuilding.portals) if (EligibleExteriorPortal(portal)) portalScratch.Add(new RoomMaskPortal
-                { ApertureMesh = portal.apertureMesh, LocalToWorld = portal.transform.localToWorldMatrix, OutwardNormal = portal.OutwardNormal });
-                AddKnownActors();
-            }
-            CopySurfaces(buildingSurfaceScratch, ref frame.BuildingSurfaces); CopySurfaces(knownSurfaceScratch, ref frame.Surfaces);
-            CopyValues(volumeScratch, ref frame.Volumes); CopyValues(knownVolumeScratch, ref frame.KnownVolumes);
-            CopyValues(unknownVolumeScratch, ref frame.UnexploredVolumes); CopyValues(portalScratch, ref frame.Portals);
-            CopyValues(labelRaycastExclusionScratch, ref frame.LabelRaycastExclusions);
-        }
-
-        void AddKnownActors()
-        {
-            if (owner.targets == null) return;
-            foreach (var target in owner.targets)
-            {
-                if (target == null || !target.Eligible) continue;
-                var region = RoomForActor(target.actor);
-                if (region == null || RoomBuilding(region) != ActiveBuilding || (interiorUnexploredEnabled && !IsDiscovered(region))) continue;
-                actorRenderers.Clear(); target.actor.GetComponentsInChildren(true, actorRenderers);
-                foreach (var member in actorRenderers)
-                { AddSurface(buildingSurfaceScratch, member, false); AddSurface(knownSurfaceScratch, member, false); }
-            }
-        }
-
-        void SuppressUnknownActors()
-        {
-            if (owner.targets == null) return;
-            foreach (var target in owner.targets)
-            {
-                if (target == null || target.actor == null) continue;
-                var region = RoomForActor(target.actor);
-                if (region == null || RoomBuilding(region) != ActiveBuilding || IsDiscovered(region)) continue;
-                actorRenderers.Clear(); target.actor.GetComponentsInChildren(true, actorRenderers);
-                foreach (var member in actorRenderers) visualScope.Suppress(member);
-            }
-        }
-
         RoomRegion RoomForActor(C.CharacterRoot actor)
         {
             if (actor == null) return null;
@@ -464,40 +382,17 @@ namespace Ossastra.SceneVisibility.Rooms
             }
             return best;
         }
-        BuildingVisibilityRoot RoomBuilding(RoomRegion region)
-        {
-            for (int i = 0; i < registeredRooms.Length; ++i) if (registeredRooms[i] == region) return roomBuildings[i];
-            return null;
-        }
-        bool EligibleExteriorPortal(ViewPortal portal) => portal != null && portal.isActiveAndEnabled && portal.open && portal.canSeeThrough &&
-            portal.apertureMesh != null && portal.inside != null && portal.inside.isActiveAndEnabled && portal.outside == null &&
-            IsDiscovered(portal.inside) && RoomBuilding(portal.inside) == ActiveBuilding;
-        static void AddSurface(List<RoomMaskSurface> list, Renderer renderer, bool clip)
-        {
-            if (renderer == null || !renderer.enabled || !renderer.gameObject.activeInHierarchy || renderer.forceRenderingOff ||
-                renderer.shadowCastingMode == UnityEngine.Rendering.ShadowCastingMode.ShadowsOnly) return;
-            for (int i = 0; i < list.Count; ++i) if (list[i].Renderer == renderer) return;
-            list.Add(new RoomMaskSurface { Renderer = renderer, ClipToVolumes = clip });
-        }
-        static void CopySurfaces(List<RoomMaskSurface> source, ref RoomMaskSurface[] target)
-        {
-            if (target == null || target.Length != source.Count) target = new RoomMaskSurface[source.Count];
-            for (int i = 0; i < source.Count; ++i) target[i] = source[i];
-        }
-        static void CopyValues<T>(List<T> source, ref T[] target)
-        {
-            if (target == null || target.Length != source.Count) target = new T[source.Count];
-            for (int i = 0; i < source.Count; ++i) target[i] = source[i];
-        }
         static bool MarginsValid(float enter, float exit) => RoomRegion.Finite(enter) && RoomRegion.Finite(exit) && enter >= 0f && exit >= 0f;
         void PublishDisabled()
         {
             frame.Enabled = false;
+            frame.PositiveRenderingEnabled = false;
             if (boundCamera != null) RoomMaskCameraRegistry.Publish(this, boundCamera, frame);
         }
         void ReleaseOwnedState()
         {
             visualScope.Dispose();
+            positiveScope.Dispose();
             // Camera可能先于模块被Unity销毁；保留其托管包装器以撤销同一InstanceID的自有登记。
             if (!ReferenceEquals(boundCamera, null)) RoomMaskCameraRegistry.Release(this, boundCamera);
         }

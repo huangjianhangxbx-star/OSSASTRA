@@ -76,6 +76,7 @@ namespace Ossastra.UserInterface
             var go=new GameObject("ConfirmedCombatFeedback");go.transform.SetParent(transform,false);var line=go.AddComponent<LineRenderer>();line.sharedMaterial=material;line.useWorldSpace=true;line.widthMultiplier=.035f;line.numCapVertices=3;line.positionCount=ring?49:20;
             var angle=Mathf.Atan2(direction.z,direction.x);var begin=ring?0:angle-.8f;var span=ring?Mathf.PI*2:1.6f;
             for(int i=0;i<line.positionCount;i++){var a=begin+span*i/(line.positionCount-1);line.SetPosition(i,position+new Vector3(Mathf.Cos(a)*radius,.15f,Mathf.Sin(a)*radius));}
+            Ossastra.SceneVisibility.Rooms.RoomPresentationBinding.Attach(line,position,true);
             strokes.Add(new Stroke{line=line,color=color});
         }
         private void LateUpdate()

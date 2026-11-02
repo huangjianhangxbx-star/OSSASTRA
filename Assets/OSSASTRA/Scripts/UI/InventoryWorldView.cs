@@ -10,6 +10,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using Ossastra.Inventory;
 using Ossastra.SceneVisibility.Rooms.Rendering;
+using Ossastra.SceneVisibility.Rooms;
 namespace Ossastra.UserInterface
 {
     public sealed class InventoryWorldView:MonoBehaviour
@@ -25,7 +26,7 @@ namespace Ossastra.UserInterface
         private readonly Dictionary<string,Mark> marks=new Dictionary<string,Mark>();
         private Material roomLabelMaterial,portalLabelMaterial;
         private void OnEnable(){RoomMaskCameraRegistry.FramePublished+=OnRoomFrame;}
-        private void OnDisable(){RoomMaskCameraRegistry.FramePublished-=OnRoomFrame;}
+        private void OnDisable(){RoomMaskCameraRegistry.FramePublished-=OnRoomFrame;RoomPresentationRegistry.Release(this);}
         private void Start()
         {
             var go=new GameObject("InventoryWorldLabels",typeof(RectTransform),typeof(Canvas),typeof(GraphicRaycaster));go.transform.SetParent(transform,false);root=(RectTransform)go.transform;canvas=go.GetComponent<Canvas>();canvas.renderMode=RenderMode.ScreenSpaceOverlay;canvas.sortingOrder=120;font=Font.CreateDynamicFontFromOSFont("Microsoft YaHei",12);
@@ -44,7 +45,7 @@ namespace Ossastra.UserInterface
             var ids=worldIds.Where(id=>!groundIds.Contains(id)).Concat(selectedGround).ToArray();
             var selectedIds=new HashSet<string>(ids,StringComparer.Ordinal);
             // 仅回收不再显示的表现，绝不回收逻辑物品/容器；走近后可从同一账本重建。
-            foreach(var id in marks.Keys.Where(id=>!selectedIds.Contains(id)).ToArray()){Destroy(marks[id].rect.gameObject);if(marks[id].sprite!=null)Destroy(marks[id].sprite.gameObject);marks.Remove(id);}
+            foreach(var id in marks.Keys.Where(id=>!selectedIds.Contains(id)).ToArray()){Destroy(marks[id].rect.gameObject);if(marks[id].sprite!=null){RoomPresentationRegistry.Release(this,marks[id].sprite);Destroy(marks[id].sprite.gameObject);}marks.Remove(id);}
             // 一次索引当前条目，避免每份已选掉落都从头扫描整个Ledger。
             var firstItems=session.Ledger.Items.Where(item=>selectedIds.Contains(item.Location.ContainerId))
                 .GroupBy(item=>item.Location.ContainerId).ToDictionary(group=>group.Key,group=>group.First(),StringComparer.Ordinal);
@@ -67,7 +68,7 @@ namespace Ossastra.UserInterface
                 }
                 mark.target.ItemId=item?.Id;mark.target.ContainerId=id;
                 if(item!=null&&definition?.icon!=null&&mark.sprite==null){var go=new GameObject("GroundItemSprite_"+item.Id);go.transform.SetParent(transform,false);mark.sprite=go.AddComponent<SpriteRenderer>();mark.sprite.sortingOrder=40;go.transform.localScale=Vector3.one*.5f;}
-                if(mark.sprite!=null){mark.sprite.sprite=definition?.icon;mark.sprite.transform.position=position.Value+Vector3.up*.15f;mark.sprite.transform.rotation=Camera.main.transform.rotation;}
+                if(mark.sprite!=null){mark.sprite.sprite=definition?.icon;mark.sprite.transform.position=position.Value+Vector3.up*.15f;mark.sprite.transform.rotation=Camera.main.transform.rotation;RoomPresentationRegistry.Register(this,mark.sprite,position.Value);}
                 mark.worldPosition=position.Value;ApplyPresentation(Camera.main,mark);
                 mark.text.text=item!=null?definition?.displayName+" ×"+item.Quantity:"□ "+session.ContainerDisplayName(id);mark.text.color=session.CanAccessContainer(id)?Color.white:new Color32(155,145,150,255);
                 if(item==null){mark.rect.sizeDelta=new Vector2(Mathf.Min(140,mark.text.preferredWidth+12),28);mark.text.alignment=TextAnchor.MiddleCenter;}
@@ -94,6 +95,7 @@ namespace Ossastra.UserInterface
         private void OnDestroy()
         {
             RoomMaskCameraRegistry.FramePublished-=OnRoomFrame;
+            RoomPresentationRegistry.Release(this);
             foreach(var m in marks.Values)if(m.sprite!=null)Destroy(m.sprite.gameObject);if(font!=null)Destroy(font);
             if(roomLabelMaterial!=null)Destroy(roomLabelMaterial);if(portalLabelMaterial!=null)Destroy(portalLabelMaterial);
         }

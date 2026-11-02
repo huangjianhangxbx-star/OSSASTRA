@@ -83,6 +83,7 @@ namespace Ossastra.Characters
                     var collider=visual.GetComponent<Collider>();collider.enabled=false;Destroy(collider);
                 }
                 visual.transform.position=origin+Vector3.up*.3f;
+                Ossastra.SceneVisibility.Rooms.RoomPresentationBinding.Attach(visual.GetComponent<Renderer>(),visual.transform.position,true,visual.transform);
                 LastResult="Released #"+released.ActionId.ToString("N");return;
             }
             if(flight==null)return;

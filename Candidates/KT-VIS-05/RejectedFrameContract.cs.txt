@@ -1,0 +1,14 @@
+/* 回归：运行期作者预算出错不能撤掉许可帧而恢复完整未知世界。 */
+using System;using System.Linq;using UnityEngine;using UnityEngine.SceneManagement;using Funplay.Editor.Tools.Scripting;using Ossastra.SceneVisibility;using Ossastra.SceneVisibility.Rooms;using Ossastra.SceneVisibility.Rooms.Rendering;
+public class RejectedFrameContract:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  if(Application.isPlaying)throw new Exception("Independent Edit contract only");var original=SceneManager.GetActiveScene().GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<SceneVisibilityRoot>(true)).Single();
+  var go=new GameObject("RejectedFrameContract");go.hideFlags=HideFlags.HideInHierarchy;var cameraGo=new GameObject("RejectedFrameCamera");cameraGo.hideFlags=HideFlags.HideInHierarchy;RoomVisibilityModule module=null;SceneVisibilityRoot root=null;bool passed=false;string thrown=null;
+  try{var camera=cameraGo.AddComponent<Camera>();camera.enabled=false;root=go.AddComponent<SceneVisibilityRoot>();module=go.AddComponent<RoomVisibilityModule>();root.gameplayCamera=camera;root.coordinator=original.coordinator;root.roomModule=module;module.buildings=original.roomModule.buildings;module.sharedSurfaces=original.roomModule.sharedSurfaces;module.sightBlockers=original.roomModule.sightBlockers;module.Initialize(root);module.sightBlockers=Enumerable.Repeat(module.sightBlockers[0],65).ToArray();try{module.BeginCamera(root,camera,true);}catch(Exception e){thrown=e.GetType().Name;}
+   RoomMaskFrame frame;passed=thrown==null&&RoomMaskCameraRegistry.TryGet(camera,out frame)&&frame.Enabled&&frame.PositiveRenderingEnabled&&frame.PositiveSurfaces.Length==0;
+  }finally{if(module!=null&&root!=null)module.Release(root);UnityEngine.Object.DestroyImmediate(go);UnityEngine.Object.DestroyImmediate(cameraGo);}
+  ctx.ReturnValue=new{passed,thrown,expected="保留空的正向许可帧，继续蒙黑；不抛出导致Root撤销登记"};
+ }
+}

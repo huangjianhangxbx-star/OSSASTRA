@@ -51,11 +51,11 @@ namespace Ossastra.SceneVisibility.Rooms.Editor
             { "sharedSurfaces", RoomInspectorFields.Label("跨空间地表", "可跨多个房间的地表Renderer。许可遮罩逐片元裁剪；不能同时混入屋顶或房间内容列表。") },
             { "effectEnabled", RoomInspectorFields.Label("启用房间可见性", "控制本模块的呈现需求；关闭不暂停世界，也不改变角色、碰撞或存档。") },
             { "revealRoofs", RoomInspectorFields.Label("入室揭开建筑顶盖", "主控进入登记建筑后，统一隐藏该建筑登记的顶盖视觉；碰撞、脚本和业务根继续运行。") },
-            { "exteriorBlackoutEnabled", RoomInspectorFields.Label("启用室外黑幕", "在活动建筑内观察时蒙黑外围世界，合法真实门窗开口仍可放行当前帧外景。") },
-            { "interiorUnexploredEnabled", RoomInspectorFields.Label("启用室内未到达黑幕", "本次会话内尚未被主控实际到达的室内区域保持未知；伙伴和窗外观察不解锁区域。") },
-            { "exteriorColor", RoomInspectorFields.Label("室外黑幕颜色", "用于未获室外观察许可的画面；不修改世界灯光或曝光。") },
-            { "interiorColor", RoomInspectorFields.Label("室内未到达颜色", "用于未获室内已知许可的画面；与室外黑幕独立配置。") },
-            { "maskDebugMode", RoomInspectorFields.Label("遮罩诊断模式", "0：正常画面；1：建筑/室外许可R；2：室内已知G；3：最终许可。只影响诊断显示。") },
+            { "positiveRenderingEnabled", RoomInspectorFields.Label("合法视域合成", "仅绘制当前种子和合法首跳片段；关闭只用于原图对照。") },
+            { "truthMode", RoomInspectorFields.Label("纯色真值诊断", "用纯色检查实际允许像素；关闭恢复原材质适配。") },
+            { "localObjectRevealEnabled", RoomInspectorFields.Label("局部物件透视", "独立扩展入口，本轮默认关闭；不扩大房间或门窗权限。") },
+            { "observerHeight", RoomInspectorFields.Label("稳定观察点高度", "从原Current脚点向世界上方偏移的米数；不使用相机位置作视线权威。") },
+            { "sightBlockers", RoomInspectorFields.Label("不透光实体遮挡盒", "明确登记真实墙、窗板、门板和高柜的BoxCollider；透明玻璃不登记，最多64项。") },
             { "immediateResolveDistance", RoomInspectorFields.Label("立即重判位移阈值", "同一角色跨越此世界距离视作传送，绕过旧门槛滞回重新判定；不会移动角色。") }
         };
 
@@ -79,7 +79,7 @@ namespace Ossastra.SceneVisibility.Rooms.Editor
                 {
                     EditorGUILayout.ObjectField("活动建筑", module.ActiveBuilding, typeof(BuildingVisibilityRoot), true);
                     EditorGUILayout.ObjectField("活动房间", module.ActiveRoom, typeof(RoomRegion), true);
-                    EditorGUILayout.IntField("本会话已到达区域", module.DiscoveredRoomCount);
+                    EditorGUILayout.IntField("历史到达（不授显示权）", module.DiscoveredRoomCount);
                 }
             }
         }
@@ -120,6 +120,7 @@ namespace Ossastra.SceneVisibility.Rooms.Editor
             { "regions", RoomInspectorFields.Label("室内区域", "登记本栋的房间、走廊等逻辑区域；实际高度和内容归属由各区域明确配置。") },
             { "roofGroups", RoomInspectorFields.Label("全栋顶盖组", "本栋所有登记顶盖共同揭开；房间不各自控制独立揭顶开关。") },
             { "portals", RoomInspectorFields.Label("门窗观察开口", "登记真实门窗孔洞；观察连接不扩大建筑身份，也不自动解锁未到达房间。") },
+            { "frontWalls", RoomInspectorFields.Label("前向墙段", "仅当前种子房间按实际相机方向剔除必要墙段；共墙取种子所在侧法线，不扩大另一侧内容许可。") },
             { "structuralMembers", RoomInspectorFields.Label("永久结构成员", "墙、压顶、柱和门框等保持实体深度，不参与揭顶或角色局部透视。") }
         };
 
@@ -175,6 +176,8 @@ namespace Ossastra.SceneVisibility.Rooms.Editor
             { "apertureMesh", RoomInspectorFields.Label("真实孔洞网格", "位于本地XY平面的可读Mesh，形状与实体墙洞吻合；不使用静态假窗贴图。") },
             { "open", RoomInspectorFields.Label("开口处于开放状态", "控制本开口的观察许可；真实遮板或门的几何状态应由原有适配或样板控件同步。") },
             { "canSeeThrough", RoomInspectorFields.Label("允许透过观察", "是否允许通过真实孔洞看到当前帧景物；仍需满足房间资格与实际深度。") },
+            { "observerRange", RoomInspectorFields.Label("观察有效距离", "人物稳定观察点到真实孔洞多边形的最短距离上限（米）。") },
+            { "maxSightDistance", RoomInspectorFields.Label("窗洞延伸距离", "从孔洞沿进入目标空间的法线继续延伸上限（米）；只允许单跳。") },
             { "canTraverse", RoomInspectorFields.Label("允许通行（作者信息）", "与观察许可独立；本组件不会据此修改碰撞、攻击或拾取规则。") }
         };
 

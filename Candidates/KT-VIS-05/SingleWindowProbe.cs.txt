@@ -1,0 +1,37 @@
+/* 单窗端到端夹具：只用原Motor.Teleport/Orientation公开入口；不替代普通行走认证。 */
+using System;using System.IO;using System.Linq;using System.Collections.Generic;using UnityEngine;using UnityEditor;using UnityEngine.SceneManagement;using UnityEngine.Rendering;using Funplay.Editor.Tools.Scripting;using Ossastra.SceneVisibility;using Ossastra.SceneVisibility.Rooms.Rendering;using Newtonsoft.Json;
+public sealed class SingleWindowProbe:IFunplayCommand
+{
+ static SceneVisibilityRoot root;static Ossastra.Characters.CharacterRoot actor;static Ossastra.Development.SceneVisibility.RoomVisibilityLabPanel panel;static readonly object Lease=new object();
+ static int index;static double began,caseAt;static bool sampled;static Vector3 initial;static readonly List<object> facts=new List<object>();static string error;
+ public static bool Running{get;private set;}public static string ResultJson{get;private set;}
+ static readonly string[] Cases={"outside-facing","outside-back","outside-far","inside-facing-out","inside-back","west-open","west-physical-seal"};
+ public void Execute(ExecutionContext ctx)
+ {
+  if(Running)throw new Exception("Probe running");var s=SceneManager.GetActiveScene();if(!Application.isPlaying||s.path!="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity")throw new Exception("Exact Play");
+  root=s.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<SceneVisibilityRoot>(true)).Single();actor=root.coordinator.Current;panel=root.GetComponent<Ossastra.Development.SceneVisibility.RoomVisibilityLabPanel>();
+  var commerce=s.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<Ossastra.Commerce.Runtime.CommerceService>(true)).Single();if(actor==null||!actor.IsAlive||panel==null||commerce.profileId!="kt-vis05-window-01")throw new Exception("Unsafe fixture");
+  initial=actor.transform.position;actor.SetViewInputCapture(Lease,true);facts.Clear();error=null;index=0;began=EditorApplication.timeSinceStartup;Running=true;root.showDiagnostics=false;panel.showPanel=false;Apply();EditorApplication.update+=Tick;
+  ctx.ReturnValue=new{started=true,cases=Cases,seconds=28,positionFixture="Original Motor.Teleport; original OrientTowards+FaceAttackDirection"};
+ }
+ static void Apply()
+ {
+  sampled=false;caseAt=EditorApplication.timeSinceStartup;Vector3 position=index<2?new Vector3(-16,.1f,-6):index==2?new Vector3(-16,.1f,1):index<5?new Vector3(-16,.1f,-10.4f):new Vector3(-18,.1f,-11);
+  Vector3 direction=index==1||index==3?Vector3.forward:index>=5?Vector3.left:Vector3.back;
+  if(index>=5){panel.SetShutterOpen(index==5);panel.shutterPortal.open=true;}else panel.SetShutterOpen(false);
+  actor.GetComponent<Ossastra.Characters.CharacterMovement>().Teleport(position);var o=actor.GetComponent<Ossastra.Characters.CharacterOrientation>();o.OrientTowards(position+direction*5);o.FaceAttackDirection();root.roomModule.RequestImmediateMembershipRefresh();
+ }
+ static void Tick()
+ {
+  if(!Running)return;try{
+   if(!Application.isPlaying||actor==null||root==null)throw new Exception("Context interrupted");double elapsed=EditorApplication.timeSinceStartup-caseAt;
+   if(!sampled&&elapsed>2){sampled=true;var m=root.roomModule;Vector3 test=index<3?new Vector3(-16,1.4f,-12):index<5?new Vector3(-16,1.4f,-5.5f):new Vector3(-22,1.4f,-11);bool expected=index==0||index==3||index==5;RoomMaskFrame frame;RoomMaskCameraRegistry.TryGet(root.gameplayCamera,out frame);RoomMaskStatistics stats;RoomMaskCameraRegistry.TryGetStatistics(root.gameplayCamera,out stats);bool allowed=m.AllowsWorldPoint(test);facts.Add(new{test=Cases[index],expected,allowed,passed=allowed==expected,point=test.ToString("R"),observer=m.ObserverPosition.ToString("R"),forward=m.ObserverForward.ToString("R"),room=m.ActiveRoom==null?null:m.ActiveRoom.roomId,m.PartialViewCount,m.HiddenFrontWallCount,previewRoofs=frame==null?0:frame.PreviewRoofSurfaces.Length,maskError=stats==null?"none":stats.Error,roofRenderersPresent=m.buildings.SelectMany(b=>b.roofGroups).SelectMany(g=>g.members).All(r=>r!=null&&r.enabled&&!r.forceRenderingOff)});}
+   if(elapsed>4){index++;if(index>=Cases.Length){Finish();return;}Apply();}
+  }catch(Exception e){error=e.Message;Finish();}}
+ static void Finish()
+ {
+  EditorApplication.update-=Tick;Running=false;
+  if(actor!=null){actor.GetComponent<Ossastra.Characters.CharacterMovement>().Teleport(initial);actor.SetViewInputCapture(Lease,false);}if(panel!=null){panel.SetShutterOpen(false);panel.showPanel=true;}
+  ResultJson=JsonConvert.SerializeObject(new{completed=error==null,error,elapsed=EditorApplication.timeSinceStartup-began,facts},Formatting.Indented);Directory.CreateDirectory("Candidates/KT-VIS-05/Evidence");File.WriteAllText("Candidates/KT-VIS-05/Evidence/single-window-truth.json",ResultJson);
+ }
+}

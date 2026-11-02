@@ -141,6 +141,8 @@ namespace Ossastra.Characters
                     var boneName=socket!=null?socket.BoneName:profile.bodyBone;var slotName=socket!=null?socket.SlotName:profile.bodySlot;
                     bodyBone=body.Skeleton.FindBone(boneName);bodySlot=string.IsNullOrEmpty(slotName)?null:body.Skeleton.FindSlot(slotName);
                     grip=Animation.Skeleton.FindBone(profile.gripBone);meshRenderer=child.GetComponent<MeshRenderer>();bodyRenderer=body.GetComponent<Renderer>();
+                    var character=body.GetComponentInParent<CharacterRoot>();
+                    if(character!=null)Ossastra.SceneVisibility.Rooms.RoomPresentationBinding.Attach(meshRenderer,character.transform.position,false,character.transform);
                     offset=profile.localOffset;scale=profile.localScale;rotation=profile.rotationOffset;sortingOffset=profile.sortingOrderOffset;
                     followRotation=profile.followBoneRotation;slotColor=profile.followSlotColor;slotVisibility=profile.followSlotAttachmentVisibility;
                     Status="独立Spine";

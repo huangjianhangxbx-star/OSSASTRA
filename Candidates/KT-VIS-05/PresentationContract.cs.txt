@@ -1,0 +1,208 @@
+/* 功能：在原Lab/隔离档实际调用三个现有FX工厂及耐久条工厂，检查动态登记、Partial、跟随与清理。
+ * 边界：不创建业务Root、不改Current/输入/HP/物理或存档；投射体不推进碰撞/结算。
+ * 说明：反馈期限用原LateUpdate的age边界夹具；冰路用本地CombatIceWorld.Tick(8.1)真实到期分支；
+ *       投射体位移为显示夹具，并非真实弹道验收。最终像素/阴影/正式输入仍由父任务验证。
+ * 结果：运行后反射读取public static Result；只等两次原主相机End检查Destroy，无额外相机。
+ */
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using System.IO;
+using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.SceneManagement;
+using UnityEditor;
+using Funplay.Editor.Tools.Scripting;
+using Ossastra.SceneVisibility;
+using Ossastra.SceneVisibility.Rooms;
+using Ossastra.SceneVisibility.Rooms.Rendering;
+using Ossastra.Combat;
+using Ossastra.UserInterface;
+using Ossastra.WorldProps;
+using CurrentActor = Ossastra.Characters.CharacterRoot;
+using Object = UnityEngine.Object;
+
+public sealed class PresentationContract : IFunplayCommand
+{
+ const string ScenePath="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity";
+ const string Profile="kt-vis05-window-01";
+ const string SaveDirectory="E:/WORLDCREATOR/XingHaiHuiLang/研究/可见性修复/KT-VIS-05/profiles";
+ const BindingFlags Private=BindingFlags.Instance|BindingFlags.NonPublic;
+ public static object Result;
+ static bool running;
+ static int endCount,beforeHp,beforeParents;
+ static double deadline;
+ static string actorId,failure;
+ static SceneVisibilityRoot root;
+ static RoomVisibilityModule module;
+ static Camera camera;
+ static CurrentActor actor;
+ static Vector3 beforePosition;
+ static readonly List<GameObject> ownedObjects=new List<GameObject>();
+ static readonly List<Object> ownedMedia=new List<Object>();
+ static readonly List<Renderer> ownedRenderers=new List<Renderer>();
+ static readonly List<Row> rows=new List<Row>();
+ static readonly List<RoomPresentationRegistry.Entry> entries=new List<RoomPresentationRegistry.Entry>();
+ static CombatDeliveryQueue queue;
+ static CombatIceWorld ice;
+ sealed class Row {public string name;public bool passed;public string detail;}
+ static void Need(bool condition,string message){if(!condition)throw new InvalidOperationException(message);}
+ static object Field(object target,string name)=>target.GetType().GetField(name,Private).GetValue(target);
+ static void Set(object target,string name,object value)=>target.GetType().GetField(name,Private).SetValue(target,value);
+ static object Call(object target,string name,params object[] values)
+ {
+  var method=target.GetType().GetMethod(name,Private);Need(method!=null,"Missing actual factory "+name);
+  return method.Invoke(target,values);
+ }
+ static void Pass(string name,string detail){rows.Add(new Row{name=name,passed=true,detail=detail});}
+ static void ReadEntries(){entries.Clear();RoomPresentationRegistry.Append(entries);}
+ static RoomPresentationRegistry.Entry Entry(Renderer renderer)
+ {
+  ReadEntries();var matches=entries.Where(e=>ReferenceEquals(e.Renderer,renderer)).ToArray();
+  Need(matches.Length==1,"Expected exactly one registry entry: "+(renderer==null?"destroyed":renderer.name));return matches[0];
+ }
+ static RoomMaskFrame Refresh()
+ {
+  module.BeginCamera(root,camera,true);
+  try
+  {
+   Need(RoomMaskCameraRegistry.TryGet(camera,out var frame)&&frame.Enabled&&frame.PositiveRenderingEnabled,"Original positive frame missing: "+module.Status);
+   Need(!module.Status.StartsWith("显示许可被拒绝",StringComparison.Ordinal),"Module published rejected empty frame: "+module.Status);
+   return frame;
+  }
+  finally{module.EndCamera(root,camera);}
+ }
+ static void Partial(Renderer renderer,string name)
+ {
+  Need(Entry(renderer).ForcePartial,name+" missing ForcePartial");
+  var frame=Refresh();var surfaces=frame.PositiveSurfaces.Where(s=>s.Renderer==renderer).ToArray();
+  Need(surfaces.Length==1&&surfaces[0].Kind==RoomPositiveSurfaceKind.Partial,name+" became missing/Full; matches="+surfaces.Length+
+   "; kind="+(surfaces.Length==0?"missing":surfaces[0].Kind.ToString())+"; total="+frame.PositiveSurfaces.Length+
+   "; rendererScene="+renderer.gameObject.scene.path+"#"+renderer.gameObject.scene.handle+"; moduleScene="+module.gameObject.scene.path+"#"+module.gameObject.scene.handle+
+   "; enabled="+renderer.enabled+"; active="+renderer.gameObject.activeInHierarchy+"; off="+renderer.forceRenderingOff+
+   "; flags="+renderer.gameObject.hideFlags+"; status="+module.Status+"; sight="+module.SightStatus);
+  Pass(name,"original factory renderer is registered once and remains Partial in actual module frame");
+ }
+ static GameObject NewHost(ExecutionContext ctx,string name,Vector3 position)
+ {
+  // 测试现有场景归属门，不能用Hide/DontSave把叶对象变为内部隐藏场景对象。
+  // 本命令仅Play且精确清理自有对象，不保存任何场景。
+  var go=new GameObject(name);ctx.RegisterObjectCreation(go);
+  if(go.scene!=module.gameObject.scene)SceneManager.MoveGameObjectToScene(go,module.gameObject.scene);
+  Need(go.scene==module.gameObject.scene,"Presentation fixture was not placed in the original Lab scene");
+  go.transform.position=position;ownedObjects.Add(go);return go;
+ }
+ static Material NewMaterial(ExecutionContext ctx,string name)
+ {
+  var shader=Shader.Find("Sprites/Default");Need(shader!=null,"Sprites/Default unavailable");
+  var value=new Material(shader){name=name,hideFlags=HideFlags.HideAndDontSave};ctx.RegisterObjectCreation(value);ownedMedia.Add(value);return value;
+ }
+ public void Execute(ExecutionContext ctx)
+ {
+  Need(!running,"Presentation contract already running; poll Result instead");
+  var scene=SceneManager.GetActiveScene();Need(Application.isPlaying&&scene.path==ScenePath,"Exact Lab Play required");
+  Need(Application.dataPath=="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets","Wrong Unity project");
+  var all=scene.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<MonoBehaviour>(true)).Where(c=>c!=null).ToArray();
+  var stores=all.OfType<Ossastra.Commerce.Runtime.CommerceService>().ToArray();
+  Need(stores.Length==1&&stores[0].profileId==Profile&&!string.IsNullOrWhiteSpace(stores[0].saveDirectory)&&Path.GetFullPath(stores[0].saveDirectory)==Path.GetFullPath(SaveDirectory),"Wrong actual isolated save host");
+  root=all.OfType<SceneVisibilityRoot>().Single();module=root.roomModule;camera=root.gameplayCamera;actor=root.coordinator.Current;
+  Need(module!=null&&module.IsReady&&actor!=null&&actor.IsAlive&&camera!=null,"Original Current/module/camera missing");
+  Need(module.SuppressedRendererCount==0,"Wait until original camera scope ends");
+  Refresh();Need(module.ActiveBuilding!=null&&module.ActiveRoom!=null,"Place original Current inside a registered room before this contract");
+  actorId=actor.ActorId;beforeHp=actor.Vitals.Health.Current;beforePosition=actor.transform.position;beforeParents=actor.Vitals.Recovery==null?0:actor.Vitals.Recovery.ActiveParents;
+  ownedObjects.Clear();ownedMedia.Clear();ownedRenderers.Clear();rows.Clear();queue=null;ice=null;failure=null;endCount=0;
+  try
+  {
+   // Actual feedback factory. This new view owns only presentation children; it is disabled before its first Start.
+   var feedbackHost=NewHost(ctx,"__PresentationContract_Feedback",beforePosition);
+   var feedback=feedbackHost.AddComponent<CombatFeedbackView>();
+   Set(feedback,"material",NewMaterial(ctx,"Presentation contract feedback material"));
+   Call(feedback,"Arc",beforePosition,Vector3.right,Color.cyan,.4f,true);
+   var strokes=(IList)Field(feedback,"strokes");Need(strokes.Count==1,"Original Arc did not create exactly one stroke");
+   var stroke=strokes[0];var strokeLine=(LineRenderer)stroke.GetType().GetField("line").GetValue(stroke);ownedRenderers.Add(strokeLine);
+   Partial(strokeLine,"CombatFeedbackView.Arc actual factory");
+   stroke.GetType().GetField("age").SetValue(stroke,.3f);Call(feedback,"LateUpdate");
+   Need(strokes.Count==0,"Original .25s expiry branch did not remove stroke");feedback.enabled=false;
+   Pass("feedback expiry","original LateUpdate expiry branch requested Destroy; age advanced by explicit display fixture");
+
+   // Actual projectile factory, but never Tick collision or resolve damage. Clear releases the exact temporary parent lease.
+   var texture=new Texture2D(2,2,TextureFormat.RGBA32,false){name="Presentation contract sprite texture",hideFlags=HideFlags.HideAndDontSave};
+   texture.SetPixels(new[]{Color.white,Color.white,Color.white,Color.white});texture.Apply();ctx.RegisterObjectCreation(texture);ownedMedia.Add(texture);
+   var sprite=Sprite.Create(texture,new Rect(0,0,2,2),new Vector2(.5f,.5f),2);sprite.name="Presentation contract sprite";sprite.hideFlags=HideFlags.HideAndDontSave;ctx.RegisterObjectCreation(sprite);ownedMedia.Add(sprite);
+   queue=new CombatDeliveryQueue();var parent=Guid.NewGuid();queue.RegisterParent(parent);
+   var config=new DeliveryParameters{mode=DeliveryMode.Projectile,range=2,speed=1};
+   Need(queue.Emit(actor.Vitals,parent,0,config,1,0,beforePosition,Vector3.up,beforePosition,()=>true,_=>{},sprite),"Original delivery Emit rejected");
+   var flights=(IList)Field(queue,"flights");Need(flights.Count==1,"Expected exactly one own flight");
+   var projectile=(GameObject)flights[0].GetType().GetField("visual").GetValue(flights[0]);Need(projectile!=null,"Original delivery Sprite missing");
+   ownedObjects.Add(projectile);ctx.RegisterObjectCreation(projectile);var projectileRenderer=projectile.GetComponent<Renderer>();ownedRenderers.Add(projectileRenderer);
+   Partial(projectileRenderer,"CombatDeliveryQueue.Emit actual factory");
+   var moved=projectile.transform.position+new Vector3(.2f,.1f,.2f);projectile.transform.position=moved;
+   Need((Entry(projectileRenderer).Anchor-moved).sqrMagnitude<1e-8f,"Moving projectile anchor stayed at spawn point");
+   Pass("moving projectile anchor","actual renderer Transform follow sampled after display-only move; no trajectory/contact Tick");
+   queue.Clear();Need(queue.InFlightCount==0,"Original queue Clear left flight alive");
+   Need((actor.Vitals.Recovery==null?0:actor.Vitals.Recovery.ActiveParents)==beforeParents,"Temporary projectile parent lease not returned");
+
+   // Actual ice patch factory and original 8s expiry branch. Expire before first overlap/pulse avoids gameplay contact.
+   ice=new CombatIceWorld(actor.Vitals,()=>true);
+   var room=module.ActiveRoom;var patchPoint=room.transform.TransformPoint(room.volumes[0].center);patchPoint.y=beforePosition.y;
+   Need(ice.SpawnPatch(Guid.NewGuid(),patchPoint),"Original SpawnPatch rejected room-center fixture (check actual wall/prop overlap)");
+   var patches=(IList)Field(ice,"patches");Need(patches.Count==1,"Original ice patch missing");
+   var patch=(GameObject)patches[0].GetType().GetField("visual").GetValue(patches[0]);ownedObjects.Add(patch);ctx.RegisterObjectCreation(patch);
+   var patchRenderer=patch.GetComponent<Renderer>();ownedRenderers.Add(patchRenderer);Partial(patchRenderer,"CombatIceWorld.SpawnPatch actual factory");
+   ice.Tick(8.1f);Need(ice.PatchCount==0&&ice.PulseCount==0,"Ice expiry must remove patch before any contact pulse");
+   Pass("ice expiry","actual private Visual reached through public SpawnPatch; Tick(8.1) expired before overlap/HP contact");
+
+   // Actual lazy durability meshes. They carry an anchor permission requirement independent from final mesh clipping.
+   var barHost=NewHost(ctx,"__PresentationContract_Durability",beforePosition);
+   var bar=barHost.AddComponent<WorldPropView>();bar.barMaterial=NewMaterial(ctx,"Presentation contract durability material");
+   Call(bar,"EnsureBar");var barRenderers=barHost.GetComponentsInChildren<Renderer>(true);Need(barRenderers.Length==2,"Expected actual Back/Fill mesh pair");
+   foreach(var renderer in barRenderers){ownedRenderers.Add(renderer);Partial(renderer,"WorldPropView.MakeQuad "+renderer.name);Need(Entry(renderer).RequireAnchorPermission,"Durability renderer missing anchor permission");}
+   barHost.transform.position=beforePosition+Vector3.right*200;
+   var hiddenFrame=Refresh();Need(barRenderers.All(r=>!hiddenFrame.PositiveSurfaces.Any(s=>s.Renderer==r)),"Unknown far-away durability UI leaked into positive frame");
+   Pass("unknown durability UI","same-frame illegal world anchor removes both meshes; existing shadowOff remains original");
+  }
+  catch(Exception error){failure=error.ToString();}
+  finally
+  {
+   // Only own queue/ice scope and own created objects/media; no original root/component is disabled or destroyed.
+   if(queue!=null){queue.Clear();queue=null;}if(ice!=null){ice.Dispose();ice=null;}
+   foreach(var go in ownedObjects)if(go!=null){go.SetActive(false);Object.Destroy(go);}
+   foreach(var value in ownedMedia)if(value!=null)Object.Destroy(value);
+  }
+  running=true;deadline=EditorApplication.timeSinceStartup+5;
+  Result=new{status="running",scene=ScenePath,profile=Profile,checks=rows.ToArray(),failure,ownedRendererCount=ownedRenderers.Count};
+  RenderPipelineManager.endCameraRendering+=OnEnd;EditorApplication.update+=Watchdog;EditorApplication.playModeStateChanged+=OnPlayMode;ctx.ReturnValue=Result;
+ }
+ static void OnEnd(ScriptableRenderContext context,Camera rendered)
+ {
+  if(!running||rendered!=camera)return;
+  if(++endCount>=2)Finish();
+ }
+ static void Watchdog(){if(running&&EditorApplication.timeSinceStartup>deadline){if(failure==null)failure="Timed out waiting for two original camera End callbacks";Finish();}}
+ static void OnPlayMode(PlayModeStateChange state){if(running&&state==PlayModeStateChange.ExitingPlayMode){if(failure==null)failure="Play exited during presentation contract";Finish();}}
+ static void Finish()
+ {
+  if(!running)return;running=false;
+  RenderPipelineManager.endCameraRendering-=OnEnd;EditorApplication.update-=Watchdog;EditorApplication.playModeStateChanged-=OnPlayMode;
+  try
+  {
+   ReadEntries();bool released=ownedRenderers.All(r=>!entries.Any(e=>ReferenceEquals(e.Renderer,r)));
+   bool destroyed=ownedObjects.All(o=>o==null)&&ownedMedia.All(o=>o==null);
+   bool sameCurrent=root!=null&&root.coordinator.Current==actor&&actor!=null&&actor.ActorId==actorId;
+   bool sourceUnchanged=sameCurrent&&actor.Vitals.Health.Current==beforeHp&&(actor.transform.position-beforePosition).sqrMagnitude<1e-8f&&
+    (actor.Vitals.Recovery==null?0:actor.Vitals.Recovery.ActiveParents)==beforeParents;
+   if(!released||!destroyed||!sourceUnchanged){if(failure==null)failure="Owned cleanup or original Current/HP/position/parent lease changed";}
+   Result=new{status=failure==null?"complete":"failed",passed=failure==null,scene=ScenePath,profile=Profile,checks=rows.ToArray(),failure,
+    originalCameraEndCallbacks=endCount,ownedRendererCount=ownedRenderers.Count,ownRegistrationsReleased=released,ownedObjectsAndMediaDestroyed=destroyed,originalCurrentAndVitalsUnchanged=sourceUnchanged,
+    limitations="Factory/lifecycle/module-frame contract only; display-age/projectile-position/time fixtures, no real attack input, no GPU pixels/shadow proof"};
+  }
+  finally
+  {
+   foreach(var go in ownedObjects)if(go!=null){go.SetActive(false);Object.Destroy(go);}
+   foreach(var value in ownedMedia)if(value!=null)Object.Destroy(value);
+   ownedObjects.Clear();ownedMedia.Clear();ownedRenderers.Clear();root=null;module=null;camera=null;actor=null;
+  }
+ }
+}

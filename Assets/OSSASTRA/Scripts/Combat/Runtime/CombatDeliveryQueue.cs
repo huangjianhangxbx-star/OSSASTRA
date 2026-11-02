@@ -77,6 +77,7 @@ namespace Ossastra.Combat
                 var renderer=flight.visual.AddComponent<SpriteRenderer>();renderer.sprite=sprite;renderer.sortingOrder=50;
                 flight.visual.transform.localScale=Vector3.one*scale;if(Camera.main!=null)flight.visual.transform.rotation=Camera.main.transform.rotation;
                 flight.visual.transform.position=flight.position;
+                Ossastra.SceneVisibility.Rooms.RoomPresentationBinding.Attach(renderer,flight.position,true,flight.visual.transform);
             }
             source.Recovery?.RetainParent(parent);flights.Add(flight);return true;
         }

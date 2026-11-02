@@ -1,0 +1,17 @@
+/* 仅原Lab接回正式材质、调试实体门；不改其他Renderer或源场。 */
+using System;using System.Linq;using System.Reflection;using UnityEngine;using UnityEditor;using UnityEngine.SceneManagement;using UnityEditor.SceneManagement;using Funplay.Editor.Tools.Scripting;using Ossastra.SceneVisibility;using Ossastra.SceneVisibility.Rooms.Rendering;
+public class ConfigureFinalSight:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  var go=EditorUtility.InstanceIDToObject(69572) as GameObject;var s=SceneManager.GetActiveScene();if(go==null||Application.isPlaying||s.path!="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity"||go.scene!=s||SceneManager.sceneCount!=1)throw new Exception("Exact owned Edit");
+  var root=go.GetComponent<SceneVisibilityRoot>();if(root==null||root.roomModule==null)throw new Exception("Missing original visibility root");var module=root.roomModule;var panel=go.GetComponent<Ossastra.Development.SceneVisibility.RoomVisibilityLabPanel>();var door=EditorUtility.InstanceIDToObject(-108656) as GameObject;if(panel==null||door==null||door.transform.parent!=module.buildings.First(b=>b.buildingId=="building-abc").transform)throw new Exception("Missing verified panel/door leaf");
+  var data=AssetDatabase.LoadAssetAtPath<UnityEngine.Rendering.Universal.UniversalRendererData>("Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/Rendering/RoomVisibilityRenderer.asset");if(data==null)throw new Exception("No owned renderer");var feature=data.rendererFeatures.OfType<RoomMaskRendererFeature>().Single();var suffixes=new[]{"Lit","SimpleLit","Unlit","ThinTop","WorldTile","Decoration","DepthPlane","Spine","Sprite","SpriteLit"};
+  ctx.RegisterObjectModification(feature);var shaders=new System.Collections.Generic.List<Shader>();foreach(var suffix in suffixes){var field=typeof(RoomMaskRendererFeature).GetField("positive"+suffix+"Shader",BindingFlags.Public|BindingFlags.Instance);var shader=Shader.Find("Hidden/Ossastra/Rooms/Sight"+suffix);if(field==null||shader==null)throw new Exception("Missing actual adapter "+suffix);field.SetValue(feature,shader);shaders.Add(shader);}
+  ctx.RegisterObjectModification(panel);panel.doorPortal=module.buildings.SelectMany(b=>b.portals).Single(p=>p.portalId=="portal-a-c");panel.doorLeaf=door.transform;panel.doorClosedPosition=new Vector3(-12,1.35f,-12);panel.doorOpenPosition=new Vector3(-12,1.35f,-8.6f);panel.SetDoorOpen(true);panel.showPanel=true;panel.showPortalProjection=false;
+  ctx.RegisterObjectModification(module);module.positiveRenderingEnabled=true;module.truthMode=false;module.localObjectRevealEnabled=false;ctx.RegisterObjectModification(root);root.showDiagnostics=false;
+  if(!root.ValidateConfiguration(out var reason))throw new Exception("Author configuration: "+reason);
+  EditorUtility.SetDirty(feature);EditorUtility.SetDirty(data);data.SetDirty();AssetDatabase.SaveAssetIfDirty(data);EditorUtility.SetDirty(module);EditorUtility.SetDirty(panel);EditorUtility.SetDirty(root);EditorSceneManager.MarkSceneDirty(s);Ossastra.GroundSurfaces.Editor.GroundSurfaceAuthoring.SaveLab();Ossastra.GroundSurfaces.Editor.GroundSurfaceUpdates.ClearPending();
+  ctx.ReturnValue=new{saved=!s.isDirty,truth=module.truthMode,localObjectReveal=module.localObjectRevealEnabled,door=door.GetInstanceID(),shaderChecks=shaders.Select(shader=>new{shader.name,supported=shader.isSupported,messages=ShaderUtil.GetShaderMessages(shader).Select(m=>new{m.message,m.file,m.line,severity=m.severity.ToString()}).ToArray()}).ToArray()};
+ }
+}

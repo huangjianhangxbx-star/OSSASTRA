@@ -29,6 +29,19 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
 
     public sealed class RoomMaskFrame
     {
+        // 正向绘制帧：旧双黑幕字段仅供未迁移场景，不再授予本模式可见权。
+        public bool PositiveRenderingEnabled;
+        public bool TruthMode = true;
+        public bool ExteriorView;
+        public Vector3 ObserverPosition;
+        public Func<Vector3, bool> AllowsPoint;
+        public RoomMaskVolume[] SeedVolumes = Array.Empty<RoomMaskVolume>();
+        public RoomMaskVolume[] BuildingVolumes = Array.Empty<RoomMaskVolume>();
+        public RoomSightDomain[] SightDomains = Array.Empty<RoomSightDomain>();
+        public RoomMaskVolume[] OpaqueBlockers = Array.Empty<RoomMaskVolume>();
+        public RoomPositiveSurface[] PositiveSurfaces = Array.Empty<RoomPositiveSurface>();
+        // 仅室外预览的目标建筑屋顶可消费局部像素许可；不等同于整栋激活/揭顶。
+        public Renderer[] PreviewRoofSurfaces = Array.Empty<Renderer>();
         public bool Enabled;
         public bool ExteriorBlackoutEnabled = true;
         public bool InteriorUnexploredEnabled = true;
@@ -46,11 +59,35 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
         public Collider[] LabelRaycastExclusions = Array.Empty<Collider>();
     }
 
+    /// <summary>平面内侧为 dot(normal, world)+w >= 0；室外目标额外排除所有建筑体积。</summary>
+    public sealed class RoomSightDomain
+    {
+        public Vector4[] Planes = Array.Empty<Vector4>();
+        public RoomMaskVolume[] TargetVolumes = Array.Empty<RoomMaskVolume>();
+        public bool TargetExterior;
+    }
+
+    public enum RoomPositiveSurfaceKind { Full, Partial, Roof }
+
+    public struct RoomPositiveSurface
+    {
+        public Renderer Renderer;
+        public RoomPositiveSurfaceKind Kind;
+        public RoomMaskVolume[] OwnerVolumes;
+        public bool OwnerExterior;
+        // 原业务表现登记强制只读源材质；动态Lit组由有限筛选位保持URP逐对象光照。
+        public bool IndependentDraw;
+        public uint DrawMask;
+        public Material DrawMaterial;
+    }
+
     public sealed class RoomMaskStatistics
     {
         public int Width, Height, Msaa, SurfaceDraws, PortalDraws, UnexploredVolumeDraws;
         public int OwnedMeshCount;
         public int OwnedTextureCount, OwnedMaterialCount, UnsupportedMaterialCount, PmaApproximationCount;
+        public int OwnedPropertyBlockCount;
+        public int SourceMaterialBucketCount, RetainedMaterialConflicts;
         public long EstimatedTextureBytes;
         public double CommandBuildMilliseconds;
         public bool Active;
@@ -63,6 +100,7 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
         static readonly Dictionary<int, Entry> entries = new Dictionary<int, Entry>();
         static readonly Dictionary<int, RoomMaskStatistics> statistics = new Dictionary<int, RoomMaskStatistics>();
         internal static event Action<int> Released;
+        internal static event Action<int> ScopeEnded;
         /// <summary>最新相机快照已发布/撤销；只供已有世界表现重算显隐，不推进业务或角色。</summary>
         public static event Action<Camera> FramePublished;
 
@@ -79,8 +117,8 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
             else entries.Add(id, new Entry { Owner = owner, Camera = camera, Frame = frame });
             Shader.SetGlobalFloat("_RoomWorldLabelMaskEnabled", frame.Enabled ? 1 : 0);
             Shader.SetGlobalFloat("_RoomWorldLabelMaskReady", 0);
-            Shader.SetGlobalFloat("_RoomWorldLabelExteriorEnabled", frame.ExteriorBlackoutEnabled ? 1 : 0);
-            Shader.SetGlobalFloat("_RoomWorldLabelInteriorEnabled", frame.InteriorUnexploredEnabled ? 1 : 0);
+            Shader.SetGlobalFloat("_RoomWorldLabelExteriorEnabled", frame.PositiveRenderingEnabled || frame.ExteriorBlackoutEnabled ? 1 : 0);
+            Shader.SetGlobalFloat("_RoomWorldLabelInteriorEnabled", frame.PositiveRenderingEnabled || frame.InteriorUnexploredEnabled ? 1 : 0);
             FramePublished?.Invoke(camera);
         }
 
@@ -94,6 +132,15 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
             Shader.SetGlobalFloat("_RoomWorldLabelMaskEnabled", 0);
             Shader.SetGlobalFloat("_RoomWorldLabelMaskReady", 0);
             FramePublished?.Invoke(camera);
+        }
+
+        // 公开Begin/End即使没有真实URP CameraCleanup也必须归还借用范围；帧与有限缓存继续保留。
+        public static void EndScope(object owner, Camera camera)
+        {
+            if (owner == null || ReferenceEquals(camera, null)) return;
+            int id = camera.GetInstanceID();
+            if (!entries.TryGetValue(id, out var entry) || !ReferenceEquals(entry.Owner, owner)) return;
+            ScopeEnded?.Invoke(id);
         }
 
         public static bool TryGet(Camera camera, out RoomMaskFrame frame)

@@ -1,0 +1,14 @@
+/* 回归：开口必须依据实际三角形边界，不能把未填充的半个网格补成四边窗。 */
+using System;using System.Linq;using System.Collections.Generic;using UnityEngine;using Funplay.Editor.Tools.Scripting;using Ossastra.SceneVisibility.Rooms;using Ossastra.SceneVisibility.Rooms.Core;
+public class ApertureMeshContract:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  var go=new GameObject("ApertureContract");go.hideFlags=HideFlags.HideAndDontSave;var mesh=new Mesh();bool halfAllows=true,centerAllows=false;
+  try{var portal=go.AddComponent<ViewPortal>();portal.apertureMesh=mesh;mesh.vertices=new[]{new Vector3(-1,-1,0),new Vector3(1,-1,0),new Vector3(1,1,0),new Vector3(-1,1,0)};mesh.triangles=new[]{0,1,2};halfAllows=Allows(portal,new SightVector3(-.8f,.8f,2));
+   var centered=new Mesh();try{centered.vertices=mesh.vertices.Concat(new[]{Vector3.zero}).ToArray();centered.triangles=new[]{0,1,4,1,2,4,2,3,4,3,0,4};portal.apertureMesh=centered;centerAllows=Allows(portal,new SightVector3(0,0,2));}finally{UnityEngine.Object.DestroyImmediate(centered);}
+  }finally{UnityEngine.Object.DestroyImmediate(mesh);UnityEngine.Object.DestroyImmediate(go);}
+  ctx.ReturnValue=new{passed=!halfAllows&&centerAllows,unfilledTriangleAllowed=halfAllows,completeCenterTriangulatedAllowed=centerAllows,expectedHalf=false,expectedCenter=true};
+ }
+ static bool Allows(ViewPortal portal,SightVector3 point){var vertices=portal.GetWorldAperture().Select(p=>new SightVector3(p.x,p.y,p.z)).ToArray();var p=new PortalSightSnapshot("actual","A","B",vertices,new SightVector3(0,0,1),true,6,8);var result=PortalSightSolver.Solve(new ObserverSnapshot("A",new SightVector3(0,0,-2),new SightVector3(0,0,1)),new[]{p});return result.Volumes.Any(v=>v.ContainsPoint(point));}
+}

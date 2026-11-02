@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net9.0</TargetFramework><ImplicitUsings>disable</ImplicitUsings><Nullable>disable</Nullable><EnableDefaultCompileItems>false</EnableDefaultCompileItems></PropertyGroup>
+  <ItemGroup>
+    <Compile Include="PresentationRegistryTests.cs" /><Compile Include="PresentationUnityStubs.cs" />
+    <Compile Include="../../../Assets/OSSASTRA/Scripts/SceneVisibility/Rooms/Runtime/RoomPresentationRegistry.cs" />
+    <Compile Include="../../../Assets/OSSASTRA/Scripts/SceneVisibility/Rooms/Runtime/RoomPresentationBinding.cs" Condition="Exists('../../../Assets/OSSASTRA/Scripts/SceneVisibility/Rooms/Runtime/RoomPresentationBinding.cs')" />
+  </ItemGroup>
+</Project>

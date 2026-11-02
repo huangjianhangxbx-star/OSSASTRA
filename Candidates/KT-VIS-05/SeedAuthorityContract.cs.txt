@@ -1,0 +1,23 @@
+/* 回归：记到达过A后处于B，不能继续授予A全房显示。只构造独立显示组件，不动实际业务。 */
+using System; using System.Reflection; using System.Collections.Generic; using UnityEngine;
+using Funplay.Editor.Tools.Scripting; using Ossastra.SceneVisibility.Rooms;
+public sealed class SeedAuthorityContract : IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  var go=new GameObject("SeedAuthorityContract"); go.hideFlags=HideFlags.HideAndDontSave;
+  bool oldRoomAllowed=false,currentRoomAllowed=false;
+  try {
+   var m=go.AddComponent<RoomVisibilityModule>();
+   var a=new GameObject("A"); a.transform.SetParent(go.transform); var ar=a.AddComponent<RoomRegion>(); ar.roomId="A"; ar.volumes=new[]{new RoomLocalBox{center=Vector3.up,size=new Vector3(4,2,4)}};
+   var b=new GameObject("B"); b.transform.SetParent(go.transform); b.transform.position=new Vector3(10,0,0); var br=b.AddComponent<RoomRegion>(); br.roomId="B"; br.volumes=ar.volumes;
+   var building=go.AddComponent<BuildingVisibilityRoot>();building.regions=new[]{ar,br};
+   var flags=BindingFlags.NonPublic|BindingFlags.Instance;
+   typeof(RoomVisibilityModule).GetProperty("ActiveBuilding").GetSetMethod(true).Invoke(m,new object[]{building});
+   typeof(RoomVisibilityModule).GetProperty("ActiveRoom").GetSetMethod(true).Invoke(m,new object[]{br});
+   var history=(HashSet<string>)typeof(RoomVisibilityModule).GetField("discovered",flags).GetValue(m);history.Add("A");history.Add("B");
+   oldRoomAllowed=m.ContainsActiveKnownPoint(new Vector3(0,1,0));currentRoomAllowed=m.ContainsActiveKnownPoint(new Vector3(10,1,0));
+  } finally {UnityEngine.Object.DestroyImmediate(go);}
+  ctx.ReturnValue=new{passed=!oldRoomAllowed&&currentRoomAllowed,oldRoomAllowed,currentRoomAllowed,expectedOld=false,expectedCurrent=true};
+ }
+}

@@ -10,6 +10,7 @@ namespace Ossastra.Enemies
     {
         private EnemyRoot root;
         private LineRenderer ring, direction;
+        private Ossastra.SceneVisibility.Rooms.RoomPresentationBinding ringVisibility,directionVisibility;
         private Material material;
         public bool Visible => ring != null && ring.enabled;
         private void Awake()
@@ -19,6 +20,8 @@ namespace Ossastra.Enemies
             if(shader==null) { enabled=false; return; }
             material=new Material(shader){name="SAMPLE_AttackWarning_Runtime"};
             ring=CreateLine("TrackingRange",49,true); direction=CreateLine("TrackingDirection",2,false);
+            ringVisibility=Ossastra.SceneVisibility.Rooms.RoomPresentationBinding.Attach(ring,transform.position,true);
+            directionVisibility=Ossastra.SceneVisibility.Rooms.RoomPresentationBinding.Attach(direction,transform.position,true);
         }
         private LineRenderer CreateLine(string label,int count,bool loop)
         {
@@ -34,11 +37,13 @@ namespace Ossastra.Enemies
             ring.enabled=direction.enabled=show;
             if(!show)return;
             var center=root.WarningCenter;center.y=transform.position.y+.04f;
+            ringVisibility.Configure(ring,center,true);
+            directionVisibility.Configure(direction,transform.position,true);
             for(int i=0;i<ring.positionCount;i++)
             {float angle=i*Mathf.PI*2/(ring.positionCount-1);ring.SetPosition(i,center+new Vector3(Mathf.Cos(angle),0,Mathf.Sin(angle))*root.WarningRadius);}
             direction.SetPosition(0,new Vector3(transform.position.x,center.y,transform.position.z));direction.SetPosition(1,center);
         }
-        private void OnDisable(){if(ring!=null)ring.enabled=false;if(direction!=null)direction.enabled=false;}
+        private void OnDisable(){if(ring!=null)ring.enabled=false;if(direction!=null)direction.enabled=false;ringVisibility?.Suspend();directionVisibility?.Suspend();}
         private void OnDestroy()
         {
             if(ring!=null)Destroy(ring.gameObject);if(direction!=null)Destroy(direction.gameObject);

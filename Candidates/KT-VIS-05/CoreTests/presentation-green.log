@@ -1,0 +1,7 @@
+PASS 旧掉落登记仍按原固定锚且owner不可抢占
+PASS 短命Renderer销毁后清理持有引用而不越积越多
+PASS FX传递强制片元裁剪且跟随当前世界锚
+PASS 未知信息条传递本帧锚点许可需求
+PASS 跟随锚点销毁后不回落出生位置授权
+PASS 叶适配器禁用撤销返场重新登记且销毁精确释放
+RESULT 6 passed, 0 failed

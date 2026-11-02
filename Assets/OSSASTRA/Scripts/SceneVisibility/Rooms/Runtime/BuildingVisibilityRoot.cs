@@ -20,7 +20,9 @@ namespace Ossastra.SceneVisibility.Rooms
         [Tooltip("本栋全部顶盖统一揭开；房间无独立顶盖开关。")]
         public RoofVisibilityGroup[] roofGroups = Array.Empty<RoofVisibilityGroup>();
         public ViewPortal[] portals = Array.Empty<ViewPortal>();
-        [Tooltip("墙、压顶、柱、门框等永久结构；保留真实深度，并拒绝角色局部透视。")]
+        [Tooltip("明确可隐藏的前向墙段；共墙以当前种子所在侧判断，剔除墙段不授予另一侧内容权限。")]
+        public FrontWallGroup[] frontWalls = Array.Empty<FrontWallGroup>();
+        [Tooltip("墙、压顶、柱、门框等结构分类。只有显式frontWalls可按镜头剔除颜色/深度；物理与原遮光保留，拒绝角色圆窗透视。")]
         public Renderer[] structuralMembers = Array.Empty<Renderer>();
 
         public bool Contains(Vector3 world, float expansion = 0f)

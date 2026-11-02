@@ -35,11 +35,19 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
         }
 
         public static bool RequiresPortal(Camera camera, Vector3 worldPoint)
-            => RoomMaskCameraRegistry.TryGet(camera, out var frame) && frame.Enabled && frame.ExteriorBlackoutEnabled && !Contains(frame.Volumes, worldPoint);
+        {
+            if (!RoomMaskCameraRegistry.TryGet(camera, out var frame) || !frame.Enabled) return false;
+            if (frame.PositiveRenderingEnabled)
+                return !Contains(frame.SeedVolumes, worldPoint) && (!frame.ExteriorView || Contains(frame.BuildingVolumes, worldPoint));
+            return frame.ExteriorBlackoutEnabled && !Contains(frame.Volumes, worldPoint);
+        }
 
         public static bool AllowsOwnedGroundSprite(Camera camera, Vector3 worldPoint)
         {
-            if (!RoomMaskCameraRegistry.TryGet(camera, out var frame) || !frame.Enabled || !frame.InteriorUnexploredEnabled) return true;
+            if (!RoomMaskCameraRegistry.TryGet(camera, out var frame) || !frame.Enabled) return true;
+            if (frame.PositiveRenderingEnabled)
+                return frame.AllowsPoint != null && frame.AllowsPoint(worldPoint);
+            if (!frame.InteriorUnexploredEnabled) return true;
             // 室外完整Sprite不能按中心是否落在窗口决定显隐，仍由GPU逐像素许可域处理。
             return !Contains(frame.Volumes, worldPoint) || Contains(frame.KnownVolumes, worldPoint);
         }
@@ -47,6 +55,15 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
         public static bool AllowsLabel(Camera camera, Vector3 worldPoint, Transform targetOwner = null)
         {
             if (!RoomMaskCameraRegistry.TryGet(camera, out var frame) || !frame.Enabled) return true;
+            if (frame.PositiveRenderingEnabled)
+            {
+                if (frame.AllowsPoint == null || !frame.AllowsPoint(worldPoint)) return false;
+                Vector3 projection = camera.WorldToViewportPoint(worldPoint);
+                if (projection.z <= 0 || projection.x < 0 || projection.x > 1 || projection.y < 0 || projection.y > 1) return false;
+                Ray cameraRay = camera.ViewportPointToRay(projection);
+                float length = Vector3.Dot(worldPoint - cameraRay.origin, cameraRay.direction);
+                return length > 0 && ColliderPathClear(camera, frame, cameraRay, length, worldPoint, targetOwner);
+            }
             if (Contains(frame.Volumes, worldPoint))
                 return !frame.InteriorUnexploredEnabled || Contains(frame.KnownVolumes, worldPoint);
             if (!frame.ExteriorBlackoutEnabled) return true;

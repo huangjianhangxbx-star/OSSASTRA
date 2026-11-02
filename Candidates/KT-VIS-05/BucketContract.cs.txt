@@ -1,0 +1,153 @@
+/* Edit合同：验证整数类型、静态源材质桶及精确归还，动态表现始终保留原材质引用。
+ * 使用真实SpriteUprightDepthMaterialBinding交错Bind与Prepare，捕获相机期间篡改自有variant的回归。
+ * 无Camera/Draw调用，只创建私有PreviewScene对象，不改源资产或业务档。
+ */
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Reflection;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using Funplay.Editor.Tools.Scripting;
+using Ossastra.SceneVisibility.Rooms.Rendering;
+
+public sealed class RoomBucketEditContract : IFunplayCommand
+{
+ static readonly BindingFlags Flags=BindingFlags.Instance|BindingFlags.Public|BindingFlags.NonPublic;
+ static Shader sightLit,sightDepth,sightSprite;
+ static Type bucketsType;
+ static Delegate resolver;
+ static object Get(object value,string field)=>value.GetType().GetField(field,Flags).GetValue(value);
+ static object Call(object value,string method,params object[] args)=>value.GetType().GetMethod(method,Flags).Invoke(value,args);
+ static int Count(object value,string property)=>(int)value.GetType().GetProperty(property,Flags).GetValue(value);
+ public static Shader Resolve(uint family,out int pass)
+ {pass=0;return family==RoomPositiveRenderingLayers.PartialDepthPlaneBit?sightDepth:
+   family==RoomPositiveRenderingLayers.PartialSpriteBit||family==RoomPositiveRenderingLayers.PartialDefaultSpriteBit?sightSprite:sightLit;}
+ static object NewBuckets()=>Activator.CreateInstance(bucketsType,true);
+ static RoomMaskFrame Frame(params RoomPositiveSurface[] surfaces)=>new RoomMaskFrame{Enabled=true,PositiveRenderingEnabled=true,TruthMode=false,PositiveSurfaces=surfaces};
+ static RoomPositiveSurface Surface(Renderer r,RoomPositiveSurfaceKind kind)=>new RoomPositiveSurface{Renderer=r,Kind=kind};
+ static List<object> Active(object buckets)
+ {var result=new List<object>();foreach(var item in (IEnumerable)buckets.GetType().GetProperty("Active",Flags).GetValue(buckets))result.Add(item);return result;}
+
+ public void Execute(ExecutionContext ctx)
+ {
+  if(EditorApplication.isPlaying){ctx.ReturnValue=new{passed=false,error="桶合同只在Edit执行，不接触运行档。"};return;}
+  bucketsType=typeof(RoomMaskFrame).Assembly.GetType("Ossastra.SceneVisibility.Rooms.Rendering.RoomPositiveMaterialBuckets");
+  var delegateType=typeof(RoomMaskFrame).Assembly.GetType("Ossastra.SceneVisibility.Rooms.Rendering.RoomPositiveShaderResolver");
+  var originalLit=Shader.Find("Universal Render Pipeline/Lit");
+  var originalDepth=Shader.Find("Ossastra/Characters/UprightDepthPlane");
+  var originalSpine=Shader.Find("Spine/Skeleton");var originalSprite=Shader.Find("Sprites/Default");
+  var uprightSprite=Shader.Find("Ossastra/Characters/UprightSpriteDefault");
+  var spriteBindingType=typeof(Ossastra.Characters.Rendering.CharacterUprightDepth).Assembly.GetType("Ossastra.Characters.Rendering.SpriteUprightDepthMaterialBinding");
+  sightLit=Shader.Find("Hidden/Ossastra/Rooms/SightLit");sightDepth=Shader.Find("Hidden/Ossastra/Rooms/SightDepthPlane");sightSprite=Shader.Find("Hidden/Ossastra/Rooms/SightSprite");
+  if(bucketsType==null||delegateType==null||spriteBindingType==null||originalLit==null||originalDepth==null||originalSpine==null||originalSprite==null||uprightSprite==null||sightLit==null||sightDepth==null||sightSprite==null)
+  {ctx.ReturnValue=new{passed=false,error="所需实际桶类型/Shader缺失，未创建测试对象。"};return;}
+  resolver=Delegate.CreateDelegate(delegateType,typeof(RoomBucketEditContract).GetMethod("Resolve",BindingFlags.Public|BindingFlags.Static));
+  var failures=new List<string>();var completed=new List<string>();
+  var objects=new List<GameObject>();var originals=new List<Material>();var bucketOwners=new List<object>();var spriteBindings=new List<object>();
+  Scene preview=EditorSceneManager.NewPreviewScene();
+  Action<bool,string> check=(ok,label)=>{if(!ok)failures.Add(label);};
+  Func<Material,Renderer> make=material=>{
+   var go=new GameObject("__RoomBucketContract");go.hideFlags=HideFlags.HideAndDontSave;go.SetActive(false);
+   SceneManager.MoveGameObjectToScene(go,preview);ctx.RegisterObjectCreation(go);objects.Add(go);
+   var renderer=go.AddComponent<MeshRenderer>();renderer.sharedMaterial=material;return renderer;
+  };
+  Func<Shader,int,Material> mat=(shader,queue)=>{var material=new Material(shader){hideFlags=HideFlags.HideAndDontSave,renderQueue=queue};originals.Add(material);return material;};
+  try
+  {
+   var block=new MaterialPropertyBlock();block.SetInteger("_RoomSightOwnerCount",2);block.SetInteger("_RoomSightOwnerExterior",1);
+   check(block.GetInteger("_RoomSightOwnerCount")==2&&block.GetInteger("_RoomSightOwnerExterior")==1,"typed MPB整数必须可由GetInteger读回");
+   check(typeof(UnityEngine.Rendering.CommandBuffer).GetMethod("SetGlobalInteger",new[]{typeof(string),typeof(int)})!=null,"实际CommandBuffer必须提供typed整数API");
+   completed.Add("typed-integer");
+
+   var original=mat(originalLit,2450);original.SetColor("_BaseColor",new Color(.2f,.35f,.6f,1));
+   var full=make(original);var partial=make(original);var roof=make(original);
+   var buckets=NewBuckets();bucketOwners.Add(buckets);
+   Call(buckets,"Prepare",Frame(Surface(full,RoomPositiveSurfaceKind.Full),Surface(partial,RoomPositiveSurfaceKind.Partial),Surface(roof,RoomPositiveSurfaceKind.Roof)),resolver);
+   check(ReferenceEquals(full.sharedMaterial,original),"Full成员不换原材质");
+   check(!ReferenceEquals(partial.sharedMaterial,original)&&!ReferenceEquals(roof.sharedMaterial,original),"有限片段/屋顶使用自有队列克隆");
+   check(partial.sharedMaterial.shader==originalLit&&roof.sharedMaterial.shader==originalLit,"队列克隆必须保留源Shader及Caster");
+   check(partial.sharedMaterial.renderQueue!=roof.sharedMaterial.renderQueue&&original.renderQueue==2450,"同源不同角色必须独立队列，源队列不变");
+   check(Active(buckets).Count==2&&Count(buckets,"OwnedMaterialCount")==4,"两桶应准确拥有两克隆和两Adapter");
+   original.SetColor("_BaseColor",new Color(.7f,.1f,.3f,1));Call(buckets,"RefreshAdapters");
+   foreach(var item in Active(buckets))check(((Material)Get(item,"Adapter")).GetColor("_BaseColor")==original.GetColor("_BaseColor"),"Adapter在所有原begin回调之后读取最新源颜色");
+   Call(buckets,"Restore");check(ReferenceEquals(partial.sharedMaterial,original)&&ReferenceEquals(roof.sharedMaterial,original),"Restore必须精确归还原引用");
+   Call(buckets,"Dispose");check(Count(buckets,"OwnedMaterialCount")==0,"正常Dispose所有桶材质归零");completed.Add("source-role-restore");
+
+   var depthSource=mat(originalDepth,2450);var depthRenderer=make(depthSource);
+   var depthBuckets=NewBuckets();bucketOwners.Add(depthBuckets);
+   Call(depthBuckets,"Prepare",Frame(Surface(depthRenderer,RoomPositiveSurfaceKind.Partial)),resolver);
+   check(ReferenceEquals(depthRenderer.sharedMaterial,depthSource)&&Active(depthBuckets).Count==0,"Upright家族在Prepare期间不得改原材质引用或进入静态桶");
+   Vector4 foot=new Vector4(7,1.4f,-3,1);depthSource.SetVector("_VisualDepthFoot",foot);depthSource.SetFloat("_VisualDepthEnabled",1);
+   Call(depthBuckets,"RefreshAdapters");
+   check(ReferenceEquals(depthRenderer.sharedMaterial,depthSource)&&depthSource.GetVector("_VisualDepthFoot")==foot&&depthSource.GetFloat("_VisualDepthEnabled")==1,"静态桶刷新不得替换或抹去原深度写者的新脚点");
+   Call(depthBuckets,"Restore");Call(depthBuckets,"Dispose");check(ReferenceEquals(depthRenderer.sharedMaterial,depthSource)&&Count(depthBuckets,"OwnedMaterialCount")==0,"Upright家族结束后仍是同一源引用且没有桶克隆");completed.Add("protected-depth-source");
+
+   var spineSource=mat(originalSpine,3000);var spineRenderer=make(spineSource);
+   var spineBuckets=NewBuckets();bucketOwners.Add(spineBuckets);
+   Call(spineBuckets,"Prepare",Frame(Surface(spineRenderer,RoomPositiveSurfaceKind.Partial)),resolver);
+   check(ReferenceEquals(spineRenderer.sharedMaterial,spineSource)&&Active(spineBuckets).Count==0,"真实Spine/Skeleton家族不得被静态队列材质接管");
+   Call(spineBuckets,"Restore");Call(spineBuckets,"Dispose");
+   check(ReferenceEquals(spineRenderer.sharedMaterial,spineSource)&&spineSource!=null,"Spine原材质Prepare至Dispose全程仍存活");completed.Add("protected-spine-source");
+
+   var actor=new GameObject("__RoomBucketSpriteOwner");actor.hideFlags=HideFlags.HideAndDontSave;actor.SetActive(false);
+   SceneManager.MoveGameObjectToScene(actor,preview);ctx.RegisterObjectCreation(actor);objects.Add(actor);
+   var spriteObject=new GameObject("__RoomBucketOwnedSprite");spriteObject.hideFlags=HideFlags.HideAndDontSave;spriteObject.SetActive(false);
+   SceneManager.MoveGameObjectToScene(spriteObject,preview);spriteObject.transform.SetParent(actor.transform,false);ctx.RegisterObjectCreation(spriteObject);objects.Add(spriteObject);
+   var sprite=spriteObject.AddComponent<SpriteRenderer>();var spriteSource=mat(originalSprite,3000);sprite.sharedMaterial=spriteSource;
+   var binding=Activator.CreateInstance(spriteBindingType,true);spriteBindings.Add(binding);
+   Call(binding,"Bind",sprite,actor.transform,uprightSprite);
+   Material ownedVariant=sprite.sharedMaterial;
+   check(ownedVariant!=null&&ownedVariant.shader==uprightSprite&&Count(binding,"OwnedMaterialCount")==1,"真实Sprite深度绑定应创建自己的有效variant");
+   var spriteBuckets=NewBuckets();bucketOwners.Add(spriteBuckets);
+   var before=sprite.sharedMaterials;
+   Call(spriteBuckets,"Prepare",Frame(Surface(sprite,RoomPositiveSurfaceKind.Partial)),resolver);
+   var during=sprite.sharedMaterials;
+   check(before.Length==during.Length&&during.Length==1&&ReferenceEquals(before[0],during[0]),"Prepare期间所有Sprite材质槽引用必须完全不变，不能只在Restore后假通过");
+   check(Active(spriteBuckets).Count==0&&Count(spriteBuckets,"OwnedMaterialCount")==0,"动态Sprite不得创建静态队列桶");
+   // 正常CharacterUprightDepth.Prepare会重复Bind。静态桶若抢占材质，此处会触发真实绑定的外部接管保护并销毁variant。
+   Call(binding,"Bind",sprite,actor.transform,uprightSprite);
+   check(ownedVariant!=null&&ReferenceEquals(sprite.sharedMaterial,ownedVariant)&&Count(binding,"OwnedMaterialCount")==1,"相机期间再次Bind后原自有Sprite variant必须仍存活且持有原槽");
+   Call(spriteBuckets,"RefreshAdapters");Call(spriteBuckets,"Restore");Call(spriteBuckets,"Dispose");
+   check(ownedVariant!=null&&ReferenceEquals(sprite.sharedMaterial,ownedVariant)&&Count(spriteBuckets,"RetainedConflictCount")==0,"归还/Dispose不能销毁原深度所有者variant或留下桶引用冲突");
+   Call(binding,"Dispose");check(ReferenceEquals(sprite.sharedMaterial,spriteSource)&&Count(binding,"OwnedMaterialCount")==0,"原深度所有者可正常归还Sprite原材质");completed.Add("live-sprite-variant-ownership");
+
+   var litDynamic=new RoomPositiveSurface[7];var litDynamicOriginals=new Material[7];
+   for(int i=0;i<litDynamic.Length;i++){litDynamicOriginals[i]=mat(originalLit,2000);litDynamic[i]=Surface(make(litDynamicOriginals[i]),RoomPositiveSurfaceKind.Partial);litDynamic[i].IndependentDraw=true;}
+   var sixLit=new RoomPositiveSurface[6];Array.Copy(litDynamic,sixLit,6);RoomPositiveRenderingLayers.AssignDrawMasks(sixLit);
+   var independentMasks=new HashSet<uint>();foreach(var item in sixLit)independentMasks.Add(item.DrawMask);
+   check(independentMasks.Count==6&&!independentMasks.Contains(0)&&!independentMasks.Contains(RoomPositiveRenderingLayers.IndependentBit),"六个动态Lit源应有独立且不同于手工路径的筛选位");
+   var independentBuckets=NewBuckets();bucketOwners.Add(independentBuckets);Call(independentBuckets,"Prepare",Frame(sixLit),resolver);
+   for(int i=0;i<sixLit.Length;i++)check(ReferenceEquals(sixLit[i].Renderer.sharedMaterial,litDynamicOriginals[i]),"动态Lit筛选不得借用原材质槽："+i);
+   check(Active(independentBuckets).Count==0,"动态Lit逐对象绘制不得进入源队列替换桶");Call(independentBuckets,"Dispose");
+   bool litRefused=false;try{RoomPositiveRenderingLayers.AssignDrawMasks(litDynamic);}catch(InvalidOperationException){litRefused=true;}
+   check(litRefused,"第七个动态Lit源必须明确拒绝，不能复用筛选位串组");
+   for(int i=0;i<litDynamic.Length;i++)check(ReferenceEquals(litDynamic[i].Renderer.sharedMaterial,litDynamicOriginals[i]),"动态Lit预算拒绝不得改变任何原材质引用："+i);completed.Add("independent-lit-groups");
+
+   var lower=mat(originalLit,2200);var upper=mat(originalLit,2480);var lowerRenderer=make(lower);var upperRenderer=make(upper);
+   var layers=NewBuckets();bucketOwners.Add(layers);
+   Call(layers,"Prepare",Frame(Surface(upperRenderer,RoomPositiveSurfaceKind.Partial),Surface(lowerRenderer,RoomPositiveSurfaceKind.Partial)),resolver);
+   check(lowerRenderer.sharedMaterial.renderQueue<upperRenderer.sharedMaterial.renderQueue,"逆序登记不能颠倒原共面地表队列顺序");
+   check(lower.renderQueue==2200&&upper.renderQueue==2480,"不得改作者原队列");Call(layers,"Dispose");completed.Add("author-queue-order");
+
+   var budget=NewBuckets();bucketOwners.Add(budget);var many=new RoomPositiveSurface[257];var manyOriginals=new Material[257];
+   for(int i=0;i<many.Length;i++){manyOriginals[i]=mat(originalLit,2000);many[i]=Surface(make(manyOriginals[i]),RoomPositiveSurfaceKind.Partial);}
+   bool refused=false;try{Call(budget,"Prepare",Frame(many),resolver);}catch(TargetInvocationException error){refused=error.InnerException is InvalidOperationException&&error.InnerException.Message.Contains("256");}
+   check(refused,"257个独立源必须在换材质前拒绝");
+   for(int i=0;i<many.Length;i++)if(!ReferenceEquals(many[i].Renderer.sharedMaterial,manyOriginals[i])){failures.Add("预算拒绝不得留下部分材质替换："+i);break;}
+   check(Count(budget,"OwnedMaterialCount")==0,"预算预检拒绝不应分配桶克隆");Call(budget,"Dispose");completed.Add("budget-atomic-refusal");
+  }
+  catch(Exception error){failures.Add(error.ToString());}
+  finally
+  {
+   foreach(var owner in bucketOwners)try{Call(owner,"Dispose");}catch(Exception error){failures.Add("清理桶失败："+error.Message);}
+   foreach(var binding in spriteBindings)try{Call(binding,"Dispose");}catch(Exception error){failures.Add("清理Sprite绑定失败："+error.Message);}
+   foreach(var go in objects)if(go!=null)UnityEngine.Object.DestroyImmediate(go);
+   foreach(var material in originals)if(material!=null)UnityEngine.Object.DestroyImmediate(material);
+   EditorSceneManager.ClosePreviewScene(preview);
+  }
+  ctx.ReturnValue=new{passed=failures.Count==0,completed,failures,createdOriginalMaterials=originals.Count,createdPrivateRenderers=objects.Count,noCameraOrDraw=true};
+ }
+}
