@@ -646,3 +646,6 @@ F00–F10工程实施/定向验证完成：原唯一音频根/Transport/32短音
 同一KT-VIS-04/05 Lab增量，用户“出计划然后实现/睡觉后连续执行”已落实。PlayerNatural180°无旧6/8m硬截断，真实camera窗景仅当帧孔洞外景不授Seed/标签；显式静态30%→.5秒/退场.3秒/内向柔边.35/稳定点阵可选，动态当帧撤权。四世界域历史非旧屏幕色，新增1×56064B buffer，保3RT/6Lit/256桶。Current身份/传送/门板拓扑清历史，普通走门/转头/相机yaw保留。高柜原Caster修复保留，屋顶/前墙仍权威硬切；碰撞/灯/业务不变。
 Core新20/Legacy20、离线时序13、Native历史8；实景门窗10/10，真实RGB两轮过渡及动态首拒帧49帧、原Sprite引用3手工对/2真帧、V5真实Release重接通过（3RT177材质412MPB35桶/206源/5原自有代理与buffer释放归零）；原局部灯24ROI/16有差/最大约.117，Caster/碰撞及完整灯状态复原。公开定位夹具非WASD/硬件/Player；原敌全内容、外部日光GI/任意Mesh/多层/完整正式美术未代签。
 最终Native Edit保存重开：45°/同2栋4顶35前墙45Box/Renderer15默认0/10Shader0error/缺失0；125显式静态+2地表根/2活动板，独立06档kt-vis06-natural-01。原41dirty、234源场地图旧档SHA、4个05档文件全部保持。所有Unity/生产源码/子代理租约释放；vision_policy06独占Core及新CoreTests、vision_render06独占Rendering及RenderTests、vision_sync06只新矩阵/候选的互斥子租约均已完成释放；Root仅文档及R11定向GitHub发布。详见docs/ossastra/KT-VIS-06/，原始本机证据研究/可见性修复/KT-VIS-06。无电源动作。
+
+
+2026-11-03 KT-VIS-06 complete/read-only：产品 ac7cce829f63ca9b727a240b2e9f50674192d18f 已GitHub main精确核验；70自有代码/合同/文档路径，无场景、素材、媒体、存档或原dirty。Native最终Edit在同一Lab重开并等待显示重建后保存读回dirty=false，45°及新配置已保留。原41dirty/234源场地图旧档SHA/4个05档文件保持，所有源码/Unity/文档/发布租约释放。原始证据与精确边界见ossastra/KT-VIS-06/实现与验证交付.md；无自动下一阶段或电源动作。
