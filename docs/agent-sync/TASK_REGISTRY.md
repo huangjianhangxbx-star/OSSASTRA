@@ -1061,3 +1061,8 @@ active/unity-writer；用户明确要求一轮修整：共享脚本去M01标签�
 2026-10-27 AUDIO-LISTENING-FIX active/unity-writer：root唯一Unity writer；独占Audio/必要现有音量UI/自有Fusion场与本机音频配置/本任务文档Candidates，修整体音量、位置浑浊和不适循环。原36dirty/旧场/角色输入/规则/源库保护。详见tasks/2026-10-27-audio-listening-fix.md。
 
 2026-10-27 AUDIO-LISTENING-FIX complete/read-only：全部Unity/源码/文档writer释放。用户确认不适循环消失，音量菜单/实控听点/声学与增益修正已定向验证，最终实机0削波；原36dirty保护。仅本次GitHub发布收口，不Gitee、不电源动作。
+
+
+## CAMERA-PITCH45（2026-11-02）
+
+- `camera-pitch45-20261102` complete/read-only：当前CRAFT Main的MapResearchRoot.pitch与GameplayCamera俯角35→45；保留观察中心/distance25/FOV35/yaw45，Native保存及独立读回通过、Edit ready。原dirty场内数据保留，原37dirty保护；无Play/存档/遮挡修改。所有writer与路径释放，场景仅本机。见tasks/2026-11-02-camera-pitch45.md。
