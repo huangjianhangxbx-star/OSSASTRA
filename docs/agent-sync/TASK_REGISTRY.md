@@ -1088,3 +1088,6 @@ active/unity-writer=root：同一建筑任务/同一Lab增量，user授权v1.0�
 2026-11-02 KT-VIS-05 同任务动态表现源码子租约：portal_core仅负责RoomPresentationRegistry/RoomVisibilitySight+表现登记叶、CombatFeedbackView/CombatDeliveryQueue/CombatIceWorld/CharacterOffhand/CharacterEquipmentSpineView/EnemyAttackWarning/WorldPropView最小表现登记接缝；positive_render独占Rendering/Shader；root唯一Unity/Git。不改既有dirty CharacterEquipmentView、不改业务与源资产。FX强制片元许可，逐件生命周期撤销。
 
 2026-11-02 KT-VIS-05 v1.1 technical-complete/docs-writer：同任务/同Lab增量已完成有限观察与最终静态/动态绘制接入；原Current唯一Seed、双向首跳门窗、前墙、整栋揭顶权威分离；最后材质引用与真实释放重接已通过。Unity/所有生产源码/子代理租约释放，仅Root维护本轮文档及R11定向GitHub发布。234原保护SHA与40原dirty保留，当前Lab Native Edit已保存重开45°/正式模式/局部透视关/Renderer15/默认0/缺失0。完整人工/实体设备/Player/任意Mesh/多层/全材质/光照边界未代签，详见ossastra/KT-VIS-05/当前实现与验证交付.md。
+
+
+2026-11-03 KT-VIS-05 v1.1 complete/read-only：产品 122b2c108a438ab66c1535b2cfc4e902a14816f4 已GitHub main独立核对完整SHA；117自有路径，无场/资产/媒体/真实档或其他dirty。全部Unity/源码/文档/发布租约释放，同一Lab最终Native Edit保存重开45°/正式模式/局部透视关/缺失0。受测与未测边界见ossastra/KT-VIS-05/当前实现与验证交付.md；无其他自动迁移或电源动作。

@@ -637,3 +637,6 @@ F00–F10工程实施/定向验证完成：原唯一音频根/Transport/32短音
 ## 2026-11-02 KT-VIS-05 v1.1 technical-complete
 继续同一SC_RoomVisibilityLab，不清场：当前原Current房间为唯一FullSeed，历史/伙伴/揭顶不授予其它内容权；人物稳定眼点/逻辑朝向经真实凸门窗生成双向有限首跳片段，实际Box/OBB可独立阻挡，实际相机方向决定Seed前墙段。整栋屋顶颜色深度隐藏与房间内容授权分离，原顶盖/结构Caster和碰撞保持，局部物件透视默认关。原世界颜色深度清除后正向绘许可片元；动态角色/已登记表现保留原材质数组，静态有界桶与动态逐对象光照绘制分离；公开Begin/End与owner校验EndScope对称，精确排除原Depth自有Coverage。保留位16—31；<=8视域、64Box、256静态材质桶、6动态Lit源组，不支持者拒绝不放宽。
 本机定向证据：Core20、Registry6、Native桶8；七窗7/7、原WASD32秒39.01472m/12点2102scope归还、八方向/实体门/切控12项、原公开动作命中击碎资源→原drop→公开拾取库存回执；最后动态9与原2Sprite三对手工作用域/2实帧引用不变。真实Release两帧后3RT173材质/原5代理0残留、206稳定源恢复，原对象重接Active/Unsupported0/Error空。最终Native同Lab Edit保存重开：45°、2栋4顶35前墙45阻挡、正式模式/局部透视关、可选Renderer15/默认0、10Shader0error/缺失0；源码与Unity租约释放，仅本轮文档发布。234源场/Map/旧档SHA保持、40原dirty保护；本机新隔离档消耗一资源，旧档不变。范围含有限抽帧/公开接口及定位夹具，不等于实体硬件/完整人工视频/Player/任意Mesh或多层/全材质/烘焙反射SSAO认证。失败历史、后端限制和作者指南见ossastra/KT-VIS-05/。
+
+
+2026-11-03 KT-VIS-05 v1.1 complete/read-only：产品 122b2c108a438ab66c1535b2cfc4e902a14816f4 已GitHub main独立核对完整SHA；117自有路径，无场/资产/媒体/真实档或其他dirty。全部Unity/源码/文档/发布租约释放，同一Lab最终Native Edit保存重开45°/正式模式/局部透视关/缺失0。受测与未测边界见ossastra/KT-VIS-05/当前实现与验证交付.md；无其他自动迁移或电源动作。
