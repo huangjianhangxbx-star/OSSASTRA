@@ -1,0 +1,325 @@
+/* KT-VIS-04 v1.1：仅由Root经Native执行的灰盒作者构建候选。
+ * 职责：在精确的新隔离Lab登记A/走廊C/B整栋与独立D，实体四段墙洞、独立屋顶和真实门窗。
+ * 边界：不进入Play、不保存Scene、不重建地表/配方、不改源场/旧资产/全局Renderer；失败保留精确部分输出供检查，禁止自动重放。
+ * 光照：屋顶使用完整URP Lit Box及原生Collider，初始ShadowCastingMode.On；运行时仅由Room模块统一转ShadowsOnly。
+ */
+using System;
+using System.IO;
+using System.Linq;
+using System.Collections.Generic;
+using System.Security.Cryptography;
+using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.SceneManagement;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+using Ossastra.Characters;
+using Ossastra.Commerce.Runtime;
+using Ossastra.Crafting;
+using CurrentEnemyRoot = Ossastra.Enemies.EnemyRoot;
+using Ossastra.GroundResearch;
+using Ossastra.GroundResearch.Editor;
+using Ossastra.GroundSurfaces;
+using Ossastra.GroundSurfaces.Editor;
+using Ossastra.SceneVisibility;
+using Ossastra.SceneVisibility.Rooms;
+using Funplay.Editor.Tools.Scripting;
+using Object = UnityEngine.Object;
+
+public sealed class BuildRoomSample : IFunplayCommand
+{
+    const string ScenePath = "Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity";
+    const string SourcePath = "Assets/OSSASTRA/GroundWorkshop/Samples/CRAFT-01/SC_CraftingIntegration.unity";
+    const string AssetFolder = "Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/Generated/RoomSample";
+    const string Profiles = "E:/WORLDCREATOR/XingHaiHuiLang/研究/可见性修复/KT-VIS-04/profiles";
+    const string SampleName = "RoomVisibilitySampleRoot";
+    const float WallHeight = 3.2f, WallThickness = .22f, FloorTop = .1f;
+    static readonly string[] MapIds = { "32ab15d4968f47b1b5f14c00d13cf0dd", "0ac90d9ffca7414aa8b498155c359af9", "478e8f05a8c44bc68089a5bab51d3129" };
+    readonly List<GameObject> createdObjects = new List<GameObject>();
+    readonly List<string> createdAssets = new List<string>(), createdFolders = new List<string>();
+    readonly List<SceneOccluderGroup> newGroups = new List<SceneOccluderGroup>();
+    readonly List<Collider> wallSolids = new List<Collider>();
+    readonly List<ViewPortal> allPortals = new List<ViewPortal>();
+    readonly List<Renderer> abcStructure = new List<Renderer>(), dStructure = new List<Renderer>();
+    readonly List<Renderer> aContents = new List<Renderer>(), bContents = new List<Renderer>(), cContents = new List<Renderer>(), dContents = new List<Renderer>();
+    ExecutionContext ctx;
+    Scene scene;
+    GameObject sample;
+    Material wall, floor, roof, cabinet, vegetation, trunk, stone, emissive;
+    Mesh doorMesh, windowMesh, smallDoorMesh;
+    AnimationClip motionClip;
+    Transform shutter, northMarker, westMarker;
+
+    static void Need(bool value, string error) { if (!value) throw new InvalidOperationException(error); }
+    static string Full(string path) { return Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar); }
+    static string Sha(string path) { using (var stream = File.OpenRead(path)) using (var hash = SHA256.Create()) return BitConverter.ToString(hash.ComputeHash(stream)).Replace("-", ""); }
+    static string Hierarchy(Transform node) { string result = node.name; while (node.parent != null) { node = node.parent; result = node.name + "/" + result; } return result; }
+    T[] Components<T>() where T : Component { return scene.GetRootGameObjects().SelectMany(go => go.GetComponentsInChildren<T>(true)).ToArray(); }
+    T One<T>() where T : Component { var items = Components<T>(); Need(items.Length == 1, "要求唯一" + typeof(T).FullName + "，实际" + items.Length); return items[0]; }
+    GameObject Empty(string name, Transform parent, Vector3 position)
+    {
+        var go = new GameObject(name); ctx.RegisterObjectCreation(go); createdObjects.Add(go);
+        if (parent != null) go.transform.SetParent(parent, false);
+        go.transform.position = position; return go;
+    }
+    Renderer Box(string name, Transform parent, Vector3 center, Vector3 size, Material material, bool solid = true)
+    {
+        Need(size.x > 0 && size.y > 0 && size.z > 0, "Box尺寸必须为正：" + name);
+        var go = GameObject.CreatePrimitive(PrimitiveType.Cube); ctx.RegisterObjectCreation(go); createdObjects.Add(go); go.name = name;
+        if (parent != null) go.transform.SetParent(parent, false);
+        go.transform.position = center; go.transform.localScale = size;
+        GameObjectUtility.SetStaticEditorFlags(go, 0);
+        var renderer = go.GetComponent<MeshRenderer>(); renderer.sharedMaterial = material;
+        renderer.shadowCastingMode = ShadowCastingMode.On; renderer.receiveShadows = true;
+        if (!solid) ctx.DestroyObject(go.GetComponent<BoxCollider>());
+        return renderer;
+    }
+    void Folder(string path)
+    {
+        if (AssetDatabase.IsValidFolder(path)) return;
+        Need(!Directory.Exists(path) && !File.Exists(path + ".meta"), "存在未知文件系统目录，拒绝覆盖：" + path);
+        string parent = Path.GetDirectoryName(path).Replace('\\', '/'); Folder(parent);
+        Need(!string.IsNullOrEmpty(AssetDatabase.CreateFolder(parent, Path.GetFileName(path))), "创建自有目录失败：" + path); createdFolders.Add(path);
+    }
+    T Asset<T>(T value, string name) where T : Object
+    {
+        string path = AssetFolder + "/" + name;
+        Need(!File.Exists(path) && !File.Exists(path + ".meta") && AssetDatabase.LoadMainAssetAtPath(path) == null, "拒绝覆盖资产：" + path);
+        ctx.RegisterObjectCreation(value); AssetDatabase.CreateAsset(value, path); createdAssets.Add(path); AssetDatabase.SaveAssetIfDirty(value); return value;
+    }
+    Material Material(string name, Shader shader, Color color)
+    {
+        var material = new Material(shader) { name = name };
+        if (material.HasProperty("_BaseColor")) material.SetColor("_BaseColor", color);
+        if (material.HasProperty("_Color")) material.SetColor("_Color", color);
+        if (material.HasProperty("_Smoothness")) material.SetFloat("_Smoothness", .15f);
+        if (material.HasProperty("_Metallic")) material.SetFloat("_Metallic", 0);
+        if (material.HasProperty("_Cull")) material.SetFloat("_Cull", 2);
+        return Asset(material, name + ".mat");
+    }
+    Mesh Aperture(string name, float width, float height)
+    {
+        var mesh = new Mesh { name = name };
+        mesh.vertices = new[] { new Vector3(-width / 2, -height / 2, 0), new Vector3(width / 2, -height / 2, 0), new Vector3(width / 2, height / 2, 0), new Vector3(-width / 2, height / 2, 0) };
+        mesh.uv = new[] { Vector2.zero, Vector2.right, Vector2.one, Vector2.up };
+        mesh.triangles = new[] { 0, 1, 2, 0, 2, 3 }; mesh.RecalculateNormals(); mesh.RecalculateBounds();
+        return Asset(mesh, name + ".asset");
+    }
+    void MakeAssets()
+    {
+        var lit = Shader.Find("Universal Render Pipeline/Lit"); var unlit = Shader.Find("Universal Render Pipeline/Unlit");
+        Need(lit != null && unlit != null && lit.isSupported && unlit.isSupported, "缺可用URP Lit/Unlit，未创建场景几何");
+        Folder(AssetFolder);
+        wall = Material("Structure", lit, new Color(.53f, .56f, .6f));
+        floor = Material("InteriorFloor", lit, new Color(.22f, .27f, .28f));
+        roof = Material("Roof", lit, new Color(.25f, .34f, .42f));
+        Need(roof.FindPass("ShadowCaster") >= 0, "Roof材质没有ShadowCaster；不能用无阴影顶盖假装保光");
+        cabinet = Material("Furniture", lit, new Color(.43f, .29f, .18f));
+        vegetation = Material("Canopy", lit, new Color(.17f, .44f, .25f));
+        trunk = Material("Trunk", lit, new Color(.25f, .17f, .1f));
+        stone = Material("Stone", lit, new Color(.43f, .45f, .49f));
+        emissive = Material("BrightMarker", unlit, new Color(1f, .82f, .08f));
+        doorMesh = Aperture("DoorOpening_2p6x2p5", 2.6f, 2.5f);
+        windowMesh = Aperture("WindowOpening_2p4x1p6", 2.4f, 1.6f);
+        smallDoorMesh = Aperture("DoorOpening_1p6x2p5", 1.6f, 2.5f);
+        motionClip = new AnimationClip { name = "WindowMotion", legacy = true, wrapMode = WrapMode.Loop };
+        motionClip.SetCurve("", typeof(Transform), "localPosition.x", new AnimationCurve(new Keyframe(0, -.9f), new Keyframe(1, .9f), new Keyframe(2, -.9f)));
+        motionClip = Asset(motionClip, "WindowMotion.anim");
+    }
+    void WallPart(string name, Transform parent, bool alongX, float fixedPosition, float lo, float hi, float bottom, float top, List<Renderer> structure)
+    {
+        Need(hi > lo && top > bottom, "墙段范围无效：" + name);
+        var center = alongX ? new Vector3((lo + hi) / 2, (bottom + top) / 2, fixedPosition) : new Vector3(fixedPosition, (bottom + top) / 2, (lo + hi) / 2);
+        var size = alongX ? new Vector3(hi - lo, top - bottom, WallThickness) : new Vector3(WallThickness, top - bottom, hi - lo);
+        var renderer = Box(name, parent, center, size, wall); structure.Add(renderer); wallSolids.Add(renderer.GetComponent<BoxCollider>());
+    }
+    void SolidWall(string name, Transform parent, bool alongX, float at, float lo, float hi, List<Renderer> structure)
+    { WallPart(name, parent, alongX, at, lo, hi, 0, WallHeight, structure); }
+    // 四段均为完整有顶面/厚度的实体Box，开口没有隐藏的大整墙或ZTest Always替代几何。
+    void OpeningWall(string name, Transform parent, bool alongX, float at, float lo, float hi, float center, float width, float bottom, float height, List<Renderer> structure)
+    {
+        float left = center - width / 2, right = center + width / 2, top = bottom + height;
+        Need(left > lo && right < hi && bottom > 0 && top < WallHeight, "开口必须严格落在四段墙内：" + name);
+        WallPart(name + "_Side0", parent, alongX, at, lo, left, 0, WallHeight, structure);
+        WallPart(name + "_Side1", parent, alongX, at, right, hi, 0, WallHeight, structure);
+        WallPart(name + "_Sill", parent, alongX, at, left, right, 0, bottom, structure);
+        WallPart(name + "_Lintel", parent, alongX, at, left, right, top, WallHeight, structure);
+    }
+    RoomRegion Room(string name, string id, Transform building, Vector3 center, Vector2 size, List<Renderer> contents)
+    {
+        var go = Empty(name, building, center); var room = go.AddComponent<RoomRegion>(); room.roomId = id; room.floorId = "Ground";
+        room.volumes = new[] { new RoomLocalBox { center = new Vector3(0, WallHeight / 2, 0), size = new Vector3(size.x, WallHeight, size.y) } };
+        contents.Add(Box("Floor", go.transform, new Vector3(center.x, FloorTop / 2, center.z), new Vector3(size.x, FloorTop, size.y), floor));
+        return room;
+    }
+    RoofVisibilityGroup Roof(string name, string id, Transform building, Vector3 center, Vector2 size)
+    {
+        var go = Empty(name, building, center); var group = go.AddComponent<RoofVisibilityGroup>(); group.roofGroupId = id;
+        group.members = new[] { Box("RoofVisual_AndPhysicalSolid", go.transform, new Vector3(center.x, WallHeight + .1f, center.z), new Vector3(size.x, .2f, size.y), roof) };
+        return group;
+    }
+    ViewPortal Portal(string name, string id, Transform parent, RoomRegion inside, RoomRegion outside, Vector3 position, Vector3 outward, Mesh aperture, bool traversable, bool open = true)
+    {
+        var go = Empty(name, parent, position); go.transform.rotation = Quaternion.LookRotation(outward, Vector3.up);
+        var portal = go.AddComponent<ViewPortal>(); portal.portalId = id; portal.inside = inside; portal.outside = outside;
+        portal.apertureMesh = aperture; portal.open = open; portal.canSeeThrough = true; portal.canTraverse = traversable; allPortals.Add(portal); return portal;
+    }
+    SceneOccluderGroup Occluder(GameObject go, string label, Renderer[] members, Collider[] volumes, bool reveal)
+    {
+        var group = go.AddComponent<SceneOccluderGroup>(); group.groupLabel = label; group.members = members; group.volumes = volumes;
+        group.occlusionPolicy = reveal ? SceneOcclusionPolicy.CharacterReveal : SceneOcclusionPolicy.KeepNaturalOcclusion;
+        group.allowWholeFade = reveal; group.minimumOpacity = .15f; newGroups.Add(group); return group;
+    }
+    Transform MovingMarker(string name, Vector3 position, Vector3 outward)
+    {
+        var anchor = Empty(name, sample.transform, position); anchor.transform.rotation = Quaternion.LookRotation(outward, Vector3.up);
+        var visual = Box("AnimatedCurrentFrameMarker", anchor.transform, position, new Vector3(.55f, .85f, .4f), emissive, false);
+        visual.transform.localPosition = Vector3.zero; visual.shadowCastingMode = ShadowCastingMode.Off;
+        var animation = visual.gameObject.AddComponent<Animation>(); animation.AddClip(motionClip, "WindowMotion"); animation.clip = motionClip;
+        animation.playAutomatically = true; animation.wrapMode = WrapMode.Loop; animation.cullingType = AnimationCullingType.AlwaysAnimate;
+        return visual.transform;
+    }
+    void LocalLight(string name, Transform parent, Vector3 position, Color color)
+    {
+        var go = Empty(name, parent, position); var light = go.AddComponent<Light>(); light.type = LightType.Point;
+        light.color = color; light.intensity = 2f; light.range = 7; light.shadows = LightShadows.Soft;
+    }
+    void Tree(string name, Vector3 position, bool allowCanopy)
+    {
+        var go = Empty(name, sample.transform, position);
+        var stem = Box("NaturalSolidTrunk", go.transform, position + Vector3.up * 2.1f, new Vector3(.5f, 4.2f, .5f), trunk);
+        Occluder(stem.gameObject, name + " / 实体树干", new[] { stem }, new Collider[] { stem.GetComponent<BoxCollider>() }, false);
+        var canopy = Box("Canopy", go.transform, position + Vector3.up * 4.3f, new Vector3(3, 2.2f, 3), vegetation);
+        Occluder(canopy.gameObject, name + (allowCanopy ? " / 许可树冠" : " / 自然树冠"), new[] { canopy }, new Collider[] { canopy.GetComponent<BoxCollider>() }, allowCanopy);
+    }
+    void Stone(string name, Vector3 position, bool reveal)
+    {
+        var renderer = Box(name, sample.transform, position + Vector3.up * .8f, new Vector3(1.6f, 1.6f, 1.4f), stone);
+        Occluder(renderer.gameObject, name, new[] { renderer }, new Collider[] { renderer.GetComponent<BoxCollider>() }, reveal);
+    }
+    static string CacheStamp(GroundSurfaceBinding binding)
+    {
+        var cache = binding.cacheRoot == null ? null : binding.cacheRoot.GetComponent<GroundSurfaceMeshCache>();
+        return binding.GetInstanceID() + ":" + (binding.cacheRoot == null ? 0 : binding.cacheRoot.GetInstanceID()) + ":" + (binding.capCollider == null ? 0 : binding.capCollider.GetInstanceID()) + ":" + (cache == null ? -1 : cache.rebuildCount);
+    }
+    public void Execute(ExecutionContext context)
+    {
+        ctx = context; string stage = "preflight", error = null; bool success = false;
+        object movedStation = null, movedEnemy = null; BuildingVisibilityRoot abc = null, separate = null; RoomVisibilityModule module = null;
+        var sourceHashes = new Dictionary<string, string>(); GroundSurfaceBinding[] oldBindings = null; string[] cacheBefore = null;
+        try
+        {
+            scene = SceneManager.GetActiveScene();
+            Need(Application.dataPath.Replace('\\', '/') == "E:/WORLDCREATOR/new/Project_ANKALUTE/Assets" && !EditorApplication.isPlayingOrWillChangePlaymode && !EditorApplication.isCompiling && !EditorApplication.isUpdating, "项目或Editor状态不安全");
+            Need(SceneManager.sceneCount == 1 && scene.path == ScenePath && PrefabStageUtility.GetCurrentPrefabStage() == null && EditorSceneManager.playModeStartScene == null, "仅当前单一新Lab，禁止源场/Prefab/启动override");
+            Need(!string.IsNullOrEmpty(AssetDatabase.AssetPathToGUID(ScenePath)), "新场尚无Native GUID");
+            Need(!scene.GetRootGameObjects().Any(go => go.name == SampleName) && Components<BuildingVisibilityRoot>().Length == 0 && !AssetDatabase.IsValidFolder(AssetFolder) && !Directory.Exists(AssetFolder) && !File.Exists(AssetFolder + ".meta"), "样板/输出目录已存在，拒绝重复创建或自动重放");
+            Need(GroundWorkshopAuthoring.ActivePreview == null, "保留活跃配方预览，不构建");
+            var maps = Components<GroundWorkshopMap>(); Need(maps.Length == 3 && maps.Select(m => m.registration == null ? "" : m.registration.mapId).OrderBy(v => v).SequenceEqual(MapIds.OrderBy(v => v)), "不是本轮三独立Map");
+            foreach (var map in maps) { GroundWorkshopOwnership.Require(map); Need(map.registration.scenePath == ScenePath, "Map仍指向源场"); }
+            oldBindings = Components<GroundSurfaceBinding>(); Need(oldBindings.Length == 2, "要求保留两原平台"); cacheBefore = oldBindings.Select(CacheStamp).ToArray();
+            var commerce = One<CommerceService>(); var craft = One<CraftingRoot>(); var visibility = One<SceneVisibilityRoot>(); var world = One<Ossastra.WorldProps.WorldPropsRoot>();
+            Need(commerce.profileId == "kt-vis04-room-01" && !string.IsNullOrWhiteSpace(commerce.saveDirectory) && string.Equals(Full(commerce.saveDirectory), Full(Profiles), StringComparison.OrdinalIgnoreCase) && commerce.mapId == "kt-vis04-room-lab", "隔离profile/最终目录/地图身份不符");
+            Need(craft.commerce == commerce && world.commerce == commerce && craft.inventory == commerce.inventory && world.inventory == commerce.inventory && craft.mapId == commerce.mapId && world.mapId == commerce.mapId, "唯一共同快照依赖不符");
+            Need(craft.stations != null && craft.stations.Length == 3 && craft.stations.All(s => s != null && s.mapId == commerce.mapId), "需保留原三个合法工位");
+            var station = craft.stations.Single(s => s.instanceId == "craft-station-a"); Need(station.interactionAnchor != null, "A工位缺交互锚点");
+            var enemy = One<CurrentEnemyRoot>(); var enemyRenderers = enemy.GetComponentsInChildren<Renderer>(true);
+            Need(enemyRenderers.Length > 0, "唯一原敌缺少真实body Renderer"); string enemyConfiguration = EditorJsonUtility.ToJson(enemy);
+            Need(visibility.groups != null && visibility.groups.Length == 25 && visibility.groups.All(g => g != null && !g.AllowsCharacterReveal), "继承25组须全为Natural；禁止覆盖其它新增策略");
+            var clearances = Components<CharacterEnvironmentClearance>(); Need(clearances.Length == 2 && clearances.All(c => c.environmentSolids != null && c.environmentSolids.All(s => s != null)), "需原两角色明确净空登记");
+            var modules = Components<RoomVisibilityModule>(); Need(modules.Length <= 1 && (modules.Length == 0 ? visibility.roomModule == null : visibility.roomModule == modules[0] && modules[0].buildings != null && modules[0].buildings.Length == 0), "存在非空/不一致房间模块，保留现场");
+            foreach (string path in new[] { SourcePath, SourcePath + ".meta" }) { Need(File.Exists(path), "缺源文件保护基线：" + path); sourceHashes.Add(path, Sha(path)); }
+            GroundSurfaceUpdates.ClearPending(); stage = "create-owned-assets"; MakeAssets();
+            stage = "create-building-geometry"; sample = Empty(SampleName, null, Vector3.zero);
+            var buildingGo = Empty("Building_ABC", sample.transform, new Vector3(-11, 0, -12)); abc = buildingGo.AddComponent<BuildingVisibilityRoot>(); abc.buildingId = "building-abc";
+            abc.occupancyVolumes = new[] { new RoomLocalBox { center = new Vector3(0, 1.6f, 0), size = new Vector3(18, 3.2f, 8) } };
+            var a = Room("Room_A", "room-a", buildingGo.transform, new Vector3(-16, 0, -12), new Vector2(8, 8), aContents);
+            var c = Room("Corridor_C", "corridor-c", buildingGo.transform, new Vector3(-11, 0, -12), new Vector2(2, 8), cContents);
+            var b = Room("Room_B_InitiallyUnexplored", "room-b", buildingGo.transform, new Vector3(-6, 0, -12), new Vector2(8, 8), bContents);
+            abc.regions = new[] { a, c, b };
+            abc.roofGroups = new[] { Roof("Roof_A", "roof-a", buildingGo.transform, a.transform.position, new Vector2(8, 8)), Roof("Roof_C", "roof-c", buildingGo.transform, c.transform.position, new Vector2(2, 8)), Roof("Roof_B", "roof-b", buildingGo.transform, b.transform.position, new Vector2(8, 8)) };
+            OpeningWall("A_FrontDoor", buildingGo.transform, true, -16, -20, -12, -16, 2.6f, FloorTop, 2.5f, abcStructure);
+            OpeningWall("A_NorthWindow", buildingGo.transform, true, -8, -20, -12, -16, 2.4f, .9f, 1.6f, abcStructure);
+            OpeningWall("A_WestWindow", buildingGo.transform, false, -20, -16, -8, -11, 2.4f, .9f, 1.6f, abcStructure);
+            OpeningWall("A_To_C", buildingGo.transform, false, -12, -16, -8, -12, 2.6f, FloorTop, 2.5f, abcStructure);
+            OpeningWall("C_To_B", buildingGo.transform, false, -10, -16, -8, -12, 2.6f, FloorTop, 2.5f, abcStructure);
+            SolidWall("C_North", buildingGo.transform, true, -8, -12, -10, abcStructure); SolidWall("C_South", buildingGo.transform, true, -16, -12, -10, abcStructure);
+            OpeningWall("B_NorthWindow_UnknownPermissionCase", buildingGo.transform, true, -8, -10, -2, -6, 2.4f, .9f, 1.6f, abcStructure);
+            SolidWall("B_South", buildingGo.transform, true, -16, -10, -2, abcStructure); SolidWall("B_East", buildingGo.transform, false, -2, -16, -8, abcStructure);
+            var entrance = Portal("Portal_A_Front", "portal-a-front", buildingGo.transform, a, null, new Vector3(-16, 1.35f, -16), Vector3.back, doorMesh, true);
+            var west = Portal("Portal_A_West_Shutter", "portal-a-west", buildingGo.transform, a, null, new Vector3(-20, 1.7f, -11), Vector3.left, windowMesh, false, false);
+            var north = Portal("Portal_A_North", "portal-a-north", buildingGo.transform, a, null, new Vector3(-16, 1.7f, -8), Vector3.forward, windowMesh, false);
+            var aToC = Portal("Portal_A_To_C", "portal-a-c", buildingGo.transform, a, c, new Vector3(-12, 1.35f, -12), Vector3.right, doorMesh, true);
+            var cToB = Portal("Portal_C_To_B", "portal-c-b", buildingGo.transform, c, b, new Vector3(-10, 1.35f, -12), Vector3.right, doorMesh, true);
+            var bWindow = Portal("Portal_B_North_UnknownPermissionCase", "portal-b-north", buildingGo.transform, b, null, new Vector3(-6, 1.7f, -8), Vector3.forward, windowMesh, false);
+            var shutterRenderer = Box("A_West_ActualOpaqueShutter_InitiallyClosed", buildingGo.transform, new Vector3(-20.14f, 1.7f, -11), new Vector3(.14f, 1.7f, 2.5f), cabinet);
+            shutter = shutterRenderer.transform; abcStructure.Add(shutterRenderer); wallSolids.Add(shutterRenderer.GetComponent<BoxCollider>());
+            abc.portals = new[] { entrance, west, north, aToC, cToB, bWindow }; abc.structuralMembers = abcStructure.ToArray();
+            Occluder(buildingGo, "整栋ABC永久结构/墙顶/不透明遮板", abc.structuralMembers, abcStructure.Select(r => (Collider)r.GetComponent<BoxCollider>()).ToArray(), false);
+            stage = "create-content-and-independent-building";
+            aContents.Add(Box("TallCabinet_A", a.transform, new Vector3(-18.2f, 1.55f, -9.5f), new Vector3(1.1f, 2.9f, 1.1f), cabinet));
+            cContents.Add(Box("CorridorContentMarker", c.transform, new Vector3(-11.7f, .6f, -9), new Vector3(.25f, 1f, .35f), cabinet));
+            bContents.Add(Box("TallCabinet_B", b.transform, new Vector3(-3.6f, 1.55f, -9.5f), new Vector3(1.1f, 2.9f, 1.1f), cabinet));
+            Vector3 oldEnemyPosition = enemy.transform.position; ctx.RegisterObjectModification(enemy.transform); enemy.transform.position = new Vector3(-6, FloorTop, -12);
+            bContents.AddRange(enemyRenderers);
+            Need(EditorJsonUtility.ToJson(enemy) == enemyConfiguration, "移动原敌时配置意外变化，停止而不重置AI/组件");
+            movedEnemy = new { name = enemy.name, id = enemy.GetInstanceID(), path = Hierarchy(enemy.transform), before = oldEnemyPosition.ToString("R"), after = enemy.transform.position.ToString("R"), registeredBodyRenderers = enemyRenderers.Select(r => new { path = Hierarchy(r.transform), id = r.GetInstanceID() }).ToArray(), originalConfigurationPreserved = true };
+            bContents.Add(Box("ChestMarker_Graybox_NoInventory", b.transform, new Vector3(-7.5f, .6f, -13.7f), new Vector3(1.2f, 1f, .8f), cabinet));
+            bContents.Add(Box("BrightContent_UnknownMustNotLeak", b.transform, new Vector3(-4.5f, 1.8f, -14.3f), new Vector3(.4f, .6f, .4f), emissive, false));
+            LocalLight("InteriorLocalLight_A", buildingGo.transform, new Vector3(-16, 2.55f, -12), new Color(1f, .82f, .59f));
+            LocalLight("InteriorLocalLight_B_NotControlledByBlackout", buildingGo.transform, new Vector3(-5.2f, 2.55f, -13), new Color(.72f, .84f, 1f));
+            Vector3 oldStationPosition = station.transform.position; ctx.RegisterObjectModification(station.transform); station.transform.position = new Vector3(-17, FloorTop, -11.7f);
+            var stationRenderers = station.GetComponentsInChildren<Renderer>(true); Need(stationRenderers.Length > 0, "移动后工位无显示成员"); aContents.AddRange(stationRenderers);
+            movedStation = new { station.instanceId, id = station.GetInstanceID(), path = Hierarchy(station.transform), before = oldStationPosition.ToString("R"), after = station.transform.position.ToString("R"), registeredRenderers = stationRenderers.Length };
+            a.members = aContents.Distinct().ToArray(); c.members = cContents.ToArray(); b.members = bContents.ToArray();
+            var dGo = Empty("Building_D_IndependentRoofControl", sample.transform, new Vector3(-26, 0, -12)); separate = dGo.AddComponent<BuildingVisibilityRoot>(); separate.buildingId = "building-d";
+            separate.occupancyVolumes = new[] { new RoomLocalBox { center = new Vector3(0, 1.6f, 0), size = new Vector3(4, 3.2f, 4) } };
+            var d = Room("Room_D", "room-d", dGo.transform, new Vector3(-26, 0, -12), new Vector2(4, 4), dContents); d.members = dContents.ToArray(); separate.regions = new[] { d };
+            separate.roofGroups = new[] { Roof("Roof_D", "roof-d", dGo.transform, d.transform.position, new Vector2(4, 4)) };
+            OpeningWall("D_FrontDoor", dGo.transform, true, -14, -28, -24, -26, 1.6f, FloorTop, 2.5f, dStructure);
+            SolidWall("D_North", dGo.transform, true, -10, -28, -24, dStructure); SolidWall("D_West", dGo.transform, false, -28, -14, -10, dStructure); SolidWall("D_East", dGo.transform, false, -24, -14, -10, dStructure);
+            separate.portals = new[] { Portal("Portal_D_Front", "portal-d-front", dGo.transform, d, null, new Vector3(-26, 1.35f, -14), Vector3.back, smallDoorMesh, true) };
+            separate.structuralMembers = dStructure.ToArray(); Occluder(dGo, "独立D永久实体结构", separate.structuralMembers, dStructure.Select(r => (Collider)r.GetComponent<BoxCollider>()).ToArray(), false);
+            stage = "create-outdoor-comparisons";
+            northMarker = MovingMarker("Window_A_North_DynamicExterior", new Vector3(-15.2f, 1f, -7.2f), Vector3.forward);
+            westMarker = MovingMarker("Window_A_West_DynamicExterior", new Vector3(-20.8f, 1f, -11.8f), Vector3.left);
+            Tree("Tree_AllowCanopyReveal", new Vector3(-17.2f, 0, -4.2f), true); Tree("Tree_NaturalCanopy", new Vector3(-11.7f, 0, -4.2f), false);
+            Stone("Stone_AllowReveal", new Vector3(-18.6f, 0, -19), true); Stone("Stone_Natural", new Vector3(-14.1f, 0, -19), false);
+            stage = "wire-existing-roots";
+            foreach (var clearance in clearances)
+            {
+                var solids = clearance.environmentSolids.Concat(wallSolids).Distinct().ToArray(); Need(solids.Length <= 64, "新实墙超过原净空64项预算，拒绝截断");
+                ctx.RegisterObjectModification(clearance); clearance.environmentSolids = solids; EditorUtility.SetDirty(clearance);
+            }
+            ctx.RegisterObjectModification(visibility);
+            if (modules.Length == 0) { module = visibility.gameObject.AddComponent<RoomVisibilityModule>(); ctx.RegisterObjectCreation(module); } else { module = modules[0]; ctx.RegisterObjectModification(module); }
+            module.buildings = new[] { abc, separate }; module.sharedSurfaces = Array.Empty<Renderer>();
+            module.effectEnabled = module.revealRoofs = module.exteriorBlackoutEnabled = module.interiorUnexploredEnabled = true;
+            module.exteriorColor = module.interiorColor = Color.black; module.maskDebugMode = 0; visibility.roomModule = module;
+            visibility.groups = visibility.groups.Concat(newGroups).ToArray(); EditorUtility.SetDirty(module); EditorUtility.SetDirty(visibility);
+            Need(module.TryValidateConfiguration(visibility, out string roomValidation), roomValidation);
+            var craftValidation = Ossastra.Crafting.Editor.CraftingAuthoring.ValidateScene(scene); Need(craftValidation.Length == 0, string.Join(";", craftValidation));
+            Need(oldBindings.Select(CacheStamp).SequenceEqual(cacheBefore), "本候选期间原地表缓存变化，保留现场查因");
+            Need(sourceHashes.All(row => File.Exists(row.Key) && Sha(row.Key) == row.Value), "源场磁盘指纹变化，停止而不回滚");
+            Need(abc.roofGroups.Length == 3 && separate.roofGroups.Length == 1 && abc.roofGroups.Concat(separate.roofGroups).SelectMany(g => g.members).All(r => r != null && r.enabled && r.shadowCastingMode == ShadowCastingMode.On && r.GetComponent<BoxCollider>() != null && r.GetComponent<BoxCollider>().enabled), "屋顶显示/投影/物理初态不完整");
+            Need(a.members.Concat(b.members).Concat(c.members).Concat(d.members).Distinct().Count() == a.members.Length + b.members.Length + c.members.Length + d.members.Length, "跨房内容Renderer重复");
+            EditorSceneManager.MarkSceneDirty(scene); GroundSurfaceUpdates.ClearPending(); success = true; stage = "complete-unsaved";
+        }
+        catch (Exception ex) { error = ex.ToString(); GroundSurfaceUpdates.ClearPending(); }
+        ctx.ReturnValue = new
+        {
+            success, stage, error, scene = scene.IsValid() ? scene.path : null, sceneDirty = scene.IsValid() && scene.isDirty, savedScene = false, enteredPlay = false,
+            partialOutputsRetained = !success && (createdObjects.Count > 0 || createdAssets.Count > 0), sourceSceneUnchanged = sourceHashes.Count > 0 && sourceHashes.All(row => File.Exists(row.Key) && Sha(row.Key) == row.Value),
+            groundCacheUnchanged = oldBindings != null && cacheBefore != null && oldBindings.Select(CacheStamp).SequenceEqual(cacheBefore),
+            root = sample == null ? null : new { path = Hierarchy(sample.transform), id = sample.GetInstanceID() },
+            buildings = new[] { abc, separate }.Where(v => v != null).Select(v => new { v.buildingId, path = Hierarchy(v.transform), id = v.GetInstanceID(), regions = v.regions.Length, roofs = v.roofGroups.Length, structure = v.structuralMembers.Length }).ToArray(),
+            module = module == null ? 0 : module.GetInstanceID(), movedStation, movedEnemy, createdObjectCount = createdObjects.Count, createdAssets = createdAssets.ToArray(), createdFolders = createdFolders.ToArray(),
+            objects = createdObjects.Where(v => v != null).Select(v => new { path = Hierarchy(v.transform), id = v.GetInstanceID() }).ToArray(),
+            portals = allPortals.Select(p => new { p.portalId, id = p.GetInstanceID(), path = Hierarchy(p.transform), inside = p.inside == null ? null : p.inside.roomId, outside = p.outside == null ? "Exterior" : p.outside.roomId, p.open, p.canTraverse, outward = p.transform.forward.ToString("R") }).ToArray(),
+            opaqueShutter = shutter == null ? null : new { path = Hierarchy(shutter), id = shutter.GetInstanceID(), closed = shutter.position.ToString("R"), suggestedOpen = new Vector3(-20.14f, 1.7f, -7.7f).ToString("R"), portalId = "portal-a-west" },
+            dynamicExteriorMarkers = new[] { northMarker, westMarker }.Where(t => t != null).Select(t => new { path = Hierarchy(t), id = t.GetInstanceID(), animatedBy = "Animation/WindowMotion" }).ToArray(),
+            newNaturalGroups = newGroups.Count(g => !g.AllowsCharacterReveal), newRevealGroups = newGroups.Count(g => g.AllowsCharacterReveal), newWallSolidCount = wallSolids.Count,
+            note = "Native灰盒构建候选；B使用原唯一EnemyRoot（配置保持），箱为无库存标记。A北窗初始开，A西窗有真实不透明遮板且portal初始关；全部门洞净高2.5自floor顶0.1起。未保存场景/未重建地表，Root仍需真实作者校验、保存和Play硬门。"
+        };
+    }
+}

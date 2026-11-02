@@ -1,0 +1,77 @@
+/* 功能：在真实隔离Lab中读取原敌方Overlay血条，验证未知B房间不能泄漏头顶信息。
+ * 边界：仅观察；不挪人物/敌人、不调用LateUpdate、不修改UI/房间/存档、不替代实际GameplayCamera绘制。
+ * 使用：Root先让主控实际进入A并等待至少一帧；B保持未知、原敌位于B、血条投影在屏幕内，再执行同一探针记录RED/GREEN。
+ */
+using System;
+using System.Linq;
+using System.IO;
+using System.Reflection;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEngine.UI;
+using Funplay.Editor.Tools.Scripting;
+using Ossastra.Commerce.Runtime;
+using CurrentEnemy = Ossastra.Enemies.EnemyRoot;
+using Ossastra.UserInterface;
+using Ossastra.SceneVisibility.Rooms;
+using Ossastra.SceneVisibility.Rooms.Rendering;
+
+public sealed class WorldLabelLeakContract : IFunplayCommand
+{
+ const string ScenePath="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity";
+ const string Profile="kt-vis04-room-01";
+ const string SaveDirectory="E:/WORLDCREATOR/XingHaiHuiLang/研究/可见性修复/KT-VIS-04/profiles";
+ const BindingFlags Fields=BindingFlags.Instance|BindingFlags.NonPublic|BindingFlags.Public;
+ static T[] InScene<T>(Scene scene) where T:Component => scene.GetRootGameObjects().SelectMany(go=>go.GetComponentsInChildren<T>(true)).ToArray();
+ static string Full(string path)=>Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar,Path.AltDirectorySeparatorChar);
+ static object Read(object target,string field)=>target==null?null:target.GetType().GetField(field,Fields)?.GetValue(target);
+ static bool Contains(RoomMaskVolume[] volumes,Vector3 point)
+ {
+  if(volumes==null)return false;
+  foreach(var volume in volumes)
+  {
+   var local=volume.WorldToLocal.MultiplyPoint3x4(point);var half=volume.HalfExtents;
+   if(Mathf.Abs(local.x)<=half.x+.001f && Mathf.Abs(local.y)<=half.y+.001f && Mathf.Abs(local.z)<=half.z+.001f)return true;
+  }
+  return false;
+ }
+ public void Execute(ExecutionContext ctx)
+ {
+  var scene=SceneManager.GetActiveScene();
+  if(!Application.isPlaying || Application.dataPath!="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets" || scene.path!=ScenePath)
+  {ctx.ReturnValue=new{passed=false,stage="INVALID_CONTEXT",reason="仅允许实际隔离Room Lab的Play，不进入原场/旧档。",scene=scene.path,play=Application.isPlaying};return;}
+  var stores=InScene<CommerceService>(scene);
+  if(stores.Length!=1 || stores[0].profileId!=Profile || string.IsNullOrWhiteSpace(stores[0].saveDirectory) || !string.Equals(Full(stores[0].saveDirectory),Full(SaveDirectory),StringComparison.OrdinalIgnoreCase))
+  {ctx.ReturnValue=new{passed=false,stage="INVALID_CONTEXT",reason="唯一共同保存宿主/profile/最终目录不符；未操作任何对象。"};return;}
+  var modules=InScene<RoomVisibilityModule>(scene);var enemies=InScene<CurrentEnemy>(scene);var views=InScene<EnemyHealthBarsView>(scene);
+  if(modules.Length!=1 || enemies.Length!=1 || views.Length!=1)
+  {ctx.ReturnValue=new{passed=false,stage="NOT_READY",reason="需唯一房间模块、原敌和原EnemyHealthBarsView。",modules=modules.Length,enemies=enemies.Length,views=views.Length};return;}
+  var module=modules[0];var enemy=enemies[0];var view=views[0];
+  var b=module.buildings.Where(building=>building!=null).SelectMany(building=>building.regions).SingleOrDefault(room=>room!=null && room.roomId=="room-b");
+  var camera=Read(view,"worldCamera") as Camera;var bars=Read(view,"bars") as Array;var canvas=Read(view,"canvas") as Canvas;
+  if(!module.IsReady || b==null || camera==null || bars==null || canvas==null)
+  {ctx.ReturnValue=new{passed=false,stage="NOT_READY",reason="原房间/血条尚未完成初始化或私有字段合同已改变。",roomReady=module.IsReady};return;}
+  object matching=null;
+  foreach(var bar in bars)if(ReferenceEquals(Read(bar,"enemy"),enemy)){matching=bar;break;}
+  var rect=Read(matching,"rect") as RectTransform;
+  if(rect==null || rect.name!="EnemyHealth0" || canvas.name!="EnemyHealthCanvas" || !rect.IsChildOf(canvas.transform))
+  {ctx.ReturnValue=new{passed=false,stage="NOT_READY",reason="没有找到原EnemyHealthCanvas/EnemyHealth0绑定。"};return;}
+  bool discovered=module.IsDiscovered(b);var foot=enemy.transform.position;var screen=camera.WorldToScreenPoint(foot+Vector3.up*1.8f);var viewport=camera.WorldToViewportPoint(foot+Vector3.up*1.8f);
+  bool available=camera.isActiveAndEnabled && enemy.isActiveAndEnabled && enemy.Vitals!=null && enemy.Vitals.IsAvailable;
+  bool inOriginalViewport=screen.z>0 && screen.x>=-50 && screen.x<=Screen.width+50 && screen.y>=0 && screen.y<=Screen.height;
+  bool framePresent=RoomMaskCameraRegistry.TryGet(camera,out var frame);
+  bool fixture=module.ActiveBuilding!=null && module.ActiveBuilding.buildingId=="building-abc" && module.ActiveRoom!=null && module.ActiveRoom.roomId=="room-a" &&
+   module.effectEnabled && module.interiorUnexploredEnabled && !discovered && b.Contains(foot) && Vector3.Distance(foot,new Vector3(-6,.1f,-12))<.35f && available && inOriginalViewport && canvas.isActiveAndEnabled && framePresent && frame.Enabled;
+  if(!fixture)
+  {ctx.ReturnValue=new{passed=false,stage="INVALID_FIXTURE",reason="需A已进入、B未知、原敌在B且活着并投影在屏幕内；不移动任何对象。",activeBuilding=module.ActiveBuilding==null?null:module.ActiveBuilding.buildingId,activeRoom=module.ActiveRoom==null?null:module.ActiveRoom.roomId,bDiscovered=discovered,enemyPosition=foot,available,inOriginalViewport,viewport,canvasEnabled=canvas.isActiveAndEnabled,framePresent};return;}
+  bool actual=rect.gameObject.activeSelf;
+  ctx.ReturnValue=new
+  {
+   passed=!actual,stage=actual?"RED":"GREEN",expectedActiveSelf=false,actualActiveSelf=actual,actualActiveInHierarchy=rect.gameObject.activeInHierarchy,
+   activeBuilding=module.ActiveBuilding.buildingId,activeRoom=module.ActiveRoom.roomId,unknownRoom=b.roomId,bDiscovered=discovered,discoveredCount=module.DiscoveredRoomCount,
+   enemyPosition=foot,viewport,screen,screenSize=new Vector2(Screen.width,Screen.height),canvasMode=canvas.renderMode.ToString(),canvasOrder=canvas.sortingOrder,
+   originalLateUpdateScreenClipWouldShow=available&&inOriginalViewport,frameEnabled=frame.Enabled,frameKnownEnemy=Contains(frame.KnownVolumes,foot),frameUnknownEnemy=Contains(frame.UnexploredVolumes,foot),
+   camera=camera.name,scene=scene.path,profile=stores[0].profileId,finalSaveDirectory=Full(stores[0].saveDirectory),observationOnly=true
+  };
+ }
+}

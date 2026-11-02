@@ -1,0 +1,455 @@
+/* KT-VIS-04录像步行候选：仅Root Native执行，本文件不是生产脚本。
+ * 唯一位置夹具：原Current的CharacterMovement.Teleport到A南门外一次；之后只发临时Keyboard的W/A/S/D。
+ * 原MapResearchRoot.Update消费临时MapOrbitState(0)，原CharacterRoot/Movement仍是唯一运动入口。
+ * 不改HP、AI、碰撞、绑定、TimeScale或存档；不触发保存。不重置实体设备。Root另启动原生录像。
+ * Every GameplayCamera begin记录当前相机scope中的整栋屋顶状态；end记录原scope归还及真实mask错误。
+ */
+using System;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.SceneManagement;
+using UnityEngine.EventSystems;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.Controls;
+using UnityEngine.InputSystem.LowLevel;
+using Ossastra.SceneVisibility;
+using Ossastra.SceneVisibility.Rooms;
+using Ossastra.SceneVisibility.Rooms.Rendering;
+using Funplay.Editor.Tools.Scripting;
+using Newtonsoft.Json;
+
+public sealed class RoomWalkingProbe : IFunplayCommand
+{
+    const string Lab = "Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity";
+    const string Profile = "kt-vis04-room-01";
+    const string Profiles = "E:/WORLDCREATOR/XingHaiHuiLang/研究/可见性修复/KT-VIS-04/profiles";
+    const string Lease = "KT-VIS-04.WalkingProbe.Running";
+    const BindingFlags Hidden = BindingFlags.Instance | BindingFlags.NonPublic;
+    const double MinimumFilmSeconds = 32, HardDeadlineSeconds = 50, ArrivalObservationSeconds = .7;
+    const float ArrivalTolerance = .3f;
+    static readonly object CameraOwner = new object();
+    sealed class Waypoint
+    {
+        public string Name, Room;
+        public Vector3 Point;
+        public double FilmHold;
+        public Waypoint(string name, float x, float z, string room, double filmHold = 0) { Name = name; Point = new Vector3(x, .1f, z); Room = room; FilmHold = filmHold; }
+    }
+    // B原敌在(-6,-12)，实体箱在(-7.5,-13.7)。明确绕箱的轴向子点也必须经原WASD，不关碰撞或事后摆位。
+    static readonly Waypoint[] Route =
+    {
+        new Waypoint("A", -16, -12, "room-a", 2.8),
+        new Waypoint("C", -11, -12, "corridor-c"),
+        new Waypoint("B-door-inside", -8.8f, -12, "room-b"),
+        new Waypoint("B-southwest-clearance", -8.8f, -14.9f, "room-b"),
+        new Waypoint("B-south-clearance", -6, -14.9f, "room-b"),
+        new Waypoint("B", -6, -13.2f, "room-b", 2.8),
+        new Waypoint("B-south-return", -6, -14.9f, "room-b"),
+        new Waypoint("B-southwest-return", -8.8f, -14.9f, "room-b"),
+        new Waypoint("B-door-return", -8.8f, -12, "room-b"),
+        new Waypoint("C-return", -11, -12, "corridor-c"),
+        new Waypoint("A-return", -16, -12, "room-a", 2.3),
+        new Waypoint("Exterior", -16, -18.2f, null)
+    };
+    sealed class Filter
+    {
+        public InputActionMap Map;
+        public bool Had;
+        public InputDevice[] Before;
+    }
+    sealed class FocusFixture
+    {
+        public Component Owner;
+        public FieldInfo Flag;
+        public MethodInfo Callback;
+        public bool Before, Applied, Restored;
+        public string Label;
+    }
+    sealed class PhysicalMouse
+    {
+        public Mouse Device;
+        public Vector2 Position;
+        public string Buttons;
+    }
+    sealed class FrameFact
+    {
+        public int render, frame, waypoint;
+        public double seconds;
+        public string stage, building, room, discovered;
+        public float x, y, z, inputX, inputY, velocityX, velocityZ, requestedX, requestedZ;
+        public bool motorAllowed, motorMoving, environmentBlocked, maskActive, cameraScopeRestored;
+        public string abcRoofModes, dRoofModes, maskError;
+    }
+    public static bool Running { get; private set; }
+    public static string ResultJson { get; private set; } = "NOT_STARTED";
+    static Ossastra.Characters.CharacterControlCoordinator control;
+    static Ossastra.Characters.CharacterRoot actor;
+    static Ossastra.Characters.CharacterInputHandler input;
+    static Ossastra.Characters.CharacterMovement motor;
+    static Ossastra.MapResearch.MapResearchRoot mapView;
+    static Ossastra.MapResearch.MapOrbitState originalOrbit, fixtureOrbit;
+    static Ossastra.Commerce.Runtime.CommerceService commerce;
+    static Ossastra.Crafting.CraftingRoot crafting;
+    static Ossastra.Inventory.InventorySession inventory;
+    static Ossastra.UserInterface.InventoryView inventoryView;
+    static SceneVisibilityRoot visibility;
+    static RoomVisibilityModule rooms;
+    static BuildingVisibilityRoot abc, independent;
+    static Renderer[] abcRoofs, dRoofs;
+    static RoomRegion[] regions;
+    static Camera camera;
+    static Keyboard keyboard;
+    static Mouse mouse;
+    static Key[] keys = Array.Empty<Key>();
+    static Vector2 pointer;
+    static FieldInfo orbitField, zoomField, singletonMapField;
+    static InputDevice[] physicalDevices;
+    static List<PhysicalMouse> physicalMice;
+    static List<Filter> filters;
+    static List<FocusFixture> focus;
+    static List<object> facts;
+    static List<FrameFact> trace;
+    static FrameFact pendingRender;
+    static string runId, actorId, sceneGuid, stage, error;
+    static float originalZoom, originalPitch, worldBegan;
+    static Vector3 initialPosition, previousPosition;
+    static double began, phaseAt, lastPublish, lastRenderAt, noProgressSince;
+    static int waypoint, lastTickFrame, neutralStartFrame, renderedFrames, renderedEnds, movedFrames, inputFrames, reachedCount, foreignFilters;
+    static float actualWalkDistance;
+    static bool finished, passed, ownsLease, ownsCamera, ownsOrbit, devicesRemoved, arrivalChecked, sawInside, sawExteriorBefore, sawExteriorAfter, dWasDiscovered, initialApplicationFocus;
+
+    public void Execute(ExecutionContext ctx)
+    {
+        if (Running || SessionState.GetBool(Lease, false)) throw new InvalidOperationException("WalkingProbe已有运行租约；请轮询或Cancel，不重放。");
+        Reset();
+        try
+        {
+            Need(Application.dataPath.Replace('\\', '/') == "E:/WORLDCREATOR/new/Project_ANKALUTE/Assets" && Application.isPlaying && !EditorApplication.isPaused && !EditorApplication.isCompiling && !EditorApplication.isUpdating && Time.timeScale == 1, "必须是正确项目正常Play/timeScale1。");
+            Need(SafeScenes() && PrefabStageUtility.GetCurrentPrefabStage() == null && EditorSceneManager.playModeStartScene == null, "仅允许本新Lab及原无Mono私有查询物理Scene。");
+            Need(string.IsNullOrEmpty(SessionState.GetString("SceneVisibility.M1.InputLeaseModule", "")), "已有输入探针租约。");
+            Need(!InputSystem.devices.Any(d => d.name.StartsWith("RoomWalk", StringComparison.Ordinal) || d.name.StartsWith("KTVIS", StringComparison.Ordinal) || d.name.StartsWith("CraftWalk", StringComparison.Ordinal)), "已有测试设备，拒绝输入叠加。");
+            CapturePhysicalBaseline(); Need(PhysicalIdle(), "实体输入不处于idle基线；未注入任何动作。");
+            var scene = SceneManager.GetActiveScene(); sceneGuid = AssetDatabase.AssetPathToGUID(Lab); Need(!string.IsNullOrEmpty(sceneGuid), "Lab缺Native GUID。");
+            commerce = One<Ossastra.Commerce.Runtime.CommerceService>(scene); crafting = One<Ossastra.Crafting.CraftingRoot>(scene);
+            inventory = One<Ossastra.Inventory.InventorySession>(scene); inventoryView = One<Ossastra.UserInterface.InventoryView>(scene);
+            control = One<Ossastra.Characters.CharacterControlCoordinator>(scene); visibility = One<SceneVisibilityRoot>(scene); mapView = One<Ossastra.MapResearch.MapResearchRoot>(scene);
+            Need(InScene<Ossastra.Enemies.EnemyRoot>(scene).Length == 1, "本新场需唯一原OSSASTRA敌根，未访问旧全局EnemyRoot。");
+            actor = control.Current; Need(actor != null && actor.IsAlive && actor.isActiveAndEnabled, "需要原唯一存活Current。"); actorId = actor.ActorId;
+            input = actor.GetComponent<Ossastra.Characters.CharacterInputHandler>(); motor = actor.GetComponent<Ossastra.Characters.CharacterMovement>();
+            Need(input != null && motor != null && !actor.ActionActive, "Current需原输入/Motor且没有未完成动作。");
+            camera = mapView.gameplayCamera; rooms = visibility.roomModule;
+            Need(camera != null && visibility.gameplayCamera == camera && mapView.IsValid && !mapView.IsStructureMode && rooms != null && rooms.IsReady, "原镜头/房间模块尚未Ready。");
+            Need(visibility.effectEnabled && !visibility.detectionOnly && rooms.effectEnabled && rooms.revealRoofs && rooms.exteriorBlackoutEnabled && rooms.interiorUnexploredEnabled, "正常完整房间效果必须开启，不能借诊断模式通过。");
+            Need(rooms.maskDebugMode == 0, "录像必须正常合成模式。");
+            abc = rooms.buildings.Single(b => b != null && b.buildingId == "building-abc"); independent = rooms.buildings.Single(b => b != null && b.buildingId == "building-d");
+            abcRoofs = abc.roofGroups.SelectMany(g => g.members).ToArray(); dRoofs = independent.roofGroups.SelectMany(g => g.members).ToArray();
+            Need(abc.roofGroups.Length == 3 && abcRoofs.Length == 3 && independent.roofGroups.Length == 1 && dRoofs.Length == 1, "需原三顶ABC和独立D。");
+            regions = rooms.buildings.SelectMany(b => b.regions).ToArray();
+            Need(!regions.Where(r => r.roomId == "room-b" || r.roomId == "corridor-c").Any(rooms.IsDiscovered), "B/C已到达；请Root先显式安排新会话/原开发重置，本候选不重置探索。");
+            dWasDiscovered = rooms.IsDiscovered(independent.regions.Single());
+            CheckIsolation(); CheckUi();
+            Need(GUIUtility.keyboardControl == 0 && GUIUtility.hotControl == 0, "有IMGUI键盘/拖动焦点，不抢占。");
+            Need(EventSystem.current == null || EventSystem.current.currentSelectedGameObject == null || !EventSystem.current.currentSelectedGameObject.activeInHierarchy, "原uGUI仍有活动导航选中对象，请Root先释放。");
+            foreach (var part in new[] { new { Name = "up", Path = "<Keyboard>/w" }, new { Name = "down", Path = "<Keyboard>/s" }, new { Name = "left", Path = "<Keyboard>/a" }, new { Name = "right", Path = "<Keyboard>/d" } })
+                Need(input.movementAction.bindings.Any(b => b.isPartOfComposite && string.Equals(b.name, part.Name, StringComparison.OrdinalIgnoreCase) && string.Equals(b.effectivePath, part.Path, StringComparison.OrdinalIgnoreCase)), "原移动Action不是当前要求的WASD composite：" + part.Name);
+            orbitField = typeof(Ossastra.MapResearch.MapResearchRoot).GetField("orbit", Hidden); zoomField = typeof(Ossastra.MapResearch.MapResearchRoot).GetField("zoom", Hidden);
+            singletonMapField = typeof(InputAction).GetField("m_ActionMap", Hidden);
+            Need(orbitField != null && zoomField != null && singletonMapField != null, "已审原orbit/zoom/InputAction私有map字段变化，停止而不猜。");
+            originalOrbit = orbitField.GetValue(mapView) as Ossastra.MapResearch.MapOrbitState; Need(originalOrbit != null, "缺原orbit引用。");
+            originalZoom = (float)zoomField.GetValue(mapView); originalPitch = mapView.pitch; initialApplicationFocus = Application.isFocused;
+            AddFocus(control, typeof(Ossastra.Characters.CharacterControlCoordinator), "focused");
+            foreach (var member in control.Characters) if (member != null) AddFocus(member, typeof(Ossastra.Characters.CharacterRoot), "focused");
+            AddFocus(mapView, typeof(Ossastra.MapResearch.MapResearchRoot), "hasFocus");
+            foreach (var fixture in focus) if (!fixture.Before) { fixture.Applied = true; fixture.Callback.Invoke(fixture.Owner, new object[] { true }); }
+            Need(actor.CanSimulateIntent && input.HasPlayerInput && control.IsIntentSamplingAllowed, "原焦点夹具后Current/采样门仍拒绝，不旁路。");
+            keyboard = InputSystem.AddDevice<Keyboard>("RoomWalkKeyboard"); devicesRemoved = false; mouse = InputSystem.AddDevice<Mouse>("RoomWalkMouse");
+            FilterCurrentActions(); pointer = new Vector2(Screen.width * .5f, Screen.height * .5f);
+            fixtureOrbit = new Ossastra.MapResearch.MapOrbitState(0); orbitField.SetValue(mapView, fixtureOrbit); ownsOrbit = true;
+            mapView.SetUiCameraCapture(CameraOwner, true); ownsCamera = true;
+            initialPosition = actor.transform.position; Vector3 start = new Vector3(-16, .1f, -18.2f);
+            Need(Physics.RaycastAll(start + Vector3.up * .4f, Vector3.down, .9f, ~0, QueryTriggerInteraction.Ignore).Any(h => h.normal.y > .7f && Mathf.Abs(h.point.y - start.y) < .3f && h.collider.GetComponentInParent<Ossastra.Characters.CharacterRoot>() == null), "A入口外摆位缺同层地面。");
+            motor.Teleport(start); previousPosition = actor.transform.position; Need((previousPosition - start).sqrMagnitude < .0001f, "原Motor.Teleport未实际完成初次摆位。");
+            rooms.RequestImmediateMembershipRefresh();
+            Add("position-fixture-once", new { method = "Ossastra.Characters.CharacterMovement.Teleport", before = initialPosition.ToString("R"), requested = start.ToString("R"), actual = previousPosition.ToString("R") });
+            began = phaseAt = lastPublish = lastRenderAt = EditorApplication.timeSinceStartup; worldBegan = Time.time; neutralStartFrame = Time.frameCount;
+            Running = true; SessionState.SetBool(Lease, true); ownsLease = true; stage = "opening-neutral";
+            InputSystem.onBeforeUpdate += BeforeInput; InputSystem.onEvent += PhysicalEvent; EditorApplication.update += Tick;
+            RenderPipelineManager.beginCameraRendering += CameraBegin; RenderPipelineManager.endCameraRendering += CameraEnd;
+            EditorApplication.playModeStateChanged += ModeChanged; AssemblyReloadEvents.beforeAssemblyReload += Reload;
+            Add("started", new { actor = actorId, currentId = actor.GetInstanceID(), profile = commerce.profileId, savePath = commerce.SavePath, temporaryYaw = 0, originalYaw = originalOrbit.ActualYaw, originalZoom, originalPitch, currentActionMapsFiltered = filters.Count, physicalDevices = physicalDevices.Select(d => new { id = d.deviceId, d.name, type = d.GetType().FullName }).ToArray(), route = Route.Select(p => new { p.Name, target = p.Point.ToString("R"), p.Room, p.FilmHold }).ToArray() });
+            Publish(false); ctx.ReturnValue = new { started = true, runId, pollAssembly = typeof(RoomWalkingProbe).Assembly.FullName, pollType = typeof(RoomWalkingProbe).FullName, properties = new[] { "Running", "ResultJson" }, cancelMethod = "Cancel", minimumFilmSeconds = MinimumFilmSeconds, hardDeadlineSeconds = HardDeadlineSeconds, scope = "一次Motor位置夹具 + 原InputAction虚拟WASD实际步行；非实体硬件。Root另开原生录像。" };
+        }
+        catch (Exception ex) { error = ex.ToString(); Finish(false); ctx.ReturnValue = new { started = false, result = ResultJson }; }
+    }
+    static void Reset()
+    {
+        control = null; actor = null; input = null; motor = null; mapView = null; originalOrbit = fixtureOrbit = null; commerce = null; crafting = null; inventory = null; inventoryView = null; visibility = null; rooms = null; abc = independent = null; camera = null;
+        abcRoofs = dRoofs = Array.Empty<Renderer>(); regions = Array.Empty<RoomRegion>(); keyboard = null; mouse = null; keys = Array.Empty<Key>(); orbitField = zoomField = singletonMapField = null;
+        physicalDevices = Array.Empty<InputDevice>(); physicalMice = new List<PhysicalMouse>(); filters = new List<Filter>(); focus = new List<FocusFixture>(); facts = new List<object>(); trace = new List<FrameFact>(); pendingRender = null;
+        runId = Guid.NewGuid().ToString("N"); actorId = sceneGuid = error = null; stage = "preflight"; began = phaseAt = lastPublish = lastRenderAt = EditorApplication.timeSinceStartup; worldBegan = Time.time; initialPosition = previousPosition = Vector3.zero;
+        waypoint = renderedFrames = renderedEnds = movedFrames = inputFrames = reachedCount = foreignFilters = 0; lastTickFrame = -1; noProgressSince = 0; actualWalkDistance = 0;
+        finished = passed = ownsLease = ownsCamera = ownsOrbit = arrivalChecked = sawInside = sawExteriorBefore = sawExteriorAfter = false; devicesRemoved = true;
+    }
+    static T[] InScene<T>(Scene scene) where T : Component => scene.GetRootGameObjects().SelectMany(g => g.GetComponentsInChildren<T>(true)).ToArray();
+    static T One<T>(Scene scene) where T : Component { var values = InScene<T>(scene); Need(values.Length == 1, "需唯一" + typeof(T).FullName + "，实际" + values.Length); return values[0]; }
+    static string Full(string path) => Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+    static void Need(bool value, string message) { if (!value) throw new InvalidOperationException(message); }
+    static float Horizontal(Vector3 delta) => new Vector2(delta.x, delta.z).magnitude;
+    static float NominalRouteDistance()
+    {
+        Vector3 previous = new Vector3(-16, .1f, -18.2f); float distance = 0;
+        foreach (var point in Route) { distance += Horizontal(point.Point - previous); previous = point.Point; }
+        return distance;
+    }
+    static float MinimumWalkDistance() => Mathf.Max(0, NominalRouteDistance() - 2 * ArrivalTolerance * Route.Length);
+    static bool SafeScenes()
+    {
+        if (SceneManager.GetActiveScene().path != Lab) return false; int authored = 0, hidden = 0;
+        for (int i = 0; i < SceneManager.sceneCount; ++i)
+        {
+            var scene = SceneManager.GetSceneAt(i); if (!scene.isLoaded) continue;
+            if (!string.IsNullOrEmpty(scene.path)) { if (scene.path != Lab) return false; authored++; }
+            else { if (!(scene.name.StartsWith("CharacterClearanceMath_", StringComparison.Ordinal) || scene.name.StartsWith("__KT_VIS01_QueryPhysics_", StringComparison.Ordinal)) || scene.GetRootGameObjects().Any(g => g.GetComponentsInChildren<MonoBehaviour>(true).Length > 0)) return false; hidden++; }
+        }
+        return authored == 1 && hidden <= 3;
+    }
+    static void CheckIsolation()
+    {
+        Need(commerce != null && commerce.isActiveAndEnabled && commerce.Ready && commerce.profileId == Profile && !string.IsNullOrWhiteSpace(commerce.saveDirectory) && string.Equals(Full(commerce.saveDirectory), Full(Profiles), StringComparison.OrdinalIgnoreCase), "隔离Commerce宿主/profile/目录变化。");
+        string expected = new Ossastra.Commerce.Persistence.CommerceFileSaveStore(Profiles).PathForProfile(Profile);
+        Need(!string.IsNullOrWhiteSpace(commerce.SavePath) && string.Equals(Full(commerce.SavePath), Full(expected), StringComparison.OrdinalIgnoreCase), "实际保存最终路径不是本轮隔离文件。");
+        Need(commerce.mapId == "kt-vis04-room-lab" && crafting != null && crafting.Ready && crafting.commerce == commerce && crafting.inventory == inventory && commerce.inventory == inventory && inventory != null && inventory.Ready, "原共同快照/库存/Craft身份失效。");
+    }
+    static void CheckUi()
+    {
+        Need(inventoryView != null && !inventoryView.IsOpen && crafting != null && crafting.userInterface != null && !crafting.userInterface.IsOpen && (commerce.userInterface == null || !commerce.userInterface.IsOpen), "原UI已打开/捕获，立即停止而不关闭用户UI。");
+    }
+    static void AddFocus(Component owner, Type type, string flag)
+    {
+        var field = type.GetField(flag, Hidden); var callback = type.GetMethod("OnApplicationFocus", Hidden, null, new[] { typeof(bool) }, null);
+        Need(field != null && field.FieldType == typeof(bool) && callback != null, "原焦点夹具字段变化：" + type.FullName);
+        focus.Add(new FocusFixture { Owner = owner, Flag = field, Callback = callback, Before = (bool)field.GetValue(owner), Label = type.FullName + ":" + owner.GetInstanceID() });
+    }
+    static void FilterCurrentActions()
+    {
+        var actions = typeof(Ossastra.Characters.CharacterInputHandler).GetFields(BindingFlags.Instance | BindingFlags.Public).Where(f => f.FieldType == typeof(InputAction)).Select(f => f.GetValue(input) as InputAction).Where(a => a != null).Distinct().ToArray();
+        foreach (var actionMap in actions.Select(a => a.actionMap ?? singletonMapField.GetValue(a) as InputActionMap).Distinct())
+        {
+            Need(actionMap != null && actionMap.actions.All(a => actions.Contains(a)), "当前ActionMap含非Current动作或缺少原单Action隐藏map；不扩大全局过滤。");
+            var prior = actionMap.devices; filters.Add(new Filter { Map = actionMap, Had = prior.HasValue, Before = prior.HasValue ? prior.Value.ToArray() : null });
+            actionMap.devices = new InputDevice[] { keyboard, mouse };
+        }
+        Need(filters.Count > 0, "未能过滤Current原Action，拒绝假注入。");
+    }
+    static string Buttons(Mouse device) => string.Join("", new[] { device.leftButton, device.rightButton, device.middleButton, device.forwardButton, device.backButton }.Select(b => b.isPressed ? "1" : "0"));
+    static void CapturePhysicalBaseline()
+    {
+        physicalDevices = InputSystem.devices.ToArray();
+        physicalMice = physicalDevices.OfType<Mouse>().Select(d => new PhysicalMouse { Device = d, Position = d.position.ReadValue(), Buttons = Buttons(d) }).ToList();
+    }
+    static bool PhysicalIdle()
+    {
+        var devices = InputSystem.devices.Where(d => d != keyboard && d != mouse).ToArray();
+        if (devices.Length != physicalDevices.Length || devices.Any(d => !physicalDevices.Contains(d))) return false;
+        if (physicalMice.Any(m => m.Device == null || !devices.Contains(m.Device) || Buttons(m.Device) != "00000" || Buttons(m.Device) != m.Buttons || (m.Device.position.ReadValue() - m.Position).sqrMagnitude > 1 || m.Device.scroll.ReadValue().sqrMagnitude > .01f)) return false;
+        return devices.All(d => !(d is Keyboard k && k.allKeys.Any(b => b != null && b.isPressed)) && !(d is Gamepad g && (g.leftStick.ReadValue().sqrMagnitude > .04f || g.rightStick.ReadValue().sqrMagnitude > .04f || g.allControls.OfType<ButtonControl>().Any(b => b.isPressed))));
+    }
+    static void PhysicalEvent(InputEventPtr eventPtr, InputDevice device)
+    {
+        if (!Running || error != null || device == keyboard || device == mouse || device == null || !physicalDevices.Contains(device)) return;
+        if (!eventPtr.IsA<StateEvent>() && !eventPtr.IsA<DeltaStateEvent>()) return;
+        bool active = false;
+        if (device is Keyboard k) active = k.allKeys.Any(b => b != null && b.ReadValueFromEvent(eventPtr, out float value) && value > .5f);
+        else if (device is Mouse m)
+        {
+            active = new[] { m.leftButton, m.rightButton, m.middleButton, m.forwardButton, m.backButton }.Any(b => b.ReadValueFromEvent(eventPtr, out float value) && value > .5f);
+            var baseline = physicalMice.SingleOrDefault(p => p.Device == m);
+            if (baseline != null && m.position.ReadValueFromEvent(eventPtr, out Vector2 position) && (position - baseline.Position).sqrMagnitude > 1) active = true;
+            if (m.scroll.ReadValueFromEvent(eventPtr, out Vector2 scroll) && scroll.sqrMagnitude > .01f) active = true;
+        }
+        else if (device is Gamepad g)
+        {
+            active = g.allControls.OfType<ButtonControl>().Any(b => b.ReadValueFromEvent(eventPtr, out float value) && value > .5f);
+            if (g.leftStick.ReadValueFromEvent(eventPtr, out Vector2 left) && left.sqrMagnitude > .04f) active = true;
+            if (g.rightStick.ReadValueFromEvent(eventPtr, out Vector2 right) && right.sqrMagnitude > .04f) active = true;
+        }
+        if (active) { keys = Array.Empty<Key>(); error = "检测到真实设备输入，立即撤回虚拟键；下一Editor更新按所有权恢复：" + device.name + "/" + device.deviceId; }
+    }
+    static void BeforeInput()
+    {
+        if (!Running || !Application.isPlaying || InputState.currentUpdateType != InputUpdateType.Dynamic || keyboard == null || mouse == null) return;
+        if (!keyboard.enabled) InputSystem.EnableDevice(keyboard); if (!mouse.enabled) InputSystem.EnableDevice(mouse);
+        InputSystem.QueueStateEvent(keyboard, new KeyboardState(error == null ? keys : Array.Empty<Key>()));
+        InputSystem.QueueStateEvent(mouse, new MouseState { position = pointer });
+    }
+    static void Guard()
+    {
+        Need(error == null, error); Need(Application.isPlaying && !EditorApplication.isPaused && !EditorApplication.isCompiling && !EditorApplication.isUpdating && Time.timeScale == 1 && SafeScenes() && AssetDatabase.AssetPathToGUID(Lab) == sceneGuid, "Play/时标/场景/GUID改变。");
+        Need(Application.isFocused == initialApplicationFocus && PhysicalIdle(), "真实焦点/输入/设备基线变化，交还控制。");
+        CheckIsolation(); CheckUi();
+        Need(control != null && control.Current == actor && actor != null && actor.IsAlive && actor.ActorId == actorId && actor.CanSimulateIntent && input.HasPlayerInput && control.IsIntentSamplingAllowed, "Current/生命/原输入许可改变。");
+        Need(mapView != null && mapView.IsValid && !mapView.IsStructureMode && ReferenceEquals(orbitField.GetValue(mapView), fixtureOrbit) && fixtureOrbit.TargetSector == 0 && Mathf.Abs(Mathf.DeltaAngle(fixtureOrbit.ActualYaw, 0)) < .02f, "本候选orbit已被更换/旋转，保留外部状态。");
+        Need(Mathf.Abs((float)zoomField.GetValue(mapView) - originalZoom) < .00001f && Mathf.Abs(mapView.pitch - originalPitch) < .00001f, "zoom/pitch外部更改，候选不覆盖。");
+        Need(visibility.effectEnabled && !visibility.detectionOnly && rooms.IsReady && rooms.effectEnabled && rooms.revealRoofs && rooms.exteriorBlackoutEnabled && rooms.interiorUnexploredEnabled && rooms.maskDebugMode == 0 && string.IsNullOrEmpty(visibility.RenderError), "房间/局部效果或渲染错误状态变化。");
+    }
+    static void Tick()
+    {
+        if (!Running) return;
+        try
+        {
+            Guard(); double now = EditorApplication.timeSinceStartup;
+            Need(now - began < HardDeadlineSeconds, "50秒步行硬上限；不二次摆位或绕过阻挡。");
+            Need(now - lastRenderAt < 3, "GameplayCamera三秒没有真实render，不能代签屋顶/黑幕。");
+            EditorApplication.QueuePlayerLoopUpdate(); if (lastTickFrame == Time.frameCount) return; lastTickFrame = Time.frameCount;
+            Vector3 position = actor.transform.position; float delta = Horizontal(position - previousPosition); previousPosition = position; actualWalkDistance += delta;
+            if (delta > .0001f) movedFrames++; if (input.CurrentFrame.move.sqrMagnitude > .01f) inputFrames++;
+            keys = Array.Empty<Key>();
+            if (stage == "opening-neutral")
+            {
+                if (now - phaseAt >= 1.2 && Time.frameCount - neutralStartFrame >= 3) { Need(Mathf.Abs(Mathf.DeltaAngle(mapView.ActualYaw, 0)) < .02f, "原MapResearchRoot未消费临时0度观察。"); StartLeg(); }
+            }
+            else if (stage.StartsWith("walk-", StringComparison.Ordinal))
+            {
+                Need(now - phaseAt < 9, "目标步行9秒超时：" + Route[waypoint].Name);
+                var difference = Route[waypoint].Point - position;
+                if (Horizontal(difference) <= ArrivalTolerance)
+                {
+                    reachedCount++; stage = "observe-" + Route[waypoint].Name; phaseAt = now; arrivalChecked = false; noProgressSince = 0;
+                    Add("reached-by-original-WASD", new { waypoint, target = Route[waypoint].Name, requested = Route[waypoint].Point.ToString("R"), actual = position.ToString("R"), distance = Horizontal(difference), cumulativeActualDistance = actualWalkDistance });
+                }
+                else
+                {
+                    if (Mathf.Abs(difference.x) >= Mathf.Abs(difference.z)) keys = new[] { difference.x > 0 ? Key.D : Key.A }; else keys = new[] { difference.z > 0 ? Key.W : Key.S };
+                    if (delta > .001f) noProgressSince = now; else if (noProgressSince <= 0) noProgressSince = now;
+                    Need(now - noProgressSince < 3, "原Motor连续三秒无位置增长：" + Route[waypoint].Name + "；保留真实碰撞失败。");
+                }
+            }
+            else if (stage.StartsWith("observe-", StringComparison.Ordinal))
+            {
+                Need(Horizontal(Route[waypoint].Point - position) <= .35f, "到达后被真实运动移出容差，不伪造停留。");
+                if (!arrivalChecked && now - phaseAt >= ArrivalObservationSeconds)
+                {
+                    var expected = Route[waypoint].Room;
+                    Need(expected == null ? rooms.ActiveBuilding == null : rooms.ActiveBuilding == abc && rooms.ActiveRoom != null && rooms.ActiveRoom.roomId == expected && rooms.IsDiscovered(rooms.ActiveRoom), "真实房间解析/到达状态与停留点不一致：" + Route[waypoint].Name);
+                    if (waypoint < 2) Need(!rooms.IsDiscovered(abc.regions.Single(r => r.roomId == "room-b")), "主控未进B却提前发现B。");
+                    arrivalChecked = true; Add("arrival-observed-0p7-seconds", new { waypoint, target = Route[waypoint].Name, building = rooms.ActiveBuilding == null ? "Exterior" : rooms.ActiveBuilding.buildingId, room = rooms.ActiveRoom == null ? null : rooms.ActiveRoom.roomId, discovered = Discovered() });
+                }
+                if (arrivalChecked && now - phaseAt >= ArrivalObservationSeconds + Route[waypoint].FilmHold)
+                {
+                    waypoint++;
+                    if (waypoint < Route.Length) StartLeg(); else { stage = "final-exterior-hold"; phaseAt = now; Add("route-completed", new { reachedCount, actualWalkDistance }); }
+                }
+            }
+            else if (stage == "final-exterior-hold" && now - began >= MinimumFilmSeconds && now - phaseAt >= .7)
+            {
+                Need(reachedCount == Route.Length && actualWalkDistance >= MinimumWalkDistance() && movedFrames > 20 && inputFrames > 20, "缺原WASD/Motor实际位移证据；实际" + actualWalkDistance + "，路线容差下界" + MinimumWalkDistance());
+                Need(sawInside && sawExteriorBefore && sawExteriorAfter && rooms.ActiveBuilding == null && renderedFrames > 30 && renderedEnds == renderedFrames, "缺进栋/离栋/完整相机scope证据。");
+                Need(abc.regions.All(rooms.IsDiscovered) && rooms.IsDiscovered(independent.regions.Single()) == dWasDiscovered, "本次到达集合未覆盖ABC或错误影响D。");
+                Finish(true); return;
+            }
+            if (now - lastPublish >= 1) { lastPublish = now; Publish(false); }
+        }
+        catch (Exception ex) { error = ex.ToString(); Finish(false); }
+    }
+    static void StartLeg() { stage = "walk-" + Route[waypoint].Name; phaseAt = noProgressSince = EditorApplication.timeSinceStartup; keys = Array.Empty<Key>(); Add("leg-start", new { waypoint, target = Route[waypoint].Name, worldTarget = Route[waypoint].Point.ToString("R") }); }
+    static string Discovered() => string.Join(",", regions.Where(rooms.IsDiscovered).Select(r => r.roomId).OrderBy(id => id, StringComparer.Ordinal));
+    static string Modes(Renderer[] values) => string.Join(",", values.Select(r => r == null ? "Missing" : r.shadowCastingMode.ToString()));
+    static void CameraBegin(ScriptableRenderContext context, Camera value)
+    {
+        if (!Running || error != null || value != camera) return;
+        try
+        {
+            Need(pendingRender == null, "GameplayCamera出现未闭合/递归scope。");
+            bool inside = rooms.ActiveBuilding == abc; Need(rooms.ActiveBuilding == null || inside, "路线错误进入独立建筑D。");
+            var expected = inside ? ShadowCastingMode.ShadowsOnly : ShadowCastingMode.On;
+            Need(abcRoofs.All(r => r != null && r.enabled && r.shadowCastingMode == expected), "ABC三屋顶没有同帧统一" + expected + "，或被禁用。");
+            Need(dRoofs.All(r => r != null && r.enabled && r.shadowCastingMode == ShadowCastingMode.On), "独立D屋顶被错误联动。");
+            if (inside) sawInside = true; else if (!sawInside) sawExteriorBefore = true; else sawExteriorAfter = true;
+            lastRenderAt = EditorApplication.timeSinceStartup; renderedFrames++;
+            Vector3 position = actor.transform.position; var move = input.CurrentFrame.move;
+            pendingRender = new FrameFact { render = renderedFrames, frame = Time.frameCount, waypoint = waypoint, seconds = lastRenderAt - began, stage = stage, building = inside ? abc.buildingId : "Exterior", room = rooms.ActiveRoom == null ? null : rooms.ActiveRoom.roomId, discovered = Discovered(), x = position.x, y = position.y, z = position.z, inputX = move.x, inputY = move.y, velocityX = motor.Velocity.x, velocityZ = motor.Velocity.z, requestedX = motor.RequestedVelocity.x, requestedZ = motor.RequestedVelocity.z, motorAllowed = motor.LastAllowed, motorMoving = motor.IsMoving, environmentBlocked = motor.LastEnvironmentSideBlocked, abcRoofModes = Modes(abcRoofs), dRoofModes = Modes(dRoofs) };
+            trace.Add(pendingRender);
+        }
+        catch (Exception ex) { keys = Array.Empty<Key>(); error = "GameplayCamera begin: " + ex; }
+    }
+    static void CameraEnd(ScriptableRenderContext context, Camera value)
+    {
+        if (!Running || value != camera || pendingRender == null) return;
+        try
+        {
+            bool found = RoomMaskCameraRegistry.TryGetStatistics(camera, out var stats); pendingRender.maskActive = found && stats.Active; pendingRender.maskError = found ? stats.Error : null;
+            Need(!found || string.IsNullOrEmpty(stats.Error), "BlackoutStats.Error：" + (found ? stats.Error : ""));
+            Need(pendingRender.building == "Exterior" || found && stats.Active, "在栋内没有实际mask后端执行。");
+            pendingRender.cameraScopeRestored = abcRoofs.Concat(dRoofs).All(r => r != null && r.shadowCastingMode == ShadowCastingMode.On && r.enabled);
+            Need(pendingRender.cameraScopeRestored, "相机End未按所有权恢复屋顶原状态。"); renderedEnds++;
+        }
+        catch (Exception ex) { keys = Array.Empty<Key>(); error = (error ?? "") + "\nGameplayCamera end: " + ex; }
+        finally { pendingRender = null; }
+    }
+    static void Add(string kind, object data) { facts.Add(new { seconds = EditorApplication.timeSinceStartup - began, kind, data }); }
+    public static string Cancel() { if (Running) { error = "Root取消WalkingProbe。"; Finish(false); } return ResultJson; }
+    static void ModeChanged(PlayModeStateChange value) { if (Running && (value == PlayModeStateChange.ExitingPlayMode || value == PlayModeStateChange.EnteredEditMode)) { error = "Play退出，按所有权停止。"; Finish(false); } }
+    static void Reload() { if (Running) { error = "域重载，按所有权停止。"; Finish(false); } }
+    static void CleanupError(string label, Exception ex) { error = (error ?? "") + "\n" + label + ": " + ex.Message; passed = false; }
+    static void Finish(bool ok)
+    {
+        if (finished) return; finished = true; passed = ok && error == null; Running = false; keys = Array.Empty<Key>();
+        InputSystem.onBeforeUpdate -= BeforeInput; InputSystem.onEvent -= PhysicalEvent; EditorApplication.update -= Tick; RenderPipelineManager.beginCameraRendering -= CameraBegin; RenderPipelineManager.endCameraRendering -= CameraEnd;
+        EditorApplication.playModeStateChanged -= ModeChanged; AssemblyReloadEvents.beforeAssemblyReload -= Reload;
+        try { if (keyboard != null && InputSystem.devices.Contains(keyboard)) InputSystem.ResetDevice(keyboard); if (mouse != null && InputSystem.devices.Contains(mouse)) InputSystem.ResetDevice(mouse); } catch (Exception ex) { CleanupError("只复位自有设备", ex); }
+        foreach (var filter in filters)
+        {
+            try { var current = filter.Map.devices; if (current.HasValue && current.Value.Count == 2 && current.Value.Contains(keyboard) && current.Value.Contains(mouse)) filter.Map.devices = filter.Had ? filter.Before : null; else { foreignFilters++; passed = false; error = (error ?? "") + "\nCurrent ActionMap出现外部filter替换，保留外部值。"; } }
+            catch (Exception ex) { CleanupError("Current filter归还", ex); }
+        }
+        try { if (keyboard != null && InputSystem.devices.Contains(keyboard)) InputSystem.RemoveDevice(keyboard); } catch (Exception ex) { CleanupError("移除自有Keyboard", ex); }
+        try { if (mouse != null && InputSystem.devices.Contains(mouse)) InputSystem.RemoveDevice(mouse); } catch (Exception ex) { CleanupError("移除自有Mouse", ex); }
+        devicesRemoved = (keyboard == null || !InputSystem.devices.Contains(keyboard)) && (mouse == null || !InputSystem.devices.Contains(mouse));
+        try
+        {
+            if (ownsOrbit && mapView != null && orbitField != null)
+            {
+                if (ReferenceEquals(orbitField.GetValue(mapView), fixtureOrbit)) { orbitField.SetValue(mapView, originalOrbit); ownsOrbit = false; }
+                else { passed = false; error = (error ?? "") + "\n外部orbit替换已保留，未覆盖。"; }
+            }
+        }
+        catch (Exception ex) { CleanupError("原orbit引用归还", ex); }
+        try { if (ownsCamera && mapView != null) mapView.SetUiCameraCapture(CameraOwner, false); } catch (Exception ex) { CleanupError("自有camera capture归还", ex); } finally { ownsCamera = false; }
+        foreach (var fixture in focus)
+        {
+            try
+            {
+                if (fixture.Owner == null) continue;
+                bool current = (bool)fixture.Flag.GetValue(fixture.Owner);
+                if (!fixture.Applied || current == fixture.Before) fixture.Restored = true;
+                else if (current) { fixture.Callback.Invoke(fixture.Owner, new object[] { fixture.Before }); fixture.Restored = (bool)fixture.Flag.GetValue(fixture.Owner) == fixture.Before; }
+                else { passed = false; error = (error ?? "") + "\n外部焦点值已保留：" + fixture.Label; }
+            }
+            catch (Exception ex) { CleanupError("原焦点夹具归还", ex); }
+        }
+        if (ownsLease) { SessionState.SetBool(Lease, false); ownsLease = false; }
+        EditorApplication.QueuePlayerLoopUpdate(); Publish(true);
+    }
+    static void Publish(bool done)
+    {
+        bool orbitRestored = mapView == null || orbitField == null || ReferenceEquals(orbitField.GetValue(mapView), originalOrbit);
+        bool zoomUnchanged = mapView == null || zoomField == null || Mathf.Abs((float)zoomField.GetValue(mapView) - originalZoom) < .00001f;
+        bool pitchUnchanged = mapView == null || Mathf.Abs(mapView.pitch - originalPitch) < .00001f;
+        ResultJson = JsonConvert.SerializeObject(new
+        {
+            done, Running, status = !done ? "RUNNING" : passed ? "PASS" : "FAILED_OR_CANCELLED", runId, stage, error, seconds = EditorApplication.timeSinceStartup - began, worldSeconds = Time.time - worldBegan,
+            actorId, waypoint, reachedCount, waypointCount = Route.Length, renderedFrames, renderedEnds, movedFrames, inputFrames, actualWalkDistance, nominalRouteDistance = NominalRouteDistance(), minimumAcceptedWalkDistance = MinimumWalkDistance(),
+            currentPosition = actor == null ? null : actor.transform.position.ToString("R"), initialPosition = initialPosition.ToString("R"),
+            originalOrbitReferenceRestored = orbitRestored, zoomUnchanged, pitchUnchanged, ownCameraCaptureReleased = !ownsCamera, devicesRemoved, foreignFiltersPreserved = foreignFilters,
+            focus = focus.Select(f => new { f.Label, f.Before, f.Applied, f.Restored }).ToArray(),
+            sawInside, sawExteriorBefore, sawExteriorAfter, facts, trace = done ? trace.ToArray() : null, traceCount = trace.Count,
+            scope = "原Current InputAction虚拟Keyboard/Mouse的真实WASD步行；一次初始Motor.Teleport位置夹具。临时原orbit对象yaw0；原MapResearchRoot.Update/CharacterRoot/Movement推进。未改绑定/共享SO/伙伴/UI actions、HP、AI、Collider、TimeScale或存档。正常共同保存writer可自行继续。每次GameplayCamera真实begin/end记录整栋顶盖与BlackoutStats；无RT/截图旁路。物理输入出现即取消；不重置实体设备。不代表实体硬件或用户审美验收。结束停在实际步行终点，不再Teleport恢复。"
+        });
+    }
+}

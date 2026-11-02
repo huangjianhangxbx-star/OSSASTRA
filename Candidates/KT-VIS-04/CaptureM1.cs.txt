@@ -1,0 +1,18 @@
+/* M1真实GameplayCamera同帧开关差分；原相机临时RT只用于本次有限取样，不替换世界/窗口。 */
+using System;using System.IO;using System.Linq;using UnityEngine;using UnityEngine.SceneManagement;using UnityEngine.Rendering;using UnityEngine.Rendering.Universal;using UnityEditor;using Ossastra.SceneVisibility;using Ossastra.SceneVisibility.Rooms;using Ossastra.SceneVisibility.Rooms.Rendering;using Funplay.Editor.Tools.Scripting;
+public sealed class CaptureRoomM1:IFunplayCommand {
+ static string Dir="E:/WORLDCREATOR/XingHaiHuiLang/研究/可见性修复/KT-VIS-04";
+ static string Pixel(Camera c,Texture2D t,Vector3 world){var v=c.WorldToViewportPoint(world);if(v.z<=0||v.x<0||v.x>=1||v.y<0||v.y>=1)return "offscreen";var color=t.GetPixel(Mathf.Clamp((int)(v.x*t.width),0,t.width-1),Mathf.Clamp((int)(v.y*t.height),0,t.height-1));return color.ToString("F4");}
+ public void Execute(ExecutionContext ctx){
+ var s=SceneManager.GetActiveScene();if(!Application.isPlaying||s.path!="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity")throw new Exception("Wrong isolated Play");
+ var root=s.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<SceneVisibilityRoot>(true)).Single();var m=root.roomModule;var c=root.gameplayCamera;if(m==null||m.ActiveRoom==null||m.ActiveRoom.roomId!="room-a")throw new Exception("Need Current truly in A");
+ var rd=AssetDatabase.LoadAssetAtPath<UniversalRendererData>("Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/Rendering/RoomVisibilityRenderer.asset");if(rd==null)throw new Exception("Missing owned renderer");var feature=rd.rendererFeatures.OfType<RoomMaskRendererFeature>().Single();
+ var old=c.targetTexture;var active=RenderTexture.active;float aspect=c.aspect;var rt=new RenderTexture(960,540,24,RenderTextureFormat.ARGB32){name="M1 own temporary capture",antiAliasing=4};var reader=new Texture2D(960,540,TextureFormat.RGB24,false);var samples=new System.Collections.Generic.List<object>();var roofs=new System.Collections.Generic.List<object>();
+ Action<ScriptableRenderContext,Camera> observe=(context,cam)=>{if(cam!=c)return;roofs.Add(new{building=m.ActiveBuilding==null?null:m.ActiveBuilding.buildingId,room=m.ActiveRoom==null?null:m.ActiveRoom.roomId,discovered=m.DiscoveredRoomCount,modes=m.buildings.SelectMany(b=>b.roofGroups.SelectMany(r=>r.members.Select(v=>b.buildingId+":"+r.roofGroupId+":"+v.shadowCastingMode))).ToArray()});};
+ try{
+ rt.Create();c.targetTexture=rt;c.aspect=16f/9f;RenderPipelineManager.beginCameraRendering+=observe;
+ for(int k=0;k<2;k++){feature.SetActive(k==1);c.Render();RenderTexture.active=rt;reader.ReadPixels(new Rect(0,0,960,540),0,0);reader.Apply();string file=Dir+(k==0?"/m1-mask-off.png":"/m1-mask-on.png");File.WriteAllBytes(file,reader.EncodeToPNG());samples.Add(new{effect=k==1,file,knownA=Pixel(c,reader,new Vector3(-16,.12f,-14)),unknownB=Pixel(c,reader,new Vector3(-6,.12f,-12)),exterior=Pixel(c,reader,new Vector3(-16,.02f,-19.5f)),dynamicWindow=Pixel(c,reader,new Vector3(-15.2f,1,-7.2f))});}
+ RoomMaskStatistics stat;bool found=RoomMaskCameraRegistry.TryGetStatistics(c,out stat);ctx.ReturnValue=new{ok=found&&stat.Error=="",samples,roofs,activeBuilding=m.ActiveBuilding.buildingId,activeRoom=m.ActiveRoom.roomId,discovered=m.DiscoveredRoomCount,stats=found?stat:null,actualUnityGameplayCamera=true,temporaryTarget=true,overlayHUDCaptured=false,featureLeftEnabled=true};
+ }finally{RenderPipelineManager.beginCameraRendering-=observe;c.targetTexture=old;c.aspect=aspect;RenderTexture.active=active;UnityEngine.Object.DestroyImmediate(reader);rt.Release();UnityEngine.Object.DestroyImmediate(rt);feature.SetActive(true);}
+ }
+}

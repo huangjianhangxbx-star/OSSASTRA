@@ -1066,3 +1066,15 @@ active/unity-writer；用户明确要求一轮修整：共享脚本去M01标签�
 ## CAMERA-PITCH45（2026-11-02）
 
 - `camera-pitch45-20261102` complete/read-only：当前CRAFT Main的MapResearchRoot.pitch与GameplayCamera俯角35→45；保留观察中心/distance25/FOV35/yaw45，Native保存及独立读回通过、Edit ready。原dirty场内数据保留，原37dirty保护；无Play/存档/遮挡修改。所有writer与路径释放，场景仅本机。见tasks/2026-11-02-camera-pitch45.md。
+
+
+## KT-VIS-04（2026-11-02）
+
+- `kt-vis-04` active/unity-writer：root唯一Unity writer；独占SceneVisibility/Rooms新模块、SceneVisibilityRoot必要seam、GroundSurfaceSceneAccess新场白名单、自有KT-VIS-04新场/模板/可选Renderer、Candidates/KT-VIS-04及任务文档。保留源场/原档/dirty；35°最新指令优先；先真实窗口黑幕M1后连续M2—M7，不改全局Renderer/物理/玩法。详见tasks/2026-11-02-kt-vis-04.md。
+
+2026-11-02 kt-vis-04 active/unity-writer AMEND-01：仍同一任务/同Lab；整栋揭顶权威、室内探索与室外隔离双黑幕、墙顶封口保留和照明硬门替换旧逐房策略。Root唯一Unity；源场恢复副本/独立3Map及新profile已完成，旧逐房验收作废。追加必要UI世界标签表现过滤seam与OSSASTRA_RULES本轮规则维护，不改业务或全局渲染默认。
+
+kt-vis-04 root追加自有Development/SceneVisibility/RoomVisibilityLabPanel.cs，仅新Lab开发诊断与原接口调试定位，Player/相机输入捕获按owner释放，不改原业务。
+
+
+2026-11-02 kt-vis-04 technical-complete/docs-writer：同一任务v1.1核心接入与B级模块验证/模板/教程已完成；Unity与所有源码租约释放，所有并行者停止写入；只保留本任务文档与GitHub定向发布回执。范围/真实结果/未测边界见任务记录及验证与交付.md，不冒签完整人工矩阵。原场/档/dirty保护，35°最新值不变；最后只读为本Lab Play，保留运行现场，无电源动作。

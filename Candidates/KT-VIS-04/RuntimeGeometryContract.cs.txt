@@ -1,0 +1,28 @@
+/* 功能：通过真实RoomRegion验证定向体积/高度/滞回边界；未实现时返回行为用例未满足，不触碰玩法场景。 */
+using System;using System.Collections.Generic;using System.Reflection;using UnityEngine;using Funplay.Editor.Tools.Scripting;
+public sealed class RoomRuntimeGeometryContract : IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  Type regionType=null;foreach(var assembly in AppDomain.CurrentDomain.GetAssemblies()){regionType=assembly.GetType("Ossastra.SceneVisibility.Rooms.RoomRegion");if(regionType!=null)break;}
+  if(regionType==null){ctx.ReturnValue=new{passed=false,stage="RED",failures=new[]{"室内真实脚点须入域；楼上脚点须不入域：RoomRegion尚未实现"}};return;}
+  var contains=regionType.GetMethod("Contains",new[]{typeof(Vector3),typeof(float)});var volumes=regionType.GetField("volumes");
+  if(contains==null||volumes==null)throw new InvalidOperationException("作者体积API变更，检查测试而非猜测字段");
+  var go=new GameObject("__RoomGeometryContract");go.hideFlags=HideFlags.HideAndDontSave;
+  var failures=new List<string>();int samples=0;
+  try
+  {
+   var region=go.AddComponent(regionType);Type boxType=volumes.FieldType.GetElementType();if(boxType==null)throw new InvalidOperationException("volumes非数组");
+   Array boxes=Array.CreateInstance(boxType,1);var box=Activator.CreateInstance(boxType);boxType.GetField("center").SetValue(box,new Vector3(0,1.5f,0));boxType.GetField("size").SetValue(box,new Vector3(8,3,6));boxes.SetValue(box,0);volumes.SetValue(region,boxes);
+   Action<Vector3,float,bool,string> sample=(world,margin,want,label)=>{samples++;bool actual=(bool)contains.Invoke(region,new object[]{world,margin});if(actual!=want)failures.Add(label+": actual="+actual+", expected="+want);};
+   sample(new Vector3(0,.01f,0),0,true,"脚点进入矩形房间");sample(new Vector3(0,3.1f,0),0,false,"同XZ楼上不属于楼下");
+   sample(new Vector3(4.06f,.01f,0),0,false,"外墙外不入室");sample(new Vector3(4.06f,.01f,0),.12f,true,"小幅退出容差保留");
+   sample(new Vector3(3.99f,.01f,0),-.02f,false,"门槛收缩不提前进入");
+   go.transform.SetPositionAndRotation(new Vector3(12,2,-9),Quaternion.Euler(0,90,0));
+   sample(go.transform.TransformPoint(new Vector3(3,1,2)),0,true,"旋转/偏移的真实室内");
+   sample(go.transform.TransformPoint(new Vector3(0,4,0)),0,false,"旋转后仍检查高度");
+  }
+  finally{UnityEngine.Object.DestroyImmediate(go);}
+  ctx.ReturnValue=new{passed=failures.Count==0,samples,failures};
+ }
+}

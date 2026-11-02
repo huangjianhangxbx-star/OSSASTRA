@@ -1,0 +1,134 @@
+/* 功能：限定新Lab/隔离档，实际验证Module作用域恢复与自有辅助Camera销毁后的图形资源释放。
+ * 边界：只读真实Current，不移动角色、不建第二Current、不销毁主相机、不改物理/光照/业务状态。
+ * 时序：在下一次主相机End取得真实SRP context，只渲染一次自有离屏Camera；再等两次主相机End检查延迟Destroy。
+ * 读取：执行后由独立Native反射读取本类public static Result；10秒未完成会明确失败并清理自有对象。
+ */
+using System;using System.Linq;using System.Collections;using System.Collections.Generic;using System.Reflection;
+using UnityEngine;using UnityEditor;using UnityEngine.Rendering;using UnityEngine.Rendering.Universal;using UnityEngine.SceneManagement;
+using Ossastra.SceneVisibility;using Ossastra.SceneVisibility.Rooms;using Ossastra.SceneVisibility.Rooms.Rendering;
+using Ossastra.Commerce.Runtime;using Funplay.Editor.Tools.Scripting;using Object=UnityEngine.Object;
+public sealed class RoomLifecycleProbe:IFunplayCommand
+{
+ const string ScenePath="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity";
+ const string Profile="kt-vis04-room-01", Directory="E:/WORLDCREATOR/XingHaiHuiLang/研究/可见性修复/KT-VIS-04/profiles";
+ const BindingFlags Fields=BindingFlags.Instance|BindingFlags.Public|BindingFlags.NonPublic;
+ public static object Result;
+ static SceneVisibilityRoot root,temporaryContext;static RoomVisibilityModule module,temporaryModule;static Camera main,temporary;
+ static GameObject temporaryObject;static RenderTexture temporaryTarget;static object temporaryOwner;
+ static readonly List<Object> heldOwned=new List<Object>();
+ static bool running,scopeRestored,sceneStateUnchanged,allocated,registryRemoved,featureRemoved;
+ static int stage,settle,tempId,allocatedTextures,allocatedMaterials,allocatedMeshes;
+ static double deadline;static string failure;static string actorId;
+ static RoomMaskRendererFeature owningFeature;
+ static IDictionary featureCameras;
+ static void Need(bool condition,string message){if(!condition)throw new InvalidOperationException(message);}
+ public void Execute(ExecutionContext ctx)
+ {
+  Need(!running,"Existing lifecycle probe running; do not start duplicate");
+  var scene=SceneManager.GetActiveScene();Need(Application.isPlaying&&scene.path==ScenePath,"Exact room Lab Play required");
+  var all=scene.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<MonoBehaviour>(true)).Where(c=>c!=null).ToArray();
+  var stores=all.OfType<CommerceService>().ToArray();Need(stores.Length==1&&stores[0].profileId==Profile&&!string.IsNullOrWhiteSpace(stores[0].saveDirectory)&&System.IO.Path.GetFullPath(stores[0].saveDirectory)==System.IO.Path.GetFullPath(Directory),"Wrong actual isolated save host");
+  root=all.OfType<SceneVisibilityRoot>().Single();module=root.roomModule;main=root.gameplayCamera;
+  Need(module!=null&&module.enabled&&module.IsReady&&module.ActiveBuilding!=null&&root.coordinator.Current!=null&&root.coordinator.Current.IsAlive,"Run while real Current is inside registered building");
+  Need(module.SuppressedRendererCount==0,"Wait until the current main camera scope has ended");
+  actorId=root.coordinator.Current.ActorId;
+  var renderers=scene.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<Renderer>(true)).ToArray();
+  var beforeRenderers=renderers.Select(r=>new {r,enabled=r.enabled,off=r.forceRenderingOff,shadow=r.shadowCastingMode}).ToArray();
+  var colliders=scene.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<Collider>(true)).ToArray();
+  var beforeColliders=colliders.Select(c=>new{c,enabled=c.enabled,trigger=c.isTrigger,position=c.transform.localToWorldMatrix}).ToArray();
+  var lights=scene.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<Light>(true)).ToArray();
+  var beforeLights=lights.Select(l=>new{l,enabled=l.enabled,intensity=l.intensity,range=l.range,color=l.color,shadows=l.shadows}).ToArray();
+  try
+  {
+   module.BeginCamera(root,main,true);Need(module.SuppressedRendererCount>0,"No real roof/content suppression reached");
+   module.enabled=false;
+   scopeRestored=beforeRenderers.All(x=>x.r==null||x.r.enabled==x.enabled&&x.r.forceRenderingOff==x.off&&x.r.shadowCastingMode==x.shadow);
+   sceneStateUnchanged=beforeColliders.All(x=>x.c!=null&&x.c.enabled==x.enabled&&x.c.isTrigger==x.trigger&&x.c.transform.localToWorldMatrix==x.position)&&beforeLights.All(x=>x.l!=null&&x.l.enabled==x.enabled&&x.l.intensity==x.intensity&&x.l.range==x.range&&x.l.color==x.color&&x.l.shadows==x.shadows);
+   Need(scopeRestored&&sceneStateUnchanged,"Module disable failed to restore own scope or altered renderer enabled/physics/light");
+  }
+  finally{if(module!=null){module.enabled=true;module.BeginCamera(root,main,true);module.EndCamera(root,main);}}
+  heldOwned.Clear();owningFeature=null;featureCameras=null;temporaryOwner=new object();
+  temporaryObject=new GameObject("__RoomLifecycleOwnedCamera");temporaryObject.hideFlags=HideFlags.HideAndDontSave;temporaryObject.SetActive(false);
+  temporary=temporaryObject.AddComponent<Camera>();temporary.CopyFrom(main);temporary.enabled=false;temporary.transform.SetPositionAndRotation(main.transform.position,main.transform.rotation);
+  var extra=temporaryObject.AddComponent<UniversalAdditionalCameraData>();var mainExtra=main.GetComponent<UniversalAdditionalCameraData>();Need(mainExtra!=null,"Main explicit URP camera data missing");
+  int rendererIndex=new SerializedObject(mainExtra).FindProperty("m_RendererIndex").intValue;
+  extra.SetRenderer(rendererIndex);extra.renderPostProcessing=mainExtra.renderPostProcessing;extra.antialiasing=AntialiasingMode.None;extra.requiresDepthOption=CameraOverrideOption.On;
+  temporaryTarget=new RenderTexture(320,180,24,RenderTextureFormat.ARGB32){name="RoomLifecycle owned color target",hideFlags=HideFlags.HideAndDontSave,antiAliasing=4};temporaryTarget.Create();temporary.targetTexture=temporaryTarget;
+  // 临时Root组件始终disabled，不订阅相机、不构造新Current；仅为临时Module注入原协调器只读上下文。
+  temporaryContext=temporaryObject.AddComponent<SceneVisibilityRoot>();temporaryContext.enabled=false;temporaryContext.coordinator=root.coordinator;temporaryContext.gameplayCamera=temporary;temporaryContext.targets=root.targets;temporaryContext.groups=Array.Empty<SceneOccluderGroup>();temporaryContext.showDiagnostics=false;
+  temporaryModule=temporaryObject.AddComponent<RoomVisibilityModule>();temporaryModule.buildings=module.buildings;temporaryModule.sharedSurfaces=module.sharedSurfaces;temporaryContext.roomModule=temporaryModule;
+  temporaryObject.SetActive(true);temporaryModule.Initialize(temporaryContext);temporaryOwner=temporaryModule;
+  tempId=temporary.GetInstanceID();stage=0;settle=0;allocated=registryRemoved=featureRemoved=false;failure=null;running=true;deadline=EditorApplication.timeSinceStartup+10;
+  Result=new{status="running",scene=ScenePath,profile=Profile,actor=actorId,mainCamera=main.GetInstanceID(),ownedCamera=tempId,scopeRestored,sceneStateUnchanged};
+  RenderPipelineManager.endCameraRendering+=OnEnd;EditorApplication.update+=Watchdog;EditorApplication.playModeStateChanged+=OnPlayMode;ctx.ReturnValue=Result;
+ }
+ static void OnEnd(ScriptableRenderContext context,Camera camera)
+ {
+  if(!running||camera!=main)return;
+  try
+  {
+   Need(Application.isPlaying&&SceneManager.GetActiveScene().path==ScenePath&&root!=null&&module!=null&&main!=null,"Context changed during bounded probe");
+   Need(root.coordinator.Current!=null&&root.coordinator.Current.ActorId==actorId,"Real Current changed; fixture interrupted");
+   if(stage==0)
+   {
+    Need(RoomMaskCameraRegistry.TryGet(main,out var frame)&&frame.Enabled,"Main real room mask not active");
+    temporaryModule.BeginCamera(temporaryContext,temporary,true);
+    // 原有限捕获同样通过当前SRP context执行；这里仅一次离屏渲染，不建立逐窗相机。
+    try { UniversalRenderPipeline.RenderSingleCamera(context,temporary); }
+    finally { temporaryModule.EndCamera(temporaryContext,temporary); }
+    Need(RoomMaskCameraRegistry.TryGetStatistics(temporary,out var statistics),"Owned camera did not execute actual Feature");
+    Need(statistics.Active&&string.IsNullOrEmpty(statistics.Error),"Owned Feature render did not complete cleanly: "+statistics.Error);
+    allocatedTextures=statistics.OwnedTextureCount;allocatedMaterials=statistics.OwnedMaterialCount;allocatedMeshes=statistics.OwnedMeshCount;
+    Need(allocatedTextures>0&&allocatedMaterials>0,"No GPU resources allocated; zero-leak claim would be vacuous");allocated=true;
+    foreach(var feature in Resources.FindObjectsOfTypeAll<RoomMaskRendererFeature>())
+    {
+     var dict=typeof(RoomMaskRendererFeature).GetField("cameras",Fields).GetValue(feature) as IDictionary;
+     if(dict!=null&&dict.Contains(tempId)){Need(owningFeature==null,"More than one mask Feature owns this camera");owningFeature=feature;featureCameras=dict;}
+    }
+    Need(owningFeature!=null&&featureCameras!=null,"Cannot inspect exact owned camera resource state");
+    var pair=featureCameras[tempId];
+    foreach(var field in pair.GetType().GetFields(Fields))
+    {
+     object value=field.GetValue(pair);
+     if(value is Material material)heldOwned.Add(material);
+     else if(value is Mesh mesh)heldOwned.Add(mesh);
+     else if(value is RTHandle handle&&handle.rt!=null)heldOwned.Add(handle.rt);
+     else if(value is IDictionary materials)foreach(object item in materials.Values)if(item is Material owned)heldOwned.Add(owned);
+    }
+    Need(heldOwned.Count>0,"No concrete owned object references captured");
+    // UACD声明RequireComponent(Camera)，先移除本探针的依赖组件，才能真正销毁其Camera。
+    // Module保持存活，随后由它自己的Release实际命中fake-null路径；从不碰主相机/UACD。
+    var ownedCameraData=temporary.GetComponent<UniversalAdditionalCameraData>();
+    Need(ownedCameraData!=null&&ownedCameraData.gameObject==temporaryObject,"Owned UACD missing or mismatched");
+    Object.DestroyImmediate(ownedCameraData);
+    Object.DestroyImmediate(temporary);
+    Need(temporary==null&&!ReferenceEquals(temporary,null),"Expected destroyed Unity Camera wrapper");
+    temporaryModule.Release(temporaryContext);
+    registryRemoved=!RoomMaskCameraRegistry.TryGet(temporary,out _);featureRemoved=!featureCameras.Contains(tempId);
+    // TryGet本来就拒绝fake-null；同时检查Registry内部精确键，避免只测到该早退。
+    var entries=typeof(RoomMaskCameraRegistry).GetField("entries",BindingFlags.NonPublic|BindingFlags.Static).GetValue(null) as IDictionary;
+    registryRemoved=registryRemoved&&entries!=null&&!entries.Contains(tempId);
+    Need(registryRemoved&&featureRemoved,"Destroyed camera release left registry/Feature resource entry");
+    Object.DestroyImmediate(temporaryObject);temporaryObject=null;
+    if(temporaryTarget!=null){temporaryTarget.Release();Object.Destroy(temporaryTarget);temporaryTarget=null;}
+    stage=1;return;
+   }
+   if(++settle<2)return;
+   int remaining=heldOwned.Count(item=>item!=null);
+   Need(remaining==0,"Deferred destroy left "+remaining+" concrete owned RT/Material/Mesh objects");
+   Finish(true,null);
+  }
+  catch(Exception error){Finish(false,error.ToString());}
+ }
+ static void Watchdog(){if(running&&EditorApplication.timeSinceStartup>deadline)Finish(false,"Timed out waiting actual main camera frames; not a passed lifetime test");}
+ static void OnPlayMode(PlayModeStateChange state){if(running&&state==PlayModeStateChange.ExitingPlayMode)Finish(false,"Play interrupted before lifecycle completion");}
+ static void Finish(bool passed,string error)
+ {
+  running=false;RenderPipelineManager.endCameraRendering-=OnEnd;EditorApplication.update-=Watchdog;EditorApplication.playModeStateChanged-=OnPlayMode;failure=error;
+  try{if(temporaryModule!=null)temporaryModule.Release(temporaryContext);if(!ReferenceEquals(temporary,null))RoomMaskCameraRegistry.Release(temporaryOwner,temporary);}catch(Exception cleanup){failure=(failure??"")+" cleanup:"+cleanup.Message;passed=false;}
+  if(temporaryObject!=null)Object.DestroyImmediate(temporaryObject);
+  if(temporaryTarget!=null){temporaryTarget.Release();if(Application.isPlaying)Object.Destroy(temporaryTarget);else Object.DestroyImmediate(temporaryTarget);}
+  temporaryObject=null;temporaryTarget=null;
+  Result=new{status="completed",passed,scopeRestored,sceneStateUnchanged,actualGpuAllocation=allocated,allocatedTextures,allocatedMaterials,allocatedMeshes,registryRemoved,featureRemoved,concreteOwnedRemaining=heldOwned.Count(item=>item!=null),cleanupMayAwaitDeferredDestroy=!passed&&heldOwned.Any(item=>item!=null),settledMainFrames=settle,ownedCamera=tempId,mainCameraPreserved=main!=null,currentActor=actorId,error=failure};
+ }
+}

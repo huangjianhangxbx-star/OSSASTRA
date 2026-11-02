@@ -1,0 +1,3 @@
+/* 功能：读取本轮Native候选的异步步行结果；大trace仅落本地。 */
+using System;using System.Linq;using System.IO;using System.Reflection;using Newtonsoft.Json.Linq;using Funplay.Editor.Tools.Scripting;
+public sealed class PollRoomWalk:IFunplayCommand {public void Execute(ExecutionContext ctx){var t=AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType("RoomWalkingProbe",false)).LastOrDefault(v=>v!=null);if(t==null)throw new Exception("No own walk probe");var json=(string)t.GetProperty("ResultJson").GetValue(null);File.WriteAllText("E:/WORLDCREATOR/XingHaiHuiLang/研究/可见性修复/KT-VIS-04/walking-result.json",json);var j=JObject.Parse(json);j.Remove("trace");j.Remove("facts");ctx.ReturnValue=j.ToString();}}

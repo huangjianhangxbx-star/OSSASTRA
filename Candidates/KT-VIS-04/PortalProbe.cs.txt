@@ -1,0 +1,76 @@
+/* 仅Root Native执行：真实GameplayCamera/原Animation更新；不伪造动画时间。最多4图，结果异步写JSON。
+ * 临时原MapOrbitState引用/相机RT/门户开关/真实遮板平移，finally精确归还；不写Assets/存档/角色位置。 */
+using System;using System.IO;using System.Linq;using System.Reflection;using System.Collections;using System.Collections.Generic;
+using UnityEngine;using UnityEngine.SceneManagement;using UnityEditor;using Funplay.Editor.Tools.Scripting;using Newtonsoft.Json;
+using Ossastra.SceneVisibility;using Ossastra.SceneVisibility.Rooms;using Ossastra.MapResearch;using Ossastra.Commerce.Runtime;
+public sealed class PortalProbe:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  var scene=SceneManager.GetActiveScene();if(!Application.isPlaying||scene.path!=PortalProbeRunner.Lab)throw new Exception("Only isolated Room Lab Play");
+  var stores=scene.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<CommerceService>(true)).ToArray();
+  if(stores.Length!=1||stores[0].profileId!="kt-vis04-room-01"||string.IsNullOrWhiteSpace(stores[0].saveDirectory)||!string.Equals(Path.GetFullPath(stores[0].saveDirectory).TrimEnd('/','\\'),Path.GetFullPath(PortalProbeRunner.Dir+"/profiles").TrimEnd('/','\\'),StringComparison.OrdinalIgnoreCase))throw new Exception("Wrong isolated profile/final directory");
+  if(SessionState.GetBool("KT-VIS-04.PortalProbe.Running",false)||SessionState.GetBool("KT-VIS-04.WalkingProbe.Running",false))throw new Exception("Another owned probe is active");
+  var root=scene.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<SceneVisibilityRoot>(true)).Single();
+  if(root.roomModule==null||root.roomModule.ActiveRoom==null||root.roomModule.ActiveRoom.roomId!="room-a"||root.mapView==null||root.mapView.IsStructureMode)throw new Exception("Need original Current in A, normal view");
+  var go=new GameObject("__OwnedPortalProbe"){hideFlags=HideFlags.HideAndDontSave};ctx.RegisterObjectCreation(go);var runner=go.AddComponent<PortalProbeRunner>();
+  try{runner.Prepare(root);runner.StartCoroutine(runner.Run());ctx.ReturnValue=new{started=true,result=runner.Output,imagesMax=4,realAnimationNoTimeInjection=true};}catch{UnityEngine.Object.DestroyImmediate(go);throw;}
+ }
+}
+public sealed class PortalProbeRunner:MonoBehaviour
+{
+ public const string Lab="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity",Dir="E:/WORLDCREATOR/XingHaiHuiLang/研究/可见性修复/KT-VIS-04";
+ public string Output;SceneVisibilityRoot root;RoomVisibilityModule module;Camera camera;ViewPortal west,north;Transform shutter,northMarker,westMarker;Animation northAnimation;
+ FieldInfo orbitField;object savedOrbit;RenderTexture previousTarget,rt,previousActive;Texture2D reader;Vector3 previousPosition,shutterPosition;Quaternion previousRotation;float previousAspect;bool previousWestOpen,finished,prepared;string error="";
+ readonly List<object> shots=new List<object>();readonly List<string> images=new List<string>();Vector3 northFirst,northSecond;int northFrameFirst,northFrameSecond;
+ public void Prepare(SceneVisibilityRoot value)
+ {
+  root=value;module=root.roomModule;camera=root.gameplayCamera;var building=module.ActiveBuilding;
+  if(building==null||building.buildingId!="building-abc"||module.IsDiscovered(building.regions.Single(r=>r.roomId=="room-b")))throw new Exception("Need ABC active and B unknown");
+  west=building.portals.Single(p=>p.portalId=="portal-a-west");north=building.portals.Single(p=>p.portalId=="portal-a-north");
+  shutter=building.structuralMembers.Single(r=>r!=null&&r.name=="A_West_ActualOpaqueShutter_InitiallyClosed").transform;
+  var all=SceneManager.GetActiveScene().GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<Transform>(true)).ToArray();
+  northMarker=all.Single(t=>t.name=="AnimatedCurrentFrameMarker"&&t.parent!=null&&t.parent.name=="Window_A_North_DynamicExterior");westMarker=all.Single(t=>t.name=="AnimatedCurrentFrameMarker"&&t.parent!=null&&t.parent.name=="Window_A_West_DynamicExterior");northAnimation=northMarker.GetComponent<Animation>();
+  if(northAnimation==null||!northAnimation.isPlaying||!north.open)throw new Exception("Original north Animation/window not playing/open");
+  orbitField=typeof(MapResearchRoot).GetField("orbit",BindingFlags.Instance|BindingFlags.NonPublic);if(orbitField==null)throw new Exception("Original orbit field unavailable");
+  savedOrbit=orbitField.GetValue(root.mapView);previousTarget=camera.targetTexture;previousActive=RenderTexture.active;previousPosition=camera.transform.position;previousRotation=camera.transform.rotation;previousAspect=camera.aspect;shutterPosition=shutter.position;previousWestOpen=west.open;
+  Output=Dir+"/portal-probe-"+Guid.NewGuid().ToString("N").Substring(0,8)+".json";prepared=true;
+ }
+ public IEnumerator Run()
+ {
+  try{var work=Work();while(true){bool next;object wait;try{next=work.MoveNext();wait=next?work.Current:null;}catch(Exception ex){error=ex.ToString();break;}if(!next)break;yield return wait;}}finally{Finish();}
+ }
+ IEnumerator Work()
+ {
+  SessionState.SetBool("KT-VIS-04.PortalProbe.Running",true);root.mapView.SetUiCameraCapture(this,true);rt=new RenderTexture(960,540,24,RenderTextureFormat.ARGB32){name="Owned portal probe",antiAliasing=4};rt.Create();reader=new Texture2D(960,540,TextureFormat.RGB24,false);camera.targetTexture=rt;camera.aspect=16f/9f;
+  orbitField.SetValue(root.mapView,new MapOrbitState(0));yield return null;yield return null;float until=Time.realtimeSinceStartup+2.2f;while(!ThroughWindow(north,northMarker.position)&&Time.realtimeSinceStartup<until)yield return null;Check();if(!ThroughWindow(north,northMarker.position))throw new Exception("North animated marker never became visible through true aperture");northFirst=northMarker.position;northFrameFirst=Time.frameCount;Capture("north-real-frame-0",north,northMarker,true);
+  until=Time.realtimeSinceStartup+2.2f;while((Vector3.Distance(northFirst,northMarker.position)<.05f||!ThroughWindow(north,northMarker.position))&&Time.realtimeSinceStartup<until)yield return null;
+  Check();if(!ThroughWindow(north,northMarker.position))throw new Exception("North second actual frame not in aperture");northSecond=northMarker.position;northFrameSecond=Time.frameCount;Capture("north-real-frame-1",north,northMarker,false);
+  orbitField.SetValue(root.mapView,new MapOrbitState(270));west.open=true;shutter.position=new Vector3(-20.14f,1.7f,-7.7f);Physics.SyncTransforms();yield return null;yield return null;
+  until=Time.realtimeSinceStartup+2;while(!ThroughWindow(west,westMarker.position)&&Time.realtimeSinceStartup<until)yield return null;Check();if(!ThroughWindow(west,westMarker.position))throw new Exception("West actual marker not in aperture");Capture("west-open-real-shutter-open",west,westMarker,true);
+  west.open=true;shutter.position=new Vector3(-20.14f,1.7f,-11);Physics.SyncTransforms();Capture("west-openflag-real-shutter-closed",west,westMarker,true);
+  west.open=false;Capture("west-closedflag-real-shutter-closed",west,westMarker,true);
+ }
+ void Check(){if(SceneManager.GetActiveScene().path!=Lab||module.ActiveRoom==null||module.ActiveRoom.roomId!="room-a"||module.IsDiscovered(module.ActiveBuilding.regions.Single(r=>r.roomId=="room-b")))throw new Exception("Fixture changed: need A/B unknown");}
+ bool ThroughWindow(ViewPortal portal,Vector3 point)
+ {
+  var v=camera.WorldToViewportPoint(point);if(v.z<=0||v.x<=0||v.x>=1||v.y<=0||v.y>=1)return false;var ray=camera.ViewportPointToRay(v);float d=Vector3.Dot(ray.direction,portal.OutwardNormal);if(d<=.00001f)return false;float t=Vector3.Dot(portal.transform.position-ray.origin,portal.OutwardNormal)/d;return t>0&&portal.ContainsWorldPoint(ray.GetPoint(t))&&portal.ContainsWorldPoint(ray.GetPoint(t)+portal.transform.right*.06f)&&portal.ContainsWorldPoint(ray.GetPoint(t)-portal.transform.right*.06f)&&portal.ContainsWorldPoint(ray.GetPoint(t)+portal.transform.up*.06f)&&portal.ContainsWorldPoint(ray.GetPoint(t)-portal.transform.up*.06f)&&portal.inside.Contains(ray.GetPoint(t-.025f),.001f);
+ }
+ void Capture(string label,ViewPortal portal,Transform marker,bool save)
+ {
+  camera.Render();RenderTexture.active=rt;reader.ReadPixels(new Rect(0,0,960,540),0,0);reader.Apply();RenderTexture.active=previousActive;
+  var point=marker.position;var v=camera.WorldToViewportPoint(point);bool onscreen=v.z>0&&v.x>0&&v.x<1&&v.y>0&&v.y<1;Color color=onscreen?reader.GetPixel((int)(v.x*960),(int)(v.y*540)):Color.clear;
+  var ray=camera.ViewportPointToRay(v);var ignored=module.ActiveBuilding.roofGroups.SelectMany(g=>g.labelRaycastExclusions??Array.Empty<Collider>()).ToArray();
+  var hit=Physics.RaycastAll(ray,Mathf.Max(0,Vector3.Dot(point-ray.origin,ray.direction))+.1f,camera.cullingMask,QueryTriggerInteraction.Ignore).Where(h=>Array.IndexOf(ignored,h.collider)<0).OrderBy(h=>h.distance).FirstOrDefault();
+  string image=null;if(save){image=Path.ChangeExtension(Output,null)+"-"+label+".png";File.WriteAllBytes(image,reader.EncodeToPNG());images.Add(image);}
+  shots.Add(new{label,frame=Time.frameCount,simulationTime=Time.time,animationTime=marker.GetComponent<Animation>()["WindowMotion"].time,marker=point.ToString("R"),viewport=v.ToString("R"),onscreen,geometricWindow=ThroughWindow(portal,point),actualPixel=color.ToString("F5"),cameraEuler=camera.transform.eulerAngles.ToString("R"),portalOpen=portal.open,shutterPosition=shutter.position.ToString("R"),firstPhysicalCollider=hit.collider==null?null:hit.collider.name,firstPhysicalPoint=hit.collider==null?null:hit.point.ToString("R"),image});
+ }
+ void Finish()
+ {
+  if(finished)return;finished=true;bool restored=false;
+  try{if(west!=null)west.open=previousWestOpen;if(shutter!=null)shutter.position=shutterPosition;Physics.SyncTransforms();if(root!=null&&root.mapView!=null){orbitField.SetValue(root.mapView,savedOrbit);root.mapView.SetUiCameraCapture(this,false);}if(camera!=null){camera.targetTexture=previousTarget;camera.aspect=previousAspect;camera.transform.SetPositionAndRotation(previousPosition,previousRotation);}RenderTexture.active=previousActive;if(reader!=null)UnityEngine.Object.DestroyImmediate(reader);if(rt!=null){rt.Release();UnityEngine.Object.DestroyImmediate(rt);}restored=camera!=null&&camera.targetTexture==previousTarget&&Mathf.Abs(camera.aspect-previousAspect)<.00001f&&west!=null&&west.open==previousWestOpen&&shutter!=null&&shutter.position==shutterPosition&&ReferenceEquals(orbitField.GetValue(root.mapView),savedOrbit);}
+  catch(Exception ex){error+="\nRestore: "+ex;}
+  finally{SessionState.SetBool("KT-VIS-04.PortalProbe.Running",false);Directory.CreateDirectory(Dir);File.WriteAllText(Output,JsonConvert.SerializeObject(new{completed=error=="",error,restored,shots,images,northActualMovement=Vector3.Distance(northFirst,northSecond),northFirstFrame=northFrameFirst,northSecondFrame=northFrameSecond,timeOrAnimationInjected=false,temporaryPoseViaOriginalMapOrbit=true,overlayHUDCaptured=false},Formatting.Indented));if(gameObject!=null)UnityEngine.Object.Destroy(gameObject);}
+ }
+ void OnDisable(){if(prepared&&!finished)Finish();}
+}

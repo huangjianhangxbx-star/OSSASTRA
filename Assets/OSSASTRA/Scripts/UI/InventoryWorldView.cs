@@ -1,6 +1,7 @@
 /* 脚本：InventoryWorldView
  * 功能：用同一物品Sprite绘制场景掉落，投影可点击/拖动的轻量标签和容器入口。
  * 边界：当前地图地面掉落仅显示最近的有界数量、固定箱保留；显隐不改变账本或拾取资格，销毁只回收自有表现。
+ * 可选房间许可只筛自有Sprite/世界标签；原全屏背包HUD、访问条件和输入不变。
  */
 using System;
 using System.Linq;
@@ -8,6 +9,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using Ossastra.Inventory;
+using Ossastra.SceneVisibility.Rooms.Rendering;
 namespace Ossastra.UserInterface
 {
     public sealed class InventoryWorldView:MonoBehaviour
@@ -19,8 +21,11 @@ namespace Ossastra.UserInterface
         public int OwnedMarkerCount=>marks.Count;
         public int SelectedGroundMarkerCount {get;private set;}
         private Canvas canvas;private RectTransform root;private Font font;
-        private sealed class Mark{public RectTransform rect;public Text text;public InventoryPointerTarget target;public SpriteRenderer sprite;}
+        private sealed class Mark{public RectTransform rect;public Text text;public InventoryPointerTarget target;public SpriteRenderer sprite;public Vector3 worldPosition;public Material appliedMaterial;}
         private readonly Dictionary<string,Mark> marks=new Dictionary<string,Mark>();
+        private Material roomLabelMaterial,portalLabelMaterial;
+        private void OnEnable(){RoomMaskCameraRegistry.FramePublished+=OnRoomFrame;}
+        private void OnDisable(){RoomMaskCameraRegistry.FramePublished-=OnRoomFrame;}
         private void Start()
         {
             var go=new GameObject("InventoryWorldLabels",typeof(RectTransform),typeof(Canvas),typeof(GraphicRaycaster));go.transform.SetParent(transform,false);root=(RectTransform)go.transform;canvas=go.GetComponent<Canvas>();canvas.renderMode=RenderMode.ScreenSpaceOverlay;canvas.sortingOrder=120;font=Font.CreateDynamicFontFromOSFont("Microsoft YaHei",12);
@@ -63,11 +68,34 @@ namespace Ossastra.UserInterface
                 mark.target.ItemId=item?.Id;mark.target.ContainerId=id;
                 if(item!=null&&definition?.icon!=null&&mark.sprite==null){var go=new GameObject("GroundItemSprite_"+item.Id);go.transform.SetParent(transform,false);mark.sprite=go.AddComponent<SpriteRenderer>();mark.sprite.sortingOrder=40;go.transform.localScale=Vector3.one*.5f;}
                 if(mark.sprite!=null){mark.sprite.sprite=definition?.icon;mark.sprite.transform.position=position.Value+Vector3.up*.15f;mark.sprite.transform.rotation=Camera.main.transform.rotation;}
-                var screen=Camera.main.WorldToScreenPoint(position.Value);mark.rect.gameObject.SetActive(screen.z>0);mark.rect.anchoredPosition=new Vector2(screen.x,screen.y-12);
+                mark.worldPosition=position.Value;ApplyPresentation(Camera.main,mark);
                 mark.text.text=item!=null?definition?.displayName+" ×"+item.Quantity:"□ "+session.ContainerDisplayName(id);mark.text.color=session.CanAccessContainer(id)?Color.white:new Color32(155,145,150,255);
                 if(item==null){mark.rect.sizeDelta=new Vector2(Mathf.Min(140,mark.text.preferredWidth+12),28);mark.text.alignment=TextAnchor.MiddleCenter;}
             }
         }
-        private void OnDestroy(){foreach(var m in marks.Values)if(m.sprite!=null)Destroy(m.sprite.gameObject);if(font!=null)Destroy(font);}
+        private void OnRoomFrame(Camera camera)
+        {
+            if(root==null||camera==null||camera!=Camera.main)return;
+            foreach(var mark in marks.Values)ApplyPresentation(camera,mark);
+        }
+        private void ApplyPresentation(Camera camera,Mark mark)
+        {
+            if(camera==null||mark.rect==null)return;
+            if(roomLabelMaterial==null)roomLabelMaterial=RoomWorldPresentationGate.CreateLabelMaterial(camera);
+            if(portalLabelMaterial==null)portalLabelMaterial=RoomWorldPresentationGate.CreateLabelMaterial(camera,true);
+            if(mark.sprite!=null)mark.sprite.enabled=RoomWorldPresentationGate.AllowsOwnedGroundSprite(camera,mark.worldPosition);
+            var screen=camera.WorldToScreenPoint(mark.worldPosition);
+            mark.rect.gameObject.SetActive(screen.z>0&&RoomWorldPresentationGate.AllowsLabel(camera,mark.worldPosition));
+            mark.rect.anchoredPosition=new Vector2(screen.x,screen.y-12);
+            var material=RoomWorldPresentationGate.RequiresPortal(camera,mark.worldPosition)?portalLabelMaterial:roomLabelMaterial;
+            if(material!=null&&mark.appliedMaterial!=material)
+            {mark.rect.GetComponent<Image>().material=material;mark.text.material=material;mark.appliedMaterial=material;}
+        }
+        private void OnDestroy()
+        {
+            RoomMaskCameraRegistry.FramePublished-=OnRoomFrame;
+            foreach(var m in marks.Values)if(m.sprite!=null)Destroy(m.sprite.gameObject);if(font!=null)Destroy(font);
+            if(roomLabelMaterial!=null)Destroy(roomLabelMaterial);if(portalLabelMaterial!=null)Destroy(portalLabelMaterial);
+        }
     }
 }

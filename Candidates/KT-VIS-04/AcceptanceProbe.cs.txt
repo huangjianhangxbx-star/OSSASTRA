@@ -1,0 +1,238 @@
+/* Root Native短验收夹具；不进入/退出Play、不写资产/档案、不改HP/AI/Collider或TimeScale。
+ * 人物只走原Motor.Teleport与原协调器SwitchNext；逐次Camera.Render触发现有Root与Feature。
+ * 记录规则、真实相机作用域及mask错误；没有GPU像素读回，不据此签墙体/材质/照明像素正确。
+ * finally还原人物位置、原Current、镜头/pitch、开口作者值和本模块探索集合；焦点只经原回调临时取得。
+ */
+using System;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.SceneManagement;
+using UnityEditor;
+using Ossastra.SceneVisibility;
+using Ossastra.SceneVisibility.Rooms;
+using Ossastra.SceneVisibility.Rooms.Rendering;
+using Funplay.Editor.Tools.Scripting;
+
+public sealed class RoomAcceptanceProbe : IFunplayCommand
+{
+    const string Lab = "Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity";
+    const string Profiles = "E:/WORLDCREATOR/XingHaiHuiLang/研究/可见性修复/KT-VIS-04/profiles";
+    const BindingFlags Hidden = BindingFlags.Instance | BindingFlags.NonPublic;
+    sealed class Focus
+    {
+        public Component Owner; public FieldInfo Flag; public MethodInfo Callback; public bool Before, Applied;
+    }
+    sealed class Frame
+    {
+        public string label, building, room, discovered, abcRoofModes, dRoofModes, maskError;
+        public int beginCount, endCount, abcHidden, dHidden, portalCount;
+        public bool bExteriorPortalSubmitted, maskActive, scopeRestored;
+        public float pitch, yaw;
+        public string currentPosition;
+    }
+    SceneVisibilityRoot visibility;
+    RoomVisibilityModule rooms;
+    Ossastra.Characters.CharacterControlCoordinator control;
+    Ossastra.Characters.CharacterRoot originalCurrent, partner;
+    Ossastra.Characters.CharacterRoot[] actors;
+    Ossastra.Characters.CharacterMovement[] motors;
+    Ossastra.MapResearch.MapResearchRoot map;
+    BuildingVisibilityRoot abc, d;
+    Renderer[] abcRoofs, dRoofs;
+    ViewPortal bPortal;
+    Camera camera;
+    Vector3[] originalPositions;
+    Vector3 cameraPosition;
+    Quaternion cameraRotation;
+    float originalPitch;
+    bool bOpen, bSee, prepared, subscribed;
+    HashSet<string> discovery;
+    string[] discoveryBefore;
+    readonly List<Focus> focus = new List<Focus>();
+    readonly List<object> cases = new List<object>();
+    readonly List<Frame> frames = new List<Frame>();
+    readonly List<string> restoreErrors = new List<string>();
+    Frame pending;
+    string frameError, fatal;
+    int failures;
+
+    static void Need(bool value, string error) { if (!value) throw new InvalidOperationException(error); }
+    static string Full(string path) => Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+    static T[] All<T>(Scene scene) where T : Component => scene.GetRootGameObjects().SelectMany(go => go.GetComponentsInChildren<T>(true)).ToArray();
+    static T One<T>(Scene scene) where T : Component { var values = All<T>(scene); Need(values.Length == 1, "需唯一" + typeof(T).FullName + "，实际" + values.Length); return values[0]; }
+    static string Modes(Renderer[] values) => string.Join(",", values.Select(r => r == null ? "Missing" : r.shadowCastingMode.ToString()));
+    string Discovered() => string.Join(",", rooms.buildings.SelectMany(b => b.regions).Where(rooms.IsDiscovered).Select(r => r.roomId).OrderBy(v => v, StringComparer.Ordinal));
+    static bool Same(Matrix4x4 a, Matrix4x4 b) { for (int i = 0; i < 16; ++i) if (Mathf.Abs(a[i] - b[i]) > .00001f) return false; return true; }
+    void SaveFocus(Component owner, Type type, string flag)
+    {
+        var field = type.GetField(flag, Hidden); var callback = type.GetMethod("OnApplicationFocus", Hidden, null, new[] { typeof(bool) }, null);
+        Need(field != null && field.FieldType == typeof(bool) && callback != null, "原焦点夹具入口变化：" + type.FullName);
+        focus.Add(new Focus { Owner = owner, Flag = field, Callback = callback, Before = (bool)field.GetValue(owner) });
+    }
+    void SwitchTo(Ossastra.Characters.CharacterRoot target)
+    {
+        for (int i = 0; control.Current != target && i < actors.Length; ++i) Need(control.SwitchNext(), "原SwitchNext拒绝；不直接赋Current或清别人的capture");
+        Need(control.Current == target, "原SwitchNext未到目标Current"); rooms.RequestImmediateMembershipRefresh();
+    }
+    void Place(Ossastra.Characters.CharacterRoot target, Vector3 point, bool immediate = true)
+    {
+        int index = Array.IndexOf(actors, target); Need(index >= 0 && motors[index] != null && target.IsAlive, "原存活人物/Motor无效");
+        motors[index].Teleport(point); Need((target.transform.position - point).sqrMagnitude < .0001f, "原Motor未完成显式位置夹具");
+        Physics.SyncTransforms(); if (immediate) rooms.RequestImmediateMembershipRefresh();
+    }
+    void Aim(float pitch, float yaw)
+    {
+        map.pitch = pitch; var rotation = Quaternion.Euler(pitch, yaw, 0);
+        Vector3 center = control.Current.transform.position + map.targetOffset;
+        camera.transform.SetPositionAndRotation(center - rotation * Vector3.forward * map.distance, rotation);
+    }
+    Frame Render(string label)
+    {
+        Need(pending == null, "前一render未结束"); frameError = null;
+        var record = new Frame { label = label, pitch = camera.transform.eulerAngles.x, yaw = camera.transform.eulerAngles.y };
+        pending = record; camera.Render(); pending = null; frames.Add(record);
+        Need(frameError == null, frameError); Need(record.beginCount == 1 && record.endCount == 1, "没有恰好一次GameplayCamera begin/end");
+        Need(record.scopeRestored, "相机End未归还屋顶状态"); Need(string.IsNullOrEmpty(record.maskError), "BlackoutStats.Error：" + record.maskError);
+        Need(record.building == "Exterior" || record.maskActive, "栋内没有实际mask执行"); return record;
+    }
+    void Begin(ScriptableRenderContext context, Camera value)
+    {
+        if (value != camera || pending == null) return;
+        try
+        {
+            pending.beginCount++;
+            pending.building = rooms.ActiveBuilding == null ? "Exterior" : rooms.ActiveBuilding.buildingId;
+            pending.room = rooms.ActiveRoom == null ? null : rooms.ActiveRoom.roomId; pending.discovered = Discovered();
+            pending.currentPosition = control.Current == null ? null : control.Current.transform.position.ToString("R");
+            pending.abcRoofModes = Modes(abcRoofs); pending.dRoofModes = Modes(dRoofs);
+            pending.abcHidden = abcRoofs.Count(r => r != null && r.enabled && r.shadowCastingMode == ShadowCastingMode.ShadowsOnly);
+            pending.dHidden = dRoofs.Count(r => r != null && r.enabled && r.shadowCastingMode == ShadowCastingMode.ShadowsOnly);
+            Need(abcRoofs.Concat(dRoofs).All(r => r != null && r.enabled), "夹具不能靠关闭屋顶Renderer通过");
+            if (RoomMaskCameraRegistry.TryGet(camera, out var frame))
+            {
+                pending.portalCount = frame.Portals == null ? 0 : frame.Portals.Length;
+                pending.bExteriorPortalSubmitted = frame.Portals != null && frame.Portals.Any(p => p.ApertureMesh == bPortal.apertureMesh && Same(p.LocalToWorld, bPortal.transform.localToWorldMatrix));
+            }
+        }
+        catch (Exception ex) { frameError = "begin: " + ex.Message; }
+    }
+    void End(ScriptableRenderContext context, Camera value)
+    {
+        if (value != camera || pending == null) return;
+        pending.endCount++;
+        if (RoomMaskCameraRegistry.TryGetStatistics(camera, out var stats)) { pending.maskActive = stats.Active; pending.maskError = stats.Error; }
+        pending.scopeRestored = abcRoofs.Concat(dRoofs).All(r => r != null && r.enabled && r.shadowCastingMode == ShadowCastingMode.On);
+    }
+    void Expect(Frame frame, string building, int abcHidden, int dHidden)
+    { Need(frame.building == building && frame.abcHidden == abcHidden && frame.dHidden == dHidden, "实际建筑/屋顶不符：" + frame.label); }
+    void Case(string id, string scope, Action body)
+    {
+        int start = frames.Count;
+        try { body(); cases.Add(new { id, result = "PASS_LIMITED_RULES_AND_CALLBACKS", scope, renderFrom = start, renderCount = frames.Count - start }); }
+        catch (Exception ex) { failures++; cases.Add(new { id, result = "FAIL_RULE_OR_FIXTURE", scope, error = ex.ToString(), renderFrom = start, renderCount = frames.Count - start }); pending = null; }
+    }
+    public void Execute(ExecutionContext ctx)
+    {
+        try
+        {
+            Need(Application.dataPath.Replace('\\', '/') == "E:/WORLDCREATOR/new/Project_ANKALUTE/Assets" && Application.isPlaying && !EditorApplication.isPaused && !EditorApplication.isCompiling && !EditorApplication.isUpdating && Time.timeScale == 1, "需正确项目正常Play/timeScale1");
+            var scene = SceneManager.GetActiveScene(); Need(scene.path == Lab, "必须精确新Lab");
+            for (int i = 0; i < SceneManager.sceneCount; ++i)
+            {
+                var other = SceneManager.GetSceneAt(i); if (!other.isLoaded || other == scene) continue;
+                Need(string.IsNullOrEmpty(other.path) && (other.name.StartsWith("CharacterClearanceMath_", StringComparison.Ordinal) || other.name.StartsWith("__KT_VIS01_QueryPhysics_", StringComparison.Ordinal)) && other.GetRootGameObjects().All(go => go.GetComponentsInChildren<MonoBehaviour>(true).Length == 0), "存在其它作者场或未知额外Scene");
+            }
+            var commerce = One<Ossastra.Commerce.Runtime.CommerceService>(scene);
+            Need(commerce.Ready && commerce.profileId == "kt-vis04-room-01" && !string.IsNullOrWhiteSpace(commerce.saveDirectory) && string.Equals(Full(commerce.saveDirectory), Full(Profiles), StringComparison.OrdinalIgnoreCase) && commerce.mapId == "kt-vis04-room-lab", "唯一隔离宿主/profile/目录/map不符");
+            Need(string.Equals(Full(commerce.SavePath), Full(new Ossastra.Commerce.Persistence.CommerceFileSaveStore(Profiles).PathForProfile(commerce.profileId)), StringComparison.OrdinalIgnoreCase), "实际保存路径越界");
+            visibility = One<SceneVisibilityRoot>(scene); map = One<Ossastra.MapResearch.MapResearchRoot>(scene); control = One<Ossastra.Characters.CharacterControlCoordinator>(scene);
+            Need(All<Ossastra.Enemies.EnemyRoot>(scene).Length == 1, "需原唯一OSSASTRA敌根；不取旧全局类型");
+            rooms = visibility.roomModule; camera = visibility.gameplayCamera;
+            Need(rooms != null && rooms.IsReady && map.IsValid && !map.IsStructureMode && camera != null && camera == map.gameplayCamera && visibility.effectEnabled && !visibility.detectionOnly && rooms.effectEnabled && rooms.revealRoofs && rooms.exteriorBlackoutEnabled && rooms.interiorUnexploredEnabled && rooms.maskDebugMode == 0, "原完整正常房间/镜头尚未Ready");
+            actors = control.Characters.ToArray(); originalCurrent = control.Current;
+            Need(actors.Length == 2 && actors.All(a => a != null && a.IsAlive) && originalCurrent != null, "需原两存活人物与Current；不恢复HP");
+            partner = actors.Single(a => a != originalCurrent); motors = actors.Select(a => a.GetComponent<Ossastra.Characters.CharacterMovement>()).ToArray(); Need(motors.All(m => m != null), "缺原Motor");
+            abc = rooms.buildings.Single(b => b.buildingId == "building-abc"); d = rooms.buildings.Single(b => b.buildingId == "building-d");
+            abcRoofs = abc.roofGroups.SelectMany(g => g.members).ToArray(); dRoofs = d.roofGroups.SelectMany(g => g.members).ToArray(); Need(abcRoofs.Length == 3 && dRoofs.Length == 1, "需ABC三顶与独立D");
+            bPortal = abc.portals.Single(p => p.portalId == "portal-b-north"); bOpen = bPortal.open; bSee = bPortal.canSeeThrough;
+            originalPositions = actors.Select(a => a.transform.position).ToArray(); cameraPosition = camera.transform.position; cameraRotation = camera.transform.rotation; originalPitch = map.pitch;
+            discovery = typeof(RoomVisibilityModule).GetField("discovered", Hidden)?.GetValue(rooms) as HashSet<string>; Need(discovery != null, "本模块discovered精确快照入口变化，停止而不猜"); discoveryBefore = discovery.ToArray();
+            SaveFocus(control, typeof(Ossastra.Characters.CharacterControlCoordinator), "focused");
+            foreach (var actor in actors) SaveFocus(actor, typeof(Ossastra.Characters.CharacterRoot), "focused");
+            SaveFocus(map, typeof(Ossastra.MapResearch.MapResearchRoot), "hasFocus"); prepared = true;
+            foreach (var entry in focus) if (!entry.Before) { entry.Applied = true; entry.Callback.Invoke(entry.Owner, new object[] { true }); }
+            RenderPipelineManager.beginCameraRendering += Begin; RenderPipelineManager.endCameraRendering += End; subscribed = true;
+
+            Case("P01", "显式室外贴墙/相机越顶位置夹具；无像素裁剪结论", () =>
+            {
+                SwitchTo(originalCurrent); Place(originalCurrent, new Vector3(-1.4f, .1f, -12)); Aim(35, 45); Expect(Render("outside-east-wall"), "Exterior", 0, 0);
+                camera.transform.SetPositionAndRotation(new Vector3(-16, 8, -12), Quaternion.Euler(90, 0, 0)); Expect(Render("camera-over-roof-current-outside"), "Exterior", 0, 0);
+            });
+            Case("P02", "进A真实Root回调：ABC统一揭顶/D保留；B/C未到达", () =>
+            {
+                SwitchTo(originalCurrent); rooms.ResetSessionDiscovery(); Place(originalCurrent, new Vector3(-15.5f, .1f, -12.5f)); Aim(35, 45);
+                var frame = Render("enter-A-whole-building"); Expect(frame, "building-abc", 3, 0);
+                Need(rooms.ActiveRoom != null && rooms.ActiveRoom.roomId == "room-a" && !rooms.IsDiscovered(abc.regions.Single(r => r.roomId == "room-b")) && !rooms.IsDiscovered(abc.regions.Single(r => r.roomId == "corridor-c")), "进A错误发现B/C");
+            });
+            Case("P04", "同一原Current在独立D的建筑归属，非正常步行", () =>
+            {
+                SwitchTo(originalCurrent); Place(originalCurrent, new Vector3(-26, .1f, -12)); Aim(35, 45); Expect(Render("independent-D"), "building-d", 0, 1);
+            });
+            Case("P09", "伙伴B不联合揭顶；原SwitchNext同栋/室外切控", () =>
+            {
+                SwitchTo(originalCurrent); rooms.ResetSessionDiscovery(); Place(originalCurrent, new Vector3(-15.5f, .1f, -12.5f)); Place(partner, new Vector3(-6, .1f, -13.2f)); Aim(35, 45);
+                Expect(Render("current-A-partner-B"), "building-abc", 3, 0); Need(!rooms.IsDiscovered(abc.regions.Single(r => r.roomId == "room-b")), "伙伴提前解锁B");
+                SwitchTo(partner); Aim(35, 45); Expect(Render("switch-current-to-B"), "building-abc", 3, 0); Need(rooms.ActiveRoom != null && rooms.ActiveRoom.roomId == "room-b", "同栋切控未解析B");
+                SwitchTo(originalCurrent); Place(partner, new Vector3(-16, .1f, -18.2f)); Aim(35, 45); Expect(Render("A-partner-exterior"), "building-abc", 3, 0);
+                SwitchTo(partner); Aim(35, 45); Expect(Render("switch-current-to-exterior"), "Exterior", 0, 0); SwitchTo(originalCurrent);
+            });
+            Case("P10", "Teleport/高度排除/边界滞回位置夹具；不代签自然移动", () =>
+            {
+                SwitchTo(originalCurrent); Place(originalCurrent, new Vector3(-16, 4.1f, -12)); Aim(35, 45); Expect(Render("same-XZ-above-building-height"), "Exterior", 0, 0);
+                Place(originalCurrent, new Vector3(-16, .1f, -12)); Expect(Render("teleport-valid-ground-A"), "building-abc", 3, 0);
+                Place(originalCurrent, new Vector3(-16, .1f, -16.25f), false); Expect(Render("beyond-exit-margin"), "Exterior", 0, 0);
+                Place(originalCurrent, new Vector3(-16, .1f, -16.01f), false); Expect(Render("outside-enter-inset"), "Exterior", 0, 0);
+                Place(originalCurrent, new Vector3(-16, .1f, -15.9f), false); Expect(Render("inside-door-threshold"), "building-abc", 3, 0);
+                Place(originalCurrent, new Vector3(-16, .1f, -16.05f), false); Expect(Render("jitter-retains-building"), "building-abc", 3, 0);
+                Place(originalCurrent, new Vector3(-16, .1f, -16.25f), false); Expect(Render("leave-after-jitter"), "Exterior", 0, 0);
+            });
+            Case("P13", "35/45度×8实际Camera.Render；只检作用域与mask错误，不签像素/原Orbit输入", () =>
+            {
+                SwitchTo(originalCurrent); Place(originalCurrent, new Vector3(-15.5f, .1f, -12.5f));
+                foreach (float pitch in new[] { 35f, 45f }) for (int i = 0; i < 8; ++i)
+                {
+                    float yaw = i * 45; Aim(pitch, yaw); var frame = Render("pitch" + pitch + "-yaw" + yaw); Expect(frame, "building-abc", 3, 0);
+                    Need(Mathf.Abs(Mathf.DeltaAngle(frame.pitch, pitch)) < .02f && Mathf.Abs(Mathf.DeltaAngle(frame.yaw, yaw)) < .02f, "实际相机姿态与请求不符");
+                }
+            });
+            Case("P07", "未知B自己的开放外窗不提交；无像素泄漏结论", () =>
+            {
+                SwitchTo(originalCurrent); rooms.ResetSessionDiscovery(); Place(originalCurrent, new Vector3(-15.5f, .1f, -12.5f)); Place(partner, new Vector3(-6, .1f, -13.2f)); bPortal.open = true; bPortal.canSeeThrough = true; Aim(35, 45);
+                var frame = Render("known-A-unknown-B-open-exterior-window"); Expect(frame, "building-abc", 3, 0);
+                Need(!rooms.IsDiscovered(abc.regions.Single(r => r.roomId == "room-b")) && !frame.bExteriorPortalSubmitted, "未知B外窗错误提交或自动解锁B");
+            });
+        }
+        catch (Exception ex) { fatal = ex.ToString(); }
+        finally
+        {
+            if (prepared)
+            {
+                try { for (int i = 0; i < actors.Length; ++i) motors[i].Teleport(originalPositions[i]); Physics.SyncTransforms(); SwitchTo(originalCurrent); } catch (Exception ex) { restoreErrors.Add("原人物位置/Current：" + ex.Message); }
+                try { bPortal.open = bOpen; bPortal.canSeeThrough = bSee; map.pitch = originalPitch; camera.transform.SetPositionAndRotation(cameraPosition, cameraRotation); rooms.RequestImmediateMembershipRefresh(); if (subscribed) Render("finally-original-context"); } catch (Exception ex) { restoreErrors.Add("原开口/pitch/camera/render：" + ex.Message); }
+                // 最后恢复会话集合；前面的正常恢复render可能按规则重新记入原Current所在区。
+                try { discovery.Clear(); discovery.UnionWith(discoveryBefore); rooms.RequestImmediateMembershipRefresh(); } catch (Exception ex) { restoreErrors.Add("本模块探索集合：" + ex.Message); }
+                foreach (var entry in focus) try { if (entry.Applied && entry.Owner != null && (bool)entry.Flag.GetValue(entry.Owner)) entry.Callback.Invoke(entry.Owner, new object[] { entry.Before }); } catch (Exception ex) { restoreErrors.Add("原焦点：" + ex.Message); }
+            }
+            if (subscribed) { RenderPipelineManager.beginCameraRendering -= Begin; RenderPipelineManager.endCameraRendering -= End; }
+        }
+        bool positionsRestored = prepared && actors.Select((a, i) => a != null && (a.transform.position - originalPositions[i]).sqrMagnitude < .0001f).All(v => v);
+        bool currentRestored = prepared && control.Current == originalCurrent;
+        bool cameraRestored = prepared && (camera.transform.position - cameraPosition).sqrMagnitude < .0001f && Quaternion.Angle(camera.transform.rotation, cameraRotation) < .001f && Mathf.Abs(map.pitch - originalPitch) < .0001f;
+        bool discoveryRestored = prepared && discovery.SetEquals(discoveryBefore);
+        ctx.ReturnValue = new { status = fatal == null && failures == 0 && restoreErrors.Count == 0 && positionsRestored && currentRestored && cameraRestored && discoveryRestored ? "PASS_LIMITED_RULES_AND_CALLBACKS" : "FAIL_OR_FIXTURE_REJECTED", fatal, failures, cases, renders = frames, restoreErrors, positionsRestored, currentRestored, cameraRestored, discoveryRestored, savedAssets = false, wroteSave = false, pixelsVerified = false, physicalInputVerified = false, scope = "同步位置/切控/相机姿态夹具。人物仅原Motor.Teleport，Current仅原SwitchNext；真实Camera.Render调用现有Root及Feature。精确snapshot/restore只用于本模块discovered会话集合，不写探索存档。P13不是原Orbit输入旋转或连续长时/像素验收。所有原位置/Current/pitch/camera与开口值在finally恢复，未改HP/AI/Collider/时标。" };
+    }
+}

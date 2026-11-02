@@ -1,0 +1,26 @@
+/* 功能：仅给本任务新场相机增加自有可选房间Renderer；不改变项目默认Renderer索引或旧相机。 */
+using System;using System.IO;using System.Linq;using UnityEngine;using UnityEngine.SceneManagement;using UnityEngine.Rendering;using UnityEngine.Rendering.Universal;using UnityEditor;using UnityEditor.SceneManagement;using Ossastra.MapResearch;using Ossastra.SceneVisibility.Rooms.Rendering;using Funplay.Editor.Tools.Scripting;
+public sealed class ConfigureRoomRenderer:IFunplayCommand {
+ public void Execute(ExecutionContext ctx) {
+  var s=SceneManager.GetActiveScene();if(Application.isPlaying || EditorApplication.isCompiling || EditorApplication.isUpdating || SceneManager.sceneCount!=1 || s.path!="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity")throw new InvalidOperationException("Exact isolated Lab Edit required");
+  var map=s.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<MapResearchRoot>(true)).Single();var camera=map.gameplayCamera;if(camera==null)throw new InvalidOperationException("Missing explicit camera");
+  var extra=camera.GetComponent<UniversalAdditionalCameraData>();var pipeline=GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset;
+  if(extra==null || pipeline==null)throw new InvalidOperationException("Missing existing URP context");
+  var pso=new SerializedObject(pipeline);var list=pso.FindProperty("m_RendererDataList");var def=pso.FindProperty("m_DefaultRendererIndex");var cso=new SerializedObject(extra);var idx=cso.FindProperty("m_RendererIndex");
+  if(list==null || def==null || idx==null)throw new InvalidOperationException("URP14 serialized contract changed");int oldDefault=def.intValue;int oldIndex=idx.intValue;int effective=oldIndex<0?oldDefault:oldIndex;
+  if(effective<0 || effective>=list.arraySize)throw new InvalidOperationException("Invalid original renderer index");
+  var data=list.GetArrayElementAtIndex(effective).objectReferenceValue as UniversalRendererData;if(data==null || data.rendererFeatures.Any(f=>f!=null))throw new InvalidOperationException("Expected source UniversalRenderer without Features; audit changed context");
+  const string dir="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/Rendering";const string path=dir+"/RoomVisibilityRenderer.asset";
+  if(File.Exists(path)||AssetDatabase.LoadMainAssetAtPath(path)!=null)throw new InvalidOperationException("Owned renderer exists; inspect outcome, never replay");
+  var surface=Shader.Find("Hidden/Ossastra/Rooms/SurfaceMask");var portal=Shader.Find("Hidden/Ossastra/Rooms/PortalMask");var composite=Shader.Find("Hidden/Ossastra/Rooms/CurtainComposite");
+  if(surface==null||portal==null||composite==null||!surface.isSupported||!portal.isSupported||!composite.isSupported)throw new InvalidOperationException("Expected three supported shader names");
+  if(!AssetDatabase.IsValidFolder(dir)&&string.IsNullOrEmpty(AssetDatabase.CreateFolder("Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04","Rendering")))throw new InvalidOperationException("Cannot create owned renderer folder");
+  var copy=UnityEngine.Object.Instantiate(data);copy.name="RoomVisibilityRenderer";ctx.RegisterObjectCreation(copy);AssetDatabase.CreateAsset(copy,path);
+  var feature=ScriptableObject.CreateInstance<RoomMaskRendererFeature>();feature.name="RoomVisibility Mask And Curtains";feature.surfaceMaskShader=surface;feature.portalMaskShader=portal;feature.compositeShader=composite;feature.SetActive(true);ctx.RegisterObjectCreation(feature);AssetDatabase.AddObjectToAsset(feature,copy);copy.rendererFeatures.Add(feature);
+  string guid;long local;if(!AssetDatabase.TryGetGUIDAndLocalFileIdentifier(feature,out guid,out local))throw new InvalidOperationException("Feature localID missing");var dso=new SerializedObject(copy);var featureMap=dso.FindProperty("m_RendererFeatureMap");if(featureMap!=null){featureMap.arraySize=1;featureMap.GetArrayElementAtIndex(0).longValue=local;dso.ApplyModifiedPropertiesWithoutUndo();}
+  copy.SetDirty();EditorUtility.SetDirty(feature);EditorUtility.SetDirty(copy);AssetDatabase.SaveAssetIfDirty(copy);
+  ctx.RegisterObjectModification(pipeline);int newIndex=list.arraySize;list.InsertArrayElementAtIndex(newIndex);list.GetArrayElementAtIndex(newIndex).objectReferenceValue=copy;pso.ApplyModifiedPropertiesWithoutUndo();EditorUtility.SetDirty(pipeline);AssetDatabase.SaveAssetIfDirty(pipeline);
+  ctx.RegisterObjectModification(extra);extra.SetRenderer(newIndex);extra.antialiasing=AntialiasingMode.None;EditorUtility.SetDirty(extra);EditorSceneManager.MarkSceneDirty(s);
+  ctx.ReturnValue=new{ok=true,scene=s.path,sceneGuid=AssetDatabase.AssetPathToGUID(s.path),pipeline=AssetDatabase.GetAssetPath(pipeline),defaultRendererBefore=oldDefault,defaultRendererAfter=new SerializedObject(pipeline).FindProperty("m_DefaultRendererIndex").intValue,cameraOldRenderer=oldIndex,cameraNewRenderer=newIndex,sourceRenderer=AssetDatabase.GetAssetPath(data),newRenderer=path,shaderErrors=new[]{surface,portal,composite}.SelectMany(sh=>ShaderUtil.GetShaderMessages(sh)).Select(m=>m.message).ToArray()};
+ }
+}

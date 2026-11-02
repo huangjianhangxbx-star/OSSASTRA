@@ -1,0 +1,18 @@
+/* 功能：真实新增一件未登记建筑视觉件，检查作者准入明确拒绝；finally只销毁本探针对象。 */
+using System;using System.Linq;using UnityEngine;using UnityEngine.SceneManagement;using Funplay.Editor.Tools.Scripting;using Ossastra.SceneVisibility;
+public sealed class RuntimeUnclassifiedContract:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  var scene=SceneManager.GetActiveScene();if(scene.path!="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity")throw new InvalidOperationException("Exact room Lab required");
+  var roots=scene.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<SceneVisibilityRoot>(true)).ToArray();if(roots.Length!=1||roots[0].roomModule==null)throw new InvalidOperationException("Expected explicit module");
+  var root=roots[0];var module=root.roomModule;var building=module.buildings.First(b=>b!=null);GameObject extra=null;bool accepted=false;string reason=null;
+  try
+  {
+   extra=GameObject.CreatePrimitive(PrimitiveType.Cube);extra.name="__UnclassifiedRoofContract";extra.hideFlags=HideFlags.HideAndDontSave;ctx.RegisterObjectCreation(extra);extra.transform.SetParent(building.transform,false);extra.transform.localPosition=new Vector3(0,30,0);
+   accepted=module.TryValidateConfiguration(root,out reason);
+  }
+  finally{if(extra!=null)ctx.DestroyObject(extra);}
+  ctx.ReturnValue=new{passed=!accepted && reason!=null && reason.Contains("未登记"),test="建筑新增可绘制成员漏分类须被作者准入拒绝",accepted,reason,expectedAccepted=false,restoredOwnObject=true};
+ }
+}

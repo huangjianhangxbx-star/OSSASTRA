@@ -14,13 +14,15 @@ namespace Ossastra.GroundSurfaces.Editor
         public const string WorldPropsTransitScenePath="Assets/OSSASTRA/GroundWorkshop/Samples/WORLD-PROP-01/SC_WorldPropsTransit.unity";
         public const string CraftingScenePath="Assets/OSSASTRA/GroundWorkshop/Samples/CRAFT-01/SC_CraftingIntegration.unity";
         public const string CraftingTransitScenePath="Assets/OSSASTRA/GroundWorkshop/Samples/CRAFT-01/SC_CraftingTransit.unity";
+        public const string RoomVisibilityLabScenePath="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity";
         public static bool IsSupported(string path)=>
             string.Equals(path,GroundSurfaceAuthoring.ScenePath,StringComparison.Ordinal)||
             string.Equals(path,VisibilityLabScenePath,StringComparison.Ordinal)||
             string.Equals(path,WorldPropsScenePath,StringComparison.Ordinal)||
             string.Equals(path,WorldPropsTransitScenePath,StringComparison.Ordinal)||
             string.Equals(path,CraftingScenePath,StringComparison.Ordinal)||
-            string.Equals(path,CraftingTransitScenePath,StringComparison.Ordinal);
+            string.Equals(path,CraftingTransitScenePath,StringComparison.Ordinal)||
+            string.Equals(path,RoomVisibilityLabScenePath,StringComparison.Ordinal);
         public static bool IsInPlaceSave(string scenePath,string destinationPath)=>
             IsSupported(scenePath)&&string.Equals(scenePath,destinationPath,StringComparison.Ordinal);
     }

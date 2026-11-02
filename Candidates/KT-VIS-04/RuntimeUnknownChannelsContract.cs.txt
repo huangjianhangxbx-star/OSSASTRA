@@ -1,0 +1,28 @@
+/* 功能：用真实登记与未知房内容检查R/G独立数据合同；只注入显示夹具，不移动角色/写业务。 */
+using System;using System.Linq;using System.Reflection;using System.Collections.Generic;using UnityEngine;using UnityEngine.SceneManagement;using Funplay.Editor.Tools.Scripting;using Ossastra.SceneVisibility;using Ossastra.SceneVisibility.Rooms;using Ossastra.SceneVisibility.Rooms.Rendering;
+public sealed class RuntimeUnknownChannelsContract:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  var scene=SceneManager.GetActiveScene();if(scene.path!="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity")throw new InvalidOperationException("Exact room Lab required");
+  var roots=scene.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<SceneVisibilityRoot>(true)).ToArray();if(roots.Length!=1||roots[0].roomModule==null)throw new InvalidOperationException("Expected explicit module");
+  var root=roots[0];var module=root.roomModule;bool wasReady=module.IsReady;if(!wasReady)module.Initialize(root);
+  const BindingFlags flags=BindingFlags.NonPublic|BindingFlags.Instance;
+  var active=typeof(RoomVisibilityModule).GetProperty("ActiveBuilding");var build=typeof(RoomVisibilityModule).GetMethod("BuildFrame",flags);var discovery=(HashSet<string>)typeof(RoomVisibilityModule).GetField("discovered",flags).GetValue(module);var frameField=typeof(RoomVisibilityModule).GetField("frame",flags);
+  if(active==null||build==null||frameField==null||discovery==null)throw new InvalidOperationException("Inspect changed runtime contract before adapting probe");
+  var oldBuilding=module.ActiveBuilding;var oldDiscovery=discovery.ToArray();bool oldInterior=module.interiorUnexploredEnabled;
+  Renderer member=null;string roomId=null;bool hasR=false,hasG=true;
+  try
+  {
+   var building=module.buildings.First(b=>b!=null);var room=building.regions.First(r=>r!=null&&r.members.Any(m=>m!=null&&m.enabled&&m.gameObject.activeInHierarchy&&!m.forceRenderingOff));
+   member=room.members.First(m=>m!=null&&m.enabled&&m.gameObject.activeInHierarchy&&!m.forceRenderingOff);roomId=room.roomId;
+   discovery.Clear();module.interiorUnexploredEnabled=true;active.GetSetMethod(true).Invoke(module,new object[]{building});build.Invoke(module,null);
+   var frame=(RoomMaskFrame)frameField.GetValue(module);hasR=frame.BuildingSurfaces.Any(s=>s.Renderer==member);hasG=frame.Surfaces.Any(s=>s.Renderer==member);
+  }
+  finally
+  {
+   discovery.Clear();foreach(var id in oldDiscovery)discovery.Add(id);module.interiorUnexploredEnabled=oldInterior;active.GetSetMethod(true).Invoke(module,new object[]{oldBuilding});build.Invoke(module,null);if(!wasReady)module.Release(root);
+  }
+  ctx.ReturnValue=new{passed=hasR&&!hasG,test="未知本栋内容属于室内R，尚未到达不获得G",roomId,member=member==null?null:member.name,hasExteriorR=hasR,hasKnownG=hasG,expectedR=true,expectedG=false,restored=true};
+ }
+}

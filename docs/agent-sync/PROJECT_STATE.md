@@ -626,3 +626,8 @@ F00–F10工程实施/定向验证完成：原唯一音频根/Transport/32短音
 ## 当前 CRAFT 相机俯角调整（2026-11-02）
 
 用户要求先改45°：CRAFT Main中MapResearchRoot.pitch=45、GameplayCamera Euler(45,45,0)，绕原观察中心调整；distance25/FOV35保留。Native已保存同一Main并读回、Edit ready；未Play、未改遮挡策略/其他历史场或默认脚本值，场景仅本机。任务camera-pitch45-20261102已完成释放，详见tasks/2026-11-02-camera-pitch45.md。
+
+
+## 2026-11-02 KT-VIS-04 v1.1 technical-complete
+
+同一SC_RoomVisibilityLab复用既有房间/顶盖/门窗/后端，Building统一揭全栋顶盖、Room只记本会话到达；永久结构/墙顶不透视，双黑幕独立，外窗不解锁未知室内。原GameplayCamera/Current/物理/灯/业务权威保持，35°交付，可选Renderer15/默认0。MSAA4暗化与原敌血条泄漏真实RED→GREEN；15纯策略、32秒原InputAction步行/整栋一致/离栋恢复、实际窗遮板/动态外景、切控/高度/滞回、受控实时遮光、原工位/Prop领域生灭、先毁自有Camera后释放27对象均有证据。已保存重开与再次Play；最后只读Editor为本Lab Play，保留现场。4本地Prefab含L形作者模板（当前64净空预算不足，未放进同场）。234原场/Map/旧档与37既有dirty指纹保持。未签Player/GPU时序/实体硬件/审美/完整多层/全部缩放内门连续片/PMA任意叠层；仅本会话探索。所有Unity/源码租约释放，仅GitHub自有代码/测试/文档发布回执；场/资产/素材/真实档仅本机。详见ossastra/KT-VIS-04/验证与交付.md及tasks/2026-11-02-kt-vis-04.md。

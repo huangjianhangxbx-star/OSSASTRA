@@ -1,0 +1,16 @@
+FAIL 出生室内不依赖越过门槛事件: Expected A, got <outside>
+FAIL 同身份入室须越过收缩门槛: Expected A, got <outside>
+FAIL 现房间退出滞回优先于重叠邻室: Expected A, got <outside>
+FAIL 真正离开后转入邻室或室外: Expected B, got <outside>
+FAIL 切控立即解析新主控而不扩大旧房间: Expected B, got <outside>
+FAIL 无存活主控冻结最后合法房间: Expected A, got <outside>
+FAIL 恢复同身份立即解析准确空间: Expected B, got <outside>
+FAIL 同身份传送可明确绕过门槛滞回: Expected B, got <outside>
+FAIL 重叠选择优先级并以稳定ID打破平局: Expected B, got <outside>
+FAIL 删除登记立即清理已活动房间: Expected A, got <outside>
+FAIL 无效重登记被拒且原配置仍可用: Expected ArgumentException
+FAIL 候选未登记或重复时拒绝且保留当前状态: Expected ArgumentException
+FAIL 缺失活动候选不会无限保留旧域: Expected A, got <outside>
+FAIL 存活主控必须有身份和候选快照: Expected ArgumentException
+FAIL 稳定逐帧解析不分配托管集合: Expected A, got <outside>
+RESULT 0 passed, 15 failed

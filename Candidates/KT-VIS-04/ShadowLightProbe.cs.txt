@@ -1,0 +1,120 @@
+/* 功能：Root Native执行的有限真实光照探针；原光照正/负对照，加自有Spot强化负对照，共最多4图。
+ * 边界：只改本次主相机RT、探针自有Light，以及正式相机scope里已ShadowsOnly屋顶的forceRenderingOff负对照。
+ * 不调原灯/太阳/曝光，不关碰撞/业务，不挪角色；采样必须由真实Collider射线确认是A地板，前墙不能冒充地板。
+ * 判读：原灯差异单独报告；自有Spot仅证明受控遮光因果，不冒称原灯配置。烘焙/反射/SSAO不在此探针认证范围。
+ */
+using System;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Collections.Generic;
+using System.Security.Cryptography;
+using UnityEngine;
+using UnityEditor;
+using UnityEngine.SceneManagement;
+using UnityEngine.Rendering;
+using Funplay.Editor.Tools.Scripting;
+using Ossastra.SceneVisibility;
+using Ossastra.SceneVisibility.Rooms;
+using Ossastra.Commerce.Runtime;
+
+public sealed class ShadowLightProbe : IFunplayCommand
+{
+ const string Lab="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity";
+ const string Profiles="E:/WORLDCREATOR/XingHaiHuiLang/研究/可见性修复/KT-VIS-04/profiles";
+ const string Evidence="E:/WORLDCREATOR/XingHaiHuiLang/研究/可见性修复/KT-VIS-04/lighting";
+ static T[] All<T>(Scene scene) where T:Component=>scene.GetRootGameObjects().SelectMany(go=>go.GetComponentsInChildren<T>(true)).ToArray();
+ static string Full(string path)=>Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar,Path.AltDirectorySeparatorChar);
+ static string Sha(string value){using(var hash=SHA256.Create())return BitConverter.ToString(hash.ComputeHash(Encoding.UTF8.GetBytes(value))).Replace("-","");}
+ static string PhysicsState(Scene scene)=>Sha(string.Join("|",All<Collider>(scene).OrderBy(c=>c.GetInstanceID()).Select(c=>c.GetInstanceID()+":"+EditorJsonUtility.ToJson(c)+":"+c.transform.localToWorldMatrix.ToString("R"))));
+ static string LightState(Scene scene)=>Sha(string.Join("|",All<Light>(scene).OrderBy(light=>light.GetInstanceID()).Select(light=>light.GetInstanceID()+":"+EditorJsonUtility.ToJson(light)+":"+light.transform.localToWorldMatrix.ToString("R")))+"|sun="+(RenderSettings.sun==null?0:RenderSettings.sun.GetInstanceID())+"|ambient="+RenderSettings.ambientLight.ToString("R"));
+ static string BusinessState(Scene scene,CommerceService commerce)
+ {
+  string items=string.Join("|",commerce.inventory.Ledger.Items.OrderBy(item=>item.Id).Select(item=>item.Id+":"+item.DefinitionId+":"+item.Quantity+":"+item.Location.ContainerId));
+  string hp=string.Join("|",All<Ossastra.Combat.CombatVitals>(scene).OrderBy(v=>v.GetInstanceID()).Select(v=>v.GetInstanceID()+":"+(v.Health==null?-1:v.Health.Current)+":"+v.DeathCount+":"+v.transform.position.ToString("R")));
+  return Sha(items+"|"+hp+"|current="+(commerce.inventory.Coordinator.Current==null?0:commerce.inventory.Coordinator.Current.GetInstanceID()));
+ }
+ static float Luma(Color c)=>c.r*.2126f+c.g*.7152f+c.b*.0722f;
+ static object Difference(Color[] positive,Color[] negative)
+ {
+  float sum=0,max=0;int detected=0;
+  for(int i=0;i<positive.Length;i++){float d=Luma(negative[i])-Luma(positive[i]);sum+=d;max=Mathf.Max(max,d);if(d>.025f)detected++;}
+  return new{samples=positive.Length,meanNegativeMinusPositive=sum/Mathf.Max(1,positive.Length),maxNegativeMinusPositive=max,brightenedSamples=detected,detected=detected>=2};
+ }
+ public void Execute(ExecutionContext ctx)
+ {
+  var scene=SceneManager.GetActiveScene();
+  if(!Application.isPlaying||scene.path!=Lab||Application.dataPath!="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets")throw new InvalidOperationException("只允许隔离Room Lab Play");
+  var stores=All<CommerceService>(scene);if(stores.Length!=1||stores[0].profileId!="kt-vis04-room-01"||string.IsNullOrWhiteSpace(stores[0].saveDirectory)||!string.Equals(Full(stores[0].saveDirectory),Full(Profiles),StringComparison.OrdinalIgnoreCase)||stores[0].inventory==null||!stores[0].inventory.Ready)throw new InvalidOperationException("隔离profile/最终目录/库存宿主不符");
+  var root=All<SceneVisibilityRoot>(scene).Single();var module=root.roomModule;var camera=root.gameplayCamera;
+  if(module==null||camera==null||module.ActiveRoom==null||module.ActiveRoom.roomId!="room-a"||module.ActiveBuilding==null||module.ActiveBuilding.buildingId!="building-abc"||!root.effectEnabled||!module.revealRoofs)throw new InvalidOperationException("需原主控当前实际在A且正式屋顶scope启用");
+  var floor=module.ActiveRoom.members.Where(r=>r!=null&&r.name=="Floor").Single();var floorCollider=floor.GetComponent<Collider>();
+  if(floorCollider==null||!floor.receiveShadows)throw new InvalidOperationException("A地板须有真实Collider且原receiveShadows=true");
+  var roofs=module.ActiveBuilding.roofGroups.SelectMany(group=>group.members).Where(r=>r!=null).Distinct().ToArray();
+  var roofColliders=module.ActiveBuilding.roofGroups.SelectMany(group=>group.labelRaycastExclusions??Array.Empty<Collider>()).Where(c=>c!=null).ToArray();
+  if(roofs.Length!=3||roofColliders.Length<3)throw new InvalidOperationException("需完整ABC三个屋顶和显式屋顶Collider排除");
+  var points=new List<Vector3>();var pixels=new List<Vector2>();var hits=new RaycastHit[32];var physics=scene.GetPhysicsScene();var bounds=floor.bounds;
+  for(int z=0;z<9&&points.Count<18;z++)for(int x=0;x<9&&points.Count<18;x++)
+  {
+   var point=new Vector3(Mathf.Lerp(bounds.min.x+.6f,bounds.max.x-.6f,x/8f),bounds.max.y+.002f,Mathf.Lerp(bounds.min.z+.6f,bounds.max.z-.6f,z/8f));
+   var v=camera.WorldToViewportPoint(point);if(v.z<=0||v.x<.03f||v.x>.97f||v.y<.03f||v.y>.97f)continue;
+   var ray=camera.ViewportPointToRay(v);float distance=Vector3.Dot(point-ray.origin,ray.direction);int count=physics.Raycast(ray.origin,ray.direction,hits,distance+.08f,camera.cullingMask,QueryTriggerInteraction.Ignore);
+   if(count==hits.Length)continue;Collider nearest=null;float nearestDistance=float.PositiveInfinity;
+   for(int i=0;i<count;i++)if(hits[i].collider!=null&&Array.IndexOf(roofColliders,hits[i].collider)<0&&hits[i].distance<nearestDistance){nearest=hits[i].collider;nearestDistance=hits[i].distance;}
+   if(nearest!=floorCollider)continue;points.Add(point);pixels.Add(new Vector2(v.x,v.y));
+  }
+  if(points.Count<4){ctx.ReturnValue=new{passed=false,stage="INVALID_FLOOR_SAMPLES",reason="可见A地板有效采样少于4；未用前墙冒充地板，未修改现场。",samples=points.Count};return;}
+  string lightBefore=LightState(scene),physicsBefore=PhysicsState(scene),businessBefore=BusinessState(scene,stores[0]);
+  var oldTarget=camera.targetTexture;float oldAspect=camera.aspect;var oldActive=RenderTexture.active;
+  var rt=new RenderTexture(960,540,24,RenderTextureFormat.ARGB32){name="Owned roof-shadow probe target",antiAliasing=4};var reader=new Texture2D(960,540,TextureFormat.RGB24,false);
+  GameObject probeLight=null;bool negative=false;var held=new Dictionary<Renderer,bool>();var modes=new List<string[]>();var samples=new Color[4][];var files=new List<string>();bool restored=false;
+  Action restoreForce=()=>{foreach(var pair in held)if(pair.Key!=null&&pair.Key.forceRenderingOff)pair.Key.forceRenderingOff=pair.Value;held.Clear();};
+  Action<ScriptableRenderContext,Camera> begin=(context,current)=>
+  {
+   if(current!=camera)return;modes.Add(roofs.Select(r=>r.name+":"+r.shadowCastingMode+":"+r.forceRenderingOff).ToArray());
+   if(negative)foreach(var roof in roofs){held.Add(roof,roof.forceRenderingOff);roof.forceRenderingOff=true;}
+  };
+  Action<ScriptableRenderContext,Camera> end=(context,current)=>{if(current==camera)restoreForce();};
+  string run=Guid.NewGuid().ToString("N").Substring(0,8);
+  try
+  {
+   rt.Create();camera.targetTexture=rt;camera.aspect=16f/9f;Directory.CreateDirectory(Evidence);
+   // 采样投影以本次RT的真实aspect重算，Raycast合格的世界点不变。
+   pixels.Clear();foreach(var point in points){var v=camera.WorldToViewportPoint(point);pixels.Add(new Vector2(v.x,v.y));}
+   RenderPipelineManager.beginCameraRendering+=begin;RenderPipelineManager.endCameraRendering+=end;
+   for(int shot=0;shot<4;shot++)
+   {
+    if(shot==2)
+    {
+     probeLight=new GameObject("__OwnedShadowNegativeControlSpot"){hideFlags=HideFlags.HideAndDontSave};probeLight.SetActive(false);SceneManager.MoveGameObjectToScene(probeLight,scene);
+     probeLight.transform.SetPositionAndRotation(new Vector3(-16,7,-12),Quaternion.Euler(90,0,0));var light=probeLight.AddComponent<Light>();
+     light.type=LightType.Spot;light.color=Color.white;light.intensity=16;light.range=16;light.spotAngle=100;light.shadows=LightShadows.Hard;light.shadowStrength=1;light.shadowBias=.001f;light.shadowNormalBias=0;light.shadowNearPlane=.1f;light.renderMode=LightRenderMode.ForcePixel;light.cullingMask=camera.cullingMask;probeLight.SetActive(true);
+    }
+    negative=(shot&1)==1;camera.Render();RenderTexture.active=rt;reader.ReadPixels(new Rect(0,0,960,540),0,0);reader.Apply();samples[shot]=new Color[points.Count];
+    for(int i=0;i<points.Count;i++)samples[shot][i]=reader.GetPixel(Mathf.Clamp((int)(pixels[i].x*960),0,959),Mathf.Clamp((int)(pixels[i].y*540),0,539));
+    string label=shot==0?"original-shadow-only":shot==1?"original-no-roof-shadow":shot==2?"owned-spot-shadow-only":"owned-spot-no-roof-shadow";
+    string path=Evidence+"/"+run+"-"+label+".png";File.WriteAllBytes(path,reader.EncodeToPNG());files.Add(path);
+   }
+  }
+  finally
+  {
+   RenderPipelineManager.beginCameraRendering-=begin;RenderPipelineManager.endCameraRendering-=end;restoreForce();
+   if(probeLight!=null)UnityEngine.Object.DestroyImmediate(probeLight);
+   camera.targetTexture=oldTarget;camera.aspect=oldAspect;RenderTexture.active=oldActive;
+   UnityEngine.Object.DestroyImmediate(reader);rt.Release();UnityEngine.Object.DestroyImmediate(rt);
+   // 无截图的原相机绘制，让本模块mask尺寸与世界Overlay位置沿原相机立即恢复。
+   if(camera!=null&&camera.isActiveAndEnabled)camera.Render();
+   restored=LightState(scene)==lightBefore&&PhysicsState(scene)==physicsBefore&&BusinessState(scene,stores[0])==businessBefore;
+  }
+  int controlledBrightened=0;for(int i=0;i<samples[2].Length;i++)if(Luma(samples[3][i])-Luma(samples[2][i])>.025f)controlledBrightened++;
+  bool casterScope=modes.Count==4&&modes.All(row=>row.Length==3&&row.All(value=>value.Contains(":ShadowsOnly:False")));
+  ctx.ReturnValue=new
+  {
+   passed=restored&&casterScope&&controlledBrightened>=2,scene=scene.path,room=module.ActiveRoom==null?null:module.ActiveRoom.roomId,
+   sampleRule="真实Collider最近命中A Floor，排除仅已登记屋顶Collider；不采前墙",floor=floor.name,floorReceivesShadows=floor.receiveShadows,points=points.ToArray(),pixels=pixels.ToArray(),
+   originalLighting=Difference(samples[0],samples[1]),ownedSpotNegativeControl=Difference(samples[2],samples[3]),controlledBrightenedSamples=controlledBrightened,
+   originalCasterScopeRetained=casterScope,roofModesBeforeNegativeWrite=modes,files,originalLightColliderInventoryHpPositionCurrentPreserved=restored,
+   ownFixture="仅后两图额外Spot(原灯不改)，不作为原灯配置认证",bakedReflectionSsao="未执行，不由ShadowsOnly属性代证",actualGameplayCamera=true,overlayHUDCaptured=false
+  };
+ }
+}

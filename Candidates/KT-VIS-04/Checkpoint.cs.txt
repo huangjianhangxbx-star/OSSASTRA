@@ -1,0 +1,13 @@
+/* 功能：仅为当前CRAFT作者现场另存本任务恢复副本；不保存或覆盖来源。 */
+using System;using System.IO;using System.Linq;using UnityEngine;using UnityEngine.SceneManagement;using UnityEditor;using UnityEditor.SceneManagement;using Ossastra.GroundResearch;using Ossastra.GroundResearch.Editor;using Ossastra.GroundSurfaces.Editor;using Ossastra.MapResearch;using Funplay.Editor.Tools.Scripting;
+public sealed class RoomSourceCheckpoint:IFunplayCommand {
+ public void Execute(ExecutionContext ctx){
+  var s=SceneManager.GetActiveScene();const string source="Assets/OSSASTRA/GroundWorkshop/Samples/CRAFT-01/SC_CraftingIntegration.unity";
+  if(Application.dataPath!="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets" || Application.isPlaying || EditorApplication.isCompiling || EditorApplication.isUpdating || SceneManager.sceneCount!=1 || s.path!=source || PrefabStageUtility.GetCurrentPrefabStage()!=null || GroundWorkshopAuthoring.ActivePreview!=null)throw new InvalidOperationException("Wrong current author context; no save");
+  const string copy="Candidates/KT-VIS-04/SourceAuthorRecovery.unity";if(File.Exists(copy))throw new InvalidOperationException("Recovery copy exists; never overwrite");
+  var maps=s.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<GroundWorkshopMap>(true)).ToArray();if(maps.Length!=3 || maps.Any(m=>m.registration==null))throw new InvalidOperationException("Expected three registered maps");
+  var view=s.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<MapResearchRoot>(true)).Single();
+  bool dirty=s.isDirty;int handle=s.handle;GroundSurfaceUpdates.ClearPending();bool ok=EditorSceneManager.SaveScene(s,copy,true);if(dirty)EditorSceneManager.MarkSceneDirty(s);if(!ok)throw new InvalidOperationException("Checkpoint failed");
+  ctx.ReturnValue=new{ok=ok&&s.path==source&&s.handle==handle,beforeDirty=dirty,afterDirty=s.isDirty,copy,pitch=view.pitch,newSceneAuthoringRED=new{actual=GroundSurfaceSceneAccess.IsSupported("Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity"),expected=true},sourceMaps=maps.Select(m=>new{mapId=m.registration.mapId,folder=m.registration.assetFolder}).ToArray()};
+ }
+}

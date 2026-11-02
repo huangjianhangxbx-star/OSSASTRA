@@ -1,6 +1,6 @@
 /* 功能：协调明确目标、登记组、多点检测、平滑状态与单一GameplayCamera的模型透视。
  * 边界：不接管角色控制、动画、碰撞或时间；不扫描全场，不修改原材质alpha。
- * 协作：当前角色只读原CharacterControlCoordinator；正式渲染前投影并显式调用有限捕获后端。
+ * 协作：当前角色只读原CharacterControlCoordinator；可选房间模块先提交整栋揭顶/双黑幕，随后有限捕获仅处理许可小物。
  * 生命周期：关闭、切场和异常时按所有权归还显示位并销毁本模块资源。
  */
 using System;
@@ -9,6 +9,7 @@ using System.Collections.Generic;
 using C = Ossastra.Characters;
 using Ossastra.MapResearch;
 using Ossastra.SceneVisibility.Rendering;
+using Ossastra.SceneVisibility.Rooms;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -22,6 +23,8 @@ namespace Ossastra.SceneVisibility
         public MapResearchRoot mapView;
         public C.CharacterControlCoordinator coordinator;
         public VisibilitySettingsSO settings;
+        [Tooltip("可选建筑/房间模块；未登记的旧场保持原行为。由本Root统一Begin/End，不订阅第二个相机调度者。") ]
+        public RoomVisibilityModule roomModule;
         [Header("同机位比较预设（Original只读；修改候选SO后用按钮应用）")]
         public VisibilitySettingsSO originalPreset, softPreset, softDitherPreset;
         public bool showAdvancedDiagnostics, showWindowBoundaries, showOpacityGray;
@@ -90,16 +93,23 @@ namespace Ossastra.SceneVisibility
             {
                 if (!ValidateConfiguration(out string reason)) throw new InvalidOperationException(reason);
                 // 配置在一次运行期保持一致；Inspector改SO后显式重接，不能混用旧状态时间和新预算。
-                activeSettings = Instantiate(settings); activeSettings.hideFlags = HideFlags.HideAndDontSave;
+                if (settings != null)
+                { activeSettings = Instantiate(settings); activeSettings.hideFlags = HideFlags.HideAndDontSave; }
+                if (groups == null) groups = Array.Empty<SceneOccluderGroup>();
                 runtime = new GroupRuntime[groups.Length];
                 for (int i = 0; i < groups.Length; ++i)
                 {
                     runtime[i] = new GroupRuntime { Group = groups[i] };
                     for (int t = 0; t < 2; ++t) runtime[i].State[t] = new VisibilityState(activeSettings);
                 }
-                capture = new FiniteGroupCapture(gameplayCamera, captureOnlyLayer, opaqueShader, featherShader, copyDepthShader);
-                capture.SetEdgeStyle(activeSettings.edgeStyle, activeSettings.ditherStrength, activeSettings.ditherCell1080Pixels);
-                capture.SetDebugView(showOpacityGray ? 1 : 0);
+                // 空Prop列表的房间场不分配有限捕获后端，也不靠虚假遮挡组取得资格。
+                if (groups.Length > 0)
+                {
+                    capture = new FiniteGroupCapture(gameplayCamera, captureOnlyLayer, opaqueShader, featherShader, copyDepthShader);
+                    capture.SetEdgeStyle(activeSettings.edgeStyle, activeSettings.ditherStrength, activeSettings.ditherCell1080Pixels);
+                    capture.SetDebugView(showOpacityGray ? 1 : 0);
+                }
+                if (roomModule != null && roomModule.isActiveAndEnabled) roomModule.Initialize(this);
                 boundCamera = gameplayCamera;
                 proxyScene = new VisibilityProxyScene(); proxyRegistrySignature = 0;
                 RenderPipelineManager.beginCameraRendering += BeginCamera;
@@ -113,29 +123,43 @@ namespace Ossastra.SceneVisibility
         public bool ValidateConfiguration(out string reason)
         {
             reason = null;
-            if (gameplayCamera == null || coordinator == null || settings == null) reason = "缺少明确相机、原控制协调器或配置";
-            else if (!settings.TryValidate(out reason)) return false;
-            else if (targets == null || targets.Length == 0 || groups == null || groups.Length == 0) reason = "目标和环境组必须显式登记";
-            else if (opaqueShader == null || featherShader == null || copyDepthShader == null) reason = "缺少本模块Shader引用";
-            else if (captureOnlyLayer < 1 || captureOnlyLayer > 31 || (gameplayCamera.cullingMask & (1 << captureOnlyLayer)) != 0) reason = "本场GameplayCamera必须明确排除捕获专用层";
-            else
+            bool hasRooms = roomModule != null && roomModule.isActiveAndEnabled;
+            bool hasGroups = groups != null && groups.Length > 0;
+            if (gameplayCamera == null || coordinator == null) reason = "缺少明确相机或原控制协调器";
+            else if (!hasRooms && !hasGroups) reason = "目标和环境组必须显式登记，或登记独立房间模块";
+            else if (hasGroups)
             {
-                for (int i = 0; i < targets.Length; ++i)
-                    if (targets[i] == null || targets[i].actor == null) { reason = "目标引用为空"; break; }
-                for (int i = 0; reason == null && i < groups.Length; ++i)
-                    if (groups[i] == null) reason = "环境组引用为空";
+                if (settings == null) reason = "局部透视缺少配置";
+                else if (!settings.TryValidate(out reason)) return false;
+                else if (targets == null || targets.Length == 0) reason = "局部透视目标必须显式登记";
+                else if (opaqueShader == null || featherShader == null || copyDepthShader == null) reason = "缺少本模块Shader引用";
+                else if (captureOnlyLayer < 1 || captureOnlyLayer > 31 || (gameplayCamera.cullingMask & (1 << captureOnlyLayer)) != 0)
+                    reason = "本场GameplayCamera必须明确排除捕获专用层";
+                else
+                {
+                    for (int i = 0; i < targets.Length; ++i)
+                        if (targets[i] == null || targets[i].actor == null) { reason = "目标引用为空"; break; }
+                    for (int i = 0; reason == null && i < groups.Length; ++i)
+                        if (groups[i] == null) reason = "环境组引用为空";
+                }
             }
+            if (reason == null && hasRooms && !roomModule.TryValidateConfiguration(this, out reason)) return false;
             return reason == null;
         }
 
         void BeginCamera(ScriptableRenderContext context, Camera camera)
         {
-            if (capture != null && boundCamera != gameplayCamera) { Reconnect(); }
-            if (camera != gameplayCamera || capture == null) return;
+            if (camera != gameplayCamera) return;
+            if (boundCamera != gameplayCamera) Reconnect();
             try
             {
                 if (mapView != null && (!mapView.IsValid || mapView.IsStructureMode))
-                { capture.RestoreOwnedState(); lastTick = Time.unscaledTimeAsDouble; lastFrame = -1; nextDetection = 0; return; }
+                { capture?.RestoreOwnedState(); roomModule?.SuspendCamera(this); lastTick = Time.unscaledTimeAsDouble; lastFrame = -1; nextDetection = 0; return; }
+                // 房间先于局部捕获快照/临时源隐藏；Feature在完整透明与后处理后消费同一帧许可。
+                if (roomModule != null && roomModule.isActiveAndEnabled) roomModule.BeginCamera(this, camera, effectEnabled && !detectionOnly);
+                else roomModule?.SuspendCamera(this);
+                if (capture == null)
+                { Status = roomModule == null ? "无局部捕获" : roomModule.Status; return; }
                 double now = Time.unscaledTimeAsDouble;
                 bool newFrame = lastFrame != Time.frameCount;
                 float delta = newFrame ? (float)Math.Max(0d, now - lastTick) : 0f;
@@ -174,7 +198,7 @@ namespace Ossastra.SceneVisibility
                 for (int i = 0; i < runtime.Length; ++i)
                 {
                     var item = runtime[i]; var group = item.Group;
-                    bool active = group != null && group.isActiveAndEnabled && group.AllowsCharacterReveal;
+                    bool active = group != null && group.isActiveAndEnabled && GroupAllowsReveal(group);
                     float score = 0f, whole = 0f;
                     for (int t = 0; t < 2; ++t)
                     {
@@ -211,7 +235,7 @@ namespace Ossastra.SceneVisibility
             }
             catch (Exception error)
             {
-                capture.RestoreOwnedState(); Status = "本帧保留原模型：" + error.Message;
+                capture?.RestoreOwnedState(); roomModule?.Release(this); Status = "本帧保留原模型：" + error.Message;
                 Debug.LogError(Status, this); enabled = false;
             }
         }
@@ -221,10 +245,10 @@ namespace Ossastra.SceneVisibility
             selected[0] = selected[1] = null;
             var current = coordinator.Current;
             if (current == null || !current.IsAlive || !current.isActiveAndEnabled) return;
-            foreach (var target in targets) if (target != null && target.actor == current && target.Eligible) { selected[0] = target; break; }
+            foreach (var target in targets) if (target != null && target.actor == current && target.Eligible && RoomAllowsTarget(target)) { selected[0] = target; break; }
             if (selected[0] == null) return; // 未登记实控不能借伙伴资格产生脱离主控的遮挡需求。
             if (!protectCompanion || activeSettings.maxTargets < 2) return;
-            foreach (var target in targets) if (target != null && target != selected[0] && target.Eligible) { selected[1] = target; break; }
+            foreach (var target in targets) if (target != null && target != selected[0] && target.Eligible && RoomAllowsTarget(target)) { selected[1] = target; break; }
         }
 
         // 先按身份重排历史，再检测本帧需求；否则切控会把新需求与旧槽错配。
@@ -256,7 +280,7 @@ namespace Ossastra.SceneVisibility
                 var item = runtime[i]; var group = item.Group;
                 for (int t = 0; t < 2; ++t)
                 {
-                    if (group == null || !group.isActiveAndEnabled || !group.AllowsCharacterReveal || !visible[t]) { item.Demand[t] = new VisibilityDemand(false, 0, 0, false, item.Support); continue; }
+                    if (group == null || !group.isActiveAndEnabled || !GroupAllowsReveal(group) || !visible[t]) { item.Demand[t] = new VisibilityDemand(false, 0, 0, false, item.Support); continue; }
                     var probe = VisibilityProbe.Evaluate(gameplayCamera, selected[t].StablePoints, group.QueryVolumes, selected[t].actor.transform);
                     Queries += probe.Queries; UnsupportedInside += probe.UnsupportedInside;
                     item.Demand[t] = new VisibilityDemand(probe.Eligible, probe.Coverage, probe.InsideProxy > 0 ? 1f : 0f,
@@ -272,7 +296,7 @@ namespace Ossastra.SceneVisibility
             foreach (var item in runtime)
             {
                 var group = item.Group;
-                bool allowed = group != null && group.isActiveAndEnabled && group.AllowsCharacterReveal;
+                bool allowed = group != null && group.isActiveAndEnabled && GroupAllowsReveal(group);
                 if (item.RevealAllowed == allowed) continue;
                 item.RevealAllowed = allowed;
                 for (int t = 0; t < 2; ++t)
@@ -293,7 +317,14 @@ namespace Ossastra.SceneVisibility
                     frames[slot] = frame; scores[slot] = score; break;
                 }
         }
-        void EndCamera(ScriptableRenderContext context, Camera camera) { if (capture != null) capture.EndCamera(context, camera); }
+        bool RoomAllowsTarget(VisibilityTarget target) => roomModule == null || !roomModule.isActiveAndEnabled || roomModule.CanRevealTarget(target);
+        bool GroupAllowsReveal(SceneOccluderGroup group) => group.AllowsCharacterReveal &&
+            (roomModule == null || !roomModule.isActiveAndEnabled || roomModule.AllowsLocalGroup(group));
+        void EndCamera(ScriptableRenderContext context, Camera camera)
+        {
+            if (capture != null) capture.EndCamera(context, camera);
+            if (roomModule != null) roomModule.EndCamera(this, camera);
+        }
         // 参数变化只重接本模块；不重置角色、地图或原控制会话。
         public void Reconnect() { Release(); if (isActiveAndEnabled && Application.isPlaying) OnEnable(); }
 
@@ -442,7 +473,9 @@ namespace Ossastra.SceneVisibility
                 RenderPipelineManager.endCameraRendering -= EndCamera;
                 subscribed = false;
             }
-            capture?.Dispose(); capture = null; boundCamera = null;
+            capture?.Dispose(); capture = null;
+            if (roomModule != null) roomModule.Release(this);
+            boundCamera = null;
             if (runtime != null) foreach (var item in runtime) if (item.Group != null) item.Group.ClearTransientProxies(item.SpriteProxies);
             proxyScene?.Dispose(); proxyScene = null; spriteSnapshot = Array.Empty<SpriteRenderer>(); registeredSprites.Clear();
             runtime = null; ActiveGroups = BudgetOverflow = 0;

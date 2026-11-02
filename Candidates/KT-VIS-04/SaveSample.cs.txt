@@ -1,0 +1,17 @@
+/* 功能：只保存当前新Lab并配置明确试玩出生点；原档与源场不写。 */
+using System;using System.Linq;using UnityEngine;using UnityEngine.SceneManagement;using UnityEditor;using UnityEditor.SceneManagement;using UnityEngine.Rendering;using UnityEngine.Rendering.Universal;using Ossastra.GroundSurfaces.Editor;using Funplay.Editor.Tools.Scripting;
+public sealed class SaveRoomSample:IFunplayCommand { public void Execute(ExecutionContext ctx){
+ var s=SceneManager.GetActiveScene();if(Application.isPlaying||s.path!="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity"||SceneManager.sceneCount!=1)throw new Exception("Wrong owned Lab");
+ var all=s.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<MonoBehaviour>(true)).Where(c=>c!=null).ToArray();
+ var c=all.OfType<Ossastra.Commerce.Runtime.CommerceService>().Single();if(c.profileId!="kt-vis04-room-01"||c.saveDirectory!="E:/WORLDCREATOR/XingHaiHuiLang/研究/可见性修复/KT-VIS-04/profiles")throw new Exception("Wrong isolated save host");
+ foreach(var wc in all.OfType<Ossastra.Commerce.Runtime.CommerceWorldContainer>()){ctx.RegisterObjectModification(wc);wc.mapId=c.mapId;EditorUtility.SetDirty(wc);}
+ var view=all.OfType<Ossastra.MapResearch.MapResearchRoot>().Single();var coordinator=all.OfType<Ossastra.Characters.CharacterControlCoordinator>().Single();
+ var actors=all.OfType<Ossastra.Characters.CharacterRoot>().OrderBy(a=>a.name).ToArray();if(actors.Length!=2)throw new Exception("Expected two original party actors");
+ var blue=actors.Single(a=>a.name.Contains("BlueFiveFace"));var other=actors.Single(a=>a!=blue);ctx.RegisterObjectModification(blue.transform);ctx.RegisterObjectModification(other.transform);blue.transform.position=new Vector3(-16,.1f,-18.2f);other.transform.position=new Vector3(-12,.1f,-18.8f);
+ var camera=view.gameplayCamera;ctx.RegisterObjectModification(camera.transform);var rot=Quaternion.Euler(view.pitch,view.initialYaw,0);camera.transform.SetPositionAndRotation(blue.transform.position+view.targetOffset-rot*Vector3.forward*view.distance,rot);
+ var root=all.OfType<Ossastra.SceneVisibility.SceneVisibilityRoot>().Single();string reason=null;if(root.roomModule==null||!root.ValidateConfiguration(out reason))throw new Exception("Room authoring refused: "+reason);
+ var errors=Ossastra.Crafting.Editor.CraftingAuthoring.ValidateScene(s);if(errors.Length>0)throw new Exception(string.Join(";",errors));
+ var pipeline=GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset;var so=new SerializedObject(pipeline);var rd=so.FindProperty("m_RendererDataList").GetArrayElementAtIndex(15).objectReferenceValue as ScriptableRendererData;
+ if(rd==null)throw new Exception("Expected owned renderer15");var feature=rd.rendererFeatures.OfType<Ossastra.SceneVisibility.Rooms.Rendering.RoomMaskRendererFeature>().Single();feature.SetActive(false);EditorUtility.SetDirty(feature);AssetDatabase.SaveAssetIfDirty(rd);
+ GroundSurfaceAuthoring.SaveLab();GroundSurfaceUpdates.ClearPending();ctx.ReturnValue=new{ok=true,saved=!s.isDirty,scene=s.path,guid=AssetDatabase.AssetPathToGUID(s.path),pitch=view.pitch,profile=c.profileId,directory=c.saveDirectory,featureBaseline="off for real render baseline; room rules remain on",craftingErrors=errors};
+ }}
