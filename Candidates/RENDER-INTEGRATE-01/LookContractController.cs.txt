@@ -1,0 +1,58 @@
+/* 回归：使用现有 Lab 的原 Begin/End 检查效果停用、真值图与重入；不挪角色、不保存、不改变原 Profile。 */
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using Ossastra.SceneVisibility;
+using Ossastra.SceneVisibility.Rooms;
+using Ossastra.WorldRendering;
+using Funplay.Editor.Tools.Scripting;
+public sealed class WorldLookControllerContract : IFunplayCommand
+{
+    public void Execute(ExecutionContext ctx)
+    {
+        var scene = SceneManager.GetActiveScene();
+        if (!Application.isPlaying || scene.path != "Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity")
+        { ctx.ReturnValue = new { passed = false, reason = "Exact Lab Play required" }; return; }
+        var controller = scene.GetRootGameObjects().SelectMany(g => g.GetComponentsInChildren<WorldLookController>(true)).Single();
+        SceneVisibilityRoot root = controller.visibilityRoot;
+        RoomVisibilityModule rooms = controller.rooms;
+        Camera camera = controller.gameplayCamera;
+        if (root == null || rooms == null || camera == null || controller.effects == null || !rooms.IsReady)
+        { ctx.ReturnValue = new { passed = false, reason = "Configured live root/rooms/camera required" }; return; }
+        bool priorEnabled = controller.enabled, priorMaster = controller.effects.enabled, priorTruth = rooms.truthMode;
+        var checks = new List<object>(); int releases = 0;
+        Action<int> released = id => { if (id == camera.GetInstanceID()) ++releases; };
+        Action sample = () => { rooms.BeginCamera(root, camera, true); try { } finally { rooms.EndCamera(root, camera); } };
+        Action<bool, string> need = (pass, name) => { checks.Add(new { name, pass }); if (!pass) throw new Exception(name); };
+        WorldLookCameraRegistry.Released += released;
+        try
+        {
+            controller.enabled = true; controller.effects.enabled = true; rooms.truthMode = false; sample();
+            need(WorldLookCameraRegistry.TryGet(camera, out var original) && original.Enabled && ReferenceEquals(original, controller.Current), "Real room publication creates exact camera snapshot");
+            var chosen = controller.Exterior ? controller.outdoorPresentation : controller.interiorPresentation;
+            need(chosen != null && Mathf.Abs(original.BlurRadius - chosen.blurRadius) < .00001f, "Actual current interior/exterior selects assigned presentation profile");
+            controller.effects.enabled = false; sample();
+            need(!WorldLookCameraRegistry.TryGet(camera, out var disabled) && controller.Current == null && releases > 0, "Master off revokes live snapshot and signals resource release");
+            controller.effects.enabled = true; sample();
+            need(WorldLookCameraRegistry.TryGet(camera, out var rebound) && rebound.Enabled, "Real frame re-enables own camera without stale snapshot");
+            rooms.truthMode = true; sample();
+            need(!WorldLookCameraRegistry.TryGet(camera, out var truth), "Truth diagnostic view remains free of environment grading");
+            rooms.truthMode = false; sample();
+            need(WorldLookCameraRegistry.TryGet(camera, out var formal), "Formal view rebinds after truth diagnostic");
+            controller.enabled = false;
+            need(!WorldLookCameraRegistry.TryGet(camera, out var stopped) && controller.Current == null, "Component disable revokes owned camera immediately");
+            controller.enabled = true; sample();
+            need(WorldLookCameraRegistry.TryGet(camera, out var resumed) && resumed.Enabled, "Component re-enable consumes next actual room frame");
+            ctx.ReturnValue = new { passed = true, checks, releases, exterior = controller.Exterior };
+        }
+        catch (Exception e) { ctx.ReturnValue = new { passed = false, error = e.ToString(), checks, releases }; }
+        finally
+        {
+            WorldLookCameraRegistry.Released -= released;
+            rooms.truthMode = priorTruth; controller.effects.enabled = priorMaster; controller.enabled = priorEnabled;
+            if (controller.isActiveAndEnabled && root.isActiveAndEnabled && rooms.IsReady) sample();
+        }
+    }
+}

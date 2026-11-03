@@ -1,0 +1,96 @@
+/* 合同：投影焦点、旧档只读、效果开关与跨 owner 清理。故意用反射检测缺失入口，以便新增前 RED 可运行。 */
+using System;
+using System.Collections.Generic;
+using System.Reflection;
+using UnityEngine;
+using XingHai.T7B;
+using XingHai.T7C1;
+using XingHai.T7C2;
+using Funplay.Editor.Tools.Scripting;
+public sealed class WorldLookContract : IFunplayCommand
+{
+    public void Execute(ExecutionContext ctx)
+    {
+        var checks = new List<object>();
+        Type settings = Type.GetType("Ossastra.WorldRendering.WorldLookSettings, Assembly-CSharp");
+        if (settings == null) { ctx.ReturnValue = new { passed = false, failure = "WorldLookSettings missing; safe main-camera look not implemented", checks }; return; }
+        Type options = Type.GetType("Ossastra.WorldRendering.WorldLookEffectOptions, Assembly-CSharp");
+        Type registry = Type.GetType("Ossastra.WorldRendering.WorldLookCameraRegistry, Assembly-CSharp");
+        GameObject go = null;
+        HD2DPostProfile presentation = null;
+        OutdoorAtmosphereProfile air = null;
+        RegionalLookProfile palette = null;
+        object owner = new object(), stranger = new object();
+        Camera camera = null;
+        try
+        {
+            go = new GameObject("WorldLookContract_TEMP") { hideFlags = HideFlags.HideAndDontSave };
+            camera = go.AddComponent<Camera>(); camera.enabled = false;
+            camera.transform.SetPositionAndRotation(new Vector3(10, 2, -20), Quaternion.Euler(0, 90, 0));
+            presentation = ScriptableObject.CreateInstance<HD2DPostProfile>();
+            presentation.sharpBand = 8; presentation.transition = 18; presentation.blurRadius = 1;
+            presentation.bloomIntensity = .1f; presentation.bloomThreshold = 1.3f; presentation.bloomScatter = .5f; presentation.vignette = .03f;
+            air = ScriptableObject.CreateInstance<OutdoorAtmosphereProfile>();
+            air.exposure = .2f; air.contrast = 5; air.saturation = 4; air.temperature = 2;
+            air.nearDistance = 35; air.midDistance = 100; air.farDistance = 220;
+            palette = ScriptableObject.CreateInstance<RegionalLookProfile>();
+            palette.exposureOffset = .1f; palette.contrastOffset = 1; palette.saturationOffset = 1; palette.temperatureOffset = 3;
+            palette.airNear = new Color(.4f, .5f, .6f); palette.airMid = new Color(.5f, .6f, .7f); palette.airFar = new Color(.6f, .7f, .8f);
+            object toggles = Activator.CreateInstance(options);
+            var build = settings.GetMethod("Build", BindingFlags.Public | BindingFlags.Static);
+            Func<object> create = () => build.Invoke(null, new object[] { camera, new Vector3(20, 5, -20), presentation, air, palette, toggles });
+            object snapshot = create();
+            Func<object, string, float> number = (s, n) => Convert.ToSingle(settings.GetProperty(n).GetValue(s));
+            Func<object, string, bool> flag = (s, n) => Convert.ToBoolean(settings.GetProperty(n).GetValue(s));
+            Action<bool, string> need = (pass, name) => { checks.Add(new { name, pass }); if (!pass) throw new Exception(name); };
+            need(flag(snapshot, "Enabled") && Mathf.Abs(number(snapshot, "FocusDepth") - 10) < .001f, "Focus uses camera forward projection, not distance");
+            need(number(snapshot, "SharpBand") == 8 && number(snapshot, "Transition") == 18 && number(snapshot, "BlurRadius") == 1, "Selected Light profile semantics are preserved");
+            need(Mathf.Abs(number(snapshot, "Exposure") - .3f) < .0001f && number(snapshot, "Contrast") == 6 && number(snapshot, "Saturation") == 5 && number(snapshot, "Temperature") == 5, "Explicit regional grade offsets compose with atmosphere");
+            need(air.contrast == 5 && air.exposure == .2f && presentation.blurRadius == 1 && palette.contrastOffset == 1, "Source profiles remain unchanged");
+            presentation.blurRadius = 2;
+            need(number(snapshot, "BlurRadius") == 1, "Published snapshot is stable when author edits source profile");
+            options.GetField("focusEnabled").SetValue(toggles, false);
+            need(!flag(create(), "FocusEnabled") && flag(create(), "AirEnabled"), "Focus toggle does not disable independent air");
+            options.GetField("enabled").SetValue(toggles, false);
+            need(!flag(create(), "Enabled"), "Master off bypasses all presentation");
+            options.GetField("enabled").SetValue(toggles, true);
+            presentation.blurRadius = float.NaN; air.extinction = float.PositiveInfinity;
+            object bounded = create();
+            need(!float.IsNaN(number(bounded, "BlurRadius")) && !float.IsInfinity(number(bounded, "Extinction")), "Bad author values cannot publish non-finite shader inputs");
+            object invalid = build.Invoke(null, new object[] { camera, new Vector3(float.NaN, 0, 0), presentation, air, palette, toggles });
+            need(!flag(invalid, "Enabled"), "Invalid observer revokes the effect instead of reusing stale focus");
+            var publish = registry.GetMethod("Publish"); var release = registry.GetMethod("Release"); var get = registry.GetMethod("TryGet");
+            publish.Invoke(null, new[] { owner, (object)camera, snapshot });
+            object[] read = { camera, null };
+            need((bool)get.Invoke(null, read) && ReferenceEquals(read[1], snapshot), "Exact camera retrieves its own immutable snapshot");
+            release.Invoke(null, new[] { stranger, (object)camera }); read = new object[] { camera, null };
+            need((bool)get.Invoke(null, read), "Other owner cannot release live camera");
+            bool rejected = false;
+            try { publish.Invoke(null, new[] { stranger, (object)camera, snapshot }); }
+            catch (TargetInvocationException e) { rejected = e.InnerException is InvalidOperationException; }
+            need(rejected, "Second owner cannot overwrite live camera");
+            release.Invoke(null, new[] { owner, (object)camera }); read = new object[] { camera, null };
+            need(!(bool)get.Invoke(null, read), "Owner release removes camera snapshot");
+            publish.Invoke(null, new[] { owner, (object)camera, snapshot });
+            int releasedId = 0;
+            Action<int> onReleased = id => releasedId = id;
+            System.Reflection.EventInfo released = registry.GetEvent("Released");
+            released.AddEventHandler(null, onReleased);
+            int expectedId = camera.GetInstanceID();
+            UnityEngine.Object.DestroyImmediate(go); go = null;
+            release.Invoke(null, new[] { owner, (object)camera });
+            released.RemoveEventHandler(null, onReleased);
+            need(releasedId == expectedId, "Destroyed camera wrapper still releases exact owned registry resources");
+            ctx.ReturnValue = new { passed = true, checks };
+        }
+        catch (Exception e) { ctx.ReturnValue = new { passed = false, error = e.ToString(), checks }; }
+        finally
+        {
+            if (registry != null && camera != null) registry.GetMethod("Release").Invoke(null, new[] { owner, (object)camera });
+            if (go != null) UnityEngine.Object.DestroyImmediate(go);
+            if (presentation != null) UnityEngine.Object.DestroyImmediate(presentation);
+            if (air != null) UnityEngine.Object.DestroyImmediate(air);
+            if (palette != null) UnityEngine.Object.DestroyImmediate(palette);
+        }
+    }
+}

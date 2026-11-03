@@ -99,6 +99,8 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
         public bool IndependentDraw;
         // 由作者/组织者明确登记；角色、敌人、动画、可破坏物与门窗活动片不得猜作静态历史。
         public bool StaticEnvironment;
+        // 仅环境后处理显示角色，与静态历史/当前许可独立；人物、敌人与信息叶为false。
+        public bool WorldLookEnvironment;
         public uint DrawMask;
         public Material DrawMaterial;
     }
@@ -139,6 +141,8 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
                 entry.Frame = frame;
             }
             else entries.Add(id, new Entry { Owner = owner, Camera = camera, Frame = frame });
+            // 同一Time.frameCount也可能再次绘制相机；新绘制不能消费前次合法世界附件。
+            Ossastra.WorldRendering.Rendering.WorldLookLegalFrameRegistry.Invalidate(camera);
             Shader.SetGlobalFloat("_RoomWorldLabelMaskEnabled", frame.Enabled ? 1 : 0);
             Shader.SetGlobalFloat("_RoomWorldLabelMaskReady", 0);
             Shader.SetGlobalFloat("_RoomWorldLabelExteriorEnabled", frame.PositiveRenderingEnabled || frame.ExteriorBlackoutEnabled ? 1 : 0);

@@ -1,5 +1,5 @@
 /* 功能：清除旧世界颜色/深度后，只绘制当前帧登记的合法表面；纯色路径先验证空间真值。
- * 边界：不生产房间/门户、不修改原材质、物理或相机，不将旧世界深度作为许可依据。
+ * 边界：不生产房间/门户、不修改原材质、物理或相机；只向环境表现发布当帧合法深度与环境许可。
  * 生命周期：每相机复用自有适配材质；登记撤销/Renderer销毁时精确释放；超预算保守全黑。
  */
 using System;
@@ -108,10 +108,11 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
             propertyScope.Restore(); materialBuckets.Restore();
             preparedBeforeCulling = false; preparedFrame = -1;
         }
-        internal void EndScope() { CancelPreparedState(); }
+        internal void EndScope() { CancelPreparedState(); Ossastra.WorldRendering.Rendering.WorldLookLegalFrameRegistry.Invalidate(camera); }
 
         public override void OnCameraSetup(CommandBuffer cmd, ref RenderingData renderingData)
         {
+            Ossastra.WorldRendering.Rendering.WorldLookLegalFrameRegistry.Invalidate(camera);
             var renderer = renderingData.cameraData.renderer;
             ConfigureTarget(renderer.cameraColorTargetHandle, renderer.cameraDepthTargetHandle);
             // 原世界和原世界深度不能继续参与许可绘制，否则隐藏物仍留下轮廓/遮挡。
@@ -387,7 +388,9 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
                         CoreUtils.SetRenderTarget(cmd, labelPermission, renderer.cameraDepthTargetHandle, ClearFlag.Color, Color.black);
                         cmd.SetGlobalInteger("_RoomSightPassMode", 0);
                         cmd.SetGlobalFloat("_RoomPositivePermissionMode", 1);
-                        foreach (var surface in frame.PositiveSurfaces) DrawTruth(cmd, surface, true);
+                        // 环境先画，人物/信息最后排除；透明角色也不能把背后的环境色当作可后处理自身。
+                        foreach (var surface in frame.PositiveSurfaces) if (surface.WorldLookEnvironment) DrawTruth(cmd, surface, true);
+                        foreach (var surface in frame.PositiveSurfaces) if (!surface.WorldLookEnvironment) DrawTruth(cmd, surface, true);
                         if (labelPermission.rt.antiAliasing > 1) cmd.ResolveAntiAliasedSurface(labelPermission.rt);
                         CoreUtils.SetRenderTarget(cmd, renderer.cameraColorTargetHandle, renderer.cameraDepthTargetHandle);
                         cmd.SetGlobalFloat("_RoomPositivePermissionMode", 0);
@@ -402,10 +405,13 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
                         Statistics.Error = "存在未支持的源材质，已保守不画；本轮渲染验收不完整。";
                 }
                 context.ExecuteCommandBuffer(cmd); complete = true;
+                if (ready && Statistics.Active && !frame.TruthMode && Statistics.UnsupportedMaterialCount == 0)
+                    Ossastra.WorldRendering.Rendering.WorldLookLegalFrameRegistry.Publish(camera, labelPermission, renderingData.cameraData.renderer.cameraDepthTargetHandle, Time.frameCount);
+                else Ossastra.WorldRendering.Rendering.WorldLookLegalFrameRegistry.Revoke(camera);
             }
             finally
             {
-                if (!complete) CancelPreparedState();
+                if (!complete) { CancelPreparedState(); Ossastra.WorldRendering.Rendering.WorldLookLegalFrameRegistry.Revoke(camera); }
                 CommandBufferPool.Release(cmd);
                 Statistics.CommandBuildMilliseconds = (System.Diagnostics.Stopwatch.GetTimestamp() - started) * 1000d / System.Diagnostics.Stopwatch.Frequency;
             }
@@ -557,6 +563,7 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
 
         void DrawTruth(CommandBuffer cmd, RoomPositiveSurface surface, bool permission = false)
         {
+            cmd.SetGlobalFloat("_RoomWorldLookEnvironment", surface.WorldLookEnvironment ? 1 : 0);
             var renderer = surface.Renderer;
             if (renderer == null || !renderer.enabled || !renderer.gameObject.activeInHierarchy || renderer.forceRenderingOff) return;
             if (RoomPositiveRenderingLayers.Classify(renderer) == 0) { ++Statistics.UnsupportedMaterialCount; return; }
@@ -612,6 +619,7 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
         { if (value != null) { if (Application.isPlaying) Object.Destroy(value); else Object.DestroyImmediate(value); } }
         public void Dispose()
         {
+            Ossastra.WorldRendering.Rendering.WorldLookLegalFrameRegistry.Revoke(camera);
             CancelPreparedState(); ClearMaterials(); propertyScope.Clear(); materialBuckets.Dispose(); fogHistory.Dispose(); Statistics.OwnedPropertyBlockCount = Statistics.OwnedBufferCount = 0; Statistics.EstimatedBufferBytes = 0; Statistics.Active = false;
             independentItems.Clear(); independentLitGroups.Clear(); slots.Clear(); used.Clear(); stale.Clear();
             Statistics.OwnedMaterialCount = materialBuckets.OwnedMaterialCount;

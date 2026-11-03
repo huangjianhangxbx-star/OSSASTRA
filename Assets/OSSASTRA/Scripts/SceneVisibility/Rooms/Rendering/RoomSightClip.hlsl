@@ -13,6 +13,8 @@ float4x4 _RoomSightOwnerMatrices[8];float4 _RoomSightOwnerExtents[8];
 sampler2D _RoomSightCoverageTexture;
 float _RoomPositiveCoverageMode;
 float _RoomPositivePermissionMode;
+// 标签许可RGB保持原合同；Alpha仅标记环境颜色可接受后处理。
+float _RoomWorldLookEnvironment;
 float4 _RoomSightTargetSize;
 float4x4 _RoomSightInverseViewProjection;
 int _RoomSightWindowCount, _RoomSightCameraBlockerCount, _RoomSightPassMode, _RoomFogHistoryCount;
@@ -43,7 +45,7 @@ float4 RoomSightTruthColor(float3 world, float4 truthColor, float partial)
     if (_RoomPositivePermissionMode > .5)
     {
         bool portal = !RoomSightSeedContains(world) && (_RoomSightExteriorView == 0 || RoomSightBuildingContains(world));
-        return float4(1, 1, portal ? 1 : 0, 1);
+        return float4(1, 1, portal ? 1 : 0, _RoomWorldLookEnvironment);
     }
     if (_RoomPositiveCoverageMode < .5) return truthColor;
     // 真值屋顶候选只消费合法室内可见片元；室外遮挡表面仍正常写黑色与深度。

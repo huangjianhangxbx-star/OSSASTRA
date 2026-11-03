@@ -156,7 +156,7 @@ namespace Ossastra.SceneVisibility.Rooms
    var ownerVolumes=new List<RoomMaskVolume>();if(ownerRoom!=null)ownerRoom.AppendMaskVolumes(ownerVolumes);
    bool staticEnvironment=IsStaticEnvironment(r);
    if(staticEnvironment&&fog!=null&&fog.Enabled&&kind==RoomPositiveSurfaceKind.Full)kind=RoomPositiveSurfaceKind.Partial;
-   positiveSurfaces.Add(new RoomPositiveSurface{Renderer=r,Kind=kind,OwnerVolumes=ownerVolumes.ToArray(),OwnerExterior=ownerExterior,IndependentDraw=presentationMembers.Contains(r),StaticEnvironment=staticEnvironment});
+   positiveSurfaces.Add(new RoomPositiveSurface{Renderer=r,Kind=kind,OwnerVolumes=ownerVolumes.ToArray(),OwnerExterior=ownerExterior,IndependentDraw=presentationMembers.Contains(r),StaticEnvironment=staticEnvironment,WorldLookEnvironment=RoomWorldLookRole.IsEnvironment(r,presentationMembers.Contains(r))});
   }
   void ApplyPositiveRegistration()
   {
