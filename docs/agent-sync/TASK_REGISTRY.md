@@ -1111,3 +1111,6 @@ Core新20/Legacy20、离线时序13、Native历史8；实景门窗10/10，真实
 
 
 2026-11-03 RENDER-INTEGRATE-01 complete/read-only：产品 961b47e963576506541edd339e398d280cc5cd6c 已推送GitHub main并独立核SHA；56自有源码/契约/文档路径，无场、媒体、真实档或其他dirty。17无用场已Native精确删除并外部SHA备份，当前主场45°/原存档路由/两Feature保存重开、缺失0；41原dirty与1328指定源/档保护通过。全部Unity/源码/文档/发布租约释放，无下一自动阶段或电源动作。原生Bokeh/地牢体积光/SSAO/RealToon专用族未冒签，详交付文档。
+
+
+2026-11-04 camera-pitch35-main complete/read-only：按用户最新指令，当前RoomLab已Native保存35度，yaw45/distance25/FOV35与原观察中心保持；saved=true/dirty=false。只改Map.pitch及GameplayCamera姿态，不改源码、渲染功能或其他场景，不做复杂测试；全部租约释放。
