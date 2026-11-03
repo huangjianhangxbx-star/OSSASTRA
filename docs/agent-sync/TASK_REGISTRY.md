@@ -1108,3 +1108,6 @@ Core新20/Legacy20、离线时序13、Native历史8；实景门窗10/10，真实
 
 
 2026-11-03 RENDER-INTEGRATE-01 technical-complete/docs-writer：同一RoomLab已增量接入环境Look，保持XH_URP3D/UniversalRenderer、Renderer15默认0与45°。复用旧Amber Light/Dungeon Light、Outdoor_BestVisual/Green A的可用数据语义；正向绘制后只消费当次合法深度与环境Alpha，人物/NPC/敌人/Spine/信息排除，原post=false。GPU7/7、MSAA8/8、快照14、桥6、控制器8、主场室内外实际feed与2RT/2材质撤销重入通过；204原Renderer材质引用保持。Native移除17无反向引用历史场并SHA外部备份，修原BuildSettings失效SampleScene2条目为当前Lab。原41dirty/1328源与存档保护；原业务存档路由已恢复，测试只新隔离档。主场Native已保存重开。所有子代理/源码/Unity租约释放，Root仅交付文档/定向GitHub；发布额外包含四份原有自有Profile/Math数据源码及meta（原SHA不改，未上传全局预览controllers/asmdef/媒体）。旧体积光、SSAO、RealToon角色材质族及原生Bokeh未冒签全套迁移。
+
+
+2026-11-03 RENDER-INTEGRATE-01 complete/read-only：产品 961b47e963576506541edd339e398d280cc5cd6c 已推送GitHub main并独立核SHA；56自有源码/契约/文档路径，无场、媒体、真实档或其他dirty。17无用场已Native精确删除并外部SHA备份，当前主场45°/原存档路由/两Feature保存重开、缺失0；41原dirty与1328指定源/档保护通过。全部Unity/源码/文档/发布租约释放，无下一自动阶段或电源动作。原生Bokeh/地牢体积光/SSAO/RealToon专用族未冒签，详交付文档。

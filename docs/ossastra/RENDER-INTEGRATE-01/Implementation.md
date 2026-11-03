@@ -16,12 +16,12 @@ RoomPositiveSurface增加独立环境角色，环境角色与黑幕静态历史�
 
 - [x] Native确认主场、3D管线、相机与构建表；保存用户当前dirty主场的独立安全副本到Assets外。
 - [x] 三项RED：环境角色未定义、Look快照未实现、环境GPUShader缺失。先运行真实契约，再写最小实现。
-- [ ] 环境角色与Alpha输出、成功帧桥；新Runtime Controller与RendererFeature并行互斥实现。
-- [ ] Native编译；运行参数/角色契约与实际GPU颜色、保护、黑幕、采样边界契约。
-- [ ] 给当前主场相机专用Renderer增加Feature，挂显式Controller引用；同场开启/关闭对照、屋内外/窗外检查；资源撤销重入、保存重开确认。
+- [x] 环境角色与Alpha输出、成功帧桥；新Runtime Controller与RendererFeature并行互斥实现。
+- [x] Native编译；运行参数/角色契约与实际GPU颜色、保护、黑幕、采样边界契约。
+- [x] 给当前主场相机专用Renderer增加Feature，挂显式Controller引用；同场开启/关闭对照、屋内外/窗外检查；资源撤销重入、保存重开确认。
 - [x] 精确17场Native GUID往返/6633序列化资产反向依赖/当前构建表/已打开场景核验通过。
-- [ ] GUID文本检索；逐文件SHA外部备份后，Native精确删除17场；不删共享素材、不夹带原31个删除。
-- [ ] 复核保护基线、定向GitHub自有源码测试文档，记录真实结果与限制，释放租约。
+- [x] GUID文本检索；逐文件SHA外部备份后，Native精确删除17场；不删共享素材、不夹带原31个删除。
+- [x] 复核保护基线、定向GitHub自有源码测试文档，记录真实结果与限制，释放租约。
 
 ## 文件边界
 
