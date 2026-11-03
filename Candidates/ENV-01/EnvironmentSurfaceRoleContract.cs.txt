@@ -1,0 +1,30 @@
+/* 功能：验证真实敌人身体不因其预警组件而免受环境光；登记信息叶保持独立排除。 */
+using System;using System.Linq;using System.Reflection;using UnityEngine;
+using Newtonsoft.Json;using Funplay.Editor.Tools.Scripting;
+public sealed class EnvironmentSurfaceRoleContract:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  var assemblies=AppDomain.CurrentDomain.GetAssemblies();
+  Func<string,Type> find=name=>assemblies.Select(a=>a.GetType(name)).First(t=>t!=null);
+  var module=find("Ossastra.SceneVisibility.Rooms.RoomVisibilityModule");
+  var classify=module.GetMethod("EnvironmentRoleFor",BindingFlags.Static|BindingFlags.NonPublic);
+  if(classify==null){ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=false,reason="Explicit environment surface role missing"});return;}
+  var enemyType=find("Ossastra.Enemies.EnemyRoot");var warningType=find("Ossastra.Enemies.EnemyAttackWarning");
+  var enemy=UnityEngine.Object.FindObjectsOfType(enemyType).Cast<MonoBehaviour>().Single();
+  var body=enemy.GetComponentsInChildren<Renderer>(true).First(r=>r.GetComponent<Spine.Unity.SkeletonRenderer>()!=null);
+  bool hasWarning=enemy.GetComponent(warningType)!=null;
+  float enemyRole=(float)classify.Invoke(null,new object[]{body,null});
+  var bindingType=find("Ossastra.SceneVisibility.Rooms.RoomPresentationBinding");GameObject own=null;bool information=false,equipment=false;string error=null;
+  try
+  {
+   own=new GameObject("ENV-01 owned role contract",typeof(MeshRenderer)){hideFlags=HideFlags.HideAndDontSave};var renderer=own.GetComponent<MeshRenderer>();var binding=own.AddComponent(bindingType);
+   var configure=bindingType.GetMethod("Configure");configure.Invoke(binding,new object[]{renderer,Vector3.zero,true,null,false,-1});
+   information=(float)classify.Invoke(null,new object[]{renderer,binding})==-1;
+   configure.Invoke(binding,new object[]{renderer,Vector3.zero,true,null,false,2});equipment=(float)classify.Invoke(null,new object[]{renderer,binding})==2;
+  }
+  catch(Exception e){error=e.ToString();}
+  finally{if(own!=null)UnityEngine.Object.DestroyImmediate(own);}
+  ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=error==null&&hasWarning&&enemyRole==2&&information&&equipment,hasWarning,enemyRole,information,equipment,error});
+ }
+}

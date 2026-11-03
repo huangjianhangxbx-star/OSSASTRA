@@ -1,0 +1,15 @@
+/* 功能：在真实主场隔离会话内通过正式接口触发天气中断实录；不另建时钟、输入或存档。 */
+using System;using System.Linq;using System.IO;using UnityEngine;using UnityEngine.SceneManagement;using UnityEngine.UI;using Newtonsoft.Json;using Funplay.Editor.Tools.Scripting;using Ossastra.EnvironmentSimulation;using Ossastra.EnvironmentSimulation.Rendering;using Ossastra.Development.Environment;
+public class EnvironmentWeatherRecordingControl:IFunplayCommand{public void Execute(ExecutionContext ctx){
+ if(!Application.isPlaying||SceneManager.GetActiveScene().path!="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity")throw new Exception("Main Play required");
+ var root=UnityEngine.Object.FindObjectsOfType<EnvironmentRoot>().Single();var commerce=UnityEngine.Object.FindObjectsOfType<Ossastra.Commerce.Runtime.CommerceService>().Single();if(commerce.profileId!="env01-runtime-isolated")throw new Exception("Save guard");var panel=root.GetComponent<EnvironmentSimulationPanel>();var sky=root.GetComponent<EnvironmentSkyBinding>();
+ string action=File.ReadAllText("E:/WORLDCREATOR/XingHaiHuiLang/研究/环境模拟/ENV-01/weather-record-request.txt").Trim();float beforeRain=root.Current.Rain;double beforeHours=root.Current.Hours;
+ if(action=="start"){
+  panel.visibility.roomModule.truthMode=false;root.sunIntensityMultiplier=1;root.ambientMultiplier=1;sky.reflectionIntensity=1;root.automaticWeather=false;root.SetClockRunning(false);root.cycleMinutes=6;root.SetTimeHours(12);root.SetManualSun(false,135,45);root.SetContribution(EnvironmentContribution.Combined);root.TransitionWeather(panel.weatherPresets.Single(p=>p.displayName=="晴"),0);
+  UnityEngine.Object.FindObjectsOfType<Ossastra.WorldRendering.WorldLookController>().Single().effects.enabled=true;panel.SetExpanded(true);
+  panel.GetComponentsInChildren<Button>(true).Single(b=>b.transform.parent.name=="ObservationLocations"&&b.name=="Button0").onClick.Invoke();panel.SetExpanded(false);
+ }else if(action=="rain")root.TransitionWeather(panel.weatherPresets.Single(p=>p.displayName=="小雨"),5);
+ else if(action=="clear")root.TransitionWeather(panel.weatherPresets.Single(p=>p.displayName=="晴"),2);
+ else if(action!="status")throw new Exception("Unknown recording action");
+ var f=root.Current;ctx.ReturnValue=JsonConvert.SerializeObject(new{action,beforeRain,beforeHours,f.Rain,f.FogDensity,progress=root.WeatherTransitionProgress,f.Hours,root.Status,position=panel.visibility.coordinator.Current.transform.position.ToString(),timeScale=Time.timeScale});
+}}

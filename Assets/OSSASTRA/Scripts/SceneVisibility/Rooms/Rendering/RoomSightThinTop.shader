@@ -1,11 +1,13 @@
 /* 功能：保留薄顶面底纹、边缘alpha与统一平面深度，仅在写颜色/深度前裁到合法观察片段。
  * 边界：不改原Shader/材质/地形高度；逻辑世界点从最终设备深度重建，与可见平面保持一致。
  * 生命周期：仅供唯一可见性根的临时适配材质绘制，源物理与Caster由原管线维护。
+ * ENV-01：原无光照表面接环境主灯/阴影；原生Lit保留原光照，仅追加房间GI系数与主灯云场，alpha/深度/许可保持。
  */
 Shader "Hidden/Ossastra/Rooms/SightThinTop"
 {
  Properties
  {
+
   [PerRendererData] _MainTex("实际Sprite纹理",2D)="white"{}
   _SecondTex("底纹",2D)="white"{}
   _WorldPeriod("世界重复周期（米）",Float)=16
@@ -27,6 +29,8 @@ Shader "Hidden/Ossastra/Rooms/SightThinTop"
    Offset 0,0
    HLSLPROGRAM
    #pragma target 4.5
+   #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE
+   #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
    #pragma vertex vert
    #pragma fragment frag
    #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
@@ -38,6 +42,7 @@ Shader "Hidden/Ossastra/Rooms/SightThinTop"
     float _DepthFactor;float _DepthUnits;
    CBUFFER_END
    #include "RoomSightClip.hlsl"
+   #include "Assets/OSSASTRA/Scripts/EnvironmentSimulation/Rendering/EnvironmentLighting.hlsl"
    struct A{float4 positionOS:POSITION;float2 uv:TEXCOORD0;float4 color:COLOR;};
    struct V
    {
@@ -81,14 +86,16 @@ Shader "Hidden/Ossastra/Rooms/SightThinTop"
    {
     float deviceDepth=UnifiedPlaneDeviceDepth(input.positionCS.xy,input.planeYWS);
     float3 logicalWorld=RoomSightWorldFromDeviceDepth(input.positionCS.xy,deviceDepth);
-    clip(RoomSightPartialContains(logicalWorld)?1:-1);
+    if(_EnvironmentFullSurface<.5)clip(RoomSightPartialContains(logicalWorld)?1:-1);
     clip(input.world.x-_GroundBounds.x);clip(input.world.z-_GroundBounds.y);
     clip(_GroundBounds.z-input.world.x);clip(_GroundBounds.w-input.world.z);
     half mask=SAMPLE_TEXTURE2D(_MainTex,sampler_MainTex,input.uv).a;
     mask=lerp(mask,1,saturate(_BaseCoverage));clip(mask*input.color.a-_Cutoff);
     half3 detail=SAMPLE_TEXTURE2D(_SecondTex,sampler_SecondTex,input.world.xz/max(_WorldPeriod,.0001)).rgb;
     FragmentOutput output;
-    output.color=RoomSightFogColor(half4(lerp(detail,mask.xxx,saturate(_DebugMask))*input.color.rgb,1),logicalWorld,0);
+    half3 surface=lerp(detail,mask.xxx,saturate(_DebugMask))*input.color.rgb;
+    if(_DebugMask<.5&&EnvironmentCanShadeWorld(logicalWorld))surface=EnvironmentShade(surface,logicalWorld,float3(0,1,0),_EnvironmentSurfaceRole);
+    output.color=EnvironmentFogColor(half4(surface,1),logicalWorld,0);
     output.depth=deviceDepth;return output;
    }
    ENDHLSL

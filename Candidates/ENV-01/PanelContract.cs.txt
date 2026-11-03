@@ -1,0 +1,53 @@
+/* 功能：通过真实uGUI事件验证环境面板只捕获自己的输入、关闭后释放，控件实际驱动环境根。
+ * 边界：Root在已装配主场Play中运行；不移动角色或改存档，finally还原时刻、展开和启用状态。
+ */
+using System;using System.Linq;using System.Reflection;using UnityEngine;using UnityEngine.EventSystems;
+using Newtonsoft.Json;using Funplay.Editor.Tools.Scripting;
+public sealed class EnvironmentPanelContract:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  var type=AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType("Ossastra.Development.Environment.EnvironmentSimulationPanel")).FirstOrDefault(t=>t!=null);
+  if(type==null){ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=false,stage="RED",reason="Environment panel/input ownership missing"});return;}
+  if(!Application.isPlaying)throw new Exception("Configured main Play required for panel contract");
+  var panel=UnityEngine.Object.FindObjectsOfType(type).Cast<MonoBehaviour>().Single();
+  var root=type.GetField("environment").GetValue(panel);if(root==null)throw new Exception("Missing explicit EnvironmentRoot");
+  var rootType=root.GetType();var oldHour=(double)rootType.GetField("timeHours").GetValue(root);
+  bool oldExpanded=(bool)type.GetProperty("Expanded").GetValue(panel),oldEnabled=panel.enabled;
+  var visibility=type.GetField("visibility").GetValue(panel);var coordinator=visibility.GetType().GetField("coordinator").GetValue(visibility);
+  var map=type.GetField("map").GetValue(panel);var coordinatorType=coordinator.GetType();var mapType=map.GetType();
+  var actorCaptures=(System.Collections.Generic.HashSet<object>)coordinatorType.GetField("inputCaptures",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(coordinator);
+  var cameraCaptures=(System.Collections.Generic.HashSet<object>)mapType.GetField("uiCameraCaptures",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(map);
+  var foreignOwner=new object();coordinatorType.GetMethod("SetInputCapture").Invoke(coordinator,new object[]{foreignOwner,true});mapType.GetMethod("SetUiCameraCapture").Invoke(map,new object[]{foreignOwner,true});
+  var oldSelected=EventSystem.current.currentSelectedGameObject;
+  float timeScale=Time.timeScale;bool captured=false,released=false,slider=false,disabled=false,ownerAdded=false,ownerReleased=false,foreignPreserved=false,keyboardFocus=false,keyboardReleased=false;string error=null;
+  try
+  {
+   panel.enabled=true;type.GetMethod("SetExpanded").Invoke(panel,new object[]{true});
+   var surface=(RectTransform)type.GetProperty("Surface").GetValue(panel);
+   var pointer=new PointerEventData(EventSystem.current){pointerId=-999};
+   ExecuteEvents.Execute(surface.gameObject,pointer,ExecuteEvents.pointerEnterHandler);
+   captured=(bool)type.GetProperty("IsCapturingInput").GetValue(panel);
+   ownerAdded=actorCaptures.Contains(panel)&&cameraCaptures.Contains(panel);
+   ExecuteEvents.Execute(surface.gameObject,pointer,ExecuteEvents.pointerExitHandler);
+   released=!(bool)type.GetProperty("IsCapturingInput").GetValue(panel);
+   ownerReleased=!actorCaptures.Contains(panel)&&!cameraCaptures.Contains(panel);
+   foreignPreserved=actorCaptures.Contains(foreignOwner)&&cameraCaptures.Contains(foreignOwner);
+   var hours=panel.GetComponentsInChildren<UnityEngine.UI.Slider>(true).Single(s=>s.name=="TimeHoursSlider");
+   hours.value=7.25f;slider=Math.Abs((double)rootType.GetField("timeHours").GetValue(root)-7.25)<.001;
+   EventSystem.current.SetSelectedGameObject(hours.gameObject);keyboardFocus=actorCaptures.Contains(panel)&&cameraCaptures.Contains(panel);
+   EventSystem.current.SetSelectedGameObject(null);keyboardReleased=!actorCaptures.Contains(panel)&&!cameraCaptures.Contains(panel);
+   ExecuteEvents.Execute(surface.gameObject,pointer,ExecuteEvents.pointerEnterHandler);
+   panel.enabled=false;disabled=!(bool)type.GetProperty("IsCapturingInput").GetValue(panel);
+  }
+  catch(Exception e){error=e.ToString();}
+  finally
+  {
+   rootType.GetMethod("SetTimeHours").Invoke(root,new object[]{oldHour});
+   coordinatorType.GetMethod("SetInputCapture").Invoke(coordinator,new object[]{foreignOwner,false});mapType.GetMethod("SetUiCameraCapture").Invoke(map,new object[]{foreignOwner,false});
+   panel.enabled=oldEnabled;type.GetMethod("SetExpanded").Invoke(panel,new object[]{oldExpanded});
+   if(EventSystem.current!=null)EventSystem.current.SetSelectedGameObject(oldSelected);
+  }
+  ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=error==null&&captured&&released&&ownerAdded&&ownerReleased&&foreignPreserved&&keyboardFocus&&keyboardReleased&&slider&&disabled&&Time.timeScale==timeScale,captured,released,ownerAdded,ownerReleased,foreignPreserved,keyboardFocus,keyboardReleased,slider,disabled,timeScaleUnchanged=Time.timeScale==timeScale,error});
+ }
+}

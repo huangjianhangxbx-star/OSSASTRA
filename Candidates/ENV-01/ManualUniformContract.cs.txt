@@ -1,0 +1,57 @@
+/* 功能：真实独立DrawMesh不写MPB/材质元数据，只用cmd对应全局参数验证逐draw覆盖优先级。
+ * 边界：不修改生产场景/灯/资产；私有纹理、材质、网格与RT在finally释放，借用全局值精确恢复。
+ */
+using System;using System.Linq;using System.Collections.Generic;using UnityEngine;using UnityEngine.Rendering;using UnityEditor;using Newtonsoft.Json;using Funplay.Editor.Tools.Scripting;
+public class EnvironmentManualUniformContract:IFunplayCommand
+{
+ static Color Draw(Material material,Mesh mesh,RenderTexture output,Texture2D read)
+ {
+  var cmd=new CommandBuffer{name="Owned environment lighting GPU contract"};
+  try{cmd.SetRenderTarget(output);cmd.SetViewport(new Rect(0,0,output.width,output.height));cmd.ClearRenderTarget(false,true,Color.clear);cmd.SetViewProjectionMatrices(Matrix4x4.identity,Matrix4x4.identity);cmd.DrawMesh(mesh,Matrix4x4.identity,material,0,1);Graphics.ExecuteCommandBuffer(cmd);}finally{cmd.Release();}
+  RenderTexture.active=output;read.ReadPixels(new Rect(0,0,output.width,output.height),0,0);read.Apply();return read.GetPixel(output.width/2,output.height/2);
+ }
+ static Color DrawRenderer(Renderer renderer,Material material,RenderTexture output,Texture2D read)
+ {
+  var cmd=new CommandBuffer{name="Owned MPB uniform GPU contract"};
+  try{cmd.SetRenderTarget(output);cmd.SetViewport(new Rect(0,0,output.width,output.height));cmd.ClearRenderTarget(false,true,Color.clear);cmd.SetViewProjectionMatrices(Matrix4x4.identity,Matrix4x4.identity);cmd.DrawRenderer(renderer,material,0,1);Graphics.ExecuteCommandBuffer(cmd);}finally{cmd.Release();}
+  RenderTexture.active=output;read.ReadPixels(new Rect(0,0,output.width,output.height),0,0);read.Apply();return read.GetPixel(output.width/2,output.height/2);
+ }
+ public void Execute(ExecutionContext ctx)
+ {
+  if(Application.dataPath!="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets")throw new Exception("Project guard");
+  var shader=Shader.Find("Hidden/Ossastra/Rooms/SightDepthPlane");if(shader==null)throw new Exception("Existing ground shader missing");
+  var scalarNames=new[]{"_EnvironmentLightingEnabled","_EnvironmentIndoorAmbientScale","_EnvironmentWetness","_RoomSightStaticEnvironment","_EnvironmentFullSurface","_EnvironmentSurfaceRole","_EnvironmentResponseOverride","_EnvironmentReceiveShadow","_EnvironmentMinimumOverride"};
+  var integerNames=new[]{"_EnvironmentIndoorCount","_EnvironmentLocalLightCount","_RoomSightOwnerCount","_RoomSightOwnerExterior","_RoomSightSeedCount","_RoomSightBuildingCount","_RoomSightDomainCount","_RoomSightBlockerCount","_RoomSightWindowCount","_RoomSightCameraBlockerCount","_RoomSightExteriorView","_RoomSightPassMode"};
+  var vectorNames=new[]{"_EnvironmentSkyAmbient","_EnvironmentHorizonAmbient","_EnvironmentGroundAmbient","_EnvironmentLightResponse","_EnvironmentCloudParameters","_EnvironmentCloudMotion","_MainLightPosition","_MainLightColor","_RoomSightTargetSize"};
+  var scalars=scalarNames.ToDictionary(n=>n,n=>Shader.GetGlobalFloat(n));var integers=integerNames.ToDictionary(n=>n,n=>Shader.GetGlobalInteger(n));var vectors=vectorNames.ToDictionary(n=>n,n=>Shader.GetGlobalVector(n));var inverse=Shader.GetGlobalMatrix("_RoomSightInverseViewProjection");
+  GameObject drawOwner=null;var previous=RenderTexture.active;var texture=new Texture2D(2,2,TextureFormat.RGBAFloat,false,true);var mat=new Material(shader);var mesh=new Mesh();var rt=new RenderTexture(16,16,0,RenderTextureFormat.ARGBFloat,RenderTextureReadWrite.Linear);var read=new Texture2D(16,16,TextureFormat.RGBAFloat,false,true);
+  try
+  {
+   foreach(string n in scalarNames)Shader.SetGlobalFloat(n,0);foreach(string n in integerNames)Shader.SetGlobalInteger(n,0);Shader.SetGlobalInteger("_RoomSightExteriorView",1);Shader.SetGlobalMatrix("_RoomSightInverseViewProjection",Matrix4x4.identity);Shader.SetGlobalVector("_RoomSightTargetSize",new Vector4(16,16,1f/16,1f/16));
+   texture.SetPixels(Enumerable.Repeat(new Color(.5f,.5f,.5f,1),4).ToArray());texture.Apply();mat.SetTexture("_MainTex",texture);mat.SetFloat("_PmaInput",0);
+   mesh.vertices=new[]{new Vector3(-1,-1,.5f),new Vector3(3,-1,.5f),new Vector3(-1,3,.5f)};mesh.triangles=new[]{0,1,2};mesh.uv=new[]{Vector2.zero,Vector2.right*2,Vector2.up*2};mesh.colors=new[]{Color.white,Color.white,Color.white};mesh.RecalculateBounds();rt.Create();
+   Shader.SetGlobalFloat("_EnvironmentLightingEnabled",1);Shader.SetGlobalVector("_EnvironmentLightResponse",new Vector4(1,.7f,.7f,.12f));Shader.SetGlobalFloat("_EnvironmentIndoorAmbientScale",.2f);Shader.SetGlobalVector("_EnvironmentCloudParameters",Vector4.zero);Shader.SetGlobalVector("_EnvironmentCloudMotion",Vector4.zero);Shader.SetGlobalVector("_MainLightPosition",new Vector4(0,1,0,0));Shader.SetGlobalVector("_MainLightColor",Vector4.zero);
+   foreach(string n in new[]{"_EnvironmentSkyAmbient","_EnvironmentHorizonAmbient","_EnvironmentGroundAmbient"})Shader.SetGlobalVector(n,new Vector4(.2f,.2f,.2f,1));
+   Shader.SetGlobalVector("_EnvironmentLightResponse",new Vector4(1,1,1,0));Shader.SetGlobalFloat("_EnvironmentResponseOverride",1);Shader.SetGlobalFloat("_EnvironmentReceiveShadow",1);var shaded=Draw(mat,mesh,rt,read);
+   Shader.SetGlobalFloat("_EnvironmentResponseOverride",0);var globalResponse=Draw(mat,mesh,rt,read);
+   Shader.SetGlobalFloat("_EnvironmentResponseOverride",1);Shader.SetGlobalFloat("_EnvironmentSurfaceRole",-1);var globalRole=Draw(mat,mesh,rt,read);
+   Shader.SetGlobalFloat("_EnvironmentSurfaceRole",0);Shader.SetGlobalFloat("_EnvironmentMinimumOverride",.8f);var globalMinimum=Draw(mat,mesh,rt,read);Shader.SetGlobalFloat("_EnvironmentMinimumOverride",0);
+   Shader.SetGlobalInteger("_RoomSightExteriorView",0);Shader.SetGlobalFloat("_EnvironmentFullSurface",1);var globalFull=Draw(mat,mesh,rt,read);
+   // 唯一临时Renderer只在本次同步GPU合同存活，不接入主场景业务或注册表。
+   drawOwner=new GameObject("Owned environment MPB contract"){hideFlags=HideFlags.HideAndDontSave};drawOwner.AddComponent<MeshFilter>().sharedMesh=mesh;var renderer=drawOwner.AddComponent<MeshRenderer>();renderer.sharedMaterial=mat;
+   var block=new MaterialPropertyBlock();block.SetFloat("_EnvironmentFullSurface",1);block.SetFloat("_EnvironmentSurfaceRole",0);block.SetFloat("_EnvironmentResponseOverride",0);block.SetFloat("_EnvironmentReceiveShadow",1);block.SetFloat("_EnvironmentMinimumOverride",0);renderer.SetPropertyBlock(block);var mpbResponse=DrawRenderer(renderer,mat,rt,read);
+   block.SetFloat("_EnvironmentResponseOverride",1);block.SetFloat("_EnvironmentSurfaceRole",-1);renderer.SetPropertyBlock(block);var mpbRole=DrawRenderer(renderer,mat,rt,read);
+   block.SetFloat("_EnvironmentSurfaceRole",0);block.SetFloat("_EnvironmentMinimumOverride",.8f);renderer.SetPropertyBlock(block);var mpbMinimum=DrawRenderer(renderer,mat,rt,read);
+   block.SetFloat("_EnvironmentMinimumOverride",0);block.SetFloat("_EnvironmentFullSurface",0);renderer.SetPropertyBlock(block);var mpbPartial=DrawRenderer(renderer,mat,rt,read);
+   block.SetFloat("_EnvironmentFullSurface",1);renderer.SetPropertyBlock(block);var mpbFull=DrawRenderer(renderer,mat,rt,read);
+   bool mpbResponseWorks=Mathf.Abs(mpbResponse.r-.5f)<.01f,mpbRoleWorks=Mathf.Abs(mpbRole.r-.5f)<.01f,mpbMinimumWorks=mpbMinimum.r>.35f,mpbFullWorks=mpbPartial.r<.001f&&mpbFull.r>.04f;
+   bool validFixture=shaded.r>.04f&&shaded.r<.2f,response=Mathf.Abs(globalResponse.r-.5f)<.01f,role=Mathf.Abs(globalRole.r-.5f)<.01f,minimum=globalMinimum.r>.35f,full=globalFull.r>.04f;
+   ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=validFixture&&response&&role&&minimum&&full&&mpbResponseWorks&&mpbRoleWorks&&mpbMinimumWorks&&mpbFullWorks,mpbResponseWorks,mpbRoleWorks,mpbMinimumWorks,mpbFullWorks,mpbResponse=mpbResponse.ToString(),mpbRole=mpbRole.ToString(),mpbMinimum=mpbMinimum.ToString(),mpbPartial=mpbPartial.ToString(),mpbFull=mpbFull.ToString(),validFixture,response,role,minimum,full,shaded=shaded.ToString(),globalResponse=globalResponse.ToString(),globalRole=globalRole.ToString(),globalMinimum=globalMinimum.ToString(),globalFull=globalFull.ToString(),messages=ShaderUtil.GetShaderMessages(shader).Select(m=>m.message).ToArray()});
+  }
+  finally
+  {
+   if(drawOwner!=null)UnityEngine.Object.DestroyImmediate(drawOwner);
+   foreach(var p in scalars)Shader.SetGlobalFloat(p.Key,p.Value);foreach(var p in integers)Shader.SetGlobalInteger(p.Key,p.Value);foreach(var p in vectors)Shader.SetGlobalVector(p.Key,p.Value);Shader.SetGlobalMatrix("_RoomSightInverseViewProjection",inverse);RenderTexture.active=previous;rt.Release();foreach(var o in new UnityEngine.Object[]{mat,texture,mesh,rt,read})UnityEngine.Object.DestroyImmediate(o);
+  }
+ }
+}

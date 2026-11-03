@@ -1,0 +1,33 @@
+/* 功能：在隔离存档的主场Play内设置同机位环境对照；请求数据与结果均留外部研究目录。
+ * 边界：不写源档/材质/原存档、不改TimeScale；试验位移只作用于本轮隔离会话。
+ */
+using System;using System.Linq;using System.IO;using UnityEngine;using UnityEngine.SceneManagement;using Newtonsoft.Json;using Newtonsoft.Json.Linq;using Funplay.Editor.Tools.Scripting;using Ossastra.EnvironmentSimulation;using Ossastra.EnvironmentSimulation.Rendering;using Ossastra.SceneVisibility.Rooms.Rendering;
+public class EnvironmentSetView:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  if(!Application.isPlaying||SceneManager.GetActiveScene().path!="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity")throw new Exception("Isolated main Play required");
+  const string archive="E:/WORLDCREATOR/XingHaiHuiLang/研究/环境模拟/ENV-01";var request=JObject.Parse(File.ReadAllText(archive+"/view-request.json"));
+  var roots=SceneManager.GetActiveScene().GetRootGameObjects();var monos=roots.SelectMany(r=>r.GetComponentsInChildren<MonoBehaviour>(true)).Where(x=>x!=null).ToArray();
+  var root=monos.OfType<EnvironmentRoot>().Single();var sight=monos.OfType<Ossastra.SceneVisibility.SceneVisibilityRoot>().Single();var commerce=monos.OfType<Ossastra.Commerce.Runtime.CommerceService>().Single();
+  if(commerce.profileId!="env01-runtime-isolated"||commerce.saveDirectory!=archive+"/profiles")throw new Exception("Original save route must never be used for rendering tests");
+  if(request["location"]!=null)
+  {
+   var actor=sight.coordinator.Current;if(actor==null)throw new Exception("No current actor");string location=(string)request["location"];
+   Vector3 point=location=="observation"?new Vector3(24,.1f,-9):location=="terrain-shadow"?new Vector3(26,.1f,-16):location=="room-a"?new Vector3(-16,.15f,-12):location=="outside"?new Vector3(-16,.1f,-19):actor.transform.position;
+   actor.transform.position=point;Physics.SyncTransforms();
+  }
+  sight.roomModule.truthMode=false;
+  root.effectsEnabled=true;root.SetClockRunning(false);
+  root.shadowStrength=request["shadowStrength"]!=null?(float)request["shadowStrength"]:.85f;
+  if(request["worldLook"]!=null){var look=monos.OfType<Ossastra.WorldRendering.WorldLookController>().Single();look.effects.enabled=(bool)request["worldLook"];}
+  if(request["weather"]!=null){var preset=root.GetComponent<Ossastra.Development.Environment.EnvironmentSimulationPanel>().weatherPresets.Single(p=>p.displayName==(string)request["weather"]);root.TransitionWeather(preset,0);}
+  if(request["time"]!=null)root.SetTimeHours((double)request["time"]);
+  if(request["sunAzimuth"]!=null)root.SetManualSun(true,(float)request["sunAzimuth"],(float)request["sunElevation"]);else root.SetManualSun(false,root.sunAzimuthDegrees,root.sunElevationDegrees);
+  if(request["contribution"]!=null)root.SetContribution((EnvironmentContribution)Enum.Parse(typeof(EnvironmentContribution),(string)request["contribution"]));else root.SetContribution(EnvironmentContribution.Combined);
+  root.GetComponent<Ossastra.Development.Environment.EnvironmentSimulationPanel>().SetExpanded(request["panel"]!=null&&(bool)request["panel"]);
+  root.RefreshNow();var frame=root.Current;
+  RoomMaskStatistics statistics;Ossastra.SceneVisibility.Rooms.Rendering.RoomMaskCameraRegistry.TryGetStatistics(root.gameplayCamera,out statistics);
+  ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=frame!=null,frame.Hours,frame.WeatherName,frame.SunIntensity,frame.NightFactor,sun=frame.SunDirection.ToString(),frame.Rain,frame.FogDensity,position=sight.coordinator.Current.transform.position.ToString(),root.Status,sky=root.GetComponent<EnvironmentSkyBinding>().Status,statistics=statistics==null?null:new{statistics.Active,statistics.Error,statistics.UnsupportedMaterialCount,statistics.OwnedTextureCount,statistics.OwnedMaterialCount},timeScale=Time.timeScale});
+ }
+}

@@ -1,0 +1,41 @@
+/* 功能：实际无碰撞叶片随环境风摆动，登记释放/Original/禁用精确恢复；不保存场景。
+ * RED：尚无EnvironmentVegetationWind时明确失败；实现后通过公开RefreshNow读取真实Frame，不假造计时或风。
+ */
+using System;
+using System.Linq;
+using System.Reflection;
+using System.Collections.Generic;
+using UnityEngine;
+using Newtonsoft.Json;
+using Funplay.Editor.Tools.Scripting;
+public class EnvironmentVegetationWindContract:IFunplayCommand
+{
+ static Type Find(string name)=>AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType("Ossastra.EnvironmentSimulation."+name)).FirstOrDefault(t=>t!=null);
+ static void Set(object o,string name,object value)=>o.GetType().GetField(name).SetValue(o,value);
+ static object Call(object o,string name,params object[] args)=>o.GetType().GetMethod(name).Invoke(o,args);
+ public void Execute(ExecutionContext ctx)
+ {
+  var windType=Find("EnvironmentVegetationWind");if(windType==null){ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=false,stage="RED",reason="explicit foliage wind receiver not implemented"});return;}
+  var checks=new List<object>();var owned=new List<UnityEngine.Object>();var disabled=new List<Behaviour>();bool all=true;float timeScale=Time.timeScale;
+  Action<bool,string> need=(pass,name)=>{checks.Add(new{name,pass});all&=pass;};
+  try
+  {
+   foreach(var b in UnityEngine.Object.FindObjectsOfType(Find("EnvironmentRoot")).Cast<Behaviour>())if(b.enabled){disabled.Add(b);b.enabled=false;}
+   var rootGo=new GameObject("Owned_WindEnvironment");owned.Add(rootGo);rootGo.SetActive(false);var camera=rootGo.AddComponent<Camera>();camera.enabled=false;var root=rootGo.AddComponent(Find("EnvironmentRoot"));
+   var day=ScriptableObject.CreateInstance(Find("DayCycleProfileSO"));var weather=ScriptableObject.CreateInstance(Find("WeatherProfileSO"));owned.Add(day);owned.Add(weather);Set(weather,"windSpeed",2f);Set(weather,"windYawDegrees",30f);Set(root,"gameplayCamera",camera);Set(root,"dayCycle",day);Set(root,"initialWeather",weather);Set(root,"previewInEditMode",true);
+   var group=new GameObject("Owned_WindLeaves");owned.Add(group);group.SetActive(false);var leafGo=new GameObject("Owned_Leaf");leafGo.transform.SetParent(group.transform,false);leafGo.transform.localRotation=Quaternion.Euler(2,3,4);var leaf=leafGo.transform;var before=leaf.localRotation;var beforePosition=leaf.localPosition;var beforeScale=leaf.localScale;var groupBefore=group.transform.localRotation;
+   var wind=(Behaviour)group.AddComponent(windType);Set(wind,"environment",root);Set(wind,"foliage",new[]{leaf});Set(wind,"maxBendDegrees",5f);rootGo.SetActive(true);group.SetActive(true);Call(root,"Advance",.75d);Call(wind,"RefreshNow");
+   float angle=Quaternion.Angle(before,leaf.localRotation);need(angle>.05f&&angle<=5.001f,"Nonzero frame wind produces real bounded leaf rotation");
+   need(leaf.localPosition==beforePosition&&leaf.localScale==beforeScale&&group.transform.localRotation==groupBefore,"Wind never moves leaf position scale or owner root");
+   wind.enabled=false;need(leaf.localRotation==before,"Receiver disable restores exact original local rotation");wind.enabled=true;Call(wind,"RefreshNow");
+   Call(root,"SetContribution",Enum.Parse(Find("EnvironmentContribution"),"Original"));need(leaf.localRotation==before,"Original contribution restores immediately without waiting Update");
+   Call(root,"SetContribution",Enum.Parse(Find("EnvironmentContribution"),"Combined"));Call(wind,"RefreshNow");((Behaviour)root).enabled=false;need(leaf.localRotation==before,"Environment root disable restores immediately through registry release");((Behaviour)root).enabled=true;Call(wind,"RefreshNow");
+   Find("EnvironmentCameraRegistry").GetMethod("Reset",BindingFlags.Static|BindingFlags.NonPublic).Invoke(null,null);need(leaf.localRotation==before,"Subsystem registry reset restores surviving receiver immediately");Call(root,"RefreshNow");Call(wind,"RefreshNow");
+   var unsafeGo=new GameObject("Owned_ColliderLeaf");unsafeGo.transform.SetParent(group.transform,false);unsafeGo.AddComponent<BoxCollider>();var unsafeBefore=unsafeGo.transform.localRotation;Set(wind,"foliage",new[]{unsafeGo.transform});Call(root,"Advance",.3d);Call(wind,"RefreshNow");need(unsafeGo.transform.localRotation==unsafeBefore&&leaf.localRotation==before,"Collider foliage is rejected and previous leaf lease restored");
+   var outside=new GameObject("Owned_OutsideScope");owned.Add(outside);var outsideBefore=outside.transform.localRotation;Set(wind,"foliage",new[]{outside.transform});Call(wind,"RefreshNow");need(outside.transform.localRotation==outsideBefore,"Receiver cannot rotate another root outside its own subtree");
+   need(Time.timeScale==timeScale,"Wind leaves gameplay time scale unchanged");ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=all,checks});
+  }
+  catch(Exception e){ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=false,error=e.ToString(),checks});}
+  finally{foreach(var o in owned)if(o!=null)UnityEngine.Object.DestroyImmediate(o);foreach(var b in disabled)if(b!=null)b.enabled=true;}
+ }
+}

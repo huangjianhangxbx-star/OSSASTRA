@@ -1,0 +1,39 @@
+/* 功能：定向验证环境贡献快照的太阳/底光/方向补光/云开关；不推断原生Lit或角色表现。
+ * 使用未激活暂态Root与配置，不借用灯光、不登记相机、不修改原场景或Profile。
+ */
+using System;
+using System.Linq;
+using System.Collections.Generic;
+using UnityEngine;
+using Newtonsoft.Json;
+using Funplay.Editor.Tools.Scripting;
+public class EnvironmentContributionContract:IFunplayCommand
+{
+ static Type T(string name)=>AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType("Ossastra.EnvironmentSimulation."+name)).First(t=>t!=null);
+ static void Set(object o,string name,object value)=>o.GetType().GetField(name).SetValue(o,value);
+ static object Get(object o,string name)=>o.GetType().GetProperty(name).GetValue(o);
+ static object Call(object o,string name,params object[] args)=>o.GetType().GetMethod(name).Invoke(o,args);
+ static float Number(object frame,string name)=>(float)Get(frame,name);
+ public void Execute(ExecutionContext ctx)
+ {
+  var owned=new List<UnityEngine.Object>();var checks=new List<object>();bool all=true;Action<bool,string> need=(pass,name)=>{checks.Add(new{name,pass});all&=pass;};
+  try
+  {
+   var go=new GameObject("Owned_ContributionFrameContract");owned.Add(go);go.SetActive(false);var camera=go.AddComponent<Camera>();camera.enabled=false;var root=go.AddComponent(T("EnvironmentRoot"));
+   var day=ScriptableObject.CreateInstance(T("DayCycleProfileSO"));var weather=ScriptableObject.CreateInstance(T("WeatherProfileSO"));owned.Add(day);owned.Add(weather);Set(day,"dayFillIntensity",.3f);Set(weather,"cloudCoverage",.6f);Set(weather,"cloudShadowStrength",.4f);Set(root,"dayCycle",day);Set(root,"initialWeather",weather);Set(root,"gameplayCamera",camera);Call(root,"SetTimeHours",12d);
+   var contribution=T("EnvironmentContribution");Call(root,"SetContribution",Enum.Parse(contribution,"SunOnly"));var sun=Get(root,"Current");
+   need(Number(sun,"SunIntensity")>0,"SunOnly retains direct sunlight");
+   need(Number(sun,"AmbientIntensity")==0,"SunOnly removes ambient contribution");
+   need(Number(sun,"FillIntensity")==0,"SunOnly removes directional fill");
+   need(Number(sun,"CloudCoverage")==0&&Number(sun,"CloudShadowStrength")==0,"SunOnly removes cloud coverage and shadow");
+   Call(root,"SetContribution",Enum.Parse(contribution,"AmbientOnly"));var ambient=Get(root,"Current");
+   need(Number(ambient,"SunIntensity")==0&&Number(ambient,"MoonIntensity")==0,"AmbientOnly removes sun and moon direct light");
+   need(Number(ambient,"FillIntensity")==0,"AmbientOnly removes directional fill");
+   need(Number(ambient,"AmbientIntensity")>0,"AmbientOnly retains ambient contribution");
+   Call(root,"SetContribution",Enum.Parse(contribution,"Original"));need(!(bool)Get(Get(root,"Current"),"Enabled"),"Original disables environment frame");
+   ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=all,checks});
+  }
+  catch(Exception e){ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=false,error=e.ToString(),checks});}
+  finally{foreach(var item in owned)if(item!=null)UnityEngine.Object.DestroyImmediate(item);}
+ }
+}

@@ -1,0 +1,26 @@
+/* 功能：验证环境面板展开借用旧诊断可见性，折叠/禁用归还；旧诊断原本关闭不能被擅自打开。 */
+using System;using System.Linq;using System.Reflection;using UnityEngine;
+using Newtonsoft.Json;using Funplay.Editor.Tools.Scripting;
+public sealed class EnvironmentPanelDiagnosticsContract:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  var type=AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType("Ossastra.Development.Environment.EnvironmentSimulationPanel")).First(t=>t!=null);
+  var field=type.GetField("legacyDiagnostics");
+  if(field==null){ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=false,stage="RED",reason="Environment panel does not lease overlapping legacy diagnostics visibility"});return;}
+  if(!Application.isPlaying)throw new InvalidOperationException("Current main Play required");
+  var panel=UnityEngine.Object.FindObjectsOfType(type).Cast<MonoBehaviour>().Single();var legacy=field.GetValue(panel);if(legacy==null)throw new InvalidOperationException("Explicit legacy diagnostics missing");
+  var show=legacy.GetType().GetField("showPanel");var expand=type.GetMethod("SetExpanded");bool oldExpanded=(bool)type.GetProperty("Expanded").GetValue(panel),oldEnabled=panel.enabled;
+  expand.Invoke(panel,new object[]{false});bool oldShow=(bool)show.GetValue(legacy);bool hidden=false,collapsedRestored=false,disabledRestored=false,falsePreserved=false;string error=null;
+  try
+  {
+   panel.enabled=true;show.SetValue(legacy,true);expand.Invoke(panel,new object[]{true});hidden=!(bool)show.GetValue(legacy);
+   expand.Invoke(panel,new object[]{false});collapsedRestored=(bool)show.GetValue(legacy);
+   expand.Invoke(panel,new object[]{true});panel.enabled=false;disabledRestored=(bool)show.GetValue(legacy);
+   panel.enabled=true;expand.Invoke(panel,new object[]{false});show.SetValue(legacy,false);expand.Invoke(panel,new object[]{true});expand.Invoke(panel,new object[]{false});falsePreserved=!(bool)show.GetValue(legacy);
+  }
+  catch(Exception e){error=e.ToString();}
+  finally{expand.Invoke(panel,new object[]{false});show.SetValue(legacy,oldShow);panel.enabled=oldEnabled;expand.Invoke(panel,new object[]{oldExpanded});}
+  ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=error==null&&hidden&&collapsedRestored&&disabledRestored&&falsePreserved,hidden,collapsedRestored,disabledRestored,falsePreserved,error});
+ }
+}

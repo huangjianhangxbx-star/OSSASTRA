@@ -6,6 +6,7 @@
 using Ossastra.SceneVisibility;
 using Ossastra.SceneVisibility.Rooms;
 using Ossastra.SceneVisibility.Rooms.Rendering;
+using Ossastra.EnvironmentSimulation;
 using UnityEngine;
 using XingHai.T7B;
 using XingHai.T7C1;
@@ -30,6 +31,8 @@ namespace Ossastra.WorldRendering
         public RegionalLookProfile interiorPalette;
         [Header("独立贡献开关；主开关关闭即原世界显示")]
         public WorldLookEffectOptions effects = new WorldLookEffectOptions();
+        [Header("同相机昼夜适应；天气空气仅室外，室内保留原空气")]
+        public bool useEnvironmentWeather = true;
 
         public WorldLookSettings Current { get; private set; }
         public bool Exterior { get; private set; }
@@ -40,7 +43,24 @@ namespace Ossastra.WorldRendering
         void OnEnable()
         {
             if (!subscribed)
-            { RoomMaskCameraRegistry.FramePublished += OnFramePublished; subscribed = true; }
+            {
+                RoomMaskCameraRegistry.FramePublished += OnFramePublished;
+                EnvironmentCameraRegistry.Published += OnEnvironmentPublished;
+                EnvironmentCameraRegistry.Released += OnEnvironmentReleased;
+                subscribed = true;
+            }
+        }
+
+        void OnEnvironmentPublished(Camera camera)
+        {
+            if (camera == gameplayCamera) OnFramePublished(camera);
+        }
+
+        void OnEnvironmentReleased(int cameraId)
+        {
+            // 子系统清空不一定仍有可用Camera参数；撤权后立即用原静态档重建，不能残留上一天气。
+            if (gameplayCamera != null && gameplayCamera.GetInstanceID() == cameraId)
+                OnFramePublished(gameplayCamera);
         }
 
         void OnFramePublished(Camera camera)
@@ -56,15 +76,17 @@ namespace Ossastra.WorldRendering
             { ReleaseBoundCamera(); Status = "房间帧失效；已撤销环境 Look"; return; }
 
             Exterior = frame.ExteriorView;
+            EnvironmentFrame environment = null;
+            EnvironmentCameraRegistry.TryGet(camera, out environment);
             var settings = WorldLookSettings.Build(camera, frame.ObserverPosition,
                 Exterior ? outdoorPresentation : interiorPresentation,
                 Exterior ? outdoorAtmosphere : interiorAtmosphere,
-                Exterior ? outdoorPalette : interiorPalette, effects);
+                Exterior ? outdoorPalette : interiorPalette, effects, environment, Exterior && useEnvironmentWeather);
             if (!settings.Enabled)
             { ReleaseBoundCamera(); Status = "环境 Look 已关闭"; return; }
             WorldLookCameraRegistry.Publish(this, camera, settings);
             boundCamera = camera; Current = settings;
-            Status = Exterior ? "室外 Look；原房间许可保持" : "室内 Look；原房间许可保持";
+            Status = Exterior ? "室外 Look；同相机天气空气 / 原房间许可保持" : "室内 Look；原空气 / 原房间许可保持";
         }
 
         void ReleaseBoundCamera()
@@ -82,7 +104,12 @@ namespace Ossastra.WorldRendering
         void OnDisable()
         {
             if (subscribed)
-            { RoomMaskCameraRegistry.FramePublished -= OnFramePublished; subscribed = false; }
+            {
+                RoomMaskCameraRegistry.FramePublished -= OnFramePublished;
+                EnvironmentCameraRegistry.Published -= OnEnvironmentPublished;
+                EnvironmentCameraRegistry.Released -= OnEnvironmentReleased;
+                subscribed = false;
+            }
             ReleaseBoundCamera(); Status = "环境 Look 已停用";
         }
 

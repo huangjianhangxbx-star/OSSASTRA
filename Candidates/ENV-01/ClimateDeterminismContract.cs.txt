@@ -1,0 +1,81 @@
+/* 功能：用真实临时环境根顺序重放固定随机天气，验证两个种子输入、关闭自动和源档不变。
+ * 边界：每次运行先销毁Root再创建下一个；仅暂态配置和相机，不保存场景、不操作游戏TimeScale。
+ */
+using System;
+using System.Linq;
+using System.Collections.Generic;
+using UnityEngine;
+using Newtonsoft.Json;
+using Funplay.Editor.Tools.Scripting;
+public class ClimateDeterminismContract:IFunplayCommand
+{
+ static Type T(string name)=>AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType("Ossastra.EnvironmentSimulation."+name)).First(t=>t!=null);
+ static void Set(object o,string name,object value)=>o.GetType().GetField(name).SetValue(o,value);
+ static object Get(object o,string name)=>o.GetType().GetProperty(name).GetValue(o);
+ static object Call(object o,string name,params object[] args)=>o.GetType().GetMethod(name).Invoke(o,args);
+ static string TargetName(object root)
+ {
+  object target=Get(root,"TargetWeather");if(target==null)throw new InvalidOperationException("临时Root没有目标天气。");
+  return (string)target.GetType().GetField("displayName").GetValue(target);
+ }
+ public void Execute(ExecutionContext ctx)
+ {
+  var owned=new List<UnityEngine.Object>();var disabled=new List<Behaviour>();var checks=new List<object>();
+  bool all=true,profilesUnchanged=true,autoOffStable=true;float originalTimeScale=Time.timeScale;
+  Action<bool,string> need=(pass,name)=>{checks.Add(new{name,pass});all&=pass;};
+  try
+  {
+   foreach(var existing in UnityEngine.Object.FindObjectsOfType(T("EnvironmentRoot")).Cast<Behaviour>())
+    if(existing.enabled){disabled.Add(existing);existing.enabled=false;}
+   var day=ScriptableObject.CreateInstance(T("DayCycleProfileSO"));var climate=ScriptableObject.CreateInstance(T("ClimateProfileSO"));owned.Add(day);owned.Add(climate);
+   var weather=new ScriptableObject[3];var typedWeather=Array.CreateInstance(T("WeatherProfileSO"),3);
+   for(int i=0;i<weather.Length;i++)
+   {
+    weather[i]=ScriptableObject.CreateInstance(T("WeatherProfileSO"));owned.Add(weather[i]);
+    Set(weather[i],"displayName","Weather-"+(char)('A'+i));Set(weather[i],"cloudCoverage",i*.4f);Set(weather[i],"rain",i*.35f);typedWeather.SetValue(weather[i],i);
+   }
+   Set(climate,"weatherProfiles",typedWeather);Set(climate,"weatherWeights",new float[]{2,3,5});Set(climate,"weatherDurationSeconds",new Vector2(1,3));Call(climate,"ValidateWeatherSchedule");
+   Func<int,int,bool,List<string>> run=(weatherSeed,climateSeed,checkAutoOff)=>
+   {
+    Set(climate,"seed",climateSeed);
+    string beforeDay=JsonUtility.ToJson(day),beforeClimate=JsonUtility.ToJson(climate);var beforeWeather=weather.Select(p=>JsonUtility.ToJson(p)).ToArray();
+    var go=new GameObject("Owned_ClimateReplay_"+weatherSeed+"_"+climateSeed);go.SetActive(false);
+    try
+    {
+     var camera=go.AddComponent<Camera>();camera.enabled=false;var root=go.AddComponent(T("EnvironmentRoot"));
+     Set(root,"dayCycle",day);Set(root,"initialWeather",weather[0]);Set(root,"climate",climate);Set(root,"gameplayCamera",camera);Set(root,"previewInEditMode",true);Set(root,"weatherSeed",weatherSeed);Set(root,"weatherTransitionSeconds",.75f);go.SetActive(true);Call(root,"SetAutomaticWeather",true);
+     var sequence=new List<string>(80);
+     for(int step=0;step<80;step++){Call(root,"Advance",.5d);sequence.Add(TargetName(root));}
+     if(checkAutoOff)
+     {
+      Call(root,"SetAutomaticWeather",false);string heldTarget=TargetName(root);
+      for(int step=0;step<40;step++){Call(root,"Advance",.5d);autoOffStable&=TargetName(root)==heldTarget;}
+     }
+     return sequence;
+    }
+    finally
+    {
+     UnityEngine.Object.DestroyImmediate(go);
+     profilesUnchanged&=beforeDay==JsonUtility.ToJson(day)&&beforeClimate==JsonUtility.ToJson(climate);
+     for(int i=0;i<weather.Length;i++)profilesUnchanged&=beforeWeather[i]==JsonUtility.ToJson(weather[i]);
+    }
+   };
+   // 同种子重放两次；两个种子的独立变化各用一个全新Root，不把旧运行状态冒充种子差异。
+   var first=run(2468,3030,true);var replay=run(2468,3030,false);var changedWeatherSeed=run(2469,3030,false);var changedClimateSeed=run(2468,3031,false);
+   need(first.SequenceEqual(replay),"Identical root and climate seeds replay identical target weather sequence");
+   need(!first.SequenceEqual(changedWeatherSeed),"Changing only root weather seed changes target sequence");
+   need(!first.SequenceEqual(changedClimateSeed),"Changing only climate seed changes target sequence");
+   need(first.Distinct().Count()>1,"Automatic weather actually schedules more than one target");
+   need(autoOffStable,"Disabling automatic weather prevents further target scheduling for twenty seconds");
+   need(profilesUnchanged,"Simulation and replay never modify day climate or three weather source profiles");
+   need(Time.timeScale==originalTimeScale,"Deterministic weather replay leaves gameplay time scale unchanged");
+   ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=all,checks,stepSeconds=.5,steps=80,weatherWeights=new[]{2,3,5},durationSeconds=new[]{1,3},first,replay,changedWeatherSeed,changedClimateSeed});
+  }
+  catch(Exception e){ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=false,error=e.ToString(),checks});}
+  finally
+  {
+   foreach(var item in owned)if(item!=null)UnityEngine.Object.DestroyImmediate(item);
+   foreach(var existing in disabled)if(existing!=null)existing.enabled=true;
+  }
+ }
+}

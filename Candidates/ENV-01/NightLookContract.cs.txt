@@ -1,0 +1,42 @@
+/* 功能：实际夜间快照只衰减正Contrast，保留物理夜光；室内拒绝天气雾仍可夜适应。
+ * RED兼容旧7参数Build直接运行，断言真实Contrast和Extinction，不以缺参数冒充行为失败。
+ */
+using System;
+using System.Linq;
+using System.Reflection;
+using System.Collections.Generic;
+using UnityEngine;
+using Newtonsoft.Json;
+using Funplay.Editor.Tools.Scripting;
+public class EnvironmentNightLookContract:IFunplayCommand
+{
+ static Type T(string name)=>AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType(name)).First(t=>t!=null);
+ static object Get(object o,string name)=>o.GetType().GetProperty(name).GetValue(o);
+ static void Set(object o,string name,object value)=>o.GetType().GetField(name).SetValue(o,value);
+ static object Call(object o,string name,params object[] args)=>o.GetType().GetMethod(name).Invoke(o,args);
+ public void Execute(ExecutionContext ctx)
+ {
+  var owned=new List<UnityEngine.Object>();var checks=new List<object>();bool all=true;Action<bool,string> need=(pass,name)=>{checks.Add(new{name,pass});all&=pass;};
+  try
+  {
+   var go=new GameObject("Owned_NightLookContract");owned.Add(go);go.SetActive(false);var camera=go.AddComponent<Camera>();camera.enabled=false;var root=go.AddComponent(T("Ossastra.EnvironmentSimulation.EnvironmentRoot"));
+   var day=ScriptableObject.CreateInstance(T("Ossastra.EnvironmentSimulation.DayCycleProfileSO"));var weather=ScriptableObject.CreateInstance(T("Ossastra.EnvironmentSimulation.WeatherProfileSO"));var air=ScriptableObject.CreateInstance(T("XingHai.T7B.OutdoorAtmosphereProfile"));owned.Add(day);owned.Add(weather);owned.Add(air);Set(weather,"fogDensity",.04f);Set(root,"dayCycle",day);Set(root,"initialWeather",weather);Set(root,"gameplayCamera",camera);
+   Set(air,"contrast",8f);Set(air,"exposure",1.2f);Set(air,"temperature",7f);Set(air,"extinction",.01f);Set(air,"airEnabled",true);string originalProfile=JsonUtility.ToJson(air);
+   var options=Activator.CreateInstance(T("Ossastra.WorldRendering.WorldLookEffectOptions"));
+   var build=T("Ossastra.WorldRendering.WorldLookSettings").GetMethods().Where(m=>m.Name=="Build").OrderByDescending(m=>m.GetParameters().Length).First();
+   Func<object,bool,object> make=(frame,allowFog)=>build.GetParameters().Length>=8?build.Invoke(null,new object[]{camera,Vector3.forward*10,null,air,null,options,frame,allowFog}):build.Invoke(null,new object[]{camera,Vector3.forward*10,null,air,null,options,frame});
+   var baseline=make(null,false);Call(root,"SetTimeHours",0d);var night=Get(root,"Current");var nightLook=make(night,true);
+   need(Math.Abs((float)Get(nightLook,"Contrast"))<.0001f,"Positive contrast eight decays to zero at full night");
+   need(Get(nightLook,"Exposure").Equals(Get(baseline,"Exposure"))&&Get(nightLook,"Temperature").Equals(Get(baseline,"Temperature")),"Night adaptation preserves exact original exposure and grading temperature");
+   Call(root,"SetTimeHours",12d);var daytime=make(Get(root,"Current"),true);need((float)Get(daytime,"Contrast")==8f,"Daytime preserves original positive contrast");
+   Call(root,"SetTimeHours",0d);Call(root,"SetContribution",Enum.Parse(T("Ossastra.EnvironmentSimulation.EnvironmentContribution"),"Original"));var original=make(Get(root,"Current"),true);need((float)Get(original,"Contrast")==8f,"Original preserves old static contrast even at midnight");
+   Call(root,"SetContribution",Enum.Parse(T("Ossastra.EnvironmentSimulation.EnvironmentContribution"),"Combined"));night=Get(root,"Current");Set(air,"contrast",-6f);var negative=make(night,true);need((float)Get(negative,"Contrast")==-6f,"Negative author contrast remains unchanged at night");Set(air,"contrast",8f);
+   var indoor=make(night,false);need((float)Get(indoor,"Extinction")==.01f&&Get(indoor,"AirFar").Equals(Get(baseline,"AirFar")),"Interior fog permission false keeps exact static air despite outside weather");
+   need(Math.Abs((float)Get(indoor,"Contrast"))<.0001f,"Interior without weather fog still receives night contrast adaptation");
+   Call(root,"SetManualSun",true,90f,3f);var half=make(Get(root,"Current"),false);need(Math.Abs((float)Get(half,"Contrast")-4f)<.001f,"Twilight smoothly halves positive contrast at NightFactor one half");
+   need(JsonUtility.ToJson(air)==originalProfile,"Night adaptation never writes original atmosphere profile");ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=all,api=build.GetParameters().Length,checks});
+  }
+  catch(Exception e){ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=false,error=e.ToString(),checks});}
+  finally{foreach(var o in owned)if(o!=null)UnityEngine.Object.DestroyImmediate(o);}
+ }
+}

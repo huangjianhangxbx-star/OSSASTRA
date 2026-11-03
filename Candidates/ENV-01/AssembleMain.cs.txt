@@ -1,0 +1,34 @@
+/* 功能：对核实空地增量装配环境；保存前留外部主场备份，验证原身份和碰撞不变。 */
+using System;using System.Linq;using UnityEngine;using UnityEditor;using UnityEditor.SceneManagement;using UnityEngine.SceneManagement;using Newtonsoft.Json;using TMPro;using Funplay.Editor.Tools.Scripting;
+using Ossastra.EnvironmentSimulation;using Ossastra.EnvironmentSimulation.Editor;using Ossastra.EnvironmentSimulation.Rendering;
+public class EnvironmentAssembleMain:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  var scene=SceneManager.GetActiveScene();if(Application.isPlaying||scene.path!=EnvironmentMainSceneSetup.MainScenePath||Application.dataPath!="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets")throw new Exception("Stable main Edit required");
+  var roots=scene.GetRootGameObjects();var components=roots.SelectMany(r=>r.GetComponentsInChildren<MonoBehaviour>(true)).Where(x=>x!=null).ToArray();
+  var map=components.OfType<Ossastra.MapResearch.MapResearchRoot>().Single();var sight=components.OfType<Ossastra.SceneVisibility.SceneVisibilityRoot>().Single();var lights=roots.SelectMany(r=>r.GetComponentsInChildren<Light>(true)).ToArray();
+  var sun=lights.Single(l=>l.name=="DiagnosticLight");var fill=lights.Single(l=>l.type==LightType.Directional&&l!=sun);var origin=new Vector3(24,0,-9);
+  var occupied=new Bounds(origin+new Vector3(0,2.5f,0),new Vector3(12,4.6f,10));
+  var existing=roots.FirstOrDefault(g=>g.name=="EnvironmentSimulationRoot");
+  var conflicts=roots.SelectMany(r=>r.GetComponentsInChildren<Collider>(true)).Where(c=>c.enabled&&!c.isTrigger&&c.bounds.max.y>.25f&&c.bounds.Intersects(occupied)&&(existing==null||!c.transform.IsChildOf(existing.transform))).Select(c=>new{c.name,center=c.bounds.center.ToString(),size=c.bounds.size.ToString()}).ToArray();
+  if(conflicts.Length>0){ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=false,reason="Observation proposed footprint conflicts",conflicts});return;}
+  var font=AssetDatabase.LoadAssetAtPath<TMP_FontAsset>("Assets/GameResources/DRPG/Fonts/NotoSansSC_DRPG_Dynamic.asset");if(font==null)throw new Exception("Explicit Chinese font missing");
+  var beforeColliders=roots.SelectMany(r=>r.GetComponentsInChildren<Collider>(true)).Select(c=>c.GetInstanceID()).OrderBy(x=>x).ToArray();
+  var marker=EnvironmentMainSceneSetup.Apply(map.gameplayCamera,sight,map,sun,fill,origin,font);
+  var binding=marker.GetComponent<EnvironmentSkyBinding>();if(binding==null)binding=marker.gameObject.AddComponent<EnvironmentSkyBinding>();
+  binding.environment=marker.environment;binding.panel=marker.panel;marker.panel.skyBinding=binding;binding.indoorRegions=components.OfType<Ossastra.SceneVisibility.Rooms.RoomRegion>().ToArray();binding.localLights=lights.Where(l=>l.type==LightType.Point).ToArray();binding.rainShelters=marker.sightBlockers.Where(c=>c.name=="RainAwning").ToArray();
+  binding.skyShader=Shader.Find("Hidden/Ossastra/Environment/Sky");binding.rainShader=Shader.Find("Hidden/Ossastra/Environment/Rain");binding.reflectionSkyShader=Shader.Find("Skybox/Cubemap");
+  if(binding.skyShader==null||binding.rainShader==null||binding.reflectionSkyShader==null)throw new Exception("Owned shader missing");
+  var commerce=components.OfType<Ossastra.Commerce.Runtime.CommerceService>().Single();
+  string route=JsonConvert.SerializeObject(new{commerce.profileId,commerce.saveDirectory});
+  const string archive="E:/WORLDCREATOR/XingHaiHuiLang/研究/环境模拟/ENV-01";
+  if(!System.IO.File.Exists(archive+"/commerce-route-before.json"))System.IO.File.WriteAllText(archive+"/commerce-route-before.json",route);
+  commerce.profileId="env01-runtime-isolated";commerce.saveDirectory=archive+"/profiles";
+  if(map.pitch!=35)throw new Exception("Unexpected camera pitch; preserve user state");
+  bool oldCollidersPreserved=beforeColliders.All(id=>EditorUtility.InstanceIDToObject(id)!=null);
+  if(!oldCollidersPreserved)throw new Exception("Original collider lost");
+  EditorUtility.SetDirty(binding);EditorUtility.SetDirty(commerce);EditorSceneManager.MarkSceneDirty(scene);
+  bool saved=EditorSceneManager.SaveScene(scene);ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=saved&&oldCollidersPreserved,origin=origin.ToString(),renderers=marker.authoredRenderers.Length,blockers=marker.sightBlockers.Length,binding= binding.GetInstanceID(),rooms=binding.indoorRegions.Length,localLights=binding.localLights.Length,map.pitch,oldCollidersPreserved,save= saved,profile=commerce.profileId});
+ }
+}

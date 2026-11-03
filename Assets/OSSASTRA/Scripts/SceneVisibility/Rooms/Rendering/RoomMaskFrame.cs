@@ -101,6 +101,11 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
         public bool StaticEnvironment;
         // 仅环境后处理显示角色，与静态历史/当前许可独立；人物、敌人与信息叶为false。
         public bool WorldLookEnvironment;
+        // 仅把已证明的Full许可送入受光适配，不授予新的Partial/历史许可。
+        public bool EnvironmentFullSurface;
+        // 0地表、1场景装饰、2角色/装备、-1信息；与WorldLook后处理排除相互独立。
+        public float EnvironmentSurfaceRole;
+        public float EnvironmentResponseOverride, EnvironmentReceiveShadow, EnvironmentMinimumOverride;
         public uint DrawMask;
         public Material DrawMaterial;
     }

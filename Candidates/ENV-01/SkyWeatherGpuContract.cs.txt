@@ -1,0 +1,71 @@
+/* 功能：直接绘制正式天空/降雨Shader，验证室外可画、当前无开口拒绝、建筑足迹/雨棚拒绝。
+ * 边界：私有RT无深度附件，合法深度使用常量白图，不代签主场深度复制验收；不创建相机、普通Renderer、天气根或场景对象。
+ * 生命周期：所有借用全局值在finally恢复，自有材质、RT和读回纹理精确释放；fixture无颜色不认失败证据。
+ */
+using System;using System.Linq;using System.Collections.Generic;using UnityEngine;using UnityEngine.Rendering;using UnityEditor;using Newtonsoft.Json;using Funplay.Editor.Tools.Scripting;
+public class EnvironmentSkyWeatherGpuContract:IFunplayCommand
+{
+ sealed class Sample{public int Pixels;public double Rgb;public override string ToString()=>Pixels+" pixels / "+Rgb.ToString("F5")+" RGB";}
+ static Sample Draw(Material material,RenderTexture target,Texture2D read,bool rain)
+ {
+  var cmd=new CommandBuffer{name="Owned sky/weather GPU permission contract"};
+  try
+  {
+   cmd.SetRenderTarget(target);cmd.SetViewport(new Rect(0,0,target.width,target.height));cmd.ClearRenderTarget(false,true,Color.clear);
+   if(rain)
+   {
+    // 正面观察整个有界雨泡，避免亚像素宽度或俯视平面使fixture误变全黑。
+    var eye=new Vector3(0,4,-25);var view=Matrix4x4.Scale(new Vector3(1,1,-1))*Matrix4x4.TRS(eye,Quaternion.identity,Vector3.one).inverse;
+    cmd.SetViewProjectionMatrices(view,Matrix4x4.Ortho(-16,16,-6,6,.1f,60));
+    cmd.DrawProcedural(Matrix4x4.identity,material,0,MeshTopology.Triangles,6,1024);
+   }
+   else{cmd.SetViewProjectionMatrices(Matrix4x4.identity,Matrix4x4.identity);cmd.DrawProcedural(Matrix4x4.identity,material,0,MeshTopology.Triangles,3);}
+   Graphics.ExecuteCommandBuffer(cmd);
+  }
+  finally{cmd.Release();}
+  RenderTexture.active=target;read.ReadPixels(new Rect(0,0,target.width,target.height),0,0);read.Apply();var result=new Sample();
+  foreach(var color in read.GetPixels()){if(color.r+color.g+color.b>.00001f)result.Pixels++;result.Rgb+=color.r+color.g+color.b;}
+  return result;
+ }
+ public void Execute(ExecutionContext ctx)
+ {
+  if(Application.dataPath!="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets")throw new Exception("Project guard");
+  var skyShader=Shader.Find("Hidden/Ossastra/Environment/Sky");var rainShader=Shader.Find("Hidden/Ossastra/Environment/Rain");
+  if(skyShader==null||rainShader==null)throw new Exception("Production sky/weather shader missing");
+  var integerNames=new[]{"_RoomSightOwnerCount","_RoomSightOwnerExterior","_RoomSightSeedCount","_RoomSightBuildingCount","_RoomSightDomainCount","_RoomSightBlockerCount","_RoomSightWindowCount","_RoomSightCameraBlockerCount","_RoomSightExteriorView","_RoomSightPassMode","_EnvironmentShelterCount"};
+  var vectorNames=new[]{"_RoomSightObserver","_RoomSightCameraObserver","_RoomSightTargetSize","_WorldSpaceCameraPos"};
+  var matrixNames=new[]{"_RoomSightInverseViewProjection"};
+  var matrixArrayNames=new[]{"_RoomSightBuildingMatrices","_EnvironmentShelterMatrices"};var vectorArrayNames=new[]{"_RoomSightBuildingExtents","_EnvironmentShelterExtents"};
+  var integers=integerNames.ToDictionary(n=>n,n=>Shader.GetGlobalInteger(n));var vectors=vectorNames.ToDictionary(n=>n,n=>Shader.GetGlobalVector(n));var matrixValues=matrixNames.ToDictionary(n=>n,n=>Shader.GetGlobalMatrix(n));
+  var matrixArrays=matrixArrayNames.ToDictionary(n=>n,n=>Shader.GetGlobalMatrixArray(n));var vectorArrays=vectorArrayNames.ToDictionary(n=>n,n=>Shader.GetGlobalVectorArray(n));
+  var oldDepthReady=Shader.GetGlobalFloat("_EnvironmentRainDepthReady");var oldLegalDepth=Shader.GetGlobalTexture("_EnvironmentRainLegalDepth");
+  var previous=RenderTexture.active;var sky=new Material(skyShader);var rain=new Material(rainShader);var rt=new RenderTexture(512,256,0,RenderTextureFormat.ARGBFloat,RenderTextureReadWrite.Linear);var read=new Texture2D(512,256,TextureFormat.RGBAFloat,false,true);
+  try
+  {
+   Shader.SetGlobalFloat("_EnvironmentRainDepthReady",1);Shader.SetGlobalTexture("_EnvironmentRainLegalDepth",Texture2D.whiteTexture);
+   foreach(string n in integerNames)Shader.SetGlobalInteger(n,0);Shader.SetGlobalInteger("_RoomSightPassMode",1);Shader.SetGlobalInteger("_RoomSightExteriorView",1);
+   Shader.SetGlobalVector("_RoomSightObserver",Vector4.zero);Shader.SetGlobalVector("_RoomSightCameraObserver",new Vector4(0,0,-5,1));Shader.SetGlobalVector("_WorldSpaceCameraPos",new Vector4(0,0,-5,1));Shader.SetGlobalMatrix("_RoomSightInverseViewProjection",Matrix4x4.identity);Shader.SetGlobalVector("_RoomSightTargetSize",new Vector4(512,256,1f/512,1f/256));
+   sky.SetColor("_EnvironmentSkyZenith",new Color(.25f,.45f,.65f));sky.SetColor("_EnvironmentSkyHorizon",new Color(.4f,.5f,.6f));sky.SetVector("_EnvironmentSkySun",new Vector4(0,1,0,0));sky.SetColor("_EnvironmentSkySunColor",Color.black);sky.SetVector("_EnvironmentCloudParameters",Vector4.zero);sky.SetVector("_EnvironmentCloudMotion",Vector4.zero);
+   rain.SetVector("_EnvironmentRain",new Vector4(1,1,0,1024));rain.SetVector("_EnvironmentRainWind",Vector4.zero);rain.SetColor("_EnvironmentRainColor",new Color(.67f,.77f,.84f,1));rt.Create();
+   var skyOutside=Draw(sky,rt,read,false);Shader.SetGlobalInteger("_RoomSightExteriorView",0);var skyNoOpening=Draw(sky,rt,read,false);
+   Shader.SetGlobalInteger("_RoomSightExteriorView",1);var rainOutside=Draw(rain,rt,read,true);Shader.SetGlobalInteger("_RoomSightExteriorView",0);var rainNoOpening=Draw(rain,rt,read,true);
+   Shader.SetGlobalInteger("_RoomSightExteriorView",1);
+   // 盒子位于所有雨片元下方，三维BuildingContains为假；只靠XZ足迹分支排除，避免把已有视野裁剪冒充雨棚成功。
+   var buildingMatrices=new Matrix4x4[32];var buildingExtents=new Vector4[32];buildingMatrices[0]=Matrix4x4.Translate(new Vector3(0,10,0));buildingExtents[0]=new Vector4(20,.05f,20,0);
+   Shader.SetGlobalMatrixArray("_RoomSightBuildingMatrices",buildingMatrices);Shader.SetGlobalVectorArray("_RoomSightBuildingExtents",buildingExtents);Shader.SetGlobalInteger("_RoomSightBuildingCount",1);var rainBuildingFootprint=Draw(rain,rt,read,true);
+   Shader.SetGlobalInteger("_RoomSightBuildingCount",0);var shelterMatrices=new Matrix4x4[16];var shelterExtents=new Vector4[16];shelterMatrices[0]=Matrix4x4.Translate(new Vector3(0,-20,0));shelterExtents[0]=new Vector4(20,.1f,20,0);
+   Shader.SetGlobalMatrixArray("_EnvironmentShelterMatrices",shelterMatrices);Shader.SetGlobalVectorArray("_EnvironmentShelterExtents",shelterExtents);Shader.SetGlobalInteger("_EnvironmentShelterCount",1);var rainShelter=Draw(rain,rt,read,true);
+   bool validSkyFixture=skyOutside.Pixels>1000&&skyOutside.Rgb>1,validRainFixture=rainOutside.Pixels>10&&rainOutside.Rgb>.01;
+   bool skyRejectsUnknown=skyNoOpening.Pixels==0,rainRejectsUnknown=rainNoOpening.Pixels==0,buildingRejectsRain=rainBuildingFootprint.Pixels==0,shelterRejectsRain=rainShelter.Pixels==0;
+   ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=validSkyFixture&&validRainFixture&&skyRejectsUnknown&&rainRejectsUnknown&&buildingRejectsRain&&shelterRejectsRain,validSkyFixture,validRainFixture,skyRejectsUnknown,rainRejectsUnknown,buildingRejectsRain,shelterRejectsRain,skyOutside=skyOutside.ToString(),skyNoOpening=skyNoOpening.ToString(),rainOutside=rainOutside.ToString(),rainNoOpening=rainNoOpening.ToString(),rainBuildingFootprint=rainBuildingFootprint.ToString(),rainShelter=rainShelter.ToString(),skyMessages=ShaderUtil.GetShaderMessages(skyShader).Select(m=>m.message).ToArray(),rainMessages=ShaderUtil.GetShaderMessages(rainShader).Select(m=>m.message).ToArray()});
+  }
+  finally
+  {
+   Shader.SetGlobalFloat("_EnvironmentRainDepthReady",oldDepthReady);Shader.SetGlobalTexture("_EnvironmentRainLegalDepth",oldLegalDepth);
+   foreach(var value in integers)Shader.SetGlobalInteger(value.Key,value.Value);foreach(var value in vectors)Shader.SetGlobalVector(value.Key,value.Value);foreach(var value in matrixValues)Shader.SetGlobalMatrix(value.Key,value.Value);
+   foreach(var value in matrixArrays)Shader.SetGlobalMatrixArray(value.Key,value.Value!=null&&value.Value.Length>0?value.Value:new Matrix4x4[value.Key=="_RoomSightBuildingMatrices"?32:16]);
+   foreach(var value in vectorArrays)Shader.SetGlobalVectorArray(value.Key,value.Value!=null&&value.Value.Length>0?value.Value:new Vector4[value.Key=="_RoomSightBuildingExtents"?32:16]);
+   RenderTexture.active=previous;rt.Release();foreach(var value in new UnityEngine.Object[]{sky,rain,rt,read})UnityEngine.Object.DestroyImmediate(value);
+  }
+ }
+}

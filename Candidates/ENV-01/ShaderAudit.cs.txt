@@ -1,0 +1,6 @@
+/* 功能：实际提交环境与10个材质族的Shader基础pass，读取本机编译消息。 */
+using System;using System.Linq;using UnityEngine;using UnityEditor;using Newtonsoft.Json;using Funplay.Editor.Tools.Scripting;
+public class EnvironmentShaderAudit:IFunplayCommand{public void Execute(ExecutionContext ctx){
+var names=new[]{"Hidden/Ossastra/Environment/Sky","Hidden/Ossastra/Environment/Rain","Hidden/Ossastra/Rooms/SightLit","Hidden/Ossastra/Rooms/SightSimpleLit","Hidden/Ossastra/Rooms/SightSpriteLit","Hidden/Ossastra/Rooms/SightUnlit","Hidden/Ossastra/Rooms/SightThinTop","Hidden/Ossastra/Rooms/SightWorldTile","Hidden/Ossastra/Rooms/SightDecoration","Hidden/Ossastra/Rooms/SightDepthPlane","Hidden/Ossastra/Rooms/SightSpine","Hidden/Ossastra/Rooms/SightSprite"};
+var values=names.Select(name=>{var shader=Shader.Find(name);if(shader==null)return new{name,supported=false,passes=0,messages=new[]{"missing"}};var material=new Material(shader);int count=material.passCount;try{for(int i=0;i<count;i++)material.SetPass(i);}finally{UnityEngine.Object.DestroyImmediate(material);}return new{name,supported=shader.isSupported,passes=count,messages=ShaderUtil.GetShaderMessages(shader).Select(m=>m.severity+": "+m.message).ToArray()};}).ToArray();
+ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=values.All(v=>v.supported&&!v.messages.Any(m=>m.StartsWith("Error"))),values});}}

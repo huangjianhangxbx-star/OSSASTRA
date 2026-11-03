@@ -1,0 +1,21 @@
+/* 功能：天空背景明确许可的Native合同；不以黑像素或远深度作为许可。 */
+using System;using System.Linq;using System.Reflection;using UnityEngine;using Newtonsoft.Json;using Funplay.Editor.Tools.Scripting;using Ossastra.SceneVisibility.Rooms.Rendering;
+public class EnvironmentSkyContract:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  var t=AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType("Ossastra.EnvironmentSimulation.Rendering.EnvironmentSkyPermission")).FirstOrDefault(x=>x!=null);
+  if(t==null){ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=false,reason="Explicit sky ray permission missing"});return;}
+  var m=t.GetMethod("Allows");Func<RoomMaskFrame,Vector3,Vector3,bool> allow=(f,o,d)=>(bool)m.Invoke(null,new object[]{f,o,d});
+  var f=new RoomMaskFrame{Enabled=true,PositiveRenderingEnabled=true,ExteriorView=true};
+  bool clear=allow(f,Vector3.zero,Vector3.forward);
+  f.BuildingVolumes=new[]{new RoomMaskVolume{WorldToLocal=Matrix4x4.Translate(new Vector3(0,0,-5)),HalfExtents=Vector3.one}};
+  bool blocked=!allow(f,Vector3.zero,Vector3.forward),side=allow(f,Vector3.zero,Vector3.right);
+  f.ExteriorView=false;f.BuildingVolumes=Array.Empty<RoomMaskVolume>();bool closed=!allow(f,Vector3.zero,Vector3.forward);
+  f.WindowSightDomains=new[]{new RoomSightDomain{TargetExterior=true,IsCameraWindow=true,Planes=new[]{new Vector4(1,0,1,0),new Vector4(-1,0,1,0),new Vector4(0,1,1,0),new Vector4(0,-1,1,0),new Vector4(0,0,1,-1)}}};
+  bool aperture=allow(f,Vector3.zero,Vector3.forward),wall=!allow(f,Vector3.zero,Vector3.right);
+  f.CameraOpaqueBlockers=new[]{new RoomMaskVolume{WorldToLocal=Matrix4x4.Translate(new Vector3(0,0,-3)),HalfExtents=Vector3.one*.5f}};
+  bool opaque=!allow(f,Vector3.zero,Vector3.forward);f.Enabled=false;bool revoked=!allow(f,Vector3.zero,Vector3.forward);
+  ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=clear&&blocked&&side&&closed&&aperture&&wall&&opaque&&revoked,clear,blocked,side,closed,aperture,wall,opaque,revoked});
+ }
+}

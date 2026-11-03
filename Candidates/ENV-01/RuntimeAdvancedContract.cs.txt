@@ -1,0 +1,55 @@
+/* 功能：验收天气中断、六分钟时钟、无效外部时钟冻结、灯光原状与相机租约。
+ * 测试临时独占环境预览，finally恢复已有根enabled及全部借用设置，不保存场景。
+ */
+using System;
+using System.Linq;
+using System.Reflection;
+using System.Collections.Generic;
+using UnityEngine;
+using Newtonsoft.Json;
+using Funplay.Editor.Tools.Scripting;
+public class EnvironmentAdvancedContract:IFunplayCommand
+{
+ static Type T(string name)=>AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType("Ossastra.EnvironmentSimulation."+name)).First(t=>t!=null);
+ static object Call(object o,string method,params object[] args)=>o.GetType().GetMethod(method).Invoke(o,args);
+ static object Get(object o,string name)=>o.GetType().GetProperty(name).GetValue(o);
+ static void Set(object o,string name,object value)=>o.GetType().GetField(name).SetValue(o,value);
+ static object EnumValue(string type,string name)=>Enum.Parse(T(type),name);
+ public void Execute(ExecutionContext ctx)
+ {
+  var checks=new List<object>();var owned=new List<UnityEngine.Object>();var disabled=new List<Behaviour>();
+  bool all=true;Action<bool,string> need=(pass,name)=>{checks.Add(new{name,pass});all&=pass;};
+  try
+  {
+   foreach(var b in UnityEngine.Object.FindObjectsOfType(T("EnvironmentRoot")).Cast<Behaviour>()){if(b.enabled){disabled.Add(b);b.enabled=false;}}
+   var go=new GameObject("Owned_EnvAdvanced");owned.Add(go);go.SetActive(false);var camera=go.AddComponent<Camera>();camera.enabled=false;
+   var root=go.AddComponent(T("EnvironmentRoot"));var binding=go.AddComponent(T("EnvironmentLightingBinding"));
+   var sunGo=new GameObject("Owned_EnvSun");owned.Add(sunGo);var sun=sunGo.AddComponent<Light>();sun.type=LightType.Directional;sun.intensity=.763f;sun.shadows=LightShadows.None;sun.transform.rotation=Quaternion.Euler(13,31,7);var beforePose=sun.transform.rotation;
+   var originalAmbientMode=RenderSettings.ambientMode;var originalAmbientColor=RenderSettings.ambientSkyColor;float originalAmbientIntensity=RenderSettings.ambientIntensity;var originalSun=RenderSettings.sun;
+   Set(binding,"sun",sun);Set(binding,"root",root);Set(root,"lightingBinding",binding);Set(root,"gameplayCamera",camera);Set(root,"previewInEditMode",true);
+   var day=ScriptableObject.CreateInstance(T("DayCycleProfileSO"));var clear=ScriptableObject.CreateInstance(T("WeatherProfileSO"));var rain=ScriptableObject.CreateInstance(T("WeatherProfileSO"));owned.Add(day);owned.Add(clear);owned.Add(rain);Set(clear,"rain",0f);Set(rain,"rain",1f);
+   Set(root,"dayCycle",day);Set(root,"initialWeather",clear);go.SetActive(true);Call(root,"SetTimeHours",0d);Call(root,"SetClockRunning",true);Call(root,"Advance",90d);Call(root,"SetClockRunning",false);
+   need(Math.Abs((double)Get(Get(root,"Current"),"Hours")-6)<1e-7,"Configured six minute cycle advances six hours in ninety seconds");
+   Call(root,"TransitionWeather",rain,4f);Call(root,"Advance",2d);need(Math.Abs((float)Get(Get(root,"Current"),"Rain")-.5f)<.001,"Weather transition halfway is actual midpoint");
+   Call(root,"TransitionWeather",clear,4f);need(Math.Abs((float)Get(Get(root,"Current"),"Rain")-.5f)<.001,"Interrupt starts at current blended value without jump");Call(root,"Advance",2d);need(Math.Abs((float)Get(Get(root,"Current"),"Rain")-.25f)<.001,"Interrupted weather continues from captured result");
+   var frame=Get(root,"Current");Set(root,"timeMode",EnumValue("EnvironmentTimeMode","External"));Set(root,"externalTimeSource",null);Call(root,"Advance",1d);
+   var registry=T("EnvironmentCameraRegistry");var args=new object[]{camera,null};bool registered=(bool)registry.GetMethod("TryGet").Invoke(null,args);
+   need(registered&&ReferenceEquals(frame,Get(root,"Current")),"Invalid external source freezes last valid display and clock");
+   Set(root,"timeMode",EnumValue("EnvironmentTimeMode","Manual"));Call(root,"RefreshNow");need(sun.shadows==LightShadows.Soft,"Owned sun receives actual soft shadows");
+   Call(root,"SetManualSun",true,270f,.01f);float horizonBefore=(float)Get(Get(root,"Current"),"SunIntensity");Call(root,"SetManualSun",true,270f,-.01f);float horizonAfter=(float)Get(Get(root,"Current"),"SunIntensity");need(Math.Max(horizonBefore,horizonAfter)<.01f,"Sun to moon direction handoff crosses near zero direct intensity");
+   Call(root,"SetContribution",EnumValue("EnvironmentContribution","Original"));args=new object[]{camera,null};need(!(bool)registry.GetMethod("TryGet").Invoke(null,args),"Original contribution revokes display registry");
+   need(Math.Abs(sun.intensity-.763f)<.0001&&sun.shadows==LightShadows.None&&Quaternion.Angle(sun.transform.rotation,beforePose)<.001,"Original restores original sun intensity shadow and pose");
+   need(RenderSettings.ambientMode==originalAmbientMode&&RenderSettings.ambientSkyColor==originalAmbientColor&&Math.Abs(RenderSettings.ambientIntensity-originalAmbientIntensity)<.0001&&RenderSettings.sun==originalSun,"Original restores exactly owned ambient and sun pointer");
+   Call(root,"SetContribution",EnumValue("EnvironmentContribution","Combined"));go.SetActive(false);need(Math.Abs(sun.intensity-.763f)<.0001&&sun.shadows==LightShadows.None,"Repeated acquire disable restores sun again");
+   var climate=ScriptableObject.CreateInstance(T("ClimateProfileSO"));owned.Add(climate);var weatherArray=Array.CreateInstance(T("WeatherProfileSO"),1);weatherArray.SetValue(clear,0);Set(climate,"weatherProfiles",weatherArray);Set(climate,"weatherWeights",new float[]{-1});bool negative=false;try{Call(climate,"ValidateWeatherSchedule");}catch(TargetInvocationException e){negative=e.InnerException is ArgumentException;}need(negative,"Negative weather weight rejected");
+   Set(climate,"weatherWeights",new float[]{0});bool zero=false;try{Call(climate,"ValidateWeatherSchedule");}catch(TargetInvocationException e){zero=e.InnerException is ArgumentException;}need(zero,"Zero total weather weight rejected");
+   Set(climate,"weatherWeights",new float[]{1});Set(climate,"weatherDurationSeconds",new Vector2(2,2));Call(root,"SetClimate",climate);Call(root,"SetAutomaticWeather",true);Call(root,"Advance",0d);Set(climate,"weatherDurationSeconds",Vector2.zero);Call(root,"Advance",0d);
+   need(((string)Get(root,"Status")).Contains("无效"),"Live invalid climate duration rejected before scheduling loop");
+   Call(root,"SetAutomaticWeather",false);Call(root,"Advance",double.MaxValue);need(!float.IsInfinity((float)(double)Get(Get(root,"Current"),"Seconds")),"Cloud animation seconds remain safe to upload after extreme finite step");
+   Set(clear,"temperature",float.MaxValue);Set(climate,"temperatureOffset",float.MaxValue);Call(root,"RefreshNow");need(((string)Get(root,"Status")).Contains("无效")&&!float.IsInfinity((float)Get(Get(root,"Current"),"Temperature")),"Combined climate temperature cannot overflow into a published frame");
+   ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=all,checks});
+  }
+  catch(Exception e){ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=false,error=e.ToString(),checks});}
+  finally{foreach(var o in owned)if(o!=null)UnityEngine.Object.DestroyImmediate(o);foreach(var b in disabled)if(b!=null)b.enabled=true;}
+ }
+}

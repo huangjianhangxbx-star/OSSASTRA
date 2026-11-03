@@ -1,0 +1,41 @@
+/* 功能：安全验收天气最小时长及进入调度前的64次预算；旧实现最多只跑65次，不测试会卡死的极大while。
+ * 使用暂态Root与配置，finally销毁并恢复原环境根；不保存场景、不改游戏TimeScale。
+ */
+using System;
+using System.Linq;
+using System.Reflection;
+using System.Collections.Generic;
+using UnityEngine;
+using Newtonsoft.Json;
+using Funplay.Editor.Tools.Scripting;
+public class ClimateDurationBudgetContract:IFunplayCommand
+{
+ static Type T(string name)=>AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType("Ossastra.EnvironmentSimulation."+name)).First(t=>t!=null);
+ static void Set(object o,string name,object value)=>o.GetType().GetField(name).SetValue(o,value);
+ static object Get(object o,string name)=>o.GetType().GetProperty(name).GetValue(o);
+ static object Call(object o,string name,params object[] args)=>o.GetType().GetMethod(name).Invoke(o,args);
+ public void Execute(ExecutionContext ctx)
+ {
+  var owned=new List<UnityEngine.Object>();var disabled=new List<Behaviour>();var checks=new List<object>();bool all=true;float timeScale=Time.timeScale;
+  Action<bool,string> need=(pass,name)=>{checks.Add(new{name,pass});all&=pass;};
+  try
+  {
+   var day=ScriptableObject.CreateInstance(T("DayCycleProfileSO"));var weather=ScriptableObject.CreateInstance(T("WeatherProfileSO"));var climate=ScriptableObject.CreateInstance(T("ClimateProfileSO"));owned.Add(day);owned.Add(weather);owned.Add(climate);
+   var profiles=Array.CreateInstance(T("WeatherProfileSO"),1);profiles.SetValue(weather,0);Set(climate,"weatherProfiles",profiles);Set(climate,"weatherWeights",new float[]{1});Set(climate,"weatherDurationSeconds",new Vector2(1e-8f,1e-8f));
+   bool tinyRejected=false;try{Call(climate,"ValidateWeatherSchedule");}catch(TargetInvocationException e){tinyRejected=e.InnerException is ArgumentException;}need(tinyRejected,"Extremely small positive weather period is rejected before scheduling");
+   Set(climate,"weatherDurationSeconds",Vector2.one);bool secondValid=true;try{Call(climate,"ValidateWeatherSchedule");}catch{secondValid=false;}need(secondValid,"One second period remains supported");
+   foreach(var b in UnityEngine.Object.FindObjectsOfType(T("EnvironmentRoot")).Cast<Behaviour>())if(b.enabled){disabled.Add(b);b.enabled=false;}
+   var go=new GameObject("Owned_ClimateBudgetRoot");owned.Add(go);go.SetActive(false);var camera=go.AddComponent<Camera>();camera.enabled=false;var root=go.AddComponent(T("EnvironmentRoot"));Set(root,"dayCycle",day);Set(root,"initialWeather",weather);Set(root,"climate",climate);Set(root,"gameplayCamera",camera);Set(root,"previewInEditMode",true);Set(root,"weatherTransitionSeconds",0f);go.SetActive(true);Call(root,"SetClockRunning",true);Call(root,"SetAutomaticWeather",true);Call(root,"Advance",0d);
+   var before=Get(root,"Current");double hoursBefore=(double)root.GetType().GetField("timeHours").GetValue(root);string dayBefore=JsonUtility.ToJson(day),weatherBefore=JsonUtility.ToJson(weather);
+   Call(root,"Advance",65d);need(ReferenceEquals(before,Get(root,"Current"))&&((string)Get(root,"Status")).Contains("预算"),"Step requiring sixty five weather changes freezes previous frame with explicit budget status");
+   var args=new object[]{camera,null};bool registered=(bool)T("EnvironmentCameraRegistry").GetMethod("TryGet").Invoke(null,args);need(registered&&ReferenceEquals(before,args[1]),"Budget refusal preserves previous camera publication");
+   need((double)root.GetType().GetField("timeHours").GetValue(root)==hoursBefore,"Budget refusal does not advance preview clock before rejecting");
+   Call(root,"Advance",64d);need(!ReferenceEquals(before,Get(root,"Current"))&&!((string)Get(root,"Status")).Contains("预算"),"Exactly sixty four changes remain inside supported budget");
+   before=Get(root,"Current");Set(climate,"weatherDurationSeconds",new Vector2(1e-8f,1e-8f));Call(root,"Advance",0d);need(ReferenceEquals(before,Get(root,"Current"))&&((string)Get(root,"Status")).Contains("无效"),"Live invalid period keeps last valid frame without entering scheduling loop");
+   need(JsonUtility.ToJson(day)==dayBefore&&JsonUtility.ToJson(weather)==weatherBefore,"Budget checks leave source day and weather profiles unchanged");
+   need(Time.timeScale==timeScale,"Budget validation leaves gameplay time scale unchanged");ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=all,checks});
+  }
+  catch(Exception e){ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=false,error=e.ToString(),checks});}
+  finally{foreach(var o in owned)if(o!=null)UnityEngine.Object.DestroyImmediate(o);foreach(var b in disabled)if(b!=null)b.enabled=true;}
+ }
+}

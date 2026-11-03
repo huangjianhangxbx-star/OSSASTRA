@@ -1,11 +1,13 @@
 /* 功能：保留Sprites/Default与Upright变体的原SpriteVert、PMA、Flip、PixelSnap及外部alpha。
  * 边界：从最终深度重建许可点后裁剪；不将透明Sprite改为alpha-test，不改变源色彩。
  * 生命周期：只供正向适配材质，源材质和表现根由原组件持有。
+ * ENV-01：原无光照表面接环境主灯/阴影；原生Lit保留原光照，仅追加房间GI系数与主灯云场，alpha/深度/许可保持。
  */
 Shader "Hidden/Ossastra/Rooms/SightSprite"
 {
  Properties
  {
+
   [PerRendererData] _MainTex("Sprite Texture",2D)="white"{}
   _Color("Tint",Color)=(1,1,1,1)
   [MaterialToggle] PixelSnap("Pixel snap",Float)=0
@@ -25,6 +27,8 @@ Shader "Hidden/Ossastra/Rooms/SightSprite"
   {
    CGPROGRAM
    #pragma target 4.5
+   #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE
+   #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
    #pragma vertex Vert
    #pragma fragment Frag
    #pragma multi_compile_instancing
@@ -32,6 +36,8 @@ Shader "Hidden/Ossastra/Rooms/SightSprite"
    #pragma multi_compile _ ETC1_EXTERNAL_ALPHA
    #include "UnitySprites.cginc"
    #include "RoomSightClip.hlsl"
+   #define ENVIRONMENT_LEGACY_SPRITE
+   #include "Assets/OSSASTRA/Scripts/EnvironmentSimulation/Rendering/EnvironmentLighting.hlsl"
    float4 _VisualDepthFoot,_VisualDepthNormal;float _VisualDepthEnabled;
    struct V{float4 vertex:SV_POSITION;fixed4 color:COLOR;float2 texcoord:TEXCOORD0;float3 rayWorld:TEXCOORD1;float eyeOffset:TEXCOORD2;UNITY_VERTEX_OUTPUT_STEREO};
    struct O{fixed4 color:SV_Target;float depth:SV_Depth;};
@@ -71,10 +77,11 @@ Shader "Hidden/Ossastra/Rooms/SightSprite"
    {
     float deviceDepth=DeviceDepth(input);
     float3 logicalWorld=RoomSightWorldFromDeviceDepth(input.vertex.xy,deviceDepth);
-    clip(RoomSightPartialContains(logicalWorld)?1:-1);
+    if(_EnvironmentFullSurface<.5)clip(RoomSightPartialContains(logicalWorld)?1:-1);
     // 与UnitySprites.cginc的SpriteFrag逐式相同，不反预乘、不改alpha、不加颜色裁剪。
     fixed4 color=SampleSpriteTexture(input.texcoord)*input.color;color.rgb*=color.a;
-    O output;output.color=RoomSightFogColor(color,logicalWorld,1);output.depth=deviceDepth;return output;
+    if(EnvironmentCanShadeWorld(logicalWorld))color.rgb=EnvironmentShade(color.rgb,logicalWorld,EnvironmentCharacterNormal(_VisualDepthNormal.xyz),_EnvironmentSurfaceRole);
+    O output;output.color=EnvironmentFogColor(color,logicalWorld,1);output.depth=deviceDepth;return output;
    }
    ENDCG
   }
@@ -84,6 +91,8 @@ Shader "Hidden/Ossastra/Rooms/SightSprite"
    Name "SourceHardwareDepth"
    CGPROGRAM
    #pragma target 4.5
+   #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE
+   #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
    #pragma vertex Vert
    #pragma fragment Frag
    #pragma multi_compile_instancing
@@ -91,6 +100,8 @@ Shader "Hidden/Ossastra/Rooms/SightSprite"
    #pragma multi_compile _ ETC1_EXTERNAL_ALPHA
    #include "UnitySprites.cginc"
    #include "RoomSightClip.hlsl"
+   #define ENVIRONMENT_LEGACY_SPRITE
+   #include "Assets/OSSASTRA/Scripts/EnvironmentSimulation/Rendering/EnvironmentLighting.hlsl"
    float4 _VisualDepthFoot,_VisualDepthNormal;float _VisualDepthEnabled;
    struct V{float4 vertex:SV_POSITION;fixed4 color:COLOR;float2 texcoord:TEXCOORD0;float3 rayWorld:TEXCOORD1;float eyeOffset:TEXCOORD2;UNITY_VERTEX_OUTPUT_STEREO};
 
@@ -130,10 +141,11 @@ Shader "Hidden/Ossastra/Rooms/SightSprite"
    {
     float deviceDepth=input.vertex.z;
     float3 logicalWorld=RoomSightWorldFromDeviceDepth(input.vertex.xy,deviceDepth);
-    clip(RoomSightPartialContains(logicalWorld)?1:-1);
+    if(_EnvironmentFullSurface<.5)clip(RoomSightPartialContains(logicalWorld)?1:-1);
     // 与UnitySprites.cginc的SpriteFrag逐式相同，不反预乘、不改alpha、不加颜色裁剪。
     fixed4 color=SampleSpriteTexture(input.texcoord)*input.color;color.rgb*=color.a;
-    return RoomSightFogColor(color,logicalWorld,1);
+    if(EnvironmentCanShadeWorld(logicalWorld))color.rgb=EnvironmentShade(color.rgb,logicalWorld,EnvironmentCharacterNormal(_VisualDepthNormal.xyz),_EnvironmentSurfaceRole);
+    return EnvironmentFogColor(color,logicalWorld,1);
    }
    ENDCG
   }

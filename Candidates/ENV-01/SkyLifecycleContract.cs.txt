@@ -1,0 +1,32 @@
+/* 功能：Native临时附加空场验证天空借用跨活动场景切换后仍归还原基线；不创建场景文件。
+ * 生命周期：finally回原场、精确恢复RenderSettings、销毁暂态根并关闭唯一自有空场。
+ */
+using System;using UnityEngine;using UnityEngine.SceneManagement;using UnityEditor.SceneManagement;using Newtonsoft.Json;using Funplay.Editor.Tools.Scripting;using Ossastra.EnvironmentSimulation;using Ossastra.EnvironmentSimulation.Rendering;
+public class EnvironmentSkyLifecycleContract:IFunplayCommand
+{
+ public void Execute(ExecutionContext c)
+ {
+  if(Application.isPlaying)throw new Exception("Stable Edit required");var original=SceneManager.GetActiveScene();if(original.path!="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity")throw new Exception("main guard");
+  var sky=RenderSettings.skybox;var texture=RenderSettings.customReflectionTexture;var mode=RenderSettings.defaultReflectionMode;float intensity=RenderSettings.reflectionIntensity;bool dirty=original.isDirty;
+  GameObject go=null;DayCycleProfileSO day=null;WeatherProfileSO weather=null;Scene empty=default(Scene);bool acquired=false,restored=false,sunOnlyReflection=false,combinedReflection=false;string error=null;
+  try
+  {
+   go=new GameObject("OwnedSkyLifecycle");go.SetActive(false);var camera=go.AddComponent<Camera>();camera.enabled=false;var root=go.AddComponent<EnvironmentRoot>();var binding=go.AddComponent<EnvironmentSkyBinding>();
+   day=ScriptableObject.CreateInstance<DayCycleProfileSO>();weather=ScriptableObject.CreateInstance<WeatherProfileSO>();root.gameplayCamera=camera;root.dayCycle=day;root.initialWeather=weather;root.previewInEditMode=true;
+   binding.environment=root;binding.skyShader=Shader.Find("Hidden/Ossastra/Environment/Sky");binding.rainShader=Shader.Find("Hidden/Ossastra/Environment/Rain");binding.reflectionSkyShader=Shader.Find("Skybox/Cubemap");binding.rainDepthCopyShader=Shader.Find("Hidden/Ossastra/WorldRendering/LegalDepthCopy");go.SetActive(true);root.RefreshNow();binding.SendMessage("Update");acquired=RenderSettings.skybox!=sky;
+   binding.reflectionIntensity=.75f;root.SetContribution(EnvironmentContribution.SunOnly);binding.SendMessage("Update");sunOnlyReflection=RenderSettings.reflectionIntensity==0;
+   root.SetContribution(EnvironmentContribution.Combined);binding.SendMessage("Update");combinedReflection=Mathf.Abs(RenderSettings.reflectionIntensity-.75f)<.001f&&binding.reflectionIntensity==.75f;
+   empty=EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Additive);SceneManager.SetActiveScene(empty);
+   SceneManager.SetActiveScene(original);root.RefreshNow();binding.SendMessage("Update");root.SetContribution(EnvironmentContribution.Original);
+   restored=RenderSettings.skybox==sky&&RenderSettings.customReflectionTexture==texture&&RenderSettings.defaultReflectionMode==mode&&Mathf.Approximately(RenderSettings.reflectionIntensity,intensity);
+  }
+  catch(Exception e){error=e.ToString();}
+  finally
+  {
+   SceneManager.SetActiveScene(original);if(go!=null)UnityEngine.Object.DestroyImmediate(go);if(day!=null)UnityEngine.Object.DestroyImmediate(day);if(weather!=null)UnityEngine.Object.DestroyImmediate(weather);
+   RenderSettings.skybox=sky;RenderSettings.customReflectionTexture=texture;RenderSettings.defaultReflectionMode=mode;RenderSettings.reflectionIntensity=intensity;
+   if(empty.IsValid()&&empty.isLoaded)EditorSceneManager.CloseScene(empty,true);
+  }
+  c.ReturnValue=JsonConvert.SerializeObject(new{pass=acquired&&restored&&sunOnlyReflection&&combinedReflection&&error==null,acquired,restored,sunOnlyReflection,combinedReflection,error});
+ }
+}

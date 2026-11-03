@@ -1,0 +1,8 @@
+/* 功能：隔离主场Play中关闭全部环境光源后，核查原生Lit样板的实际像素；不修改配置源档。 */
+using System;using System.Linq;using UnityEngine;using UnityEngine.SceneManagement;using Newtonsoft.Json;using Funplay.Editor.Tools.Scripting;using Ossastra.EnvironmentSimulation;using Ossastra.EnvironmentSimulation.Rendering;
+public class EnvironmentNativeDarkProbe:IFunplayCommand{public void Execute(ExecutionContext ctx){
+ if(!Application.isPlaying||SceneManager.GetActiveScene().path!="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity")throw new Exception("Isolated main Play required");
+ var root=UnityEngine.Object.FindObjectsOfType<EnvironmentRoot>().Single();var commerce=UnityEngine.Object.FindObjectsOfType<Ossastra.Commerce.Runtime.CommerceService>().Single();if(commerce.profileId!="env01-runtime-isolated")throw new Exception("Save guard");
+ root.sunIntensityMultiplier=0;root.SetContribution(EnvironmentContribution.SunOnly);root.GetComponent<EnvironmentSkyBinding>().reflectionIntensity=0;root.RefreshNow();root.GetComponent<EnvironmentSkyBinding>().SendMessage("Update");
+ ctx.ReturnValue=JsonConvert.SerializeObject(new{root.Current.AmbientIntensity,root.Current.SunIntensity,root.Current.FillIntensity,ambientSky=RenderSettings.ambientSkyColor.ToString(),ambientEquator=RenderSettings.ambientEquatorColor.ToString(),reflection=RenderSettings.reflectionIntensity});
+}}

@@ -1,11 +1,13 @@
 /* 功能：复用本机URP14 Lit的原Forward着色与材质属性，在颜色/深度写入前裁剪合法视域。
  * 边界：只作为按原材质分桶的正向overrideMaterial；不替换原材质、Caster或光照权威；房顶像素由独立许可决定。
  * 生命周期：无自有纹理/材质，显式Shader引用由当前相机RendererFeature持有。
+ * ENV-01：原无光照表面接环境主灯/阴影；原生Lit保留原光照，仅追加房间GI系数与主灯云场，alpha/深度/许可保持。
  */
 Shader "Hidden/Ossastra/Rooms/SightLit"
 {
     Properties
 {
+
         // Specular vs Metallic workflow
         _WorkflowMode("WorkflowMode", Float) = 1.0
 
@@ -188,7 +190,59 @@ Pass
             #include "Packages/com.unity.render-pipelines.universal/Shaders/LitForwardPass.hlsl"
 
             #include "RoomSightClip.hlsl"
+   #define ENVIRONMENT_NATIVE_LIT
+   #include "Assets/OSSASTRA/Scripts/EnvironmentSimulation/Rendering/EnvironmentLighting.hlsl"
             float _RoomSightRoofMode,_RoomSightCutRoof;
+            // URP14片元入口的本地适配，仅在GI初始化后注入房间环境系数。
+            void LitPassFragmentEnvironment(
+    Varyings input
+    , out half4 outColor : SV_Target0
+#ifdef _WRITE_RENDERING_LAYERS
+    , out float4 outRenderingLayers : SV_Target1
+#endif
+)
+{
+    UNITY_SETUP_INSTANCE_ID(input);
+    UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
+
+#if defined(_PARALLAXMAP)
+#if defined(REQUIRES_TANGENT_SPACE_VIEW_DIR_INTERPOLATOR)
+    half3 viewDirTS = input.viewDirTS;
+#else
+    half3 viewDirWS = GetWorldSpaceNormalizeViewDir(input.positionWS);
+    half3 viewDirTS = GetViewDirectionTangentSpace(input.tangentWS, input.normalWS, viewDirWS);
+#endif
+    ApplyPerPixelDisplacement(viewDirTS, input.uv UNITY_GDRP_MATERIAL_PAGE_OFFSET_ARGUMENT);
+#endif
+
+    SurfaceData surfaceData;
+    InitializeStandardLitSurfaceData(input.uv, surfaceData);
+
+#ifdef LOD_FADE_CROSSFADE
+    LODFadeCrossFade(input.positionCS);
+#endif
+
+    InputData inputData;
+    InitializeInputData(input, surfaceData.normalTS, inputData);
+    // 只改变GI；直射灯、实时阴影、局部灯与BRDF仍由原生URP路径计算。
+    inputData.bakedGI *= EnvironmentIndoorFactor(input.positionWS.xyz);
+    SETUP_DEBUG_TEXTURE_DATA(inputData, input.uv, _BaseMap);
+
+#ifdef _DBUFFER
+    ApplyDecalToSurfaceData(input.positionCS, surfaceData, inputData);
+#endif
+
+    half4 color = EnvironmentUniversalFragmentPBR(inputData, surfaceData);
+    color.rgb = MixFog(color.rgb, inputData.fogCoord);
+    color.a = OutputAlpha(color.a, IsSurfaceTypeTransparent(_Surface));
+
+    outColor = color;
+
+#ifdef _WRITE_RENDERING_LAYERS
+    uint renderingLayers = GetMeshRenderingLayer();
+    outRenderingLayers = float4(EncodeMeshRenderingLayer(renderingLayers), 0, 0, 0);
+#endif
+}
             void RoomSightLitFragment(Varyings input, out half4 outColor : SV_Target0
             #ifdef _WRITE_RENDERING_LAYERS
                 , out float4 outRenderingLayers : SV_Target1
@@ -200,8 +254,8 @@ Pass
                 if (_RoomSightRoofMode > .5)
                     RoomSightPreviewRoofClip(input.positionCS.xy, _RoomSightCutRoof);
                 else
-                    clip(RoomSightPartialContains(input.positionWS.xyz) ? 1 : -1);
-                LitPassFragment(input, outColor
+                    if(_EnvironmentFullSurface<.5)clip(RoomSightPartialContains(input.positionWS.xyz) ? 1 : -1);
+                LitPassFragmentEnvironment(input, outColor
                 #ifdef _WRITE_RENDERING_LAYERS
                     , outRenderingLayers
                 #endif
@@ -209,8 +263,8 @@ Pass
                 if (_RoomSightRoofMode < .5)
                 {
                     // 退场仅保留静态表面原色；不继续显示不可见动态角色的新阴影/实时光照信息。
-                    if(RoomSightIsHistoryOnly(input.positionWS.xyz))outColor.rgb=SAMPLE_TEXTURE2D(_BaseMap,sampler_BaseMap,input.uv).rgb*_BaseColor.rgb;
-                    outColor=RoomSightFogColor(outColor,input.positionWS.xyz,0);
+                    if(_EnvironmentFullSurface<.5&&RoomSightIsHistoryOnly(input.positionWS.xyz))outColor.rgb=SAMPLE_TEXTURE2D(_BaseMap,sampler_BaseMap,input.uv).rgb*_BaseColor.rgb;
+                    outColor=EnvironmentFogColor(outColor,input.positionWS.xyz,0);
                 }
             }
             ENDHLSL

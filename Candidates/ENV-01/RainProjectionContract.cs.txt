@@ -1,0 +1,72 @@
+/* 功能：用正式降雨Shader验证屏幕下方的当帧合法表面能隔离室内雨投影，不能只按雨粒世界点判断。
+ * 边界：小建筑仅覆盖少量粒子，逆VP将白色合法深度映射为已知室内/室外点；不改生产资产或场景。
+ * 生命周期：私有RT只验证许可分支，不代签主场深度复制；全局值finally恢复，自有资源精确释放。
+ */
+using System;using System.Linq;using System.Collections.Generic;using UnityEngine;using UnityEngine.Rendering;using UnityEditor;using Newtonsoft.Json;using Funplay.Editor.Tools.Scripting;
+public class EnvironmentRainProjectionContract:IFunplayCommand
+{
+ sealed class Sample{public int Pixels;public double Rgb;public override string ToString()=>Pixels+" pixels / "+Rgb.ToString("F5")+" RGB";}
+ static Matrix4x4 ConstantWorld(Vector3 world)
+ {
+  var value=new Matrix4x4();value.m03=world.x;value.m13=world.y;value.m23=world.z;value.m33=1;return value;
+ }
+ static Sample Draw(Material material,RenderTexture target,Texture2D read)
+ {
+  var cmd=new CommandBuffer{name="Owned current legal surface rain projection contract"};
+  try
+  {
+   cmd.SetRenderTarget(target);cmd.SetViewport(new Rect(0,0,target.width,target.height));cmd.ClearRenderTarget(false,true,Color.clear);
+   var eye=new Vector3(0,4,-25);var view=Matrix4x4.Scale(new Vector3(1,1,-1))*Matrix4x4.TRS(eye,Quaternion.identity,Vector3.one).inverse;
+   cmd.SetViewProjectionMatrices(view,Matrix4x4.Ortho(-16,16,-6,6,.1f,60));cmd.DrawProcedural(Matrix4x4.identity,material,0,MeshTopology.Triangles,6,1024);Graphics.ExecuteCommandBuffer(cmd);
+  }
+  finally{cmd.Release();}
+  RenderTexture.active=target;read.ReadPixels(new Rect(0,0,target.width,target.height),0,0);read.Apply();var result=new Sample();
+  foreach(var color in read.GetPixels()){if(color.r+color.g+color.b>.00001f)result.Pixels++;result.Rgb+=color.r+color.g+color.b;}
+  return result;
+ }
+ public void Execute(ExecutionContext ctx)
+ {
+  if(Application.dataPath!="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets")throw new Exception("Project guard");
+  var shader=Shader.Find("Hidden/Ossastra/Environment/Rain");if(shader==null)throw new Exception("Production rain shader missing");
+  var integerNames=new[]{"_RoomSightOwnerCount","_RoomSightOwnerExterior","_RoomSightSeedCount","_RoomSightBuildingCount","_RoomSightDomainCount","_RoomSightBlockerCount","_RoomSightWindowCount","_RoomSightCameraBlockerCount","_RoomSightExteriorView","_RoomSightPassMode","_EnvironmentShelterCount"};
+  var vectorNames=new[]{"_RoomSightObserver","_RoomSightCameraObserver","_RoomSightTargetSize","_WorldSpaceCameraPos"};
+  var integers=integerNames.ToDictionary(n=>n,n=>Shader.GetGlobalInteger(n));var vectors=vectorNames.ToDictionary(n=>n,n=>Shader.GetGlobalVector(n));
+  var oldInverse=Shader.GetGlobalMatrix("_RoomSightInverseViewProjection");var oldBuildingMatrices=Shader.GetGlobalMatrixArray("_RoomSightBuildingMatrices");var oldBuildingExtents=Shader.GetGlobalVectorArray("_RoomSightBuildingExtents");
+  var oldSeedMatrices=Shader.GetGlobalMatrixArray("_RoomSightSeedMatrices");var oldSeedExtents=Shader.GetGlobalVectorArray("_RoomSightSeedExtents");
+  var oldReady=Shader.GetGlobalFloat("_EnvironmentRainDepthReady");var oldDepth=Shader.GetGlobalTexture("_EnvironmentRainLegalDepth");var previous=RenderTexture.active;
+  var material=new Material(shader);var rt=new RenderTexture(512,256,0,RenderTextureFormat.ARGBFloat,RenderTextureReadWrite.Linear);var read=new Texture2D(512,256,TextureFormat.RGBAFloat,false,true);
+  try
+  {
+   foreach(string name in integerNames)Shader.SetGlobalInteger(name,0);Shader.SetGlobalInteger("_RoomSightExteriorView",1);Shader.SetGlobalInteger("_RoomSightPassMode",1);
+   Shader.SetGlobalVector("_RoomSightObserver",Vector4.zero);Shader.SetGlobalVector("_RoomSightCameraObserver",new Vector4(0,0,-5,1));Shader.SetGlobalVector("_WorldSpaceCameraPos",new Vector4(0,0,-5,1));Shader.SetGlobalVector("_RoomSightTargetSize",new Vector4(512,256,1f/512,1f/256));
+   Shader.SetGlobalFloat("_EnvironmentRainDepthReady",1);Shader.SetGlobalTexture("_EnvironmentRainLegalDepth",Texture2D.whiteTexture);Shader.SetGlobalMatrix("_RoomSightInverseViewProjection",ConstantWorld(new Vector3(100,1,100)));
+   material.SetVector("_EnvironmentRain",new Vector4(1,1,0,1024));material.SetVector("_EnvironmentRainWind",Vector4.zero);material.SetColor("_EnvironmentRainColor",new Color(.67f,.77f,.84f,1));rt.Create();
+   var unrestricted=Draw(material,rt,read);
+   // 只有2x2米足迹；物理雨泡为30x30米，大部分雨粒仍在建筑之外，不能靠原有粒子足迹拒绝冒充成功。
+   var matrices=new Matrix4x4[32];var extents=new Vector4[32];matrices[0]=Matrix4x4.identity;extents[0]=new Vector4(1,2,1,0);
+   Shader.SetGlobalMatrixArray("_RoomSightBuildingMatrices",matrices);Shader.SetGlobalVectorArray("_RoomSightBuildingExtents",extents);Shader.SetGlobalInteger("_RoomSightBuildingCount",1);
+   var exteriorProjection=Draw(material,rt,read);
+   Shader.SetGlobalMatrix("_RoomSightInverseViewProjection",ConstantWorld(new Vector3(0,1,0)));var interiorProjection=Draw(material,rt,read);
+   Shader.SetGlobalMatrix("_RoomSightInverseViewProjection",ConstantWorld(new Vector3(100,1,100)));Shader.SetGlobalFloat("_EnvironmentRainDepthReady",0);var missingCurrentDepth=Draw(material,rt,read);
+   Shader.SetGlobalFloat("_EnvironmentRainDepthReady",1);var exteriorRestored=Draw(material,rt,read);
+   // Ready只证明本帧复制成功；清除值/far不是一个合法世界表面，不能据此在黑幕上画雨。
+   Shader.SetGlobalTexture("_EnvironmentRainLegalDepth",SystemInfo.usesReversedZBuffer?Texture2D.blackTexture:Texture2D.whiteTexture);var farDepth=Draw(material,rt,read);
+   Shader.SetGlobalTexture("_EnvironmentRainLegalDepth",Texture2D.whiteTexture);Shader.SetGlobalInteger("_RoomSightBuildingCount",0);Shader.SetGlobalInteger("_RoomSightExteriorView",0);
+   var seedMatrices=new Matrix4x4[8];var seedExtents=new Vector4[8];seedMatrices[0]=Matrix4x4.identity;seedExtents[0]=new Vector4(40,40,40,0);
+   Shader.SetGlobalMatrixArray("_RoomSightSeedMatrices",seedMatrices);Shader.SetGlobalVectorArray("_RoomSightSeedExtents",seedExtents);Shader.SetGlobalInteger("_RoomSightSeedCount",1);
+   // 整个物理雨泡均位于合法seed中；先证明合法下方表面仍有雨，再只把下方表面移出当前许可。
+   Shader.SetGlobalMatrix("_RoomSightInverseViewProjection",ConstantWorld(new Vector3(0,1,0)));var seedSurface=Draw(material,rt,read);
+   Shader.SetGlobalMatrix("_RoomSightInverseViewProjection",ConstantWorld(new Vector3(100,1,100)));var nonCurrentSurface=Draw(material,rt,read);
+   bool validFixture=unrestricted.Pixels>10&&unrestricted.Rgb>.01,exteriorPreserved=exteriorProjection.Pixels>10&&exteriorProjection.Rgb>.01,interiorRejected=interiorProjection.Pixels==0,missingDepthRejected=missingCurrentDepth.Pixels==0,currentDepthReusable=exteriorRestored.Pixels>10;
+   bool farDepthRejected=farDepth.Pixels==0,validSeedFixture=seedSurface.Pixels>10&&seedSurface.Rgb>.01,nonCurrentSurfaceRejected=nonCurrentSurface.Pixels==0;
+   ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=validFixture&&exteriorPreserved&&interiorRejected&&missingDepthRejected&&currentDepthReusable&&farDepthRejected&&validSeedFixture&&nonCurrentSurfaceRejected,validFixture,exteriorPreserved,interiorRejected,missingDepthRejected,currentDepthReusable,farDepthRejected,validSeedFixture,nonCurrentSurfaceRejected,unrestricted=unrestricted.ToString(),exteriorProjection=exteriorProjection.ToString(),interiorProjection=interiorProjection.ToString(),missingCurrentDepth=missingCurrentDepth.ToString(),exteriorRestored=exteriorRestored.ToString(),farDepth=farDepth.ToString(),seedSurface=seedSurface.ToString(),nonCurrentSurface=nonCurrentSurface.ToString(),messages=ShaderUtil.GetShaderMessages(shader).Select(m=>m.message).ToArray()});
+  }
+  finally
+  {
+   foreach(var value in integers)Shader.SetGlobalInteger(value.Key,value.Value);foreach(var value in vectors)Shader.SetGlobalVector(value.Key,value.Value);Shader.SetGlobalMatrix("_RoomSightInverseViewProjection",oldInverse);
+   Shader.SetGlobalMatrixArray("_RoomSightBuildingMatrices",oldBuildingMatrices!=null&&oldBuildingMatrices.Length>0?oldBuildingMatrices:new Matrix4x4[32]);Shader.SetGlobalVectorArray("_RoomSightBuildingExtents",oldBuildingExtents!=null&&oldBuildingExtents.Length>0?oldBuildingExtents:new Vector4[32]);
+   Shader.SetGlobalMatrixArray("_RoomSightSeedMatrices",oldSeedMatrices!=null&&oldSeedMatrices.Length>0?oldSeedMatrices:new Matrix4x4[8]);Shader.SetGlobalVectorArray("_RoomSightSeedExtents",oldSeedExtents!=null&&oldSeedExtents.Length>0?oldSeedExtents:new Vector4[8]);
+   Shader.SetGlobalFloat("_EnvironmentRainDepthReady",oldReady);Shader.SetGlobalTexture("_EnvironmentRainLegalDepth",oldDepth);RenderTexture.active=previous;rt.Release();foreach(var value in new UnityEngine.Object[]{material,rt,read})UnityEngine.Object.DestroyImmediate(value);
+  }
+ }
+}

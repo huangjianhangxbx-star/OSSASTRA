@@ -7,6 +7,7 @@ using UnityEngine;
 using XingHai.T7B;
 using XingHai.T7C1;
 using XingHai.T7C2;
+using Ossastra.EnvironmentSimulation;
 
 namespace Ossastra.WorldRendering
 {
@@ -50,15 +51,18 @@ namespace Ossastra.WorldRendering
         /// </summary>
         public static WorldLookSettings Build(Camera camera, Vector3 observerPosition,
             HD2DPostProfile presentation, OutdoorAtmosphereProfile atmosphere,
-            RegionalLookProfile palette, WorldLookEffectOptions options)
+            RegionalLookProfile palette, WorldLookEffectOptions options, EnvironmentFrame environment = null, bool allowWeatherFog = true)
         {
             bool valid = camera != null && Finite(observerPosition) && Finite(camera.transform.position) && Finite(camera.transform.forward);
             bool master = valid && (options == null || options.enabled);
             bool hasPresentation = presentation != null && presentation.presentationEnabled;
             bool hasAtmosphere = atmosphere != null;
             bool hasPalette = palette != null;
+            // 同相机昼夜可调整正Contrast黑位；天气空气另需明确许可，不把昼夜再变成第二次曝光。
+            bool hasEnvironment = environment != null && environment.Enabled;
+            float weatherFog = hasEnvironment && allowWeatherFog ? Safe(environment.FogDensity, 0f, 0f, .2f) : 0f;
             var result = new WorldLookSettings();
-            result.AirEnabled = master && hasAtmosphere && atmosphere.airEnabled && (options == null || options.airEnabled);
+            result.AirEnabled = master && ((hasAtmosphere && atmosphere.airEnabled) || weatherFog > 0f) && (options == null || options.airEnabled);
             result.FocusEnabled = master && hasPresentation && (options == null || options.focusEnabled);
             result.BloomEnabled = master && hasPresentation && (options == null || options.bloomEnabled);
             result.GradeEnabled = master && (hasAtmosphere || hasPalette) && (options == null || options.gradeEnabled);
@@ -79,6 +83,9 @@ namespace Ossastra.WorldRendering
 
             result.Exposure = Safe((hasAtmosphere ? atmosphere.exposure : 0f) + (hasPalette ? palette.exposureOffset : 0f), 0f, -10f, 10f);
             result.Contrast = Safe((hasAtmosphere ? atmosphere.contrast : 0f) + (hasPalette ? palette.contrastOffset : 0f), 0f, -100f, 100f);
+            // 日间正对比度围绕固定黑位压暗，夜间会吞掉已存在的物理微光；只衰减这份正值。
+            if (hasEnvironment && result.Contrast > 0f)
+                result.Contrast *= 1f - Safe(environment.NightFactor, 0f, 0f, 1f);
             result.Saturation = Safe((hasAtmosphere ? atmosphere.saturation : 0f) + (hasPalette ? palette.saturationOffset : 0f), 0f, -100f, 100f);
             result.Temperature = Safe((hasAtmosphere ? atmosphere.temperature : 0f) + (hasPalette ? palette.temperatureOffset : 0f), 0f, -100f, 100f);
             result.GradeFilter = SafeColor(hasPalette ? palette.gradeFilter : Color.white, Color.white);
@@ -92,6 +99,16 @@ namespace Ossastra.WorldRendering
             result.SaturationLoss = Safe(hasAtmosphere ? atmosphere.saturationLoss : 0f, 0f, 0f, 1f);
             result.ContrastLoss = Safe(hasAtmosphere ? atmosphere.contrastLoss : 0f, 0f, 0f, 1f);
             result.NearInfluence = Safe(hasAtmosphere ? atmosphere.nearColorInfluence : 0f, 0f, 0f, 1f);
+            if (weatherFog > 0f)
+            {
+                // 原档是静态基线，天气贡献只存在本次快照；清除天气后完全回到上面的原值。
+                float amount = Mathf.Clamp01(weatherFog * 25f);
+                Color fogColor = SafeColor(environment.FogColor, result.AirFar);
+                result.Extinction = Mathf.Clamp01(result.Extinction + weatherFog);
+                result.AirNear = Color.Lerp(result.AirNear, fogColor, amount * .15f);
+                result.AirMid = Color.Lerp(result.AirMid, fogColor, amount * .6f);
+                result.AirFar = Color.Lerp(result.AirFar, fogColor, amount);
+            }
             return result;
         }
 

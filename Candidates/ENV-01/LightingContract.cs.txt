@@ -1,0 +1,43 @@
+/* 功能：用当前正式地表适配Shader验证实际GPU环境底光/太阳方向响应；先证明旧地表无受光能力。
+ * 边界：不修改生产场景/灯/资产；私有纹理、材质、网格与RT在finally释放，借用全局值精确恢复。
+ */
+using System;using System.Linq;using System.Collections.Generic;using UnityEngine;using UnityEngine.Rendering;using UnityEditor;using Newtonsoft.Json;using Funplay.Editor.Tools.Scripting;
+public class EnvironmentLightingContract:IFunplayCommand
+{
+ static Color Draw(Material material,Mesh mesh,RenderTexture output,Texture2D read)
+ {
+  var cmd=new CommandBuffer{name="Owned environment lighting GPU contract"};
+  try{cmd.SetRenderTarget(output);cmd.SetViewport(new Rect(0,0,output.width,output.height));cmd.ClearRenderTarget(false,true,Color.clear);cmd.SetViewProjectionMatrices(Matrix4x4.identity,Matrix4x4.identity);cmd.DrawMesh(mesh,Matrix4x4.identity,material,0,0);Graphics.ExecuteCommandBuffer(cmd);}finally{cmd.Release();}
+  RenderTexture.active=output;read.ReadPixels(new Rect(0,0,output.width,output.height),0,0);read.Apply();return read.GetPixel(output.width/2,output.height/2);
+ }
+ public void Execute(ExecutionContext ctx)
+ {
+  if(Application.dataPath!="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets")throw new Exception("Project guard");
+  var shader=Shader.Find("Hidden/Ossastra/Rooms/SightWorldTile");if(shader==null)throw new Exception("Existing ground shader missing");
+  var scalarNames=new[]{"_EnvironmentLightingEnabled","_EnvironmentIndoorAmbientScale","_EnvironmentWetness","_RoomSightStaticEnvironment","_EnvironmentFullSurface","_EnvironmentSurfaceRole","_EnvironmentResponseOverride","_EnvironmentReceiveShadow","_EnvironmentMinimumOverride"};
+  var integerNames=new[]{"_EnvironmentIndoorCount","_EnvironmentLocalLightCount","_RoomSightOwnerCount","_RoomSightOwnerExterior","_RoomSightSeedCount","_RoomSightBuildingCount","_RoomSightDomainCount","_RoomSightBlockerCount","_RoomSightWindowCount","_RoomSightCameraBlockerCount","_RoomSightExteriorView","_RoomSightPassMode"};
+  var vectorNames=new[]{"_EnvironmentSkyAmbient","_EnvironmentHorizonAmbient","_EnvironmentGroundAmbient","_EnvironmentLightResponse","_EnvironmentCloudParameters","_EnvironmentCloudMotion","_MainLightPosition","_MainLightColor","_RoomSightTargetSize"};
+  var scalars=scalarNames.ToDictionary(n=>n,n=>Shader.GetGlobalFloat(n));var integers=integerNames.ToDictionary(n=>n,n=>Shader.GetGlobalInteger(n));var vectors=vectorNames.ToDictionary(n=>n,n=>Shader.GetGlobalVector(n));var inverse=Shader.GetGlobalMatrix("_RoomSightInverseViewProjection");
+  var previous=RenderTexture.active;var texture=new Texture2D(2,2,TextureFormat.RGBAFloat,false,true);var mat=new Material(shader);var mesh=new Mesh();var rt=new RenderTexture(16,16,0,RenderTextureFormat.ARGBFloat,RenderTextureReadWrite.Linear);var read=new Texture2D(16,16,TextureFormat.RGBAFloat,false,true);
+  try
+  {
+   foreach(string n in scalarNames)Shader.SetGlobalFloat(n,0);foreach(string n in integerNames)Shader.SetGlobalInteger(n,0);Shader.SetGlobalInteger("_RoomSightExteriorView",1);Shader.SetGlobalMatrix("_RoomSightInverseViewProjection",Matrix4x4.identity);Shader.SetGlobalVector("_RoomSightTargetSize",new Vector4(16,16,1f/16,1f/16));
+   texture.SetPixels(Enumerable.Repeat(new Color(.5f,.5f,.5f,1),4).ToArray());texture.Apply();mat.SetTexture("_MainTex",Texture2D.whiteTexture);mat.SetTexture("_SecondTex",texture);mat.SetColor("_Color",Color.white);mat.SetVector("_GroundBounds",new Vector4(-1000,-1000,1000,1000));mat.SetFloat("_BaseCoverage",1);mat.SetFloat("_DebugMask",0);mat.SetFloat("_WorldPeriod",1);
+   mesh.vertices=new[]{new Vector3(-1,-1,.5f),new Vector3(3,-1,.5f),new Vector3(-1,3,.5f)};mesh.triangles=new[]{0,1,2};mesh.uv=new[]{Vector2.zero,Vector2.right*2,Vector2.up*2};mesh.colors=new[]{Color.white,Color.white,Color.white};mesh.RecalculateBounds();rt.Create();
+   Shader.SetGlobalFloat("_EnvironmentLightingEnabled",1);Shader.SetGlobalFloat("_EnvironmentResponseOverride",1);Shader.SetGlobalFloat("_EnvironmentReceiveShadow",1);Shader.SetGlobalFloat("_EnvironmentSurfaceRole",0);Shader.SetGlobalVector("_EnvironmentLightResponse",new Vector4(1,.7f,.7f,.12f));Shader.SetGlobalFloat("_EnvironmentIndoorAmbientScale",.2f);Shader.SetGlobalVector("_EnvironmentCloudParameters",Vector4.zero);Shader.SetGlobalVector("_EnvironmentCloudMotion",Vector4.zero);Shader.SetGlobalVector("_MainLightPosition",new Vector4(0,1,0,0));Shader.SetGlobalVector("_MainLightColor",Vector4.zero);
+   foreach(string n in new[]{"_EnvironmentSkyAmbient","_EnvironmentHorizonAmbient","_EnvironmentGroundAmbient"})Shader.SetGlobalVector(n,new Vector4(.2f,.2f,.2f,1));
+   var dark=Draw(mat,mesh,rt,read);
+   foreach(string n in new[]{"_EnvironmentSkyAmbient","_EnvironmentHorizonAmbient","_EnvironmentGroundAmbient"})Shader.SetGlobalVector(n,new Vector4(.8f,.8f,.8f,1));
+   var bright=Draw(mat,mesh,rt,read);
+   foreach(string n in new[]{"_EnvironmentSkyAmbient","_EnvironmentHorizonAmbient","_EnvironmentGroundAmbient"})Shader.SetGlobalVector(n,new Vector4(.2f,.2f,.2f,1));
+   Shader.SetGlobalVector("_MainLightColor",new Vector4(1,1,1,1));var overhead=Draw(mat,mesh,rt,read);Shader.SetGlobalVector("_MainLightPosition",new Vector4(1,0,0,0));var horizontal=Draw(mat,mesh,rt,read);
+   Shader.SetGlobalFloat("_EnvironmentLightingEnabled",0);var bypass=Draw(mat,mesh,rt,read);
+   bool ambient=bright.r-dark.r>.15f,direction=overhead.r-horizontal.r>.15f,identity=Mathf.Abs(bypass.r-.5f)<.01f,alpha=Mathf.Abs(bright.a-1)<.001f;
+   ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=ambient&&direction&&identity&&alpha,ambient,direction,identity,alpha,dark=dark.ToString(),bright=bright.ToString(),overhead=overhead.ToString(),horizontal=horizontal.ToString(),bypass=bypass.ToString(),messages=ShaderUtil.GetShaderMessages(shader).Select(m=>m.message).ToArray()});
+  }
+  finally
+  {
+   foreach(var p in scalars)Shader.SetGlobalFloat(p.Key,p.Value);foreach(var p in integers)Shader.SetGlobalInteger(p.Key,p.Value);foreach(var p in vectors)Shader.SetGlobalVector(p.Key,p.Value);Shader.SetGlobalMatrix("_RoomSightInverseViewProjection",inverse);RenderTexture.active=previous;rt.Release();foreach(var o in new UnityEngine.Object[]{mat,texture,mesh,rt,read})UnityEngine.Object.DestroyImmediate(o);
+  }
+ }
+}

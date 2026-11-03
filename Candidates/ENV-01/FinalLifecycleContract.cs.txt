@@ -1,0 +1,27 @@
+/* 功能：在隔离主场真实Root上反复启停，核对资源释放、原材质身份/投影状态及专属风叶恢复。
+ * 边界：不写场景/配置/存档，不改TimeScale；结束回到正午、晴天、手动时刻。
+ */
+using System;using System.Linq;using System.Reflection;using System.Collections.Generic;using UnityEngine;using UnityEngine.SceneManagement;using Newtonsoft.Json;using Funplay.Editor.Tools.Scripting;using Ossastra.EnvironmentSimulation;using Ossastra.EnvironmentSimulation.Rendering;using Ossastra.Development.Environment;
+public class EnvironmentFinalLifecycleContract:IFunplayCommand{
+ static object Field(object o,string n)=>o.GetType().GetField(n,BindingFlags.Instance|BindingFlags.NonPublic).GetValue(o);
+ public void Execute(ExecutionContext ctx){
+  var s=SceneManager.GetActiveScene();if(!Application.isPlaying||s.path!="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity")throw new Exception("Isolated main Play required");
+  var roots=s.GetRootGameObjects();var all=roots.SelectMany(g=>g.GetComponentsInChildren<MonoBehaviour>(true)).Where(m=>m!=null).ToArray();var commerce=all.OfType<Ossastra.Commerce.Runtime.CommerceService>().Single();if(commerce.profileId!="env01-runtime-isolated")throw new Exception("Save guard");
+  var root=all.OfType<EnvironmentRoot>().Single();var sky=root.GetComponent<EnvironmentSkyBinding>();var panel=root.GetComponent<EnvironmentSimulationPanel>();var wind=all.OfType<EnvironmentVegetationWind>().Single();var renderers=roots.SelectMany(g=>g.GetComponentsInChildren<Renderer>(true)).ToArray();
+  root.SetClockRunning(false);root.SetContribution(EnvironmentContribution.Original);sky.SendMessage("Update");wind.SendMessage("Update");
+  var before=renderers.Select(r=>new{r,id=r.GetInstanceID(),materials=r.sharedMaterials.Select(m=>m==null?0:m.GetInstanceID()).ToArray(),cast=r.shadowCastingMode,off=r.forceRenderingOff}).ToArray();
+  var checks=new List<object>();bool pass=true;Action<bool,string> need=(ok,name)=>{checks.Add(new{name,pass=ok});pass&=ok;};
+  for(int i=0;i<3;i++){
+   root.effectsEnabled=true;root.SetContribution(EnvironmentContribution.Combined);root.RefreshNow();sky.SendMessage("Update");wind.SendMessage("Update");
+   need(Field(sky,"skyMaterial")!=null&&Field(sky,"preview")!=null&&Field(sky,"reflection")!=null,"cycle "+i+" acquires own resources");
+   root.enabled=false;sky.SendMessage("Update");wind.SendMessage("Update");
+   need(new[]{"skyMaterial","rainMaterial","cubeMaterial","depthCopyMaterial","preview","reflection","rainDepth"}.All(n=>Field(sky,n)==null),"cycle "+i+" releases all own GPU resources");
+   need(before.All(b=>b.r!=null&&b.r.sharedMaterials.Select(m=>m==null?0:m.GetInstanceID()).SequenceEqual(b.materials)&&b.r.shadowCastingMode==b.cast&&b.r.forceRenderingOff==b.off),"cycle "+i+" preserves renderer identity and state");root.enabled=true;
+  }
+  root.sunIntensityMultiplier=1;root.ambientMultiplier=1;sky.reflectionIntensity=1;root.effectsEnabled=true;root.cycleMinutes=6;root.automaticWeather=false;root.SetClockRunning(false);root.SetTimeHours(12);root.SetManualSun(false,135,45);root.TransitionWeather(panel.weatherPresets.Single(p=>p.displayName=="晴"),0);root.SetContribution(EnvironmentContribution.Combined);sky.SendMessage("Update");
+  var observation=roots.Single(g=>g.name=="EnvironmentSimulationRoot").GetComponentsInChildren<Transform>(true).Single(t=>t.name=="EnvironmentObservationRoot");
+  need(observation.GetComponentsInChildren<Renderer>(true).Length==17,"17 explicit observation renderers");need(panel.GetComponent<EnvironmentObservationAuthoring>().sightBlockers.Length==4,"4 explicit registered structure blockers");
+  need(roots.SelectMany(g=>g.GetComponentsInChildren<Transform>(true)).Sum(t=>UnityEditor.GameObjectUtility.GetMonoBehavioursWithMissingScriptCount(t.gameObject))==0,"no missing scripts");need(root.GetComponentsInChildren<AudioSource>(true).Length==0,"no owned environment audio");need(Time.timeScale==1,"world never paused");
+  ctx.ReturnValue=JsonConvert.SerializeObject(new{pass,checks,root.Status,sky=sky.Status});
+ }
+}

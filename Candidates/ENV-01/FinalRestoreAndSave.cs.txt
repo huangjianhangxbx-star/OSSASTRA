@@ -1,0 +1,19 @@
+/* 功能：稳定Edit下归还本轮隔离存档路由，保存并重开唯一主场；不再启动原档Play。
+ * 边界：只改已明确的环境演示默认值、原真值显示开关及原存档入口；所有资产经Native API。
+ */
+using System;using System.Linq;using System.IO;using UnityEngine;using UnityEditor;using UnityEditor.SceneManagement;using UnityEngine.SceneManagement;using Newtonsoft.Json;using Newtonsoft.Json.Linq;using Funplay.Editor.Tools.Scripting;using Ossastra.EnvironmentSimulation;using Ossastra.EnvironmentSimulation.Rendering;using Ossastra.Development.Environment;
+public class EnvironmentFinalRestoreAndSave:IFunplayCommand{
+ const string main="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity";
+ public void Execute(ExecutionContext ctx){
+  var scene=SceneManager.GetActiveScene();if(Application.isPlaying||EditorApplication.isCompiling||scene.path!=main||Application.dataPath!="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets")throw new Exception("Stable current project/main Edit required");
+  var all=scene.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<MonoBehaviour>(true)).Where(x=>x!=null).ToArray();var commerce=all.OfType<Ossastra.Commerce.Runtime.CommerceService>().Single();var root=all.OfType<EnvironmentRoot>().Single();var sky=all.OfType<EnvironmentSkyBinding>().Single();var panel=all.OfType<EnvironmentSimulationPanel>().Single();var map=all.OfType<Ossastra.MapResearch.MapResearchRoot>().Single();var visibility=all.OfType<Ossastra.SceneVisibility.SceneVisibilityRoot>().Single();
+  if(commerce.profileId!="env01-runtime-isolated")throw new Exception("Expected owned isolated route; inspect before restoration");
+  var original=JObject.Parse(File.ReadAllText("E:/WORLDCREATOR/XingHaiHuiLang/研究/环境模拟/ENV-01/commerce-route-before.json"));if((string)original["profileId"]!="kt-vis06-natural-01")throw new Exception("Original route baseline mismatch");
+  foreach(var item in new UnityEngine.Object[]{commerce,root,sky,panel,map,visibility.roomModule})ctx.RegisterObjectModification(item);
+  root.enabled=true;root.previewInEditMode=false;root.ResetPreview();root.cycleMinutes=6;sky.reflectionIntensity=1;sky.overrideSkyColors=false;panel.enabled=true;panel.SetExpanded(false);visibility.roomModule.truthMode=false;
+  map.pitch=35;commerce.profileId=(string)original["profileId"];commerce.saveDirectory=(string)original["saveDirectory"];
+  foreach(var item in new UnityEngine.Object[]{commerce,root,sky,panel,map,visibility.roomModule})EditorUtility.SetDirty(item);
+  EditorSceneManager.MarkSceneDirty(scene);if(!EditorSceneManager.SaveScene(scene))throw new Exception("Main save rejected");EditorSceneManager.OpenScene(main,OpenSceneMode.Single);
+  ctx.ReturnValue=JsonConvert.SerializeObject(new{saved=true,reopened=true,playStarted=false,profile=commerce==null?"reloaded":commerce.profileId});
+ }
+}

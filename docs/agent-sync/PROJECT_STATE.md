@@ -661,3 +661,6 @@ Core新20/Legacy20、离线时序13、Native历史8；实景门窗10/10，真实
 
 
 2026-11-04 ENV-01-PLAN complete/read-only：当前35度RoomLab的天空/真实光照/昼夜太阳/天气气候计划已交付docs/ossastra/ENV-01。只读Native核实太阳Light.shadows=None但管线支持、现有默认Skybox、多个Unlit地表/装饰/装备家族，以及正向重绘清黑；文档提出四里程碑与8–14小时估算，均为推荐方案，环境功能尚未实施。全程无Unity/源码/业务/原档变更，全部文档与只读子任务租约释放。
+
+
+2026-11-04 ENV-01 technical-complete/docs-writer=root：当前35度主场增量接入单Frame环境根、真实投影/地表角色受光、合法天空昼夜、五天气三气候、云风雾雨湿润及uGUI。完整24小时/天气中断实录、Native/GPU定向合同、3轮资源身份恢复通过；Native保存重开单场Edit clean/35度/2角色1敌/缺失0，原KT-VIS-06存档路由已归还且未再Play。1432源与旧档SHA/42原dirty前缀保护通过；全部Unity/生产源码/子代理租约释放，Root只保留交付文档及R11白名单GitHub发布。见ossastra/ENV-01/实现与验证交付.md；Player/GPU耗时/全技能与正式美术未代签，无电源动作。

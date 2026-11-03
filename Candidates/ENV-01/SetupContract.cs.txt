@@ -1,0 +1,10 @@
+// 功能：验证主场增量装配入口存在；实际Root执行Apply后再核对单一根、原数量与重复装配不增殖。
+using System;using System.Linq;using Newtonsoft.Json;using Funplay.Editor.Tools.Scripting;
+public sealed class EnvironmentSetupContract:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  var type=AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType("Ossastra.EnvironmentSimulation.Editor.EnvironmentMainSceneSetup")).FirstOrDefault(t=>t!=null);
+  ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=type!=null,stage=type==null?"RED":"READY",reason=type==null?"Guarded idempotent main scene setup missing":"Run guarded Apply through Root, then inspect authored root and original scene identities"});
+ }
+}

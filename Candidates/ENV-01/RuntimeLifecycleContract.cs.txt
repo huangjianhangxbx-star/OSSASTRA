@@ -1,0 +1,46 @@
+/* 功能：单owner、精确相机改绑及无DomainReload子系统清空后的租约恢复。
+ * 模拟Unity的SubsystemRegistration入口，不修改Play选项或创建验证场景；finally精确恢复环境基线。
+ */
+using System;
+using System.Linq;
+using System.Reflection;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.Rendering;
+using Newtonsoft.Json;
+using Funplay.Editor.Tools.Scripting;
+public class EnvironmentLifecycleContract:IFunplayCommand
+{
+ static Type T(string name)=>AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType("Ossastra.EnvironmentSimulation."+name)).First(t=>t!=null);
+ static void Set(object o,string name,object value)=>o.GetType().GetField(name).SetValue(o,value);
+ static object Call(object o,string name,params object[] args)=>o.GetType().GetMethod(name).Invoke(o,args);
+ static object Get(object o,string name)=>o.GetType().GetProperty(name).GetValue(o);
+ public void Execute(ExecutionContext ctx)
+ {
+  var owned=new List<UnityEngine.Object>();var disabled=new List<Behaviour>();var checks=new List<object>();bool all=true;
+  AmbientMode mode=RenderSettings.ambientMode;Color sky=RenderSettings.ambientSkyColor,equator=RenderSettings.ambientEquatorColor,ground=RenderSettings.ambientGroundColor;float intensity=RenderSettings.ambientIntensity;Light beforeSun=RenderSettings.sun;
+  Action<bool,string> need=(pass,name)=>{checks.Add(new{name,pass});all&=pass;};
+  try
+  {
+   foreach(var b in UnityEngine.Object.FindObjectsOfType(T("EnvironmentRoot")).Cast<Behaviour>()){if(b.enabled){disabled.Add(b);b.enabled=false;}}
+   mode=RenderSettings.ambientMode;sky=RenderSettings.ambientSkyColor;equator=RenderSettings.ambientEquatorColor;ground=RenderSettings.ambientGroundColor;intensity=RenderSettings.ambientIntensity;beforeSun=RenderSettings.sun;
+   var go=new GameObject("Owned_EnvLifecycle");owned.Add(go);go.SetActive(false);var camera=go.AddComponent<Camera>();camera.enabled=false;var root=go.AddComponent(T("EnvironmentRoot"));var binding=go.AddComponent(T("EnvironmentLightingBinding"));Set(root,"gameplayCamera",camera);Set(root,"lightingBinding",binding);Set(root,"previewInEditMode",true);Set(binding,"root",root);
+   var day=ScriptableObject.CreateInstance(T("DayCycleProfileSO"));var weather=ScriptableObject.CreateInstance(T("WeatherProfileSO"));owned.Add(day);owned.Add(weather);Set(root,"dayCycle",day);Set(root,"initialWeather",weather);go.SetActive(true);
+   var registry=T("EnvironmentCameraRegistry");Func<Camera,bool> registered=c=>{var args=new object[]{c,null};return (bool)registry.GetMethod("TryGet").Invoke(null,args);};need(registered(camera),"First root owns configured camera");
+   var otherGo=new GameObject("Owned_EnvOtherCamera");owned.Add(otherGo);var other=otherGo.AddComponent<Camera>();other.enabled=false;need(!registered(other),"Unconfigured camera cannot inherit another frame");
+   var secondGo=new GameObject("Owned_EnvSecondRoot");owned.Add(secondGo);secondGo.SetActive(false);var second=secondGo.AddComponent(T("EnvironmentRoot"));Set(second,"gameplayCamera",camera);Set(second,"dayCycle",day);Set(second,"initialWeather",weather);Set(second,"previewInEditMode",true);secondGo.SetActive(true);var firstFrame=Get(root,"Current");var entry=new object[]{camera,null};registry.GetMethod("TryGet").Invoke(null,entry);need(ReferenceEquals(firstFrame,entry[1])&&((string)Get(second,"Status")).Contains("无效"),"Second root cannot overwrite first owner");secondGo.SetActive(false);
+   Set(root,"gameplayCamera",other);Call(root,"RefreshNow");need(!registered(camera)&&registered(other),"Rebind releases old camera before publishing new camera");
+   T("EnvironmentLightingBinding").GetMethod("ResetStatics",BindingFlags.Static|BindingFlags.NonPublic).Invoke(null,null);T("EnvironmentRoot").GetMethod("ResetStatics",BindingFlags.Static|BindingFlags.NonPublic).Invoke(null,null);registry.GetMethod("Reset",BindingFlags.Static|BindingFlags.NonPublic).Invoke(null,null);Call(root,"RefreshNow");
+   need(registered(other),"Surviving edit preview republishes after subsystem registration");Call(root,"SetContribution",Enum.Parse(T("EnvironmentContribution"),"Original"));
+   need(RenderSettings.ambientMode==mode&&RenderSettings.ambientSkyColor==sky&&RenderSettings.ambientEquatorColor==equator&&RenderSettings.ambientGroundColor==ground&&Math.Abs(RenderSettings.ambientIntensity-intensity)<.0001f&&RenderSettings.sun==beforeSun,"Surviving lease still restores owned ambient after subsystem reset");
+   need(!registered(other),"Original revokes surviving camera lease");ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=all,checks});
+  }
+  catch(Exception e){ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=false,error=e.ToString(),checks});}
+  finally
+  {
+   foreach(var o in owned)if(o!=null)UnityEngine.Object.DestroyImmediate(o);
+   RenderSettings.ambientMode=mode;RenderSettings.ambientSkyColor=sky;RenderSettings.ambientEquatorColor=equator;RenderSettings.ambientGroundColor=ground;RenderSettings.ambientIntensity=intensity;RenderSettings.sun=beforeSun;
+   foreach(var b in disabled)if(b!=null)b.enabled=true;
+  }
+ }
+}

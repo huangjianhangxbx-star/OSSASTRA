@@ -1,0 +1,65 @@
+/* 功能：用正式Native Lit与WorldTile片元验证室外湿润温和响应，以及室内/雨棚/角色/信息排除。
+ * 边界：真实主灯/SH有效才认fixture；不改源材质、灯、场景或环境档，不用静态源码匹配冒充受光。
+ * 生命周期：仅私有材质、网格、纹理和RT；借用全局参数完整恢复，自有GPU对象finally释放。
+ */
+using System;using System.Linq;using System.Collections.Generic;using UnityEngine;using UnityEngine.Rendering;using UnityEditor;using Newtonsoft.Json;using Funplay.Editor.Tools.Scripting;
+public class EnvironmentWetnessContract:IFunplayCommand
+{
+ struct WetPair{public Color Dry,Wet;public bool Alpha=>Mathf.Abs(Dry.a-Wet.a)<.001f;public bool Same=>Mathf.Max(Mathf.Abs(Dry.r-Wet.r),Mathf.Abs(Dry.g-Wet.g),Mathf.Abs(Dry.b-Wet.b))<.001f;public bool GentleDrop=>Dry.r-Wet.r>.01f&&Wet.r/Mathf.Max(Dry.r,.001f)>.90f&&Wet.r/Mathf.Max(Dry.r,.001f)<.995f;}
+ static Color Draw(Material material,Mesh mesh,RenderTexture target,Texture2D read)
+ {
+  var cmd=new CommandBuffer{name="Owned actual native/unlit wetness GPU contract"};
+  try
+  {
+   cmd.SetRenderTarget(target);cmd.SetViewport(new Rect(0,0,target.width,target.height));cmd.ClearRenderTarget(false,true,Color.clear);cmd.SetViewProjectionMatrices(Matrix4x4.identity,Matrix4x4.identity);
+   var block=new MaterialPropertyBlock();block.SetVector("unity_LightData",new Vector4(0,0,1,0));var sh=new SphericalHarmonicsL2();sh.AddAmbientLight(new Color(.2f,.2f,.2f));block.CopySHCoefficientArraysFrom(new[]{sh});cmd.DrawMesh(mesh,Matrix4x4.identity,material,0,0,block);Graphics.ExecuteCommandBuffer(cmd);
+  }
+  finally{cmd.Release();}
+  RenderTexture.active=target;read.ReadPixels(new Rect(0,0,target.width,target.height),0,0);read.Apply();return read.GetPixel(target.width/2,target.height/2);
+ }
+ static WetPair Pair(Material material,Mesh mesh,RenderTexture target,Texture2D read)
+ {
+  Shader.SetGlobalFloat("_EnvironmentWetness",0);var dry=Draw(material,mesh,target,read);Shader.SetGlobalFloat("_EnvironmentWetness",1);return new WetPair{Dry=dry,Wet=Draw(material,mesh,target,read)};
+ }
+ public void Execute(ExecutionContext ctx)
+ {
+  if(Application.dataPath!="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets")throw new Exception("Project guard");
+  var nativeShader=Shader.Find("Hidden/Ossastra/Rooms/SightLit");var tileShader=Shader.Find("Hidden/Ossastra/Rooms/SightWorldTile");if(nativeShader==null||tileShader==null)throw new Exception("Production material shader missing");
+  var scalarNames=new[]{"_EnvironmentLightingEnabled","_EnvironmentIndoorAmbientScale","_EnvironmentWetness","_EnvironmentFullSurface","_EnvironmentSurfaceRole","_EnvironmentResponseOverride","_EnvironmentReceiveShadow","_EnvironmentMinimumOverride","_RoomSightStaticEnvironment","_RoomSightRoofMode","_RoomSightCutRoof"};
+  var integerNames=new[]{"_EnvironmentIndoorCount","_EnvironmentLocalLightCount","_EnvironmentShelterCount","_RoomSightOwnerCount","_RoomSightOwnerExterior","_RoomSightSeedCount","_RoomSightBuildingCount","_RoomSightDomainCount","_RoomSightBlockerCount","_RoomSightWindowCount","_RoomSightCameraBlockerCount","_RoomSightExteriorView","_RoomSightPassMode"};
+  var vectorNames=new[]{"_EnvironmentSkyAmbient","_EnvironmentHorizonAmbient","_EnvironmentGroundAmbient","_EnvironmentLightResponse","_EnvironmentCloudParameters","_EnvironmentCloudMotion","_MainLightPosition","_MainLightColor","_RoomSightTargetSize"};
+  var matrixArrayNames=new[]{"_EnvironmentIndoorMatrices","_EnvironmentShelterMatrices"};var vectorArrayNames=new[]{"_EnvironmentIndoorHalfExtents","_EnvironmentShelterExtents"};
+  var scalars=scalarNames.ToDictionary(n=>n,n=>Shader.GetGlobalFloat(n));var integers=integerNames.ToDictionary(n=>n,n=>Shader.GetGlobalInteger(n));var vectors=vectorNames.ToDictionary(n=>n,n=>Shader.GetGlobalVector(n));var inverse=Shader.GetGlobalMatrix("_RoomSightInverseViewProjection");
+  var oldMatrices=matrixArrayNames.ToDictionary(n=>n,n=>Shader.GetGlobalMatrixArray(n));var oldExtents=vectorArrayNames.ToDictionary(n=>n,n=>Shader.GetGlobalVectorArray(n));var previous=RenderTexture.active;
+  var texture=new Texture2D(2,2,TextureFormat.RGBAFloat,false,true);var native=new Material(nativeShader);var tile=new Material(tileShader);var mesh=new Mesh();var rt=new RenderTexture(16,16,0,RenderTextureFormat.ARGBFloat,RenderTextureReadWrite.Linear);var read=new Texture2D(16,16,TextureFormat.RGBAFloat,false,true);
+  try
+  {
+   foreach(string name in scalarNames)Shader.SetGlobalFloat(name,0);foreach(string name in integerNames)Shader.SetGlobalInteger(name,0);Shader.SetGlobalInteger("_RoomSightExteriorView",1);Shader.SetGlobalInteger("_RoomSightPassMode",0);Shader.SetGlobalMatrix("_RoomSightInverseViewProjection",Matrix4x4.identity);Shader.SetGlobalVector("_RoomSightTargetSize",new Vector4(16,16,1f/16,1f/16));
+   Shader.SetGlobalFloat("_EnvironmentLightingEnabled",1);Shader.SetGlobalFloat("_EnvironmentResponseOverride",1);Shader.SetGlobalFloat("_EnvironmentIndoorAmbientScale",1);Shader.SetGlobalVector("_EnvironmentLightResponse",new Vector4(1,1,1,0));Shader.SetGlobalVector("_EnvironmentCloudParameters",Vector4.zero);Shader.SetGlobalVector("_EnvironmentCloudMotion",Vector4.zero);Shader.SetGlobalVector("_MainLightPosition",new Vector4(0,1,0,0));
+   foreach(string name in new[]{"_EnvironmentSkyAmbient","_EnvironmentHorizonAmbient","_EnvironmentGroundAmbient"})Shader.SetGlobalVector(name,new Vector4(.2f,.2f,.2f,1));
+   texture.SetPixels(Enumerable.Repeat(new Color(.5f,.5f,.5f,1),4).ToArray());texture.Apply();native.SetTexture("_BaseMap",texture);native.SetColor("_BaseColor",Color.white);native.SetFloat("_Metallic",0);native.SetFloat("_Smoothness",0);native.SetFloat("_Cull",0);native.EnableKeyword("_ENVIRONMENTREFLECTIONS_OFF");native.EnableKeyword("_SPECULARHIGHLIGHTS_OFF");native.EnableKeyword("_RECEIVE_SHADOWS_OFF");
+   tile.SetTexture("_MainTex",Texture2D.whiteTexture);tile.SetTexture("_SecondTex",texture);tile.SetColor("_Color",Color.white);tile.SetVector("_GroundBounds",new Vector4(-1000,-1000,1000,1000));tile.SetFloat("_BaseCoverage",1);tile.SetFloat("_DebugMask",0);tile.SetFloat("_WorldPeriod",1);
+   mesh.vertices=new[]{new Vector3(-1,-1,.5f),new Vector3(3,-1,.5f),new Vector3(-1,3,.5f)};mesh.triangles=new[]{0,1,2};mesh.normals=new[]{Vector3.up,Vector3.up,Vector3.up};mesh.tangents=new[]{new Vector4(1,0,0,1),new Vector4(1,0,0,1),new Vector4(1,0,0,1)};mesh.uv=new[]{Vector2.zero,Vector2.right*2,Vector2.up*2};mesh.colors=new[]{Color.white,Color.white,Color.white};mesh.RecalculateBounds();rt.Create();
+   var indoorMatrices=new Matrix4x4[32];var indoorExtents=new Vector4[32];indoorMatrices[0]=Matrix4x4.identity;indoorExtents[0]=new Vector4(1000,1000,1000,0);Shader.SetGlobalMatrixArray("_EnvironmentIndoorMatrices",indoorMatrices);Shader.SetGlobalVectorArray("_EnvironmentIndoorHalfExtents",indoorExtents);
+   var shelterMatrices=new Matrix4x4[16];var shelterExtents=new Vector4[16];shelterMatrices[0]=Matrix4x4.Translate(new Vector3(0,-20,0));shelterExtents[0]=new Vector4(1000,.1f,1000,0);Shader.SetGlobalMatrixArray("_EnvironmentShelterMatrices",shelterMatrices);Shader.SetGlobalVectorArray("_EnvironmentShelterExtents",shelterExtents);
+   bool all=true;var results=new List<object>();
+   foreach(var material in new[]{native,tile})
+   {
+    Shader.SetGlobalFloat("_EnvironmentSurfaceRole",0);Shader.SetGlobalFloat("_EnvironmentWetness",0);Shader.SetGlobalInteger("_EnvironmentIndoorCount",0);Shader.SetGlobalInteger("_EnvironmentShelterCount",0);Shader.SetGlobalVector("_MainLightColor",Vector4.zero);var ambient=Draw(material,mesh,rt,read);
+    Shader.SetGlobalVector("_MainLightColor",Color.white);var outside=Pair(material,mesh,rt,read);bool validFixture=outside.Dry.r-ambient.r>.05f;
+    Shader.SetGlobalInteger("_EnvironmentIndoorCount",1);var indoor=Pair(material,mesh,rt,read);Shader.SetGlobalInteger("_EnvironmentIndoorCount",0);Shader.SetGlobalInteger("_EnvironmentShelterCount",1);var sheltered=Pair(material,mesh,rt,read);Shader.SetGlobalInteger("_EnvironmentShelterCount",0);
+    Shader.SetGlobalFloat("_EnvironmentSurfaceRole",2);var character=Pair(material,mesh,rt,read);Shader.SetGlobalFloat("_EnvironmentSurfaceRole",-1);var information=Pair(material,mesh,rt,read);
+    bool outsideResponds=outside.GentleDrop,indoorPreserved=indoor.Same,shelterPreserved=sheltered.Same,characterPreserved=character.Same,informationPreserved=information.Same,alphaPreserved=outside.Alpha&&indoor.Alpha&&sheltered.Alpha&&character.Alpha&&information.Alpha;
+    all&=validFixture&&outsideResponds&&indoorPreserved&&shelterPreserved&&characterPreserved&&informationPreserved&&alphaPreserved;
+    results.Add(new{shader=material.shader.name,validFixture,outsideResponds,indoorPreserved,shelterPreserved,characterPreserved,informationPreserved,alphaPreserved,outsideDry=outside.Dry.ToString(),outsideWet=outside.Wet.ToString(),indoorDry=indoor.Dry.ToString(),indoorWet=indoor.Wet.ToString(),shelterDry=sheltered.Dry.ToString(),shelterWet=sheltered.Wet.ToString(),characterDry=character.Dry.ToString(),characterWet=character.Wet.ToString(),informationDry=information.Dry.ToString(),informationWet=information.Wet.ToString()});
+   }
+   ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=all,results,nativeMessages=ShaderUtil.GetShaderMessages(nativeShader).Select(m=>m.message).ToArray(),tileMessages=ShaderUtil.GetShaderMessages(tileShader).Select(m=>m.message).ToArray()});
+  }
+  finally
+  {
+   foreach(var value in scalars)Shader.SetGlobalFloat(value.Key,value.Value);foreach(var value in integers)Shader.SetGlobalInteger(value.Key,value.Value);foreach(var value in vectors)Shader.SetGlobalVector(value.Key,value.Value);Shader.SetGlobalMatrix("_RoomSightInverseViewProjection",inverse);
+   foreach(var value in oldMatrices)Shader.SetGlobalMatrixArray(value.Key,value.Value!=null&&value.Value.Length>0?value.Value:new Matrix4x4[value.Key=="_EnvironmentIndoorMatrices"?32:16]);foreach(var value in oldExtents)Shader.SetGlobalVectorArray(value.Key,value.Value!=null&&value.Value.Length>0?value.Value:new Vector4[value.Key=="_EnvironmentIndoorHalfExtents"?32:16]);
+   RenderTexture.active=previous;rt.Release();foreach(var value in new UnityEngine.Object[]{native,tile,texture,mesh,rt,read})UnityEngine.Object.DestroyImmediate(value);
+  }
+ }
+}

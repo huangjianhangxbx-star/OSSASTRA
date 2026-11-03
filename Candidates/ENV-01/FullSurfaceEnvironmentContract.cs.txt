@@ -1,0 +1,36 @@
+/* 功能：验证完整许可表面接入环境适配后保留整件许可，且临时受光MPB精确恢复。
+ * 边界：Root在当前Main Play运行；仅创建并销毁自有临时Renderer，不修改旧材质或业务。
+ */
+using System;using System.Linq;using System.Reflection;using UnityEngine;
+using Newtonsoft.Json;using Funplay.Editor.Tools.Scripting;
+public sealed class FullSurfaceEnvironmentContract:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  var assemblies=AppDomain.CurrentDomain.GetAssemblies();
+  var surfaceType=assemblies.Select(a=>a.GetType("Ossastra.SceneVisibility.Rooms.Rendering.RoomPositiveSurface")).FirstOrDefault(t=>t!=null);
+  string[] names={"EnvironmentFullSurface","EnvironmentSurfaceRole","EnvironmentResponseOverride","EnvironmentReceiveShadow","EnvironmentMinimumOverride"};
+  var missing=names.Where(n=>surfaceType==null||surfaceType.GetField(n)==null).ToArray();
+  if(missing.Length>0){ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=false,stage="RED",missing,reason="Full surface environment adapter metadata missing"});return;}
+  var scopeType=assemblies.Select(a=>a.GetType("Ossastra.SceneVisibility.Rooms.Rendering.RoomPositivePropertyScope")).First(t=>t!=null);
+  var frameType=assemblies.Select(a=>a.GetType("Ossastra.SceneVisibility.Rooms.Rendering.RoomMaskFrame")).First(t=>t!=null);
+  var kindType=assemblies.Select(a=>a.GetType("Ossastra.SceneVisibility.Rooms.Rendering.RoomPositiveSurfaceKind")).First(t=>t!=null);
+  GameObject temporary=null;object scope=null;bool payload=false,restored=false;string error=null;
+  try
+  {
+   temporary=new GameObject("ENV-01 owned MPB contract",typeof(MeshRenderer)){hideFlags=HideFlags.HideAndDontSave};var renderer=temporary.GetComponent<MeshRenderer>();
+   var original=new MaterialPropertyBlock();original.SetFloat("_Env01ExistingOwner",19);original.SetFloat("_EnvironmentFullSurface",.25f);renderer.SetPropertyBlock(original);
+   var surface=Activator.CreateInstance(surfaceType);surfaceType.GetField("Renderer").SetValue(surface,renderer);surfaceType.GetField("Kind").SetValue(surface,Enum.Parse(kindType,"Partial"));
+   surfaceType.GetField(names[0]).SetValue(surface,true);surfaceType.GetField(names[1]).SetValue(surface,2f);surfaceType.GetField(names[2]).SetValue(surface,.37f);surfaceType.GetField(names[3]).SetValue(surface,0f);surfaceType.GetField(names[4]).SetValue(surface,.21f);
+   var frame=Activator.CreateInstance(frameType);var surfaces=Array.CreateInstance(surfaceType,1);surfaces.SetValue(surface,0);frameType.GetField("PositiveSurfaces").SetValue(frame,surfaces);
+   scope=Activator.CreateInstance(scopeType,true);scopeType.GetMethod("Apply",BindingFlags.Instance|BindingFlags.NonPublic).Invoke(scope,new[]{frame});
+   var actual=new MaterialPropertyBlock();renderer.GetPropertyBlock(actual);
+   payload=Math.Abs(actual.GetFloat("_EnvironmentFullSurface")-1)<.001&&Math.Abs(actual.GetFloat("_EnvironmentSurfaceRole")-2)<.001&&Math.Abs(actual.GetFloat("_EnvironmentResponseOverride")-.37)<.001&&Math.Abs(actual.GetFloat("_EnvironmentReceiveShadow"))<.001&&Math.Abs(actual.GetFloat("_EnvironmentMinimumOverride")-.21)<.001&&Math.Abs(actual.GetFloat("_Env01ExistingOwner")-19)<.001;
+   scopeType.GetMethod("Restore",BindingFlags.Instance|BindingFlags.NonPublic).Invoke(scope,null);renderer.GetPropertyBlock(actual);
+   restored=Math.Abs(actual.GetFloat("_EnvironmentFullSurface")-.25)<.001&&Math.Abs(actual.GetFloat("_Env01ExistingOwner")-19)<.001;
+  }
+  catch(Exception e){error=e.ToString();}
+  finally{if(scope!=null)scopeType.GetMethod("Clear",BindingFlags.Instance|BindingFlags.NonPublic).Invoke(scope,null);if(temporary!=null)UnityEngine.Object.DestroyImmediate(temporary);}
+  ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=error==null&&payload&&restored,payload,restored,error});
+ }
+}

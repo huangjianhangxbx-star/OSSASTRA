@@ -1,0 +1,186 @@
+/* 功能：明确相机的环境渲染接收方；上传受光、房间与局部灯，绘制合法天空/降雨。
+ * 边界：不创建普通Renderer，不推进环境，不读取旧世界深度；只借用天空/反射设置。
+ * 生命周期：唯一相机登记，原貌/禁用恢复借用设置并销毁自有材质、天空预览和Cubemap。
+ */
+using System;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
+using UnityEngine.Experimental.Rendering;
+using UnityEngine.SceneManagement;
+using Ossastra.SceneVisibility.Rooms;
+using Ossastra.SceneVisibility.Rooms.Rendering;
+using Ossastra.Development.Environment;
+namespace Ossastra.EnvironmentSimulation.Rendering
+{
+ [ExecuteAlways,DisallowMultipleComponent]
+ public sealed class EnvironmentSkyBinding:MonoBehaviour
+ {
+  public EnvironmentRoot environment;
+  public EnvironmentSimulationPanel panel;
+  public RoomRegion[] indoorRegions=Array.Empty<RoomRegion>();
+  public Light[] localLights=Array.Empty<Light>();
+  public BoxCollider[] rainShelters=Array.Empty<BoxCollider>();
+  public Shader skyShader,rainShader,reflectionSkyShader,rainDepthCopyShader;
+  [Range(0,2)] public float reflectionIntensity=1;
+  [Min(1)] public float reflectionUpdateSeconds=1;
+  [Range(.0001f,.05f)] public float reflectionChangeThreshold=.002f;
+  [Header("运行态天空覆盖；不修改昼夜源档")]
+  public bool overrideSkyColors;
+  public Color zenithColor=new Color(.13f,.36f,.65f),horizonColor=new Color(.67f,.78f,.82f);
+  [Range(0,1)] public float rainOpacity=.24f;
+  [Range(32,1024)] public int rainParticleCount=384;
+  public string Status{get;private set;}="等待环境快照";
+  public Texture SkyPreview=>preview;
+  static readonly Dictionary<int,EnvironmentSkyBinding> bindings=new Dictionary<int,EnvironmentSkyBinding>();
+  readonly List<RoomMaskVolume> volumes=new List<RoomMaskVolume>(32);
+  readonly Matrix4x4[] matrices=new Matrix4x4[32],shelterMatrices=new Matrix4x4[16];
+  readonly Vector4[] extents=new Vector4[32],lightPositions=new Vector4[8],lightColors=new Vector4[8],shelterExtents=new Vector4[16];
+  Material skyMaterial,rainMaterial,cubeMaterial,depthCopyMaterial,oldSky;
+  RTHandle rainDepth;
+  Cubemap reflection;
+  Texture oldReflection;
+  RenderTexture preview;
+  DefaultReflectionMode oldMode;float oldReflectionIntensity;
+  bool leased;int leaseScene;Camera registeredCamera;double nextReflection;Color lastReflectionTop,lastReflectionEdge;
+  readonly Color[] cubePixels=new Color[32*32];
+  [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+  static void ResetStatics(){bindings.Clear();Shader.SetGlobalFloat("_EnvironmentLightingEnabled",0);}
+  void OnEnable(){RenderPipelineManager.beginCameraRendering+=BeginCamera;RenderPipelineManager.endCameraRendering+=EndCamera;EnvironmentCameraRegistry.Released+=EnvironmentReleased;Update();}
+  void OnDisable(){RenderPipelineManager.beginCameraRendering-=BeginCamera;RenderPipelineManager.endCameraRendering-=EndCamera;EnvironmentCameraRegistry.Released-=EnvironmentReleased;Release();}
+  void EnvironmentReleased(int cameraId){if(!ReferenceEquals(registeredCamera,null)&&registeredCamera.GetInstanceID()==cameraId)Release();}
+  void OnDestroy(){Release();}
+  void BeginCamera(ScriptableRenderContext context,Camera camera){if(camera!=registeredCamera)Shader.SetGlobalFloat("_EnvironmentLightingEnabled",0);}
+  void EndCamera(ScriptableRenderContext context,Camera camera){Shader.SetGlobalFloat("_EnvironmentLightingEnabled",0);Shader.SetGlobalFloat("_EnvironmentRainDepthReady",0);}
+  void Update()
+  {
+   if(environment==null||environment.gameplayCamera==null||!environment.isActiveAndEnabled||SceneManager.GetActiveScene()!=gameObject.scene||!EnvironmentCameraRegistry.TryGet(environment.gameplayCamera,out var frame)||!frame.Enabled){Release();return;}
+   var camera=environment.gameplayCamera;
+   if(registeredCamera!=camera)Release();
+   if(bindings.TryGetValue(camera.GetInstanceID(),out var other)&&other!=this){Status="同相机已有天空接收者";return;}
+   registeredCamera=camera;bindings[camera.GetInstanceID()]=this;
+   if(!EnsureResources()){Release();return;}
+   if(!leased){oldSky=RenderSettings.skybox;oldReflection=RenderSettings.customReflectionTexture;oldMode=RenderSettings.defaultReflectionMode;oldReflectionIntensity=RenderSettings.reflectionIntensity;leaseScene=gameObject.scene.handle;leased=true;nextReflection=0;}
+   // 日照对照排除天空反射，回到完整/底光模式时归还用户配置值，不改作者参数。
+   RenderSettings.reflectionIntensity=frame.Contribution==EnvironmentContribution.SunOnly?0:Mathf.Clamp(reflectionIntensity,0,2);
+   Color reflectionTop=SkyColor(frame,Vector3.up),reflectionEdge=SkyColor(frame,Vector3.forward);
+   if(Time.realtimeSinceStartupAsDouble>=nextReflection&&(nextReflection==0||ColorDistance(reflectionTop,lastReflectionTop)>reflectionChangeThreshold||ColorDistance(reflectionEdge,lastReflectionEdge)>reflectionChangeThreshold))
+   {UpdateReflection(frame);lastReflectionTop=reflectionTop;lastReflectionEdge=reflectionEdge;nextReflection=Time.realtimeSinceStartupAsDouble+Mathf.Max(1,reflectionUpdateSeconds);}
+   ConfigureSky(skyMaterial,frame);Graphics.Blit(null,preview,skyMaterial,1);
+   if(panel!=null)panel.SetSkyPreviewTexture(preview);
+   Status="天空/反射源：当前环境；雨量 "+frame.Rain.ToString("F2")+"；室内区域 "+indoorRegions.Length;
+  }
+  bool EnsureResources()
+  {
+   if(skyShader==null||rainShader==null||reflectionSkyShader==null||rainDepthCopyShader==null||!skyShader.isSupported||!rainShader.isSupported||!reflectionSkyShader.isSupported||!rainDepthCopyShader.isSupported){Status="缺少已编译的天空/雨/反射/合法深度Shader";return false;}
+   if((skyMaterial!=null&&skyMaterial.shader!=skyShader)||(rainMaterial!=null&&rainMaterial.shader!=rainShader)||(cubeMaterial!=null&&cubeMaterial.shader!=reflectionSkyShader)||(depthCopyMaterial!=null&&depthCopyMaterial.shader!=rainDepthCopyShader)){Release();Status="Shader引用改变；已归还旧资源，下一帧重建";return false;}
+   if(skyMaterial==null)skyMaterial=new Material(skyShader){hideFlags=HideFlags.HideAndDontSave};
+   if(rainMaterial==null)rainMaterial=new Material(rainShader){hideFlags=HideFlags.HideAndDontSave};
+   if(depthCopyMaterial==null)depthCopyMaterial=new Material(rainDepthCopyShader){name="Environment current legal rain depth resolve",hideFlags=HideFlags.HideAndDontSave};
+   if(reflection==null)reflection=new Cubemap(32,TextureFormat.RGBAHalf,true){name="Environment sky only reflection",hideFlags=HideFlags.HideAndDontSave};
+   if(cubeMaterial==null)cubeMaterial=new Material(reflectionSkyShader){hideFlags=HideFlags.HideAndDontSave};
+   if(preview==null){preview=new RenderTexture(384,192,0,RenderTextureFormat.ARGBHalf){name="Environment sky preview",hideFlags=HideFlags.HideAndDontSave};preview.Create();}
+   return true;
+  }
+  Color SkyColor(EnvironmentFrame frame,Vector3 direction)
+  {
+   Color top=overrideSkyColors?zenithColor:frame.SkyZenith,edge=overrideSkyColors?horizonColor:frame.SkyHorizon;
+   var color=Color.Lerp(edge.linear,top.linear,Mathf.Pow(Mathf.Clamp01(direction.y),.5f))*frame.SkyIntensity;
+   return Color.Lerp(color,frame.FogColor.linear*frame.SkyIntensity,frame.CloudCoverage*.18f);
+  }
+  static float ColorDistance(Color a,Color b)=>Mathf.Max(Mathf.Abs(a.r-b.r),Mathf.Abs(a.g-b.g),Mathf.Abs(a.b-b.b));
+  void UpdateReflection(EnvironmentFrame frame)
+  {
+   for(int face=0;face<6;face++)
+   {
+    for(int y=0;y<32;y++)for(int x=0;x<32;x++)
+    {
+     float u=(x+.5f)/16-1,v=(y+.5f)/16-1;
+     Vector3 d=face==0?new Vector3(1,-v,-u):face==1?new Vector3(-1,-v,u):face==2?new Vector3(u,1,v):face==3?new Vector3(u,-1,-v):face==4?new Vector3(u,-v,1):new Vector3(-u,-v,-1);
+     cubePixels[y*32+x]=SkyColor(frame,d.normalized);
+    }
+    reflection.SetPixels(cubePixels,(CubemapFace)face);
+   }
+   reflection.Apply(true,false);cubeMaterial.SetTexture("_Tex",reflection);cubeMaterial.SetFloat("_Exposure",1);
+   RenderSettings.skybox=cubeMaterial;RenderSettings.defaultReflectionMode=DefaultReflectionMode.Custom;RenderSettings.customReflectionTexture=reflection;
+  }
+  void ConfigureSky(Material material,EnvironmentFrame frame)
+  {
+   material.SetColor("_EnvironmentSkyZenith",(overrideSkyColors?zenithColor:frame.SkyZenith).linear*frame.SkyIntensity);
+   material.SetColor("_EnvironmentSkyHorizon",(overrideSkyColors?horizonColor:frame.SkyHorizon).linear*frame.SkyIntensity);
+   material.SetVector("_EnvironmentSkySun",new Vector4(frame.SunDirection.x,frame.SunDirection.y,frame.SunDirection.z,frame.NightFactor));
+   material.SetColor("_EnvironmentSkySunColor",frame.SunColor.linear*Mathf.Min(frame.SunIntensity,2));
+   material.SetVector("_EnvironmentCloudParameters",new Vector4(frame.CloudCoverage,frame.CloudDensity,frame.CloudShadowStrength,frame.CloudWorldScale));
+   material.SetVector("_EnvironmentCloudMotion",new Vector4(frame.WindDirection.x*frame.WindSpeed*frame.CloudSpeed,frame.WindDirection.y*frame.WindSpeed*frame.CloudSpeed,(float)frame.Seconds,1));
+  }
+  static bool TryGet(Camera camera,out EnvironmentSkyBinding binding,out EnvironmentFrame frame)
+  {
+   binding=null;frame=null;return camera!=null&&bindings.TryGetValue(camera.GetInstanceID(),out binding)&&binding!=null&&binding.isActiveAndEnabled&&EnvironmentCameraRegistry.TryGet(camera,out frame)&&frame.Enabled;
+  }
+  public static void UploadForCamera(CommandBuffer cmd,Camera camera,RoomMaskFrame visibility)
+  {
+   cmd.SetGlobalFloat("_EnvironmentRainDepthReady",0);
+   if(!TryGet(camera,out var binding,out var frame)){cmd.SetGlobalFloat("_EnvironmentLightingEnabled",0);return;}
+   binding.Upload(cmd,frame);
+  }
+  void Upload(CommandBuffer cmd,EnvironmentFrame frame)
+  {
+   volumes.Clear();foreach(var room in indoorRegions)if(room!=null&&room.isActiveAndEnabled)room.AppendMaskVolumes(volumes);
+   if(volumes.Count>32||localLights.Length>8||rainShelters.Length>16)throw new InvalidOperationException("环境区域/局部灯/雨棚超过32/8/16显式预算，拒绝截断。");
+   for(int i=0;i<volumes.Count;i++){matrices[i]=volumes[i].WorldToLocal;extents[i]=volumes[i].HalfExtents;}
+   cmd.SetGlobalInteger("_EnvironmentIndoorCount",volumes.Count);cmd.SetGlobalMatrixArray("_EnvironmentIndoorMatrices",matrices);cmd.SetGlobalVectorArray("_EnvironmentIndoorHalfExtents",extents);
+   int lights=0;foreach(var light in localLights)
+   {
+    if(light==null||!light.isActiveAndEnabled||light.type!=LightType.Point)continue;
+    var p=light.transform.position;lightPositions[lights]=new Vector4(p.x,p.y,p.z,light.range);Color c=light.color.linear*light.intensity;int roomIndex=-1;
+    for(int i=0;i<volumes.Count;i++){var local=matrices[i].MultiplyPoint3x4(p);if(Mathf.Abs(local.x)<=extents[i].x&&Mathf.Abs(local.y)<=extents[i].y&&Mathf.Abs(local.z)<=extents[i].z){roomIndex=i;break;}}
+    lightColors[lights++]=new Vector4(c.r,c.g,c.b,roomIndex+1);
+   }
+   cmd.SetGlobalInteger("_EnvironmentLocalLightCount",lights);cmd.SetGlobalVectorArray("_EnvironmentLocalLightPositions",lightPositions);cmd.SetGlobalVectorArray("_EnvironmentLocalLightColors",lightColors);
+   cmd.SetGlobalFloat("_EnvironmentLightingEnabled",1);
+   cmd.SetGlobalVector("_EnvironmentSkyAmbient",(Vector4)(frame.AmbientSky.linear*frame.AmbientIntensity));cmd.SetGlobalVector("_EnvironmentHorizonAmbient",(Vector4)(frame.AmbientEquator.linear*frame.AmbientIntensity));cmd.SetGlobalVector("_EnvironmentGroundAmbient",(Vector4)(frame.AmbientGround.linear*frame.AmbientIntensity));
+   cmd.SetGlobalVector("_EnvironmentLightResponse",new Vector4(frame.GroundLightResponse,frame.DecorationLightResponse,frame.CharacterLightResponse,frame.CharacterMinimum));cmd.SetGlobalFloat("_EnvironmentIndoorAmbientScale",frame.IndoorAmbientScale);
+   cmd.SetGlobalVector("_EnvironmentCloudParameters",new Vector4(frame.CloudCoverage,frame.CloudDensity,frame.CloudShadowStrength,frame.CloudWorldScale));cmd.SetGlobalVector("_EnvironmentCloudMotion",new Vector4(frame.WindDirection.x*frame.WindSpeed*frame.CloudSpeed,frame.WindDirection.y*frame.WindSpeed*frame.CloudSpeed,(float)frame.Seconds,1));cmd.SetGlobalFloat("_EnvironmentWetness",frame.Wetness);
+   int shelters=0;foreach(var box in rainShelters)if(box!=null&&box.enabled&&box.gameObject.activeInHierarchy){shelterMatrices[shelters]=Matrix4x4.Translate(-box.center)*box.transform.worldToLocalMatrix;shelterExtents[shelters++]=box.size*.5f;}
+   cmd.SetGlobalInteger("_EnvironmentShelterCount",shelters);cmd.SetGlobalMatrixArray("_EnvironmentShelterMatrices",shelterMatrices);cmd.SetGlobalVectorArray("_EnvironmentShelterExtents",shelterExtents);
+  }
+  public static void AppendSkyForCamera(CommandBuffer cmd,Camera camera,RoomMaskFrame visibility)
+  {
+   if(!TryGet(camera,out var b,out var frame)||b.skyMaterial==null||visibility.TruthMode)return;
+   b.ConfigureSky(b.skyMaterial,frame);cmd.DrawProcedural(Matrix4x4.identity,b.skyMaterial,0,MeshTopology.Triangles,3);
+  }
+  public static void AppendWeatherForCamera(CommandBuffer cmd,Camera camera,RoomMaskFrame visibility,ref RenderingData data)
+  {
+   if(!TryGet(camera,out var b,out var frame)||b.rainMaterial==null||frame.Rain<=.001f||visibility.TruthMode)return;
+   var renderer=data.cameraData.renderer;var sourceDepth=renderer.cameraDepthTargetHandle;
+   if(sourceDepth==null||sourceDepth.rt==null||!sourceDepth.rt.IsCreated()||b.depthCopyMaterial==null)return;
+   int samples=sourceDepth.rt.bindTextureMS?Mathf.Max(1,sourceDepth.rt.antiAliasing):1;if(samples!=1&&samples!=2&&samples!=4&&samples!=8)return;
+   var descriptor=sourceDepth.rt.descriptor;descriptor.depthBufferBits=0;descriptor.depthStencilFormat=GraphicsFormat.None;descriptor.graphicsFormat=GraphicsFormat.R32_SFloat;
+   descriptor.msaaSamples=1;descriptor.bindMS=false;descriptor.useMipMap=descriptor.autoGenerateMips=descriptor.enableRandomWrite=false;descriptor.memoryless=RenderTextureMemoryless.None;
+   RenderingUtils.ReAllocateIfNeeded(ref b.rainDepth,descriptor,FilterMode.Point,TextureWrapMode.Clamp,name:"Environment current legal rain depth");
+   CoreUtils.SetKeyword(b.depthCopyMaterial,"_WORLD_LOOK_DEPTH_MSAA_2",samples==2);CoreUtils.SetKeyword(b.depthCopyMaterial,"_WORLD_LOOK_DEPTH_MSAA_4",samples==4);CoreUtils.SetKeyword(b.depthCopyMaterial,"_WORLD_LOOK_DEPTH_MSAA_8",samples==8);
+   cmd.SetGlobalTexture("_WorldLookDepthSource",sourceDepth.nameID);cmd.SetGlobalVector("_WorldLookDepthSourceSize",new Vector4(sourceDepth.rt.width,sourceDepth.rt.height,1f/sourceDepth.rt.width,1f/sourceDepth.rt.height));
+   CoreUtils.SetRenderTarget(cmd,b.rainDepth);
+   bool flip=data.cameraData.IsHandleYFlipped(sourceDepth)!=data.cameraData.IsHandleYFlipped(b.rainDepth);
+   Blitter.BlitTexture(cmd,sourceDepth,flip?new Vector4(1,-1,0,1):new Vector4(1,1,0,0),b.depthCopyMaterial,0);
+   CoreUtils.SetRenderTarget(cmd,renderer.cameraColorTargetHandle,sourceDepth);
+   cmd.SetGlobalTexture("_EnvironmentRainLegalDepth",b.rainDepth.nameID);cmd.SetGlobalFloat("_EnvironmentRainDepthReady",1);
+   b.rainMaterial.SetVector("_EnvironmentRain",new Vector4(frame.Rain,b.rainOpacity,(float)frame.Seconds,Mathf.Clamp(b.rainParticleCount,32,1024)));
+   b.rainMaterial.SetVector("_EnvironmentRainWind",new Vector4(frame.WindDirection.x*frame.WindSpeed,frame.WindDirection.y*frame.WindSpeed,0,0));
+   float rainLight=Mathf.Clamp(frame.SunIntensity*.6f+frame.AmbientSky.grayscale*frame.AmbientIntensity,.13f,1);
+   b.rainMaterial.SetColor("_EnvironmentRainColor",new Color(.67f,.77f,.84f)*rainLight);
+   cmd.SetGlobalInteger("_RoomSightOwnerCount",0);cmd.SetGlobalInteger("_RoomSightOwnerExterior",0);cmd.SetGlobalInteger("_RoomSightPassMode",1);
+   cmd.DrawProcedural(Matrix4x4.identity,b.rainMaterial,0,MeshTopology.Triangles,6,Mathf.Clamp(b.rainParticleCount,32,1024));
+  }
+  void Release()
+  {
+   if(!ReferenceEquals(registeredCamera,null)){int id=registeredCamera.GetInstanceID();if(bindings.TryGetValue(id,out var owner)&&owner==this)bindings.Remove(id);registeredCamera=null;}
+   if(leased){if(SceneManager.GetActiveScene().handle==leaseScene){if(RenderSettings.skybox==cubeMaterial)RenderSettings.skybox=oldSky;if(RenderSettings.customReflectionTexture==reflection){RenderSettings.customReflectionTexture=oldReflection;RenderSettings.defaultReflectionMode=oldMode;RenderSettings.reflectionIntensity=oldReflectionIntensity;}}leased=false;}
+   if(panel!=null)panel.SetSkyPreviewTexture(null);DestroyOwned(skyMaterial);skyMaterial=null;DestroyOwned(rainMaterial);rainMaterial=null;DestroyOwned(cubeMaterial);cubeMaterial=null;DestroyOwned(depthCopyMaterial);depthCopyMaterial=null;DestroyOwned(reflection);reflection=null;
+   rainDepth?.Release();rainDepth=null;
+   if(preview!=null){preview.Release();DestroyOwned(preview);preview=null;}Shader.SetGlobalFloat("_EnvironmentLightingEnabled",0);Shader.SetGlobalFloat("_EnvironmentRainDepthReady",0);
+  }
+  static void DestroyOwned(UnityEngine.Object value){if(value==null)return;if(Application.isPlaying)Destroy(value);else DestroyImmediate(value);}
+ }
+}

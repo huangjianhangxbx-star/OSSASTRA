@@ -1,0 +1,49 @@
+/* 功能：真实环境计算/运行快照/唯一相机登记的Native合同；缺少实现时明确RED。
+ * 生命周期：只创建暂态配置和禁用对象，finally销毁；不改原场对象、灯、存档或时间缩放。
+ */
+using System;
+using System.Linq;
+using System.Reflection;
+using System.Collections.Generic;
+using UnityEngine;
+using Newtonsoft.Json;
+using Funplay.Editor.Tools.Scripting;
+public class EnvironmentRuntimeContract : IFunplayCommand
+{
+ static Type Find(string name)=>AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType("Ossastra.EnvironmentSimulation."+name)).FirstOrDefault(t=>t!=null);
+ static object Call(Type type,string name,object target,params object[] args)=>type.GetMethod(name,BindingFlags.Public|BindingFlags.Instance|BindingFlags.Static).Invoke(target,args);
+ static object Get(object target,string name)=>target.GetType().GetProperty(name).GetValue(target);
+ static void Set(object target,string name,object value)=>target.GetType().GetField(name).SetValue(target,value);
+ public void Execute(ExecutionContext ctx)
+ {
+  var clock=Find("EnvironmentClock");var sun=Find("SunPath");var blend=Find("WeatherBlend");var rt=Find("EnvironmentRoot");
+  if(clock==null||sun==null||blend==null||rt==null){ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=false,stage="RED",reason="environment clock/sun/weather/root not implemented"});return;}
+  var checks=new List<object>();var owned=new List<UnityEngine.Object>();
+  Action<bool,string> need=(pass,name)=>{checks.Add(new{name,pass});if(!pass)throw new Exception(name);};
+  try
+  {
+   need(Math.Abs((double)Call(clock,"WrapHours",null,-1d)-23)<1e-9,"Negative hours wrap to previous day");
+   need(Math.Abs((double)Call(clock,"AdvanceHours",null,23.9d,6d,360d)-.3)<1e-8,"Clock crosses midnight continuously");
+   double slow=0,fast=0;for(int i=0;i<60;i++)slow=(double)Call(clock,"AdvanceHours",null,slow,1d,360d);for(int i=0;i<3600;i++)fast=(double)Call(clock,"AdvanceHours",null,fast,1d/60d,360d);
+   need(Math.Abs(slow-4)<1e-7&&Math.Abs(fast-4)<1e-7,"Clock independent of update rate");
+   bool rejected=false;try{Call(clock,"AdvanceHours",null,0d,1d,0d);}catch(TargetInvocationException e){rejected=e.InnerException is ArgumentException;}need(rejected,"Zero cycle rejected before divide");
+   var dawn=Call(sun,"Sample",null,6d,60f,0f);var noon=Call(sun,"Sample",null,12d,60f,0f);var dusk=Call(sun,"Sample",null,18d,60f,0f);
+   need(Math.Abs((float)Get(dawn,"ElevationDegrees"))<.001,"Sunrise at horizon");need(Math.Abs((float)Get(noon,"ElevationDegrees")-60)<.001,"Noon reaches authored elevation");need(Math.Abs((float)Get(dusk,"AzimuthDegrees")-270)<.001,"Sunset west convention");
+   need(Math.Abs(((Vector3)Get(noon,"DirectionToSun")).magnitude-1)<.00001,"Sun direction normalized");
+   need(Math.Abs((double)Call(blend,"Progress",null,2.5d,5d)-.5)<1e-9,"Weather halfway from elapsed time");need((double)Call(blend,"Progress",null,1d,0d)==1,"Immediate weather transition complete");
+   var go=new GameObject("Owned_EnvironmentRuntimeContract");go.SetActive(false);owned.Add(go);var camera=go.AddComponent<Camera>();camera.enabled=false;var root=go.AddComponent(rt);
+   var day=ScriptableObject.CreateInstance(Find("DayCycleProfileSO"));var weather=ScriptableObject.CreateInstance(Find("WeatherProfileSO"));var rain=ScriptableObject.CreateInstance(Find("WeatherProfileSO"));owned.Add(day);owned.Add(weather);owned.Add(rain);
+   Set(rain,"rain",1f);Set(rain,"wetness",.6f);string before=JsonUtility.ToJson(day);Set(root,"gameplayCamera",camera);Set(root,"dayCycle",day);Set(root,"initialWeather",weather);Set(root,"previewInEditMode",true);
+   go.SetActive(true);Call(rt,"SetTimeHours",root,12d);var frame=Get(root,"Current");need(frame!=null&&(float)Get(frame,"NightFactor")<.01f,"Noon creates daytime snapshot");float dayIntensity=(float)Get(frame,"SunIntensity");
+   Call(rt,"SetTimeHours",root,0d);var night=Get(root,"Current");need((float)Get(night,"NightFactor")>.99f&&(float)Get(night,"SunIntensity")<dayIntensity,"Midnight actually changes light");
+   Call(rt,"SetTimeHours",root,12d);Call(rt,"SetManualSun",root,true,90f,12f);frame=Get(root,"Current");var manual=Get(frame,"Sun");need(Math.Abs((float)Get(manual,"ElevationDegrees")-12)<.001&&Math.Abs((double)Get(frame,"Hours")-12)<1e-8,"Manual sun angle does not change clock");
+   Call(rt,"TransitionWeather",root,rain,0f);frame=Get(root,"Current");need((float)Get(frame,"Rain")>.999f&&Math.Abs((float)Get(frame,"Wetness")-.6f)<.001,"Selected rain becomes real frame output");
+   Call(rt,"SetTimeHours",root,18d);need(Math.Abs((double)Get(frame,"Hours")-12)<1e-8,"Previously published frame remains immutable");need(before==JsonUtility.ToJson(day),"Profile source unchanged by simulation");
+   var registry=Find("EnvironmentCameraRegistry");var args=new object[]{camera,null};bool registered=(bool)registry.GetMethod("TryGet").Invoke(null,args);need(registered,"Exact configured camera receives frame");
+   go.SetActive(false);args=new object[]{camera,null};need(!(bool)registry.GetMethod("TryGet").Invoke(null,args),"Disable revokes camera immediately");
+   ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=true,checks});
+  }
+  catch(Exception e){ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=false,error=e.ToString(),checks});}
+  finally{foreach(var o in owned)if(o!=null)UnityEngine.Object.DestroyImmediate(o);}
+ }
+}

@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <RestoreIgnoreFailedSources>true</RestoreIgnoreFailedSources>
+    <DefineConstants>UNITY_EDITOR</DefineConstants>
+    <NoWarn>CS0436;MSB3277</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../../Assets/OSSASTRA/Scripts/EnvironmentSimulation/Core/*.cs" />
+    <Compile Include="../../../Assets/OSSASTRA/Scripts/EnvironmentSimulation/Runtime/*.cs" />
+    <Compile Include="../../../Assets/OSSASTRA/Scripts/EnvironmentSimulation/Editor/*.cs" />
+    <Compile Include="../../../Assets/OSSASTRA/Scripts/Development/Environment/*.cs" />
+    <Reference Include="E:/unity/Tuanjie Hub/2022.3.62t16/Editor/Data/Managed/UnityEngine/*.dll">
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="../../../Library/ScriptAssemblies/*.dll">
+      <Private>false</Private>
+    </Reference>
+    <Compile Include="../../../Assets/OSSASTRA/Scripts/EnvironmentSimulation/Rendering/*.cs" />
+    <Compile Include="../../../Assets/OSSASTRA/Scripts/SceneVisibility/Rooms/**/*.cs" />
+    <Compile Include="../../../Assets/OSSASTRA/Scripts/SceneVisibility/Runtime/SceneVisibilityRoot.cs" />
+  </ItemGroup>
+</Project>

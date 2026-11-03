@@ -1,0 +1,14 @@
+/* 功能：同机位图片读取与真实太阳射线交叉核对，避免只看灯的旋转数值。 */
+using System;using System.Linq;using System.IO;using UnityEngine;using Newtonsoft.Json;using Newtonsoft.Json.Linq;using Funplay.Editor.Tools.Scripting;using Ossastra.EnvironmentSimulation;
+public class EnvironmentShadowProbe:IFunplayCommand{public void Execute(ExecutionContext c){
+ var request=JObject.Parse(File.ReadAllText("E:/WORLDCREATOR/XingHaiHuiLang/研究/环境模拟/ENV-01/view-request.json"));
+ var root=UnityEngine.Object.FindObjectsOfType<EnvironmentRoot>().Single();var camera=root.gameplayCamera;var texture=new Texture2D(2,2,TextureFormat.RGBA32,false);
+ try{texture.LoadImage(File.ReadAllBytes((string)request["probeImage"]));
+ var points=(string)request["probeKind"]=="terrain"?new[]{new Vector3(24.6f,.03f,-14.6f),new Vector3(25.4f,.03f,-14.6f)}:new[]{new Vector3(20.8f,.053f,-11),new Vector3(20.8f,.053f,-10.4f)};
+ var samples=points.Select(world=>{
+ var screen=camera.WorldToScreenPoint(world);int x=Mathf.RoundToInt(screen.x*texture.width/camera.pixelWidth),y=Mathf.RoundToInt(screen.y*texture.height/camera.pixelHeight);Color color=Color.clear;for(int i=-1;i<=1;i++)for(int j=-1;j<=1;j++)color+=texture.GetPixel(x+i,y+j);color/=9;
+ RaycastHit sunHit;bool blocked=Physics.Raycast(world+Vector3.up*.01f,root.Current.SunDirection,out sunHit,20);RaycastHit cameraHit;bool hit=Physics.Raycast(camera.transform.position,(world-camera.transform.position).normalized,out cameraHit,100);
+ return new{world=world.ToString(),screen=screen.ToString(),color=color.ToString(),luminance=color.grayscale,blocked,caster=blocked?sunHit.collider.name:"",visibleSurface=hit?cameraHit.collider.name:""};}).ToArray();
+ c.ReturnValue=JsonConvert.SerializeObject(new{hours=root.Current.Hours,sun=root.Current.SunDirection.ToString(),samples});
+ }finally{UnityEngine.Object.DestroyImmediate(texture);}
+}}

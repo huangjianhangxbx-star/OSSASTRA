@@ -1,0 +1,11 @@
+// 功能：Root运行装配收口前，先确认既有/新建环境样板有统一渲染收口入口。
+using System;using System.Linq;using System.Reflection;using Newtonsoft.Json;using Funplay.Editor.Tools.Scripting;
+public sealed class EnvironmentRenderingFinishContract:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  var setup=AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType("Ossastra.EnvironmentSimulation.Editor.EnvironmentMainSceneSetup")).FirstOrDefault(t=>t!=null);
+  var finish=setup==null?null:setup.GetMethod("FinishRendering",BindingFlags.Static|BindingFlags.NonPublic|BindingFlags.Public);
+  ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=finish!=null,stage=finish==null?"RED":"READY",reason=finish==null?"Existing marker has no unified sky and wind finish seam":"Root runs guarded Apply twice and verifies explicit references, 3 wind leaves and stable owned counts"});
+ }
+}

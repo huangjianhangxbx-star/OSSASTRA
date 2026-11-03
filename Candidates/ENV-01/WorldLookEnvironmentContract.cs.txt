@@ -1,0 +1,42 @@
+/* 功能：验证动态天气实际进入WorldLook空气，而原档/调色/焦深保持；使用暂态对象，不写原场景。
+ * RED兼容旧六参数Build：实际旧输出继续被调用，但天气必须改变Extinction的断言会失败。
+ */
+using System;
+using System.Linq;
+using System.Reflection;
+using System.Collections.Generic;
+using UnityEngine;
+using Newtonsoft.Json;
+using Funplay.Editor.Tools.Scripting;
+public class WorldLookEnvironmentContract:IFunplayCommand
+{
+ static Type T(string name)=>AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType(name)).First(t=>t!=null);
+ static object Get(object o,string name)=>o.GetType().GetProperty(name).GetValue(o);
+ static void Set(object o,string name,object value)=>o.GetType().GetField(name).SetValue(o,value);
+ static object Call(object o,string name,params object[] args)=>o.GetType().GetMethod(name).Invoke(o,args);
+ public void Execute(ExecutionContext ctx)
+ {
+  var owned=new List<UnityEngine.Object>();var checks=new List<object>();bool all=true;Action<bool,string> need=(pass,name)=>{checks.Add(new{name,pass});all&=pass;};
+  try
+  {
+   var go=new GameObject("Owned_WorldLookWeatherContract");owned.Add(go);go.SetActive(false);var camera=go.AddComponent<Camera>();camera.enabled=false;var root=go.AddComponent(T("Ossastra.EnvironmentSimulation.EnvironmentRoot"));
+   var day=ScriptableObject.CreateInstance(T("Ossastra.EnvironmentSimulation.DayCycleProfileSO"));var fog=ScriptableObject.CreateInstance(T("Ossastra.EnvironmentSimulation.WeatherProfileSO"));owned.Add(day);owned.Add(fog);Set(fog,"fogDensity",.04f);Set(fog,"fogColor",new Color(.32f,.55f,.74f));Set(root,"gameplayCamera",camera);Set(root,"dayCycle",day);Set(root,"initialWeather",fog);Call(root,"RefreshNow");var frame=Get(root,"Current");
+   var air=ScriptableObject.CreateInstance(T("XingHai.T7B.OutdoorAtmosphereProfile"));owned.Add(air);Set(air,"airEnabled",true);Set(air,"extinction",.01f);Set(air,"exposure",1.2f);Set(air,"temperature",7f);string before=JsonUtility.ToJson(air);
+   var options=Activator.CreateInstance(T("Ossastra.WorldRendering.WorldLookEffectOptions"));Set(options,"enabled",true);Set(options,"airEnabled",true);
+   var settings=T("Ossastra.WorldRendering.WorldLookSettings");var build=settings.GetMethods().Where(m=>m.Name=="Build").OrderByDescending(m=>m.GetParameters().Length).First();
+   Func<object,object> buildWith=env=>build.GetParameters().Length>=8?build.Invoke(null,new object[]{camera,Vector3.forward*10,null,air,null,options,env,true}):build.GetParameters().Length==7?build.Invoke(null,new object[]{camera,Vector3.forward*10,null,air,null,options,env}):build.Invoke(null,new object[]{camera,Vector3.forward*10,null,air,null,options});
+   var baseline=buildWith(null);var dynamic=buildWith(frame);
+   need((float)Get(dynamic,"Extinction")>(float)Get(baseline,"Extinction")+.02f,"Actual weather density changes WorldLook extinction");
+   need(Get(dynamic,"AirFar").Equals(Get(baseline,"AirFar"))==false,"Actual weather fog color changes far air color");
+   need(Get(dynamic,"Exposure").Equals(Get(baseline,"Exposure"))&&Get(dynamic,"Temperature").Equals(Get(baseline,"Temperature")),"Weather never duplicates day night exposure or grading temperature");
+   need(Get(dynamic,"FocusDepth").Equals(Get(baseline,"FocusDepth")),"Weather does not move observer focal depth");
+   Set(options,"airEnabled",false);var off=buildWith(frame);need(!(bool)Get(off,"AirEnabled"),"Independent air switch really disables weather fog");Set(options,"airEnabled",true);Set(options,"enabled",false);off=buildWith(frame);need(!(bool)Get(off,"Enabled"),"Master switch really disables weather look");Set(options,"enabled",true);
+   Call(root,"SetContribution",Enum.Parse(T("Ossastra.EnvironmentSimulation.EnvironmentContribution"),"Original"));var original=buildWith(Get(root,"Current"));need(Get(original,"Extinction").Equals(Get(baseline,"Extinction"))&&Get(original,"AirFar").Equals(Get(baseline,"AirFar")),"Original contribution returns exact old static air");
+   Call(root,"SetContribution",Enum.Parse(T("Ossastra.EnvironmentSimulation.EnvironmentContribution"),"Combined"));Set(root,"fogMultiplier",0f);Call(root,"RefreshNow");var clear=buildWith(Get(root,"Current"));need(Get(clear,"Extinction").Equals(Get(baseline,"Extinction"))&&Get(clear,"AirFar").Equals(Get(baseline,"AirFar")),"Zero weather fog leaves no density or color residue");
+   need(before==JsonUtility.ToJson(air),"Legacy atmosphere source remains byte equivalent JSON");
+   ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=all,api=build.GetParameters().Length,checks});
+  }
+  catch(Exception e){ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=false,error=e.ToString(),checks});}
+  finally{foreach(var o in owned)if(o!=null)UnityEngine.Object.DestroyImmediate(o);}
+ }
+}

@@ -1,10 +1,12 @@
 /* 功能：保留原世界XZ底纹、作者界限、mask与基层覆盖，仅追加正向片元许可。
  * 边界：继续使用原硬件深度，不将普通地表切换为薄顶面或改变层序。
  * 生命周期：仅临时适配材质使用，不持有场景或材质资源。
+ * ENV-01：原无光照表面接环境主灯/阴影；原生Lit保留原光照，仅追加房间GI系数与主灯云场，alpha/深度/许可保持。
  */
 Shader "Hidden/Ossastra/Rooms/SightWorldTile"
 {
  Properties {
+
   [PerRendererData] _MainTex("原规则边缘",2D)="white"{}
   _SecondTex("底纹",2D)="white"{}
   _WorldPeriod("候选世界周期（米）",Float)=16
@@ -21,6 +23,8 @@ Shader "Hidden/Ossastra/Rooms/SightWorldTile"
    Cull Off ZWrite On ZTest LEqual Blend Off
    HLSLPROGRAM
    #pragma target 4.5
+   #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE
+   #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
    #pragma vertex vert
    #pragma fragment frag
    #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
@@ -31,16 +35,20 @@ Shader "Hidden/Ossastra/Rooms/SightWorldTile"
     float _WorldPeriod; float _Cutoff; float _BaseCoverage; float _DebugMask;
    CBUFFER_END
    #include "RoomSightClip.hlsl"
+   #include "Assets/OSSASTRA/Scripts/EnvironmentSimulation/Rendering/EnvironmentLighting.hlsl"
    struct A {float4 positionOS:POSITION;float2 uv:TEXCOORD0;float4 color:COLOR;};
    struct V {float4 positionCS:SV_POSITION;float2 uv:TEXCOORD0;float3 world:TEXCOORD1;float4 color:COLOR;};
    V vert(A i){V o;o.world=TransformObjectToWorld(i.positionOS.xyz);o.positionCS=TransformWorldToHClip(o.world);o.uv=i.uv;o.color=i.color*_Color;return o;}
    half4 frag(V i):SV_Target {
-    clip(RoomSightPartialContains(RoomSightWorldFromDeviceDepth(i.positionCS.xy,i.positionCS.z))?1:-1);
+    if(_EnvironmentFullSurface<.5)clip(RoomSightPartialContains(RoomSightWorldFromDeviceDepth(i.positionCS.xy,i.positionCS.z))?1:-1);
     clip(i.world.x-_GroundBounds.x);clip(i.world.z-_GroundBounds.y);clip(_GroundBounds.z-i.world.x);clip(_GroundBounds.w-i.world.z);
     half mask=SAMPLE_TEXTURE2D(_MainTex,sampler_MainTex,i.uv).a;
     mask=lerp(mask,1,saturate(_BaseCoverage));clip(mask*i.color.a-_Cutoff);
     half3 detail=SAMPLE_TEXTURE2D(_SecondTex,sampler_SecondTex,i.world.xz/max(_WorldPeriod,.0001)).rgb;
-    return RoomSightFogColor(half4(lerp(detail,mask.xxx,saturate(_DebugMask))*i.color.rgb,1),RoomSightWorldFromDeviceDepth(i.positionCS.xy,i.positionCS.z),0);
+    float3 logicalWorld=RoomSightWorldFromDeviceDepth(i.positionCS.xy,i.positionCS.z);
+    half3 surface=lerp(detail,mask.xxx,saturate(_DebugMask))*i.color.rgb;
+    if(_DebugMask<.5&&EnvironmentCanShadeWorld(logicalWorld))surface=EnvironmentShade(surface,logicalWorld,float3(0,1,0),_EnvironmentSurfaceRole);
+    return EnvironmentFogColor(half4(surface,1),logicalWorld,0);
    }
    ENDHLSL
   }

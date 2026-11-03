@@ -1,0 +1,67 @@
+/* 功能：真实调用LightingBinding.Apply并读取Native Trilight三色；0必须黑，.25相对1必须保持线性光强比例。
+ * 原型颜色为作者色，比较时用.linear解码；禁用恢复在finally兜底之前验收，不推断GPU/角色结果。
+ */
+using System;
+using System.Linq;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.Rendering;
+using Newtonsoft.Json;
+using Funplay.Editor.Tools.Scripting;
+public class NativeAmbientContract:IFunplayCommand
+{
+ static Type T(string name)=>AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType("Ossastra.EnvironmentSimulation."+name)).First(t=>t!=null);
+ static void Set(object o,string name,object value)=>o.GetType().GetField(name).SetValue(o,value);
+ static object Get(object o,string name)=>o.GetType().GetProperty(name).GetValue(o);
+ static object Call(object o,string name,params object[] args)=>o.GetType().GetMethod(name).Invoke(o,args);
+ static bool NearRgb(Color a,Color b,float epsilon=.0002f)=>Mathf.Abs(a.r-b.r)<=epsilon&&Mathf.Abs(a.g-b.g)<=epsilon&&Mathf.Abs(a.b-b.b)<=epsilon;
+ public void Execute(ExecutionContext ctx)
+ {
+  var checks=new List<object>();var profiles=new List<UnityEngine.Object>();var disabled=new List<Behaviour>();bool all=true,captured=false;
+  GameObject rootGo=null,bindingGo=null;
+  AmbientMode originalMode=default;Color originalSky=default,originalEquator=default,originalGround=default;float originalIntensity=0;Light originalSun=null;
+  Action<bool,string> need=(pass,name)=>{checks.Add(new{name,pass});all&=pass;};
+  try
+  {
+   foreach(var existing in UnityEngine.Object.FindObjectsOfType(T("EnvironmentRoot")).Cast<Behaviour>())
+    if(existing.enabled){disabled.Add(existing);existing.enabled=false;}
+   originalMode=RenderSettings.ambientMode;originalSky=RenderSettings.ambientSkyColor;originalEquator=RenderSettings.ambientEquatorColor;originalGround=RenderSettings.ambientGroundColor;originalIntensity=RenderSettings.ambientIntensity;originalSun=RenderSettings.sun;captured=true;
+   rootGo=new GameObject("Owned_NativeAmbientRoot");rootGo.SetActive(false);var camera=rootGo.AddComponent<Camera>();camera.enabled=false;var root=rootGo.AddComponent(T("EnvironmentRoot"));
+   var day=ScriptableObject.CreateInstance(T("DayCycleProfileSO"));var weather=ScriptableObject.CreateInstance(T("WeatherProfileSO"));profiles.Add(day);profiles.Add(weather);
+   Set(day,"dayAmbientIntensity",1f);Set(day,"dayAmbientSky",new Color(.62f,.48f,.32f));Set(day,"dayAmbientEquator",new Color(.35f,.55f,.42f));Set(day,"dayAmbientGround",new Color(.15f,.25f,.45f));Set(weather,"ambientMultiplier",1f);
+   Set(root,"dayCycle",day);Set(root,"initialWeather",weather);Set(root,"gameplayCamera",camera);Call(root,"SetTimeHours",12d);
+   string beforeDay=JsonUtility.ToJson(day),beforeWeather=JsonUtility.ToJson(weather);
+   bindingGo=new GameObject("Owned_NativeAmbientBinding");var binding=(Behaviour)bindingGo.AddComponent(T("EnvironmentLightingBinding"));Set(binding,"root",root);
+   Func<float,Color[]> sample=multiplier=>
+   {
+    Set(root,"ambientMultiplier",multiplier);Call(root,"RefreshNow");var frame=Get(root,"Current");Call(binding,"Apply",root,frame);
+    return new[]{RenderSettings.ambientSkyColor,RenderSettings.ambientEquatorColor,RenderSettings.ambientGroundColor};
+   };
+   var full=sample(1);var prototype=Get(root,"Current");var zero=sample(0);var quarter=sample(.25f);
+   need(NearRgb(zero[0],Color.black),"Zero ambient multiplier makes native Trilight sky RGB zero");
+   need(NearRgb(zero[1],Color.black),"Zero ambient multiplier makes native Trilight equator RGB zero");
+   need(NearRgb(zero[2],Color.black),"Zero ambient multiplier makes native Trilight ground RGB zero");
+   need(NearRgb(quarter[0].linear,full[0].linear*.25f),"Quarter ambient sky preserves one quarter linear light energy");
+   need(NearRgb(quarter[1].linear,full[1].linear*.25f),"Quarter ambient equator preserves one quarter linear light energy");
+   need(NearRgb(quarter[2].linear,full[2].linear*.25f),"Quarter ambient ground preserves one quarter linear light energy");
+   need(NearRgb(full[0].linear,((Color)Get(prototype,"AmbientSky")).linear)&&NearRgb(full[1].linear,((Color)Get(prototype,"AmbientEquator")).linear)&&NearRgb(full[2].linear,((Color)Get(prototype,"AmbientGround")).linear),"Unit ambient preserves prototype colors without duplicate gamma scaling");
+   need(RenderSettings.ambientMode==AmbientMode.Trilight,"Native samples really use Trilight mode");
+   binding.enabled=false;
+   need(RenderSettings.ambientMode==originalMode&&RenderSettings.ambientSkyColor.Equals(originalSky)&&RenderSettings.ambientEquatorColor.Equals(originalEquator)&&RenderSettings.ambientGroundColor.Equals(originalGround)&&RenderSettings.ambientIntensity==originalIntensity&&RenderSettings.sun==originalSun,"Binding disable exactly restores original native ambient parameters and sun reference");
+   need(JsonUtility.ToJson(day)==beforeDay&&JsonUtility.ToJson(weather)==beforeWeather,"Native ambient application never mutates source profiles");
+   ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=all,checks,
+    full=full.Select(c=>new{r=c.r,g=c.g,b=c.b,a=c.a}).ToArray(),
+    zero=zero.Select(c=>new{r=c.r,g=c.g,b=c.b,a=c.a}).ToArray(),
+    quarter=quarter.Select(c=>new{r=c.r,g=c.g,b=c.b,a=c.a}).ToArray()});
+  }
+  catch(Exception e){ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=false,error=e.ToString(),checks});}
+  finally
+  {
+   if(bindingGo!=null)UnityEngine.Object.DestroyImmediate(bindingGo);if(rootGo!=null)UnityEngine.Object.DestroyImmediate(rootGo);
+   foreach(var profile in profiles)if(profile!=null)UnityEngine.Object.DestroyImmediate(profile);
+   // 若待测恢复本身有错，仍归还现场；该兜底发生在上面的实际恢复断言之后。
+   if(captured){RenderSettings.ambientMode=originalMode;RenderSettings.ambientSkyColor=originalSky;RenderSettings.ambientEquatorColor=originalEquator;RenderSettings.ambientGroundColor=originalGround;RenderSettings.ambientIntensity=originalIntensity;RenderSettings.sun=originalSun;}
+   foreach(var existing in disabled)if(existing!=null)existing.enabled=true;
+  }
+ }
+}

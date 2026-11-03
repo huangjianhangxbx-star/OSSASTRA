@@ -68,6 +68,11 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
             block.SetInteger("_RoomSightOwnerCount", count);
             block.SetInteger("_RoomSightOwnerExterior", surface.OwnerExterior ? 1 : 0);
             block.SetFloat("_RoomSightStaticEnvironment",surface.StaticEnvironment?1:0);
+            block.SetFloat("_EnvironmentFullSurface",surface.EnvironmentFullSurface?1:0);
+            block.SetFloat("_EnvironmentSurfaceRole",surface.EnvironmentSurfaceRole);
+            block.SetFloat("_EnvironmentResponseOverride",surface.EnvironmentResponseOverride);
+            block.SetFloat("_EnvironmentReceiveShadow",surface.EnvironmentReceiveShadow);
+            block.SetFloat("_EnvironmentMinimumOverride",surface.EnvironmentMinimumOverride);
             for (int i = 0; i < count; ++i) { ownerMatrices[i] = volumes[i].WorldToLocal; ownerExtents[i] = volumes[i].HalfExtents; }
             if (count > 0) { block.SetMatrixArray("_RoomSightOwnerMatrices", ownerMatrices); block.SetVectorArray("_RoomSightOwnerExtents", ownerExtents); }
             bool roof = surface.Kind == RoomPositiveSurfaceKind.Roof;

@@ -13,20 +13,21 @@ namespace Ossastra.SceneVisibility.Rooms
   Transform follow;
   Vector3 anchor;
   bool configured,partial,requirePermission;
+  public int EnvironmentRole{get;private set;}=-1;
 
   public static RoomPresentationBinding Attach(Renderer renderer,Vector3 worldAnchor,bool forcePartial,
-   Transform followAnchor=null,bool requireAnchorPermission=false)
+   Transform followAnchor=null,bool requireAnchorPermission=false,int environmentRole=-1)
   {
    if(renderer==null)return null;
    var binding=renderer.GetComponent<RoomPresentationBinding>();
    if(binding==null)binding=renderer.gameObject.AddComponent<RoomPresentationBinding>();
-   binding.Configure(renderer,worldAnchor,forcePartial,followAnchor,requireAnchorPermission);
+   binding.Configure(renderer,worldAnchor,forcePartial,followAnchor,requireAnchorPermission,environmentRole);
    return binding;
   }
-  public void Configure(Renderer renderer,Vector3 worldAnchor,bool forcePartial,Transform followAnchor=null,bool requireAnchorPermission=false)
+  public void Configure(Renderer renderer,Vector3 worldAnchor,bool forcePartial,Transform followAnchor=null,bool requireAnchorPermission=false,int environmentRole=-1)
   {
    RoomPresentationRegistry.Release(this,member);
-   member=renderer;anchor=worldAnchor;partial=forcePartial;follow=followAnchor;requirePermission=requireAnchorPermission;
+   member=renderer;anchor=worldAnchor;partial=forcePartial;follow=followAnchor;requirePermission=requireAnchorPermission;EnvironmentRole=environmentRole;
    configured=renderer!=null;
    if(configured&&isActiveAndEnabled)Register();
   }

@@ -58,12 +58,13 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
             internal readonly bool CutRoof;
             internal readonly bool Permission;
             internal readonly bool Shaded;
+            internal readonly bool EnvironmentFull;
             readonly int id;
-            internal MaterialKey(Material source, RoomPositiveSurfaceKind kind, bool cutRoof, bool permission, bool shaded = false)
-            { Source = source; Kind = kind; CutRoof = cutRoof; Permission = permission; Shaded = shaded; id = source.GetInstanceID(); }
-            public bool Equals(MaterialKey other) => ReferenceEquals(Source, other.Source) && Kind == other.Kind && CutRoof == other.CutRoof && Permission == other.Permission && Shaded == other.Shaded;
+            internal MaterialKey(Material source, RoomPositiveSurfaceKind kind, bool cutRoof, bool permission, bool shaded = false, bool environmentFull = false)
+            { Source = source; Kind = kind; CutRoof = cutRoof; Permission = permission; Shaded = shaded; EnvironmentFull=environmentFull; id = source.GetInstanceID(); }
+            public bool Equals(MaterialKey other) => ReferenceEquals(Source, other.Source) && Kind == other.Kind && CutRoof == other.CutRoof && Permission == other.Permission && Shaded == other.Shaded && EnvironmentFull==other.EnvironmentFull;
             public override bool Equals(object value) => value is MaterialKey other && Equals(other);
-            public override int GetHashCode() => id * 397 ^ (int)Kind * 8 ^ (CutRoof ? 4 : 0) ^ (Permission ? 2 : 0) ^ (Shaded ? 1 : 0);
+            public override int GetHashCode() => id * 397 ^ (int)Kind * 16 ^ (CutRoof ? 8 : 0) ^ (Permission ? 4 : 0) ^ (Shaded ? 2 : 0) ^ (EnvironmentFull ? 1 : 0);
         }
 
         internal RoomPositivePass(Camera camera)
@@ -357,7 +358,9 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
                 { ready = false; Statistics.Error = independentError; }
                 if (ready)
                 {
-                    Upload(cmd, ref renderingData); used.Clear(); Statistics.UnsupportedMaterialCount = 0;
+                    Upload(cmd, ref renderingData);
+                    Ossastra.EnvironmentSimulation.Rendering.EnvironmentSkyBinding.UploadForCamera(cmd,camera,frame);
+                    used.Clear(); Statistics.UnsupportedMaterialCount = 0;
                     cmd.SetGlobalFloat("_RoomPositivePermissionMode", 0);
                     if (previewEnabled)
                     {
@@ -377,6 +380,7 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
                     }
                     else
                     {
+                        Ossastra.EnvironmentSimulation.Rendering.EnvironmentSkyBinding.AppendSkyForCamera(cmd,camera,frame);
                         // 使用原角色所有begin回调之后的最新材质脚点，刷新自有颜色材质；不再使用overrideShader。
                         materialBuckets.RefreshAdapters();
                         Statistics.OwnedPropertyBlockCount = propertyScope.BlockCount;
@@ -384,6 +388,7 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
                         cmd.SetGlobalInteger("_RoomSightPassMode", 1);
                         context.ExecuteCommandBuffer(cmd); cmd.Clear();
                         DrawFinalWorld(context, cmd, ref renderingData);
+                        Ossastra.EnvironmentSimulation.Rendering.EnvironmentSkyBinding.AppendWeatherForCamera(cmd,camera,frame,ref renderingData);
                         // 标签许可只消费刚刚重建的合法世界深度，绝不复用旧世界遮挡。
                         CoreUtils.SetRenderTarget(cmd, labelPermission, renderer.cameraDepthTargetHandle, ClearFlag.Color, Color.black);
                         cmd.SetGlobalInteger("_RoomSightPassMode", 0);
@@ -493,6 +498,11 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
             cmd.SetGlobalInteger("_RoomSightOwnerCount", count);
             cmd.SetGlobalInteger("_RoomSightOwnerExterior", surface.OwnerExterior ? 1 : 0);
             cmd.SetGlobalFloat("_RoomSightStaticEnvironment",surface.StaticEnvironment?1:0);
+            cmd.SetGlobalFloat("_EnvironmentFullSurface",surface.EnvironmentFullSurface?1:0);
+            cmd.SetGlobalFloat("_EnvironmentSurfaceRole",surface.EnvironmentSurfaceRole);
+            cmd.SetGlobalFloat("_EnvironmentResponseOverride",surface.EnvironmentResponseOverride);
+            cmd.SetGlobalFloat("_EnvironmentReceiveShadow",surface.EnvironmentReceiveShadow);
+            cmd.SetGlobalFloat("_EnvironmentMinimumOverride",surface.EnvironmentMinimumOverride);
             if (count > 0)
             {
                 CopyVolumes(surface.OwnerVolumes, ownerMatrices, ownerExtents);
@@ -580,7 +590,7 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
             {
                 var source = materialBuckets.ResolveOriginal(slots[slot]); uint family = RoomPositiveRenderingLayers.Classify(source);
                 bool cutRoof = previewEnabled && surface.Kind == RoomPositiveSurfaceKind.Roof && Array.IndexOf(frame.PreviewRoofSurfaces, renderer) >= 0;
-                var key = new MaterialKey(source, surface.Kind, cutRoof, permission);
+                var key = new MaterialKey(source, surface.Kind, cutRoof, permission,environmentFull:surface.EnvironmentFullSurface);
                 if (!materials.TryGetValue(key, out var adapter))
                 {
                     Shader adapterShader = family == RoomPositiveRenderingLayers.PartialLitSpineBit ? spriteLitTruthShader : truthShader;
@@ -603,9 +613,9 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
                     adapter.SetFloat("_RoomSourceAlphaClip", source.IsKeywordEnabled("_ALPHATEST_ON") ? 1 : 0);
                 }
                 adapter.SetFloat("_RoomPositiveDepthWrite", key.Permission ? 0 : 1);
-                adapter.SetFloat("_RoomPositivePartial", surface.Kind == RoomPositiveSurfaceKind.Partial ? 1 : 0);
+                adapter.SetFloat("_RoomPositivePartial", surface.Kind == RoomPositiveSurfaceKind.Partial&&!surface.EnvironmentFullSurface ? 1 : 0);
                 adapter.SetFloat("_RoomPositiveCutRoof", key.CutRoof ? 1 : 0);
-                adapter.SetColor("_RoomPositiveColor", surface.Kind == RoomPositiveSurfaceKind.Partial ? new Color(1, .38f, .04f, 1) :
+                adapter.SetColor("_RoomPositiveColor", surface.Kind == RoomPositiveSurfaceKind.Partial&&!surface.EnvironmentFullSurface ? new Color(1, .38f, .04f, 1) :
                     surface.Kind == RoomPositiveSurfaceKind.Roof ? new Color(.2f, .35f, .8f, 1) : new Color(.05f, .9f, .85f, 1));
                 adapter.SetFloat("_Cull", mode == 0 && source.HasProperty("_Cull") ? source.GetFloat("_Cull") : 0);
                 bool hardware = mode == 0 || mode == 2 || mode == 6 || (mode == 3 && !upright);
