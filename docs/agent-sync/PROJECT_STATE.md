@@ -658,3 +658,6 @@ Core新20/Legacy20、离线时序13、Native历史8；实景门窗10/10，真实
 
 
 2026-11-04 camera-pitch35-main complete/read-only：按用户最新指令，当前RoomLab已Native保存35度，yaw45/distance25/FOV35与原观察中心保持；saved=true/dirty=false。只改Map.pitch及GameplayCamera姿态，不改源码、渲染功能或其他场景，不做复杂测试；全部租约释放。
+
+
+2026-11-04 ENV-01-PLAN complete/read-only：当前35度RoomLab的天空/真实光照/昼夜太阳/天气气候计划已交付docs/ossastra/ENV-01。只读Native核实太阳Light.shadows=None但管线支持、现有默认Skybox、多个Unlit地表/装饰/装备家族，以及正向重绘清黑；文档提出四里程碑与8–14小时估算，均为推荐方案，环境功能尚未实施。全程无Unity/源码/业务/原档变更，全部文档与只读子任务租约释放。
