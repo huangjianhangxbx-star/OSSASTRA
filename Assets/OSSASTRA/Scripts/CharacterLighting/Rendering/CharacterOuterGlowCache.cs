@@ -87,8 +87,6 @@ namespace Ossastra.CharacterLighting.Rendering
     float right=Mathf.Min(descriptor.width,(rect.x+rect.z)*descriptor.width+pad),bottom=Mathf.Min(descriptor.height,(rect.y+rect.w)*descriptor.height+pad);
     if(right>x&&bottom>y){cmd.EnableScissorRect(new Rect(x,descriptor.height-bottom,right-x,bottom-y));cmd.DrawProcedural(Matrix4x4.identity,compositeMaterial,0,MeshTopology.Triangles,3);cmd.DisableScissorRect();DrawCount++;ActiveActorCount++;}
    }
-   // 世界先追加一次；WorldLook在空间滤波前扣除Energy，滤波后按中心像素归还。
-   // 用户Focus/Bloom继续工作，已通过许可与深度路径的柔光不会被它们再次扩散。
    // 环境Look接管时，首次在空间滤波之后加能量，避免低精度CameraColor加后再减产生扩散残差。
    // 无后端时沿本Pass直接追加；Look后端异常则保守少画柔光，不扩大许可。
    bool deferred=!diagnostic&&Ossastra.WorldRendering.WorldLookCameraRegistry.TryGet(camera,out var look)&&look.Enabled;
