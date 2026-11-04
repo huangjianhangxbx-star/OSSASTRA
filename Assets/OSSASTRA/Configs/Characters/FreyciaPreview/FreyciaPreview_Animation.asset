@@ -13,7 +13,71 @@ MonoBehaviour:
   m_Name: FreyciaPreview_Animation
   m_EditorClassIdentifier: 
   skeletonDataAsset: {fileID: 11400000, guid: c3b0a3fb6be767c499f96ca7f37c76c6, type: 2}
-  plansMelee: []
+  plansMelee:
+  - logicID: 11
+    plan:
+      clips:
+      - animaName: "\u77ED\u5200-a1"
+        track: 0
+        loop: 0
+        mixDuration: 0
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: c3b0a3fb6be767c499f96ca7f37c76c6, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 12
+    plan:
+      clips:
+      - animaName: "\u77ED\u5200-a1"
+        track: 0
+        loop: 0
+        mixDuration: 0
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: c3b0a3fb6be767c499f96ca7f37c76c6, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 13
+    plan:
+      clips:
+      - animaName: "\u77ED\u5200-a1"
+        track: 0
+        loop: 0
+        mixDuration: 0
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: c3b0a3fb6be767c499f96ca7f37c76c6, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
+  - logicID: 1001
+    plan:
+      clips:
+      - animaName: "\u77ED\u5200-a1"
+        track: 0
+        loop: 0
+        mixDuration: 0
+        isAdditive: 0
+        skeletonDataAsset: {fileID: 11400000, guid: c3b0a3fb6be767c499f96ca7f37c76c6, type: 2}
+        characterRoot: {fileID: 0}
+        playbackRate: 1
+        scalesWithAction: 0
+        sourceDuration: 0
+      queuedClips: []
+      clearTracks: 
+      characterRoot: {fileID: 0}
   plansMovement: []
   plansFirearm: []
   plansJump: []
@@ -87,7 +151,7 @@ MonoBehaviour:
   - logicID: 1203
     plan:
       clips:
-      - animaName: "\u5C45\u4E2D/\u6D4B\u80CC\u9762"
+      - animaName: "\u5C45\u4E2D/\u4FA7\u80CC\u9762"
         track: 9
         loop: 1
         mixDuration: 0
