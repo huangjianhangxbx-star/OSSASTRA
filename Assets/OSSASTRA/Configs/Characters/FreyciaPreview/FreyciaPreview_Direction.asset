@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   mode: 1
   visibilityMode: 1
-  contentVersion: 2
+  contentVersion: 3
   structureTrack: 9
   yawOffset: 0
   initialFace: front
@@ -23,18 +23,23 @@ MonoBehaviour:
   - faceId: side
     rootBone: "\u4FA7\u9762"
     logicId: 1201
+    alignmentOffset: {x: 0, y: 0}
   - faceId: frontSide
     rootBone: "\u4FA7\u6B63\u9762-RootPosition"
     logicId: 1202
+    alignmentOffset: {x: 0, y: 0}
   - faceId: backSide
     rootBone: "\u4FA7\u80CC\u9762"
     logicId: 1203
+    alignmentOffset: {x: 0, y: 0.5}
   - faceId: front
     rootBone: "\u6B63\u9762"
     logicId: 1204
+    alignmentOffset: {x: 0, y: 0}
   - faceId: back
     rootBone: "\u80CC\u9762"
     logicId: 1205
+    alignmentOffset: {x: 0, y: 0.5}
   sectors:
   - from: 67.5
     to: 112.5

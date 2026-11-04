@@ -16,6 +16,8 @@ namespace Ossastra.Characters
     {
         public string faceId,rootBone;
         public A.EAnimationLogicState logicId;
+        [Tooltip("结构动画求值后的面根局部平移补偿（骨骼导入后的单位）；默认零。仅对齐显示，不移动角色控制根。")]
+        public Vector2 alignmentOffset;
     }
     [Serializable] public sealed class CharacterDirectionSector
     {

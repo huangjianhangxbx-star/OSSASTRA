@@ -1,7 +1,7 @@
 /* 脚本：CharacterDirectionPresentation
  * 功能：消费Bus的只读观察方向（缺省保持原世界方向），提交结构动画意图，并在4.3姿态流水线执行每实例显隐。
  * 边界：无Update/设备采样/玩法计时器/SetAnimation；不改动作向量、碰撞、费用或共享骨架数据。
- * 协作：Controller先提交动作再提交方向并唯一Commit；BeforeApply恢复mask及拥有的根平移，UpdateComplete求显隐，网格后还原alpha。
+ * 协作：Controller先提交动作再提交方向并唯一Commit；BeforeApply恢复根平移，UpdateLocal应用每面定位补偿，UpdateComplete求显隐，网格后还原alpha。
  */
 using System;
 using System.Linq;
@@ -92,6 +92,17 @@ namespace Ossastra.Characters
             try{visibility.Apply(weaponDisplayMode==CharacterWeaponDisplayMode.IndependentEquipment,showAllBranches);}
             finally{UnityEngine.Profiling.Profiler.EndSample();}
         }
+        // 在动画之后、世界矩阵之前补偿，下一次BeforeApply重置根，避免逐帧累加。
+        private void AlignFace(ISkeletonRenderer renderer)
+        {
+            if(!IsConfigured)return;
+            for(int i=0;i<roots.Length;i++)
+            {
+                var offset=profile.faces[i].alignmentOffset;
+                roots[i].Pose.X+=offset.x;
+                roots[i].Pose.Y+=offset.y;
+            }
+        }
         private void AfterMesh(ISkeletonRenderer renderer)=>visibility?.Restore();
         private void AnimationRebuilt(ISkeletonAnimation component)
         {
@@ -104,12 +115,12 @@ namespace Ossastra.Characters
         private void Attach()
         {
             if(hooked||body==null||profile==null||!profile.Enabled)return;
-            body.BeforeApply+=BeforeApply;body.UpdateComplete+=PoseComplete;body.OnMeshAndMaterialsUpdated+=AfterMesh;body.OnAnimationRebuild+=AnimationRebuilt;hooked=true;
+            body.BeforeApply+=BeforeApply;body.UpdateLocal+=AlignFace;body.UpdateComplete+=PoseComplete;body.OnMeshAndMaterialsUpdated+=AfterMesh;body.OnAnimationRebuild+=AnimationRebuilt;hooked=true;
         }
         private void Detach()
         {
             visibility?.Restore();
-            if(body!=null&&hooked){body.BeforeApply-=BeforeApply;body.UpdateComplete-=PoseComplete;body.OnMeshAndMaterialsUpdated-=AfterMesh;body.OnAnimationRebuild-=AnimationRebuilt;}hooked=false;
+            if(body!=null&&hooked){body.BeforeApply-=BeforeApply;body.UpdateLocal-=AlignFace;body.UpdateComplete-=PoseComplete;body.OnMeshAndMaterialsUpdated-=AfterMesh;body.OnAnimationRebuild-=AnimationRebuilt;}hooked=false;
         }
         private void OnEnable(){if(owner!=null)Attach();}
         private void OnDisable(){Detach();composer?.RemoveIntent(A.AnimationIntentSourceStateMachine.StructuralDirection);}
