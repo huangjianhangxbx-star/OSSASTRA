@@ -1,0 +1,239 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3d3cec38353073e46836b8c195545eb2, type: 3}
+  m_Name: FreyciaMain_Rig
+  m_EditorClassIdentifier: 
+  schemaVersion: 1
+  contentVersion: 1
+  model: {fileID: 11400000, guid: c3b0a3fb6be767c499f96ca7f37c76c6, type: 2}
+  evidence: FREYCIA actual five-face HandR/HandL bindings
+  sockets:
+  - semanticSocketId: equipment.right
+    kind: 0
+    boneName: "\u6B63\u9762-HandR"
+    slotName: 
+    pointAttachmentName: 
+    skinName: 
+    boneLocalOffset: {x: 0, y: 0, z: 0}
+    evidence: 
+  - semanticSocketId: equipment.left
+    kind: 0
+    boneName: "\u6B63\u9762-HandL"
+    slotName: 
+    pointAttachmentName: 
+    skinName: 
+    boneLocalOffset: {x: 0, y: 0, z: 0}
+    evidence: 
+  - semanticSocketId: item.use
+    kind: 0
+    boneName: "\u6B63\u9762-HandR"
+    slotName: 
+    pointAttachmentName: 
+    skinName: 
+    boneLocalOffset: {x: 0, y: 0, z: 0}
+    evidence: 
+  variants:
+  - faceId: side
+    bodyClip: 
+    fromNormalized: 0
+    toNormalized: 1
+    binding:
+      semanticSocketId: equipment.right
+      kind: 0
+      boneName: "\u4FA7\u9762-HandR"
+      slotName: 
+      pointAttachmentName: 
+      skinName: 
+      boneLocalOffset: {x: 0, y: 0, z: 0}
+      evidence: 
+  - faceId: side
+    bodyClip: 
+    fromNormalized: 0
+    toNormalized: 1
+    binding:
+      semanticSocketId: equipment.left
+      kind: 0
+      boneName: "\u4FA7\u9762-HandL"
+      slotName: 
+      pointAttachmentName: 
+      skinName: 
+      boneLocalOffset: {x: 0, y: 0, z: 0}
+      evidence: 
+  - faceId: side
+    bodyClip: 
+    fromNormalized: 0
+    toNormalized: 1
+    binding:
+      semanticSocketId: item.use
+      kind: 0
+      boneName: "\u4FA7\u9762-HandR"
+      slotName: 
+      pointAttachmentName: 
+      skinName: 
+      boneLocalOffset: {x: 0, y: 0, z: 0}
+      evidence: 
+  - faceId: frontSide
+    bodyClip: 
+    fromNormalized: 0
+    toNormalized: 1
+    binding:
+      semanticSocketId: equipment.right
+      kind: 0
+      boneName: "\u4FA7\u6B63\u9762-HandR"
+      slotName: 
+      pointAttachmentName: 
+      skinName: 
+      boneLocalOffset: {x: 0, y: 0, z: 0}
+      evidence: 
+  - faceId: frontSide
+    bodyClip: 
+    fromNormalized: 0
+    toNormalized: 1
+    binding:
+      semanticSocketId: equipment.left
+      kind: 0
+      boneName: "\u4FA7\u6B63\u9762-HandL"
+      slotName: 
+      pointAttachmentName: 
+      skinName: 
+      boneLocalOffset: {x: 0, y: 0, z: 0}
+      evidence: 
+  - faceId: frontSide
+    bodyClip: 
+    fromNormalized: 0
+    toNormalized: 1
+    binding:
+      semanticSocketId: item.use
+      kind: 0
+      boneName: "\u4FA7\u6B63\u9762-HandR"
+      slotName: 
+      pointAttachmentName: 
+      skinName: 
+      boneLocalOffset: {x: 0, y: 0, z: 0}
+      evidence: 
+  - faceId: backSide
+    bodyClip: 
+    fromNormalized: 0
+    toNormalized: 1
+    binding:
+      semanticSocketId: equipment.right
+      kind: 0
+      boneName: "\u4FA7\u80CC\u9762-HandR"
+      slotName: 
+      pointAttachmentName: 
+      skinName: 
+      boneLocalOffset: {x: 0, y: 0, z: 0}
+      evidence: 
+  - faceId: backSide
+    bodyClip: 
+    fromNormalized: 0
+    toNormalized: 1
+    binding:
+      semanticSocketId: equipment.left
+      kind: 0
+      boneName: "\u4FA7\u80CC\u9762-HandL"
+      slotName: 
+      pointAttachmentName: 
+      skinName: 
+      boneLocalOffset: {x: 0, y: 0, z: 0}
+      evidence: 
+  - faceId: backSide
+    bodyClip: 
+    fromNormalized: 0
+    toNormalized: 1
+    binding:
+      semanticSocketId: item.use
+      kind: 0
+      boneName: "\u4FA7\u80CC\u9762-HandR"
+      slotName: 
+      pointAttachmentName: 
+      skinName: 
+      boneLocalOffset: {x: 0, y: 0, z: 0}
+      evidence: 
+  - faceId: front
+    bodyClip: 
+    fromNormalized: 0
+    toNormalized: 1
+    binding:
+      semanticSocketId: equipment.right
+      kind: 0
+      boneName: "\u6B63\u9762-HandR"
+      slotName: 
+      pointAttachmentName: 
+      skinName: 
+      boneLocalOffset: {x: 0, y: 0, z: 0}
+      evidence: 
+  - faceId: front
+    bodyClip: 
+    fromNormalized: 0
+    toNormalized: 1
+    binding:
+      semanticSocketId: equipment.left
+      kind: 0
+      boneName: "\u6B63\u9762-HandL"
+      slotName: 
+      pointAttachmentName: 
+      skinName: 
+      boneLocalOffset: {x: 0, y: 0, z: 0}
+      evidence: 
+  - faceId: front
+    bodyClip: 
+    fromNormalized: 0
+    toNormalized: 1
+    binding:
+      semanticSocketId: item.use
+      kind: 0
+      boneName: "\u6B63\u9762-HandR"
+      slotName: 
+      pointAttachmentName: 
+      skinName: 
+      boneLocalOffset: {x: 0, y: 0, z: 0}
+      evidence: 
+  - faceId: back
+    bodyClip: 
+    fromNormalized: 0
+    toNormalized: 1
+    binding:
+      semanticSocketId: equipment.right
+      kind: 0
+      boneName: "\u80CC\u9762-HandR"
+      slotName: 
+      pointAttachmentName: 
+      skinName: 
+      boneLocalOffset: {x: 0, y: 0, z: 0}
+      evidence: 
+  - faceId: back
+    bodyClip: 
+    fromNormalized: 0
+    toNormalized: 1
+    binding:
+      semanticSocketId: equipment.left
+      kind: 0
+      boneName: "\u80CC\u9762-HandL"
+      slotName: 
+      pointAttachmentName: 
+      skinName: 
+      boneLocalOffset: {x: 0, y: 0, z: 0}
+      evidence: 
+  - faceId: back
+    bodyClip: 
+    fromNormalized: 0
+    toNormalized: 1
+    binding:
+      semanticSocketId: item.use
+      kind: 0
+      boneName: "\u80CC\u9762-HandR"
+      slotName: 
+      pointAttachmentName: 
+      skinName: 
+      boneLocalOffset: {x: 0, y: 0, z: 0}
+      evidence: 

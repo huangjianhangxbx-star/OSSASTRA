@@ -1,0 +1,34 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 69b810481f9b3074490f0f6860469531, type: 3}
+  m_Name: FreyciaMain_Character
+  m_EditorClassIdentifier: 
+  definitionId: temporary-b.vc02
+  displayName: "\u8299\u857E\u831C\u5A05"
+  animationProfile: {fileID: 11400000, guid: 5719355bcb796914d911f07bb996ab5d, type: 2}
+  rigProfile: {fileID: 11400000, guid: db36b98e3ee0a2c47acea22d6411deb0, type: 2}
+  directionProfile: {fileID: 11400000, guid: a666cb7883f06aa43b5e1b16e19c9402, type: 2}
+  basicAttacks:
+  - {fileID: 11400000, guid: 9c69daba57b7f7942a53cfc942a223a7, type: 2}
+  - {fileID: 11400000, guid: 653d43fdbb7fbef4fa359841a5ab2c8c, type: 2}
+  - {fileID: 11400000, guid: 70b7a6c0cae67ce488de27f8e10c9bf8, type: 2}
+  - {fileID: 11400000, guid: 10a2158e211ed0945b849784b41690ff, type: 2}
+  - {fileID: 11400000, guid: d149e48abed81044eb1ec7893ddcc0b3, type: 2}
+  dodgeDuration: 0.45
+  dodgeDistance: 2.4
+  dodgeCost: 22
+  invulnerableFrom: 0.12
+  invulnerableTo: 0.32
+  preInput: 0.12
+  bufferLifetime: 0.17
+  continuationWindow: 0.45
+  requireHitForContinuation: 0
