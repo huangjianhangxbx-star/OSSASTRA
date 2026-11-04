@@ -107,3 +107,6 @@
 
 本机 Game View 截图在 `artifacts/freycia-preview/`。这些检查不代替实体手柄或用户美术观感验收。原始回执位于本机 `E:/WORLDCREATOR/XingHaiHuiLang/work/OSSASTRA/FREYCIA-PREVIEW-20261029/`。
 
+
+## 2026-11-05 02时新版素材与idle
+再次原位更新三份导出，Idle映射由animation改为idle（loop=true、原速；源片段0秒，为待机姿势）。Native真实Spine AnimationState求值成功，方向配置验证通过，五段短刀-a1及0.001缩放保持。未保存接手时已有dirty的预览场景，未进入Play进行额外试玩。
