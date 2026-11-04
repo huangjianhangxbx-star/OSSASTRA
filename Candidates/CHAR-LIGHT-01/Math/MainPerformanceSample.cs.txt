@@ -1,0 +1,160 @@
+/* 功能：主场隔离Play中的非阻塞四模式性能采样；每模式8帧预热、30个实际主相机帧。
+ * 边界：只改明确两接收者Settings副本的三开关和系统effectsEnabled；不改数值/环境/业务/镜头/TimeScale/Profile。
+ * 生命周期：SessionState先保存实际原值；完成、取消、退出Play和重编译前撤销自己的回调并恢复。
+ * 协议：外部performance-request.json指定start/status/cancel与runId；同runId重复start只读既有状态，不重放。
+ */
+using System;using System.Linq;using System.IO;using System.Reflection;using System.Collections.Generic;
+using UnityEngine;using UnityEngine.SceneManagement;using UnityEngine.Rendering;using UnityEditor;
+using Newtonsoft.Json;using Funplay.Editor.Tools.Scripting;using Ossastra.CharacterLighting;using Ossastra.SceneVisibility.Rooms.Rendering;
+
+public sealed class MainPerformanceSample:IFunplayCommand
+{
+ public const string DirectoryPath="E:/WORLDCREATOR/XingHaiHuiLang/研究/角色光感/CHAR-LIGHT-01";
+ public const string StateKey="CHAR-LIGHT-01.performance.active-state";
+ public const string ResultKey="CHAR-LIGHT-01.performance.last-result";
+ [Serializable] public sealed class Request{public string action="status",runId;public int systemId,commerceId;public int[] receiverIds;}
+ [Serializable] public sealed class Snapshot
+ {
+  public string runId,ownerType;public bool active,originalEffect,lastEffect;
+  public int systemId,cameraId,commerceId;public int[] receiverIds;public string[] originalSettings,lastSettings;
+ }
+ public void Execute(ExecutionContext ctx)
+ {
+  string path=DirectoryPath+"/performance-request.json";var request=File.Exists(path)?JsonUtility.FromJson<Request>(File.ReadAllText(path)):new Request();if(request==null)throw new Exception("Missing performance request");
+  var snapshot=ReadSnapshot();if(request.action=="status"){ctx.ReturnValue=RouteStatus(snapshot);return;}
+  if(string.IsNullOrEmpty(request.runId)||!System.Text.RegularExpressions.Regex.IsMatch(request.runId,"^[A-Za-z0-9._-]{1,80}$"))throw new Exception("Mutating request requires safe caller runId");
+  if(request.action=="cancel")
+  {
+   if(snapshot==null||snapshot.runId!=request.runId)throw new Exception("Cancel rejected: not this owned runId");
+   if(!snapshot.active){ctx.ReturnValue=RouteStatus(snapshot);return;}
+   var type=Resolve(snapshot.ownerType);if(type==null)throw new Exception("Sampler delegate unavailable after interruption; do not restore into a new scene/instance blindly");
+   ctx.ReturnValue=type.GetMethod("Cancel",BindingFlags.Public|BindingFlags.Static).Invoke(null,new object[]{request.runId});return;
+  }
+  if(request.action!="start")throw new Exception("Expected start/status/cancel");
+  if(snapshot!=null&&snapshot.runId==request.runId){ctx.ReturnValue=RouteStatus(snapshot);return;}
+  string resultPath=DirectoryPath+"/performance-"+request.runId+".json";if(File.Exists(resultPath)){ctx.ReturnValue=JsonConvert.SerializeObject(new{state="already-recorded",path=resultPath,request.runId});return;}
+  if(snapshot!=null&&snapshot.active)throw new Exception("Another owned performance run is still active; status/cancel it by exact runId");
+  ctx.ReturnValue=CharacterPerformanceRunner.Start(request);
+ }
+ public static Snapshot ReadSnapshot(){string value=SessionState.GetString(StateKey,"");return string.IsNullOrEmpty(value)?null:JsonUtility.FromJson<Snapshot>(value);}
+ static Type Resolve(string qualified)
+ {
+  if(string.IsNullOrEmpty(qualified))return null;var type=Type.GetType(qualified,false);if(type!=null)return type;int comma=qualified.IndexOf(',');string name=comma<0?qualified:qualified.Substring(0,comma);return AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType(name,false)).FirstOrDefault(t=>t!=null&&t.AssemblyQualifiedName==qualified);
+ }
+ static string RouteStatus(Snapshot state)
+ {
+  if(state==null)return JsonConvert.SerializeObject(new{state="idle",request=DirectoryPath+"/performance-request.json"});
+  if(state.active){var type=Resolve(state.ownerType);if(type!=null)return (string)type.GetMethod("Status",BindingFlags.Public|BindingFlags.Static).Invoke(null,null);return JsonConvert.SerializeObject(new{state="interrupted-delegate-unavailable",state.runId,restoration="not claimed"});}
+  return SessionState.GetString(ResultKey,JsonConvert.SerializeObject(new{state="inactive",state.runId}));
+ }
+}
+
+public sealed class CharacterPerformanceRunner
+{
+ const int Warmup=8,Measured=30;
+ const string MainScene="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity";
+ static CharacterPerformanceRunner current;
+ readonly MainPerformanceSample.Snapshot snapshot;
+ readonly CharacterLightingSystem system;
+ readonly CharacterLightingReceiver[] receivers;
+ readonly Camera camera;
+ readonly Ossastra.Commerce.Runtime.CommerceService commerce;
+ readonly Vector3 cameraPosition;readonly Quaternion cameraRotation;readonly Matrix4x4 projection;readonly int width,height;
+ readonly Vector3[] actorPositions;readonly int[][] memberIds;
+ readonly string[] sourceProfiles;
+ readonly FrameTiming[] timings=new FrameTiming[1];
+ readonly List<Stage> stages=new List<Stage>();
+ readonly List<string> restoreConflicts=new List<string>();
+ readonly double started;double lastProgress;
+ int phase=-1,pending=0,observed,lastFrame=-1;bool disposed;
+ ulong lastGpuTimestamp;string gpuUnavailable="FrameTimingManager尚无有效正值GPU时间";
+ sealed class Sample{public int frame,drawCalls,batches,triangles,actors,coverageDraws;public long cacheBytes;public double commandBuildMilliseconds;public double? gpuMilliseconds;public ulong gpuTimestamp;}
+ sealed class Stage{public string mode;public int warmupFrames,observedFrames;public readonly List<Sample> samples=new List<Sample>(Measured);}
+ CharacterPerformanceRunner(MainPerformanceSample.Request request)
+ {
+  system=EditorUtility.InstanceIDToObject(request.systemId) as CharacterLightingSystem;if(system==null)throw new Exception("Explicit CharacterLightingSystem instance missing");camera=system.gameplayCamera;
+  if(request.receiverIds==null||request.receiverIds.Length!=2||request.receiverIds[0]==request.receiverIds[1])throw new Exception("Exactly two distinct receiver IDs required");
+  receivers=request.receiverIds.Select(id=>EditorUtility.InstanceIDToObject(id) as CharacterLightingReceiver).ToArray();commerce=EditorUtility.InstanceIDToObject(request.commerceId) as Ossastra.Commerce.Runtime.CommerceService;
+  if(camera==null||commerce==null||receivers.Any(r=>r==null||!system.receivers.Contains(r)||r.gameplayCamera!=camera||r.Owner==null))throw new Exception("Explicit main camera/receivers/commerce references inconsistent");
+  if(!Application.isPlaying||Application.dataPath!="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets"||SceneManager.GetActiveScene().path!=MainScene||system.gameObject.scene!=SceneManager.GetActiveScene()||receivers.Any(r=>r.gameObject.scene!=system.gameObject.scene)||commerce.gameObject.scene!=system.gameObject.scene||commerce.profileId!="charlight-runtime-isolated")throw new Exception("Verified isolated main Play required");
+  cameraPosition=camera.transform.position;cameraRotation=camera.transform.rotation;projection=camera.projectionMatrix;width=camera.pixelWidth;height=camera.pixelHeight;actorPositions=receivers.Select(r=>r.Owner.transform.position).ToArray();memberIds=receivers.Select(r=>r.Members.Where(m=>m!=null).Select(m=>m.GetInstanceID()).OrderBy(id=>id).ToArray()).ToArray();sourceProfiles=receivers.Select(r=>r.profile==null?null:JsonUtility.ToJson(r.profile)).ToArray();
+  snapshot=new MainPerformanceSample.Snapshot{runId=request.runId,ownerType=typeof(CharacterPerformanceRunner).AssemblyQualifiedName,active=true,systemId=system.GetInstanceID(),cameraId=camera.GetInstanceID(),commerceId=commerce.GetInstanceID(),receiverIds=request.receiverIds,originalEffect=system.effectsEnabled,lastEffect=system.effectsEnabled,originalSettings=receivers.Select(r=>JsonUtility.ToJson(r.Settings.Clone())).ToArray(),lastSettings=receivers.Select(r=>JsonUtility.ToJson(r.Settings.Clone())).ToArray()};started=lastProgress=EditorApplication.timeSinceStartup;
+ }
+ public static string Start(MainPerformanceSample.Request request)
+ {
+  if(current!=null&&!current.disposed)throw new Exception("This runner already active");var run=new CharacterPerformanceRunner(request);run.Save();current=run;
+  RenderPipelineManager.beginFrameRendering+=run.BeginFrame;RenderPipelineManager.endCameraRendering+=run.EndCamera;EditorApplication.update+=run.Watch;EditorApplication.playModeStateChanged+=run.PlayState;AssemblyReloadEvents.beforeAssemblyReload+=run.BeforeReload;EditorApplication.quitting+=run.BeforeQuit;
+  return Status();
+ }
+ void Save(){SessionState.SetString(MainPerformanceSample.StateKey,JsonUtility.ToJson(snapshot));}
+ public static string Status(){return current==null?SessionState.GetString(MainPerformanceSample.ResultKey,"{\"state\":\"idle\"}"):current.Describe();}
+ string Describe(){return JsonConvert.SerializeObject(new{state=disposed?"finished":"sampling",snapshot.runId,phase,mode=phase<0?"pending":stages[phase].mode,observedFrames=observed,warmup=Warmup,measured=phase<0?0:stages[phase].samples.Count,totalRequiredMainCameraFrames=4*(Warmup+Measured),elapsedSeconds=EditorApplication.timeSinceStartup-started,output=MainPerformanceSample.DirectoryPath+"/performance-"+snapshot.runId+".json"});}
+ public static string Cancel(string runId){if(current==null||current.snapshot.runId!=runId)throw new Exception("Owned sampler run missing/mismatch");current.Finish("cancelled",null);return SessionState.GetString(MainPerformanceSample.ResultKey,"");}
+ void BeginFrame(ScriptableRenderContext context,Camera[] cameras)
+ {
+  if(disposed||!cameras.Contains(camera))return;
+  try
+  {
+   Guard();if(pending>=0)
+   {
+    phase=pending;pending=-1;observed=0;lastFrame=-1;var stage=new Stage{mode=new[]{"old","tint","rim","full"}[phase]};stages.Add(stage);
+    for(int i=0;i<receivers.Length;i++){var settings=JsonUtility.FromJson<CharacterLightingSettings>(snapshot.originalSettings[i]);if(phase>0){settings.environmentTint=true;settings.rim=phase>=2;settings.highlightProtection=phase>=3;}receivers[i].Settings=settings;snapshot.lastSettings[i]=JsonUtility.ToJson(receivers[i].Settings);}
+    system.effectsEnabled=phase!=0;snapshot.lastEffect=system.effectsEnabled;Save();
+   }
+   try{FrameTimingManager.CaptureFrameTimings();}catch(Exception e){gpuUnavailable=e.GetType().Name+": "+e.Message;}
+  }
+  catch(Exception error){Finish("failed",error.ToString());}
+ }
+ void EndCamera(ScriptableRenderContext context,Camera rendered)
+ {
+  if(disposed||rendered!=camera||phase<0||lastFrame==Time.frameCount)return;
+  try
+  {
+   Guard();lastFrame=Time.frameCount;lastProgress=EditorApplication.timeSinceStartup;observed++;var stage=stages[phase];stage.observedFrames=observed;
+   if(observed<=Warmup){stage.warmupFrames++;return;}
+   if(!RoomMaskCameraRegistry.TryGetStatistics(camera,out var statistics)||statistics==null||!statistics.Active||!string.IsNullOrEmpty(statistics.Error)||double.IsNaN(statistics.CommandBuildMilliseconds)||double.IsInfinity(statistics.CommandBuildMilliseconds))throw new Exception("Current active RoomMask statistics unavailable/invalid");
+   var sample=new Sample{frame=Time.frameCount,commandBuildMilliseconds=statistics.CommandBuildMilliseconds,drawCalls=UnityStats.drawCalls,batches=UnityStats.batches,triangles=UnityStats.triangles,actors=system.CoverageActors,coverageDraws=system.CoverageDraws,cacheBytes=system.CoverageBytes};
+   try
+   {
+    uint count=FrameTimingManager.GetLatestTimings(1,timings);if(count>0&&timings[0].frameStartTimestamp!=0&&timings[0].frameStartTimestamp!=lastGpuTimestamp&&timings[0].gpuFrameTime>0&&!double.IsNaN(timings[0].gpuFrameTime)&&!double.IsInfinity(timings[0].gpuFrameTime)){sample.gpuMilliseconds=timings[0].gpuFrameTime;sample.gpuTimestamp=timings[0].frameStartTimestamp;lastGpuTimestamp=sample.gpuTimestamp;}
+   }
+   catch(Exception e){gpuUnavailable=e.GetType().Name+": "+e.Message;}
+   stage.samples.Add(sample);if(stage.samples.Count>=Measured){if(phase==3)Finish("completed",null);else{pending=phase+1;Save();}}
+  }
+  catch(Exception error){Finish("failed",error.ToString());}
+ }
+ void Guard()
+ {
+  if(!Application.isPlaying||SceneManager.GetActiveScene().path!=MainScene||system==null||camera==null||system.gameplayCamera!=camera||system.gameObject.scene!=SceneManager.GetActiveScene()||commerce==null||commerce.profileId!="charlight-runtime-isolated")throw new Exception("Main isolated Play/owned objects changed");
+  if(camera.pixelWidth!=width||camera.pixelHeight!=height||Vector3.Distance(camera.transform.position,cameraPosition)>.0001f||Quaternion.Angle(camera.transform.rotation,cameraRotation)>.001f)throw new Exception("Camera/viewport drift: comparable fixed-view sample rejected");for(int j=0;j<16;j++)if(Mathf.Abs(camera.projectionMatrix[j]-projection[j])>.00001f)throw new Exception("Camera projection drift");
+  for(int i=0;i<receivers.Length;i++)if(receivers[i]==null||receivers[i].gameplayCamera!=camera||receivers[i].Owner==null||!receivers[i].isActiveAndEnabled||!receivers[i].Owner.IsAlive||Vector3.Distance(receivers[i].Owner.transform.position,actorPositions[i])>.0001f||!receivers[i].Members.Where(m=>m!=null).Select(m=>m.GetInstanceID()).OrderBy(id=>id).SequenceEqual(memberIds[i]))throw new Exception("Explicit character content/position drift");
+ }
+ void Watch(){if(disposed)return;if(EditorApplication.timeSinceStartup-lastProgress>30||EditorApplication.timeSinceStartup-started>120)Finish("timed-out","No main-camera progress for30s or total120s; no blocking wait or foreground takeover");}
+ void PlayState(PlayModeStateChange state){if(state==PlayModeStateChange.ExitingPlayMode)Finish("interrupted","Play Mode exited");}
+ void BeforeReload(){Finish("interrupted","Assembly reload requested");}
+ void BeforeQuit(){Finish("interrupted","Editor quitting");}
+ void Finish(string state,string error)
+ {
+  if(disposed)return;disposed=true;RenderPipelineManager.beginFrameRendering-=BeginFrame;RenderPipelineManager.endCameraRendering-=EndCamera;EditorApplication.update-=Watch;EditorApplication.playModeStateChanged-=PlayState;AssemblyReloadEvents.beforeAssemblyReload-=BeforeReload;EditorApplication.quitting-=BeforeQuit;
+  bool restored=false,profilesUnchanged=false;
+  try
+  {
+   for(int i=0;i<receivers.Length;i++)
+   {
+    if(receivers[i]==null){restoreConflicts.Add("receiver destroyed: "+snapshot.receiverIds[i]);continue;}
+    if(JsonUtility.ToJson(receivers[i].Settings)!=snapshot.lastSettings[i]){restoreConflicts.Add("external runtime Settings change retained: "+snapshot.receiverIds[i]);continue;}receivers[i].Settings=JsonUtility.FromJson<CharacterLightingSettings>(snapshot.originalSettings[i]);
+   }
+   if(system!=null){if(system.effectsEnabled==snapshot.lastEffect)system.effectsEnabled=snapshot.originalEffect;else restoreConflicts.Add("external effectsEnabled change retained");}else restoreConflicts.Add("system destroyed");
+   restored=restoreConflicts.Count==0&&system!=null&&system.effectsEnabled==snapshot.originalEffect&&receivers.Select((r,i)=>r!=null&&JsonUtility.ToJson(r.Settings)==snapshot.originalSettings[i]).All(p=>p);profilesUnchanged=receivers.Select((r,i)=>r!=null&&(r.profile==null?null:JsonUtility.ToJson(r.profile))==sourceProfiles[i]).All(p=>p);
+  }
+  catch(Exception restoreError){restoreConflicts.Add(restoreError.ToString());}
+  finally
+  {
+   snapshot.active=false;Save();string path=MainPerformanceSample.DirectoryPath+"/performance-"+snapshot.runId+".json";
+   var summaries=stages.Select(s=>new{mode=s.mode,s.warmupFrames,s.observedFrames,measured=s.samples.Count,commandBuildMilliseconds=Summarize(s.samples.Select(v=>v.commandBuildMilliseconds)),drawCalls=Summarize(s.samples.Select(v=>(double)v.drawCalls)),batches=Summarize(s.samples.Select(v=>(double)v.batches)),triangles=Summarize(s.samples.Select(v=>(double)v.triangles)),coverageActors=s.samples.Select(v=>v.actors).Distinct().ToArray(),coverageDraws=s.samples.Select(v=>v.coverageDraws).Distinct().ToArray(),cacheBytes=s.samples.Select(v=>v.cacheBytes).Distinct().ToArray(),gpuTimingCount=s.samples.Count(v=>v.gpuMilliseconds.HasValue),gpuMilliseconds=Summarize(s.samples.Where(v=>v.gpuMilliseconds.HasValue).Select(v=>v.gpuMilliseconds.Value)),gpuStatus=s.samples.Any(v=>v.gpuMilliseconds.HasValue)?"available latest-completed whole-frame timing; API latency, not isolated module GPU":"未测："+gpuUnavailable}).ToArray();
+   var summary=new{state,snapshot.runId,unityVersion=Application.unityVersion,graphicsDevice=SystemInfo.graphicsDeviceName,graphicsApi=SystemInfo.graphicsDeviceType.ToString(),fixedInputs=new{snapshot.systemId,snapshot.cameraId,snapshot.receiverIds,snapshot.originalEffect,snapshot.originalSettings,cameraPosition=cameraPosition.ToString("F6"),cameraRotation=cameraRotation.ToString("F6"),actorPositions=actorPositions.Select(p=>p.ToString("F6")).ToArray()},complete=state=="completed"&&stages.Count==4&&stages.All(s=>s.samples.Count==Measured),restored,profilesUnchanged,restoreConflicts,error,path,width,height,elapsedSeconds=EditorApplication.timeSinceStartup-started,stages=summaries,scope="RoomMask command-building CPU; UnityStats are Editor rendering counters observed at main-camera end, not isolated module GPU/draw timing. Idle animation continues; no environment/business/timeScale/view mutation."};
+   string json=JsonConvert.SerializeObject(new{summary,raw=stages},Formatting.Indented);string receipt=JsonConvert.SerializeObject(summary);SessionState.SetString(MainPerformanceSample.ResultKey,receipt);try{Directory.CreateDirectory(MainPerformanceSample.DirectoryPath);File.WriteAllText(path,json);}catch(Exception io){SessionState.SetString(MainPerformanceSample.ResultKey,JsonConvert.SerializeObject(new{state="result-io-failed",snapshot.runId,restored,profilesUnchanged,error=io.ToString(),summary}));}current=null;
+  }
+ }
+ static object Summarize(IEnumerable<double> source){var values=source.OrderBy(v=>v).ToArray();if(values.Length==0)return null;return new{count=values.Length,mean=values.Average(),median=values[values.Length/2],p95=values[Mathf.Clamp((int)Math.Ceiling(values.Length*.95)-1,0,values.Length-1)],min=values[0],max=values[values.Length-1]};}
+}

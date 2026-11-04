@@ -1,0 +1,65 @@
+/* 功能：在当前主相机真实endCameraRendering内只读采集coverage矩形和同帧网格投影，避免把两帧动作或相机状态硬比。
+ * 边界：不改变相机/Renderer/档案/主控；只写SessionState回执。无每帧生产读回，也不把CPU矩形对账冒称像素审美验收。
+ * 调用：RequestedAction=status/start/cancel；start后让当前主相机实际渲染一帧，再用status取得结果。
+ */
+using System;using System.Linq;using System.Collections.Generic;using System.Reflection;
+using UnityEngine;using UnityEngine.Rendering;using UnityEngine.SceneManagement;using UnityEditor;
+using Newtonsoft.Json;using Funplay.Editor.Tools.Scripting;
+using LightSystem=Ossastra.CharacterLighting.CharacterLightingSystem;
+using Receiver=Ossastra.CharacterLighting.CharacterLightingReceiver;
+using CoverageCache=Ossastra.CharacterLighting.Rendering.CharacterCoverageCache;
+public sealed class CharacterLightingMainProjectionRead:IFunplayCommand
+{
+ static readonly string RequestedAction = "status";
+ const string PendingKey="OSSASTRA.CHAR-LIGHT-01.MainProjection.Pending",ResultKey="OSSASTRA.CHAR-LIGHT-01.MainProjection.Result";
+ public void Execute(ExecutionContext ctx)
+ {
+  if(RequestedAction=="status"){ctx.ReturnValue=JsonConvert.SerializeObject(new{pending=SessionState.GetBool(PendingKey,false),result=SessionState.GetString(ResultKey,"")});return;}
+  if(RequestedAction=="cancel"){SessionState.SetBool(PendingKey,false);ctx.ReturnValue="Cancellation requested; owned self-removing handler detaches at next camera end.";return;}
+  if(RequestedAction!="start")throw new Exception("Unknown explicit projection action.");
+  if(Application.dataPath!="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets"||!Application.isPlaying||SceneManager.GetActiveScene().path!="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity")throw new Exception("Expected current project main in Play; no scene/Play transition performed.");
+  if(SessionState.GetBool(PendingKey,false))throw new Exception("Projection read already pending; status/cancel first, no duplicate listener.");
+  var systems=SceneManager.GetActiveScene().GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<LightSystem>(true)).Where(s=>s.isActiveAndEnabled).ToArray();if(systems.Length!=1||systems[0].gameplayCamera==null)throw new Exception("One explicit active character light system/camera required.");
+  var system=systems[0];var main=system.gameplayCamera;int started=Time.frameCount;SessionState.SetBool(PendingKey,true);SessionState.SetString(ResultKey,"");
+  Action<ScriptableRenderContext,Camera> once=null;once=(context,camera)=>
+  {
+   if(!SessionState.GetBool(PendingKey,false)||main==null||Time.frameCount>started+120){RenderPipelineManager.endCameraRendering-=once;SessionState.SetBool(PendingKey,false);return;}
+   if(camera!=main)return;RenderPipelineManager.endCameraRendering-=once;
+   try
+   {
+    var eventField=typeof(LightSystem).GetField("CoverageInvalidated",BindingFlags.Instance|BindingFlags.NonPublic);var callbacks=eventField==null?null:eventField.GetValue(system) as Delegate;
+    var caches=new List<CoverageCache>();if(callbacks!=null)foreach(var callback in callbacks.GetInvocationList()){var target=callback.Target;if(target==null)continue;var field=target.GetType().GetField("characterCoverage",BindingFlags.Instance|BindingFlags.NonPublic);if(field!=null&&field.GetValue(target) is CoverageCache cache&&!caches.Contains(cache))caches.Add(cache);}
+    if(caches.Count!=1)throw new Exception("Expected exact one current RoomPositivePass coverage cache; actual "+caches.Count);
+    var active=caches[0];var rows=new List<object>();bool allMatched=true;int verifiedActors=0;
+    foreach(var receiver in system.receivers)
+    {
+     if(receiver==null||receiver.gameplayCamera!=main||receiver.Owner==null)continue;
+     var member=receiver.Members.FirstOrDefault(r=>r!=null&&active.TryGet(r,out var ignored));if(member==null){rows.Add(new{actor=receiver.Owner.ActorId,currentBinding=false});continue;}
+     active.TryGet(member,out var binding);verifiedActors++;int width=Mathf.RoundToInt(binding.ScreenSize.x),height=Mathf.RoundToInt(binding.ScreenSize.y);
+     Matrix4x4 view=main.worldToCameraMatrix;var trueRect=Project(receiver,GL.GetGPUProjectionMatrix(main.projectionMatrix,true)*view,width,height);var falseRect=Project(receiver,GL.GetGPUProjectionMatrix(main.projectionMatrix,false)*view,width,height);
+     float trueError=PixelError(binding.ScreenRect,trueRect,width,height),falseError=PixelError(binding.ScreenRect,falseRect,width,height);bool matched=Mathf.Min(trueError,falseError)<.25f;allMatched&=matched;
+     rows.Add(new{actor=receiver.Owner.ActorId,currentBinding=true,slot=binding.Slot,screenRect=VectorArray(binding.ScreenRect),atlasRect=VectorArray(binding.AtlasRect),screenSize=VectorArray(binding.ScreenSize),gpuProjectionWithRenderIntoTextureTrue=VectorArray(trueRect),gpuProjectionWithRenderIntoTextureFalse=VectorArray(falseRect),trueErrorPixels=trueError,falseErrorPixels=falseError,matchedQuarterPixel=matched,sourceMaterials=receiver.Members.Where(r=>r!=null).Select(r=>new{name=r.name,id=r.GetInstanceID(),enabled=r.enabled,forceOff=r.forceRenderingOff,materials=r.sharedMaterials.Select(m=>m==null?0:m.GetInstanceID()).ToArray()}).ToArray()});
+    }
+    SessionState.SetString(ResultKey,JsonConvert.SerializeObject(new{pass=allMatched&&verifiedActors>0&&verifiedActors==active.ActiveActorCount,verifiedActors,frame=Time.frameCount,cameraId=main.GetInstanceID(),main.name,source="actual endCameraRendering / same-frame current mesh bounds",active.ActiveActorCount,active.DrawCount,active.TextureBytes,atlas=active.Atlas==null?0:active.Atlas.GetInstanceID(),rows,limit="CPU projection/metadata alignment only; inspect actual same-camera PNG/motion for visible mask/rim correspondence and legality."}));
+   }
+   catch(Exception error){SessionState.SetString(ResultKey,JsonConvert.SerializeObject(new{pass=false,error=error.ToString(),frame=Time.frameCount}));}
+   finally{SessionState.SetBool(PendingKey,false);}
+  };
+  RenderPipelineManager.endCameraRendering+=once;ctx.ReturnValue=JsonConvert.SerializeObject(new{pending=true,started,cameraId=main.GetInstanceID(),required="Allow one actual rendered main-camera frame then status."});
+ }
+ static Vector4 Project(Receiver receiver,Matrix4x4 vp,int width,int height)
+ {
+  var min=Vector2.one*float.PositiveInfinity;var max=Vector2.one*float.NegativeInfinity;bool found=false;
+  foreach(var renderer in receiver.Members)
+  {
+   if(renderer==null||!renderer.enabled||renderer.forceRenderingOff||!renderer.gameObject.activeInHierarchy||!renderer.transform.IsChildOf(receiver.Owner.transform))continue;
+   if(renderer is SpriteRenderer sprite){if(sprite.sprite==null||sprite.drawMode!=SpriteDrawMode.Simple||sprite.maskInteraction!=SpriteMaskInteraction.None)continue;}
+   else {if(!(renderer is MeshRenderer))continue;var filter=renderer.GetComponent<MeshFilter>();if(filter==null||filter.sharedMesh==null||filter.sharedMesh.vertexCount==0)continue;}
+   var bounds=renderer.bounds;for(int corner=0;corner<8;corner++){var point=bounds.center+Vector3.Scale(bounds.extents,new Vector3((corner&1)==0?-1:1,(corner&2)==0?-1:1,(corner&4)==0?-1:1));var clip=vp*new Vector4(point.x,point.y,point.z,1);if(clip.w<=.00001f)return new Vector4(float.NaN,0,0,0);var uv=new Vector2(clip.x/clip.w*.5f+.5f,.5f-clip.y/clip.w*.5f);min=Vector2.Min(min,uv);max=Vector2.Max(max,uv);}found=true;
+  }
+  if(!found)return new Vector4(float.NaN,0,0,0);min-=new Vector2(4f/width,4f/height);max+=new Vector2(4f/width,4f/height);var size=max-min;return new Vector4(min.x,min.y,size.x,size.y);
+ }
+ static float[] VectorArray(Vector4 value)=>new[]{value.x,value.y,value.z,value.w};
+ static float PixelError(Vector4 a,Vector4 b,int width,int height)
+ {if(float.IsNaN(b.x)||float.IsInfinity(b.x))return float.MaxValue;return Mathf.Max(Mathf.Abs(a.x-b.x)*width,Mathf.Abs(a.y-b.y)*height,Mathf.Abs((a.x+a.z)-(b.x+b.z))*width,Mathf.Abs((a.y+a.w)-(b.y+b.w))*height);}
+}

@@ -29,6 +29,9 @@ namespace Ossastra.EnvironmentSimulation.Rendering
   [Header("运行态天空覆盖；不修改昼夜源档")]
   public bool overrideSkyColors;
   public Color zenithColor=new Color(.13f,.36f,.65f),horizonColor=new Color(.67f,.78f,.82f);
+  [Header("手动天空色与登记角色环境光同步；不改变直射/局部灯")]
+  public bool syncSkyColorTo2D=true;
+  [Range(0,1)] public float stylizedSkyTintStrength=.5f;
   [Range(0,1)] public float rainOpacity=.24f;
   [Range(32,1024)] public int rainParticleCount=384;
   public string Status{get;private set;}="等待环境快照";
@@ -90,6 +93,17 @@ namespace Ossastra.EnvironmentSimulation.Rendering
    return Color.Lerp(color,frame.FogColor.linear*frame.SkyIntensity,frame.CloudCoverage*.18f);
   }
   static float ColorDistance(Color a,Color b)=>Mathf.Max(Mathf.Abs(a.r-b.r),Mathf.Abs(a.g-b.g),Mathf.Abs(a.b-b.b));
+  // 作者颜色仅在此解码一次到Linear；黑色/非法色关闭艺术联动，不冒充物理天空积分。
+  public Vector4 ResolveStylizedSkyTint(EnvironmentFrame frame)
+  {
+   var neutral=new Vector4(1,1,1,0);
+   if(!syncSkyColorTo2D||!overrideSkyColors||frame==null||!frame.Enabled||frame.Contribution==EnvironmentContribution.SunOnly||float.IsNaN(stylizedSkyTintStrength)||float.IsInfinity(stylizedSkyTintStrength))return neutral;
+   var c=Color.Lerp(zenithColor,horizonColor,.65f);
+   if(float.IsNaN(c.r)||float.IsNaN(c.g)||float.IsNaN(c.b)||float.IsInfinity(c.r)||float.IsInfinity(c.g)||float.IsInfinity(c.b))return neutral;
+   c=new Color(Mathf.Clamp01(c.r),Mathf.Clamp01(c.g),Mathf.Clamp01(c.b),1).linear;
+   float peak=Mathf.Max(c.r,Mathf.Max(c.g,c.b));if(peak<=.00001f)return neutral;
+   return new Vector4(Mathf.Max(.25f,c.r/peak),Mathf.Max(.25f,c.g/peak),Mathf.Max(.25f,c.b/peak),Mathf.Clamp01(stylizedSkyTintStrength));
+  }
   void UpdateReflection(EnvironmentFrame frame)
   {
    for(int face=0;face<6;face++)
@@ -126,6 +140,7 @@ namespace Ossastra.EnvironmentSimulation.Rendering
   }
   void Upload(CommandBuffer cmd,EnvironmentFrame frame)
   {
+   cmd.SetGlobalVector("_EnvironmentStylizedSkyTint",ResolveStylizedSkyTint(frame));
    volumes.Clear();foreach(var room in indoorRegions)if(room!=null&&room.isActiveAndEnabled)room.AppendMaskVolumes(volumes);
    if(volumes.Count>32||localLights.Length>8||rainShelters.Length>16)throw new InvalidOperationException("环境区域/局部灯/雨棚超过32/8/16显式预算，拒绝截断。");
    for(int i=0;i<volumes.Count;i++){matrices[i]=volumes[i].WorldToLocal;extents[i]=volumes[i].HalfExtents;}

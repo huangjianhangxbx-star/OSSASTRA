@@ -1,0 +1,29 @@
+/* 功能：在明确隔离主场准备同机位视觉对照；只暂停角色Spine自身动画采样供静态PNG，不暂停世界。
+ * 边界：不写原图/材质/共享Profile/存档路由；所有参数和位移仅在测试Play会话；restore精确归还本探针动画倍率。
+ */
+using System;using System.Linq;using UnityEngine;using UnityEngine.SceneManagement;using UnityEditor;using Newtonsoft.Json;using Funplay.Editor.Tools.Scripting;using Ossastra.CharacterLighting;
+public class CharacterLightingPhotoControl:IFunplayCommand
+{
+ static readonly string RequestedAction="status";const string Key="OSSASTRA.CHAR-LIGHT-01.Photo.Animations";
+ sealed class Scale{public int id;public float scale,stateScale;}
+ public void Execute(ExecutionContext ctx)
+ {
+  if(!Application.isPlaying||SceneManager.GetActiveScene().path!="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity")throw new Exception("Isolated main Play required");
+  var system=UnityEngine.Object.FindObjectsByType<CharacterLightingSystem>(FindObjectsSortMode.None).Single();var service=SceneManager.GetActiveScene().GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<Ossastra.Commerce.Runtime.CommerceService>(true)).Single();if(service.profileId!="charlight-runtime-isolated")throw new Exception("Original route forbidden");
+  var root=system.environment.environment;var sky=system.environment;var panel=system.panel;
+  if(RequestedAction=="setup")
+  {panel.SetExpanded(false);panel.environmentPanel.SetExpanded(false);panel.environmentPanel.legacyDiagnostics.showPanel=false;panel.environmentPanel.legacyDiagnostics.PlaceCurrent(new Vector3(26,.1f,-12));root.SetClockRunning(false);root.SetTimeHours(18);root.SetManualSun(false,root.sunAzimuthDegrees,root.sunElevationDegrees);sky.overrideSkyColors=true;sky.zenithColor=new Color(.28f,.13f,.15f);sky.horizonColor=new Color(.9f,.45f,.19f);}
+  if(RequestedAction=="freeze")
+  {if(!string.IsNullOrEmpty(SessionState.GetString(Key,"")))throw new Exception("Existing photo animation snapshot");var rigs=system.receivers.SelectMany(r=>r.GetComponentsInChildren<Spine.Unity.SkeletonAnimation>(true)).Distinct().ToArray();SessionState.SetString(Key,JsonConvert.SerializeObject(rigs.Select(r=>new Scale{id=r.GetInstanceID(),scale=r.timeScale,stateScale=r.AnimationState==null?1:r.AnimationState.TimeScale}).ToArray()));foreach(var rig in rigs){rig.timeScale=0;if(rig.AnimationState!=null)rig.AnimationState.TimeScale=0;}}
+  if(RequestedAction=="restore")
+  {var json=SessionState.GetString(Key,"");if(!string.IsNullOrEmpty(json)){foreach(var state in JsonConvert.DeserializeObject<Scale[]>(json)){var rig=EditorUtility.InstanceIDToObject(state.id) as Spine.Unity.SkeletonAnimation;if(rig!=null){rig.timeScale=state.scale;if(rig.AnimationState!=null)rig.AnimationState.TimeScale=state.stateScale;}}SessionState.EraseString(Key);}}
+  if(new[]{"old","tint","full"}.Contains(RequestedAction))foreach(var receiver in system.receivers){receiver.Settings.environmentTint=RequestedAction!="old";receiver.Settings.rim=receiver.Settings.highlightProtection=RequestedAction=="full";}
+  if(RequestedAction=="night"){root.SetTimeHours(0);sky.overrideSkyColors=false;}
+  if(RequestedAction=="blue"){sky.overrideSkyColors=true;sky.zenithColor=new Color(.13f,.36f,.65f);sky.horizonColor=new Color(.67f,.78f,.82f);}
+  if(RequestedAction=="room"){panel.environmentPanel.legacyDiagnostics.PlaceCurrent(panel.environmentPanel.legacyDiagnostics.knownRoomPosition);root.SetTimeHours(0);sky.overrideSkyColors=false;}
+  if(RequestedAction.StartsWith("lamp-")&&RequestedAction!="lamp-restore"){float multiplier=float.Parse(RequestedAction.Substring(5),System.Globalization.CultureInfo.InvariantCulture);var lamp=sky.localLights.Single(l=>l.name=="InteriorLocalLight_A");if(!SessionState.GetBool(Key+".lamp",false)){SessionState.SetFloat(Key+".lampBase",lamp.intensity);SessionState.SetBool(Key+".lamp",true);}lamp.intensity=SessionState.GetFloat(Key+".lampBase",lamp.intensity)*multiplier;}
+  if(RequestedAction=="lamp-restore"){var lamp=sky.localLights.Single(l=>l.name=="InteriorLocalLight_A");lamp.intensity=SessionState.GetFloat(Key+".lampBase",lamp.intensity);SessionState.EraseBool(Key+".lamp");}
+  root.RefreshNow();
+  ctx.ReturnValue=JsonConvert.SerializeObject(new{action=RequestedAction,playing=Application.isPlaying,timeScale=Time.timeScale,root.timeHours,root.ambientMultiplier,root.characterReadability,actors=system.receivers.Select(r=>new{name=r.name,position=r.Owner.transform.position.ToString(),settings=JsonUtility.ToJson(r.Settings)}).ToArray()});
+ }
+}

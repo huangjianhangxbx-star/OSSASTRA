@@ -1,0 +1,113 @@
+/* 功能：在原控制与动画链驱动时，只观察两名明确角色的方向、网格提交、装备成员与coverage身份。
+ * 边界：不注入输入、不改朝向/动画/装备/主控/相机；仅登记有界临时监听，10Hz记录当前主相机真实渲染帧。
+ * 生命周期：start后由Root真实simulate输入/镜头/UI驱动；stop/status不跨帧伪造。最长45秒/450帧样本，监听精确撤销。
+ */
+using System;using System.Linq;using System.Collections.Generic;using System.Reflection;
+using UnityEngine;using UnityEngine.Rendering;using UnityEngine.SceneManagement;using UnityEditor;
+using Newtonsoft.Json;using Funplay.Editor.Tools.Scripting;using Spine.Unity;
+using LightSystem=Ossastra.CharacterLighting.CharacterLightingSystem;using Receiver=Ossastra.CharacterLighting.CharacterLightingReceiver;
+using Equipment=Ossastra.Characters.CharacterEquipment;using EquipmentView=Ossastra.Characters.CharacterEquipmentSpineView;
+using Direction=Ossastra.Characters.CharacterDirectionPresentation;using CoverageCache=Ossastra.CharacterLighting.Rendering.CharacterCoverageCache;
+public sealed class CharacterLightingMainAnimationSequence:IFunplayCommand
+{
+ static readonly string RequestedAction = "status";
+ const string RunningKey="OSSASTRA.CHAR-LIGHT-01.Sequence.Running",StopKey="OSSASTRA.CHAR-LIGHT-01.Sequence.Stop",RunKey="OSSASTRA.CHAR-LIGHT-01.Sequence.Run",SummaryKey="OSSASTRA.CHAR-LIGHT-01.Sequence.Summary",RawKey="OSSASTRA.CHAR-LIGHT-01.Sequence.Raw";
+ const double MaximumSeconds=45,IntervalSeconds=.1;
+ const int MaximumSamples=450,MaximumHistoricalSkeletons=32;
+ sealed class SourceVersion{public int skeletonId,rendererId,commits,lastCommitFrame;public string actorId,name;}
+ sealed class ActorTrack
+ {
+  public Receiver receiver;public Equipment equipment;public EquipmentView equipmentView;public Direction[] directions;
+  public HashSet<string> observedFaces=new HashSet<string>(),expectedFaces=new HashSet<string>(),gearStates=new HashSet<string>(),actions=new HashSet<string>();
+  public HashSet<int> observedMeshes=new HashSet<int>(),leftViews=new HashSet<int>(),rightViews=new HashSet<int>();
+  public int faceChanges,mirrorChanges,gearChanges;public string lastFace,lastGear,lastMirror;public float[] firstPosition,lastPosition;
+ }
+ sealed class Subscription{public SkeletonRenderer skeleton;public SkeletonRendererDelegate callback;}
+ public void Execute(ExecutionContext ctx)
+ {
+  if(RequestedAction=="status"){ctx.ReturnValue=JsonConvert.SerializeObject(new{running=SessionState.GetBool(RunningKey,false),stopRequested=SessionState.GetBool(StopKey,false),summary=SessionState.GetString(SummaryKey,""),rawSamplesSessionKey=RawKey});return;}
+  if(RequestedAction=="stop"){SessionState.SetBool(StopKey,true);ctx.ReturnValue="Stop requested; next Editor update removes only this recorder's listeners and seals the result. Call status after that actual update.";return;}
+  if(RequestedAction!="start")throw new Exception("Unknown explicit action.");
+  if(Application.dataPath!="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets"||!Application.isPlaying||SceneManager.GetActiveScene().path!="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity")throw new Exception("Current main/project/Play required; no transition performed.");
+  if(SessionState.GetBool(RunningKey,false))throw new Exception("Recorder already running; status/stop first. Do not replay unknown start.");
+  var roots=SceneManager.GetActiveScene().GetRootGameObjects();var commerce=roots.SelectMany(g=>g.GetComponentsInChildren<Ossastra.Commerce.Runtime.CommerceService>(true)).ToArray();if(commerce.Length!=1||commerce[0].profileId!="charlight-runtime-isolated")throw new Exception("Only charlight-runtime-isolated is accepted; route untouched.");
+  var systems=roots.SelectMany(g=>g.GetComponentsInChildren<LightSystem>(true)).Where(s=>s.isActiveAndEnabled).ToArray();if(systems.Length!=1||systems[0].gameplayCamera==null)throw new Exception("One explicit character light system/camera required.");
+  var system=systems[0];var main=system.gameplayCamera;var receivers=system.receivers.Where(r=>r!=null&&r.Owner!=null&&r.gameplayCamera==main).ToArray();if(receivers.Length!=2)throw new Exception("Exactly two explicit receiver roots required.");
+  string run=Guid.NewGuid().ToString("N");double started=EditorApplication.timeSinceStartup,lastSample=-100,lastFlush=-100;int startedFrame=Time.frameCount,mismatchedOwners=0,detachedWithCoverage=0;bool stopped=false;
+  var tracks=receivers.Select(r=>new ActorTrack{receiver=r,equipment=r.Owner.GetComponent<Equipment>(),equipmentView=r.Owner.GetComponent<EquipmentView>(),directions=r.Owner.GetComponentsInChildren<Direction>(true)}).ToArray();
+  foreach(var track in tracks)foreach(var direction in track.directions)if(direction.Profile!=null)foreach(var face in direction.Profile.faces)if(face!=null&&!string.IsNullOrEmpty(face.faceId))track.expectedFaces.Add(face.faceId);
+  var subscriptions=new Dictionary<int,Subscription>();var versions=new Dictionary<int,SourceVersion>();var samples=new List<object>(MaximumSamples);
+  SessionState.SetString(RunKey,run);SessionState.SetBool(RunningKey,true);SessionState.SetBool(StopKey,false);SessionState.SetString(RawKey,"");SessionState.SetString(SummaryKey,"");
+  Action synchronize=()=>
+  {
+   var seen=new HashSet<int>();foreach(var track in tracks)
+   {
+    var receiver=track.receiver;if(receiver==null||receiver.Owner==null)continue;
+    foreach(var renderer in receiver.Members)
+    {
+     if(renderer==null||!renderer.transform.IsChildOf(receiver.Owner.transform))continue;
+     var skeleton=renderer.GetComponent<SkeletonRenderer>();if(skeleton==null)continue;int id=skeleton.GetInstanceID();seen.Add(id);if(subscriptions.ContainsKey(id))continue;
+     if(!versions.TryGetValue(id,out var version)){if(versions.Count>=MaximumHistoricalSkeletons)throw new Exception("Historical skeleton budget exceeded; recorder must stop, never sample unbounded sources.");version=new SourceVersion{skeletonId=id,rendererId=renderer.GetInstanceID(),name=renderer.name,actorId=receiver.Owner.ActorId,lastCommitFrame=-1};versions.Add(id,version);}
+     var captured=version;SkeletonRendererDelegate callback=updated=>{captured.commits++;captured.lastCommitFrame=Time.frameCount;};skeleton.OnMeshAndMaterialsUpdated+=callback;subscriptions.Add(id,new Subscription{skeleton=skeleton,callback=callback});
+    }
+   }
+   foreach(int id in subscriptions.Keys.Where(id=>!seen.Contains(id)||subscriptions[id].skeleton==null).ToArray()){var subscription=subscriptions[id];if(subscription.skeleton!=null)subscription.skeleton.OnMeshAndMaterialsUpdated-=subscription.callback;subscriptions.Remove(id);}
+  };
+  Func<object> summary=()=>new{run,startedFrame,lastFrame=Time.frameCount,elapsedSeconds=EditorApplication.timeSinceStartup-started,sampleCount=samples.Count,intervalSeconds=IntervalSeconds,maximumSeconds=MaximumSeconds,cacheOwnerMismatchCount=mismatchedOwners,detachedMemberWithCoverageCount=detachedWithCoverage,actors=tracks.Select(t=>new{actor=t.receiver==null||t.receiver.Owner==null?"destroyed":t.receiver.Owner.ActorId,expectedFaces=t.expectedFaces.OrderBy(x=>x).ToArray(),observedFaces=t.observedFaces.OrderBy(x=>x).ToArray(),missingFaces=t.expectedFaces.Except(t.observedFaces).OrderBy(x=>x).ToArray(),t.faceChanges,t.mirrorChanges,t.gearChanges,gearStates=t.gearStates.OrderBy(x=>x).ToArray(),leftViewIds=t.leftViews.ToArray(),rightViewIds=t.rightViews.ToArray(),observedMeshIds=t.observedMeshes.ToArray(),acceptedActionIds=t.actions.ToArray(),t.firstPosition,t.lastPosition}).ToArray(),meshCommitVersions=versions.Values.ToArray(),lastSample=samples.Count==0?null:samples[samples.Count-1],rawSamplesSessionKey=RawKey,limit="Observation of existing input/animation/gear pipeline only; no controller replacement or final visual, five-face, equipment-detachment acceptance by sample count alone."};
+  Action finish=null;EditorApplication.CallbackFunction editorTick=null;Action<ScriptableRenderContext,Camera> renderTick=null;string stopReason="explicit stop";
+  finish=()=>
+  {
+   if(stopped)return;stopped=true;RenderPipelineManager.endCameraRendering-=renderTick;EditorApplication.update-=editorTick;foreach(var subscription in subscriptions.Values)if(subscription.skeleton!=null)subscription.skeleton.OnMeshAndMaterialsUpdated-=subscription.callback;subscriptions.Clear();
+   if(SessionState.GetString(RunKey,"")!=run)return;
+   SessionState.SetString(RawKey,JsonConvert.SerializeObject(new{run,stopReason,samples}));SessionState.SetString(SummaryKey,JsonConvert.SerializeObject(new{stopped=true,stopReason,summary=summary()}));SessionState.SetBool(RunningKey,false);SessionState.SetBool(StopKey,false);
+  };
+  editorTick=()=>
+  {
+   if(stopped)return;
+   if(SessionState.GetString(RunKey,"")!=run){stopReason="superseded run";finish();return;}
+   if(!Application.isPlaying||main==null||system==null){stopReason="Play/camera/system ended";finish();return;}
+   if(SessionState.GetBool(StopKey,false)){finish();return;}
+   if(EditorApplication.timeSinceStartup-started>=MaximumSeconds||samples.Count>=MaximumSamples){stopReason="bounded duration/sample limit";finish();return;}
+   // 非渲染更新只检查停止/超时；成员观察与采样限制在主相机10Hz回调内。
+  };
+  renderTick=(context,camera)=>
+  {
+   if(stopped||camera!=main||EditorApplication.timeSinceStartup-lastSample<IntervalSeconds)return;
+   try
+   {
+    synchronize();lastSample=EditorApplication.timeSinceStartup;CoverageCache cache=GetCache(system);var actors=new List<object>(2);
+    foreach(var track in tracks)
+    {
+     var receiver=track.receiver;if(receiver==null||receiver.Owner==null)continue;var owner=receiver.Owner;string face=string.Join("|",track.directions.Where(d=>d!=null).Select(d=>d.FaceId??"single"));string mirrored=string.Join("|",track.directions.Where(d=>d!=null).Select(d=>d.Mirrored.ToString()));
+     foreach(var direction in track.directions)if(direction!=null&&!string.IsNullOrEmpty(direction.FaceId))track.observedFaces.Add(direction.FaceId);
+     if(track.lastFace!=null&&face!=track.lastFace)track.faceChanges++;if(track.lastMirror!=null&&mirrored!=track.lastMirror)track.mirrorChanges++;track.lastFace=face;track.lastMirror=mirrored;
+     var position=Vector(owner.transform.position);if(track.firstPosition==null)track.firstPosition=position;track.lastPosition=position;
+     var left=track.equipmentView==null?null:track.equipmentView.LeftSkeleton;var right=track.equipmentView==null?null:track.equipmentView.RightSkeleton;int leftId=left==null?0:left.GetInstanceID(),rightId=right==null?0:right.GetInstanceID();track.leftViews.Add(leftId);track.rightViews.Add(rightId);
+     string leftDefinition=track.equipment==null||track.equipment.LeftDefinition==null?"none":track.equipment.LeftDefinition.definitionId,rightDefinition=track.equipment==null||track.equipment.RightDefinition==null?"none":track.equipment.RightDefinition.definitionId;
+     string leftInstance=track.equipment==null||track.equipment.State==null?"none":track.equipment.State.LeftInstanceId,rightInstance=track.equipment==null||track.equipment.State==null?"none":track.equipment.State.RightInstanceId;
+     string gear=leftDefinition+" / "+leftInstance+" / "+leftId+" || "+rightDefinition+" / "+rightInstance+" / "+rightId;if(track.lastGear!=null&&gear!=track.lastGear)track.gearChanges++;track.lastGear=gear;track.gearStates.Add(gear);
+     string action=owner.DataBus==null?"none":owner.DataBus.ActionId.ToString("N");if(owner.ActionActive)track.actions.Add(action);
+     var members=new List<object>(receiver.Members.Count);
+     foreach(var renderer in receiver.Members)
+     {
+      if(renderer==null){members.Add(new{destroyed=true});continue;}bool insideOwner=renderer.transform.IsChildOf(owner.transform);Ossastra.CharacterLighting.Rendering.CharacterCoverageBinding binding=default;bool hasCoverage=cache!=null&&cache.TryGet(renderer,out binding);bool ownerMatches=!hasCoverage||ReferenceEquals(binding.Owner,receiver);if(!ownerMatches)mismatchedOwners++;if(hasCoverage&&!insideOwner)detachedWithCoverage++;
+      var filter=renderer.GetComponent<MeshFilter>();var mesh=filter==null?null:filter.sharedMesh;if(mesh!=null)track.observedMeshes.Add(mesh.GetInstanceID());var skeleton=renderer.GetComponent<SkeletonRenderer>();var version=skeleton!=null&&versions.TryGetValue(skeleton.GetInstanceID(),out var found)?found:null;
+      members.Add(new{name=renderer.name,id=renderer.GetInstanceID(),renderer.enabled,renderer.forceRenderingOff,active=renderer.gameObject.activeInHierarchy,insideOwner,meshId=mesh==null?0:mesh.GetInstanceID(),vertices=mesh==null?0:mesh.vertexCount,subMeshes=mesh==null?0:mesh.subMeshCount,materialSlotCount=renderer.sharedMaterials.Length,materials=renderer.sharedMaterials.Select(m=>m==null?0:m.GetInstanceID()).ToArray(),meshCommitSerial=version==null?0:version.commits,meshCommitFrame=version==null?-1:version.lastCommitFrame,meshAgeFrames=version==null?-1:Time.frameCount-version.lastCommitFrame,hasCoverage,coverageOwnerMatches=ownerMatches,coverageSlot=hasCoverage?binding.Slot:-1,coverageRect=hasCoverage?Vector(binding.ScreenRect):null});
+     }
+     actors.Add(new{owner.ActorId,root=owner.GetInstanceID(),owner.ActionActive,actionId=action,intent=owner.EffectiveIntentKind.ToString(),logicalDirection=Vector(owner.LogicalDirection),position,face,mirrored,leftDefinition,rightDefinition,leftInstance,rightInstance,leftViewId=leftId,rightViewId=rightId,members});
+    }
+    samples.Add(new{frame=Time.frameCount,elapsed=lastSample-started,cameraId=main.GetInstanceID(),cameraYaw=main.transform.eulerAngles.y,cameraPosition=Vector(main.transform.position),actors});
+    if(lastSample-lastFlush>=.5){lastFlush=lastSample;SessionState.SetString(SummaryKey,JsonConvert.SerializeObject(new{stopped=false,summary=summary()}));}
+   }
+   catch(Exception error){stopReason=error.ToString();finish();}
+  };
+  try{synchronize();RenderPipelineManager.endCameraRendering+=renderTick;EditorApplication.update+=editorTick;ctx.ReturnValue=JsonConvert.SerializeObject(new{started=true,run,startedFrame,maximumSeconds=MaximumSeconds,maximumSamples=MaximumSamples,intervalSeconds=IntervalSeconds,actors=tracks.Select(t=>t.receiver.Owner.ActorId).ToArray(),instruction="Drive actual original input, camera controls and equipment UI. This recorder never changes them. Stop then status seals summary and raw SessionState evidence."});}
+  catch{finish();throw;}
+ }
+ static float[] Vector(Vector3 value)=>new[]{value.x,value.y,value.z};static float[] Vector(Vector4 value)=>new[]{value.x,value.y,value.z,value.w};
+ static CoverageCache GetCache(LightSystem system)
+ {
+  var callbacks=typeof(LightSystem).GetField("CoverageInvalidated",BindingFlags.Instance|BindingFlags.NonPublic)?.GetValue(system) as Delegate;if(callbacks==null)return null;
+  CoverageCache found=null;foreach(var callback in callbacks.GetInvocationList()){var target=callback.Target;if(target==null)continue;var field=target.GetType().GetField("characterCoverage",BindingFlags.Instance|BindingFlags.NonPublic);var cache=field==null?null:field.GetValue(target) as CoverageCache;if(cache==null)continue;if(found!=null&&!ReferenceEquals(found,cache))throw new Exception("More than one coverage cache for the current system.");found=cache;}return found;
+ }
+}

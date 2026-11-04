@@ -1,0 +1,49 @@
+/* 功能：验证角色光感面板冻结后，外部时刻源/其他作者接管clock或mode时，只丢弃自己的过期lease。
+ * 边界：同步执行于已配置隔离主场Play；不创建外部时钟、不触业务存档/角色输入/Settings，不推进一帧外部来源。
+ * 生命周期：finally归还明确环境的mode/clock、面板展开和EventSystem选择；测试外部参数不得被面板回滚。
+ */
+using System;using System.Linq;using System.Reflection;using System.Collections.Generic;
+using UnityEngine;using UnityEngine.EventSystems;using UnityEngine.SceneManagement;
+using Newtonsoft.Json;using Funplay.Editor.Tools.Scripting;
+using Panel=Ossastra.Development.CharacterLighting.CharacterLightingPanel;
+using TimeMode=Ossastra.EnvironmentSimulation.EnvironmentTimeMode;
+public sealed class PanelClockTakeoverContract:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  if(!Application.isPlaying||SceneManager.GetActiveScene().name!="SC_RoomVisibilityLab"||EventSystem.current==null)throw new Exception("Configured isolated main Play required");
+  var panels=UnityEngine.Object.FindObjectsOfType<Panel>();if(panels.Length!=1||panels[0].environment==null)throw new Exception("Requires unique real panel and explicit EnvironmentRoot");
+  var panel=panels[0];var environment=panel.environment;var oldMode=environment.timeMode;bool oldClock=environment.clockRunning,oldExpanded=panel.Expanded;var oldSelected=EventSystem.current.currentSelectedGameObject;float timeScale=Time.timeScale;
+  var lease=typeof(Panel).GetField("hasClockLease",BindingFlags.NonPublic|BindingFlags.Instance);if(lease==null)throw new Exception("Clock ownership seam drifted; inspect without mutation");
+  if((bool)lease.GetValue(panel))throw new Exception("Fixture requires no pre-existing panel clock lease; preserve current author session");
+  var checks=new List<object>();var failures=new List<string>();Action<string,bool> check=(name,pass)=>{checks.Add(new{name,pass});if(!pass)failures.Add(name);};string error=null;
+  try
+  {
+   panel.SetClockFrozen(false);panel.SetExpanded(true);var toggle=panel.GetComponentsInChildren<UnityEngine.UI.Toggle>(true).Single(t=>t.name=="FreezeClock");
+   environment.SetClockRunning(true);panel.SetClockFrozen(true);check("fixture owns real frozen clock",(bool)lease.GetValue(panel)&&!environment.clockRunning&&environment.timeMode==TimeMode.PreviewClock&&toggle.isOn);
+   // 仅替换外部模式与clock字段，同步刷新UI后立刻还原，不运行External提供者一帧。
+   environment.timeMode=TimeMode.External;environment.clockRunning=false;panel.SetExpanded(true);
+   check("External takeover discards own lease",!(bool)lease.GetValue(panel));
+   check("External shows disabled and unchecked",!toggle.interactable&&!toggle.isOn);
+   check("External mode and clock left untouched",environment.timeMode==TimeMode.External&&!environment.clockRunning);
+   panel.SetClockFrozen(false);check("unfreeze cannot undo External author",environment.timeMode==TimeMode.External&&!environment.clockRunning);
+   environment.timeMode=TimeMode.Manual;environment.clockRunning=true;environment.RefreshNow();panel.SetClockFrozen(true);
+   environment.clockRunning=true;panel.SetExpanded(true);
+   check("foreign resume discards own lease",!(bool)lease.GetValue(panel));
+   check("foreign resume shown as unfrozen",toggle.interactable&&!toggle.isOn);
+   panel.SetClockFrozen(false);check("foreign resumed clock retained",environment.clockRunning&&environment.timeMode==TimeMode.Manual);
+   environment.SetClockRunning(true);panel.SetClockFrozen(true);environment.timeMode=TimeMode.Manual;environment.clockRunning=false;panel.SetExpanded(true);
+   check("foreign mode change discards own lease",!(bool)lease.GetValue(panel));
+   check("foreign manual stop shown as not panel-frozen",toggle.interactable&&!toggle.isOn);
+   panel.SetClockFrozen(false);check("foreign manual stop retained",environment.timeMode==TimeMode.Manual&&!environment.clockRunning);
+   check("world timeScale unchanged",Time.timeScale==timeScale);
+  }
+  catch(Exception e){error=e.ToString();}
+  finally
+  {
+   panel.SetClockFrozen(false);environment.timeMode=oldMode;environment.clockRunning=oldClock;environment.RefreshNow();panel.SetExpanded(oldExpanded);if(EventSystem.current!=null)EventSystem.current.SetSelectedGameObject(oldSelected);
+  }
+  ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=error==null&&failures.Count==0,checks,failures,error});
+ }
+}
+

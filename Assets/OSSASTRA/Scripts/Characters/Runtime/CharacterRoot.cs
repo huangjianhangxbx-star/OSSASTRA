@@ -2,7 +2,7 @@
  * 脚本：CharacterRoot
  * 功能：角色组装与明确调度；注册仲裁器/状态机拥有动作组织，接受费用沿原协调器。
  * 边界：主动作运行时由战斗状态机唯一持有；只读生命资格，不实现HP写入、设备绑定或开发GUI。
- * 协作：初始化可选Follow/Posture/ViewSpace/纯视觉深度与定义驱动能力；先缓存实际观察基，再按输入、架势、朝向、动作、运动、表现推进。
+ * 协作：初始化可选Follow/Posture/ViewSpace/纯视觉深度/角色光感与定义驱动能力；光感仅读身体和最终装备，不拥有动作或网格提交。
  * 兼容：没有能力控制端口的历史场继续旧Skills/Guard/Offhand路径，新候选与旧路径互斥。
  */
 using System;
@@ -30,6 +30,7 @@ namespace Ossastra.Characters
         [SerializeField] private Camera viewCamera;
         private CharacterViewSpaceAdapter viewSpace;
         private ICharacterVisualDepth[] visualDepth = Array.Empty<ICharacterVisualDepth>();
+        private Ossastra.CharacterLighting.CharacterLightingReceiver lightingReceiver;
         private object viewContextOwner;
         private Camera viewCameraBeforeContext;
         public Transform CharacterTransform => transform;
@@ -317,6 +318,8 @@ namespace Ossastra.Characters
                 posture.Broken += OnPostureBroken;
                 posture.Recovered += OnPostureRecovered;
             }
+            lightingReceiver=GetComponent<Ossastra.CharacterLighting.CharacterLightingReceiver>();
+            if(lightingReceiver!=null)lightingReceiver.Initialize(this);
         }
 
         private static bool InitializeSubsystems(CharacterDataBus dataBus, params ICharacterSubsystem[] subsystems)
@@ -339,7 +342,8 @@ namespace Ossastra.Characters
         // 此处仅推进装备表现，不执行第二次Move或结算。
         private void LateUpdate(){if(ready){(presentation as Ossastra.CharacterAnimation.CharacterAnimationController)?.FlushSignals();equipmentView?.TickPresentation();equipmentSpineView?.TickPresentation();transientItems?.TickPresentation();
             // 装备实例已由原表现端口完成，本帧显示深度才接收同一相机；不增加第二次Move/动画提交。
-            foreach(var depth in visualDepth)depth.Prepare(viewCamera);}}
+            foreach(var depth in visualDepth)depth.Prepare(viewCamera);
+            lightingReceiver?.TickPresentation();}}
         // 7. Animation Intent → One Commit；无子模块Update争抢主轨。
         private void CommitPresentation()
         {
@@ -432,10 +436,11 @@ namespace Ossastra.Characters
         { focused = hasFocus; if (follow != null) follow.ResetIntent(); if (!hasFocus) CancelAction("focus-lost"); else stateArbitrator?.Combat?.SuppressInput(); }
         private void OnApplicationPause(bool value)
           { applicationPaused = value; if(value)stateArbitrator?.Combat?.ClearBuffer(); if (follow != null) follow.ResetIntent(); if (value) stateArbitrator?.Combat?.SuppressInput(); }
-        private void OnEnable() { stateArbitrator?.Combat?.SuppressInput(); if (intentSelector != null) intentSelector.Clear(); }
-        private void OnDisable() { environmentClearance?.Suspend();foreach(var depth in visualDepth)depth.Suspend();viewSpace?.Suspend();stateArbitrator?.StopMovement();transientItems?.Hide();statusEffects?.Clear();mainAction?.ResetState();equipmentView?.Hide();equipmentSpineView?.Hide();skills?.Clear();offhand?.CancelAll(); CancelAction("disabled"); if (posture != null) posture.ResetState(); authority.Release(posture); if (follow != null) follow.ResetIntent(); if (intentSelector != null) intentSelector.Clear(); if (ready && presentation != null) presentation.SetPaused(false); }
+        private void OnEnable() { stateArbitrator?.Combat?.SuppressInput(); if (intentSelector != null) intentSelector.Clear(); lightingReceiver?.TickPresentation(); }
+        private void OnDisable() { lightingReceiver?.Suspend();environmentClearance?.Suspend();foreach(var depth in visualDepth)depth.Suspend();viewSpace?.Suspend();stateArbitrator?.StopMovement();transientItems?.Hide();statusEffects?.Clear();mainAction?.ResetState();equipmentView?.Hide();equipmentSpineView?.Hide();skills?.Clear();offhand?.CancelAll(); CancelAction("disabled"); if (posture != null) posture.ResetState(); authority.Release(posture); if (follow != null) follow.ResetIntent(); if (intentSelector != null) intentSelector.Clear(); if (ready && presentation != null) presentation.SetPaused(false); }
         private void OnDestroy()
         {
+            lightingReceiver?.DisposeReceiver();lightingReceiver=null;
             movement?.BindEnvironmentClearance(null);
             environmentClearance?.Dispose();environmentClearance=null;
             foreach(var depth in visualDepth)depth.Dispose();

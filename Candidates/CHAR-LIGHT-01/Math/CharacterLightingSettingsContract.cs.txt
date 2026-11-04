@@ -1,0 +1,17 @@
+/* 功能：以反射对实际生产配置执行边界与克隆合同；缺失模块是可解释的功能RED，不以编译失败代替。
+ * 边界：只创建私有Settings/ScriptableObject，不触碰作者Profile、场景或全局状态。
+ */
+using System;using System.Linq;using System.Reflection;using UnityEngine;using Newtonsoft.Json;using Funplay.Editor.Tools.Scripting;
+public class CharacterLightingSettingsContract:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  var settingsType=AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType("Ossastra.CharacterLighting.CharacterLightingSettings",false)).FirstOrDefault(t=>t!=null);var profileType=AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType("Ossastra.CharacterLighting.CharacterLightingProfileSO",false)).FirstOrDefault(t=>t!=null);
+  if(settingsType==null||profileType==null){ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=false,reason="Missing actual CharacterLightingSettings/Profile implementation",settingsFound=settingsType!=null,profileFound=profileType!=null});return;}
+  var value=Activator.CreateInstance(settingsType);var cloneMethod=settingsType.GetMethod("Clone");var sanitize=settingsType.GetMethod("Sanitize");if(cloneMethod==null||sanitize==null){ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=false,reason="Missing Clone/Sanitize contract"});return;}
+  var tint=settingsType.GetField("tintStrength");var rim=settingsType.GetField("rimStrength");var width=settingsType.GetField("innerWidth");var softness=settingsType.GetField("softness");var budget=settingsType.GetField("maxRimGain");var knee=settingsType.GetField("knee");var ceiling=settingsType.GetField("ceiling");if(new[]{tint,rim,width,softness,budget,knee,ceiling}.Any(f=>f==null))throw new Exception("Settings contract fields missing");
+  tint.SetValue(value,float.NaN);rim.SetValue(value,float.PositiveInfinity);width.SetValue(value,-100f);softness.SetValue(value,100f);budget.SetValue(value,-2f);knee.SetValue(value,4f);ceiling.SetValue(value,2f);sanitize.Invoke(value,null);
+  float Read(FieldInfo field)=>(float)field.GetValue(value);bool finite=new[]{tint,rim,width,softness,budget,knee,ceiling}.All(f=>!float.IsNaN(Read(f))&&!float.IsInfinity(Read(f)));bool range=Read(tint)>=0&&Read(tint)<=1&&Read(rim)>=0&&Read(rim)<=2&&Read(width)>=.25f&&Read(width)<=4&&Read(softness)>=.05f&&Read(softness)<=2&&Read(budget)>=0&&Read(budget)<=2&&Read(ceiling)>Read(knee)&&Read(knee)>0;
+  var clone=cloneMethod.Invoke(value,null);bool cloned=clone!=null&&!ReferenceEquals(value,clone)&&settingsType.GetFields().All(f=>Equals(f.GetValue(value),f.GetValue(clone)));tint.SetValue(clone,.123f);bool independent=!Equals(tint.GetValue(value),tint.GetValue(clone));var profile=ScriptableObject.CreateInstance(profileType);bool ownsSettings=profileType.GetField("settings")?.GetValue(profile)!=null;UnityEngine.Object.DestroyImmediate(profile);ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=finite&&range&&cloned&&independent&&ownsSettings,finite,range,cloned,independent,ownsSettings});
+ }
+}

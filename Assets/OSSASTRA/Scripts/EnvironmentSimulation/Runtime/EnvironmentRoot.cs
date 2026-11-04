@@ -33,9 +33,10 @@ namespace Ossastra.EnvironmentSimulation
   [Range(-5500,33500)] public float sunTemperatureOffset;
   [Range(0,1)] public float shadowStrength=.85f;
   [Header("天空与底光；室内响应不冒充实时GI")]
-  [Min(0)] public float ambientMultiplier=1,skyMultiplier=1;
-  [Range(0,1)] public float indoorAmbientScale=.22f,characterReadability=.12f;
-  [Range(0,2)] public float groundLightResponse=1,decorationLightResponse=1,characterLightResponse=.7f;
+  // 用户2026-11-04截图批准的作者缺省；已有序列化场景仍由其自己的值决定。
+  [Min(0)] public float ambientMultiplier=1.99f,skyMultiplier=1;
+  [Range(0,1)] public float indoorAmbientScale=1,characterReadability=.02f;
+  [Range(0,2)] public float groundLightResponse=2,decorationLightResponse=2,characterLightResponse=2;
   [Header("天气覆盖；-1表示读取天气档")]
   [Range(-1,1)] public float cloudCoverageOverride=-1;
   [Range(-1,2)] public float cloudDensityOverride=-1;
@@ -96,7 +97,8 @@ namespace Ossastra.EnvironmentSimulation
   public void ResetPreview()
   {
    timeMode=EnvironmentTimeMode.Manual;timeHours=12;clockRunning=false;manualSun=false;effectsEnabled=true;contribution=EnvironmentContribution.Combined;
-   sunIntensityMultiplier=ambientMultiplier=skyMultiplier=cloudSpeedMultiplier=windMultiplier=fogMultiplier=rainMultiplier=wetnessMultiplier=1;
+   sunIntensityMultiplier=skyMultiplier=cloudSpeedMultiplier=windMultiplier=fogMultiplier=rainMultiplier=wetnessMultiplier=1;
+   ambientMultiplier=1.99f;indoorAmbientScale=1;characterReadability=.02f;groundLightResponse=decorationLightResponse=characterLightResponse=2;
    sunTemperatureOffset=0;shadowStrength=.85f;cloudCoverageOverride=cloudDensityOverride=cloudShadowStrengthOverride=windYawDegreesOverride=-1;
    automaticWeather=false;initialized=false;transitioning=false;scheduleInitialized=false;elapsedSeconds=0;RefreshNow();
   }

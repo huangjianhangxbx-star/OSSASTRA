@@ -1,0 +1,44 @@
+/* 功能：用生产HLSL内带函数的真实GPU输出校验上下/左右符号、窄边和无效回退。 */
+using System;using System.Linq;using System.Reflection;using System.Collections.Generic;using System.IO;
+using UnityEngine;using UnityEngine.Rendering;using UnityEditor;using Newtonsoft.Json;using Funplay.Editor.Tools.Scripting;
+public sealed class CharacterCoverageShapeGpuContract:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  var checks=new List<object>();bool pass=true;Action<string,bool,string> check=(n,p,d)=>{pass&=p;checks.Add(new{name=n,pass=p,detail=d});};
+  string path=Application.dataPath+"/OSSASTRA/Scripts/CharacterLighting/Rendering/CharacterLightingSurface.hlsl";
+  check("production inner silhouette function exists",File.Exists(path),"Missing function is feature RED; do not mistake include compilation errors for a valid test.");
+  if(!pass){ctx.ReturnValue=JsonConvert.SerializeObject(new{pass,stage="feature RED",checks});return;}
+  var old=RenderTexture.active;var owned=new List<UnityEngine.Object>();var cmd=new CommandBuffer{name="Character silhouette shape GPU contract"};
+  float oldMode=Shader.GetGlobalFloat("_ContractMode");float oldWidth=Shader.GetGlobalFloat("_ContractWidth");float ready=Shader.GetGlobalFloat("_CharacterCoverageReady");Texture oldTexture=Shader.GetGlobalTexture("_CharacterCoverageTexture");Vector4 rect=Shader.GetGlobalVector("_CharacterCoverageRect"),tile=Shader.GetGlobalVector("_CharacterCoverageAtlasRect"),screen=Shader.GetGlobalVector("_CharacterCoverageScreenSize"),texel=Shader.GetGlobalVector("_CharacterCoverageTexelSize");
+  try
+  {
+   string text=@"Shader ""Hidden/Ossastra/CharacterLighting/ShapeContract"" {SubShader{Pass{Cull Off ZWrite Off ZTest Always HLSLPROGRAM
+#pragma target 4.5
+#pragma vertex Vert
+#pragma fragment Frag
+#include ""Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl""
+#include ""Assets/OSSASTRA/Scripts/CharacterLighting/Rendering/CharacterLightingSurface.hlsl""
+float _ContractWidth,_ContractMode;
+float4 Vert(uint id:SV_VertexID):SV_POSITION{return float4(id==2?3:-1,id==1?3:-1,0,1);}
+float4 Frag(float4 p:SV_POSITION):SV_Target{if(_ContractMode>.5)return float4(p.xy/_CharacterCoverageScreenSize.xy,0,1);float3 r=CharacterLightingRimDirectionAndBand(p.xy,_ContractWidth,1);return float4(r.xy*.5+.5,r.z,1);}
+ENDHLSL }}}";
+   var create=typeof(ShaderUtil).GetMethods(BindingFlags.Static|BindingFlags.Public|BindingFlags.NonPublic).FirstOrDefault(m=>m.Name=="CreateShaderAsset"&&m.GetParameters().Length>=1&&m.GetParameters()[0].ParameterType==typeof(string));
+   if(create==null)throw new Exception("ShaderUtil.CreateShaderAsset API unavailable");var args=create.GetParameters().Select((p,i)=>i==0?(object)text:p.ParameterType==typeof(bool)?(object)false:p.HasDefaultValue?p.DefaultValue:null).ToArray();
+   var shader=(Shader)create.Invoke(null,args);owned.Add(shader);var errors=ShaderUtil.GetShaderMessages(shader).Where(m=>m.severity.ToString()=="Error").Select(m=>m.message).ToArray();check("actual shape shader compiles",errors.Length==0,string.Join(";",errors));if(errors.Length>0)throw new Exception("shape GPU fixture compile failed");
+   var material=new Material(shader){hideFlags=HideFlags.HideAndDontSave};owned.Add(material);
+   var atlas=new Texture2D(1024,512,TextureFormat.RGBA32,false,true){filterMode=FilterMode.Bilinear,wrapMode=TextureWrapMode.Clamp,hideFlags=HideFlags.HideAndDontSave};owned.Add(atlas);var colors=new Color[1024*512];for(int y=0;y<512;y++)for(int x=0;x<1024;x++){bool inside=x>=128&&x<384&&y>=128&&y<384;colors[y*1024+x]=x>=512||inside?Color.white:Color.clear;}atlas.SetPixels(colors);atlas.Apply();
+   var target=new RenderTexture(512,512,0,RenderTextureFormat.ARGBFloat,RenderTextureReadWrite.Linear){hideFlags=HideFlags.HideAndDontSave};owned.Add(target);target.Create();var read=new Texture2D(512,512,TextureFormat.RGBAFloat,false,true);owned.Add(read);
+   Action<float> render=width=>{cmd.Clear();cmd.SetGlobalFloat("_CharacterCoverageReady",1);cmd.SetGlobalTexture("_CharacterCoverageTexture",atlas);cmd.SetGlobalVector("_CharacterCoverageRect",new Vector4(0,0,1,1));cmd.SetGlobalVector("_CharacterCoverageAtlasRect",new Vector4(0,0,.5f,1));cmd.SetGlobalVector("_CharacterCoverageScreenSize",new Vector4(512,512,1f/512,1f/512));cmd.SetGlobalVector("_CharacterCoverageTexelSize",new Vector4(1f/1024,1f/512,1024,512));cmd.SetGlobalFloat("_ContractWidth",width);cmd.SetRenderTarget(target);cmd.SetViewport(new Rect(0,0,512,512));cmd.ClearRenderTarget(false,true,Color.clear);cmd.DrawProcedural(Matrix4x4.identity,material,0,MeshTopology.Triangles,3);Graphics.ExecuteCommandBuffer(cmd);RenderTexture.active=target;read.ReadPixels(new Rect(0,0,512,512),0,0);read.Apply();};
+   Shader.SetGlobalFloat("_ContractMode",1);render(2);var rasterLow=read.GetPixel(256,129);var rasterHigh=read.GetPixel(256,382);bool rowsStartAtRasterTop=rasterLow.g<rasterHigh.g;check("raw raster/ReadPixels y calibration",Mathf.Abs(rasterHigh.g-rasterLow.g)>.4f,"row129="+rasterLow+" row382="+rasterHigh+" topFirst="+rowsStartAtRasterTop);Shader.SetGlobalFloat("_ContractMode",0);
+   render(2);var center=read.GetPixel(256,256);var left=read.GetPixel(129,256);var right=read.GetPixel(382,256);var top=read.GetPixel(256,rowsStartAtRasterTop?129:382);var bottom=read.GetPixel(256,rowsStartAtRasterTop?382:129);
+   check("interior does not become edge",center.b<.001f,center.ToString());check("left outward direction",left.b>.02f&&left.r<.1f,left.ToString());check("right outward direction",right.b>.02f&&right.r>.9f,right.ToString());check("top outward top-left direction",top.b>.02f&&top.g<.1f,top.ToString());check("bottom outward top-left direction",bottom.b>.02f&&bottom.g>.9f,bottom.ToString());
+   check("transparent outside has no band",read.GetPixel(64,256).b<.001f,read.GetPixel(64,256).ToString());
+   for(int y=0;y<512;y++)for(int x=0;x<512;x++){bool inside=x>=128&&x<384&&y>=128&&y<384;float alpha=inside?(x<256?.5f:.75f):0;colors[y*1024+x]=new Color(alpha,alpha,alpha,alpha);}atlas.SetPixels(colors);atlas.Apply();render(2);check("internal translucent slot overlap is not outline",read.GetPixel(255,256).b<.001f,read.GetPixel(255,256).ToString());check("half-alpha outer edge remains eligible",read.GetPixel(129,256).b>.02f,read.GetPixel(129,256).ToString());
+   render(0);check("zero width gives no edge",read.GetPixel(129,256).b<.001f,read.GetPixel(129,256).ToString());
+  }
+  catch(Exception error){check("fixture execution",false,(error.InnerException??error).ToString());}
+  finally{cmd.Release();RenderTexture.active=old;Shader.SetGlobalFloat("_ContractMode",oldMode);Shader.SetGlobalFloat("_ContractWidth",oldWidth);Shader.SetGlobalFloat("_CharacterCoverageReady",ready);Shader.SetGlobalTexture("_CharacterCoverageTexture",oldTexture);Shader.SetGlobalVector("_CharacterCoverageRect",rect);Shader.SetGlobalVector("_CharacterCoverageAtlasRect",tile);Shader.SetGlobalVector("_CharacterCoverageScreenSize",screen);Shader.SetGlobalVector("_CharacterCoverageTexelSize",texel);for(int i=owned.Count-1;i>=0;i--)if(owned[i]!=null){if(owned[i] is RenderTexture r)r.Release();UnityEngine.Object.DestroyImmediate(owned[i]);}}
+  ctx.ReturnValue=JsonConvert.SerializeObject(new{pass,stage="GPU",checks});
+ }
+}

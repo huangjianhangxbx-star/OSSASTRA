@@ -1,0 +1,69 @@
+/* 功能：以真实GPU alpha合并验证完整角色轮廓的身份、接缝与透明语义；不是主场审美验收。 */
+using System;using System.Linq;using System.Reflection;using System.Collections;using System.Collections.Generic;
+using UnityEngine;using UnityEngine.Rendering;using UnityEditor;using Funplay.Editor.Tools.Scripting;using Newtonsoft.Json;
+public sealed class CharacterCoverageGpuContract:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  var checks=new List<object>();bool pass=true;
+  Action<string,bool,string> check=(n,p,d)=>{pass&=p;checks.Add(new{name=n,pass=p,detail=d});};
+  Type cacheType=AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType("Ossastra.CharacterLighting.Rendering.CharacterCoverageCache",false)).FirstOrDefault(t=>t!=null);
+  Type actorType=AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType("Ossastra.CharacterLighting.Rendering.CharacterCoverageActor",false)).FirstOrDefault(t=>t!=null);
+  Shader shader=Shader.Find("Hidden/Ossastra/CharacterLighting/Coverage");
+  check("complete-character coverage service exists",cacheType!=null&&actorType!=null&&shader!=null,"Missing cache/actor/shader is a feature failure, not GPU success.");
+  if(!pass){ctx.ReturnValue=JsonConvert.SerializeObject(new{pass,stage="feature RED",checks});return;}
+  var owned=new List<UnityEngine.Object>();CommandBuffer cmd=null;object cache=null;RenderTexture old=RenderTexture.active;Texture2D pixels=null;
+  var vectorNames=new[]{"_CharacterCoverageSourceST","_CharacterCoverageSourceFlip","_CharacterCoverageRect","_CharacterCoverageAtlasRect","_CharacterCoverageScreenSize","_CharacterCoverageTexelSize"};var vectorBefore=vectorNames.ToDictionary(n=>n,n=>Shader.GetGlobalVector(n));var textureNames=new[]{"_CharacterCoverageSourceTexture","_CharacterCoverageTexture"};var textureBefore=textureNames.ToDictionary(n=>n,n=>Shader.GetGlobalTexture(n));var floatNames=new[]{"_CharacterCoverageSourceAlpha","_CharacterCoverageSourceCutoff","_CharacterCoverageReady"};var floatBefore=floatNames.ToDictionary(n=>n,n=>Shader.GetGlobalFloat(n));var vpBefore=Shader.GetGlobalMatrix("_CharacterCoverageVP");
+  try
+  {
+   cache=Activator.CreateInstance(cacheType,new object[]{shader});cmd=new CommandBuffer{name="CharacterCoverage GPU contract"};
+   string calibrationText=@"Shader ""Hidden/Ossastra/CharacterLighting/ReadbackCalibration"" {SubShader{Pass{Cull Off ZWrite Off ZTest Always HLSLPROGRAM
+#pragma target 4.5
+#pragma vertex Vert
+#pragma fragment Frag
+float4 Vert(uint id:SV_VertexID):SV_POSITION{return float4(id==2?3:-1,id==1?3:-1,0,1);}
+float4 Frag(float4 p:SV_POSITION):SV_Target{return float4(p.x/16,p.y/16,0,1);}
+ENDHLSL }}}";
+   var create=typeof(ShaderUtil).GetMethods(BindingFlags.Static|BindingFlags.Public|BindingFlags.NonPublic).First(m=>m.Name=="CreateShaderAsset"&&m.GetParameters().Length>=1&&m.GetParameters()[0].ParameterType==typeof(string));
+   var createArgs=create.GetParameters().Select((p,i)=>i==0?(object)calibrationText:p.ParameterType==typeof(bool)?(object)false:p.HasDefaultValue?p.DefaultValue:null).ToArray();var calibrationShader=(Shader)create.Invoke(null,createArgs);owned.Add(calibrationShader);
+   var calibrationMaterial=new Material(calibrationShader){hideFlags=HideFlags.HideAndDontSave};owned.Add(calibrationMaterial);var calibrationTarget=new RenderTexture(16,16,0,RenderTextureFormat.ARGBFloat,RenderTextureReadWrite.Linear){hideFlags=HideFlags.HideAndDontSave};owned.Add(calibrationTarget);calibrationTarget.Create();var calibrationRead=new Texture2D(16,16,TextureFormat.RGBAFloat,false,true);owned.Add(calibrationRead);
+   cmd.SetRenderTarget(calibrationTarget);cmd.SetViewport(new Rect(0,0,16,16));cmd.ClearRenderTarget(false,true,Color.clear);cmd.DrawProcedural(Matrix4x4.identity,calibrationMaterial,0,MeshTopology.Triangles,3);Graphics.ExecuteCommandBuffer(cmd);cmd.Clear();RenderTexture.active=calibrationTarget;calibrationRead.ReadPixels(new Rect(0,0,16,16),0,0);calibrationRead.Apply();var lowRow=calibrationRead.GetPixel(8,3);var highRow=calibrationRead.GetPixel(8,12);bool rowsStartAtRasterTop=lowRow.g<highRow.g;check("independent raster/readback calibration",Mathf.Abs(highRow.g-lowRow.g)>.4f,"row3="+lowRow+" row12="+highRow+" topFirst="+rowsStartAtRasterTop);
+   var sourceShader=Shader.Find("Ossastra/MapResearch/DepthPlane");if(sourceShader==null)throw new Exception("fixture source shader missing");
+   var source=new Material(sourceShader){hideFlags=HideFlags.HideAndDontSave};owned.Add(source);source.SetColor("_Color",Color.white);source.SetFloat("_Cutoff",.06f);source.mainTexture=Texture2D.whiteTexture;
+   Func<string,float,float,float,Renderer> make=(name,min,max,alpha)=>{
+    var go=new GameObject(name){hideFlags=HideFlags.HideAndDontSave};owned.Add(go);
+    var mf=go.AddComponent<MeshFilter>();var mr=go.AddComponent<MeshRenderer>();var mesh=new Mesh{name=name+" shape",hideFlags=HideFlags.HideAndDontSave};owned.Add(mesh);
+    mesh.vertices=new[]{new Vector3(min,-.5f,0),new Vector3(max,-.5f,0),new Vector3(max,.5f,0),new Vector3(min,.5f,0)};
+    mesh.uv=new[]{new Vector2(0,0),new Vector2(1,0),new Vector2(1,1),new Vector2(0,1)};mesh.colors=Enumerable.Repeat(new Color(1,1,1,alpha),4).ToArray();mesh.triangles=new[]{0,1,2,0,2,3};mesh.RecalculateBounds();mf.sharedMesh=mesh;mr.sharedMaterial=source;return mr;};
+   var left=make("CoverageBodyA",-.8f,.1f,1);var right=make("CoverageEquipmentA",-.1f,.8f,1);var other=make("CoverageBodyB",-.2f,.2f,1);var additive=make("ZeroAlphaFX",-.95f,-.85f,0);var lowerEmpty=make("BLowerAlphaZero",-.2f,.2f,0);
+   var bMesh=other.GetComponent<MeshFilter>().sharedMesh;var bVertices=bMesh.vertices;for(int i=0;i<bVertices.Length;i++)bVertices[i].y=bVertices[i].y<0?.05f:.45f;bMesh.vertices=bVertices;bMesh.RecalculateBounds();
+   var emptyMesh=lowerEmpty.GetComponent<MeshFilter>().sharedMesh;var emptyVertices=emptyMesh.vertices;for(int i=0;i<emptyVertices.Length;i++)emptyVertices[i].y=emptyVertices[i].y<0?-.45f:-.05f;emptyMesh.vertices=emptyVertices;emptyMesh.RecalculateBounds();
+   object ownerA=new object(),ownerB=new object();var actors=Array.CreateInstance(actorType,2);
+   actors.SetValue(Activator.CreateInstance(actorType,new object[]{ownerA,new Renderer[]{left,right,additive}}),0);actors.SetValue(Activator.CreateInstance(actorType,new object[]{ownerB,new Renderer[]{other,lowerEmpty}}),1);
+   cacheType.GetMethod("Prepare").Invoke(cache,new object[]{cmd,Matrix4x4.identity,256,256,actors});Graphics.ExecuteCommandBuffer(cmd);cmd.Clear();
+   var atlas=(RenderTexture)cacheType.GetProperty("Atlas").GetValue(cache);check("bounded atlas exists",atlas!=null&&atlas.width==1024&&atlas.height==512,atlas==null?"null":atlas.width+"x"+atlas.height);
+   if(atlas==null)throw new Exception("fixture atlas missing");
+   RenderTexture.active=atlas;pixels=new Texture2D(atlas.width,atlas.height,TextureFormat.RGBAFloat,false,true){wrapMode=TextureWrapMode.Clamp};pixels.ReadPixels(new Rect(0,0,atlas.width,atlas.height),0,0);pixels.Apply();
+   MethodInfo get=cacheType.GetMethod("TryGet");Func<Renderer,object> binding=r=>{object[] args={r,null};return (bool)get.Invoke(cache,args)?args[1]:null;};
+   object a=binding(left),a2=binding(right),b=binding(other);check("all current body and equipment bound",a!=null&&a2!=null&&b!=null,"same source material does not merge actor identity");
+   if(a==null||a2==null||b==null)throw new Exception("bindings missing");
+   Func<object,string,object> field=(v,n)=>v.GetType().GetField(n).GetValue(v);
+   check("one actor union shares slot",(int)field(a,"Slot")== (int)field(a2,"Slot"),"body/equipment");check("two actor slots independent",(int)field(a,"Slot")!=(int)field(b,"Slot"),"overlapping actors");
+   Func<object,Vector2,float> sample=(v,p)=>{var rect=(Vector4)field(v,"ScreenRect");var tile=(Vector4)field(v,"AtlasRect");Vector2 screen=new Vector2(p.x*.5f+.5f,.5f-p.y*.5f);var uv=new Vector2((screen.x-rect.x)/rect.z,(screen.y-rect.y)/rect.w);if(uv.x<0||uv.x>1||uv.y<0||uv.y>1)return 0;float u=tile.x+uv.x*tile.z,w=tile.y+uv.y*tile.w;return pixels.GetPixelBilinear(u,rowsStartAtRasterTop?w:1-w).a;};
+   check("opaque union body valid",sample(a,new Vector2(-.5f,0))>.99f,"left part alpha");check("body/equipment join has no seam",sample(a,Vector2.zero)>.99f,"internal overlap alpha");
+   check("asymmetric upper body maps to screen upper",sample(b,new Vector2(0,.25f))>.99f,"top-left screenUV matches GPU mask");check("asymmetric lower space remains empty",sample(b,new Vector2(0,-.25f))<.01f,"no vertical mirror");
+   check("other actor is isolated",sample(b,new Vector2(.6f,0))<.01f,"actor A extends here but B does not");check("zero-alpha additive is not body",sample(a,new Vector2(-.9f,0))<.01f,"alpha zero attachments excluded");
+   check("source identity unchanged",left.sharedMaterial==source&&right.sharedMaterial==source&&other.sharedMaterial==source,"coverage never swaps original materials");
+   foreach(var r in new[]{left,right}){var mesh=r.GetComponent<MeshFilter>().sharedMesh;mesh.colors=Enumerable.Repeat(new Color(1,1,1,.5f),4).ToArray();}
+   cacheType.GetMethod("Prepare").Invoke(cache,new object[]{cmd,Matrix4x4.identity,256,256,actors});Graphics.ExecuteCommandBuffer(cmd);cmd.Clear();RenderTexture.active=atlas;pixels.ReadPixels(new Rect(0,0,atlas.width,atlas.height),0,0);pixels.Apply();
+   check("current frame half-alpha retained",Mathf.Abs(sample(a,new Vector2(-.5f,0))-.5f)<.015f,"mesh vertex alpha .5");check("half-alpha union uses normal coverage",Mathf.Abs(sample(a,Vector2.zero)-.75f)<.015f,".5 + .5*(1-.5), not slot borders");
+   left.enabled=false;right.enabled=false;additive.enabled=false;
+   cacheType.GetMethod("Prepare").Invoke(cache,new object[]{cmd,Matrix4x4.identity,256,256,actors});Graphics.ExecuteCommandBuffer(cmd);cmd.Clear();
+   check("disabled pose invalidates old binding",binding(left)==null,"no stale pose after renderer disable");
+   ((IDisposable)cache).Dispose();cache=null;check("cache release complete",true,"Dispose executed; native resource counters separately inspected by lifecycle contract");
+  }
+  catch(Exception error){check("fixture execution",false,(error.InnerException??error).ToString());}
+  finally{if(cache is IDisposable d)d.Dispose();cmd?.Release();RenderTexture.active=old;foreach(var p in vectorBefore)Shader.SetGlobalVector(p.Key,p.Value);foreach(var p in textureBefore)Shader.SetGlobalTexture(p.Key,p.Value);foreach(var p in floatBefore)Shader.SetGlobalFloat(p.Key,p.Value);Shader.SetGlobalMatrix("_CharacterCoverageVP",vpBefore);if(pixels!=null)UnityEngine.Object.DestroyImmediate(pixels);for(int i=owned.Count-1;i>=0;i--)if(owned[i]!=null){if(owned[i] is RenderTexture target)target.Release();UnityEngine.Object.DestroyImmediate(owned[i]);}}
+  ctx.ReturnValue=JsonConvert.SerializeObject(new{pass,stage="GPU",checks});
+ }
+}

@@ -25,6 +25,9 @@
  CBUFFER_END
 #endif
 
+#include "Assets/OSSASTRA/Scripts/CharacterLighting/Rendering/CharacterLightingColor.hlsl"
+float4 _EnvironmentStylizedSkyTint;
+
 float _EnvironmentLightingEnabled;
 float _EnvironmentFullSurface;
 float _EnvironmentSurfaceRole;
@@ -165,9 +168,9 @@ float3 EnvironmentCharacterNormal(float3 normalHint)
 }
 
 // role：0地面、1场景装饰、2角色及装备、负值为信息标记/自发光业务表现。
-half3 EnvironmentShade(half3 albedo, float3 world, float3 normal, float role)
+float3 EnvironmentLightingGain(float3 world, float3 normal, float role, bool characterEffects)
 {
- if (_EnvironmentLightingEnabled < .5 || role < -.5) return albedo;
+ if (_EnvironmentLightingEnabled < .5 || role < -.5) return float3(1,1,1);
  normal = normalize(normal + float3(0, .00001, 0));
  half hemisphere = saturate(normal.y * .5 + .5);
  half3 ambient = hemisphere > .5
@@ -175,6 +178,10 @@ half3 EnvironmentShade(half3 albedo, float3 world, float3 normal, float role)
   : lerp(_EnvironmentGroundAmbient.rgb, _EnvironmentHorizonAmbient.rgb, hemisphere * 2);
  int room = EnvironmentRoomIndex(world);
  if (room >= 0) ambient *= saturate(_EnvironmentIndoorAmbientScale);
+ float3 ambientColorDelta=0;
+ // 手动天空只改变登记角色的室外环境贡献。先保留原保底明暗，再分配零亮度差的环境色度，避免max吞暖色/抬冷色。
+ if (characterEffects && role > 1.5 && _CharacterLightControls.x > .5 && room < 0)
+  ambientColorDelta = CharacterLightingTintAmbient(ambient, _EnvironmentStylizedSkyTint)-ambient;
  float3 lightDirection = _MainLightPosition.xyz;
  half normalLight = saturate(dot(normal, lightDirection));
  half shadow = _EnvironmentReceiveShadow < .5 ? 1 : EnvironmentMainShadow(world);
@@ -200,9 +207,31 @@ half3 EnvironmentShade(half3 albedo, float3 world, float3 normal, float role)
  half minimum = saturate(_EnvironmentMinimumOverride);
  if (role > 1.5) minimum = max(minimum, saturate(_EnvironmentLightResponse.w));
  lighting = max(lighting, minimum.xxx);
+ // 原minimum数值/response保持；环境色差与直射/局部灯相互独立，不在最终RGB上再乘色。
+ lighting += ambientColorDelta;
  // 与原生受光共用室外/遮雨判定；不把预乘装备变成额外高亮的透明片。
  half wet = EnvironmentSurfaceWetness(world, role);
- return albedo * lerp(half3(1,1,1), lighting * (1 - wet * .08), saturate(response));
+ return lerp(half3(1,1,1), lighting * (1 - wet * .08), saturate(response));
+}
+
+// 保留零alpha Additive的原业务能量；非线性只作用于不含贴图/slot alpha的增益。
+half3 EnvironmentShadeLegacy(half3 albedo, float3 world, float3 normal, float role)
+{
+ return albedo * EnvironmentLightingGain(world,normal,role,false);
+}
+half3 EnvironmentShadeWithRim(half3 albedo, float3 world, float3 normal, float role, float3 rimGain)
+{
+ float3 gain=EnvironmentLightingGain(world,normal,role,true);
+ if (_EnvironmentLightingEnabled>.5 && role>1.5 && _CharacterLightControls.x>.5)
+ {
+  gain += CharacterLightingLimitRim(rimGain * max(_CharacterLightControls.y,0),gain,_CharacterLightControls.w);
+  gain = CharacterLightingProtectGain(gain,_CharacterLightShoulder.x,_CharacterLightShoulder.y,_CharacterLightControls.z);
+ }
+ return albedo * gain;
+}
+half3 EnvironmentShade(half3 albedo, float3 world, float3 normal, float role)
+{
+ return EnvironmentShadeWithRim(albedo,world,normal,role,float3(0,0,0));
 }
 
 #if defined(ENVIRONMENT_NATIVE_LIT) && !defined(ENVIRONMENT_LEGACY_SPRITE)

@@ -1,0 +1,54 @@
+/* 功能：在隔离主场Play中，通过真实uGUI回调验证角色光感运行副本、同对象对照、恢复与环境时钟边界。
+ * 边界：不创建/覆盖Profile、不切主控、不移动角色、不改业务存档；没有真实实例则拒绝夹具。
+ * 生命周期：finally精确归还所有受测接收者副本、原时钟/展开/选择状态；参数保存另作显式Native检查。
+ */
+using System;using System.Linq;using System.Collections.Generic;
+using UnityEngine;using UnityEngine.EventSystems;using UnityEngine.SceneManagement;
+using Newtonsoft.Json;using Funplay.Editor.Tools.Scripting;
+using Ossastra.CharacterLighting;
+using Panel=Ossastra.Development.CharacterLighting.CharacterLightingPanel;
+public sealed class CharacterLightingPanelValueContract:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  if(!Application.isPlaying||SceneManager.GetActiveScene().name!="SC_RoomVisibilityLab"||EventSystem.current==null)throw new Exception("Verified isolated main Play required");
+  var panels=UnityEngine.Object.FindObjectsOfType<Panel>();if(panels.Length!=1)throw new Exception("Requires one explicitly configured CharacterLightingPanel");
+  var panel=panels[0];if(panel.environment==null||panel.coordinator==null||panel.receivers==null||panel.receivers.Count(r=>r!=null)<2)throw new Exception("Incomplete real environment/coordinator/two receivers fixture");
+  var environment=panel.environment;var coordinator=panel.coordinator;
+  var saved=panel.receivers.Where(r=>r!=null).Distinct().ToDictionary(r=>r,r=>r.Settings.Clone());
+  var profiles=panel.receivers.Where(r=>r!=null&&r.profile!=null).Select(r=>r.profile).Distinct().ToDictionary(p=>p,p=>JsonUtility.ToJson(p.settings));
+  var oldMode=environment.timeMode;var oldClock=environment.clockRunning;var oldCurrent=coordinator.Current;float timeScale=Time.timeScale;
+  bool oldExpanded=panel.Expanded;var oldObserved=panel.ObservedReceiver;var oldSelected=EventSystem.current.currentSelectedGameObject;
+  var checks=new List<object>();var failures=new List<string>();Action<string,bool> check=(name,pass)=>{checks.Add(new{name,pass});if(!pass)failures.Add(name);};string error=null;
+  try
+  {
+   panel.SetExpanded(false);panel.SetExpanded(true);var receiver=panel.ObservedReceiver;if(receiver==null)throw new Exception("No observed receiver after real expansion");
+   var toggles=panel.GetComponentsInChildren<UnityEngine.UI.Toggle>(true);var sliders=panel.GetComponentsInChildren<UnityEngine.UI.Slider>(true);
+   Func<string,UnityEngine.UI.Toggle> toggle=name=>toggles.Single(t=>t.name==name);
+   Func<string,UnityEngine.UI.Slider> slider=name=>sliders.Single(s=>s.name==name);
+   var baseState=receiver.Settings.Clone();toggle("EnvironmentTintEnabled").isOn=!baseState.environmentTint;check("toggle writes actual runtime Settings",receiver.Settings.environmentTint!=baseState.environmentTint);
+   slider("TintStrength").value=.2375f;check("slider writes actual runtime Settings",Mathf.Abs(receiver.Settings.tintStrength-.2375f)<1e-5f);
+   bool rimBefore=receiver.Settings.rim;toggle("ContourEnabled").isOn=!rimBefore;check("rim independent from tint",receiver.Settings.rim!=rimBefore&&receiver.Settings.environmentTint!=baseState.environmentTint);
+   slider("HighlightKnee").value=5;slider("HighlightCeiling").value=1;check("same sanitizer enforces ceiling above knee",receiver.Settings.ceiling>receiver.Settings.knee);
+   check("other receiver unchanged",saved.Where(p=>p.Key!=receiver).All(p=>JsonUtility.ToJson(p.Key.Settings)==JsonUtility.ToJson(p.Value)));
+   check("shared Profiles untouched",profiles.All(p=>JsonUtility.ToJson(p.Key.settings)==p.Value));
+   var restore=panel.GetComponentsInChildren<UnityEngine.UI.Button>(true).Single(b=>b.name=="RestorePreview");restore.onClick.Invoke();check("restore actual runtime settings",JsonUtility.ToJson(receiver.Settings)==JsonUtility.ToJson(baseState));
+   panel.ApplyPreset(0);check("old preset disables exactly three new effects",!receiver.Settings.environmentTint&&!receiver.Settings.rim&&!receiver.Settings.highlightProtection);
+   panel.ApplyPreset(1);check("environment-only preset independent",receiver.Settings.environmentTint&&!receiver.Settings.rim&&!receiver.Settings.highlightProtection);
+   panel.ApplyPreset(2);check("restrained preset uses all three",receiver.Settings.environmentTint&&receiver.Settings.rim&&receiver.Settings.highlightProtection);restore.onClick.Invoke();
+   environment.SetClockRunning(true);toggle("FreezeClock").isOn=true;check("freeze stops only environment clock",!environment.clockRunning&&Time.timeScale==timeScale);toggle("FreezeClock").isOn=false;check("unfreeze returns owned clock state",environment.clockRunning);
+   environment.timeMode=Ossastra.EnvironmentSimulation.EnvironmentTimeMode.External;panel.SetExpanded(true);check("external clock not falsely frozen",!toggle("FreezeClock").interactable);
+   check("observation and edits never change Current",ReferenceEquals(oldCurrent,coordinator.Current));check("actual rendering diagnostics bound",panel.DiagnosticsReader!=null);
+  }
+  catch(Exception e){error=e.ToString();}
+  finally
+  {
+   panel.SetClockFrozen(false);foreach(var pair in saved)if(pair.Key!=null)pair.Key.Settings=pair.Value;
+   environment.timeMode=oldMode;environment.clockRunning=oldClock;environment.RefreshNow();
+   var observed=panel.GetComponentsInChildren<TMPro.TMP_Dropdown>(true).FirstOrDefault(d=>d.name=="ObservedCharacter");if(observed!=null&&oldObserved!=null){int index=Array.IndexOf(panel.receivers.Where(r=>r!=null&&r.gameObject.scene==panel.gameObject.scene).Distinct().ToArray(),oldObserved);if(index>=0)observed.value=index;}
+   panel.SetExpanded(oldExpanded);if(EventSystem.current!=null)EventSystem.current.SetSelectedGameObject(oldSelected);
+  }
+  ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=error==null&&failures.Count==0,checks,failures,error,notCovered="Candidate asset creation, actual screen geometry, GPU output and user visual approval are separate"});
+ }
+}
+

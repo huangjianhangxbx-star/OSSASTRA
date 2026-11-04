@@ -1,0 +1,141 @@
+/* 功能：在当前隔离主场分步检查角色光感生命周期；每次只执行一个明确动作，不在同帧开关冒充跨帧验收。
+ * 边界：不切场、不改路由、存档、源材质或业务；异常/失败请求恢复原enabled/effects/settings，下一帧另行验恢复。
+ * 调用：Root读文件后只替换RequestedAction的protocol字符串；所有调用skip_refresh=true，不能重放未知结果的动作。
+ */
+using System;using System.Linq;using System.Collections;using System.Collections.Generic;using System.Reflection;
+using UnityEngine;using UnityEngine.Rendering;using UnityEngine.Rendering.Universal;using UnityEngine.SceneManagement;using UnityEditor;
+using Newtonsoft.Json;using Funplay.Editor.Tools.Scripting;
+using LightSystem=Ossastra.CharacterLighting.CharacterLightingSystem;
+using Receiver=Ossastra.CharacterLighting.CharacterLightingReceiver;
+using Settings=Ossastra.CharacterLighting.CharacterLightingSettings;
+using EnvRoot=Ossastra.EnvironmentSimulation.EnvironmentRoot;
+using SkyBinding=Ossastra.EnvironmentSimulation.Rendering.EnvironmentSkyBinding;
+using EnvRegistry=Ossastra.EnvironmentSimulation.EnvironmentCameraRegistry;
+using Actor=Ossastra.CharacterLighting.Rendering.CharacterCoverageActor;
+public sealed class CharacterLightingLifecycleStep:IFunplayCommand
+{
+ static readonly string RequestedAction = "protocol";
+ const string StateKey="OSSASTRA.CHAR-LIGHT-01.Lifecycle.State";
+ const string CameraRenderedKey="OSSASTRA.CHAR-LIGHT-01.Lifecycle.CameraRendered";
+ const string TargetScene="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity";
+ sealed class MaterialSnapshot{public int rendererId;public string name;public int[] materials;}
+ sealed class ReceiverSnapshot{public int id,profileId;public string profileJson,settingsJson;}
+ sealed class Snapshot
+ {
+  public bool active,systemEnabled,environmentEnabled,skyEnabled,effectsEnabled;
+  public int systemId,environmentId,skyId,cameraId,sceneHandle,actionFrame,cycleCount,textureCount,materialCount,registryCount,receiverCount,actorCount,draws;
+  public long textureBytes;public string phase;public bool environmentTested,skyTested,otherCameraTested;
+  public int ownedCameraId,ownedTargetId;public List<MaterialSnapshot> sourceMaterials=new List<MaterialSnapshot>();public List<ReceiverSnapshot> receivers=new List<ReceiverSnapshot>();
+ }
+ sealed class Observation
+ {
+  public int frame,textureCount,materialCount,registryCount,receiverCount,actorCount,draws;public long textureBytes;
+  public bool effectiveSystem,environmentLease,sourceIdentity,profilesIntact,cameraIdentity,sceneViewsHaveNoConsumer=true;
+  public float scopedReady,scopedControls;public object[] sceneViewConsumers;
+ }
+ public void Execute(ExecutionContext ctx)
+ {
+  var checks=new List<object>();bool pass=true;Snapshot state=null;Action<string,bool,string> check=(n,p,d)=>{pass&=p;checks.Add(new{name=n,pass=p,detail=d});};
+  try
+  {
+   if(RequestedAction=="protocol")
+   {
+    ctx.ReturnValue=JsonConvert.SerializeObject(new{action=RequestedAction,protocol="begin -> [off-system, wait>=2 frames, probe-off-system, on-system, wait>=2 frames, probe-on-system] x3 -> off-environment / probe-off-environment / on-environment / probe-on-environment -> off-sky / probe-off-sky / on-sky / probe-on-sky -> other-camera / probe-other-camera -> restore / probe-restored. Each mutation/probe separate Native call. status is read-only recovery.",state=SessionState.GetString(StateKey,"")});return;
+   }
+   string json=SessionState.GetString(StateKey,"");if(!string.IsNullOrEmpty(json))state=JsonConvert.DeserializeObject<Snapshot>(json);
+   if(RequestedAction=="status"){ctx.ReturnValue=JsonConvert.SerializeObject(new{action=RequestedAction,state,frame=Time.frameCount,playing=Application.isPlaying});return;}
+   if(Application.dataPath!="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets"||!Application.isPlaying||SceneManager.GetActiveScene().path!=TargetScene)throw new Exception("Live main/project/Play guard failed; no automatic scene or Play transition.");
+   var scene=SceneManager.GetActiveScene();var commerce=scene.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<Ossastra.Commerce.Runtime.CommerceService>(true)).ToArray();
+   if(commerce.Length!=1||commerce[0].profileId!="charlight-runtime-isolated")throw new Exception("Isolated charlight route required; test will not alter original or fallback route.");
+   if(RequestedAction=="begin")
+   {
+    if(state!=null&&state.active)throw new Exception("Previous lifecycle snapshot is still active; use status/restore, never overwrite it.");
+    var systems=scene.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<LightSystem>(true)).ToArray();if(systems.Length!=1)throw new Exception("Expected one current-scene CharacterLightingSystem.");var system=systems[0];var sky=system.environment;var env=sky==null?null:sky.environment;
+    if(sky==null||env==null||system.gameplayCamera==null)throw new Exception("Missing explicit environment/camera references.");
+    if(!system.enabled||!sky.enabled||!env.enabled||!system.effectsEnabled)throw new Exception("Begin requires current warm enabled combination; preserve user state instead of forcing it.");
+    state=new Snapshot{active=true,phase="warm",systemId=system.GetInstanceID(),environmentId=env.GetInstanceID(),skyId=sky.GetInstanceID(),cameraId=system.gameplayCamera.GetInstanceID(),sceneHandle=scene.handle,systemEnabled=system.enabled,environmentEnabled=env.enabled,skyEnabled=sky.enabled,effectsEnabled=system.effectsEnabled,actionFrame=Time.frameCount};
+    var seen=new HashSet<int>();foreach(var receiver in system.receivers)if(receiver!=null)
+    {
+     state.receivers.Add(new ReceiverSnapshot{id=receiver.GetInstanceID(),profileId=receiver.profile==null?0:receiver.profile.GetInstanceID(),profileJson=receiver.profile==null?null:JsonUtility.ToJson(receiver.profile),settingsJson=JsonUtility.ToJson(receiver.Settings)});
+     foreach(var renderer in receiver.Members)if(renderer!=null&&seen.Add(renderer.GetInstanceID()))state.sourceMaterials.Add(new MaterialSnapshot{rendererId=renderer.GetInstanceID(),name=renderer.name,materials=renderer.sharedMaterials.Select(m=>m==null?0:m.GetInstanceID()).ToArray()});
+    }
+    var observation=Observe(state);state.textureCount=observation.textureCount;state.materialCount=observation.materialCount;state.registryCount=observation.registryCount;state.receiverCount=observation.receiverCount;state.actorCount=observation.actorCount;state.draws=observation.draws;state.textureBytes=observation.textureBytes;
+    check("warm real coverage exists",state.textureCount==1&&state.materialCount==1&&state.actorCount==2&&state.textureBytes==2097152&&observation.effectiveSystem,"Capture actual warm baseline; no forcing fake readiness.");Save(state);ctx.ReturnValue=JsonConvert.SerializeObject(new{action=RequestedAction,pass,checks,state,observation});return;
+   }
+   if(state==null||!state.active)throw new Exception("No active snapshot; begin first.");if(state.sceneHandle!=scene.handle)throw new Exception("Scene changed; do not reuse instance IDs after reload.");
+   var current=Resolve<LightSystem>(state.systemId);var currentEnv=Resolve<EnvRoot>(state.environmentId);var currentSky=Resolve<SkyBinding>(state.skyId);
+   if(current==null||currentEnv==null||currentSky==null)throw new Exception("An original component was destroyed; inspect before restoring equivalent objects.");
+   bool probe=RequestedAction.StartsWith("probe-",StringComparison.Ordinal);
+   if(probe&&Time.frameCount<state.actionFrame+2){ctx.ReturnValue=JsonConvert.SerializeObject(new{action=RequestedAction,ready=false,reason="Need at least two actual Play frames; no assertion executed",state.actionFrame,frame=Time.frameCount});return;}
+   switch(RequestedAction)
+   {
+    case "off-system":Require(state,"warm");if(state.cycleCount>=3)throw new Exception("Three system cycles already complete.");ctx.RegisterObjectModification(current);current.enabled=false;Mark(state,"system-off-pending");break;
+    case "probe-off-system":Require(state,"system-off-pending");ProbeOff(state,Observe(state),check,true,false);state.phase="system-off-probed";break;
+    case "on-system":Require(state,"system-off-probed");ctx.RegisterObjectModification(current);current.enabled=state.systemEnabled;Mark(state,"system-on-pending");break;
+    case "probe-on-system":Require(state,"system-on-pending");ProbeWarm(state,Observe(state),check);state.cycleCount++;state.phase="warm";break;
+    case "off-environment":Require(state,"warm");if(state.cycleCount!=3)throw new Exception("Complete three system cycles first.");ctx.RegisterObjectModification(currentEnv);currentEnv.enabled=false;Mark(state,"environment-off-pending");break;
+    case "probe-off-environment":Require(state,"environment-off-pending");ProbeOff(state,Observe(state),check,false,true);state.phase="environment-off-probed";break;
+    case "on-environment":Require(state,"environment-off-probed");ctx.RegisterObjectModification(currentEnv);currentEnv.enabled=state.environmentEnabled;Mark(state,"environment-on-pending");break;
+    case "probe-on-environment":Require(state,"environment-on-pending");ProbeWarm(state,Observe(state),check);state.environmentTested=true;state.phase="warm";break;
+    case "off-sky":Require(state,"warm");ctx.RegisterObjectModification(currentSky);currentSky.enabled=false;Mark(state,"sky-off-pending");break;
+    case "probe-off-sky":Require(state,"sky-off-pending");ProbeOff(state,Observe(state),check,false,false);state.phase="sky-off-probed";break;
+    case "on-sky":Require(state,"sky-off-probed");ctx.RegisterObjectModification(currentSky);currentSky.enabled=state.skyEnabled;Mark(state,"sky-on-pending");break;
+    case "probe-on-sky":Require(state,"sky-on-pending");ProbeWarm(state,Observe(state),check);state.skyTested=true;state.phase="warm";break;
+    case "other-camera":
+     Require(state,"warm");if(state.ownedCameraId!=0||state.ownedTargetId!=0)throw new Exception("Owned camera already present; inspect instead of duplicating.");
+     var go=new GameObject("CHAR-LIGHT-01 owned no-consumer camera"){hideFlags=HideFlags.HideAndDontSave};ctx.RegisterObjectCreation(go);var camera=go.AddComponent<Camera>();camera.CopyFrom(current.gameplayCamera);camera.enabled=false;camera.cullingMask=0;camera.clearFlags=CameraClearFlags.SolidColor;camera.backgroundColor=new Color(.2f,.3f,.4f,1);
+     var target=new RenderTexture(64,64,16,RenderTextureFormat.ARGB32){name="CHAR-LIGHT-01 owned no-consumer target",hideFlags=HideFlags.HideAndDontSave};target.Create();camera.targetTexture=target;state.ownedCameraId=camera.GetInstanceID();state.ownedTargetId=target.GetInstanceID();SessionState.SetInt(CameraRenderedKey,0);
+     Action<ScriptableRenderContext,Camera[]> renderOnce=null;renderOnce=(context,cameras)=>{RenderPipelineManager.beginFrameRendering-=renderOnce;if(camera==null||target==null)return;try{UniversalRenderPipeline.RenderSingleCamera(context,camera);SessionState.SetInt(CameraRenderedKey,1);}catch(Exception error){SessionState.SetInt(CameraRenderedKey,-1);SessionState.SetString(CameraRenderedKey+".error",error.ToString());}};RenderPipelineManager.beginFrameRendering+=renderOnce;Mark(state,"other-camera-pending");break;
+    case "probe-other-camera":
+     Require(state,"other-camera-pending");var other=Resolve<Camera>(state.ownedCameraId);check("independent camera really rendered",SessionState.GetInt(CameraRenderedKey,0)==1,SessionState.GetString(CameraRenderedKey+".error","actual next-frame URP RenderSingleCamera"));
+     check("independent camera has no character consumer",other!=null&&!LightSystem.TryGet(other,out var ignored),"Different camera must not consume main receiver/cache.");check("independent camera has no environment lease",other!=null&&!EnvRegistry.TryGet(other,out var ignoredFrame),"No environment root rebind.");ProbeWarm(state,Observe(state),check);CleanupOwned(state);state.otherCameraTested=true;state.phase="warm";break;
+    case "restore":Restore(state);Mark(state,"restoring");break;
+    case "probe-restored":Require(state,"restoring");ProbeWarm(state,Observe(state),check);check("three real cycles completed",state.cycleCount==3,"Explicit off/on probes x3");check("environment/Sky/other camera exercised",state.environmentTested&&state.skyTested&&state.otherCameraTested,"Recorded only after separated probes");check("owned camera and target removed",Resolve<Camera>(state.ownedCameraId)==null&&Resolve<RenderTexture>(state.ownedTargetId)==null,"Owned temporary objects only");state.active=false;state.phase="complete";break;
+    default:throw new Exception("Unknown explicit action: "+RequestedAction);
+   }
+   if(!pass){Restore(state);Mark(state,"restoring");}
+   Save(state);ctx.ReturnValue=JsonConvert.SerializeObject(new{action=RequestedAction,pass,checks,state,observation=Observe(state),waitActualFrames=probe?0:2,restorationRequested=!pass||RequestedAction=="restore"});
+  }
+  catch(Exception error)
+  {
+   string restoreError=null;if(state!=null&&state.active){try{Restore(state);Mark(state,"restoring");Save(state);}catch(Exception recovery){restoreError=recovery.ToString();}}
+   ctx.ReturnValue=JsonConvert.SerializeObject(new{action=RequestedAction,pass=false,error=error.ToString(),restoreError,state,restorationRequested=state!=null&&state.active});
+  }
+ }
+ static void Save(Snapshot state)=>SessionState.SetString(StateKey,JsonConvert.SerializeObject(state));
+ static void Require(Snapshot state,string phase){if(state.phase!=phase)throw new Exception("Expected "+phase+"; actual "+state.phase+". Inspect status before replay.");}
+ static void Mark(Snapshot state,string phase){state.phase=phase;state.actionFrame=Time.frameCount;}
+ static T Resolve<T>(int id)where T:UnityEngine.Object=>id==0?null:EditorUtility.InstanceIDToObject(id) as T;
+ static Observation Observe(Snapshot state)
+ {
+  var system=Resolve<LightSystem>(state.systemId);var camera=Resolve<Camera>(state.cameraId);
+  var list=new List<Actor>();Receiver.Collect(camera,list);
+  var dictionary=typeof(LightSystem).GetField("cameras",BindingFlags.NonPublic|BindingFlags.Static)?.GetValue(null) as IDictionary;
+  bool materials=true,profiles=true;foreach(var saved in state.sourceMaterials){var renderer=Resolve<Renderer>(saved.rendererId);if(renderer==null||!renderer.sharedMaterials.Select(m=>m==null?0:m.GetInstanceID()).SequenceEqual(saved.materials))materials=false;}
+  foreach(var saved in state.receivers){var receiver=Resolve<Receiver>(saved.id);if(receiver==null||(receiver.profile==null?0:receiver.profile.GetInstanceID())!=saved.profileId||(receiver.profile==null?null:JsonUtility.ToJson(receiver.profile))!=saved.profileJson)profiles=false;}
+  bool sceneViewsHaveNoConsumer=true;var views=new List<object>();foreach(var item in SceneView.sceneViews){var view=item as SceneView;if(view!=null&&view.camera!=null){bool characterConsumer=LightSystem.TryGet(view.camera,out var noSystem),environmentLease=EnvRegistry.TryGet(view.camera,out var noFrame);sceneViewsHaveNoConsumer&=!characterConsumer&&!environmentLease;views.Add(new{name=view.name,id=view.camera.GetInstanceID(),characterConsumer,environmentLease,evidence="registry read only; actual SceneView rendered frame requires separate capture"});}}
+  return new Observation{frame=Time.frameCount,textureCount=Resources.FindObjectsOfTypeAll<RenderTexture>().Count(r=>r!=null&&r.name=="Character full silhouettes [isolated x2]"),materialCount=Resources.FindObjectsOfTypeAll<Material>().Count(m=>m!=null&&m.name=="Character full silhouette alpha"),registryCount=dictionary==null?-1:dictionary.Count,receiverCount=list.Count,actorCount=system==null?0:system.CoverageActors,draws=system==null?0:system.CoverageDraws,textureBytes=system==null?0:system.CoverageBytes,effectiveSystem=camera!=null&&LightSystem.TryGet(camera,out var current)&&current==system,environmentLease=camera!=null&&EnvRegistry.TryGet(camera,out var frame)&&frame.Enabled,sourceIdentity=materials,profilesIntact=profiles,cameraIdentity=system!=null&&system.gameplayCamera==camera,scopedReady=Shader.GetGlobalFloat("_CharacterCoverageReady"),scopedControls=Shader.GetGlobalVector("_CharacterLightControls").x,sceneViewsHaveNoConsumer=sceneViewsHaveNoConsumer,sceneViewConsumers=views.ToArray()};
+ }
+ static void ProbeCommon(Snapshot state,Observation observation,Action<string,bool,string> check)
+ {
+  check("original source material identities unchanged",observation.sourceIdentity,"Body and current equipment material references, no copy-back rewrite.");check("shared profiles untouched",observation.profilesIntact,"Profile asset JSON and IDs unchanged.");check("SceneView has no registered consumer",observation.sceneViewsHaveNoConsumer,"Registry read only; actual SceneView rendering still separate");check("main camera binding retained",observation.cameraIdentity,"No implicit camera replacement.");check("globals scoped after camera",observation.scopedReady==0&&observation.scopedControls==0,"Idle read after end-camera cleanup.");check("receiver registry identity retained",observation.receiverCount==state.receiverCount,"Character roots stay enabled; system does not own their life state.");
+ }
+ static void ProbeOff(Snapshot state,Observation observation,Action<string,bool,string> check,bool unregister,bool environmentOff)
+ {
+  ProbeCommon(state,observation,check);check("coverage RT/material released",observation.textureCount==0&&observation.materialCount==0&&observation.textureBytes==0,"Measured after at least two actual Play frames.");check("effective character display lease revoked",!observation.effectiveSystem,"Registration without valid environment lease cannot grant display.");if(unregister)check("disabled system camera registry released",observation.registryCount==state.registryCount-1,"Exact root registration removed; other registries preserved.");if(environmentOff)check("environment lease released",!observation.environmentLease,"Root disable releases its actual camera frame.");
+ }
+ static void ProbeWarm(Snapshot state,Observation observation,Action<string,bool,string> check)
+ {
+  ProbeCommon(state,observation,check);check("coverage returns to warm baseline",observation.textureCount==state.textureCount&&observation.materialCount==state.materialCount&&observation.textureBytes==state.textureBytes&&observation.actorCount==state.actorCount,"No cumulative RT/material allocation or lost actor identity.");check("effective main lease restored",observation.effectiveSystem&&observation.environmentLease,"Current camera and same live environment frame.");check("system registration count restored",observation.registryCount==state.registryCount,"No duplicate camera registration.");
+ }
+ static void CleanupOwned(Snapshot state)
+ {
+  var camera=Resolve<Camera>(state.ownedCameraId);var target=Resolve<RenderTexture>(state.ownedTargetId);if(camera!=null&&camera.name=="CHAR-LIGHT-01 owned no-consumer camera"){camera.targetTexture=null;UnityEngine.Object.Destroy(camera.gameObject);}if(target!=null&&target.name=="CHAR-LIGHT-01 owned no-consumer target"){target.Release();UnityEngine.Object.Destroy(target);} // IDs remain until later probe can verify deferred destruction.
+ }
+ static void Restore(Snapshot state)
+ {
+  CleanupOwned(state);var env=Resolve<EnvRoot>(state.environmentId);var sky=Resolve<SkyBinding>(state.skyId);var system=Resolve<LightSystem>(state.systemId);
+  if(env!=null)env.enabled=state.environmentEnabled;if(sky!=null)sky.enabled=state.skyEnabled;if(system!=null){system.effectsEnabled=state.effectsEnabled;system.enabled=state.systemEnabled;}
+  foreach(var saved in state.receivers){var receiver=Resolve<Receiver>(saved.id);if(receiver!=null)receiver.Settings=JsonUtility.FromJson<Settings>(saved.settingsJson);}
+ }
+}

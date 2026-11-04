@@ -1,6 +1,6 @@
 /* 功能：保留Skeleton/UprightSpinePma原PMA颜色、直通alpha关键字、Stencil与混合。
  * 边界：不新增alpha-test或反预乘；许可点取最终显示深度，保留原ZWrite Off。
- * 生命周期：仅用于可见性正向适配材质，原Caster/物理/动画不由本适配器接管。
+ * 生命周期：仅用于可见性正向适配材质；角色内侧轮廓只在合法片元消费，零alpha加色仍沿原受光，原Caster/物理/动画不由本适配器接管。
  * ENV-01：原无光照表面接环境主灯/阴影；原生Lit保留原光照，仅追加房间GI系数与主灯云场，alpha/深度/许可保持。
  */
 Shader "Hidden/Ossastra/Rooms/SightSpine"
@@ -44,6 +44,7 @@ Shader "Hidden/Ossastra/Rooms/SightSpine"
    #include "Assets/OSSASTRA/Scripts/Characters/Rendering/Shaders/CharacterUprightDepthCommon.hlsl"
    #include "RoomSightClip.hlsl"
    #include "Assets/OSSASTRA/Scripts/EnvironmentSimulation/Rendering/EnvironmentLighting.hlsl"
+   #include "Assets/OSSASTRA/Scripts/CharacterLighting/Rendering/CharacterLightingRim.hlsl"
    struct A{float4 positionOS:POSITION;float2 uv:TEXCOORD0;float4 color:COLOR;};
    struct V{float4 positionCS:SV_POSITION;float2 uv:TEXCOORD0;float4 color:COLOR;float eyeOffset:TEXCOORD1;};
    struct O{float4 color:SV_Target;float depth:SV_Depth;};
@@ -58,7 +59,7 @@ Shader "Hidden/Ossastra/Rooms/SightSpine"
      texel.rgb*=texel.a;
     #endif
     float4 color=texel*input.color;
-    if(EnvironmentCanShadeWorld(logicalWorld))color.rgb=EnvironmentShade(color.rgb,logicalWorld,EnvironmentCharacterNormal(_VisualDepthNormal.xyz),_EnvironmentSurfaceRole);
+    if(EnvironmentCanShadeWorld(logicalWorld))color.rgb=color.a<=.00001?EnvironmentShadeLegacy(color.rgb,logicalWorld,EnvironmentCharacterNormal(_VisualDepthNormal.xyz),_EnvironmentSurfaceRole):EnvironmentShadeWithRim(color.rgb,logicalWorld,EnvironmentCharacterNormal(_VisualDepthNormal.xyz),_EnvironmentSurfaceRole,CharacterLightingSurfaceRim(input.positionCS.xy,logicalWorld));
     O output;output.color=EnvironmentFogColor(color,logicalWorld,1);output.depth=deviceDepth;return output;
    }
    ENDHLSL
@@ -87,6 +88,7 @@ Shader "Hidden/Ossastra/Rooms/SightSpine"
    #include "Assets/OSSASTRA/Scripts/Characters/Rendering/Shaders/CharacterUprightDepthCommon.hlsl"
    #include "RoomSightClip.hlsl"
    #include "Assets/OSSASTRA/Scripts/EnvironmentSimulation/Rendering/EnvironmentLighting.hlsl"
+   #include "Assets/OSSASTRA/Scripts/CharacterLighting/Rendering/CharacterLightingRim.hlsl"
    struct A{float4 positionOS:POSITION;float2 uv:TEXCOORD0;float4 color:COLOR;};
    struct V{float4 positionCS:SV_POSITION;float2 uv:TEXCOORD0;float4 color:COLOR;float eyeOffset:TEXCOORD1;};
 
@@ -101,7 +103,7 @@ Shader "Hidden/Ossastra/Rooms/SightSpine"
      texel.rgb*=texel.a;
     #endif
     float4 color=texel*input.color;
-    if(EnvironmentCanShadeWorld(logicalWorld))color.rgb=EnvironmentShade(color.rgb,logicalWorld,EnvironmentCharacterNormal(_VisualDepthNormal.xyz),_EnvironmentSurfaceRole);
+    if(EnvironmentCanShadeWorld(logicalWorld))color.rgb=color.a<=.00001?EnvironmentShadeLegacy(color.rgb,logicalWorld,EnvironmentCharacterNormal(_VisualDepthNormal.xyz),_EnvironmentSurfaceRole):EnvironmentShadeWithRim(color.rgb,logicalWorld,EnvironmentCharacterNormal(_VisualDepthNormal.xyz),_EnvironmentSurfaceRole,CharacterLightingSurfaceRim(input.positionCS.xy,logicalWorld));
     return EnvironmentFogColor(color,logicalWorld,1);
    }
    ENDHLSL

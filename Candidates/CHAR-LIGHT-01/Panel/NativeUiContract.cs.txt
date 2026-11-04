@@ -1,0 +1,80 @@
+/* 功能：由Root在当前已核实主场运行的角色光感uGUI合同；先在旧代码取得真实缺入口RED。
+ * 边界：不启动Play、不切场、不触存档或共享SO；结构/输入合同不代签服务参数/画面验收。
+ * 生命周期：所有临时owner、展开与启用、EventSystem选择在finally归还；只读取当前主场对象。
+ */
+using System;
+using System.Linq;
+using System.Reflection;
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.SceneManagement;
+using Newtonsoft.Json;
+using Funplay.Editor.Tools.Scripting;
+public sealed class CharacterLightingNativeUiContract:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  var scene=SceneManager.GetActiveScene();
+  bool fixtureReady=Application.dataPath.Replace('\\','/').EndsWith("/Project_ANKALUTE/Assets",StringComparison.OrdinalIgnoreCase)&&scene.name=="SC_RoomVisibilityLab";
+  if(!fixtureReady){ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=false,stage="FIXTURE_INVALID",reason="Requires verified ANKALUTE SC_RoomVisibilityLab",scene=scene.path});return;}
+  var type=AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType("Ossastra.Development.CharacterLighting.CharacterLightingPanel")).FirstOrDefault(t=>t!=null);
+  if(type==null){ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=false,fixtureReady=true,stage="RED",reason="Current production has no character-lighting operation panel",missing="CharacterLightingPanel"});return;}
+  if(!Application.isPlaying||EventSystem.current==null){ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=false,stage="FIXTURE_INVALID",reason="Configured isolated main Play and existing EventSystem required"});return;}
+  var panels=UnityEngine.Object.FindObjectsOfType(type).Cast<MonoBehaviour>().Where(p=>p.gameObject.scene==scene).ToArray();
+  if(panels.Length!=1){ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=false,stage="RED",reason="Main requires exactly one explicit character-lighting panel",count=panels.Length});return;}
+  var panel=panels[0];bool oldEnabled=panel.enabled;
+  var setExpanded=type.GetMethod("SetExpanded");var expandedProperty=type.GetProperty("Expanded");var surfaceProperty=type.GetProperty("Surface");var captureProperty=type.GetProperty("IsCapturingInput");
+  if(setExpanded==null||expandedProperty==null||surfaceProperty==null||captureProperty==null){ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=false,stage="RED",reason="Missing declared panel interaction contract"});return;}
+  bool oldExpanded=(bool)expandedProperty.GetValue(panel);var oldSelected=EventSystem.current.currentSelectedGameObject;
+  object coordinator=type.GetField("coordinator")?.GetValue(panel),map=type.GetField("map")?.GetValue(panel);
+  if(coordinator==null||map==null){ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=false,stage="RED",reason="Missing explicit coordinator/map input ownership references"});return;}
+  var coordinatorType=coordinator.GetType();var mapType=map.GetType();
+  var actorCaptures=coordinatorType.GetField("inputCaptures",BindingFlags.Instance|BindingFlags.NonPublic)?.GetValue(coordinator) as IEnumerable;
+  var cameraCaptures=mapType.GetField("uiCameraCaptures",BindingFlags.Instance|BindingFlags.NonPublic)?.GetValue(map) as IEnumerable;
+  var setActor=coordinatorType.GetMethod("SetInputCapture");var setCamera=mapType.GetMethod("SetUiCameraCapture");
+  if(actorCaptures==null||cameraCaptures==null||setActor==null||setCamera==null){ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=false,stage="FIXTURE_INVALID",reason="Original input contract drifted; inspect before mutation"});return;}
+  Func<IEnumerable,object,bool> contains=(values,item)=>values.Cast<object>().Any(v=>ReferenceEquals(v,item));
+  var foreign=new object();var results=new List<object>();var failures=new List<string>();
+  Action<string,bool> check=(name,pass)=>{results.Add(new{name,pass});if(!pass)failures.Add(name);};
+  TMPro.TMP_Dropdown observedDrop=null;int oldObserved=-1;float timeScale=Time.timeScale;object oldCurrent=coordinatorType.GetProperty("Current").GetValue(coordinator);string error=null;
+  setActor.Invoke(coordinator,new object[]{foreign,true});setCamera.Invoke(map,new object[]{foreign,true});
+  try
+  {
+   panel.enabled=true;setExpanded.Invoke(panel,new object[]{true});Canvas.ForceUpdateCanvases();
+   var surface=surfaceProperty.GetValue(panel) as RectTransform;check("visible surface",surface!=null&&surface.gameObject.activeInHierarchy&&surface.rect.width>0&&surface.rect.height>0);
+   if(surface==null)throw new Exception("Missing surface after expansion");
+   var scroll=panel.GetComponentsInChildren<UnityEngine.UI.ScrollRect>(true).FirstOrDefault(s=>s.name=="Body");
+   check("scroll hierarchy",scroll!=null&&scroll.viewport!=null&&scroll.content!=null&&scroll.content.parent==scroll.viewport&&scroll.viewport.GetComponent<UnityEngine.UI.Mask>()!=null&&scroll.viewport.GetComponent<UnityEngine.UI.Image>()!=null);
+   check("visible scrollbar",scroll!=null&&scroll.verticalScrollbar!=null&&scroll.verticalScrollbar.gameObject.activeInHierarchy&&scroll.verticalScrollbar.GetComponent<RectTransform>().rect.width>0&&scroll.verticalScrollbar.handleRect!=null);
+   string[] controls={"EnvironmentTintEnabled","ContourEnabled","HighlightProtectionEnabled","BloomEnabled","FreezeClock","RestorePreview","OldEffect","EnvironmentOnly","RestrainedContour","SaveCandidateProfile","ObservedCharacter"};
+   var children=panel.GetComponentsInChildren<Transform>(true);foreach(var name in controls)check("control:"+name,children.Any(t=>t.name==name));
+   var bloom=panel.GetComponentsInChildren<UnityEngine.UI.Toggle>(true).FirstOrDefault(t=>t.name=="BloomEnabled");
+   var camera=Camera.main;var cameraData=camera==null?null:camera.GetComponent<UnityEngine.Rendering.Universal.UniversalAdditionalCameraData>();
+   if(cameraData!=null&&!cameraData.renderPostProcessing)check("unavailable Bloom disabled",bloom!=null&&!bloom.interactable);
+   var pointer=new PointerEventData(EventSystem.current){pointerId=-997};
+   ExecuteEvents.Execute(surface.gameObject,pointer,ExecuteEvents.pointerEnterHandler);
+   check("pointer captures own actor and map",(bool)captureProperty.GetValue(panel)&&contains(actorCaptures,panel)&&contains(cameraCaptures,panel));
+   ExecuteEvents.Execute(surface.gameObject,pointer,ExecuteEvents.pointerExitHandler);
+   check("pointer release preserves foreign owner",!(bool)captureProperty.GetValue(panel)&&!contains(actorCaptures,panel)&&!contains(cameraCaptures,panel)&&contains(actorCaptures,foreign)&&contains(cameraCaptures,foreign));
+   var slider=panel.GetComponentsInChildren<UnityEngine.UI.Slider>(true).FirstOrDefault();
+   if(slider!=null){EventSystem.current.SetSelectedGameObject(slider.gameObject);check("selected slider captures input",contains(actorCaptures,panel)&&contains(cameraCaptures,panel));EventSystem.current.SetSelectedGameObject(null);check("deselection releases input",!contains(actorCaptures,panel)&&!contains(cameraCaptures,panel));}
+   observedDrop=panel.GetComponentsInChildren<TMPro.TMP_Dropdown>(true).FirstOrDefault(d=>d.name=="ObservedCharacter");
+   if(observedDrop!=null&&observedDrop.options.Count>1){oldObserved=observedDrop.value;observedDrop.value=(oldObserved+1)%observedDrop.options.Count;check("observation does not switch Current",ReferenceEquals(oldCurrent,coordinatorType.GetProperty("Current").GetValue(coordinator)));}else check("two explicit observation targets",false);
+   ExecuteEvents.Execute(surface.gameObject,pointer,ExecuteEvents.pointerEnterHandler);panel.enabled=false;
+   check("disable releases only own lease",!(bool)captureProperty.GetValue(panel)&&!contains(actorCaptures,panel)&&!contains(cameraCaptures,panel)&&contains(actorCaptures,foreign)&&contains(cameraCaptures,foreign));
+   check("world not paused",Time.timeScale==timeScale);
+  }
+  catch(Exception e){error=e.ToString();}
+  finally
+  {
+   setActor.Invoke(coordinator,new object[]{foreign,false});setCamera.Invoke(map,new object[]{foreign,false});
+   if(observedDrop!=null&&oldObserved>=0)observedDrop.value=oldObserved;
+   panel.enabled=oldEnabled;setExpanded.Invoke(panel,new object[]{oldExpanded});
+   if(EventSystem.current!=null)EventSystem.current.SetSelectedGameObject(oldSelected);
+  }
+  ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=error==null&&failures.Count==0,stage="UI_STRUCTURE_AND_INPUT_ONLY",checks=results,failures,error,notCovered="Service parameter writes/restore, Profile save, actual pointer geometry and visual GPU contracts require separate checks"});
+ }
+}
+

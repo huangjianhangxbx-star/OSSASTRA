@@ -125,6 +125,8 @@ namespace Ossastra.Development.Environment
    {
     Float(content,"ReflectionIntensity","天空反射强度",0,2,()=>skyBinding.reflectionIntensity,v=>skyBinding.reflectionIntensity=v);
     Toggle(content,"SkyColorOverride","手动覆盖天顶 / 地平线颜色",()=>skyBinding.overrideSkyColors,v=>skyBinding.overrideSkyColors=v);
+    Toggle(content,"SkyColorCharacterSync","覆盖天空色同步到角色环境光",()=>skyBinding.syncSkyColorTo2D,v=>skyBinding.syncSkyColorTo2D=v);
+    Float(content,"SkyColorCharacterStrength","天空与角色环境色联动强度",0,1,()=>skyBinding.stylizedSkyTintStrength,v=>skyBinding.stylizedSkyTintStrength=v);
     widgets.Buttons(content,"SkyColors",new[]{"昼夜原色","晴蓝","暮霞","冷夜"},i=>Change(()=>
     {
      skyBinding.overrideSkyColors=i!=0;if(i==0)return;
