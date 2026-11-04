@@ -140,6 +140,9 @@ namespace Ossastra.WorldRendering.Rendering
                     bool flip = data.cameraData.IsHandleYFlipped(sourceDepth) != data.cameraData.IsHandleYFlipped(legalDepth);
                     Blitter.BlitTexture(cmd, sourceDepth, flip ? new Vector4(1, -1, 0, 1) : new Vector4(1, 1, 0, 0), depthCopy, 0);
                     BindSettings(permission, data.cameraData);
+                    bool hasGlow = WorldLookLegalFrameRegistry.TryGetCharacterGlow(camera, Time.frameCount, out var characterGlow);
+                    look.SetFloat("_WorldLookCharacterGlowReady", hasGlow ? 1 : 0);
+                    look.SetTexture("_WorldLookCharacterGlow", hasGlow ? characterGlow.rt : Texture2D.blackTexture);
                     Blitter.BlitCameraTexture(cmd, source, colorCopy);
                     Blitter.BlitCameraTexture(cmd, colorCopy, source, look, 0);
                     context.ExecuteCommandBuffer(cmd);

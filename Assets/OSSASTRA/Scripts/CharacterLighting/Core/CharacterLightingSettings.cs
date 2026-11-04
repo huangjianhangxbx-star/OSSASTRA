@@ -1,4 +1,4 @@
-/* 功能：保存可复制的角色光感作者参数，独立控制环境染色、内侧轮廓与高亮保护。
+/* 功能：保存可复制的角色光感作者参数，独立控制环境染色、内侧轮廓、高亮保护与受光外缘柔光。
  * 边界：仅描述视觉参数，不保存灯列表、RT、当前房间或业务状态；运行时使用Clone副本，不能回写共享Profile。
  * 校验：非有限值回中性可用缺省；软肩上限始终大于拐点，防止除零或强光放大。
  */
@@ -17,6 +17,11 @@ namespace Ossastra.CharacterLighting
         [Tooltip("压缩角色本体与轮廓合计光照增益的过亮段，保留原图纹理与透明度。")]
         public bool highlightProtection = true;
 
+        [Tooltip("只在当前合法可见的受光自然外缘增加薄淡柔光；不抬高身体亮度或扩大角色显示权限。")]
+        public bool outerGlow = true;
+        [Tooltip("仅查看新增外缘能量的诊断模式；不作为正常显示预设，也不关闭本体高亮保护。")]
+        public bool outerDiagnostic;
+
         [Range(0, 1), Tooltip("环境色响应强度。0严格回对应原路径；不等同物理天空漫反射积分。")]
         public float tintStrength = 1f;
         [Range(0, 2), Tooltip("方向性轮廓贡献倍率；没有有效灯时保持0贡献。")]
@@ -32,6 +37,15 @@ namespace Ossastra.CharacterLighting
         [Range(.1f, 32), Tooltip("线性光照增益的渐近亮度上限；不逐通道硬截颜色。")]
         public float ceiling = 2;
 
+        [Range(1, 4), Tooltip("外扩宽度，单位为1080p等效最终画面像素；后端按实际输出高度和Render Scale换算，独立于内侧亮边。")]
+        public float outerWidth = 2;
+        [Range(0, 2), Tooltip("外缘独立受光贡献倍率；0严格关闭新增能量，亮度保底不作为发光来源。")]
+        public float outerStrength = .22f;
+        [Range(0, 1), Tooltip("新增外缘能量的独立有界预算；不更改身体原高亮保护或内侧轮廓预算。")]
+        public float maxOuterGain = .18f;
+        [Range(.25f, 4), Tooltip("仅改变外缘向外衰减的柔度；不放宽窗孔、墙体、黑幕与角色身份边界。")]
+        public float outerSoftness = 1.5f;
+
         public CharacterLightingSettings Clone()
         {
             return new CharacterLightingSettings
@@ -39,13 +53,19 @@ namespace Ossastra.CharacterLighting
                 environmentTint = environmentTint,
                 rim = rim,
                 highlightProtection = highlightProtection,
+                outerGlow = outerGlow,
+                outerDiagnostic = outerDiagnostic,
                 tintStrength = tintStrength,
                 rimStrength = rimStrength,
                 innerWidth = innerWidth,
                 softness = softness,
                 maxRimGain = maxRimGain,
                 knee = knee,
-                ceiling = ceiling
+                ceiling = ceiling,
+                outerWidth = outerWidth,
+                outerStrength = outerStrength,
+                maxOuterGain = maxOuterGain,
+                outerSoftness = outerSoftness
             };
         }
 
@@ -58,6 +78,10 @@ namespace Ossastra.CharacterLighting
             maxRimGain = FiniteRange(maxRimGain, 0, 2, .35f);
             knee = FiniteRange(knee, .05f, 16, 1.2f);
             ceiling = FiniteRange(ceiling, knee + .05f, 32, Mathf.Max(knee + .05f, 2));
+            outerWidth = FiniteRange(outerWidth, 1, 4, 2);
+            outerStrength = FiniteRange(outerStrength, 0, 2, .22f);
+            maxOuterGain = FiniteRange(maxOuterGain, 0, 1, .18f);
+            outerSoftness = FiniteRange(outerSoftness, .25f, 4, 1.5f);
         }
 
         static float FiniteRange(float value, float minimum, float maximum, float fallback)

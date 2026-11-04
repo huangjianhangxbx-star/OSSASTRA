@@ -17,12 +17,14 @@ Shader "Hidden/Ossastra/WorldRendering/EnvironmentLook"
             #include "Packages/com.unity.render-pipelines.core/Runtime/Utilities/Blit.hlsl"
             TEXTURE2D_X(_WorldLookPermission);
             TEXTURE2D_X_FLOAT(_WorldLookDepth);
+            TEXTURE2D_X(_WorldLookCharacterGlow);
             CBUFFER_START(UnityPerMaterial)
                 float4 _WorldLookTexelSize, _WorldLookUvTransform;
                 float4 _WorldLookFeatures, _WorldLookGrade, _WorldLookFilter, _WorldLookFocus, _WorldLookBloom;
                 float4 _WorldLookAirNear, _WorldLookAirMid, _WorldLookAirFar, _WorldLookAirDistances, _WorldLookAirStyle;
                 float4x4 _WorldLookInverseViewProjection;
                 float _WorldLookVignette;
+                float _WorldLookCharacterGlowReady;
             CBUFFER_END
 
             bool EnvironmentAllows(float2 uv)
@@ -45,6 +47,9 @@ Shader "Hidden/Ossastra/WorldRendering/EnvironmentLook"
                 return LinearEyeDepth(raw, _ZBufferParams);
             }
             float WorldLookLuminance(float3 color) { return dot(color, float3(.2126, .7152, .0722)); }
+            // 外缘已在角色模块逐像素校验；空间滤波只处理原环境，避免二次扩散越过细遮挡。
+            float3 CharacterGlow(float2 uv)
+            { return _WorldLookCharacterGlowReady > .5 ? SAMPLE_TEXTURE2D_X(_WorldLookCharacterGlow, sampler_PointClamp, uv).rgb : 0; }
 
             void Gather(float2 uv, float2 direction, float radius, float centerDepth, float tolerance,
                 inout float3 focusSum, inout float focusWeight, inout float3 bloomSum, inout float bloomWeight)
@@ -92,7 +97,8 @@ Shader "Hidden/Ossastra/WorldRendering/EnvironmentLook"
                 UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
                 float2 uv = input.texcoord * _WorldLookUvTransform.xy + _WorldLookUvTransform.zw;
                 half4 center = SAMPLE_TEXTURE2D_X(_BlitTexture, sampler_LinearClamp, uv);
-                if (!EnvironmentAllows(uv)) return center;
+                float3 glow = CharacterGlow(uv);
+                if (!EnvironmentAllows(uv)) return half4(center.rgb + glow, center.a);
                 float raw = RawDepth(uv), depth = EyeDepth(raw);
                 float coc = _WorldLookFeatures.y > .5 ? smoothstep(0, max(.001, _WorldLookFocus.z), max(0, abs(depth - _WorldLookFocus.x) - _WorldLookFocus.y)) : 0;
                 float3 color = center.rgb;
@@ -113,6 +119,7 @@ Shader "Hidden/Ossastra/WorldRendering/EnvironmentLook"
                     if (_WorldLookFeatures.y > .5) color = lerp(color, focusSum / max(1, focusWeight), coc);
                     if (_WorldLookFeatures.w > .5) color += bloomSum / max(1, bloomWeight) * max(0, _WorldLookBloom.x);
                 }
+                color += glow;
                 if (_WorldLookFeatures.z > .5) color = ApplyAir(color, uv, raw);
                 if (_WorldLookFeatures.x > .5) color = ApplyGrade(color);
                 if (_WorldLookVignette > .0001)
@@ -121,7 +128,7 @@ Shader "Hidden/Ossastra/WorldRendering/EnvironmentLook"
                     color *= 1 - saturate(dot(fromCenter, fromCenter) * _WorldLookVignette * .5);
                 }
                 // 不向原黑幕加性补光，防止许可柔边附近被环境色调重新抬亮。
-                if (max(center.r, max(center.g, center.b)) <= .000001) return center;
+                if (max(center.r, max(center.g, center.b)) <= .000001 && max(glow.r,max(glow.g,glow.b)) <= .000001) return center;
                 return half4(max(0, color), center.a);
             }
             ENDHLSL

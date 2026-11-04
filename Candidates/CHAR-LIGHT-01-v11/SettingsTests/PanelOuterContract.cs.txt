@@ -1,0 +1,57 @@
+/* 功能：在实际主场Play中通过真实A/B/C与控件回调核对外缘独立性、零强度、共享配置和两角色隔离。
+ * 生命周期：finally归还原运行副本、观察选择、面板展开状态；不保存资产或业务档。
+ */
+using System;using System.Linq;using System.Collections.Generic;
+using UnityEngine;using UnityEngine.SceneManagement;using Newtonsoft.Json;using Funplay.Editor.Tools.Scripting;
+using Ossastra.CharacterLighting;using Panel=Ossastra.Development.CharacterLighting.CharacterLightingPanel;
+public sealed class PanelOuterContract:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  var method=typeof(Panel).GetMethod("ApplyOuterPreset");
+  if(method==null){ctx.ReturnValue="{\"pass\":false,\"reason\":\"Independent outer A/B/C callback missing\"}";return;}
+  if(!Application.isPlaying||SceneManager.GetActiveScene().name!="SC_RoomVisibilityLab")throw new Exception("Isolated actual main Play required");
+  var panel=UnityEngine.Object.FindObjectsOfType<Panel>().Single();
+  var saved=panel.receivers.Where(r=>r!=null).Distinct().ToDictionary(r=>r,r=>r.Settings.Clone());
+  var profiles=panel.receivers.Where(r=>r!=null&&r.profile!=null).Select(r=>r.profile).Distinct().ToDictionary(p=>p,p=>JsonUtility.ToJson(p.settings));
+  bool oldExpanded=panel.Expanded;var oldObserved=panel.ObservedReceiver;var oldCurrent=panel.coordinator.Current;float oldScale=Time.timeScale;
+  var failures=new List<string>();var checks=new List<object>();string error=null;
+  Action<string,bool> check=(name,pass)=>{checks.Add(new{name,pass});if(!pass)failures.Add(name);};
+  Func<CharacterLightingSettings,string> interior=s=>JsonConvert.SerializeObject(new{s.environmentTint,s.rim,s.highlightProtection,s.tintStrength,s.rimStrength,s.innerWidth,s.softness,s.maxRimGain,s.knee,s.ceiling});
+  try
+  {
+   panel.SetExpanded(true);var r=panel.ObservedReceiver;if(r==null)throw new Exception("Observed receiver missing");
+   r.Settings.rimStrength=.61f;r.Settings.innerWidth=3.2f;r.Settings.maxRimGain=.47f;r.Settings.tintStrength=.83f;r.Settings.knee=1.7f;r.Settings.ceiling=4;
+   string before=interior(r.Settings);
+   var buttons=panel.GetComponentsInChildren<UnityEngine.UI.Button>(true);var toggles=panel.GetComponentsInChildren<UnityEngine.UI.Toggle>(true);var sliders=panel.GetComponentsInChildren<UnityEngine.UI.Slider>(true);
+   string[] names={"OuterBaselineA","OuterRecommendedB","OuterDiagnosticC"};
+   for(int index=0;index<3;index++)
+   {
+    buttons.Single(b=>b.name==names[index]).onClick.Invoke();
+    check("Preset "+index+" preserves current body settings",interior(r.Settings)==before);
+    bool on=(bool)typeof(CharacterLightingSettings).GetField("outerGlow").GetValue(r.Settings);
+    bool diagnostic=(bool)typeof(CharacterLightingSettings).GetField("outerDiagnostic").GetValue(r.Settings);
+    check("Preset "+index+" owns only external layer mode",on==(index>0)&&diagnostic==(index==2));
+   }
+   var width=sliders.Single(s=>s.name=="OuterWidth");width.value=3.25f;
+   check("Width slider writes runtime equivalent pixels",Math.Abs((float)typeof(CharacterLightingSettings).GetField("outerWidth").GetValue(r.Settings)-3.25f)<.0001f);
+   sliders.Single(s=>s.name=="OuterStrength").value=0;
+   check("Zero intensity retained",(float)typeof(CharacterLightingSettings).GetField("outerStrength").GetValue(r.Settings)==0);
+   check("External edits never modify interior settings",interior(r.Settings)==before);
+   toggles.Single(t=>t.name=="OuterGlowEnabled").isOn=false;
+   check("Explicit external toggle disables only external energy",!(bool)typeof(CharacterLightingSettings).GetField("outerGlow").GetValue(r.Settings)&&interior(r.Settings)==before);
+   panel.ApplyPreset(0);check("Old effect also removes new external energy",!(bool)typeof(CharacterLightingSettings).GetField("outerGlow").GetValue(r.Settings)&&!(bool)typeof(CharacterLightingSettings).GetField("outerDiagnostic").GetValue(r.Settings));
+   check("Other receiver unchanged",saved.Where(p=>p.Key!=r).All(p=>JsonUtility.ToJson(p.Key.Settings)==JsonUtility.ToJson(p.Value)));
+   check("Shared Profiles unchanged",profiles.All(p=>JsonUtility.ToJson(p.Key.settings)==p.Value));
+   check("No Current or timeScale changes",ReferenceEquals(oldCurrent,panel.coordinator.Current)&&Time.timeScale==oldScale);
+  }
+  catch(Exception e){error=e.ToString();}
+  finally
+  {
+   foreach(var p in saved)if(p.Key!=null)p.Key.Settings=p.Value;
+   if(oldObserved!=null){int index=Array.IndexOf(panel.receivers.Where(r=>r!=null&&r.gameObject.scene==panel.gameObject.scene).Distinct().ToArray(),oldObserved);if(index>=0)panel.SelectObserved(index);}
+   panel.SetExpanded(oldExpanded);
+  }
+  ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=error==null&&failures.Count==0,checks,failures,error});
+ }
+}

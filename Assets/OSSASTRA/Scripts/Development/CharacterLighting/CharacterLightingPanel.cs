@@ -1,4 +1,4 @@
-/* 功能：提供独立、可折叠的中文角色光感面板；按明确接收者调节运行时副本、同对象A/B与显式保存候选配置。
+/* 功能：提供独立、可折叠的中文角色光感面板；按明确接收者调节运行副本、内侧效果和外缘独立A/B/C，并显式保存候选配置。
  * 边界：不切真正主控、不写共享Profile、不读取设备、不暂停世界；不新建Bloom后端，不改原环境/HUD。
  * 协作：复用原协调器和地图的owner输入租约；仅停止自有环境时钟。真实渲染诊断由显式服务委托提供。
  * 生命周期：打开时捕获当前运行参数；恢复按钮归还该副本与本owner时钟修改。禁用/销毁释放输入、时钟和自有Canvas，不覆盖外部后改时钟。
@@ -89,20 +89,30 @@ namespace Ossastra.Development.CharacterLighting
    SettingToggle(content,"EnvironmentTintEnabled","环境染色",s=>s.environmentTint,(s,v)=>s.environmentTint=v,"只调环境贡献色度；直射与局部灯保留各自颜色。强度0回对应旧路径。");
    SettingToggle(content,"ContourEnabled","受光细轮廓",s=>s.rim,(s,v)=>s.rim=v,"对完整角色的内侧细带提亮；无有效灯不产生轮廓，不能获得墙后或黑幕可见权。");
    SettingToggle(content,"HighlightProtectionEnabled","强光高亮保护",s=>s.highlightProtection,(s,v)=>s.highlightProtection=v,"压缩角色本体与轮廓合计光照增益的过亮段；不调全局曝光，也不硬截白。");
-   AddParameter(widgets.Button(content,"OldEffect","旧效果",()=>ApplyPreset(0),"关闭三个新增效果，保留当前原受光与夜间最低可读度；不是切回另一名角色。"));
+   AddParameter(widgets.Button(content,"OldEffect","旧效果",()=>ApplyPreset(0),"关闭染色、内侧轮廓、高亮保护与外缘柔光，保留当前原受光与夜间最低可读度；不是切回另一名角色。"));
    AddParameter(widgets.Button(content,"EnvironmentOnly","仅环境染色",()=>ApplyPreset(1),"只启用此对象的环境染色；轮廓与高亮保护关闭，使用同一角色比较。"));
    AddParameter(widgets.Button(content,"RestrainedContour","染色 + 克制轮廓",()=>ApplyPreset(2),"启用环境融合、细内轮廓与高亮保护。数值为可继续调节的候选，不代表最终审美定稿。"));
    widgets.Title(content,"环境与轮廓参数");
    SettingSlider(content,"TintStrength","环境染色强度",0,1,s=>s.tintStrength,(s,v)=>s.tintStrength=v,"环境染色强度；手动天空同步的总开关与颜色来源仍归环境服务。");
    SettingSlider(content,"RimStrength","轮廓强度",0,2,s=>s.rimStrength,(s,v)=>s.rimStrength=v,"方向性轮廓的受控贡献倍率。灯资格、真实遮光与像素许可不会被此值放宽。");
-   SettingSlider(content,"InnerWidth","内带宽度（最终像素）",.25f,4,s=>s.innerWidth,(s,v)=>s.innerWidth=v,"参考1080p约1–2个最终画面像素；不是图集像素，外扩始终为0。");
+   SettingSlider(content,"InnerWidth","内带宽度（最终像素）",.25f,4,s=>s.innerWidth,(s,v)=>s.innerWidth=v,"只改变角色本体内部的细带宽度，单位为最终画面像素；外缘柔光有下方独立参数。");
    SettingSlider(content,"Softness","内带柔度",.05f,2,s=>s.softness,(s,v)=>s.softness=v,"只柔化内部窄带，不向墙面、黑幕或角色外侧扩光。");
    SettingSlider(content,"MaxRimGain","轮廓贡献上限",0,2,s=>s.maxRimGain,(s,v)=>s.maxRimGain=v,"轮廓独立预算；主体强光下额外轮廓还会收敛，避免变成常亮白圈。");
+   widgets.Title(content,"外缘柔光（独立受光层）");
+   SettingToggle(content,"OuterGlowEnabled","启用外缘柔光",s=>s.outerGlow,(s,v)=>s.outerGlow=v,"仅增加合法可见受光外缘的窄柔光；关闭不会更改环境染色、内侧亮边、高亮保护和身体alpha。");
+   SettingSlider(content,"OuterWidth","外扩宽度（1080p等效像素）",1,4,s=>s.outerWidth,(s,v)=>s.outerWidth=v,"2表示1080p输出约2像素。后端将等效最终像素换算到当前输出/Render Scale与覆盖缓存；不是图集像素。");
+   SettingSlider(content,"OuterStrength","外缘强度",0,2,s=>s.outerStrength,(s,v)=>s.outerStrength=v,"新增外缘独立强度；0严格回到无外缘的A状态。来源仍为实际有效主灯与合格局部灯，不把暗部保底当作灯。");
+   SettingSlider(content,"MaxOuterGain","外缘贡献上限",0,1,s=>s.maxOuterGain,(s,v)=>s.maxOuterGain=v,"只限制新增外缘能量；不通过抬高人物亮度、内侧轮廓预算或全局曝光制造光晕。");
+   SettingSlider(content,"OuterSoftness","外缘衰减柔度",.25f,4,s=>s.outerSoftness,(s,v)=>s.outerSoftness=v,"薄柔光向外渐隐的衰减形状；仍逐像素遵守深度与当前可见性许可，不跨黑幕或封窗。");
+   AddParameter(widgets.Button(content,"OuterBaselineA","A · 当前效果（无外缘）",()=>ApplyOuterPreset(0),"使用当前身体参数，仅关闭新增外缘；不会恢复旧Profile或重置刚调好的内侧轮廓。"));
+   AddParameter(widgets.Button(content,"OuterRecommendedB","B · 加入受光外缘柔光",()=>ApplyOuterPreset(1),"使用同一角色、机位、灯光与身体参数，启用独立外缘；只改变外缘模式，不把内侧轮廓拉满。"));
+   AddParameter(widgets.Button(content,"OuterDiagnosticC","C · 仅新增外缘能量",()=>ApplyOuterPreset(2),"诊断新增外部能量；不作为正常展示交付，不修改身体亮度、高亮保护或真实场景光照。"));
+   SettingToggle(content,"OuterGlowDiagnostic","仅外缘能量诊断",s=>s.outerDiagnostic,(s,v)=>s.outerDiagnostic=v,"相同的C诊断开关；查看新增柔光，不以全场Bloom作为前置。关闭后恢复正常身体显示。");
    widgets.Title(content,"高亮软肩与环境时钟");
    SettingSlider(content,"HighlightKnee","保护拐点（线性增益）",.05f,16,s=>s.knee,(s,v)=>s.knee=v,"低于拐点维持原响应；高于拐点逐渐压缩，保留原图深浅纹理。");
    SettingSlider(content,"HighlightCeiling","保护渐近上限",.1f,32,s=>s.ceiling,(s,v)=>s.ceiling=v,"必须大于拐点；输入会由同一Settings.Sanitize校验，不逐通道硬剪RGB。");
    freezeClock=widgets.Toggle(content,"FreezeClock","固定环境时刻（世界不停）",SetClockFrozen,"只停止明确EnvironmentRoot的演示时钟；不暂停天气、角色或AI。外部时刻源模式不可用。");
-   bloomToggle=widgets.Toggle(content,"BloomEnabled","Bloom（本轮不依赖）",v=>{},"本轮不创建或接管Bloom后端。当前未登记可安全控制的Bloom，故此开关不可用；基础受光仍必须成立。");bloomToggle.interactable=false;bloomToggle.SetIsOnWithoutNotify(false);
+   bloomToggle=widgets.Toggle(content,"BloomEnabled","Bloom（本轮不依赖）",v=>{},"本轮不创建或接管Bloom后端。当前未登记可安全控制的Bloom，故此开关不可用；基础受光与独立外缘柔光均不依赖它。");bloomToggle.interactable=false;bloomToggle.SetIsOnWithoutNotify(false);
    bloomReason=widgets.Text("BloomUnavailableReason",widgets.Row(content,"BloomReason",49),"Bloom未接管；基础效果不依赖Bloom。",12);bloomReason.enableWordWrapping=true;
    widgets.Title(content,"恢复、候选保存与真实诊断");
    widgets.Button(content,"RestorePreview","一键恢复进入面板前状态",RestorePreview,"恢复本轮打开窗口时捕获的角色运行副本；只归还本窗口拥有的时钟修改，不回写共享SO或存档。");
@@ -122,8 +132,16 @@ namespace Ossastra.Development.CharacterLighting
   public void ApplyPreset(int index)
   {
    if(observed==null)return;CapturePreviewIfNeeded();var state=before.TryGetValue(observed,out var saved)?saved.Clone():observed.Settings.Clone();
-   state.environmentTint=index>0;state.rim=state.highlightProtection=index>1;observed.Settings=state;
+   state.environmentTint=index>0;state.rim=state.highlightProtection=index>1;
+   state.outerGlow=false;state.outerDiagnostic=false;observed.Settings=state;
    Status="当前对象对照："+new[]{"旧效果","仅环境染色","染色 + 克制轮廓"}[Mathf.Clamp(index,0,2)]+"；原环境亮度未改";RefreshWidgets();
+  }
+  public void ApplyOuterPreset(int index)
+  {
+   if(observed==null)return;CapturePreviewIfNeeded();index=Mathf.Clamp(index,0,2);
+   // 外缘对照使用当前运行副本，不借打开面板时的快照回滚用户刚调好的内部效果。
+   var state=observed.Settings.Clone();state.outerGlow=index>0;state.outerDiagnostic=index==2;observed.Settings=state;
+   Status="外缘对照："+new[]{"A 当前效果 / 无外缘","B 受光外缘柔光","C 仅新增外缘能量"}[index]+"；身体参数与原Profile保持";RefreshWidgets();
   }
   public void SelectObserved(int index)
   {if(refreshing||index<0||index>=displayed.Length)return;observed=displayed[index];Status="观察 → "+ActorLabel(observed)+"；真正主控保持";RefreshWidgets();}
@@ -177,7 +195,7 @@ namespace Ossastra.Development.CharacterLighting
     RefreshReceiverList();foreach(var refresh in refreshers)refresh();bool valid=observed!=null&&observed.isActiveAndEnabled;foreach(var control in parameterControls)if(control!=null)control.interactable=valid&&(control.name!="SaveCandidateProfile"||Application.isEditor);
     if(header!=null)header.text=(expanded?"收起  ":"展开  ")+"角色光感";
     if(freezeClock!=null){freezeClock.interactable=environment!=null&&environment.timeMode!=EnvironmentTimeMode.External;freezeClock.SetIsOnWithoutNotify(hasClockLease&&leasedClock==environment&&environment!=null&&environment.timeMode!=EnvironmentTimeMode.External&&!environment.clockRunning);}
-    if(bloomReason!=null)bloomReason.text="未登记可控制的Bloom后端；开关不可用。\n基础染色、轮廓与保护不依赖Bloom。";
+    if(bloomReason!=null)bloomReason.text="未登记可控制的Bloom后端；开关不可用。\n染色、内侧亮边与外缘柔光均不依赖Bloom。";
     if(statusText!=null){statusText.text=Status+"\n"+ReadDiagnostics();if(statusLayout!=null)statusLayout.preferredHeight=Mathf.Max(210,statusText.GetPreferredValues(statusText.text,Mathf.Max(180,width-55),float.PositiveInfinity).y+14);}
    }
    finally{refreshing=false;}

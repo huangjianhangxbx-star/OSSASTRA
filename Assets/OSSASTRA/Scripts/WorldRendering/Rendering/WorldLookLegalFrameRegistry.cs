@@ -14,7 +14,7 @@ namespace Ossastra.WorldRendering.Rendering
         sealed class Entry
         {
             internal Camera camera;
-            internal RTHandle permission, depth;
+            internal RTHandle permission, depth, characterGlow;
             internal int frame;
         }
         static readonly Dictionary<int, Entry> entries = new Dictionary<int, Entry>();
@@ -23,7 +23,7 @@ namespace Ossastra.WorldRendering.Rendering
         public static event Action<int> Released;
         public static int RegisteredCameraCount => entries.Count;
 
-        public static void Publish(Camera camera, RTHandle permission, RTHandle depth, int frame)
+        public static void Publish(Camera camera, RTHandle permission, RTHandle depth, int frame, RTHandle characterGlow = null)
         {
             if (camera == null) return;
             if (!Valid(permission) || !Valid(depth) || frame != Time.frameCount) { Revoke(camera); return; }
@@ -31,6 +31,7 @@ namespace Ossastra.WorldRendering.Rendering
             invalidated.Remove(id);
             if (!entries.TryGetValue(id, out var entry)) { entry = new Entry(); entries.Add(id, entry); }
             entry.camera = camera; entry.permission = permission; entry.depth = depth; entry.frame = frame;
+            entry.characterGlow = Valid(characterGlow) && characterGlow.rt.width == permission.rt.width && characterGlow.rt.height == permission.rt.height ? characterGlow : null;
         }
 
         public static bool TryGet(Camera camera, int frame, out RTHandle permission, out RTHandle depth)
@@ -48,6 +49,14 @@ namespace Ossastra.WorldRendering.Rendering
             bool existed = entries.Remove(id);
             existed |= invalidated.Remove(id);
             if (existed) Released?.Invoke(id);
+        }
+
+        // 只传同相机当前已完成的颜色贡献，不授予任何新空间许可，也不接管RT所有权。
+        public static bool TryGetCharacterGlow(Camera camera, int frame, out RTHandle glow)
+        {
+            glow = null;
+            if (!TryGet(camera, frame, out _, out _) || !entries.TryGetValue(camera.GetInstanceID(), out var entry) || !Valid(entry.characterGlow)) return false;
+            glow = entry.characterGlow; return true;
         }
 
         /// <summary>相机本次绘制开始或结束时使旧输出失效，保留消费者可复用缓冲；不发资源释放事件。</summary>

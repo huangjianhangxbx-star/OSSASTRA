@@ -1,0 +1,39 @@
+/* GPU合同：真实生产Seed shader的方向/颜色、熄灯、近景遮挡和无伪切线；不创造场景或替换业务状态。 */
+using System;using System.Linq;using System.Collections.Generic;using UnityEngine;using UnityEngine.Rendering;
+public class CharacterOuterGlowSeedGpuContract
+{
+ public static string Run()
+ {
+  var shader=Shader.Find("Hidden/Ossastra/CharacterLighting/OuterGlowSeed");if(shader==null)return "RED seed shader missing";
+  const int size=128;var owned=new List<UnityEngine.Object>();var cmd=new CommandBuffer();var old=RenderTexture.active;
+  var vectors=new[]{"_CharacterCoverageRect","_CharacterCoverageAtlasRect","_CharacterCoverageScreenSize","_CharacterCoverageTexelSize","_CharacterOuterSourceST","_CharacterOuterSourceFoot","_CharacterOuterSourceNormal","_CharacterOuterControls","_CharacterOuterWidth","_RoomSightTargetSize","_MainLightPosition","_MainLightColor","_CharacterRimLocalColor","_EnvironmentCloudMotion","_CharacterLightControls","_EnvironmentSkyAmbient","_EnvironmentHorizonAmbient","_EnvironmentGroundAmbient"};var vb=vectors.ToDictionary(n=>n,Shader.GetGlobalVector);
+  var floats=new[]{"_CharacterCoverageReady","_CharacterOuterSourceAlpha","_CharacterOuterSourceCutoff","_CharacterOuterSourceUpright","_EnvironmentLightingEnabled","_EnvironmentSurfaceRole","_EnvironmentFullSurface","_RoomSightStaticEnvironment","_EnvironmentMinimumOverride"};var fb=floats.ToDictionary(n=>n,Shader.GetGlobalFloat);
+  var ints=new[]{"_RoomSightSeedCount","_RoomSightOwnerCount","_RoomSightOwnerExterior","_RoomSightExteriorView","_RoomSightBuildingCount","_RoomSightBlockerCount","_RoomSightDomainCount","_RoomSightPassMode","_RoomFogHistoryCount"};var ib=ints.ToDictionary(n=>n,Shader.GetGlobalInteger);
+  var textures=new[]{"_CharacterCoverageTexture","_CharacterOuterLegalDepth","_CharacterOuterSourceTexture"};var tb=textures.ToDictionary(n=>n,Shader.GetGlobalTexture);
+  var inverse=Shader.GetGlobalMatrix("_RoomSightInverseViewProjection");var keywords=new[]{"_MAIN_LIGHT_SHADOWS","_MAIN_LIGHT_SHADOWS_CASCADE"};var kb=keywords.ToDictionary(n=>n,Shader.IsKeywordEnabled);
+  try
+  {
+   var material=new Material(shader);owned.Add(material);var shape=new Texture2D(size,size,TextureFormat.RGBA32,false,true){filterMode=FilterMode.Point,wrapMode=TextureWrapMode.Clamp};owned.Add(shape);var depth=new Texture2D(size,size,TextureFormat.RFloat,false,true){filterMode=FilterMode.Point,wrapMode=TextureWrapMode.Clamp};owned.Add(depth);
+   var colors=new Color[size*size];var depths=new Color[size*size];float far=SystemInfo.usesReversedZBuffer?0:1,near=SystemInfo.usesReversedZBuffer?1:0;
+   for(int y=0;y<size;y++)for(int x=0;x<size;x++){colors[y*size+x]=x>=32&&x<=95&&y>=32&&y<=95?Color.white:Color.clear;depths[y*size+x]=new Color(far,0,0,0);}shape.SetPixels(colors);shape.Apply();depth.SetPixels(depths);depth.Apply();
+   var mesh=new Mesh();owned.Add(mesh);mesh.vertices=new[]{new Vector3(-.5f,-.5f,.5f),new Vector3(.5f,-.5f,.5f),new Vector3(.5f,.5f,.5f),new Vector3(-.5f,.5f,.5f)};mesh.uv=new[]{Vector2.zero,Vector2.right,Vector2.one,Vector2.up};mesh.colors=Enumerable.Repeat(Color.white,4).ToArray();mesh.triangles=new[]{0,1,2,0,2,3};mesh.RecalculateBounds();
+   var target=new RenderTexture(size,size,0,RenderTextureFormat.ARGBFloat,RenderTextureReadWrite.Linear);owned.Add(target);target.Create();var pixels=new Texture2D(size,size,TextureFormat.RGBAFloat,false,true);owned.Add(pixels);
+   Matrix4x4 projection=GL.GetGPUProjectionMatrix(Matrix4x4.identity,true);
+   foreach(var k in keywords)Shader.DisableKeyword(k);
+   foreach(var n in ints)Shader.SetGlobalInteger(n,0);Shader.SetGlobalInteger("_RoomSightExteriorView",1);Shader.SetGlobalInteger("_RoomSightPassMode",1);
+   Shader.SetGlobalMatrix("_RoomSightInverseViewProjection",projection.inverse);Shader.SetGlobalVector("_RoomSightTargetSize",new Vector4(size,size,1f/size,1f/size));
+   Shader.SetGlobalTexture("_CharacterCoverageTexture",shape);Shader.SetGlobalTexture("_CharacterOuterLegalDepth",depth);Shader.SetGlobalTexture("_CharacterOuterSourceTexture",Texture2D.whiteTexture);
+   Shader.SetGlobalFloat("_CharacterCoverageReady",1);Shader.SetGlobalVector("_CharacterCoverageRect",new Vector4(0,0,1,1));Shader.SetGlobalVector("_CharacterCoverageAtlasRect",new Vector4(0,0,1,1));Shader.SetGlobalVector("_CharacterCoverageScreenSize",new Vector4(size,size,1f/size,1f/size));Shader.SetGlobalVector("_CharacterCoverageTexelSize",new Vector4(1f/size,1f/size,size,size));
+   Shader.SetGlobalVector("_CharacterOuterSourceST",new Vector4(1,1,0,0));Shader.SetGlobalFloat("_CharacterOuterSourceAlpha",1);Shader.SetGlobalFloat("_CharacterOuterSourceCutoff",0);Shader.SetGlobalFloat("_CharacterOuterSourceUpright",0);
+   Shader.SetGlobalVector("_CharacterOuterControls",new Vector4(1,1,.18f,1.5f));Shader.SetGlobalVector("_CharacterOuterWidth",new Vector4(2,0,0,0));Shader.SetGlobalVector("_CharacterLightControls",Vector4.zero);Shader.SetGlobalVector("_CharacterRimLocalColor",Vector4.zero);Shader.SetGlobalFloat("_EnvironmentLightingEnabled",1);Shader.SetGlobalFloat("_EnvironmentSurfaceRole",2);Shader.SetGlobalFloat("_EnvironmentFullSurface",1);Shader.SetGlobalFloat("_EnvironmentMinimumOverride",100);Shader.SetGlobalVector("_EnvironmentCloudMotion",Vector4.zero);
+   Action render=()=>{cmd.Clear();cmd.SetRenderTarget(target);cmd.SetViewport(new Rect(0,0,size,size));cmd.ClearRenderTarget(false,true,Color.clear);cmd.SetViewProjectionMatrices(Matrix4x4.identity,projection);cmd.DrawMesh(mesh,Matrix4x4.identity,material,0,0);Graphics.ExecuteCommandBuffer(cmd);RenderTexture.active=target;pixels.ReadPixels(new Rect(0,0,size,size),0,0);pixels.Apply();};
+   Shader.SetGlobalVector("_MainLightPosition",new Vector4(1,0,0,0));Shader.SetGlobalVector("_MainLightColor",new Vector4(2,.3f,.05f,1));render();var warm=pixels.GetPixel(95,64);var wrong=pixels.GetPixel(32,64);if(warm.r<.001f||warm.r<warm.b*3||wrong.maxColorComponent>.0001f)throw new Exception("warm/right directional seed failed "+warm+" wrong="+wrong);
+   Shader.SetGlobalVector("_MainLightPosition",new Vector4(-1,0,0,0));Shader.SetGlobalVector("_MainLightColor",new Vector4(.05f,.2f,2,1));render();var cool=pixels.GetPixel(32,64);if(cool.b<.001f||cool.b<cool.r*3)throw new Exception("cool/left failed "+cool);
+   Shader.SetGlobalVector("_MainLightColor",Vector4.zero);Shader.SetGlobalVector("_EnvironmentSkyAmbient",Vector4.one*100);Shader.SetGlobalVector("_EnvironmentHorizonAmbient",Vector4.one*100);Shader.SetGlobalVector("_EnvironmentGroundAmbient",Vector4.one*100);render();var unlit=pixels.GetPixel(32,64);if(unlit.r+unlit.g+unlit.b>.00001f)throw new Exception("ambient/floor invented source "+unlit);
+   Shader.SetGlobalVector("_MainLightPosition",new Vector4(1,0,0,0));Shader.SetGlobalVector("_MainLightColor",Vector4.one*1000);render();var strong=pixels.GetPixel(95,64);if(Mathf.Max(strong.r,Mathf.Max(strong.g,strong.b))>.09001f)throw new Exception("strong source exceeded half actor budget "+strong);
+   for(int y=0;y<size;y++)for(int x=64;x<size;x++)depths[y*size+x]=new Color(near,0,0,0);depth.SetPixels(depths);depth.Apply();render();var occluded=pixels.GetPixel(95,64);var cut=pixels.GetPixel(63,64);if(occluded.r+occluded.g+occluded.b>.00001f||cut.r+cut.g+cut.b>.00001f)throw new Exception("wall/cutline source leak "+occluded+" cut="+cut);
+   return "GREEN seed warm="+warm+" cool="+cool+" unlit="+unlit+" capped="+strong+" occluded="+occluded+" falseCut="+cut;
+  }
+  finally{cmd.Release();RenderTexture.active=old;foreach(var p in vb)Shader.SetGlobalVector(p.Key,p.Value);foreach(var p in fb)Shader.SetGlobalFloat(p.Key,p.Value);foreach(var p in ib)Shader.SetGlobalInteger(p.Key,p.Value);foreach(var p in tb)Shader.SetGlobalTexture(p.Key,p.Value);Shader.SetGlobalMatrix("_RoomSightInverseViewProjection",inverse);foreach(var p in kb)if(p.Value)Shader.EnableKeyword(p.Key);else Shader.DisableKeyword(p.Key);for(int i=owned.Count-1;i>=0;i--){if(owned[i] is RenderTexture r)r.Release();UnityEngine.Object.DestroyImmediate(owned[i]);}}
+ }
+}
