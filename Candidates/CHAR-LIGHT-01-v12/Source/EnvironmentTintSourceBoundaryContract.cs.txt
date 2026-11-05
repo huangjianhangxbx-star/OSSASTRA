@@ -1,0 +1,43 @@
+/* 功能：验证实际增强源的Linear混合、低太阳风格化暖色、地平线连续性及源切换诊断。
+ * 边界：仅私有禁用Binding/反射Frame，无主场时钟/灯光/保存修改。
+ */
+using System;using System.Reflection;using System.Collections.Generic;using UnityEngine;
+using Ossastra.EnvironmentSimulation;using Ossastra.EnvironmentSimulation.Rendering;using Funplay.Editor.Tools.Scripting;
+public sealed class EnvironmentTintSourceBoundaryContract:IFunplayCommand
+{
+ static readonly Color AmbientSky=new Color(.38f,.51f,.66f),AmbientEquator=new Color(.34f,.39f,.39f),SunWarm=new Color(1,.52f,.25f);
+ static EnvironmentFrame Frame(float elevation,bool invalid=false)
+ {
+  var type=typeof(EnvironmentFrame).Assembly.GetType("Ossastra.EnvironmentSimulation.EnvironmentFrameData",true);var data=Activator.CreateInstance(type,true);
+  Action<string,object> put=(n,v)=>type.GetField(n,BindingFlags.Instance|BindingFlags.NonPublic).SetValue(data,v);
+  put("enabled",true);put("contribution",EnvironmentContribution.Combined);put("sun",new SunPose(180,elevation));
+  put("ambientSky",invalid?new Color(float.NaN,1,1):AmbientSky);put("ambientEquator",AmbientEquator);
+  put("sunColor",elevation<0?new Color(.42f,.55f,.82f):SunWarm);
+  return (EnvironmentFrame)Activator.CreateInstance(typeof(EnvironmentFrame),BindingFlags.Instance|BindingFlags.NonPublic,null,new[]{data},null);
+ }
+ static Vector4 Normalize(Color c,float strength){float p=Mathf.Max(c.r,Mathf.Max(c.g,c.b));return new Vector4(c.r/p,c.g/p,c.b/p,strength);}
+ static float Diff(Vector4 a,Vector4 b)=>Mathf.Max(Mathf.Abs(a.x-b.x),Mathf.Max(Mathf.Abs(a.y-b.y),Mathf.Max(Mathf.Abs(a.z-b.z),Mathf.Abs(a.w-b.w))));
+ public void Execute(ExecutionContext ctx)
+ {
+  var failures=new List<string>();int count=0;Action<bool,string> check=(ok,name)=>{count++;if(!ok)failures.Add(name);};
+  var go=new GameObject("Private environment source boundary contract");go.hideFlags=HideFlags.HideAndDontSave;go.SetActive(false);
+  try
+  {
+   var b=go.AddComponent<EnvironmentSkyBinding>();b.syncSkyColorTo2D=true;b.overrideSkyColors=false;b.stylizedSkyTintStrength=.75f;
+   var noon=b.ResolveCharacterEnvironmentTint(Frame(60));var expectedNoon=Normalize(Color.Lerp(AmbientSky.linear,AmbientEquator.linear,.65f),.75f);
+   check(Diff(noon,expectedNoon)<.00002f,"Natural ambient target decodes each author color once before linear mixing");
+   var low=b.ResolveCharacterEnvironmentTint(Frame(8));check(Diff(low,Normalize(SunWarm.linear,.75f))<.00002f,"Low positive sun uses the published warm SunColor as an artistic target");
+   var before=b.ResolveCharacterEnvironmentTint(Frame(.0001f));var after=b.ResolveCharacterEnvironmentTint(Frame(-.0001f));
+   check(Diff(before,after)<.00002f,"Warm target weight vanishes continuously where Frame switches SunColor to moonlight");
+   check(b.CharacterEnvironmentTintSource(Frame(60)).Contains("自然"),"Natural source diagnostics follows the selected source");
+   var invalid=b.ResolveCharacterEnvironmentTint(Frame(60,true));check(invalid.w==0,"Invalid actual natural color returns neutral");
+   b.overrideSkyColors=true;b.zenithColor=new Color(.9f,.08f,.02f);b.horizonColor=new Color(.12f,.8f,.35f);
+   var mixed=b.ResolveCharacterEnvironmentTint(Frame(60));var expectedMixed=Normalize(Color.Lerp(b.zenithColor.linear,b.horizonColor.linear,.65f),.75f);
+   check(Diff(mixed,expectedMixed)<.00002f,"Manual mixed colors are blended in Linear rather than decoded twice");
+   check(b.CharacterEnvironmentTintSource(Frame(60)).Contains("手动"),"Manual source diagnostics follows the selected source");
+   b.stylizedSkyTintStrength=0;check(b.ResolveCharacterEnvironmentTint(Frame(60)).w==0&&b.CharacterEnvironmentTintSource(Frame(60)).Contains("中性"),"Zero strength clears both the effective target and diagnostics");
+   ctx.ReturnValue=Newtonsoft.Json.JsonConvert.SerializeObject(new{pass=failures.Count==0,count,failures,noon=noon.ToString("F5"),low=low.ToString("F5"),boundaryDifference=Diff(before,after),mixed=mixed.ToString("F5")});
+  }
+  finally{UnityEngine.Object.DestroyImmediate(go);}
+ }
+}

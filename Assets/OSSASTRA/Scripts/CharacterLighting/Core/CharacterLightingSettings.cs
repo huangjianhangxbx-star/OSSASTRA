@@ -10,8 +10,12 @@ namespace Ossastra.CharacterLighting
     [Serializable]
     public sealed class CharacterLightingSettings
     {
-        [Tooltip("只让环境底光的色度跟随手动天空覆盖；直射与局部灯保留原色。")]
+        [Tooltip("让角色环境基础色度跟随有效环境；直射与局部灯保留原色。关闭不影响轮廓/柔光/保护。")]
         public bool environmentTint = true;
+        [Tooltip("增强模式把实际可读性补足与底光一起染色；关闭精确使用原版底光染色。")]
+        public bool enhancedEnvironmentTint = true;
+        [Range(0, 2), Tooltip("0精确回A；0到1过渡为B，1到2放大环境色响应（最终权重限1）；不改环境强度或D/L。")]
+        public float environmentBlend = 2;
         [Tooltip("按真实角色完整覆盖，在朝向有效灯的一侧产生细内带；不向外扩张。")]
         public bool rim = true;
         [Tooltip("压缩角色本体与轮廓合计光照增益的过亮段，保留原图纹理与透明度。")]
@@ -25,32 +29,34 @@ namespace Ossastra.CharacterLighting
         [Range(0, 1), Tooltip("环境色响应强度。0严格回对应原路径；不等同物理天空漫反射积分。")]
         public float tintStrength = 1f;
         [Range(0, 2), Tooltip("方向性轮廓贡献倍率；没有有效灯时保持0贡献。")]
-        public float rimStrength = .28f;
+        public float rimStrength = 2;
         [Range(.25f, 4), Tooltip("最终画面的内侧轮廓宽度，单位为像素；不是源图集像素。")]
         public float innerWidth = 4f;
         [Range(.05f, 2), Tooltip("内侧轮廓过渡柔度；不扩张角色显示许可。")]
-        public float softness = 1.23f;
+        public float softness = 2;
         [Range(0, 2), Tooltip("轮廓在总光照增益中的独立亮度预算；强主体光照时进一步收敛。")]
-        public float maxRimGain = .35f;
+        public float maxRimGain = 2;
         [Range(.05f, 16), Tooltip("线性光照增益的软肩拐点；低于此值完全不压缩。")]
-        public float knee = 1.2f;
+        public float knee = 16;
         [Range(.1f, 32), Tooltip("线性光照增益的渐近亮度上限；不逐通道硬截颜色。")]
-        public float ceiling = 2;
+        public float ceiling = 32;
 
         [Range(1, 4), Tooltip("外扩宽度，单位为1080p等效最终画面像素；后端按实际输出高度和Render Scale换算，独立于内侧亮边。")]
-        public float outerWidth = 2;
+        public float outerWidth = 4;
         [Range(0, 2), Tooltip("外缘独立受光贡献倍率；0严格关闭新增能量，亮度保底不作为发光来源。")]
-        public float outerStrength = .22f;
+        public float outerStrength = 2;
         [Range(0, 1), Tooltip("新增外缘能量的独立有界预算；不更改身体原高亮保护或内侧轮廓预算。")]
-        public float maxOuterGain = .18f;
+        public float maxOuterGain = 1;
         [Range(.25f, 4), Tooltip("仅改变外缘向外衰减的柔度；不放宽窗孔、墙体、黑幕与角色身份边界。")]
-        public float outerSoftness = 1.5f;
+        public float outerSoftness = 4;
 
         public CharacterLightingSettings Clone()
         {
             return new CharacterLightingSettings
             {
                 environmentTint = environmentTint,
+                enhancedEnvironmentTint = enhancedEnvironmentTint,
+                environmentBlend = environmentBlend,
                 rim = rim,
                 highlightProtection = highlightProtection,
                 outerGlow = outerGlow,
@@ -72,16 +78,17 @@ namespace Ossastra.CharacterLighting
         public void Sanitize()
         {
             tintStrength = FiniteRange(tintStrength, 0, 1, 1f);
-            rimStrength = FiniteRange(rimStrength, 0, 2, .28f);
+            environmentBlend = FiniteRange(environmentBlend, 0, 2, 2);
+            rimStrength = FiniteRange(rimStrength, 0, 2, 2);
             innerWidth = FiniteRange(innerWidth, .25f, 4, 4f);
-            softness = FiniteRange(softness, .05f, 2, 1.23f);
-            maxRimGain = FiniteRange(maxRimGain, 0, 2, .35f);
-            knee = FiniteRange(knee, .05f, 16, 1.2f);
-            ceiling = FiniteRange(ceiling, knee + .05f, 32, Mathf.Max(knee + .05f, 2));
-            outerWidth = FiniteRange(outerWidth, 1, 4, 2);
-            outerStrength = FiniteRange(outerStrength, 0, 2, .22f);
-            maxOuterGain = FiniteRange(maxOuterGain, 0, 1, .18f);
-            outerSoftness = FiniteRange(outerSoftness, .25f, 4, 1.5f);
+            softness = FiniteRange(softness, .05f, 2, 2);
+            maxRimGain = FiniteRange(maxRimGain, 0, 2, 2);
+            knee = FiniteRange(knee, .05f, 16, 16);
+            ceiling = FiniteRange(ceiling, knee + .05f, 32, 32);
+            outerWidth = FiniteRange(outerWidth, 1, 4, 4);
+            outerStrength = FiniteRange(outerStrength, 0, 2, 2);
+            maxOuterGain = FiniteRange(maxOuterGain, 0, 1, 1);
+            outerSoftness = FiniteRange(outerSoftness, .25f, 4, 4);
         }
 
         static float FiniteRange(float value, float minimum, float maximum, float fallback)

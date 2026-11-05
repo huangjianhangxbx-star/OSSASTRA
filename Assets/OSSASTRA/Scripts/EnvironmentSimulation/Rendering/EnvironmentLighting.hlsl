@@ -179,8 +179,9 @@ float3 EnvironmentLightingGain(float3 world, float3 normal, float role, bool cha
  int room = EnvironmentRoomIndex(world);
  if (room >= 0) ambient *= saturate(_EnvironmentIndoorAmbientScale);
  float3 ambientColorDelta=0;
- // 手动天空只改变登记角色的室外环境贡献。先保留原保底明暗，再分配零亮度差的环境色度，避免max吞暖色/抬冷色。
- if (characterEffects && role > 1.5 && _CharacterLightControls.x > .5 && room < 0)
+ bool characterOutdoor = characterEffects && role > 1.5 && _CharacterLightControls.x > .5 && room < 0;
+ // A精确保留既有手动天空底光色差；增强分支会替换整份结果，不能把两种染色相加。
+ if (characterOutdoor)
   ambientColorDelta = CharacterLightingTintAmbient(ambient, _EnvironmentStylizedSkyTint)-ambient;
  float3 lightDirection = _MainLightPosition.xyz;
  half normalLight = saturate(dot(normal, lightDirection));
@@ -207,8 +208,18 @@ float3 EnvironmentLightingGain(float3 world, float3 normal, float role, bool cha
  half minimum = saturate(_EnvironmentMinimumOverride);
  if (role > 1.5) minimum = max(minimum, saturate(_EnvironmentLightResponse.w));
  lighting = max(lighting, minimum.xxx);
- // 原minimum数值/response保持；环境色差与直射/局部灯相互独立，不在最终RGB上再乘色。
+ // 原minimum数值/response保持；A与新增强度0始终回到此既有结果。
  lighting += ambientColorDelta;
+ if (characterOutdoor && CharacterLightingFinite(_CharacterEnvironmentBlend) && _CharacterEnvironmentBlend > 0
+     && CharacterLightingHasEnvironmentTint(_CharacterEnvironmentTint))
+ {
+  // F仅补旧逐分量max实际缺少的光；有强D/L时自动缩减，不多加一整份minimum。
+  // 原底光和F合成B后统一分配环境色度，之后不再用中性max冲回灰色。
+  float3 supplement = max(minimum.xxx - max(ambient + direct + local, 0), 0);
+  float3 basis = max(ambient, 0) + supplement;
+  float3 enhanced = CharacterLightingTintBasis(basis, _CharacterEnvironmentTint) + direct + local;
+  lighting = lerp(lighting, enhanced, saturate(_CharacterEnvironmentBlend));
+ }
  // 与原生受光共用室外/遮雨判定；不把预乘装备变成额外高亮的透明片。
  half wet = EnvironmentSurfaceWetness(world, role);
  return lerp(half3(1,1,1), lighting * (1 - wet * .08), saturate(response));

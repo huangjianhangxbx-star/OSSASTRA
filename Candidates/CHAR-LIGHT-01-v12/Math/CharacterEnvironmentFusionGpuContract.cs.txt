@@ -1,0 +1,76 @@
+/* 功能：直接执行正式WorldTile/EnvironmentLighting路径，验证基础环境与实际可读性缺口共同染色。
+ * 边界：固定角色模式，对比旧A与增强B；无业务/场景修改，D/L在无补足与软肩条件下比较增量。
+ * 生命周期：不修改场景、Profile或原图；所有借用全局、私有GPU对象finally恢复/释放。
+ */
+using System;using System.Linq;using UnityEngine;using UnityEngine.Rendering;using UnityEditor;using Newtonsoft.Json;using Funplay.Editor.Tools.Scripting;
+public sealed class CharacterEnvironmentFusionGpuContract:IFunplayCommand
+{
+ static readonly Vector4 Off=new Vector4(1,1,1,0),Warm=new Vector4(1,.45f,.25f,1),Cool=new Vector4(.25f,.45f,1,1);
+ static float Luma(Color c)=>c.r*.2126f+c.g*.7152f+c.b*.0722f;
+ static float Diff(Color a,Color b)=>Mathf.Max(Mathf.Abs(a.r-b.r),Mathf.Abs(a.g-b.g),Mathf.Abs(a.b-b.b));
+ static bool Same(Color a,Color b)=>Diff(a,b)<.001f&&Mathf.Abs(a.a-b.a)<.0001f;
+ static void Ambient(Vector3 c){foreach(var name in new[]{"_EnvironmentSkyAmbient","_EnvironmentHorizonAmbient","_EnvironmentGroundAmbient"})Shader.SetGlobalVector(name,new Vector4(c.x,c.y,c.z,0));}
+ static Color Draw(Material material,Mesh mesh,RenderTexture rt,Texture2D read,Vector4 tint,float blend=1)
+ {
+  Shader.SetGlobalVector("_CharacterEnvironmentTint",tint);Shader.SetGlobalFloat("_CharacterEnvironmentBlend",blend);var cmd=new CommandBuffer{name="Low ambient / old minimum-preserving color GPU contract"};
+  try{cmd.SetRenderTarget(rt);cmd.SetViewport(new Rect(0,0,16,16));cmd.ClearRenderTarget(false,true,Color.clear);cmd.SetViewProjectionMatrices(Matrix4x4.identity,Matrix4x4.identity);cmd.DrawMesh(mesh,Matrix4x4.identity,material,0,0);Graphics.ExecuteCommandBuffer(cmd);}finally{cmd.Release();}
+  RenderTexture.active=rt;read.ReadPixels(new Rect(0,0,16,16),0,0);read.Apply();return read.GetPixel(8,8);
+ }
+ public void Execute(ExecutionContext ctx)
+ {
+  if(Application.dataPath!="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets")throw new Exception("Project guard");var shader=Shader.Find("Hidden/Ossastra/Rooms/SightWorldTile");if(shader==null||!shader.isSupported)throw new Exception("Actual WorldTile shader unavailable");
+  var fs=new[]{"_EnvironmentLightingEnabled","_EnvironmentIndoorAmbientScale","_EnvironmentWetness","_RoomSightStaticEnvironment","_EnvironmentFullSurface","_EnvironmentSurfaceRole","_EnvironmentResponseOverride","_EnvironmentReceiveShadow","_EnvironmentMinimumOverride","_CharacterEnvironmentBlend"};var ns=new[]{"_EnvironmentIndoorCount","_EnvironmentLocalLightCount","_EnvironmentShelterCount","_RoomSightOwnerCount","_RoomSightOwnerExterior","_RoomSightSeedCount","_RoomSightBuildingCount","_RoomSightDomainCount","_RoomSightBlockerCount","_RoomSightWindowCount","_RoomSightCameraBlockerCount","_RoomSightExteriorView","_RoomSightPassMode"};var vs=new[]{"_EnvironmentStylizedSkyTint","_CharacterEnvironmentTint","_EnvironmentSkyAmbient","_EnvironmentHorizonAmbient","_EnvironmentGroundAmbient","_EnvironmentLightResponse","_EnvironmentCloudParameters","_EnvironmentCloudMotion","_MainLightPosition","_MainLightColor","_RoomSightTargetSize","_CharacterLightControls","_CharacterLightShoulder"};
+  var oldF=fs.ToDictionary(s=>s,s=>Shader.GetGlobalFloat(s));var oldN=ns.ToDictionary(s=>s,s=>Shader.GetGlobalInteger(s));var oldV=vs.ToDictionary(s=>s,s=>Shader.GetGlobalVector(s));var inverse=Shader.GetGlobalMatrix("_RoomSightInverseViewProjection");var oldMatrices=Shader.GetGlobalMatrixArray("_EnvironmentIndoorMatrices");var oldExtents=Shader.GetGlobalVectorArray("_EnvironmentIndoorHalfExtents");var oldPositions=Shader.GetGlobalVectorArray("_EnvironmentLocalLightPositions");var oldColors=Shader.GetGlobalVectorArray("_EnvironmentLocalLightColors");var previous=RenderTexture.active;
+  Texture2D texture=null,read=null;Material material=null;Mesh mesh=null;RenderTexture rt=null;
+  try
+  {
+   foreach(var s in fs)Shader.SetGlobalFloat(s,0);foreach(var s in ns)Shader.SetGlobalInteger(s,0);Shader.SetGlobalInteger("_RoomSightExteriorView",1);Shader.SetGlobalMatrix("_RoomSightInverseViewProjection",Matrix4x4.identity);Shader.SetGlobalVector("_RoomSightTargetSize",new Vector4(16,16,1f/16,1f/16));Shader.SetGlobalFloat("_EnvironmentLightingEnabled",1);Shader.SetGlobalFloat("_EnvironmentFullSurface",1);Shader.SetGlobalFloat("_EnvironmentSurfaceRole",2);Shader.SetGlobalFloat("_EnvironmentResponseOverride",1);Shader.SetGlobalFloat("_EnvironmentIndoorAmbientScale",.22f);Shader.SetGlobalVector("_EnvironmentLightResponse",new Vector4(1,1,.7f,.12f));Shader.SetGlobalVector("_CharacterLightControls",new Vector4(1,0,0,.35f));Shader.SetGlobalVector("_EnvironmentCloudParameters",Vector4.zero);Shader.SetGlobalVector("_EnvironmentCloudMotion",Vector4.zero);Shader.SetGlobalVector("_MainLightPosition",new Vector4(0,1,0,0));Shader.SetGlobalVector("_MainLightColor",Vector4.zero);
+   material=new Material(shader){hideFlags=HideFlags.HideAndDontSave};texture=new Texture2D(2,2,TextureFormat.RGBAFloat,false,true);texture.SetPixels(Enumerable.Repeat(new Color(.5f,.5f,.5f,1),4).ToArray());texture.Apply();read=new Texture2D(16,16,TextureFormat.RGBAFloat,false,true);rt=new RenderTexture(16,16,0,RenderTextureFormat.ARGBFloat,RenderTextureReadWrite.Linear);if(!rt.Create())throw new Exception("Private GPU target creation failed");material.SetTexture("_MainTex",Texture2D.whiteTexture);material.SetTexture("_SecondTex",texture);material.SetColor("_Color",Color.white);material.SetVector("_GroundBounds",new Vector4(-1000,-1000,1000,1000));material.SetFloat("_BaseCoverage",1);material.SetFloat("_DebugMask",0);material.SetFloat("_WorldPeriod",1);
+   mesh=new Mesh();mesh.vertices=new[]{new Vector3(-1,-1,.5f),new Vector3(3,-1,.5f),new Vector3(-1,3,.5f)};mesh.triangles=new[]{0,1,2};mesh.uv=new[]{Vector2.zero,Vector2.right*2,Vector2.up*2};mesh.colors=new[]{Color.white,Color.white,Color.white};mesh.RecalculateBounds();
+   var matrices=new Matrix4x4[32];matrices[0]=Matrix4x4.identity;var extents=new Vector4[32];extents[0]=new Vector4(10,10,10,0);Shader.SetGlobalMatrixArray("_EnvironmentIndoorMatrices",matrices);Shader.SetGlobalVectorArray("_EnvironmentIndoorHalfExtents",extents);var positions=new Vector4[8];positions[0]=new Vector4(0,0,2,10);var colors=new Vector4[8];colors[0]=new Vector4(.1f,.3f,.8f,0);Shader.SetGlobalVectorArray("_EnvironmentLocalLightPositions",positions);Shader.SetGlobalVectorArray("_EnvironmentLocalLightColors",colors);
+   var samples=new System.Collections.Generic.List<Color>();
+   Func<Vector4,float,Color> draw=(t,b)=>{var c=Draw(material,mesh,rt,read,t,b);samples.Add(c);return c;};
+   Shader.SetGlobalVector("_EnvironmentLightResponse",new Vector4(1,1,1,.12f));
+   Shader.SetGlobalVector("_EnvironmentStylizedSkyTint",new Vector4(1,.45f,.25f,1));
+   var strongWarm=new Vector4(1,.12f,.01f,1);var strongCool=new Vector4(.01f,.12f,1,1);
+   var low=new Vector3(.03f,.052f,.107f);Ambient(low);
+   var legacy=draw(strongWarm,0);var enhanced=draw(strongWarm,1);var zeroStrength=draw(new Vector4(1,.12f,.01f,0),1);
+   bool zeroReturnsLegacy=Same(legacy,zeroStrength),enhancedWarmer=enhanced.r>legacy.r+.015f&&enhanced.b<legacy.b-.005f;
+   Ambient(Vector3.zero);Shader.SetGlobalVector("_EnvironmentStylizedSkyTint",Off);
+   var floorA=draw(strongWarm,0);var floorWarm=draw(strongWarm,1);var floorCool=draw(strongCool,1);
+   bool floorHasTint=floorWarm.r>floorWarm.b+.025f&&floorCool.b>floorCool.r+.025f;
+   bool floorBrightness=Mathf.Abs(Luma(floorWarm)-Luma(floorA))<.0015f&&Mathf.Abs(Luma(floorCool)-Luma(floorA))<.0015f;
+   Shader.SetGlobalVector("_EnvironmentLightResponse",new Vector4(1,1,1,0));var black=draw(strongWarm,1);
+   bool noLightStaysBlack=Mathf.Max(black.r,black.g,black.b)<.0001f;
+   // 在F为0且不启软肩的固定场景中比较增量，免得把补足减少误判为灯光被染。
+   Ambient(Vector3.one*.4f);var baseWarm=draw(strongWarm,1);var baseOff=draw(Off,0);
+   Shader.SetGlobalVector("_MainLightColor",new Vector4(.3f,.5f,.8f,0));var directWarm=draw(strongWarm,1);var directOff=draw(Off,0);
+   bool directDelta=Diff(directWarm-baseWarm,directOff-baseOff)<.002f;
+   Shader.SetGlobalVector("_MainLightColor",Vector4.zero);Shader.SetGlobalInteger("_EnvironmentLocalLightCount",1);
+   var localWarm=draw(strongWarm,1);var localOff=draw(Off,0);bool localDelta=Diff(localWarm-baseWarm,localOff-baseOff)<.002f;
+   Shader.SetGlobalInteger("_EnvironmentLocalLightCount",0);Ambient(Vector3.zero);Shader.SetGlobalVector("_EnvironmentLightResponse",new Vector4(1,1,1,.12f));
+   Shader.SetGlobalVector("_MainLightColor",new Vector4(.3f,.5f,.8f,0));var sufficientLight=draw(strongWarm,1);
+   bool noExtraFloor=Diff(sufficientLight,directOff-baseOff)<.002f;
+   Shader.SetGlobalVector("_MainLightColor",Vector4.zero);Ambient(low);Shader.SetGlobalVector("_EnvironmentLightResponse",new Vector4(1,1,1,.12f));
+   Shader.SetGlobalInteger("_EnvironmentIndoorCount",1);var indoorA=draw(strongWarm,0);var indoorB=draw(strongWarm,1);bool roomUnchanged=Same(indoorA,indoorB);
+   Shader.SetGlobalInteger("_EnvironmentIndoorCount",0);Shader.SetGlobalFloat("_EnvironmentSurfaceRole",0);var groundA=draw(strongWarm,0);var groundB=draw(strongWarm,1);bool groundUnchanged=Same(groundA,groundB);
+   Shader.SetGlobalFloat("_EnvironmentSurfaceRole",1);var propA=draw(strongWarm,0);var propB=draw(strongWarm,1);bool propUnchanged=Same(propA,propB);
+   Shader.SetGlobalFloat("_EnvironmentSurfaceRole",2);Shader.SetGlobalVector("_CharacterLightControls",Vector4.zero);var noReceiverA=draw(strongWarm,0);var noReceiverB=draw(strongWarm,1);bool receiverUnchanged=Same(noReceiverA,noReceiverB);
+   Shader.SetGlobalVector("_CharacterLightControls",new Vector4(1,0,0,.35f));
+   var fallbackA=draw(Off,0);var blue=draw(new Vector4(0,0,1,1),1);var red=draw(new Vector4(1,0,0,1),1);var nearBlack=draw(new Vector4(1e-12f,1e-12f,1e-12f,1),1);var invalid=draw(new Vector4(float.NaN,1,0,1),1);var invalidUploaded=Shader.GetGlobalVector("_CharacterEnvironmentTint");
+   var positiveInfinity=draw(new Vector4(float.PositiveInfinity,1,0,1),1);var negativeInfinity=draw(new Vector4(1,float.NegativeInfinity,0,1),1);var nanStrength=draw(new Vector4(1,.12f,.01f,float.NaN),1);var infinityStrength=draw(new Vector4(1,.12f,.01f,float.PositiveInfinity),1);var nanBlend=draw(strongWarm,float.NaN);var infinityBlend=draw(strongWarm,float.PositiveInfinity);
+   bool finite=samples.All(c=>!float.IsNaN(c.r)&&!float.IsInfinity(c.r)&&!float.IsNaN(c.g)&&!float.IsInfinity(c.g)&&!float.IsNaN(c.b)&&!float.IsInfinity(c.b));
+   bool bounded=samples.All(c=>Mathf.Min(c.r,c.g,c.b)>=-.0001f&&Mathf.Max(c.r,c.g,c.b)<8);
+   bool alpha=samples.All(c=>Mathf.Abs(c.a-1)<.0001f);
+   bool invalidFallsBack=Same(invalid,fallbackA),nearBlackFallsBack=Same(nearBlack,fallbackA);
+   bool allInvalidFallBack=new[]{positiveInfinity,negativeInfinity,nanStrength,infinityStrength,nanBlend,infinityBlend}.All(c=>Same(c,fallbackA));
+   bool shaderErrors=ShaderUtil.GetShaderMessages(shader).Any(m=>m.severity.ToString()=="Error");
+   bool pass=zeroReturnsLegacy&&enhancedWarmer&&floorHasTint&&floorBrightness&&noLightStaysBlack&&directDelta&&localDelta&&noExtraFloor&&roomUnchanged&&groundUnchanged&&propUnchanged&&receiverUnchanged&&finite&&bounded&&alpha&&invalidFallsBack&&nearBlackFallsBack&&allInvalidFallBack&&!shaderErrors;
+   ctx.ReturnValue=JsonConvert.SerializeObject(new{pass,zeroReturnsLegacy,enhancedWarmer,floorHasTint,floorBrightness,noLightStaysBlack,directDelta,localDelta,noExtraFloor,roomUnchanged,groundUnchanged,propUnchanged,receiverUnchanged,finite,bounded,alpha,invalidFallsBack,nearBlackFallsBack,allInvalidFallBack,shaderErrors,legacy=legacy.ToString(),enhanced=enhanced.ToString(),floorA=floorA.ToString(),floorWarm=floorWarm.ToString(),floorCool=floorCool.ToString(),floorY=Luma(floorWarm),fallbackA=fallbackA.ToString(),invalid=invalid.ToString(),invalidUploaded=invalidUploaded.ToString(),invalidUploadRetainsNaN=float.IsNaN(invalidUploaded.x)});
+  }
+  finally
+  {
+   foreach(var p in oldF)Shader.SetGlobalFloat(p.Key,p.Value);foreach(var p in oldN)Shader.SetGlobalInteger(p.Key,p.Value);foreach(var p in oldV)Shader.SetGlobalVector(p.Key,p.Value);Shader.SetGlobalMatrix("_RoomSightInverseViewProjection",inverse);Shader.SetGlobalMatrixArray("_EnvironmentIndoorMatrices",oldMatrices!=null&&oldMatrices.Length>0?oldMatrices:new Matrix4x4[32]);Shader.SetGlobalVectorArray("_EnvironmentIndoorHalfExtents",oldExtents!=null&&oldExtents.Length>0?oldExtents:new Vector4[32]);Shader.SetGlobalVectorArray("_EnvironmentLocalLightPositions",oldPositions!=null&&oldPositions.Length>0?oldPositions:new Vector4[8]);Shader.SetGlobalVectorArray("_EnvironmentLocalLightColors",oldColors!=null&&oldColors.Length>0?oldColors:new Vector4[8]);RenderTexture.active=previous;if(rt!=null)rt.Release();foreach(var o in new UnityEngine.Object[]{material,texture,read,mesh,rt})if(o!=null)UnityEngine.Object.DestroyImmediate(o);
+  }
+ }
+}

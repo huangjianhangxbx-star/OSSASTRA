@@ -1,0 +1,80 @@
+/* 功能：用实际Spine/DepthPlane及各自PMA/straight输入检查增强暖色下纹理与slot透明度仍按原规则缩放。
+ * 边界：仅私有fixture，无场景/业务修改；RGB归一到各自不透明B，不要求两种材质的RT alpha规则相同。
+ * 生命周期：借用全局完整恢复，所有私有材质/纹理/mesh/RT及命令缓冲finally释放。
+ */
+using System;using System.Linq;using System.Collections.Generic;using UnityEngine;using UnityEngine.Rendering;using UnityEditor;using Newtonsoft.Json;using Funplay.Editor.Tools.Scripting;
+public class CharacterEnvironmentAlphaGpuContract:IFunplayCommand
+{
+ static float Luma(Color c)=>c.r*.2126f+c.g*.7152f+c.b*.0722f;
+ static float Diff(Color a,Color b)=>Mathf.Max(Mathf.Abs(a.r-b.r),Mathf.Abs(a.g-b.g),Mathf.Abs(a.b-b.b));
+ static void Ambient(float x){foreach(var n in new[]{"_EnvironmentSkyAmbient","_EnvironmentHorizonAmbient","_EnvironmentGroundAmbient"})Shader.SetGlobalVector(n,new Vector4(x,x,x,0));}
+ static void Fill(Texture2D t,float alpha,bool pma){var c=new Color(.2f,.4f,.6f,alpha);if(pma){c.r*=alpha;c.g*=alpha;c.b*=alpha;}t.SetPixels(Enumerable.Repeat(c,4).ToArray());t.Apply();}
+ static Color Draw(Material m,Mesh mesh,RenderTexture rt,Texture2D read,Vector4 controls)
+ {
+  Shader.SetGlobalVector("_CharacterLightControls",controls);var cmd=new CommandBuffer{name="Character gain protection actual shader contract"};
+  try{cmd.SetRenderTarget(rt);cmd.SetViewport(new Rect(0,0,16,16));cmd.ClearRenderTarget(false,true,Color.clear);cmd.SetViewProjectionMatrices(Matrix4x4.identity,Matrix4x4.identity);cmd.DrawMesh(mesh,Matrix4x4.identity,m,0,1);Graphics.ExecuteCommandBuffer(cmd);}finally{cmd.Release();}
+  RenderTexture.active=rt;read.ReadPixels(new Rect(0,0,16,16),0,0);read.Apply();return read.GetPixel(8,8);
+ }
+ public void Execute(ExecutionContext ctx)
+ {
+  if(Application.dataPath!="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets")throw new Exception("Project guard");
+  var shaders=new[]{Shader.Find("Hidden/Ossastra/Rooms/SightSpine"),Shader.Find("Hidden/Ossastra/Rooms/SightDepthPlane")};if(shaders.Any(s=>s==null||!s.isSupported))throw new Exception("Actual character shaders missing/unsupported");
+  var fs=new[]{"_EnvironmentLightingEnabled","_EnvironmentIndoorAmbientScale","_EnvironmentWetness","_RoomSightStaticEnvironment","_EnvironmentFullSurface","_EnvironmentSurfaceRole","_EnvironmentResponseOverride","_EnvironmentReceiveShadow","_EnvironmentMinimumOverride","_CharacterEnvironmentBlend","_CharacterCoverageReady"};
+  var ns=new[]{"_EnvironmentIndoorCount","_EnvironmentLocalLightCount","_EnvironmentShelterCount","_RoomSightOwnerCount","_RoomSightOwnerExterior","_RoomSightSeedCount","_RoomSightBuildingCount","_RoomSightDomainCount","_RoomSightBlockerCount","_RoomSightWindowCount","_RoomSightCameraBlockerCount","_RoomSightExteriorView","_RoomSightPassMode"};
+  var vs=new[]{"_EnvironmentStylizedSkyTint","_CharacterEnvironmentTint","_EnvironmentSkyAmbient","_EnvironmentHorizonAmbient","_EnvironmentGroundAmbient","_EnvironmentLightResponse","_EnvironmentCloudParameters","_EnvironmentCloudMotion","_MainLightPosition","_MainLightColor","_RoomSightTargetSize","_CharacterLightControls","_CharacterLightShoulder"};
+  var oldF=fs.ToDictionary(n=>n,n=>Shader.GetGlobalFloat(n));var oldN=ns.ToDictionary(n=>n,n=>Shader.GetGlobalInteger(n));var oldV=vs.ToDictionary(n=>n,n=>Shader.GetGlobalVector(n));var inverse=Shader.GetGlobalMatrix("_RoomSightInverseViewProjection");var previous=RenderTexture.active;
+  Texture2D texture=null,read=null;Mesh mesh=null;RenderTexture rt=null;var materials=new List<Material>();var reports=new List<object>();
+  try
+  {
+   foreach(var n in fs)Shader.SetGlobalFloat(n,0);foreach(var n in ns)Shader.SetGlobalInteger(n,0);Shader.SetGlobalVector("_EnvironmentStylizedSkyTint",new Vector4(1,1,1,0));Shader.SetGlobalVector("_CharacterLightShoulder",new Vector4(1.2f,2,0,0));
+   Shader.SetGlobalInteger("_RoomSightExteriorView",1);Shader.SetGlobalFloat("_EnvironmentFullSurface",1);Shader.SetGlobalMatrix("_RoomSightInverseViewProjection",Matrix4x4.identity);Shader.SetGlobalVector("_RoomSightTargetSize",new Vector4(16,16,1f/16,1f/16));
+   Shader.SetGlobalFloat("_EnvironmentLightingEnabled",1);Shader.SetGlobalFloat("_EnvironmentSurfaceRole",2);Shader.SetGlobalFloat("_EnvironmentResponseOverride",1);Shader.SetGlobalVector("_EnvironmentLightResponse",new Vector4(1,1,1,0));Shader.SetGlobalVector("_MainLightPosition",new Vector4(0,1,0,0));Shader.SetGlobalVector("_MainLightColor",Vector4.zero);Shader.SetGlobalVector("_EnvironmentCloudParameters",Vector4.zero);Shader.SetGlobalVector("_EnvironmentCloudMotion",Vector4.zero);
+   texture=new Texture2D(2,2,TextureFormat.RGBAFloat,false,true);read=new Texture2D(16,16,TextureFormat.RGBAFloat,false,true);rt=new RenderTexture(16,16,0,RenderTextureFormat.ARGBFloat,RenderTextureReadWrite.Linear);if(!rt.Create())throw new Exception("Private float GPU target failed");
+   mesh=new Mesh();mesh.vertices=new[]{new Vector3(-1,-1,.5f),new Vector3(3,-1,.5f),new Vector3(-1,3,.5f)};mesh.triangles=new[]{0,1,2};mesh.uv=new[]{Vector2.zero,Vector2.right*2,Vector2.up*2};mesh.colors=new[]{Color.white,Color.white,Color.white};mesh.RecalculateBounds();
+   foreach(var name in new[]{"_EnvironmentSkyAmbient","_EnvironmentHorizonAmbient","_EnvironmentGroundAmbient"})Shader.SetGlobalVector(name,new Vector4(.03f,.052f,.107f,0));
+   Shader.SetGlobalVector("_EnvironmentLightResponse",new Vector4(1,1,1,.12f));
+   Shader.SetGlobalVector("_CharacterLightShoulder",new Vector4(16,32,0,0));
+   Shader.SetGlobalVector("_EnvironmentStylizedSkyTint",new Vector4(1,.45f,.25f,.5f));
+   Shader.SetGlobalVector("_CharacterEnvironmentTint",new Vector4(1,.12f,.01f,1));
+   var controls=new Vector4(1,0,1,2);bool all=true;int inputModes=0,edgeSamples=0;
+   foreach(var shader in shaders)
+   {
+    var mat=new Material(shader){hideFlags=HideFlags.HideAndDontSave};materials.Add(mat);mat.SetTexture("_MainTex",texture);if(mat.HasProperty("_Color"))mat.SetColor("_Color",Color.white);if(mat.HasProperty("_Cutoff"))mat.SetFloat("_Cutoff",.001f);
+    bool spine=shader.name.EndsWith("SightSpine");
+    for(int mode=0;mode<2;mode++)
+    {
+     inputModes++;bool pma=mode==1;
+     if(spine){mat.SetFloat("_StraightAlphaInput",pma?0:1);if(pma)mat.DisableKeyword("_STRAIGHT_ALPHA_INPUT");else mat.EnableKeyword("_STRAIGHT_ALPHA_INPUT");}
+     else mat.SetFloat("_PmaInput",pma?1:0);
+     Fill(texture,1,pma);mesh.colors=new[]{Color.white,Color.white,Color.white};
+     Shader.SetGlobalFloat("_CharacterEnvironmentBlend",0);var opaqueA=Draw(mat,mesh,rt,read,controls);
+     Shader.SetGlobalFloat("_CharacterEnvironmentBlend",1);var opaqueB=Draw(mat,mesh,rt,read,controls);
+     bool warmIsReal=Diff(opaqueA,opaqueB)>.01f&&opaqueB.r>opaqueB.b*2;
+     bool alphaSame=true,pmaSame=true,slotSame=true,finite=true;var cases=new List<object>();
+     foreach(float slotAlpha in new[]{1f,.5f})foreach(float textureAlpha in new[]{1f,.5f,.125f})
+     {
+      edgeSamples++;Fill(texture,textureAlpha,pma);
+      // Spine顶点色按其PMA约定写入slotAlpha；DepthPlane顶点色沿原straight规则，避免制造错误输入。
+      var vertex=spine?new Color(slotAlpha,slotAlpha,slotAlpha,slotAlpha):new Color(1,1,1,slotAlpha);mesh.colors=new[]{vertex,vertex,vertex};
+      Shader.SetGlobalFloat("_CharacterEnvironmentBlend",0);var edgeA=Draw(mat,mesh,rt,read,controls);
+      Shader.SetGlobalFloat("_CharacterEnvironmentBlend",1);var edgeB=Draw(mat,mesh,rt,read,controls);
+      float opacity=textureAlpha*slotAlpha;
+      bool alphaCase=Mathf.Abs(edgeA.a-edgeB.a)<.0001f;
+      // 比较读回RGB/输入opacity与同模式不透明B；不对预乘RGB做非线性色变换。
+      bool normalized=Diff(edgeB/opacity,opaqueB)<.003f;
+      bool finiteCase=new[]{edgeA,edgeB}.All(c=>!float.IsNaN(c.r)&&!float.IsInfinity(c.r)&&!float.IsNaN(c.g)&&!float.IsInfinity(c.g)&&!float.IsNaN(c.b)&&!float.IsInfinity(c.b));
+      alphaSame&=alphaCase;pmaSame&=normalized;if(slotAlpha<1)slotSame&=normalized;finite&=finiteCase;
+      cases.Add(new{textureAlpha,slotAlpha,opacity,alphaCase,normalized,finiteCase,edgeA=edgeA.ToString(),edgeB=edgeB.ToString()});
+     }
+     bool pass=warmIsReal&&alphaSame&&pmaSame&&slotSame&&finite;all&=pass;
+     reports.Add(new{shader=shader.name,pma,pass,warmIsReal,alphaSame,pmaSame,slotSame,finite,opaqueA=opaqueA.ToString(),opaqueB=opaqueB.ToString(),cases});
+    }
+   }
+   bool shaderErrors=shaders.Any(s=>ShaderUtil.GetShaderMessages(s).Any(m=>m.severity.ToString()=="Error"));ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=all&&!shaderErrors,inputModes,edgeSamples,shaderErrors,reports});
+  }
+  finally
+  {
+   foreach(var p in oldF)Shader.SetGlobalFloat(p.Key,p.Value);foreach(var p in oldN)Shader.SetGlobalInteger(p.Key,p.Value);foreach(var p in oldV)Shader.SetGlobalVector(p.Key,p.Value);Shader.SetGlobalMatrix("_RoomSightInverseViewProjection",inverse);RenderTexture.active=previous;if(rt!=null)rt.Release();foreach(var m in materials)if(m!=null)UnityEngine.Object.DestroyImmediate(m);foreach(var o in new UnityEngine.Object[]{texture,read,mesh,rt})if(o!=null)UnityEngine.Object.DestroyImmediate(o);
+  }
+ }
+}

@@ -92,8 +92,12 @@ namespace Ossastra.Development.CharacterLighting
    AddParameter(widgets.Button(content,"OldEffect","旧效果",()=>ApplyPreset(0),"关闭染色、内侧轮廓、高亮保护与外缘柔光，保留当前原受光与夜间最低可读度；不是切回另一名角色。"));
    AddParameter(widgets.Button(content,"EnvironmentOnly","仅环境染色",()=>ApplyPreset(1),"只启用此对象的环境染色；轮廓与高亮保护关闭，使用同一角色比较。"));
    AddParameter(widgets.Button(content,"RestrainedContour","染色 + 克制轮廓",()=>ApplyPreset(2),"启用环境融合、细内轮廓与高亮保护。数值为可继续调节的候选，不代表最终审美定稿。"));
+   widgets.Title(content,"主体环境融合（保持其他光感参数）");
+   AddParameter(widgets.Button(content,"EnvironmentBaselineA","A · 现在认可的效果",()=>ApplyEnvironmentPreset(0),"只切换为原版环境染色，保持当前内外轮廓、柔光、高亮保护和全部数值。"));
+   AddParameter(widgets.Button(content,"EnvironmentEnhancedB","B · 增强主体环境融合",()=>ApplyEnvironmentPreset(1),"底光与实际需要的可读性补足共同染色；直射和局部灯保留原色，其他参数不变。"));
+   SettingSlider(content,"EnvironmentBlend","主体环境融合强度",0,2,s=>s.environmentBlend,(s,v)=>s.environmentBlend=v,"0精确回A；0到1切向B，1到2有界强化环境色响应（最终权重限1）。目标及有效强度见诊断；不改曝光、保底或D/L。");
    widgets.Title(content,"环境与轮廓参数");
-   SettingSlider(content,"TintStrength","环境染色强度",0,1,s=>s.tintStrength,(s,v)=>s.tintStrength=v,"环境染色强度；手动天空同步的总开关与颜色来源仍归环境服务。");
+   SettingSlider(content,"TintStrength","环境染色强度",0,1,s=>s.tintStrength,(s,v)=>s.tintStrength=v,"两种模式的总染色响应；自然昼夜或手动覆盖的源与总权重仍归环境服务。");
    SettingSlider(content,"RimStrength","轮廓强度",0,2,s=>s.rimStrength,(s,v)=>s.rimStrength=v,"方向性轮廓的受控贡献倍率。灯资格、真实遮光与像素许可不会被此值放宽。");
    SettingSlider(content,"InnerWidth","内带宽度（最终像素）",.25f,4,s=>s.innerWidth,(s,v)=>s.innerWidth=v,"只改变角色本体内部的细带宽度，单位为最终画面像素；外缘柔光有下方独立参数。");
    SettingSlider(content,"Softness","内带柔度",.05f,2,s=>s.softness,(s,v)=>s.softness=v,"只柔化内部窄带，不向墙面、黑幕或角色外侧扩光。");
@@ -117,6 +121,7 @@ namespace Ossastra.Development.CharacterLighting
    widgets.Title(content,"恢复、候选保存与真实诊断");
    widgets.Button(content,"RestorePreview","一键恢复进入面板前状态",RestorePreview,"恢复本轮打开窗口时捕获的角色运行副本；只归还本窗口拥有的时钟修改，不回写共享SO或存档。");
    var save=widgets.Button(content,"SaveCandidateProfile","显式保存此对象候选Profile",SaveCandidateProfile,"仅Editor：保存一个新的唯一候选资产，不覆盖原共享Profile，也不自动替换角色当前Profile引用。");AddParameter(save);if(!Application.isEditor)save.interactable=false;
+   var defaults=widgets.Button(content,"SaveCurrentDefault","保存此角色当前默认",SaveCurrentDefault,"仅写回此角色已绑定的独立Profile并读回；共享Profile拒绝保存，不保存运行场景，不改另一角色。");AddParameter(defaults);if(!Application.isEditor)defaults.interactable=false;
    var status=widgets.Row(content,"Status",210);statusLayout=status.GetComponent<UnityEngine.UI.LayoutElement>();statusText=widgets.Text("Text",status,"等待真实诊断",12);statusText.enableWordWrapping=true;statusText.overflowMode=TextOverflowModes.Overflow;statusText.alignment=TextAlignmentOptions.TopLeft;
   }
   void AddParameter(UnityEngine.UI.Selectable control){parameterControls.Add(control);}
@@ -142,6 +147,19 @@ namespace Ossastra.Development.CharacterLighting
    // 外缘对照使用当前运行副本，不借打开面板时的快照回滚用户刚调好的内部效果。
    var state=observed.Settings.Clone();state.outerGlow=index>0;state.outerDiagnostic=index==2;observed.Settings=state;
    Status="外缘对照："+new[]{"A 当前效果 / 无外缘","B 受光外缘柔光","C 仅新增外缘能量"}[index]+"；身体参数与原Profile保持";RefreshWidgets();
+  }
+  // 原版/增强只切换环境融合分支，不使用打开面板时的旧快照覆盖用户刚调的轮廓等参数。
+  public void ApplyEnvironmentPreset(int index)
+  {
+   if(observed==null)return;CapturePreviewIfNeeded();var state=observed.Settings.Clone();
+   state.enhancedEnvironmentTint=index>0;observed.Settings=state;
+   Status=index>0?"B 增强主体环境融合；其他参数保持":"A 原版环境染色；其他参数保持";RefreshWidgets();
+  }
+  public void SaveCurrentDefault()
+  {
+   try{string result;Status=CharacterLightingProfileSave.TrySaveDefault(observed,out result)?"已持久保存并读回："+result:result;}
+   catch(Exception error){Status="保存默认失败："+error.Message;}
+   RefreshWidgets();
   }
   public void SelectObserved(int index)
   {if(refreshing||index<0||index>=displayed.Length)return;observed=displayed[index];Status="观察 → "+ActorLabel(observed)+"；真正主控保持";RefreshWidgets();}
@@ -242,5 +260,3 @@ namespace Ossastra.Development.CharacterLighting
   void OnDestroy(){Capture(false);ReleaseClock();if(viewRoot!=null)Destroy(viewRoot);viewRoot=null;refreshers.Clear();parameterControls.Clear();before.Clear();DiagnosticsReader=null;}
  }
 }
-
-

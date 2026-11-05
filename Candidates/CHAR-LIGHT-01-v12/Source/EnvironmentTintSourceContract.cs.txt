@@ -1,0 +1,50 @@
+/* 功能：在独立临时Binding上验证自然/手动环境源、色彩空间与中性回退；不接管主场环境。
+ * 边界：通过旧入口兼容探针先得到真实RED；新方法缺席时不是编译错误，而是自然源仍无有效染色。
+ */
+using System;
+using System.Reflection;
+using System.Collections.Generic;
+using UnityEngine;
+using Ossastra.EnvironmentSimulation;
+using Ossastra.EnvironmentSimulation.Rendering;
+using Funplay.Editor.Tools.Scripting;
+public sealed class EnvironmentTintSourceContract : IFunplayCommand
+{
+ static readonly List<string> failures=new List<string>(); static int count;
+ static void Check(bool yes,string name){count++;if(!yes)failures.Add(name);}
+ static bool Near(float a,float b)=>Mathf.Abs(a-b)<.00002f;
+ static bool Neutral(Vector4 value)=>Near(value.x,1)&&Near(value.y,1)&&Near(value.z,1)&&value.w==0;
+ static EnvironmentFrame Frame(bool enabled=true,EnvironmentContribution contribution=EnvironmentContribution.Combined,float elevation=35)
+ {
+  var assembly=typeof(EnvironmentFrame).Assembly;var dataType=assembly.GetType("Ossastra.EnvironmentSimulation.EnvironmentFrameData",true);var data=Activator.CreateInstance(dataType,true);
+  Action<string,object> field=(name,value)=>dataType.GetField(name,BindingFlags.Instance|BindingFlags.NonPublic).SetValue(data,value);
+  field("enabled",enabled);field("contribution",contribution);field("sun",new SunPose(180,elevation));field("nightFactor",0f);
+  field("sunColor",new Color(1,.55f,.23f));field("ambientSky",new Color(.6f,.55f,.5f));field("ambientEquator",new Color(.65f,.6f,.55f));
+  field("skyZenith",new Color(.6f,.55f,.5f));field("skyHorizon",new Color(.65f,.6f,.55f));
+  return (EnvironmentFrame)Activator.CreateInstance(typeof(EnvironmentFrame),BindingFlags.Instance|BindingFlags.NonPublic,null,new[]{data},null);
+ }
+ static Vector4 Resolve(EnvironmentSkyBinding binding,EnvironmentFrame frame)
+ {var method=typeof(EnvironmentSkyBinding).GetMethod("ResolveCharacterEnvironmentTint");return method==null?binding.ResolveStylizedSkyTint(frame):(Vector4)method.Invoke(binding,new object[]{frame});}
+ public void Execute(ExecutionContext ctx)
+ {
+  failures.Clear();count=0;var go=new GameObject("Private environment source contract");go.hideFlags=HideFlags.HideAndDontSave;go.SetActive(false);
+  try
+  {
+   var binding=go.AddComponent<EnvironmentSkyBinding>();binding.syncSkyColorTo2D=true;binding.overrideSkyColors=false;binding.stylizedSkyTintStrength=.7f;
+   var frame=Frame();var natural=Resolve(binding,frame);Check(natural.w>.6f&&!Neutral(natural),"Natural frame must publish a usable environment target without manual override");
+   binding.overrideSkyColors=true;binding.zenithColor=binding.horizonColor=new Color(1,.15f,.02f);var manual=Resolve(binding,frame);var linear=binding.zenithColor.linear;
+   Check(Near(manual.x,1)&&Near(manual.y,linear.g/linear.r)&&Near(manual.z,linear.b/linear.r),"Manual source decodes once and does not retain the legacy .25 chroma floor");
+   var legacy=binding.ResolveStylizedSkyTint(frame);Check(Near(legacy.y,.25f)&&Near(legacy.z,.25f),"The legacy A source remains compatible");
+   Check(Near(manual.w,.7f),"Published strength remains the explicit environment multiplier");
+   binding.overrideSkyColors=false;var restored=Resolve(binding,frame);Check(Near(restored.x,natural.x)&&Near(restored.y,natural.y)&&Near(restored.z,natural.z),"Disabling manual override immediately returns to natural source");
+   binding.syncSkyColorTo2D=false;Check(Neutral(Resolve(binding,frame)),"Disabled synchronization returns neutral");binding.syncSkyColorTo2D=true;
+   Check(Neutral(Resolve(binding,null)),"Missing frame returns neutral");Check(Neutral(Resolve(binding,Frame(false))),"Disabled frame returns neutral");Check(Neutral(Resolve(binding,Frame(true,EnvironmentContribution.SunOnly))),"Sun-only test excludes environmental tint");
+   binding.stylizedSkyTintStrength=float.NaN;Check(Neutral(Resolve(binding,frame)),"Nonfinite strength returns neutral");binding.stylizedSkyTintStrength=.7f;
+   binding.overrideSkyColors=true;binding.zenithColor=binding.horizonColor=Color.black;Check(Neutral(Resolve(binding,frame)),"Black manual target does not invent chroma");
+   binding.zenithColor=new Color(float.NaN,1,1);binding.horizonColor=Color.white;Check(Neutral(Resolve(binding,frame)),"Invalid author color returns neutral");
+   var source=typeof(EnvironmentSkyBinding).GetMethod("CharacterEnvironmentTintSource");Check(source!=null,"Source diagnostics entry exists");
+   ctx.ReturnValue=Newtonsoft.Json.JsonConvert.SerializeObject(new{pass=failures.Count==0,count,failures,natural=natural.ToString("F5"),manual=manual.ToString("F5"),legacy=legacy.ToString("F5")});
+  }
+  finally{UnityEngine.Object.DestroyImmediate(go);}
+ }
+}

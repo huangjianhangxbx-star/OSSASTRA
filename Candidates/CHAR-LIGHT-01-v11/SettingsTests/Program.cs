@@ -30,7 +30,8 @@ public static class Program
             Field("outerWidth").SetValue(state, float.NaN); Field("outerStrength").SetValue(state, float.PositiveInfinity);
             Field("maxOuterGain").SetValue(state, -1f); Field("outerSoftness").SetValue(state, 100f);
             state.Sanitize();
-            Check(Read(state, "outerWidth") == 2 && Math.Abs(Read(state, "outerStrength") - .22f) < .00001f && Read(state, "maxOuterGain") == 0 && Read(state, "outerSoftness") == 4, "Illegal outer controls normalize to finite bounded values");
+            // v1.2用户明确批准max缺省；只迁移非法输入的缺省，旧作者Profile的数值不会被Sanitize覆盖。
+            Check(Read(state, "outerWidth") == 4 && Read(state, "outerStrength") == 2 && Read(state, "maxOuterGain") == 0 && Read(state, "outerSoftness") == 4, "Illegal outer controls normalize to approved finite bounded defaults");
             Field("outerStrength").SetValue(state, 0f); state.Sanitize();
             Check(Read(state, "outerStrength") == 0, "Zero energy remains an exact disable path");
             Console.WriteLine("PASS " + checks + " Settings behavior checks"); return 0;

@@ -59,8 +59,8 @@ namespace Ossastra.CharacterLighting
   }
   void BeginCamera(ScriptableRenderContext context,Camera camera){ClearGlobals();}
   void EndCamera(ScriptableRenderContext context,Camera camera){ClearGlobals();}
-  static void ClearGlobals(){Shader.SetGlobalVector("_CharacterLightControls",Vector4.zero);Shader.SetGlobalFloat("_CharacterCoverageReady",0);Shader.SetGlobalVector("_CharacterRimLocalColor",Vector4.zero);Shader.SetGlobalVector("_CharacterOuterControls",Vector4.zero);}
-  public static void Clear(CommandBuffer cmd){cmd.SetGlobalVector("_CharacterLightControls",Vector4.zero);cmd.SetGlobalFloat("_CharacterCoverageReady",0);cmd.SetGlobalVector("_CharacterRimLocalColor",Vector4.zero);cmd.SetGlobalVector("_CharacterOuterControls",Vector4.zero);}
+  static void ClearGlobals(){Shader.SetGlobalVector("_CharacterLightControls",Vector4.zero);Shader.SetGlobalFloat("_CharacterCoverageReady",0);Shader.SetGlobalVector("_CharacterRimLocalColor",Vector4.zero);Shader.SetGlobalVector("_CharacterOuterControls",Vector4.zero);Shader.SetGlobalVector("_CharacterEnvironmentTint",Vector4.zero);Shader.SetGlobalFloat("_CharacterEnvironmentBlend",0);}
+  public static void Clear(CommandBuffer cmd){cmd.SetGlobalVector("_CharacterLightControls",Vector4.zero);cmd.SetGlobalFloat("_CharacterCoverageReady",0);cmd.SetGlobalVector("_CharacterRimLocalColor",Vector4.zero);cmd.SetGlobalVector("_CharacterOuterControls",Vector4.zero);cmd.SetGlobalVector("_CharacterEnvironmentTint",Vector4.zero);cmd.SetGlobalFloat("_CharacterEnvironmentBlend",0);}
   public static bool TryGet(Camera camera,out CharacterLightingSystem system)
   {system=null;return camera!=null&&cameras.TryGetValue(camera.GetInstanceID(),out system)&&system!=null&&system.gameplayCamera==camera&&system.isActiveAndEnabled&&system.effectsEnabled&&system.environment!=null&&system.environment.isActiveAndEnabled&&system.environment.environment!=null&&system.environment.environment.isActiveAndEnabled&&EnvironmentCameraRegistry.TryGet(camera,out var frame)&&frame.Enabled&&ReferenceEquals(frame,system.environment.environment.Current);}
   public bool WantsCoverage
@@ -89,6 +89,10 @@ namespace Ossastra.CharacterLighting
    cmd.SetGlobalVector("_CharacterLightShoulder",new Vector4(settings.knee,settings.ceiling,0,0));
    var tint=environment.ResolveStylizedSkyTint(environment.environment.Current);
    tint.w*=settings.environmentTint?settings.tintStrength:0;cmd.SetGlobalVector("_EnvironmentStylizedSkyTint",tint);
+   var basisTint=environment.ResolveCharacterEnvironmentTint(environment.environment.Current);
+   basisTint.w=Mathf.Clamp01(basisTint.w*(settings.environmentTint?settings.tintStrength:0)*Mathf.Max(1,settings.environmentBlend));
+   cmd.SetGlobalVector("_CharacterEnvironmentTint",basisTint);
+   cmd.SetGlobalFloat("_CharacterEnvironmentBlend",settings.environmentTint&&settings.enhancedEnvironmentTint?Mathf.Clamp01(settings.environmentBlend):0);
    cmd.SetGlobalVector("_CharacterRimShape",new Vector4(settings.innerWidth,settings.softness,0,0));
    if(!settings.rim||settings.rimStrength<=0||cache==null||!cache.Bind(cmd,renderer))return;
    BindLamp(cmd,receiver,visibility);
@@ -159,7 +163,11 @@ namespace Ossastra.CharacterLighting
    if(lamps.TryGetValue(receiver,out var lamp))text+="\n轮廓：主灯真实阴影＋"+lamp.reason;else text+="\n轮廓：等待合法相机绘制";
    var frame=environment==null||environment.environment==null?null:environment.environment.Current;
    float tint=frame==null||environment==null?0:environment.ResolveStylizedSkyTint(frame).w*(receiver.Settings.environmentTint?receiver.Settings.tintStrength:0);
-   return text+"\n天空联动×角色响应="+tint.ToString("F2")+"；室内保持原环境色\n"+Status+"；仅两角色缓存 "+(CoverageBytes/1048576f).ToString("F2")+" MiB\n外缘："+OuterGlowStatus+"；draw "+OuterGlowDraws+" / "+(OuterGlowBytes/1048576f).ToString("F2")+" MiB";
+   bool indoor=false;if(environment!=null){rooms.Clear();foreach(var r in environment.indoorRegions)if(r!=null&&r.isActiveAndEnabled)r.AppendMaskVolumes(rooms);indoor=RoomIndex(receiver.transform.position+Vector3.up*.8f)>=0;}
+   var s=receiver.Settings;var target=environment==null?Vector4.zero:environment.ResolveCharacterEnvironmentTint(frame);
+   float effective=indoor||!s.environmentTint?0:Mathf.Clamp01(target.w*s.tintStrength*Mathf.Max(1,s.environmentBlend));
+   string source=indoor?"室内：沿房间底光/原灯色":environment==null?"中性回退":environment.CharacterEnvironmentTintSource(frame);
+   return text+"\n主体环境："+(s.enhancedEnvironmentTint?"B 增强":"A 原版")+"；源="+source+"\nB候选目标(linear)="+target.ToString("F3")+"；B候选有效染色="+effective.ToString("F2")+"；融合设置="+s.environmentBlend.ToString("F2")+"；实际B混合="+(s.enhancedEnvironmentTint?Mathf.Clamp01(s.environmentBlend):0).ToString("F2")+"；旧A有效="+tint.ToString("F2")+"\n"+Status+"；仅两角色缓存 "+(CoverageBytes/1048576f).ToString("F2")+" MiB\n外缘："+OuterGlowStatus+"；draw "+OuterGlowDraws+" / "+(OuterGlowBytes/1048576f).ToString("F2")+" MiB";
   }
   void Unregister(){if(!ReferenceEquals(registered,null)&&cameras.TryGetValue(registered.GetInstanceID(),out var current)&&current==this)cameras.Remove(registered.GetInstanceID());registered=null;}
   void EnvironmentReleased(int id){if(!ReferenceEquals(registered,null)&&registered.GetInstanceID()==id){CoverageInvalidated?.Invoke();lamps.Clear();CoverageActors=CoverageDraws=0;CoverageBytes=0;ClearGlobals();}}

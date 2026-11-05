@@ -1,4 +1,4 @@
-/* 功能：明确相机的环境渲染接收方；上传受光、房间与局部灯，绘制合法天空/降雨。
+/* 功能：明确相机的环境渲染接收方；上传受光、房间与局部灯，解析角色自然/手动环境目标，绘制合法天空/降雨。
  * 边界：不创建普通Renderer，不推进环境，不读取旧世界深度；只借用天空/反射设置。
  * 生命周期：唯一相机登记，原貌/禁用恢复借用设置并销毁自有材质、天空预览和Cubemap。
  */
@@ -29,7 +29,7 @@ namespace Ossastra.EnvironmentSimulation.Rendering
   [Header("运行态天空覆盖；不修改昼夜源档")]
   public bool overrideSkyColors;
   public Color zenithColor=new Color(.13f,.36f,.65f),horizonColor=new Color(.67f,.78f,.82f);
-  [Header("手动天空色与登记角色环境光同步；不改变直射/局部灯")]
+  [Header("自然/手动环境色与登记角色同步；不改变直射/局部灯")]
   public bool syncSkyColorTo2D=true;
   [Range(0,1)] public float stylizedSkyTintStrength=.5f;
   [Range(0,1)] public float rainOpacity=.24f;
@@ -103,6 +103,53 @@ namespace Ossastra.EnvironmentSimulation.Rendering
    c=new Color(Mathf.Clamp01(c.r),Mathf.Clamp01(c.g),Mathf.Clamp01(c.b),1).linear;
    float peak=Mathf.Max(c.r,Mathf.Max(c.g,c.b));if(peak<=.00001f)return neutral;
    return new Vector4(Mathf.Max(.25f,c.r/peak),Mathf.Max(.25f,c.g/peak),Mathf.Max(.25f,c.b/peak),Mathf.Clamp01(stylizedSkyTintStrength));
+  }
+  // B版只发布环境基础贡献的目标色度，不乘Frame强度或原底光，不改变实际天空、太阳与反射。
+  // A版仍走上面的原入口；室内外资格由既有逐片元房间判断负责，不能由主控位置统一切色。
+  public Vector4 ResolveCharacterEnvironmentTint(EnvironmentFrame frame)
+  {
+   var neutral=new Vector4(1,1,1,0);
+   if(!syncSkyColorTo2D||frame==null||!frame.Enabled||frame.Contribution==EnvironmentContribution.Original||frame.Contribution==EnvironmentContribution.SunOnly||!FiniteTint(stylizedSkyTintStrength)||stylizedSkyTintStrength<=0)return neutral;
+   Color first,second,target;
+   if(overrideSkyColors)
+   {
+    if(!TryDecodeTint(zenithColor,out first)||!TryDecodeTint(horizonColor,out second))return neutral;
+    target=Color.Lerp(first,second,.65f);
+   }
+   else
+   {
+    if(!TryDecodeTint(frame.AmbientSky,out first)||!TryDecodeTint(frame.AmbientEquator,out second))return neutral;
+    target=Color.Lerp(first,second,.65f);
+    // 现有自然底光只有昼夜插值。低太阳时借用Frame自己的暖日照色作为风格化目标，非真实天空积分。
+    // SunColor在地平线下切为月色，因此暖色权重在0度归零，不能把该切换放大成一次跳色。
+    float elevation=frame.Sun.ElevationDegrees;
+    float warm=Mathf.SmoothStep(0,1,Mathf.InverseLerp(0,6,elevation))*(1-Mathf.SmoothStep(0,1,Mathf.InverseLerp(12,30,elevation)));
+    if(warm>0)
+    {
+     Color sun;if(!TryDecodeTint(frame.SunColor,out sun))return neutral;
+     target=Color.Lerp(target,sun,warm);
+    }
+   }
+   float peak=Mathf.Max(target.r,Mathf.Max(target.g,target.b));if(peak<=.00001f)return neutral;
+   // 不沿用A的每通道.25下限；纯色的亮度归一化预算由角色颜色函数另行约束。
+   return new Vector4(target.r/peak,target.g/peak,target.b/peak,Mathf.Clamp01(stylizedSkyTintStrength));
+  }
+  public string CharacterEnvironmentTintSource(EnvironmentFrame frame)
+  {
+   if(!syncSkyColorTo2D)return "中性回退：环境同步关闭";
+   if(frame==null||!frame.Enabled||frame.Contribution==EnvironmentContribution.Original)return "中性回退：环境快照无效或停用";
+   if(frame.Contribution==EnvironmentContribution.SunOnly)return "中性回退：仅日照对照";
+   if(ResolveCharacterEnvironmentTint(frame).w<=0)return "中性回退：颜色或强度无效/为零";
+   return overrideSkyColors?"手动天空覆盖":"自然昼夜/天气（低太阳风格化暖色）";
+  }
+  static bool FiniteTint(float value)=>!float.IsNaN(value)&&!float.IsInfinity(value);
+  // 作者颜色只在这里解码一次。与Frame作者色范围一致的上界避免非法HDR输入造成溢出。
+  static bool TryDecodeTint(Color authored,out Color linear)
+  {
+   linear=Color.black;
+   if(!FiniteTint(authored.r)||!FiniteTint(authored.g)||!FiniteTint(authored.b))return false;
+   linear=new Color(Mathf.Clamp(authored.r,0,16),Mathf.Clamp(authored.g,0,16),Mathf.Clamp(authored.b,0,16),1).linear;
+   return FiniteTint(linear.r)&&FiniteTint(linear.g)&&FiniteTint(linear.b);
   }
   void UpdateReflection(EnvironmentFrame frame)
   {
