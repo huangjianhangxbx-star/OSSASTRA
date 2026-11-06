@@ -16,3 +16,5 @@ v1.0技术验收与限制见validation.md。v1.1用户明确偏好C，已覆盖�
 独立明暗设置、C会话/保存、显式Light身份适配与原Feature两行接缝、原比较面板、显式Player探针、重放合同及交付文档。C0/候选/主场接线仅本机保存；无场景、美术、二进制、存档或其他dirty发布。
 
 Native/GPU/保存重开、真实Windows375帧/14阶段/两角色见证/退出0、原存档隔离校验已通过。五档缓存24、Draw682/SetPass610稳定；两Shader SRP码0；GPU耗时未测。精确源清单与SHA见v1.1-source-manifest.json。远端回执在推送核验后补充。
+
+功能提交cffa8c52f57ed5a64f50544e5e5ee6fb7b50d09f已推GitHub OSSASTRA/main，独立ls-remote完整SHA一致；35精确白名单文件。源码、候选重放与文档完成，场景/C0与候选作者资产/所有媒体/Player/其他dirty仅本机。没有同步Gitee或强推。
