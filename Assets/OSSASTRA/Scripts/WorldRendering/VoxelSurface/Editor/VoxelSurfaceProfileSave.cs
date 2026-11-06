@@ -23,6 +23,8 @@ namespace Ossastra.WorldRendering.VoxelSurface
             public string scenePath;
             public string profilePath;
             public string bindingSignature;
+            public string lookPath;
+            public string lookFingerprint;
         }
 
         static VoxelSurfaceProfileSave()
@@ -35,6 +37,12 @@ namespace Ossastra.WorldRendering.VoxelSurface
 
         static void OnRequest(VoxelSurfaceComparison comparison, bool setDefault)
         {
+            if (comparison.ActiveLook != null)
+            {
+                if (setDefault) VoxelSurfaceLookSave.SetLookDefault(comparison);
+                else VoxelSurfaceLookSave.SaveFullLook(comparison, comparison.saveLookTarget == null ? "" : AssetDatabase.GetAssetPath(comparison.saveLookTarget));
+                return;
+            }
             if (setDefault) { SetBindingDefault(comparison); return; }
             var path = comparison.saveCandidateProfile == null ? "" : AssetDatabase.GetAssetPath(comparison.saveCandidateProfile);
             if (string.IsNullOrEmpty(path)) path = EditorUtility.SaveFilePanelInProject("保存独立体素候选", "FacetedTunedCandidate", "asset", "选择新的独立候选资产；不覆盖原C0、B或其他共享配置。");
@@ -46,6 +54,7 @@ namespace Ossastra.WorldRendering.VoxelSurface
         public static bool SaveCandidate(VoxelSurfaceComparison comparison, string verifiedPath)
         {
             if (comparison == null) return false;
+            if (comparison.ActiveLook != null) return VoxelSurfaceLookSave.SaveFullLook(comparison, verifiedPath);
             string path = (verifiedPath ?? "").Replace('\\', '/');
             if (!path.StartsWith("Assets/", StringComparison.Ordinal) || !path.EndsWith(".asset", StringComparison.OrdinalIgnoreCase) ||
                 path.Contains("/../") || path.Contains("/./") || !AssetDatabase.IsValidFolder(System.IO.Path.GetDirectoryName(path).Replace('\\', '/')))
@@ -88,6 +97,7 @@ namespace Ossastra.WorldRendering.VoxelSurface
         public static bool SetBindingDefault(VoxelSurfaceComparison comparison)
         {
             if (comparison == null) return false;
+            if (comparison.ActiveLook != null) return VoxelSurfaceLookSave.SetLookDefault(comparison);
             var candidate = comparison.LastSavedProfile != null ? comparison.LastSavedProfile : comparison.saveCandidateProfile;
             var path = candidate == null ? "" : AssetDatabase.GetAssetPath(candidate);
             if (candidate == null || candidate.settings == null || !EditorUtility.IsPersistent(candidate) ||
@@ -115,6 +125,32 @@ namespace Ossastra.WorldRendering.VoxelSurface
             return true;
         }
 
+        // 完整Look与v1.1共用同一请求队列；同一绑定组的新请求替换旧请求，不存在两套默认写者。
+        internal static bool QueueLookDefault(VoxelSurfaceComparison comparison, VoxelSurfaceLookSO candidate, string fingerprint)
+        {
+            var scene = comparison.gameObject.scene;
+            var id = GlobalObjectId.GetGlobalObjectIdSlow(comparison);
+            string path = AssetDatabase.GetAssetPath(candidate);
+            if (!scene.IsValid() || string.IsNullOrEmpty(scene.path) || id.identifierType != 2 || id.targetObjectId == 0)
+            { comparison.ReportLookSaveResult("组件没有稳定已保存场景身份，完整默认未固化。", path, null, false); return false; }
+            if (!EditorApplication.isPlaying && !EditorApplication.isPlayingOrWillChangePlaymode)
+                return VoxelSurfaceLookSave.ApplyDefault(comparison, candidate, path);
+            var pending = new PendingDefault { componentId = id.ToString(), scenePath = scene.path,
+                profilePath = AssetDatabase.GetAssetPath(candidate.responseProfile), bindingSignature = BindingSignature(comparison),
+                lookPath = path, lookFingerprint = fingerprint };
+            string priorJson = SessionState.GetString(PendingKey, "");
+            if (!string.IsNullOrEmpty(priorJson))
+            {
+                var prior = JsonUtility.FromJson<PendingDefault>(priorJson);
+                if (prior != null && prior.componentId != pending.componentId)
+                { comparison.ReportLookSaveResult("已有另一绑定组待退出Play固化；未抢写该请求。", path, null, false); return false; }
+            }
+            SessionState.SetString(PendingKey, JsonUtility.ToJson(pending));
+            comparison.ReportLookSaveResult("已登记完整默认请求：" + path + "；明确映射 " + comparison.MappedRendererCount +
+                " 对象；退出Play后验证材质与响应指纹再固化，当前尚未保存场景。", path, candidate, false);
+            return true;
+        }
+
         static void OnPlayModeChanged(PlayModeStateChange state)
         {
             if (state == PlayModeStateChange.EnteredEditMode) EditorApplication.delayCall += () => ProcessPendingDefault();
@@ -129,6 +165,19 @@ namespace Ossastra.WorldRendering.VoxelSurface
             if (pending == null || !GlobalObjectId.TryParse(pending.componentId, out var id))
             { Debug.LogWarning("体素默认请求身份无效，未修改场景。"); SessionState.EraseString(PendingKey); return false; }
             var comparison = GlobalObjectId.GlobalObjectIdentifierToObjectSlow(id) as VoxelSurfaceComparison;
+            if (!string.IsNullOrEmpty(pending.lookPath))
+            {
+                var look = AssetDatabase.LoadAssetAtPath<VoxelSurfaceLookSO>(pending.lookPath);
+                if (comparison == null || comparison.gameObject.scene.path != pending.scenePath || BindingSignature(comparison) != pending.bindingSignature ||
+                    !VoxelSurfaceLookSave.PendingMatches(look, pending.lookFingerprint))
+                {
+                    if (comparison != null) comparison.ReportLookSaveResult("完整默认请求的对象、材质或响应已变化；已取消过期请求。", pending.lookPath, null, false);
+                    SessionState.EraseString(PendingKey); return false;
+                }
+                bool lookSaved = VoxelSurfaceLookSave.ApplyDefault(comparison, look, pending.lookPath);
+                if (lookSaved) SessionState.EraseString(PendingKey);
+                return lookSaved;
+            }
             var candidate = AssetDatabase.LoadAssetAtPath<VoxelSurfaceProfileSO>(pending.profilePath);
             if (comparison == null || comparison.gameObject.scene.path != pending.scenePath || BindingSignature(comparison) != pending.bindingSignature || candidate == null)
             { Debug.LogWarning("体素默认请求未找到完全相同的已加载作者绑定组，未修改或打开场景。"); SessionState.EraseString(PendingKey); return false; }
@@ -149,6 +198,7 @@ namespace Ossastra.WorldRendering.VoxelSurface
             comparison.RestoreOriginal();
             Undo.RecordObject(comparison, "设置本体素绑定组默认");
             comparison.shapedProfile = candidate;
+            comparison.defaultLook = null;
             comparison.saveCandidateProfile = candidate;
             comparison.mode = VoxelSurfaceComparisonMode.Faceted;
             EditorUtility.SetDirty(comparison);
@@ -169,7 +219,17 @@ namespace Ossastra.WorldRendering.VoxelSurface
         {
             var ids = new List<string>();
             if (comparison.bindings != null) foreach (var binding in comparison.bindings)
+            {
                 ids.Add(binding == null || binding.renderer == null ? "missing" : GlobalObjectId.GetGlobalObjectIdSlow(binding.renderer).ToString());
+                if (binding == null) continue;
+                foreach (var values in new[] { binding.original, binding.calibrated, binding.shaped })
+                {
+                    ids.Add("[");
+                    if (values != null) foreach (var material in values)
+                        ids.Add(material == null ? "null" : GlobalObjectId.GetGlobalObjectIdSlow(material).ToString());
+                    ids.Add("]");
+                }
+            }
             return string.Join("|", ids);
         }
 

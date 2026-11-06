@@ -1,0 +1,11 @@
+# v1.2 完整外观会话合同
+
+Root唯一Unity写者依次Native执行：VoxelLookFeatureContract.cs.txt（旧生产RED）、VoxelLookSessionContract.cs.txt、VoxelLookSaveContract.cs.txt。后两项只在Edit私有夹具运行；保存合同使用唯一临时资产目录并在finally精确清理。
+
+生产与Editor桥编译：dotnet build Candidates/VOXEL-LIGHT-01/v1.2/Session/SessionProductionCompile.csproj。
+
+完整Look由明确C作者材质映射和既有受光Profile构成；SceneRenderer列表、原完整材质快照继续在比较组件。未映射槽保留原C_live。素材范围、视觉校准和实际主场仍由Root验证，合同不代签审美。
+
+saveLookTarget必须为独立持久化Look，responseProfile也独立，不放入作者lookPresets或共享其响应。保存后的目标可单独加载继续调节。developmentOnly资产允许Native开发四格，但不能设为正常默认。已有v1.1保存按钮在ActiveLook时转完整保存，传入旧Profile路径会明确拒绝而不丢色板。
+
+完整默认复用v1.1唯一PendingKey，增加Look路径及完整映射/材质依赖/参数指纹；不增加第二套默认队列。dirty场不抢保存。保存重开与Play退出队列必须由Root在明确主场另外验证。

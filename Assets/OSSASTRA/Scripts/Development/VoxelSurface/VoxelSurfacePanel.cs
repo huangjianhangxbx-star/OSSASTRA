@@ -1,4 +1,4 @@
-/* 功能：既有体素受光窗口增加C独立明暗百分比、绝对档位、C0回退与显式保存。
+/* 功能：既有体素窗口提供完整原C/校准材质候选切换，以及独立明暗百分比、C0回退与显式保存。
  * 边界：只消费比较组件会话，不改共享材质、灯、时钟、角色光感或正式默认。
  * 输入：使用明确协调者/地图owner及角色指针区域，防止滑条穿透攻击、转镜头；禁用精确释放。
  * 生命周期：参数由比较组件合并刷新；可滚动且不暂停世界，不新建材质/RT/Canvas。
@@ -43,6 +43,14 @@ namespace Ossastra.Development.VoxelSurface
         { var s = comparison == null ? null : comparison.SessionSettings; if (s != null) comparison.SetSessionAdjustments(Percent(percent), s.backFaceDarkening); }
         public void SetBackFacePercent(float percent)
         { var s = comparison == null ? null : comparison.SessionSettings; if (s != null) comparison.SetSessionAdjustments(s.litFaceBoost, Percent(percent)); }
+        public void RestoreOriginalC()
+        { if (comparison != null) { comparison.RestoreOriginalCLive(); SyncText(); } }
+        public void ApplyLookPreset(int index)
+        {
+            if (comparison == null || comparison.lookPresets == null || index < 0 || index >= comparison.lookPresets.Length) return;
+            var look = comparison.lookPresets[index];
+            if (look != null && !look.developmentOnly && comparison.ApplyLook(look)) SyncText();
+        }
         static float Percent(float percent) => float.IsNaN(percent) || float.IsInfinity(percent) ? 0 : Mathf.Round(Mathf.Clamp(percent, 0, 50)) / 100;
 
         // 单项档位是相对C0的绝对目标，保留另一项；不反复累乘。
@@ -130,9 +138,24 @@ namespace Ossastra.Development.VoxelSurface
             if (GUILayout.Button("B 校准")) comparison.ApplyMode(VoxelSurfaceComparisonMode.Calibrated);
             if (GUILayout.Button("C 轻分面")) comparison.ApplyMode(VoxelSurfaceComparisonMode.Faceted);
             GUILayout.EndHorizontal();
+            if (comparison.originalCLiveProfile != null)
+            {
+                GUILayout.Label("体素材质 · 同位置比较", wrappingLabel);
+                GUILayout.BeginHorizontal();
+                if (GUILayout.Button("原 C")) RestoreOriginalC();
+                if (comparison.lookPresets != null)
+                    for (int i = 0; i < comparison.lookPresets.Length; ++i)
+                    {
+                        var look = comparison.lookPresets[i];
+                        if (look != null && !look.developmentOnly && GUILayout.Button(look.label)) ApplyLookPreset(i);
+                    }
+                GUILayout.EndHorizontal();
+                GUILayout.Label(comparison.ActiveLookLabel + " · " + comparison.PreviewState, wrappingLabel);
+                GUILayout.Label("底板为中性见证；只改变登记的体素材质。", wrappingLabel);
+            }
             var settings = comparison.SessionSettings;
             bool activeC = comparison.mode == VoxelSurfaceComparisonMode.Faceted && settings != null;
-            GUILayout.Label(activeC ? "C独立会话 · 两项0恢复原C" : "C参数暂不应用（A/B保持原响应）", wrappingLabel);
+            GUILayout.Label(activeC ? "C独立会话 · 两项0只复位明暗，原C由上方入口恢复" : "C参数暂不应用（A/B保持原响应）", wrappingLabel);
             GUI.enabled = previous && comparison.isActiveAndEnabled && activeC;
             if (settings != null)
             {
@@ -151,10 +174,11 @@ namespace Ossastra.Development.VoxelSurface
             if (GUILayout.Button("恢复原 C0")) ApplyPreset(VoxelSurfacePreset.OriginalC0);
             if (GUILayout.Button("均衡候选")) ApplyPreset(VoxelSurfacePreset.Balanced);
             GUILayout.EndHorizontal();
-            if (comparison.saveCandidateProfile != null && GUILayout.Button("读取已存候选")) { comparison.LoadSessionFromProfile(comparison.saveCandidateProfile); SyncText(); }
-            GUILayout.Label("当前Profile：" + (comparison.SessionSourceProfile == null ? "未配置" : comparison.SessionSourceProfile.name) + "\n对象：" + comparison.BindingCount + " · 只调体素材质", wrappingLabel);
+            if (comparison.saveLookTarget != null && GUILayout.Button("读取已存完整候选")) { comparison.ApplyLook(comparison.saveLookTarget); SyncText(); }
+            if (comparison.ActiveLook == null && comparison.saveCandidateProfile != null && GUILayout.Button("读取旧响应候选 Profile")) { comparison.LoadSessionFromProfile(comparison.saveCandidateProfile); SyncText(); }
+            GUILayout.Label("当前Profile：" + (comparison.SessionSourceProfile == null ? "未配置" : comparison.SessionSourceProfile.name) + "\n对象：" + (comparison.ActiveLook == null ? comparison.BindingCount : comparison.MappedRendererCount) + " · 只调体素材质", wrappingLabel);
             GUI.enabled = GUI.enabled && Application.isEditor;
-            if (GUILayout.Button("保存为候选 Profile")) comparison.RequestSaveCandidate();
+            if (GUILayout.Button(comparison.ActiveLook == null ? "保存为候选 Profile" : "保存当前候选（材质＋响应）")) comparison.RequestSaveCandidate();
             if (GUILayout.Button("显式设为本对象集默认")) comparison.RequestSetBindingDefault();
             GUI.enabled = previous;
             GUILayout.Label(comparison.SaveStatus, wrappingLabel);

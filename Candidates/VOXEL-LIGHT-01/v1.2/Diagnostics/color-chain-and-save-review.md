@@ -1,0 +1,19 @@
+# v1.2 颜色链与保存语义审计
+
+## 已测颜色语义
+
+Root实际Native探针报告：harness有效、Shader错误0；Color属性上的Material.SetColor/SetVector与MPB.SetColor都执行一次sRGB解码，MPB.SetVector传raw linear，Mesh COLOR传raw数值，sRGB纹理解码一次。实际主diffuse在NdotL=.8660254时由boost0变为.5，倍率1.475481，符合共享函数。不存在据此修改全局Gamma、ACES或生产Shader的依据。
+
+当前绑定Mesh没有顶点色，未发现重复顶点染色证据。固有色为灰/灰绿且ReceiverGround、RainAwning未被C接管，是大片表面仍灰的直接解释。它们不应被宣称已受C参数影响。
+
+## RoomPositive材质与PropertyBlock
+
+`RoomPositivePropertyScope.cs` 45–57直接从Renderer分别捕获Original与Working整块MPB，随后只追加RoomSight及Environment控制字段；Restore整块归还。不存在GetColor→SetVector重新上传_BaseColor的路径。材质桶210–211逐帧CopyPropertiesFromMaterial复制源材质，不使用颜色getter/setter转码。普通与Sight共用体素输入及Lighting。
+
+## 保存语义待修正项
+
+可复现顺序：保存完整候选到saveLookTarget → 显式设默认 → 修改会话滑条 → 再仅保存候选。
+
+`VoxelSurfaceLookSave.ApplyDefault` 直接令defaultLook引用candidate；candidate通常就是saveLookTarget。后续SaveFullLook原位写target.materials以及target.responseProfile.settings，IsProtectedProfile没有保护defaultLook的responseProfile。因此第二次“保存候选”会改变已有默认引用指向的内容，即使defaultLook引用未变。应补“默认已设置后再次仅保存”的合同；不应只凭引用未变化宣称默认未变。
+
+初始SaveContract的saveDoesNotChangeDefault只检查defaultLook为null的情形，未覆盖此顺序。建议在未确认现有默认持久化依赖前拒绝覆盖已作为默认的target，或把默认保存为独立不可变快照再允许继续保存候选。具体策略由Root与会话作者统一，审计者未改生产代码。

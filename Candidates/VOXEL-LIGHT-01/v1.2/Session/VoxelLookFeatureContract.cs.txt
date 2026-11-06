@@ -1,0 +1,16 @@
+/* 功能：v1.2完整Look会话入口的Native RED；反射缺特性给出正常失败，非编译错误。
+ * 边界：不创建资源、不修改主场或存档，Root唯一Native执行。
+ */
+using System; using System.Linq; using Newtonsoft.Json; using Ossastra.WorldRendering.VoxelSurface;
+public static class VoxelLookFeatureContract {
+ public static string Run(){
+  var c=typeof(VoxelSurfaceComparison); var assembly=c.Assembly;
+  var look=assembly.GetType("Ossastra.WorldRendering.VoxelSurface.VoxelSurfaceLookSO");
+  var fields=new[]{"originalCLiveProfile","lookPresets","defaultLook","saveLookTarget"};
+  var methods=new[]{"ApplyLook","RestoreOriginalCLive","ExportLookSession"};
+  var props=new[]{"ActiveLook","ActiveLookLabel","PreviewState","MappedRendererCount"};
+  var missing=fields.Where(n=>c.GetField(n)==null).Concat(methods.Where(n=>c.GetMethod(n)==null)).Concat(props.Where(n=>c.GetProperty(n)==null)).ToList();
+  if(look==null)missing.Add("VoxelSurfaceLookSO");
+  return JsonConvert.SerializeObject(new {pass=missing.Count==0,missingFeature=missing});
+ }
+}

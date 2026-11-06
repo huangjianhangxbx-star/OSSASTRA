@@ -1,0 +1,63 @@
+/* 功能：完整候选保存Native合同；确认配色映射/独立响应一起落盘，不写默认和原作者。
+ * 边界：仅Edit、唯一GUID临时文件夹，finally通过AssetDatabase精确删除；不保存主场。
+ */
+using System; using System.Collections.Generic; using System.Linq; using Newtonsoft.Json;
+using UnityEngine; using UnityEditor; using Ossastra.WorldRendering.VoxelSurface;
+public static class VoxelLookSaveContract {
+ public static string Run(){
+  if(Application.isPlaying)return JsonConvert.SerializeObject(new{pass=false,prerequisite="仅Edit运行"});
+  var r=new Dictionary<string,bool>();GameObject host=null;VoxelSurfaceComparison c=null;
+  var folder="Assets/OSSASTRA/WorldRendering/VoxelSurface/Profiles/LookSave_"+Guid.NewGuid().ToString("N");
+  try{
+   if(!AssetDatabase.IsValidFolder("Assets/OSSASTRA/WorldRendering/VoxelSurface/Profiles"))throw new Exception("missing Profiles parent");
+   AssetDatabase.CreateFolder("Assets/OSSASTRA/WorldRendering/VoxelSurface/Profiles",folder.Substring(folder.LastIndexOf('/')+1));
+   var shader=Shader.Find("Ossastra/WorldRendering/VoxelLit");if(shader==null)throw new Exception("missing VoxelLit");
+   Material Mat(string n,Color v){var m=new Material(shader){name=n};m.SetColor("_BaseColor",v);AssetDatabase.CreateAsset(m,folder+"/"+n+".mat");return m;}
+   VoxelSurfaceProfileSO Profile(string n){var p=ScriptableObject.CreateInstance<VoxelSurfaceProfileSO>();p.settings.mainShape=.65f;AssetDatabase.CreateAsset(p,folder+"/"+n+".asset");return p;}
+   var src=Mat("source",Color.gray);var dest=Mat("candidate",new Color(.8f,.73f,.6f));var changed=Mat("different",Color.green);
+   var original=Profile("original");var c0=Profile("C0");var response=Profile("response");response.settings.litFaceBoost=.15f;
+   var saveResponse=Profile("savedResponse");
+   var look=ScriptableObject.CreateInstance<VoxelSurfaceLookSO>();look.label="clear";look.responseProfile=response;
+   look.materials=new[]{new VoxelSurfaceLookSO.MaterialOverride{source=src,replacement=dest}};AssetDatabase.CreateAsset(look,folder+"/authorLook.asset");
+   var target=ScriptableObject.CreateInstance<VoxelSurfaceLookSO>();target.responseProfile=saveResponse;var path=folder+"/savedLook.asset";AssetDatabase.CreateAsset(target,path);
+   host=new GameObject("LookSave contract",typeof(MeshRenderer));host.SetActive(false);var mr=host.GetComponent<MeshRenderer>();mr.sharedMaterial=src;
+   c=host.AddComponent<VoxelSurfaceComparison>();c.shapedProfile=original;c.originalCLiveProfile=original;c.shapedBaselineProfile=c0;c.saveLookTarget=target;c.lookPresets=new[]{look};
+   c.bindings=new[]{new VoxelSurfaceComparison.Binding{renderer=mr,original=new[]{src},shaped=new[]{src},calibrated=new[]{src}}};
+   c.ApplyLook(look);c.SetSessionAdjustments(.23f,.07f);var before=JsonUtility.ToJson(response.settings);var sourceColor=src.GetColor("_BaseColor");
+   r["saveCompleteLook"]=VoxelSurfaceLookSave.SaveFullLook(c,path);
+   var saved=AssetDatabase.LoadAssetAtPath<VoxelSurfaceLookSO>(path);
+   r["paletteAndResponsePersisted"]=saved.materials.Length==1&&saved.materials[0].source==src&&saved.materials[0].replacement==dest&&saved.responseProfile==saveResponse&&Near(saveResponse.settings.litFaceBoost,.23f);
+   r["saveDoesNotChangeDefault"]=c.defaultLook==null&&c.shapedProfile==original;
+   r["sourceAssetsUntouched"]=src.GetColor("_BaseColor")==sourceColor&&JsonUtility.ToJson(response.settings)==before;
+   r["explicitReceipt"]=c.SaveStatus.Contains(path)&&c.SaveStatus.Contains("1 对象")&&c.PreviewState=="已保存候选";
+   // 已设默认的完整Look及其响应必须冻结；“仅保存候选”不能原位改变现行默认。
+   c.defaultLook=target;c.SetSessionAdjustments(.31f,.11f);
+   var defaultLookBefore=JsonUtility.ToJson(target);var defaultResponseBefore=JsonUtility.ToJson(saveResponse.settings);
+   r["rejectSaveOverActiveDefaultTarget"]=!VoxelSurfaceLookSave.SaveFullLook(c,path)&&JsonUtility.ToJson(target)==defaultLookBefore&&JsonUtility.ToJson(saveResponse.settings)==defaultResponseBefore;
+   JsonUtility.FromJsonOverwrite(defaultLookBefore,target);saveResponse.settings=JsonUtility.FromJson<VoxelSurfaceSettings>(defaultResponseBefore);
+   var sharedDefaultResponse=ScriptableObject.CreateInstance<VoxelSurfaceLookSO>();sharedDefaultResponse.responseProfile=saveResponse;
+   var sharedPath=folder+"/sharedDefaultResponse.asset";AssetDatabase.CreateAsset(sharedDefaultResponse,sharedPath);c.saveLookTarget=sharedDefaultResponse;
+   var sharedLookBefore=JsonUtility.ToJson(sharedDefaultResponse);
+   r["rejectSaveOverActiveDefaultResponse"]=!VoxelSurfaceLookSave.SaveFullLook(c,sharedPath)&&JsonUtility.ToJson(sharedDefaultResponse)==sharedLookBefore&&JsonUtility.ToJson(target)==defaultLookBefore&&JsonUtility.ToJson(saveResponse.settings)==defaultResponseBefore;
+   c.saveLookTarget=target;c.defaultLook=null;c.SetSessionAdjustments(.23f,.07f);
+   r["rejectDifferentSavePath"]=!VoxelSurfaceLookSave.SaveFullLook(c,folder+"/unregistered.asset")&&AssetDatabase.LoadMainAssetAtPath(folder+"/unregistered.asset")==null;
+   target.responseProfile=c0;r["rejectC0Overwrite"]=!VoxelSurfaceLookSave.SaveFullLook(c,path);target.responseProfile=saveResponse;
+   target.responseProfile=response;r["rejectSharedAuthorResponse"]=!VoxelSurfaceLookSave.SaveFullLook(c,path);target.responseProfile=saveResponse;
+   r["legacyProfileSaveCannotLosePalette"]=!VoxelSurfaceProfileSave.SaveCandidate(c,AssetDatabase.GetAssetPath(saveResponse));
+   // 参数相同但配色不同也不能把旧候选设默认；这一步在稳定scene身份检查之前被完整指纹拒绝。
+   var altered=ScriptableObject.CreateInstance<VoxelSurfaceLookSO>();
+   try{altered.label="changed palette";altered.responseProfile=response;altered.materials=new[]{new VoxelSurfaceLookSO.MaterialOverride{source=src,replacement=changed}};c.ApplyLook(altered);c.SetSessionAdjustments(.23f,.07f);
+    r["differentPaletteCannotUseOldSavedDefault"]=!VoxelSurfaceLookSave.SetLookDefault(c)&&c.SaveStatus.Contains("不一致");
+   }finally{UnityEngine.Object.DestroyImmediate(altered);}
+   c.ApplyLook(look);c.SetSessionAdjustments(.23f,.07f);c.LoadSessionFromProfile(response); // load diagnostic-only author copy, then ensure save strips it.
+   response.settings.diagnostic=3;c.LoadSessionFromProfile(response);VoxelSurfaceLookSave.SaveFullLook(c,path);
+   r["diagnosticNeverBecomesDefault"]=saveResponse.settings.diagnostic==0&&c.SessionSettings.diagnostic==3;
+   look.developmentOnly=true;c.ApplyLook(look);VoxelSurfaceLookSave.SaveFullLook(c,path);
+   r["developmentLookCannotBeNormalDefault"]=target.developmentOnly&&!VoxelSurfaceLookSave.SetLookDefault(c)&&c.defaultLook==null;
+   c.RestoreOriginalCLive();r["originalCStillAvailable"]=c.ActiveLook==null&&mr.sharedMaterial.GetColor("_BaseColor")==sourceColor;
+   return JsonConvert.SerializeObject(new{pass=r.Values.All(x=>x),results=r});
+  }catch(Exception e){return JsonConvert.SerializeObject(new{pass=false,results=r,error=e.ToString()});}
+  finally{if(c!=null)c.RestoreOriginal();if(host!=null)UnityEngine.Object.DestroyImmediate(host);if(AssetDatabase.IsValidFolder(folder))AssetDatabase.DeleteAsset(folder);}
+ }
+ static bool Near(float a,float b)=>Mathf.Abs(a-b)<.00001f;
+}

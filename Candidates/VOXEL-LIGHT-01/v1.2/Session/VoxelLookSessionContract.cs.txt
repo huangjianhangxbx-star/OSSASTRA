@@ -1,0 +1,57 @@
+/* 功能：完整Look会话Native行为合同，覆盖混合槽、C_live/C0、作者隔离和有限缓存。
+ * 边界：仅Edit私有夹具，finally归还资源；不碰主场、作者资产或存档。
+ */
+using System; using System.Linq; using System.Collections; using System.Collections.Generic; using System.Reflection;
+using Newtonsoft.Json; using UnityEngine; using Ossastra.WorldRendering.VoxelSurface;
+public static class VoxelLookSessionContract {
+ public static string Run(){
+  if(Application.isPlaying)return JsonConvert.SerializeObject(new{pass=false,prerequisite="仅Edit运行"});
+  var results=new Dictionary<string,bool>();var owned=new List<UnityEngine.Object>();VoxelSurfaceComparison c=null;
+  try{
+   var shader=Shader.Find("Ossastra/WorldRendering/VoxelLit");if(shader==null)throw new Exception("missing VoxelLit");
+   Material Mat(string n,Color color){var m=new Material(shader){name=n};m.SetColor("_BaseColor",color);owned.Add(m);return m;}
+   VoxelSurfaceProfileSO Profile(string n,float boost){var p=ScriptableObject.CreateInstance<VoxelSurfaceProfileSO>();p.name=n;p.settings.mainShape=.65f;p.settings.indirectDiffuse=.65f;p.settings.litFaceBoost=boost;owned.Add(p);return p;}
+   var src=Mat("known stone",new Color(.5f,.5f,.5f));var other=Mat("unknown metal",new Color(.25f,.3f,.4f));other.SetFloat("_Metallic",1);
+   var replacement=Mat("clear stone",new Color(.8f,.75f,.6f));var richMat=Mat("rich stone",new Color(.7f,.6f,.4f));
+   var original=Profile("original",0);var live=Profile("C_live",.37f);var c0=Profile("C0",0);var b=Profile("B",0);
+   var response=Profile("clear response",.15f);response.settings.mainShape=.45f;response.settings.directSpecular=.3f;
+   var richResponse=Profile("rich response",.2f);
+   VoxelSurfaceLookSO Look(string n,Material target,VoxelSurfaceProfileSO p){var l=ScriptableObject.CreateInstance<VoxelSurfaceLookSO>();l.label=n;l.responseProfile=p;l.materials=new[]{new VoxelSurfaceLookSO.MaterialOverride{source=src,replacement=target}};owned.Add(l);return l;}
+   var clear=Look("清透",replacement,response);var rich=Look("浓厚",richMat,richResponse);
+   var host=new GameObject("Look private");host.SetActive(false);owned.Add(host);c=host.AddComponent<VoxelSurfaceComparison>();
+   var r1=new GameObject("mixed slot 1",typeof(MeshRenderer));owned.Add(r1);var mr1=r1.GetComponent<MeshRenderer>();mr1.sharedMaterials=new[]{src,other};
+   var r2=new GameObject("mixed slot 2",typeof(MeshRenderer));owned.Add(r2);var mr2=r2.GetComponent<MeshRenderer>();mr2.sharedMaterials=new[]{src,other};
+   c.shapedProfile=original;c.originalCLiveProfile=live;c.shapedBaselineProfile=c0;c.calibratedProfile=b;c.lookPresets=new[]{clear,rich};
+   c.bindings=new[]{new VoxelSurfaceComparison.Binding{renderer=mr1,original=new[]{src,other},calibrated=new[]{src,other},shaped=new[]{src,other}},new VoxelSurfaceComparison.Binding{renderer=mr2,original=new[]{src,other},calibrated=new[]{src,other},shaped=new[]{src,other}}};
+   var before=JsonUtility.ToJson(response.settings);var sourceColor=src.GetColor("_BaseColor");
+   results["applyExplicitLook"]=c.ApplyLook(clear)&&c.ActiveLook==clear&&c.ActiveLookLabel=="清透"&&c.MappedRendererCount==2;
+   var clearClone=mr1.sharedMaterials[0];var untouched=mr1.sharedMaterials[1];
+   results["mappedMaterialAndResponse"]=clearClone!=replacement&&clearClone.GetColor("_BaseColor")==replacement.GetColor("_BaseColor")&&Near(clearClone.GetFloat("_VoxelLitFaceBoost"),.15f);
+   results["unmappedSlotRetainsCLive"]=untouched.GetColor("_BaseColor")==other.GetColor("_BaseColor")&&Near(untouched.GetFloat("_VoxelLitFaceBoost"),.37f)&&Near(untouched.GetFloat("_VoxelDirectSpecular"),1)&&Near(untouched.GetFloat("_Metallic"),1);
+   c.SetSessionAdjustments(.22f,.05f);c.FlushPendingParameters();
+   results["slidersOnlyTouchMappedSlots"]=Near(mr1.sharedMaterials[0].GetFloat("_VoxelLitFaceBoost"),.22f)&&Near(mr1.sharedMaterials[1].GetFloat("_VoxelLitFaceBoost"),.37f)&&JsonUtility.ToJson(response.settings)==before;
+   var exported=c.ExportLookSession();exported.settings.litFaceBoost=.5f;exported.materials[0].replacement=richMat;
+   results["exportIsIndependent"]=Near(c.SessionSettings.litFaceBoost,.22f)&&c.ExportLookSession().materials[0].replacement==replacement;
+   clear.materials[0].replacement=richMat;c.RefreshParameters();
+   results["mappingSessionIndependent"]=mr1.sharedMaterials[0].GetColor("_BaseColor")==replacement.GetColor("_BaseColor");clear.materials[0].replacement=replacement;
+   c.ApplyMode(VoxelSurfaceComparisonMode.Original);results["AKeepsExactOriginal"]=mr1.sharedMaterials.SequenceEqual(new[]{src,other});
+   c.ApplyMode(VoxelSurfaceComparisonMode.Calibrated);results["BDoesNotConsumeLook"]=mr1.sharedMaterials[0].GetColor("_BaseColor")==sourceColor&&Near(mr1.sharedMaterials[0].GetFloat("_VoxelLitFaceBoost"),0);
+   c.ApplyMode(VoxelSurfaceComparisonMode.Faceted);results["returnCResumesLookSession"]=mr1.sharedMaterials[0]==clearClone&&Near(c.SessionSettings.litFaceBoost,.22f);
+   c.ApplyLook(rich);c.ApplyLook(clear);int warm=Cache(c);
+   for(int i=0;i<30;i++){c.ApplyLook(rich);c.ApplyLook(clear);c.SetSessionAdjustments((i%10)/100f,0);c.RefreshParameters();}
+   results["boundedCacheAndCloneIdentity"]=Cache(c)==warm&&mr1.sharedMaterials[0]==clearClone;
+   var invalid=Look("duplicate",replacement,response);invalid.materials=new[]{invalid.materials[0],invalid.materials[0].Clone()};var prior=mr1.sharedMaterials;
+   results["duplicateMapRejectedBeforeWrite"]=!c.ApplyLook(invalid)&&mr1.sharedMaterials.SequenceEqual(prior);
+   var external=Mat("external",Color.red);mr1.sharedMaterials=new[]{external,other};c.ApplyLook(rich);
+   results["externalWriterKeepsBinding"]=mr1.sharedMaterials[0]==external&&mr2.sharedMaterials[0].GetColor("_BaseColor")==richMat.GetColor("_BaseColor");
+   c.RestoreOriginalCLive();results["restoreLiveNotC0"]=c.ActiveLook==null&&Near(c.SessionSettings.litFaceBoost,.37f)&&mr2.sharedMaterials[0].GetColor("_BaseColor")==sourceColor;
+   c.ApplyLook(clear);c.ResetSessionToC0();c.RefreshParameters();results["technicalC0AlsoRestoresPalette"]=c.ActiveLook==null&&Near(c.SessionSettings.litFaceBoost,0)&&mr2.sharedMaterials[0].GetColor("_BaseColor")==sourceColor;
+   results["authorArraysAndMaterialsUntouched"]=c.bindings[0].shaped.SequenceEqual(new[]{src,other})&&src.GetColor("_BaseColor")==sourceColor&&JsonUtility.ToJson(response.settings)==before;
+   c.RestoreOriginal();results["restoreReleasesOwnedState"]=mr1.sharedMaterials[0]==external&&mr2.sharedMaterials.SequenceEqual(new[]{src,other})&&Cache(c)==0;
+   return JsonConvert.SerializeObject(new{pass=results.Values.All(v=>v),results});
+  }catch(Exception e){return JsonConvert.SerializeObject(new{pass=false,results,error=e.ToString()});}
+  finally{if(c!=null)c.RestoreOriginal();foreach(var item in owned.AsEnumerable().Reverse())if(item!=null)UnityEngine.Object.DestroyImmediate(item);}
+ }
+ static bool Near(float a,float b)=>Mathf.Abs(a-b)<.00001f;
+ static int Cache(VoxelSurfaceComparison c)=>(typeof(VoxelSurfaceComparison).GetField("cache",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(c) as IDictionary).Count;
+}

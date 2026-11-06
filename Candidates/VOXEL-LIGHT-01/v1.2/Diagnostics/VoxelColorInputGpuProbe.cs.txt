@@ -1,0 +1,315 @@
+/* 功能：隔离测量实际颜色上传、白底纹理、真实Mesh颜色与共享体素输入/主光漫反射函数。
+ * 边界：仅Root通过Native执行；不写资产、不改场景、不设置全局Shader变量，不假定颜色转换错误。
+ * 输出为2×2线性ARGBFloat原值；不经过相机、WorldLook、URP后处理或显示器Gamma。
+ * 说明：受控主光不是当前场景主光，不伪造GI采样；全部私有GPU资源在finally中清理。
+ */
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using UnityEditor;
+using UnityEngine;
+using UnityEngine.Rendering;
+using Funplay.Editor.Tools.Scripting;
+
+public sealed class VoxelColorInputGpuProbe : IFunplayCommand
+{
+    Material material;
+    RenderTexture output;
+    Texture2D read;
+    Texture2D white;
+    Mesh mesh;
+    CommandBuffer command;
+    readonly List<Texture2D> textures = new List<Texture2D>();
+
+    public void Execute(ExecutionContext context)
+    {
+        if (!string.Equals(Application.dataPath.Replace('\\', '/'),
+            "E:/WORLDCREATOR/new/Project_ANKALUTE/Assets", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("wrong project");
+        bool previousAsync = ShaderUtil.allowAsyncCompilation;
+        RenderTexture previousActive = RenderTexture.active;
+        Shader shader = null;
+        try
+        {
+            ShaderUtil.allowAsyncCompilation = false;
+            var factory = typeof(ShaderUtil).GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
+                .FirstOrDefault(m => m.Name == "CreateShaderAsset" && m.GetParameters().Length == 1 &&
+                    m.GetParameters()[0].ParameterType == typeof(string));
+            if (factory == null) throw new InvalidOperationException("transient shader factory unavailable");
+            shader = (Shader)factory.Invoke(null, new object[] { ShaderSource });
+            material = new Material(shader) { hideFlags = HideFlags.HideAndDontSave };
+            output = new RenderTexture(2, 2, 0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear)
+                { hideFlags = HideFlags.HideAndDontSave };
+            if (!output.Create()) throw new InvalidOperationException("ARGBFloat render target unavailable");
+            read = new Texture2D(2, 2, TextureFormat.RGBAFloat, false, true)
+                { hideFlags = HideFlags.HideAndDontSave };
+            command = new CommandBuffer { name = "VOXEL-LIGHT-01 v1.2 isolated color input probe" };
+            // 真实Mesh的COLOR输入保留，与生产Forward的顶点属性入口一致；不以SV_VertexID假装验证顶点色。
+            mesh = new Mesh { name = "Owned fullscreen color probe", hideFlags = HideFlags.HideAndDontSave };
+            mesh.vertices = new[] { new Vector3(-1, -1, 0), new Vector3(3, -1, 0), new Vector3(-1, 3, 0) };
+            mesh.uv = new[] { new Vector2(.5f, .5f), new Vector2(.5f, .5f), new Vector2(.5f, .5f) };
+            mesh.triangles = new[] { 0, 1, 2 };
+            white = CreateTexture(Color.white, true);
+            SetMeshColor(Color.white);
+            ResetMaterial();
+            Color harness = Render(9, null);
+            string[] errors = ShaderUtil.GetShaderMessages(shader)
+                .Where(m => m.severity.ToString() == "Error").Select(m => m.message).ToArray();
+            if (errors.Length > 0 || Error(harness, new Color(.25f, .5f, .75f, 1)) > .0001f)
+                throw new InvalidOperationException("GPU harness invalid: " + string.Join(" | ", errors) + " actual=" + harness);
+
+            var uploads = new List<object>();
+            var vertices = new List<object>();
+            var textureInputs = new List<object>();
+            var direct = new List<object>();
+            var labels = new[] { "white", "gray", "original-gray-green", "warm-light-stone" };
+            var colors = new[] { Color.white, new Color(.5f, .5f, .5f, 1),
+                new Color(.43f, .47f, .43f, 1), new Color(.68f, .62f, .48f, 1) };
+
+            for (int i = 0; i < colors.Length; i++)
+            {
+                Color author = colors[i];
+                for (int method = 0; method < 4; method++)
+                {
+                    ResetMaterial();
+                    SetMeshColor(Color.white);
+                    MaterialPropertyBlock block = null;
+                    string upload;
+                    if (method == 0) { material.SetColor("_BaseColor", author); upload = "Material.SetColor"; }
+                    else if (method == 1) { material.SetVector("_BaseColor", ToVector(author)); upload = "Material.SetVector"; }
+                    else
+                    {
+                        block = new MaterialPropertyBlock();
+                        if (method == 2) { block.SetColor("_BaseColor", author); upload = "MPB.SetColor"; }
+                        else { block.SetVector("_BaseColor", ToVector(author)); upload = "MPB.SetVector"; }
+                    }
+                    // GetColor/GetVector读回作者侧存储值；GPU uniform和实际表面输入分别渲染，不用CPU读回推断GPU结果。
+                    Color typedColor = block == null ? material.GetColor("_BaseColor") : block.GetColor("_BaseColor");
+                    Vector4 typedVector = block == null ? material.GetVector("_BaseColor") : block.GetVector("_BaseColor");
+                    Color uniform = Render(1, block);
+                    Color albedo = Render(0, block);
+                    uploads.Add(new
+                    {
+                        sample = labels[i], upload,
+                        authorInput = Values(author), actualTypedColor = Values(typedColor), actualTypedVector = Values(typedVector),
+                        expectedIfGammaValuesUnchanged = Values(author), expectedIfGammaDecodedOnce = Values(author.linear),
+                        actualGpuBaseColorUniform = Values(uniform), actualInitializedAlbedo = Values(albedo),
+                        distanceToUnchanged = Error(albedo, author), distanceToDecodedOnce = Error(albedo, author.linear),
+                        note = "线性浮点读取；expected是两个参照值，不预先断言上传API应采用哪个语义。BaseMap为私有白纹理。"
+                    });
+                }
+
+                ResetMaterial();
+                SetMeshColor(author);
+                Color rawVertex = Render(2, null);
+                Color multipliedVertex = Render(3, null);
+                vertices.Add(new
+                {
+                    sample = labels[i], meshStoredColor = Values(mesh.colors[0]),
+                    expectedRawGammaNumbers = Values(author), expectedDecodedNumbers = Values(author.linear),
+                    actualGpuVertexAttribute = Values(rawVertex), actualWhiteAlbedoTimesVertex = Values(multipliedVertex),
+                    note = "实际Mesh COLOR传输；乘法式对应现Forward的单次乘法，未调用整个场景Forward灯循环。"
+                });
+
+                // 纹理的sRGB标志与材质Color上传分开观察；RGBA32量化值也进入结果。
+                foreach (bool linear in new[] { false, true })
+                {
+                    ResetMaterial();
+                    SetMeshColor(Color.white);
+                    Texture2D texture = CreateTexture(author, linear);
+                    material.SetTexture("_BaseMap", texture);
+                    Color stored = texture.GetPixel(0, 0);
+                    Color albedo = Render(0, null);
+                    textureInputs.Add(new
+                    {
+                        sample = labels[i], constructorLinear = linear, graphicsFormat = texture.graphicsFormat.ToString(),
+                        authorInput = Values(author), actualCpuStoredColor = Values(stored),
+                        expectedIfStoredValuesUnchanged = Values(stored), expectedIfStoredValuesDecoded = Values(stored.linear),
+                        actualInitializedAlbedo = Values(albedo)
+                    });
+                }
+
+                // 受控白主光只检验同一输入的0→0.5响应；不把此处结果宣称为场景GI或实际光照总量。
+                ResetMaterial();
+                SetMeshColor(Color.white);
+                material.SetColor("_BaseColor", author);
+                material.SetFloat("_VoxelLitFaceBoost", 0);
+                Color baseline = Render(4, null);
+                material.SetFloat("_VoxelLitFaceBoost", .5f);
+                Color boosted = Render(4, null);
+                float normalDotLight = .8660254f;
+                float gain = 1 + .5f * normalDotLight * normalDotLight * (3 - 2 * normalDotLight);
+                Color expected = new Color(baseline.r * gain, baseline.g * gain, baseline.b * gain, 1);
+                direct.Add(new
+                {
+                    sample = labels[i], upload = "Material.SetColor", normalDotLight, mainShape = .65f,
+                    controlledLightColor = new[] { 1f, 1f, 1f }, distanceAttenuation = 1f, shadowAttenuation = 1f,
+                    metallic = 0f, smoothness = .12f, specularDisabled = true,
+                    actualMainDiffuseBoost0 = Values(baseline), actualMainDiffuseBoostHalf = Values(boosted),
+                    expectedGain = gain, actualChannelRatios = Ratios(boosted, baseline),
+                    expectedFromMeasuredBaseline = Values(expected), maxError = Error(boosted, expected),
+                    matchesSharedMath = Error(boosted, expected) <= .001f,
+                    note = "调用生产VoxelEvaluateDirectLighting及VoxelLitFaceGain；未采样或假造GI。"
+                });
+            }
+
+            context.ReturnValue = new
+            {
+                harnessValid = true,
+                project = Application.dataPath,
+                projectColorSpace = QualitySettings.activeColorSpace.ToString(),
+                graphics = SystemInfo.graphicsDeviceType.ToString(), shaderSupported = shader.isSupported,
+                source = "共享VoxelSurfaceInput/InitializeStandardLitSurfaceData + VoxelSurfaceLighting；临时Shader/真实Mesh/私有纹理",
+                readback = "2x2 ARGBFloat RenderTextureReadWrite.Linear → RGBAFloat linear Texture2D; sample pixel(0,0)",
+                shaderMessages = ShaderUtil.GetShaderMessages(shader).Select(m => m.severity + ": " + m.message).ToArray(),
+                harnessActual = Values(harness),
+                uploads = uploads.ToArray(), vertexAttributes = vertices.ToArray(), textures = textureInputs.ToArray(),
+                controlledMainDiffuse = direct.ToArray(),
+                limits = "不执行主场、Sight许可、实际GI、WorldLook、URP后处理或输出色调映射。CPU期望值仅为参照，不预判色彩空间缺陷。"
+            };
+        }
+        finally
+        {
+            RenderTexture.active = previousActive;
+            if (command != null) command.Release();
+            if (output != null) { output.Release(); UnityEngine.Object.DestroyImmediate(output); }
+            if (read != null) UnityEngine.Object.DestroyImmediate(read);
+            if (mesh != null) UnityEngine.Object.DestroyImmediate(mesh);
+            if (material != null) UnityEngine.Object.DestroyImmediate(material);
+            foreach (Texture2D texture in textures) if (texture != null) UnityEngine.Object.DestroyImmediate(texture);
+            if (shader != null) UnityEngine.Object.DestroyImmediate(shader);
+            ShaderUtil.allowAsyncCompilation = previousAsync;
+        }
+    }
+
+    Texture2D CreateTexture(Color color, bool linear)
+    {
+        var texture = new Texture2D(2, 2, TextureFormat.RGBA32, false, linear)
+        {
+            hideFlags = HideFlags.HideAndDontSave, filterMode = FilterMode.Point,
+            wrapMode = TextureWrapMode.Clamp, name = "Owned color probe " + (linear ? "Linear" : "sRGB")
+        };
+        textures.Add(texture);
+        texture.SetPixels(new[] { color, color, color, color });
+        texture.Apply(false, false);
+        return texture;
+    }
+
+    void SetMeshColor(Color color) { mesh.colors = new[] { color, color, color }; }
+
+    void ResetMaterial()
+    {
+        material.SetColor("_BaseColor", Color.white);
+        material.SetTexture("_BaseMap", white);
+        material.SetFloat("_Surface", 0); material.SetFloat("_Cutoff", .5f);
+        material.SetFloat("_Metallic", 0); material.SetFloat("_Smoothness", .12f);
+        material.SetColor("_SpecColor", new Color(.2f, .2f, .2f, 1));
+        material.SetColor("_EmissionColor", Color.black);
+        material.SetFloat("_VoxelMainShape", .65f); material.SetFloat("_VoxelLitFaceBoost", 0);
+        material.SetFloat("_VoxelBackFaceDarkening", 0); material.SetFloat("_VoxelIndirectDiffuse", .65f);
+        material.SetFloat("_VoxelEnvironmentSpecular", .25f); material.SetFloat("_VoxelDirectSpecular", 1);
+        material.SetFloat("_VoxelHighlightStrength", 0); material.SetFloat("_VoxelHighlightKnee", 4);
+        material.SetFloat("_VoxelHighlightCeiling", 8); material.SetFloat("_VoxelDiagnostic", 0);
+        material.SetFloat("_VoxelVertexColors", 0); material.SetFloat("_VoxelKeyLightValid", 1);
+    }
+
+    Color Render(int operation, MaterialPropertyBlock block)
+    {
+        material.SetFloat("_TestOperation", operation);
+        command.Clear(); command.SetRenderTarget(output); command.SetViewport(new Rect(0, 0, 2, 2));
+        command.ClearRenderTarget(false, true, Color.magenta);
+        command.DrawMesh(mesh, Matrix4x4.identity, material, 0, 0, block);
+        Graphics.ExecuteCommandBuffer(command);
+        RenderTexture.active = output;
+        read.ReadPixels(new Rect(0, 0, 2, 2), 0, 0, false); read.Apply(false, false);
+        Color result = read.GetPixel(0, 0);
+        if (!Finite(result.r) || !Finite(result.g) || !Finite(result.b))
+            throw new InvalidOperationException("non-finite GPU result operation=" + operation);
+        for (int x = 0; x < 2; x++) for (int y = 0; y < 2; y++)
+            if (Error(read.GetPixel(x, y), result) > .0001f)
+                throw new InvalidOperationException("non-uniform probe raster operation=" + operation);
+        return result;
+    }
+
+    static bool Finite(float value) { return !float.IsNaN(value) && !float.IsInfinity(value); }
+    static Vector4 ToVector(Color value) { return new Vector4(value.r, value.g, value.b, value.a); }
+    static float[] Values(Color value) { return new[] { value.r, value.g, value.b, value.a }; }
+    static float[] Values(Vector4 value) { return new[] { value.x, value.y, value.z, value.w }; }
+    static float Error(Color a, Color b)
+    { return Mathf.Max(Mathf.Abs(a.r - b.r), Mathf.Abs(a.g - b.g), Mathf.Abs(a.b - b.b)); }
+    static float[] Ratios(Color a, Color b)
+    { return new[] { b.r == 0 ? 0 : a.r / b.r, b.g == 0 ? 0 : a.g / b.g, b.b == 0 ? 0 : a.b / b.b }; }
+
+    const string ShaderSource = @"Shader ""Hidden/VOXEL-LIGHT-01/v12ColorInputProbe""
+    {
+        Properties
+        {
+            _BaseColor(""Base Color"", Color) = (1,1,1,1)
+            _BaseMap(""Base Map"", 2D) = ""white"" {}
+            _SpecColor(""Specular"", Color) = (.2,.2,.2,1)
+            _EmissionColor(""Emission"", Color) = (0,0,0,1)
+            _Metallic(""Metallic"", Float) = 0
+            _Smoothness(""Smoothness"", Float) = .12
+            _Cutoff(""Cutoff"", Float) = .5
+            _Surface(""Surface"", Float) = 0
+            _VoxelMainShape(""Shape"", Float) = .65
+            _VoxelLitFaceBoost(""Lit boost"", Float) = 0
+            _VoxelBackFaceDarkening(""Back darkening"", Float) = 0
+            _VoxelIndirectDiffuse(""GI"", Float) = .65
+            _VoxelEnvironmentSpecular(""Environment specular"", Float) = .25
+            _VoxelDirectSpecular(""Direct specular"", Float) = 1
+            _VoxelHighlightStrength(""Shoulder strength"", Float) = 0
+            _VoxelHighlightKnee(""Shoulder knee"", Float) = 4
+            _VoxelHighlightCeiling(""Shoulder ceiling"", Float) = 8
+            _VoxelDiagnostic(""Diagnostic"", Float) = 0
+            _VoxelVertexColors(""Vertex color"", Float) = 0
+            _VoxelKeyLightValid(""Controlled key valid"", Float) = 1
+            _TestOperation(""Operation"", Float) = 0
+        }
+        SubShader { Pass {
+            Cull Off ZWrite Off ZTest Always
+            HLSLPROGRAM
+            #pragma target 4.5
+            #pragma vertex Vert
+            #pragma fragment Frag
+            #define ENVIRONMENT_NATIVE_LIT 1
+            #include ""Assets/OSSASTRA/Scripts/WorldRendering/VoxelSurface/Rendering/VoxelSurfaceInput.hlsl""
+            #include ""Assets/OSSASTRA/Scripts/WorldRendering/VoxelSurface/Rendering/VoxelSurfaceLighting.hlsl""
+            float _TestOperation;
+            struct ProbeAttributes { float3 positionOS:POSITION; float2 uv:TEXCOORD0; half4 color:COLOR; };
+            struct ProbeVaryings { float4 positionCS:SV_POSITION; float2 uv:TEXCOORD0; half4 color:COLOR; };
+            ProbeVaryings Vert(ProbeAttributes input)
+            {
+                ProbeVaryings output;
+                output.positionCS = float4(input.positionOS, 1);
+                output.uv = input.uv;
+                output.color = input.color;
+                return output;
+            }
+            float4 Frag(ProbeVaryings input):SV_Target
+            {
+                if (_TestOperation > 8.5) return float4(.25,.5,.75,1);
+                if (_TestOperation > .5 && _TestOperation < 1.5) return float4(_BaseColor.rgb,1);
+                if (_TestOperation > 1.5 && _TestOperation < 2.5) return float4(input.color.rgb,1);
+                SurfaceData surface;
+                InitializeStandardLitSurfaceData(input.uv, surface);
+                if (_TestOperation < .5) return float4(surface.albedo,1);
+                if (_TestOperation < 3.5) return float4(surface.albedo * input.color.rgb,1);
+                BRDFData brdf;
+                InitializeBRDFData(surface,brdf);
+                BRDFData coat = CreateClearCoatBRDFData(surface,brdf);
+                float n = .8660254;
+                Light key = (Light)0;
+                key.direction = float3(sqrt(1-n*n),0,n);
+                key.color = float3(1,1,1);
+                key.distanceAttenuation = 1;
+                key.shadowAttenuation = 1;
+                VoxelLightingContributions contribution = VoxelEvaluateDirectLighting(
+                    brdf,coat,key,half3(0,0,1),half3(0,0,1),surface.clearCoatMask,true,_VoxelMainShape);
+                return float4(contribution.diffuse * VoxelLitFaceGain(n),1);
+            }
+            ENDHLSL
+        } }
+    }";
+}

@@ -12,7 +12,7 @@ namespace Ossastra.WorldRendering.VoxelSurface
     public enum VoxelSurfaceComparisonMode { Original, Calibrated, Faceted }
 
     [DisallowMultipleComponent]
-    public sealed class VoxelSurfaceComparison : MonoBehaviour
+    public sealed partial class VoxelSurfaceComparison : MonoBehaviour
     {
         [Serializable]
         public sealed class Binding
@@ -97,23 +97,26 @@ namespace Ossastra.WorldRendering.VoxelSurface
             value.litFaceBoost = litBoost; value.backFaceDarkening = backDarkening; value.Sanitize();
             if (value.litFaceBoost == sessionSettings.litFaceBoost && value.backFaceDarkening == sessionSettings.backFaceDarkening) return;
             sessionSettings = value; parametersDirty = true;
+            PreviewState = activeLook == null ? "原C参数临时修改" : "正在预览候选";
         }
 
         public void ResetSessionToC0()
         {
+            CaptureOriginalCLive(); ClearLookSession(); lookInitialized = true;
             var baseline = shapedBaselineProfile != null ? shapedBaselineProfile : shapedProfile;
             if (baseline == null || baseline.settings == null) return;
             sessionSourceProfile = shapedProfile;
             sessionSettings = baseline.settings.Clone();
             sessionSettings.litFaceBoost = 0; sessionSettings.backFaceDarkening = 0;
-            sessionSettings.Sanitize(); parametersDirty = true;
+            sessionSettings.Sanitize(); parametersDirty = true; PreviewState = "技术C0预览";
         }
 
         public void LoadSessionFromProfile(VoxelSurfaceProfileSO profile)
         {
             if (profile == null || profile.settings == null) return;
-            sessionSourceProfile = shapedProfile;
+            sessionSourceProfile = activeLook == null ? shapedProfile : activeLook.responseProfile;
             sessionSettings = profile.settings.Clone(); sessionSettings.Sanitize(); parametersDirty = true;
+            PreviewState = activeLook == null ? "原C参数临时修改" : "正在预览候选";
         }
 
         public VoxelSurfaceSettings ExportSessionSettings()
@@ -148,14 +151,21 @@ namespace Ossastra.WorldRendering.VoxelSurface
 
         void EnsureSession()
         {
-            if (sessionSettings != null && sessionSourceProfile == shapedProfile) return;
-            sessionSourceProfile = shapedProfile;
-            sessionSettings = HasSession ? shapedProfile.settings.Clone() : null;
+            var wanted = activeLook == null ? shapedProfile : activeLook.responseProfile;
+            if (sessionSettings != null && sessionSourceProfile == wanted) return;
+            sessionSourceProfile = wanted;
+            sessionSettings = wanted == null || wanted.settings == null ? null : wanted.settings.Clone();
             if (sessionSettings != null) sessionSettings.Sanitize();
         }
 
         public void ApplyMode(VoxelSurfaceComparisonMode value)
         {
+            // 默认Look只初始化C；A/B启动不被候选引用强制改档，显式恢复原C/C0也不会立即跳回默认。
+            if (value == VoxelSurfaceComparisonMode.Faceted && !lookInitialized)
+            {
+                lookInitialized = true;
+                if (defaultLook != null && ApplyLook(defaultLook)) return;
+            }
             if (isActiveAndEnabled) VoxelLightContext.Register(this);
             mode = Enum.IsDefined(typeof(VoxelSurfaceComparisonMode), value) ? value : VoxelSurfaceComparisonMode.Original;
             SynchronizeBindings();
@@ -172,7 +182,7 @@ namespace Ossastra.WorldRendering.VoxelSurface
                     mode == VoxelSurfaceComparisonMode.Calibrated ? state.Binding.calibrated : state.Binding.shaped;
                 var profile = mode == VoxelSurfaceComparisonMode.Calibrated ? calibratedProfile :
                     mode == VoxelSurfaceComparisonMode.Faceted ? shapedProfile : null;
-                if (!CanUse(sources, state.Original, profile)) { ++rejected; continue; }
+                if (!CanUse(sources, state.Original, null)) { ++rejected; continue; }
                 VoxelSurfaceSettings settings = null;
                 if (profile != null)
                 {
@@ -180,8 +190,22 @@ namespace Ossastra.WorldRendering.VoxelSurface
                     else { settings = profile.settings.Clone(); settings.litFaceBoost = 0; settings.backFaceDarkening = 0; }
                 }
                 var target = new Material[sources.Length];
+                var actualSources = new Material[sources.Length];
+                var actualProfiles = new VoxelSurfaceProfileSO[sources.Length];
+                var actualSettings = new VoxelSurfaceSettings[sources.Length];
+                bool valid = true;
+                // 先验证本binding的所有槽，再创建/应用；候选只接管映射槽，其他槽使用原C_live。
                 for (int slot = 0; slot < sources.Length; ++slot)
-                    target[slot] = profile == null || sources[slot] == null ? sources[slot] : GetMaterial(sources[slot], profile, settings, refreshed);
+                {
+                    actualSources[slot] = sources[slot]; actualProfiles[slot] = profile; actualSettings[slot] = settings;
+                    if (mode == VoxelSurfaceComparisonMode.Faceted)
+                        ResolveCSlot(sources[slot], out actualSources[slot], out actualProfiles[slot], out actualSettings[slot]);
+                    if (!SupportsProfile(actualSources[slot], actualProfiles[slot]) || actualProfiles[slot] != null && actualSettings[slot] == null) valid = false;
+                }
+                if (!valid) { ++rejected; continue; }
+                for (int slot = 0; slot < sources.Length; ++slot)
+                    target[slot] = actualProfiles[slot] == null || actualSources[slot] == null ? actualSources[slot] :
+                        GetMaterial(actualSources[slot], actualProfiles[slot], actualSettings[slot], refreshed);
                 if (!Same(state.Renderer.sharedMaterials, target)) state.Renderer.sharedMaterials = target;
                 state.Assigned = target;
                 ++applied;
@@ -275,7 +299,7 @@ namespace Ossastra.WorldRendering.VoxelSurface
                     if (item.Key.Profile == calibratedProfile && Contains(state.Binding.calibrated, item.Key.Source) ||
                         item.Key.Profile == shapedProfile && Contains(state.Binding.shaped, item.Key.Source)) { retained = true; break; }
                 }
-                if (retained) continue;
+                if (retained || RetainLookKey(item.Key.Source, item.Key.Profile)) continue;
                 if (StillReferenced(item.Value)) ++handedOff;
                 else DestroyOwned(item.Value);
                 remove.Add(item.Key);
@@ -317,13 +341,19 @@ namespace Ossastra.WorldRendering.VoxelSurface
             if (materials == null || materials.Length != original.Length || profile != null && profile.settings == null) return false;
             for (int slot = 0; slot < materials.Length; ++slot)
                 if (original[slot] != null && materials[slot] == null) return false;
-            if (profile != null) foreach (var material in materials)
-                if (material != null && (!material.HasProperty("_VoxelMainShape") || !material.HasProperty("_VoxelIndirectDiffuse") ||
+            if (profile != null) foreach (var material in materials) if (!SupportsProfile(material, profile)) return false;
+            return true;
+        }
+
+        static bool SupportsProfile(Material material, VoxelSurfaceProfileSO profile)
+        {
+            if (profile == null || material == null) return true;
+            if (profile.settings == null) return false;
+            return !(!material.HasProperty("_VoxelMainShape") || !material.HasProperty("_VoxelIndirectDiffuse") ||
                     !material.HasProperty("_VoxelLitFaceBoost") || !material.HasProperty("_VoxelBackFaceDarkening") ||
                     !material.HasProperty("_VoxelEnvironmentSpecular") || !material.HasProperty("_VoxelDirectSpecular") ||
                     !material.HasProperty("_VoxelHighlightStrength") || !material.HasProperty("_VoxelHighlightKnee") ||
-                    !material.HasProperty("_VoxelHighlightCeiling") || !material.HasProperty("_VoxelDiagnostic") || !material.HasProperty("_VoxelVertexColors"))) return false;
-            return true;
+                    !material.HasProperty("_VoxelHighlightCeiling") || !material.HasProperty("_VoxelDiagnostic") || !material.HasProperty("_VoxelVertexColors"));
         }
 
         static bool Same(Material[] left, Material[] right)
