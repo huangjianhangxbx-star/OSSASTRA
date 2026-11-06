@@ -1,0 +1,174 @@
+/* 测试专用：只在独立Smoke场中提供固定、显式的许可帧，并读取真实渲染后端数值。
+ * 不属于生产架构，不调用玩家/地图研究/开发面板，不授予主场任何可见权或写业务档案。
+ * WorldLookController保留为缺权限拒绝样板；成功Look由本测试端口调用真实Adapter/Build/Registry。
+ * Root临时安装到独立测试目录后编译；冷启结束精确归还自身Registry与相机scope。
+ */
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.Rendering;
+using Ossastra.EnvironmentSimulation;
+using Ossastra.EnvironmentSimulation.Rendering;
+using Ossastra.CharacterLighting;
+using Ossastra.SceneVisibility.Rooms.Rendering;
+using Ossastra.WorldRendering;
+
+namespace Ossastra.RenderArchitectureSmoke
+{
+ [DefaultExecutionOrder(10000),DisallowMultipleComponent]
+ public sealed class RenderArchitectureSmokeProbe : MonoBehaviour
+ {
+  public Camera gameplayCamera;
+  public EnvironmentRoot environment;
+  public EnvironmentSkyBinding sky;
+  public CharacterLightingSystem lighting;
+  public RendererLightingSource source;
+  public CharacterLightingReceiver receiver;
+  public WorldLookController look;
+  public Renderer[] environmentSurfaces=Array.Empty<Renderer>();
+  public Renderer body;
+  public string LastReport{get;private set;}="未采样";
+  public bool Passed{get;private set;}
+  public int ReportCount{get;private set;}
+  public int RenderCount{get;private set;}
+  RoomMaskFrame frame;
+  string error="";
+  bool subscribed;
+  float originalHours;
+
+  void OnEnable()
+  {
+   if(!Application.isPlaying)return;
+   if(gameplayCamera==null||environment==null||sky==null||lighting==null||source==null||receiver==null||look==null||body==null)
+   {error="Smoke显式字段缺失；拒绝发布测试许可";return;}
+   var surfaces=new List<RoomPositiveSurface>();
+   foreach(var renderer in environmentSurfaces)
+   {
+    if(renderer==null){error="Smoke明确环境表面为空";return;}
+    surfaces.Add(new RoomPositiveSurface{Renderer=renderer,Kind=RoomPositiveSurfaceKind.Full,OwnerExterior=true,
+     StaticEnvironment=true,WorldLookEnvironment=true,EnvironmentFullSurface=true,EnvironmentSurfaceRole=0,
+     EnvironmentResponseOverride=-1,EnvironmentReceiveShadow=1,EnvironmentMinimumOverride=-1});
+   }
+   surfaces.Add(new RoomPositiveSurface{Renderer=body,Kind=RoomPositiveSurfaceKind.Partial,OwnerExterior=true,
+    IndependentDraw=true,EnvironmentSurfaceRole=2,EnvironmentResponseOverride=-1,EnvironmentReceiveShadow=1,EnvironmentMinimumOverride=-1});
+   var submitted=surfaces.ToArray();RoomPositiveRenderingLayers.AssignDrawMasks(submitted);
+   frame=new RoomMaskFrame{Enabled=true,PositiveRenderingEnabled=true,TruthMode=false,ExteriorView=true,
+    ObserverPosition=source.transform.position+Vector3.up,CameraObserverPosition=gameplayCamera.transform.position,
+    PositiveSurfaces=submitted,Fog=new RoomFogSettings{Enabled=false},VisibilityEpoch=1};
+   originalHours=(float)environment.timeHours;
+   RenderPipelineManager.beginCameraRendering+=Begin;
+   RenderPipelineManager.endCameraRendering+=End;subscribed=true;
+   StartCoroutine(ReadColdStart());
+  }
+
+  void Begin(ScriptableRenderContext context,Camera camera)
+  {
+   if(camera!=gameplayCamera||frame==null)return;
+   // 合同数据明确枚举，不替代房间/角色membership。真实Feature仍执行剔除前准备与材质/预算校验。
+   frame.PresentationTime=Time.unscaledTimeAsDouble;
+   try
+   {
+    receiver.TickPresentation();
+    RoomMaskCameraRegistry.Publish(this,camera,frame);
+    if(!(look.profileAdapter is IWorldLookProfileAdapter adapter))throw new InvalidOperationException("缺少真实Look适配器");
+    var values=adapter.Capture(look.outdoorPresentation,look.outdoorAtmosphere,look.outdoorPalette);
+    if(values==null)throw new InvalidOperationException("Look适配器没有返回值");
+    EnvironmentCameraRegistry.TryGet(camera,out var current);
+    var settings=WorldLookSettings.Build(camera,frame.ObserverPosition,values.Presentation,values.Atmosphere,
+     values.Palette,look.effects,current,look.useEnvironmentWeather);
+    WorldLookCameraRegistry.Publish(this,camera,settings);RenderCount++;
+   }
+   catch(Exception failure)
+   {
+    error=failure.GetType().Name+": "+failure.Message;
+    WorldLookCameraRegistry.Release(this,camera);RoomMaskCameraRegistry.Release(this,camera);
+    frame=null;
+   }
+  }
+  void End(ScriptableRenderContext context,Camera camera)
+  {if(camera==gameplayCamera)RoomMaskCameraRegistry.EndScope(this,camera);}
+
+  IEnumerator ReadColdStart()
+  {
+   float startupDeadline=Time.realtimeSinceStartup+30; while(RenderCount<90&&Time.realtimeSinceStartup<startupDeadline)yield return null; yield return new WaitForEndOfFrame(); CapturePlayerImage("cold-start");
+   LastReport=CaptureReport("cold-start");Debug.Log("RENDER_ARCH_SMOKE "+LastReport,this);
+   bool coldPassed=Passed;
+   // 相同冷启流程切一次时间再实际绘制，确认环境继续、实体/Look没有开发面板推进依赖。
+   if(environment!=null)environment.SetTimeHours(18);
+   int targetRender=RenderCount+30; float sunsetDeadline=Time.realtimeSinceStartup+30; while(RenderCount<targetRender&&Time.realtimeSinceStartup<sunsetDeadline)yield return null; yield return new WaitForEndOfFrame(); CapturePlayerImage("sunset");
+   LastReport=CaptureReport("sunset");Debug.Log("RENDER_ARCH_SMOKE "+LastReport,this);
+   bool completePassed=coldPassed&&Passed;
+   if(environment!=null)environment.SetTimeHours(originalHours);
+   if(!Application.isEditor&&Array.IndexOf(Environment.GetCommandLineArgs(),"--render-smoke-quit")>=0)
+   {yield return new WaitForEndOfFrame();Application.Quit(completePassed?0:2);}
+  }
+
+  void CapturePlayerImage(string phase)
+  {
+   if(Application.isEditor)return; var image=ScreenCapture.CaptureScreenshotAsTexture(); if(image==null)return;
+   try{var folder=System.IO.Path.GetDirectoryName(Application.dataPath);System.IO.File.WriteAllBytes(System.IO.Path.Combine(folder,phase+".png"),ImageConversion.EncodeToPNG(image));}finally{UnityEngine.Object.Destroy(image);}
+  }
+  public string CaptureReport(string phase="native-readback")
+  {
+   bool registered=EnvironmentCameraRegistry.TryGet(gameplayCamera,out var env);
+   bool positive=RoomMaskCameraRegistry.TryGetStatistics(gameplayCamera,out var stats);
+   bool lookRegistered=WorldLookCameraRegistry.TryGet(gameplayCamera,out var lookSettings);
+   bool lightingRegistered=CharacterLightingSystem.TryGet(gameplayCamera,out var registeredSystem)&&registeredSystem==lighting;
+   var forbidden=new List<string>();
+   foreach(var root in gameObject.scene.GetRootGameObjects())foreach(var component in root.GetComponentsInChildren<MonoBehaviour>(true))
+   {
+    if(component==null){forbidden.Add("MissingScript");continue;}
+    var ns=component.GetType().Namespace??"";
+    if(ns.StartsWith("Ossastra.Development",StringComparison.Ordinal)||ns.StartsWith("Ossastra.MapResearch",StringComparison.Ordinal))forbidden.Add(component.GetType().FullName);
+   }
+   bool permissionControllerDenied=look!=null&&look.Current==null;
+   Passed=string.IsNullOrEmpty(error)&&registered&&env!=null&&env.Enabled&&sky!=null&&sky.SurfaceReady&&sky.SkyReady&&
+    receiver!=null&&receiver.SourceAvailable&&receiver.Owner==source&&receiver.Members.Count==1&&lightingRegistered&&
+    lighting.CoverageActors==1&&lighting.CoverageDraws>0&&lighting.OuterGlowDraws>0&&positive&&stats!=null&&stats.Active&&
+    stats.SurfaceDraws>0&&string.IsNullOrEmpty(stats.Error)&&lookRegistered&&lookSettings!=null&&lookSettings.Enabled&&
+    permissionControllerDenied&&forbidden.Count==0&&RenderCount>2;
+   ReportCount++;
+   return JsonUtility.ToJson(new Report{phase=phase,passed=Passed,renderCount=RenderCount,error=error,
+    environmentRegistered=registered,hours=env==null?-1:env.Hours,revision=env==null?-1:env.Revision,
+    sunIntensity=env==null?-1:env.SunIntensity,ambientIntensity=env==null?-1:env.AmbientIntensity,
+    environmentStatus=environment==null?"missing":environment.Status,skyReady=sky!=null&&sky.SkyReady,
+    rainReady=sky!=null&&sky.RainReady,reflectionReady=sky!=null&&sky.ReflectionReady,surfaceReady=sky!=null&&sky.SurfaceReady,
+    previewAllocated=sky!=null&&sky.PreviewReady,skyStatus=sky==null?"missing":sky.Status,
+    receiverStatus=receiver==null?"missing":receiver.Status,sourceType=source==null?"missing":source.GetType().FullName,
+    ownerId=receiver==null?"missing":receiver.EntityId,memberCount=receiver==null?0:receiver.Members.Count,
+    lightingRegistered=lightingRegistered,coverageActors=lighting==null?0:lighting.CoverageActors,
+    coverageDraws=lighting==null?0:lighting.CoverageDraws,coverageBytes=lighting==null?0:lighting.CoverageBytes,
+    outerDraws=lighting==null?0:lighting.OuterGlowDraws,outerBytes=lighting==null?0:lighting.OuterGlowBytes,
+    outerStatus=lighting==null?"missing":lighting.OuterGlowStatus,positiveActive=positive&&stats!=null&&stats.Active,
+    positiveDraws=stats==null?0:stats.SurfaceDraws,positiveError=stats==null?"missing":stats.Error,
+    lookRegistered=lookRegistered,lookEnabled=lookSettings!=null&&lookSettings.Enabled,
+    controllerSuccessClaimed=false,controllerMissingAuthorityDenied=permissionControllerDenied,
+    controllerStatus=look==null?"missing":look.Status,forbiddenComponents=forbidden.ToArray(),
+    pipeline=GraphicsSettings.currentRenderPipeline==null?"none":GraphicsSettings.currentRenderPipeline.name,
+    timeScale=Time.timeScale});
+  }
+
+  void OnDisable()
+  {
+   StopAllCoroutines();
+   if(subscribed){RenderPipelineManager.beginCameraRendering-=Begin;RenderPipelineManager.endCameraRendering-=End;subscribed=false;}
+   if(!ReferenceEquals(gameplayCamera,null))
+   {RoomMaskCameraRegistry.EndScope(this,gameplayCamera);RoomMaskCameraRegistry.Release(this,gameplayCamera);WorldLookCameraRegistry.Release(this,gameplayCamera);}
+   frame=null;
+  }
+  void OnDestroy(){OnDisable();}
+
+  [Serializable] sealed class Report
+  {
+   public string phase,error,environmentStatus,skyStatus,receiverStatus,sourceType,ownerId,outerStatus,positiveError,controllerStatus,pipeline;
+   public bool passed,environmentRegistered,skyReady,rainReady,reflectionReady,surfaceReady,previewAllocated,lightingRegistered,
+    positiveActive,lookRegistered,lookEnabled,controllerSuccessClaimed,controllerMissingAuthorityDenied;
+   public int renderCount,memberCount,coverageActors,coverageDraws,outerDraws,positiveDraws;
+   public long revision,coverageBytes,outerBytes;
+   public double hours;
+   public float sunIntensity,ambientIntensity,timeScale;
+   public string[] forbiddenComponents;
+  }
+ }
+}

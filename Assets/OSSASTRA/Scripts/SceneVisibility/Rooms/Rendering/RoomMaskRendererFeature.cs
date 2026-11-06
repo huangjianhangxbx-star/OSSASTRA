@@ -341,7 +341,7 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
             {
                 if (!owner.Ready || renderingData.cameraData.camera != owner.Camera) return;
                 var cmd = CommandBufferPool.Get("RoomVisibility permission surfaces and portals");
-                try { owner.Draw(cmd); context.ExecuteCommandBuffer(cmd); }
+                try { using (new Ossastra.Rendering.RenderCommandScope(cmd)) owner.Draw(cmd); context.ExecuteCommandBuffer(cmd); }
                 finally { CommandBufferPool.Release(cmd); }
             }
             public override void OnCameraCleanup(CommandBuffer cmd)
@@ -360,8 +360,12 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
                 var cmd = CommandBufferPool.Get("RoomVisibility curtain after post processing");
                 try
                 {
-                    CoreUtils.SetRenderTarget(cmd, renderingData.cameraData.renderer.cameraColorTargetHandle);
-                    owner.CompositeDraw(cmd); context.ExecuteCommandBuffer(cmd);
+                    using (new Ossastra.Rendering.RenderCommandScope(cmd))
+                    {
+                        CoreUtils.SetRenderTarget(cmd, renderingData.cameraData.renderer.cameraColorTargetHandle);
+                        owner.CompositeDraw(cmd);
+                    }
+                    context.ExecuteCommandBuffer(cmd);
                 }
                 finally { CommandBufferPool.Release(cmd); }
             }

@@ -1,0 +1,8 @@
+/* 功能：验证真实环境阶段的独立命令构造保护；失败丢弃半成命令，后续有效构造可恢复。
+ * 边界：不执行GPU、不修改场景或实时全局；三种环境增强复用这个生产保护边界。
+ */
+using System;using System.Reflection;using UnityEngine.Rendering;using Newtonsoft.Json;using Ossastra.CharacterLighting;
+public static class EnvironmentCommandsContract
+{
+ public static string Run(){var t=typeof(CharacterLightingSystem).Assembly.GetType("Ossastra.SceneVisibility.Rooms.Rendering.RoomEnvironmentRenderStage");var m=t==null?null:t.GetMethod("TryBuildOptional",BindingFlags.NonPublic|BindingFlags.Static);if(m==null)return "RED no isolated environment command boundary";var cmd=new CommandBuffer();try{Action<CommandBuffer> broken=c=>{c.SetGlobalFloat("_RenderArch01PrivateEnvironmentProbe",1);throw new InvalidOperationException("Expected optional environment fault");};object[] badArgs={cmd,broken,null};bool failed=!(bool)m.Invoke(null,badArgs);bool discarded=cmd.sizeInBytes==0;string reason=(string)badArgs[2];Action<CommandBuffer> good=c=>c.SetGlobalFloat("_RenderArch01PrivateEnvironmentProbe",2);object[] goodArgs={cmd,good,null};bool recovers=(bool)m.Invoke(null,goodArgs)&&cmd.sizeInBytes>0;return JsonConvert.SerializeObject(new{pass=failed&&discarded&&reason.Contains("Expected optional environment fault")&&recovers,failed,discarded,reason,recovers});}finally{cmd.Release();}}
+}

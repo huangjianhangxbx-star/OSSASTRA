@@ -4,8 +4,6 @@
  */
 using System;
 using System.Collections.Generic;
-using Ossastra.Characters;
-using PlayerCharacterRoot=Ossastra.Characters.CharacterRoot;
 using UnityEngine;
 using Ossastra.CharacterLighting.Rendering;
 namespace Ossastra.CharacterLighting
@@ -25,32 +23,32 @@ namespace Ossastra.CharacterLighting
    set{runtimeSettings=value==null?new CharacterLightingSettings():value.Clone();runtimeSettings.Sanitize();}
   }
   public string Status{get;private set;}="未初始化";
-  public PlayerCharacterRoot Owner=>owner;
+  public Component Owner=>source==null?null:source.Owner;
+  public string EntityId=>source==null?"":source.EntityId;
+  public bool SourceAvailable=>source!=null&&Owner!=null&&source.IsAvailable;
   public IReadOnlyList<Renderer> Members=>members;
   public CharacterCoverageActor CoverageActor=>actor;
   static readonly List<CharacterLightingReceiver> active=new List<CharacterLightingReceiver>(2);
   readonly List<Renderer> members=new List<Renderer>(8),explicitAccessories=new List<Renderer>(4);
-  PlayerCharacterRoot owner;CharacterEquipmentSpineView spineEquipment;CharacterEquipmentView spriteEquipment;
-  Renderer oldLeft,oldRight,oldSprite;CharacterCoverageActor actor;bool initialized,registered;
+  ICharacterLightingSource source; readonly List<Renderer> equipment=new List<Renderer>(3),scratch=new List<Renderer>(3);
+  CharacterCoverageActor actor;bool initialized,registered;
   [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
   static void ResetStatics(){foreach(var receiver in active)if(receiver!=null)receiver.registered=false;active.Clear();}
-  public void Initialize(PlayerCharacterRoot root)
+  public void Initialize(ICharacterLightingSource root)
   {
-   Suspend();owner=root;initialized=root!=null;
+   Suspend();source=root;initialized=root!=null&&root.Owner!=null;
    // Initialize/Disable不重置已存在的运行时A/B与用户调参，Profile只在首次访问时复制。
-   if(root==null){Status="缺少角色根";return;}
-   spineEquipment=root.GetComponent<CharacterEquipmentSpineView>();spriteEquipment=root.GetComponent<CharacterEquipmentView>();
+   if(!initialized){Status="缺少实体表现来源";return;}
+   equipment.Clear();
    if(gameplayCamera==null)Status="缺少明确游戏相机；不借Camera.main猜测";
-   oldLeft=oldRight=oldSprite=null;RebuildMembers();TickPresentation();
+   RebuildMembers();TickPresentation();
   }
   public void TickPresentation()
   {
-   if(!initialized||owner==null||!isActiveAndEnabled||!owner.isActiveAndEnabled||!owner.IsAlive||gameplayCamera==null){Suspend();return;}
-   var left=spineEquipment==null||spineEquipment.LeftSkeleton==null?null:spineEquipment.LeftSkeleton.GetComponent<Renderer>();
-   var right=spineEquipment==null||spineEquipment.RightSkeleton==null?null:spineEquipment.RightSkeleton.GetComponent<Renderer>();
-   var sprite=spriteEquipment==null?null:spriteEquipment.PresentedRenderer;
-   if(!ReferenceEquals(left,oldLeft)||!ReferenceEquals(right,oldRight)||!ReferenceEquals(sprite,oldSprite))
-   {oldLeft=left;oldRight=right;oldSprite=sprite;RebuildMembers();}
+   if(!initialized||!SourceAvailable||!isActiveAndEnabled||gameplayCamera==null){Suspend();return;}
+   scratch.Clear();source.AppendEquipmentRenderers(scratch);
+   bool changed=scratch.Count!=equipment.Count;for(int i=0;!changed&&i<scratch.Count;i++)changed=!ReferenceEquals(scratch[i],equipment[i]);
+   if(changed){equipment.Clear();equipment.AddRange(scratch);RebuildMembers();}
    if(members.Count==0){Status="没有明确身体/装备轮廓成员";Suspend();return;}
    if(!registered){active.Add(this);registered=true;}
    Status="登记 "+members.Count+" 个身体/装备成员";
@@ -59,27 +57,27 @@ namespace Ossastra.CharacterLighting
   {
    members.Clear();if(bodyRenderers!=null)foreach(var body in bodyRenderers)AddOwned(body);
    foreach(var accessory in explicitAccessories)AddOwned(accessory);
-   AddOwned(oldLeft);AddOwned(oldRight);AddOwned(oldSprite);actor=new CharacterCoverageActor(this,members);
+   foreach(var r in equipment)AddOwned(r);actor=new CharacterCoverageActor(this,members);
   }
   void AddOwned(Renderer renderer)
-  {if(renderer!=null&&owner!=null&&renderer.transform.IsChildOf(owner.transform)&&!members.Contains(renderer))members.Add(renderer);}
+  {if(renderer!=null&&Owner!=null&&renderer.transform.IsChildOf(Owner.transform)&&!members.Contains(renderer))members.Add(renderer);}
   public void RegisterAccessory(Renderer renderer)
   {if(renderer==null||explicitAccessories.Contains(renderer))return;explicitAccessories.Add(renderer);RebuildMembers();}
   public void UnregisterAccessory(Renderer renderer)
   {if(explicitAccessories.Remove(renderer))RebuildMembers();}
   public void Suspend(){if(registered)active.Remove(this);registered=false;}
-  public void DisposeReceiver(){Suspend();members.Clear();explicitAccessories.Clear();owner=null;actor=null;initialized=false;oldLeft=oldRight=oldSprite=null;}
+  public void DisposeReceiver(){Suspend();members.Clear();explicitAccessories.Clear();source=null;actor=null;initialized=false;equipment.Clear();scratch.Clear();}
   public static void Collect(Camera camera,List<CharacterCoverageActor> destination)
   {
    destination.Clear();foreach(var receiver in active)
-    if(receiver!=null&&receiver.registered&&receiver.isActiveAndEnabled&&receiver.owner!=null&&receiver.owner.isActiveAndEnabled&&receiver.owner.IsAlive&&receiver.gameplayCamera==camera&&receiver.actor!=null)
+    if(receiver!=null&&receiver.registered&&receiver.isActiveAndEnabled&&receiver.SourceAvailable&&receiver.gameplayCamera==camera&&receiver.actor!=null)
      destination.Add(receiver.actor);
   }
   void OnEnable()
   {
    // 热重载可能保留initialized/装备引用/registered，却丢失运行列表、actor和静态登记；先撤销旧标记再重建。
    Suspend();
-   if(initialized&&owner!=null){RebuildMembers();TickPresentation();}
+   if(initialized&&SourceAvailable){RebuildMembers();TickPresentation();}
   }
   void OnDisable(){Suspend();}
   void OnDestroy(){DisposeReceiver();}

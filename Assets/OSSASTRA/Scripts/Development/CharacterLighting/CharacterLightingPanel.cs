@@ -21,6 +21,7 @@ namespace Ossastra.Development.CharacterLighting
   [Header("明确场景引用；观察选择不改变真正主控")]
   public CharacterLightingReceiver[] receivers=Array.Empty<CharacterLightingReceiver>();
   public EnvironmentRoot environment;
+  public CharacterLightingSystem lightingSystem;
   public CharacterControlCoordinator coordinator;
   public MapResearchRoot map;
   public Ossastra.Development.Environment.EnvironmentSimulationPanel environmentPanel;
@@ -34,10 +35,12 @@ namespace Ossastra.Development.CharacterLighting
   public RectTransform Surface=>surface;
   public bool IsCapturingInput=>captured;
   public CharacterLightingReceiver ObservedReceiver=>observed;
-  public string ObservedActorId=>observed==null||observed.Owner==null?"":observed.Owner.ActorId;
+  public string ObservedActorId=>observed==null||observed.Owner==null?"":observed.EntityId;
   public string Status{get;private set;}="角色光感面板尚未建立";
   // 委托只读取渲染服务自己的诊断，不由UI猜测灯、房间或GPU前后亮度。
   public Func<CharacterLightingReceiver,string> DiagnosticsReader;
+  CharacterLightingSystem diagnosticsSource;
+  Func<CharacterLightingReceiver,string> ownedDiagnosticsReader;
   readonly HashSet<int> hovering=new HashSet<int>(),pressed=new HashSet<int>(),selected=new HashSet<int>();
   readonly List<Action> refreshers=new List<Action>();readonly List<UnityEngine.UI.Selectable> parameterControls=new List<UnityEngine.UI.Selectable>();
   readonly Dictionary<CharacterLightingReceiver,CharacterLightingSettings> before=new Dictionary<CharacterLightingReceiver,CharacterLightingSettings>();
@@ -49,10 +52,10 @@ namespace Ossastra.Development.CharacterLighting
   bool hasClockLease,clockBefore;EnvironmentTimeMode clockModeBefore,clockModeWritten;EnvironmentRoot leasedClock;
   float nextRefresh;CharacterLightingReceiver[] displayed=Array.Empty<CharacterLightingReceiver>();
 
-  void OnEnable(){if(!Application.isPlaying)return;if(viewRoot==null)Build();else viewRoot.SetActive(true);SetExpanded(expanded);}
+  void OnEnable(){ReconcileDiagnostics();if(!Application.isPlaying)return;if(viewRoot==null)Build();else viewRoot.SetActive(true);SetExpanded(expanded);}
   void Update()
   {
-   if(!Application.isPlaying)return;if(viewRoot==null){Build();return;}ReconcileCapture();
+   if(!Application.isPlaying)return;ReconcileDiagnostics();if(viewRoot==null){Build();return;}ReconcileCapture();
    if(Time.unscaledTime<nextRefresh)return;nextRefresh=Time.unscaledTime+.12f;RefreshWidgets();
   }
   void Build()
@@ -164,7 +167,7 @@ namespace Ossastra.Development.CharacterLighting
   public void SelectObserved(int index)
   {if(refreshing||index<0||index>=displayed.Length)return;observed=displayed[index];Status="观察 → "+ActorLabel(observed)+"；真正主控保持";RefreshWidgets();}
   static string ActorLabel(CharacterLightingReceiver receiver)
-  {return receiver==null?"无对象":receiver.Owner==null?receiver.name:receiver.Owner.ActorId+" / "+receiver.Owner.name;}
+  {return receiver==null?"无对象":receiver.Owner==null?receiver.name:receiver.EntityId+" / "+receiver.Owner.name;}
   void RefreshReceiverList()
   {
    var next=(receivers??Array.Empty<CharacterLightingReceiver>()).Where(r=>r!=null&&r.gameObject.scene==gameObject.scene).Distinct().ToArray();
@@ -202,7 +205,7 @@ namespace Ossastra.Development.CharacterLighting
   public void SaveCandidateProfile()
   {
    if(observed==null){Status="没有可保存的正式接收者";return;}
-   try{string path;if(CharacterLightingProfileSave.TrySave(observed.Settings,observed.Owner==null?observed.name:observed.Owner.ActorId,out path))Status="已保存新候选："+path+"；原Profile未覆盖";else Status=path;}
+   try{string path;if(CharacterLightingProfileSave.TrySave(observed.Settings,observed.Owner==null?observed.name:observed.EntityId,out path))Status="已保存新候选："+path+"；原Profile未覆盖";else Status=path;}
    catch(Exception error){Status="候选未保存："+error.Message;Debug.LogWarning(Status,this);}RefreshWidgets();
   }
   void RefreshWidgets()
@@ -220,12 +223,22 @@ namespace Ossastra.Development.CharacterLighting
   }
   string ReadDiagnostics()
   {
+   ReconcileDiagnostics();
    if(observed==null)return "未登记角色接收者；不会自动搜索全场。";
    string profileName=observed.profile==null?"中性缺省 / 运行副本":observed.profile.name+" / 运行副本";
    string value="对象："+ActorLabel(observed)+"\nProfile："+profileName+"\n"+observed.Status;
    if(DiagnosticsReader!=null){try{return value+"\n"+DiagnosticsReader(observed);}catch(Exception e){return value+"\n服务诊断读取失败："+e.Message;}}
    return value+"\n渲染服务详细诊断尚未绑定，未推断room、灯或GPU亮度。";
   }
+  // UI只持有自己建立的诊断委托；服务换源/销毁/禁用窗口时精确归还，不保留旧服务。
+  void ReconcileDiagnostics()
+  {
+   if(lightingSystem==null){ReleaseDiagnostics();return;}
+   if(ReferenceEquals(diagnosticsSource,lightingSystem)&&ReferenceEquals(DiagnosticsReader,ownedDiagnosticsReader))return;
+   ReleaseDiagnostics();diagnosticsSource=lightingSystem;ownedDiagnosticsReader=lightingSystem.Describe;DiagnosticsReader=ownedDiagnosticsReader;
+  }
+  void ReleaseDiagnostics()
+  {if(ReferenceEquals(DiagnosticsReader,ownedDiagnosticsReader))DiagnosticsReader=null;ownedDiagnosticsReader=null;diagnosticsSource=null;}
   public void SetExpanded(bool value)
   {
    if(value&&!expanded){previewCaptured=false;CapturePreviewIfNeeded();}else if(value)CapturePreviewIfNeeded();expanded=value;
@@ -256,7 +269,7 @@ namespace Ossastra.Development.CharacterLighting
   }
   void ClearOwnSelection(){if(EventSystem.current==null||surface==null)return;var current=EventSystem.current.currentSelectedGameObject;if(current!=null&&current.transform.IsChildOf(surface))EventSystem.current.SetSelectedGameObject(null);}
   void OnApplicationFocus(bool focus){if(!focus){ClearOwnSelection();hovering.Clear();pressed.Clear();selected.Clear();Capture(false);HideAllHints();}}
-  void OnDisable(){ClearOwnSelection();hovering.Clear();pressed.Clear();selected.Clear();Capture(false);ReleaseClock();HideAllHints();if(viewRoot!=null)viewRoot.SetActive(false);}
-  void OnDestroy(){Capture(false);ReleaseClock();if(viewRoot!=null)Destroy(viewRoot);viewRoot=null;refreshers.Clear();parameterControls.Clear();before.Clear();DiagnosticsReader=null;}
+  void OnDisable(){ReleaseDiagnostics();ClearOwnSelection();hovering.Clear();pressed.Clear();selected.Clear();Capture(false);ReleaseClock();HideAllHints();if(viewRoot!=null)viewRoot.SetActive(false);}
+  void OnDestroy(){ReleaseDiagnostics();Capture(false);ReleaseClock();if(viewRoot!=null)Destroy(viewRoot);viewRoot=null;refreshers.Clear();parameterControls.Clear();before.Clear();DiagnosticsReader=null;}
  }
 }

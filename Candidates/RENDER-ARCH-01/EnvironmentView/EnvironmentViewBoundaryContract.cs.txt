@@ -1,0 +1,34 @@
+/* 功能：环境可选能力与32/8/16边界的独立Native故障注入，不改变作者配置或主场登记。
+ * 生命周期：临时能力资源、灯和体积finally释放；不提交测试命令缓冲到场景。
+ */
+using System;using System.Linq;using System.Collections.Generic;using System.Reflection;using UnityEngine;using Newtonsoft.Json;
+using Ossastra.EnvironmentSimulation.Rendering;using Ossastra.SceneVisibility.Rooms;
+public static class EnvironmentViewBoundaryContract
+{
+ static object Field(object x,string name)=>x.GetType().GetField(name,BindingFlags.Instance|BindingFlags.NonPublic).GetValue(x);
+ static bool Ensure(EnvironmentSkyBinding b)=>(bool)b.GetType().GetMethod("EnsureResources",BindingFlags.Instance|BindingFlags.NonPublic).Invoke(b,null);
+ public static string Run()
+ {
+  if(Application.dataPath!="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets")return "WRONG PROJECT";
+  var live=UnityEngine.Object.FindFirstObjectByType<EnvironmentSkyBinding>();if(live==null||live.environment==null||live.environment.gameplayCamera==null)return "Missing main environment";
+  var objects=new List<GameObject>();var go=new GameObject("Environment boundary binding");objects.Add(go);go.SetActive(false);float enabled=Shader.GetGlobalFloat("_EnvironmentLightingEnabled"),rain=Shader.GetGlobalFloat("_EnvironmentRainDepthReady");
+  try
+  {
+   var b=go.AddComponent<EnvironmentSkyBinding>();b.environment=live.environment;b.skyShader=live.skyShader;b.rainShader=live.rainShader;b.reflectionSkyShader=live.reflectionSkyShader;b.rainDepthCopyShader=live.rainDepthCopyShader;Ensure(b);
+   b.skyShader=null;Ensure(b);bool onlySkyLost=!b.SkyReady&&b.ReflectionReady&&b.RainReady;b.skyShader=live.skyShader;Ensure(b);bool skyRecovered=b.SkyReady;
+   b.reflectionSkyShader=null;Ensure(b);bool onlyReflectionLost=b.SkyReady&&!b.ReflectionReady&&b.RainReady;b.reflectionSkyShader=live.reflectionSkyShader;Ensure(b);
+   object owner=new object();b.SetPreviewRequested(owner,true);Ensure(b);bool previewRequested=b.PreviewReady;b.SetPreviewRequested(owner,false);bool previewReleased=!b.PreviewReady;
+   var camera=live.environment.gameplayCamera;var at=camera.transform.position+camera.transform.forward*10;
+   var volumeGo=new GameObject("Room capacity fixture");objects.Add(volumeGo);volumeGo.transform.position=at;var room=volumeGo.AddComponent<RoomRegion>();room.volumes=Enumerable.Repeat(new RoomLocalBox{center=Vector3.zero,size=Vector3.one*2},33).ToArray();b.indoorRegions=new[]{room};
+   string reason;bool roomOverflow=!b.TryPrepareSurfaceData(camera,out reason);room.volumes=room.volumes.Take(32).ToArray();bool roomBoundary=b.TryPrepareSurfaceData(camera,out reason);
+   b.indoorRegions=Array.Empty<RoomRegion>();b.rainShelters=new BoxCollider[17];for(int i=0;i<17;i++){var o=new GameObject("Rain shelter capacity fixture");objects.Add(o);b.rainShelters[i]=o.AddComponent<BoxCollider>();}
+   bool shelterOverflow=!b.TryPrepareSurfaceData(camera,out reason);b.rainShelters[16].enabled=false;bool shelterBoundary=b.TryPrepareSurfaceData(camera,out reason);b.rainShelters=Array.Empty<BoxCollider>();
+   var lightGo=new GameObject("Offscreen indoor lamp fixture");objects.Add(lightGo);var light=lightGo.AddComponent<Light>();light.type=LightType.Point;light.range=200;light.intensity=1;lightGo.transform.position=at+camera.transform.right*100;volumeGo.transform.position=lightGo.transform.position;room.volumes=new[]{new RoomLocalBox{size=Vector3.one}};b.indoorRegions=new[]{room};b.localLights=new[]{light};
+   bool ownerPrepared=b.TryPrepareSurfaceData(camera,out reason);var set=Field(b,"surfaceData");var colors=(Vector4[])Field(set,"colors");bool offscreenOwnerPreserved=ownerPrepared&&(int)Field(set,"roomCount")==1&&colors[0].w==1;
+   b.localLights=Array.Empty<Light>();volumeGo.transform.localScale=new Vector3(1,0,1);bool rejectsInvalidVolume=!b.TryPrepareSurfaceData(camera,out reason);
+   bool pass=onlySkyLost&&skyRecovered&&onlyReflectionLost&&previewRequested&&previewReleased&&roomOverflow&&roomBoundary&&shelterOverflow&&shelterBoundary&&offscreenOwnerPreserved&&rejectsInvalidVolume;
+   return JsonConvert.SerializeObject(new{pass,onlySkyLost,skyRecovered,onlyReflectionLost,previewRequested,previewReleased,roomOverflow,roomBoundary,shelterOverflow,shelterBoundary,offscreenOwnerPreserved,rejectsInvalidVolume});
+  }
+  finally{foreach(var o in objects)if(o!=null)UnityEngine.Object.DestroyImmediate(o);Shader.SetGlobalFloat("_EnvironmentLightingEnabled",enabled);Shader.SetGlobalFloat("_EnvironmentRainDepthReady",rain);}
+ }
+}

@@ -1,6 +1,6 @@
 /* 功能：把登记角色的运行参数、同相机完整轮廓与既有环境光源接到唯一合法世界绘制。
  * 边界：不改源材质、角色控制、屋顶遮光或观察许可；点灯资格只作保守实体遮挡近似，不授予视野。
- * 生命周期：相机登记/每次绘制参数有明确作用域；失权、禁用、切相机立即清零，缓存资源归原PositivePass。
+ * 生命周期：相机登记/每次绘制参数有明确作用域；失权、禁用、切相机立即清零，缓存资源由单相机CharacterLightingRenderStage持有。
  */
 using System;
 using System.Collections.Generic;
@@ -10,7 +10,7 @@ using Ossastra.EnvironmentSimulation;
 using Ossastra.EnvironmentSimulation.Rendering;
 using Ossastra.SceneVisibility.Rooms.Rendering;
 using Ossastra.CharacterLighting.Rendering;
-using Ossastra.Development.CharacterLighting;
+
 namespace Ossastra.CharacterLighting
 {
  [DisallowMultipleComponent]
@@ -22,7 +22,7 @@ namespace Ossastra.CharacterLighting
   public Shader coverageShader;
   [Tooltip("外缘能量源、受限合成与当帧合法深度解析；缺任一引用时保守关闭外缘。")]
   public Shader outerGlowSeedShader,outerGlowCompositeShader,outerGlowDepthShader;
-  public CharacterLightingPanel panel;
+
   public bool effectsEnabled=true;
   public event Action CoverageInvalidated;
   public string Status{get;private set;}="等待角色与环境登记";
@@ -44,18 +44,18 @@ namespace Ossastra.CharacterLighting
   void OnEnable(){RenderPipelineManager.beginCameraRendering+=BeginCamera;RenderPipelineManager.endCameraRendering+=EndCamera;EnvironmentCameraRegistry.Released+=EnvironmentReleased;Rebind();}
   void Update()
   {
-   if(registered!=gameplayCamera)Rebind();if(panel!=null)panel.DiagnosticsReader=Describe;
+   if(registered!=gameplayCamera)Rebind();
    bool displayValid=TryGet(gameplayCamera,out var current)&&current==this;
    if(displayWasValid&&!displayValid){CoverageInvalidated?.Invoke();lamps.Clear();CoverageActors=CoverageDraws=0;CoverageBytes=0;ClearGlobals();}
    displayWasValid=displayValid;
-   staleReceivers.Clear();foreach(var r in lamps.Keys)if(r==null||!r.isActiveAndEnabled||Array.IndexOf(receivers,r)<0||r.Owner==null||!r.Owner.isActiveAndEnabled||!r.Owner.IsAlive)staleReceivers.Add(r);
+   staleReceivers.Clear();foreach(var r in lamps.Keys)if(r==null||!r.isActiveAndEnabled||Array.IndexOf(receivers,r)<0||!r.SourceAvailable)staleReceivers.Add(r);
    foreach(var r in staleReceivers)lamps.Remove(r);
   }
   public void Rebind()
   {
    CoverageInvalidated?.Invoke();displayWasValid=false;Unregister();if(!isActiveAndEnabled||gameplayCamera==null)return;
    int id=gameplayCamera.GetInstanceID();if(cameras.TryGetValue(id,out var other)&&other!=null&&other!=this){Status="相机已有角色光感根；本实例未取得登记";return;}
-   registered=gameplayCamera;cameras[id]=this;if(panel!=null)panel.DiagnosticsReader=Describe;
+   registered=gameplayCamera;cameras[id]=this;
   }
   void BeginCamera(ScriptableRenderContext context,Camera camera){ClearGlobals();}
   void EndCamera(ScriptableRenderContext context,Camera camera){ClearGlobals();}
@@ -69,7 +69,7 @@ namespace Ossastra.CharacterLighting
   {get{foreach(var r in receivers)if(ValidReceiver(r)&&OuterEnabled(r.Settings))return true;return false;}}
   public bool OuterDiagnostic
   {get{foreach(var r in receivers)if(ValidReceiver(r)&&OuterEnabled(r.Settings)&&r.Settings.outerDiagnostic)return true;return false;}}
-  bool ValidReceiver(CharacterLightingReceiver r)=>r!=null&&r.gameplayCamera==gameplayCamera&&r.isActiveAndEnabled&&r.Owner!=null&&r.Owner.isActiveAndEnabled&&r.Owner.IsAlive;
+  bool ValidReceiver(CharacterLightingReceiver r)=>r!=null&&r.gameplayCamera==gameplayCamera&&r.isActiveAndEnabled&&r.SourceAvailable;
   static bool OuterEnabled(CharacterLightingSettings s)=>s.outerGlow&&s.outerWidth>0&&s.outerStrength>0&&s.maxOuterGain>0;
   public void ReportOuterGlow(int draws,long bytes,string status){OuterGlowDraws=draws;OuterGlowBytes=bytes;OuterGlowStatus=status;}
   CharacterLightingReceiver ReceiverFor(Renderer renderer)

@@ -1,0 +1,46 @@
+/* 功能：用临时无显示租约环境根和私有相机，检验发布消费者隔离、OnValidate无提交和世界事件独立于相机。
+ * 边界：不启停主场、不改RenderSettings/Profile/业务档；异常仅注入本合同对象的订阅回调。
+ * 生命周期：finally撤销自有事件、登记和临时对象，不读取或改写生产私有运行状态。
+ */
+using System;using System.Collections.Generic;using System.Reflection;using UnityEngine;using Newtonsoft.Json;using Ossastra.EnvironmentSimulation;using Funplay.Editor.Tools.Scripting;
+public sealed class EnvironmentIsolationContract:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  var checks=new List<object>();bool all=true;Action<bool,string> need=(pass,name)=>{checks.Add(new{pass,name});all&=pass;};
+  GameObject go=null;WeatherProfileSO weather=null;DayCycleProfileSO day=null;Camera camera=null;object owner=new object();
+  Action<Camera> bad=null,good=null;Action<int> badRelease=null,goodRelease=null;Action<EnvironmentFrame> badChanged=null,goodChanged=null;EnvironmentRoot root=null;
+  int before=EnvironmentCameraRegistry.RegisteredCameraCount;string profilesBefore="";
+  try
+  {
+   go=new GameObject("Owned_EnvironmentIsolationContract");go.SetActive(false);camera=go.AddComponent<Camera>();camera.enabled=false;root=go.AddComponent<EnvironmentRoot>();
+   weather=ScriptableObject.CreateInstance<WeatherProfileSO>();day=ScriptableObject.CreateInstance<DayCycleProfileSO>();root.initialWeather=weather;root.dayCycle=day;root.gameplayCamera=null;
+   profilesBefore=JsonUtility.ToJson(weather)+JsonUtility.ToJson(day);go.SetActive(true);root.RefreshNow();var frame=root.Current;need(frame!=null,"Independent root evaluates a frame without a camera");
+   int publishedCalls=0;bad=c=>{if(c==camera)throw new InvalidOperationException("owned published fault");};good=c=>{if(c==camera)publishedCalls++;};EnvironmentCameraRegistry.Published+=bad;EnvironmentCameraRegistry.Published+=good;
+   bool escaped=false;try{EnvironmentCameraRegistry.Publish(owner,camera,frame);}catch(InvalidOperationException){escaped=true;}
+   need(!escaped,"Downstream Published failure does not escape to publisher");need(publishedCalls==1,"Later Published subscriber receives the same committed frame despite prior failure");
+   EnvironmentFrame read;need(EnvironmentCameraRegistry.TryGet(camera,out read)&&ReferenceEquals(read,frame),"Failed optional consumer cannot revoke valid registry entry");
+   EnvironmentCameraRegistry.Published-=bad;EnvironmentCameraRegistry.Published-=good;bad=good=null;
+   int releaseCalls=0;int id=camera.GetInstanceID();badRelease=i=>{if(i==id)throw new InvalidOperationException("owned released fault");};goodRelease=i=>{if(i==id)releaseCalls++;};EnvironmentCameraRegistry.Released+=badRelease;EnvironmentCameraRegistry.Released+=goodRelease;
+   escaped=false;try{EnvironmentCameraRegistry.Release(owner,camera);}catch(InvalidOperationException){escaped=true;}
+   need(!escaped&&releaseCalls==1,"Release observer failures cannot stop later cleanup observers");need(!EnvironmentCameraRegistry.TryGet(camera,out read),"Release removes own entry before notifying consumers");
+   EnvironmentCameraRegistry.Released-=badRelease;EnvironmentCameraRegistry.Released-=goodRelease;badRelease=goodRelease=null;
+   var sampled=root.Current;root.GetType().GetMethod("OnValidate",BindingFlags.Instance|BindingFlags.NonPublic).Invoke(root,null);
+   need(ReferenceEquals(sampled,root.Current),"OnValidate only marks local work and does not evaluate publish or mutate lighting");
+   int changedCalls=0;badChanged=f=>{throw new InvalidOperationException("owned world observer fault");};goodChanged=f=>changedCalls++;root.Changed+=badChanged;root.Changed+=goodChanged;
+   root.RefreshNow();need(changedCalls==1,"World snapshot event is camera independent and isolates individual consumers");need(root.Current!=null&&root.Current.Enabled,"Consumer fault leaves valid world snapshot intact");
+   var faultCount=typeof(EnvironmentCameraRegistry).GetProperty("ConsumerFaultCount");var lastFault=typeof(EnvironmentCameraRegistry).GetProperty("LastConsumerFault");
+   need(faultCount!=null&&lastFault!=null&&Convert.ToInt64(faultCount.GetValue(null))>=2&&!string.IsNullOrEmpty((string)lastFault.GetValue(null)),"Isolated observer faults remain explicitly inspectable rather than silently swallowed");
+   need(profilesBefore==JsonUtility.ToJson(weather)+JsonUtility.ToJson(day),"Evaluation and observer failures never modify author profiles");
+   ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=all,checks,rootStatus=root.Status});
+  }
+  catch(Exception e){ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=false,checks,error=e.ToString()});}
+  finally
+  {
+   if(bad!=null)EnvironmentCameraRegistry.Published-=bad;if(good!=null)EnvironmentCameraRegistry.Published-=good;if(badRelease!=null)EnvironmentCameraRegistry.Released-=badRelease;if(goodRelease!=null)EnvironmentCameraRegistry.Released-=goodRelease;
+   if(root!=null){if(badChanged!=null)root.Changed-=badChanged;if(goodChanged!=null)root.Changed-=goodChanged;}if(camera!=null)EnvironmentCameraRegistry.Release(owner,camera);
+   if(go!=null)UnityEngine.Object.DestroyImmediate(go);if(weather!=null)UnityEngine.Object.DestroyImmediate(weather);if(day!=null)UnityEngine.Object.DestroyImmediate(day);
+   if(EnvironmentCameraRegistry.RegisteredCameraCount!=before)ctx.LogWarning("Registry count differed after isolated test: inspect concurrent editor changes.");
+  }
+ }
+}

@@ -319,7 +319,7 @@ namespace Ossastra.Characters
                 posture.Recovered += OnPostureRecovered;
             }
             lightingReceiver=GetComponent<Ossastra.CharacterLighting.CharacterLightingReceiver>();
-            if(lightingReceiver!=null)lightingReceiver.Initialize(this);
+            if(lightingReceiver!=null)lightingReceiver.Initialize(new Ossastra.CharacterLighting.PlayerCharacterLightingSource(this));
         }
 
         private static bool InitializeSubsystems(CharacterDataBus dataBus, params ICharacterSubsystem[] subsystems)

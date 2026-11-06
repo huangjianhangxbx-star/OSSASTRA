@@ -122,10 +122,10 @@ namespace Ossastra.EnvironmentSimulation.Editor
    EnsureFolder(Geometry);EnsureFolder(Materials);
    var mesh=CreateBladeMesh();var leafMaterial=CreateWindMaterial();
    var binding=skyBindings.Length==1?skyBindings[0]:Undo.AddComponent<Ossastra.EnvironmentSimulation.Rendering.EnvironmentSkyBinding>(marker.gameObject);changed=skyBindings.Length==0;
-   if(binding.environment!=marker.environment||binding.panel!=marker.panel||binding.indoorRegions==null||!binding.indoorRegions.SequenceEqual(rooms)||binding.localLights==null||!binding.localLights.SequenceEqual(points)||
+   if(binding.environment!=marker.environment||binding.previewConsumer!=marker.panel||binding.indoorRegions==null||!binding.indoorRegions.SequenceEqual(rooms)||binding.localLights==null||!binding.localLights.SequenceEqual(points)||
       binding.rainShelters==null||!binding.rainShelters.SequenceEqual(shelters)||binding.skyShader!=sky||binding.rainShader!=rain||binding.reflectionSkyShader!=cube||binding.rainDepthCopyShader!=rainDepthCopy)
    {
-    Undo.RecordObject(binding,"Finish environment sky and rain references");binding.environment=marker.environment;binding.panel=marker.panel;binding.indoorRegions=rooms;binding.localLights=points;binding.rainShelters=shelters;
+    Undo.RecordObject(binding,"Finish environment sky and rain references");binding.environment=marker.environment;binding.previewConsumer=marker.panel;binding.indoorRegions=rooms;binding.localLights=points;binding.rainShelters=shelters;
     binding.skyShader=sky;binding.rainShader=rain;binding.reflectionSkyShader=cube;binding.rainDepthCopyShader=rainDepthCopy;EditorUtility.SetDirty(binding);changed=true;
    }
    if(marker.panel.skyBinding!=binding){Undo.RecordObject(marker.panel,"Connect environment panel sky controls");marker.panel.skyBinding=binding;EditorUtility.SetDirty(marker.panel);changed=true;}

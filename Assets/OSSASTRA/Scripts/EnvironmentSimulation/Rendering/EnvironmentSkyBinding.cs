@@ -1,6 +1,6 @@
 /* 功能：明确相机的环境渲染接收方；上传受光、房间与局部灯，解析角色自然/手动环境目标，绘制合法天空/降雨。
  * 边界：不创建普通Renderer，不推进环境，不读取旧世界深度；只借用天空/反射设置。
- * 生命周期：唯一相机登记，原貌/禁用恢复借用设置并销毁自有材质、天空预览和Cubemap。
+ * 生命周期：唯一相机登记；天空、反射、雨与按需预览分别准备/降级/释放，失败不撤销有效环境帧。
  */
 using System;
 using System.Collections.Generic;
@@ -9,16 +9,17 @@ using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 using UnityEngine.Experimental.Rendering;
 using UnityEngine.SceneManagement;
+using UnityEngine.Serialization;
 using Ossastra.SceneVisibility.Rooms;
 using Ossastra.SceneVisibility.Rooms.Rendering;
-using Ossastra.Development.Environment;
 namespace Ossastra.EnvironmentSimulation.Rendering
 {
  [ExecuteAlways,DisallowMultipleComponent]
  public sealed class EnvironmentSkyBinding:MonoBehaviour
  {
   public EnvironmentRoot environment;
-  public EnvironmentSimulationPanel panel;
+  [HideInInspector,FormerlySerializedAs("panel")]
+  public MonoBehaviour previewConsumer; // 仅保存旧作者引用以供迁移；生产不调用开发面板。
   public RoomRegion[] indoorRegions=Array.Empty<RoomRegion>();
   public Light[] localLights=Array.Empty<Light>();
   public BoxCollider[] rainShelters=Array.Empty<BoxCollider>();
@@ -36,10 +37,19 @@ namespace Ossastra.EnvironmentSimulation.Rendering
   [Range(32,1024)] public int rainParticleCount=384;
   public string Status{get;private set;}="等待环境快照";
   public Texture SkyPreview=>preview;
+  public bool SkyReady=>skyMaterial!=null;
+  public bool ReflectionReady=>cubeMaterial!=null&&reflection!=null;
+  public bool RainReady=>rainMaterial!=null&&depthCopyMaterial!=null;
+  public bool PreviewReady=>preview!=null&&preview.IsCreated();
+  public bool SurfaceReady{get;private set;}
+  public string SurfaceStatus{get;private set;}="未准备环境表面数据";
+  public string SkyStatus{get;private set;}="未准备";
+  public string ReflectionStatus{get;private set;}="未准备";
+  public string RainStatus{get;private set;}="未准备";
+  public string PreviewStatus{get;private set;}="无预览消费者";
   static readonly Dictionary<int,EnvironmentSkyBinding> bindings=new Dictionary<int,EnvironmentSkyBinding>();
-  readonly List<RoomMaskVolume> volumes=new List<RoomMaskVolume>(32);
-  readonly Matrix4x4[] matrices=new Matrix4x4[32],shelterMatrices=new Matrix4x4[16];
-  readonly Vector4[] extents=new Vector4[32],lightPositions=new Vector4[8],lightColors=new Vector4[8],shelterExtents=new Vector4[16];
+  readonly EnvironmentSurfaceWorkingSet surfaceData=new EnvironmentSurfaceWorkingSet();
+  readonly HashSet<object> previewRequests=new HashSet<object>();readonly List<object> stalePreviewRequests=new List<object>();
   Material skyMaterial,rainMaterial,cubeMaterial,depthCopyMaterial,oldSky;
   RTHandle rainDepth;
   Cubemap reflection;
@@ -63,29 +73,45 @@ namespace Ossastra.EnvironmentSimulation.Rendering
    if(registeredCamera!=camera)Release();
    if(bindings.TryGetValue(camera.GetInstanceID(),out var other)&&other!=this){Status="同相机已有天空接收者";return;}
    registeredCamera=camera;bindings[camera.GetInstanceID()]=this;
-   if(!EnsureResources()){Release();return;}
-   if(!leased){oldSky=RenderSettings.skybox;oldReflection=RenderSettings.customReflectionTexture;oldMode=RenderSettings.defaultReflectionMode;oldReflectionIntensity=RenderSettings.reflectionIntensity;leaseScene=gameObject.scene.handle;leased=true;nextReflection=0;}
-   // 日照对照排除天空反射，回到完整/底光模式时归还用户配置值，不改作者参数。
-   RenderSettings.reflectionIntensity=frame.Contribution==EnvironmentContribution.SunOnly?0:Mathf.Clamp(reflectionIntensity,0,2);
-   Color reflectionTop=SkyColor(frame,Vector3.up),reflectionEdge=SkyColor(frame,Vector3.forward);
-   if(Time.realtimeSinceStartupAsDouble>=nextReflection&&(nextReflection==0||ColorDistance(reflectionTop,lastReflectionTop)>reflectionChangeThreshold||ColorDistance(reflectionEdge,lastReflectionEdge)>reflectionChangeThreshold))
-   {UpdateReflection(frame);lastReflectionTop=reflectionTop;lastReflectionEdge=reflectionEdge;nextReflection=Time.realtimeSinceStartupAsDouble+Mathf.Max(1,reflectionUpdateSeconds);}
-   ConfigureSky(skyMaterial,frame);Graphics.Blit(null,preview,skyMaterial,1);
-   if(panel!=null)panel.SetSkyPreviewTexture(preview);
-   Status="天空/反射源：当前环境；雨量 "+frame.Rain.ToString("F2")+"；室内区域 "+indoorRegions.Length;
+   EnsureResources();TryPrepareSurfaceData(camera,out var surfaceReason);
+   if(ReflectionReady)
+   {
+    if(!leased){oldSky=RenderSettings.skybox;oldReflection=RenderSettings.customReflectionTexture;oldMode=RenderSettings.defaultReflectionMode;oldReflectionIntensity=RenderSettings.reflectionIntensity;leaseScene=gameObject.scene.handle;leased=true;nextReflection=0;}
+    // 日照对照排除天空反射，回到完整/底光模式时归还用户配置值，不改作者参数。
+    RenderSettings.reflectionIntensity=frame.Contribution==EnvironmentContribution.SunOnly?0:Mathf.Clamp(reflectionIntensity,0,2);
+    Color reflectionTop=SkyColor(frame,Vector3.up),reflectionEdge=SkyColor(frame,Vector3.forward);
+    if(Time.realtimeSinceStartupAsDouble>=nextReflection&&(nextReflection==0||ColorDistance(reflectionTop,lastReflectionTop)>reflectionChangeThreshold||ColorDistance(reflectionEdge,lastReflectionEdge)>reflectionChangeThreshold))
+    {UpdateReflection(frame);lastReflectionTop=reflectionTop;lastReflectionEdge=reflectionEdge;nextReflection=Time.realtimeSinceStartupAsDouble+Mathf.Max(1,reflectionUpdateSeconds);}
+   }
+   if(SkyReady)ConfigureSky(skyMaterial,frame);
+   if(PreviewReady&&SkyReady)Graphics.Blit(null,preview,skyMaterial,1);
+   Status=surfaceReason+"；天空 "+SkyStatus+"；反射 "+ReflectionStatus+"；雨 "+RainStatus+"；预览 "+PreviewStatus;
   }
   bool EnsureResources()
   {
-   if(skyShader==null||rainShader==null||reflectionSkyShader==null||rainDepthCopyShader==null||!skyShader.isSupported||!rainShader.isSupported||!reflectionSkyShader.isSupported||!rainDepthCopyShader.isSupported){Status="缺少已编译的天空/雨/反射/合法深度Shader";return false;}
-   if((skyMaterial!=null&&skyMaterial.shader!=skyShader)||(rainMaterial!=null&&rainMaterial.shader!=rainShader)||(cubeMaterial!=null&&cubeMaterial.shader!=reflectionSkyShader)||(depthCopyMaterial!=null&&depthCopyMaterial.shader!=rainDepthCopyShader)){Release();Status="Shader引用改变；已归还旧资源，下一帧重建";return false;}
-   if(skyMaterial==null)skyMaterial=new Material(skyShader){hideFlags=HideFlags.HideAndDontSave};
-   if(rainMaterial==null)rainMaterial=new Material(rainShader){hideFlags=HideFlags.HideAndDontSave};
-   if(depthCopyMaterial==null)depthCopyMaterial=new Material(rainDepthCopyShader){name="Environment current legal rain depth resolve",hideFlags=HideFlags.HideAndDontSave};
-   if(reflection==null)reflection=new Cubemap(32,TextureFormat.RGBAHalf,true){name="Environment sky only reflection",hideFlags=HideFlags.HideAndDontSave};
-   if(cubeMaterial==null)cubeMaterial=new Material(reflectionSkyShader){hideFlags=HideFlags.HideAndDontSave};
-   if(preview==null){preview=new RenderTexture(384,192,0,RenderTextureFormat.ARGBHalf){name="Environment sky preview",hideFlags=HideFlags.HideAndDontSave};preview.Create();}
-   return true;
+   EnsureMaterial(ref skyMaterial,skyShader,"Environment legal sky");SkyStatus=SkyReady?"就绪":"缺少/不支持天空Shader，仅天空暂停";
+   if(cubeMaterial!=null&&(cubeMaterial.shader!=reflectionSkyShader||!Supported(reflectionSkyShader)))ReleaseReflection();
+   EnsureMaterial(ref cubeMaterial,reflectionSkyShader,"Environment reflection sky");
+   if(cubeMaterial!=null&&reflection==null){reflection=new Cubemap(32,TextureFormat.RGBAHalf,true){name="Environment sky only reflection",hideFlags=HideFlags.HideAndDontSave};nextReflection=0;}
+   ReflectionStatus=ReflectionReady?"就绪":"缺少/不支持反射Shader，仅反射暂停";
+   EnsureMaterial(ref rainMaterial,rainShader,"Environment legal rain");EnsureMaterial(ref depthCopyMaterial,rainDepthCopyShader,"Environment current legal rain depth resolve");
+   if(!RainReady){rainDepth?.Release();rainDepth=null;}
+   RainStatus=RainReady?"就绪":"缺少/不支持雨或雨深度Shader，仅雨暂停";
+   stalePreviewRequests.Clear();foreach(var owner in previewRequests)if(owner is UnityEngine.Object value&&value==null)stalePreviewRequests.Add(owner);foreach(var owner in stalePreviewRequests)previewRequests.Remove(owner);
+   if(previewRequests.Count>0&&SkyReady)
+   {if(preview==null){preview=new RenderTexture(384,192,0,RenderTextureFormat.ARGBHalf){name="Environment sky preview",hideFlags=HideFlags.HideAndDontSave};preview.Create();}PreviewStatus=PreviewReady?"已请求/就绪":"申请失败，仅预览暂停";}
+   else {ReleasePreview();PreviewStatus=previewRequests.Count==0?"无消费者/未占用":"天空不可用/预览暂停";}
+   // 可选材质全部失效仍保留环境接收登记；基础表面是否可用由独立工作集校验决定。
+   return SkyReady||ReflectionReady||RainReady;
   }
+  static bool Supported(Shader shader)=>shader!=null&&shader.isSupported;
+  static void EnsureMaterial(ref Material material,Shader shader,string name)
+  {if(material!=null&&(material.shader!=shader||!Supported(shader))){DestroyOwned(material);material=null;}if(material==null&&Supported(shader))material=new Material(shader){name=name,hideFlags=HideFlags.HideAndDontSave};}
+  public void SetPreviewRequested(object owner,bool requested)
+  {if(owner==null)return;if(requested)previewRequests.Add(owner);else previewRequests.Remove(owner);if(previewRequests.Count==0)ReleasePreview();}
+  void ReleasePreview(){if(preview==null)return;preview.Release();DestroyOwned(preview);preview=null;}
+  public bool TryPrepareSurfaceData(Camera camera,out string reason)
+  {if(environment==null||camera==null||environment.gameplayCamera!=camera){surfaceData.Clear();SurfaceReady=false;reason=SurfaceStatus="环境表面相机/来源不匹配";return false;}SurfaceReady=surfaceData.TryPrepare(camera,indoorRegions,localLights,rainShelters,out reason);SurfaceStatus=reason;return SurfaceReady;}
   Color SkyColor(EnvironmentFrame frame,Vector3 direction)
   {
    Color top=overrideSkyColors?zenithColor:frame.SkyZenith,edge=overrideSkyColors?horizonColor:frame.SkyHorizon;
@@ -179,34 +205,28 @@ namespace Ossastra.EnvironmentSimulation.Rendering
   {
    binding=null;frame=null;return camera!=null&&bindings.TryGetValue(camera.GetInstanceID(),out binding)&&binding!=null&&binding.isActiveAndEnabled&&EnvironmentCameraRegistry.TryGet(camera,out frame)&&frame.Enabled;
   }
+  // RoomPass只获得环境阶段的能力结果；false不撤销世界颜色、深度或观察许可。
+  public static bool PrepareSurfaceForCamera(Camera camera,out string reason)
+  {if(!TryGet(camera,out var binding,out var frame)){reason="该相机无有效环境接收登记";return false;}return binding.TryPrepareSurfaceData(camera,out reason);}
   public static void UploadForCamera(CommandBuffer cmd,Camera camera,RoomMaskFrame visibility)
   {
    cmd.SetGlobalFloat("_EnvironmentRainDepthReady",0);
-   if(!TryGet(camera,out var binding,out var frame)){cmd.SetGlobalFloat("_EnvironmentLightingEnabled",0);return;}
+   if(!TryGet(camera,out var binding,out var frame)){ClearSurface(cmd);return;}
    binding.Upload(cmd,frame);
   }
   void Upload(CommandBuffer cmd,EnvironmentFrame frame)
   {
+   if(!TryPrepareSurfaceData(environment==null?null:environment.gameplayCamera,out var reason)){ClearSurface(cmd);return;}
    cmd.SetGlobalVector("_EnvironmentStylizedSkyTint",ResolveStylizedSkyTint(frame));
-   volumes.Clear();foreach(var room in indoorRegions)if(room!=null&&room.isActiveAndEnabled)room.AppendMaskVolumes(volumes);
-   if(volumes.Count>32||localLights.Length>8||rainShelters.Length>16)throw new InvalidOperationException("环境区域/局部灯/雨棚超过32/8/16显式预算，拒绝截断。");
-   for(int i=0;i<volumes.Count;i++){matrices[i]=volumes[i].WorldToLocal;extents[i]=volumes[i].HalfExtents;}
-   cmd.SetGlobalInteger("_EnvironmentIndoorCount",volumes.Count);cmd.SetGlobalMatrixArray("_EnvironmentIndoorMatrices",matrices);cmd.SetGlobalVectorArray("_EnvironmentIndoorHalfExtents",extents);
-   int lights=0;foreach(var light in localLights)
-   {
-    if(light==null||!light.isActiveAndEnabled||light.type!=LightType.Point)continue;
-    var p=light.transform.position;lightPositions[lights]=new Vector4(p.x,p.y,p.z,light.range);Color c=light.color.linear*light.intensity;int roomIndex=-1;
-    for(int i=0;i<volumes.Count;i++){var local=matrices[i].MultiplyPoint3x4(p);if(Mathf.Abs(local.x)<=extents[i].x&&Mathf.Abs(local.y)<=extents[i].y&&Mathf.Abs(local.z)<=extents[i].z){roomIndex=i;break;}}
-    lightColors[lights++]=new Vector4(c.r,c.g,c.b,roomIndex+1);
-   }
-   cmd.SetGlobalInteger("_EnvironmentLocalLightCount",lights);cmd.SetGlobalVectorArray("_EnvironmentLocalLightPositions",lightPositions);cmd.SetGlobalVectorArray("_EnvironmentLocalLightColors",lightColors);
+   surfaceData.Upload(cmd);
    cmd.SetGlobalFloat("_EnvironmentLightingEnabled",1);
    cmd.SetGlobalVector("_EnvironmentSkyAmbient",(Vector4)(frame.AmbientSky.linear*frame.AmbientIntensity));cmd.SetGlobalVector("_EnvironmentHorizonAmbient",(Vector4)(frame.AmbientEquator.linear*frame.AmbientIntensity));cmd.SetGlobalVector("_EnvironmentGroundAmbient",(Vector4)(frame.AmbientGround.linear*frame.AmbientIntensity));
    cmd.SetGlobalVector("_EnvironmentLightResponse",new Vector4(frame.GroundLightResponse,frame.DecorationLightResponse,frame.CharacterLightResponse,frame.CharacterMinimum));cmd.SetGlobalFloat("_EnvironmentIndoorAmbientScale",frame.IndoorAmbientScale);
    cmd.SetGlobalVector("_EnvironmentCloudParameters",new Vector4(frame.CloudCoverage,frame.CloudDensity,frame.CloudShadowStrength,frame.CloudWorldScale));cmd.SetGlobalVector("_EnvironmentCloudMotion",new Vector4(frame.WindDirection.x*frame.WindSpeed*frame.CloudSpeed,frame.WindDirection.y*frame.WindSpeed*frame.CloudSpeed,(float)frame.Seconds,1));cmd.SetGlobalFloat("_EnvironmentWetness",frame.Wetness);
-   int shelters=0;foreach(var box in rainShelters)if(box!=null&&box.enabled&&box.gameObject.activeInHierarchy){shelterMatrices[shelters]=Matrix4x4.Translate(-box.center)*box.transform.worldToLocalMatrix;shelterExtents[shelters++]=box.size*.5f;}
-   cmd.SetGlobalInteger("_EnvironmentShelterCount",shelters);cmd.SetGlobalMatrixArray("_EnvironmentShelterMatrices",shelterMatrices);cmd.SetGlobalVectorArray("_EnvironmentShelterExtents",shelterExtents);
   }
+  static void ClearSurface(CommandBuffer cmd)
+  {cmd.SetGlobalFloat("_EnvironmentLightingEnabled",0);cmd.SetGlobalInteger("_EnvironmentIndoorCount",0);cmd.SetGlobalInteger("_EnvironmentLocalLightCount",0);cmd.SetGlobalInteger("_EnvironmentShelterCount",0);cmd.SetGlobalFloat("_EnvironmentRainDepthReady",0);}
+  public static void ClearSurfaceForCamera(CommandBuffer cmd)=>ClearSurface(cmd);
   public static void AppendSkyForCamera(CommandBuffer cmd,Camera camera,RoomMaskFrame visibility)
   {
    if(!TryGet(camera,out var b,out var frame)||b.skyMaterial==null||visibility.TruthMode)return;
@@ -214,10 +234,13 @@ namespace Ossastra.EnvironmentSimulation.Rendering
   }
   public static void AppendWeatherForCamera(CommandBuffer cmd,Camera camera,RoomMaskFrame visibility,ref RenderingData data)
   {
-   if(!TryGet(camera,out var b,out var frame)||b.rainMaterial==null||frame.Rain<=.001f||visibility.TruthMode)return;
+   if(!TryGet(camera,out var b,out var frame))return;
+   if(!b.RainReady)return;
+   if(!b.SurfaceReady){b.RainStatus="环境空间工作集无效；仅雨暂停";return;}
+   if(frame.Rain<=.001f||visibility.TruthMode)return;
    var renderer=data.cameraData.renderer;var sourceDepth=renderer.cameraDepthTargetHandle;
-   if(sourceDepth==null||sourceDepth.rt==null||!sourceDepth.rt.IsCreated()||b.depthCopyMaterial==null)return;
-   int samples=sourceDepth.rt.bindTextureMS?Mathf.Max(1,sourceDepth.rt.antiAliasing):1;if(samples!=1&&samples!=2&&samples!=4&&samples!=8)return;
+   if(sourceDepth==null||sourceDepth.rt==null||!sourceDepth.rt.IsCreated()||b.depthCopyMaterial==null){b.RainStatus="当前相机合法深度未就绪；仅雨暂停";return;}
+   int samples=sourceDepth.rt.bindTextureMS?Mathf.Max(1,sourceDepth.rt.antiAliasing):1;if(samples!=1&&samples!=2&&samples!=4&&samples!=8){b.RainStatus="当前深度MSAA不支持；仅雨暂停";return;}
    var descriptor=sourceDepth.rt.descriptor;descriptor.depthBufferBits=0;descriptor.depthStencilFormat=GraphicsFormat.None;descriptor.graphicsFormat=GraphicsFormat.R32_SFloat;
    descriptor.msaaSamples=1;descriptor.bindMS=false;descriptor.useMipMap=descriptor.autoGenerateMips=descriptor.enableRandomWrite=false;descriptor.memoryless=RenderTextureMemoryless.None;
    RenderingUtils.ReAllocateIfNeeded(ref b.rainDepth,descriptor,FilterMode.Point,TextureWrapMode.Clamp,name:"Environment current legal rain depth");
@@ -235,13 +258,17 @@ namespace Ossastra.EnvironmentSimulation.Rendering
    cmd.SetGlobalInteger("_RoomSightOwnerCount",0);cmd.SetGlobalInteger("_RoomSightOwnerExterior",0);cmd.SetGlobalInteger("_RoomSightPassMode",1);
    cmd.DrawProcedural(Matrix4x4.identity,b.rainMaterial,0,MeshTopology.Triangles,6,Mathf.Clamp(b.rainParticleCount,32,1024));
   }
+  void ReleaseReflection()
+  {
+   if(leased){if(SceneManager.GetActiveScene().handle==leaseScene){if(RenderSettings.skybox==cubeMaterial)RenderSettings.skybox=oldSky;if(RenderSettings.customReflectionTexture==reflection){RenderSettings.customReflectionTexture=oldReflection;RenderSettings.defaultReflectionMode=oldMode;RenderSettings.reflectionIntensity=oldReflectionIntensity;}}leased=false;}
+   DestroyOwned(cubeMaterial);cubeMaterial=null;DestroyOwned(reflection);reflection=null;nextReflection=0;
+  }
   void Release()
   {
    if(!ReferenceEquals(registeredCamera,null)){int id=registeredCamera.GetInstanceID();if(bindings.TryGetValue(id,out var owner)&&owner==this)bindings.Remove(id);registeredCamera=null;}
-   if(leased){if(SceneManager.GetActiveScene().handle==leaseScene){if(RenderSettings.skybox==cubeMaterial)RenderSettings.skybox=oldSky;if(RenderSettings.customReflectionTexture==reflection){RenderSettings.customReflectionTexture=oldReflection;RenderSettings.defaultReflectionMode=oldMode;RenderSettings.reflectionIntensity=oldReflectionIntensity;}}leased=false;}
-   if(panel!=null)panel.SetSkyPreviewTexture(null);DestroyOwned(skyMaterial);skyMaterial=null;DestroyOwned(rainMaterial);rainMaterial=null;DestroyOwned(cubeMaterial);cubeMaterial=null;DestroyOwned(depthCopyMaterial);depthCopyMaterial=null;DestroyOwned(reflection);reflection=null;
+   ReleaseReflection();DestroyOwned(skyMaterial);skyMaterial=null;DestroyOwned(rainMaterial);rainMaterial=null;DestroyOwned(depthCopyMaterial);depthCopyMaterial=null;
    rainDepth?.Release();rainDepth=null;
-   if(preview!=null){preview.Release();DestroyOwned(preview);preview=null;}Shader.SetGlobalFloat("_EnvironmentLightingEnabled",0);Shader.SetGlobalFloat("_EnvironmentRainDepthReady",0);
+   ReleasePreview();surfaceData.Clear();SurfaceReady=false;SurfaceStatus="接收绑定已释放";Shader.SetGlobalFloat("_EnvironmentLightingEnabled",0);Shader.SetGlobalFloat("_EnvironmentRainDepthReady",0);
   }
   static void DestroyOwned(UnityEngine.Object value){if(value==null)return;if(Application.isPlaying)Destroy(value);else DestroyImmediate(value);}
  }

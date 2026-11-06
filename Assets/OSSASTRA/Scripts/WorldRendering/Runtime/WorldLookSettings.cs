@@ -4,9 +4,6 @@
  * 生命周期：每次发布创建独立数值快照，后续作者改源档不会篡改已发布帧；无 Unity/GPU 资源所有权。
  */
 using UnityEngine;
-using XingHai.T7B;
-using XingHai.T7C1;
-using XingHai.T7C2;
 using Ossastra.EnvironmentSimulation;
 
 namespace Ossastra.WorldRendering
@@ -50,8 +47,8 @@ namespace Ossastra.WorldRendering
         /// Ground/Stone/Vegetation 等逐材质颜色由真实材质角色负责，本快照不会取其中一个颜色染全屏。
         /// </summary>
         public static WorldLookSettings Build(Camera camera, Vector3 observerPosition,
-            HD2DPostProfile presentation, OutdoorAtmosphereProfile atmosphere,
-            RegionalLookProfile palette, WorldLookEffectOptions options, EnvironmentFrame environment = null, bool allowWeatherFog = true)
+            WorldLookPresentationValues presentation, WorldLookAtmosphereValues atmosphere,
+            WorldLookPaletteValues palette, WorldLookEffectOptions options, EnvironmentFrame environment = null, bool allowWeatherFog = true)
         {
             bool valid = camera != null && Finite(observerPosition) && Finite(camera.transform.position) && Finite(camera.transform.forward);
             bool master = valid && (options == null || options.enabled);

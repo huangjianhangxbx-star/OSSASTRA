@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+ <PropertyGroup><TargetFramework>netstandard2.1</TargetFramework><EnableDefaultCompileItems>false</EnableDefaultCompileItems><ImplicitUsings>disable</ImplicitUsings><RestoreIgnoreFailedSources>true</RestoreIgnoreFailedSources><NoWarn>CS0436;MSB3277</NoWarn></PropertyGroup>
+ <ItemGroup>
+  <Compile Include="../../../Assets/OSSASTRA/Scripts/Development/Environment/EnvironmentSimulationPanel.cs" />
+  <Compile Include="../../../Assets/OSSASTRA/Scripts/Development/Environment/EnvironmentPanelWidgets.cs" />
+  <Compile Include="../../../Assets/OSSASTRA/Scripts/Development/Environment/EnvironmentPanelInputRelay.cs" />
+  <Compile Include="../../../Assets/OSSASTRA/Scripts/Development/CharacterLighting/CharacterLightingPanel.cs" />
+  <Compile Include="../../../Assets/OSSASTRA/Scripts/Development/CharacterLighting/CharacterLightingPanelWidgets.cs" />
+  <Compile Include="../../../Assets/OSSASTRA/Scripts/Development/CharacterLighting/CharacterLightingPanelInputRelay.cs" />
+  <Compile Include="../../../Assets/OSSASTRA/Scripts/Development/CharacterLighting/CharacterLightingProfileSave.cs" />
+  <Compile Include="../../../Assets/OSSASTRA/Scripts/WorldRendering/Runtime/WorldLookController.cs" />
+  <Reference Include="E:/unity/Tuanjie Hub/2022.3.62t16/Editor/Data/Managed/UnityEngine/*.dll"><Private>false</Private></Reference>
+  <Reference Include="E:/unity/Tuanjie Hub/2022.3.62t16/Editor/Data/Managed/UnityEditor/*.dll"><Private>false</Private></Reference>
+  <Reference Include="../../../Library/ScriptAssemblies/*.dll"><Private>false</Private></Reference>
+ </ItemGroup>
+</Project>

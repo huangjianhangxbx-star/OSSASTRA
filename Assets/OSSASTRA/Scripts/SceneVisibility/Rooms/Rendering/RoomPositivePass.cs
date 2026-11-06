@@ -1,6 +1,6 @@
 /* 功能：清除旧世界颜色/深度后，只绘制当前帧登记的合法表面；纯色路径先验证空间真值。
  * 边界：不生产房间/门户、不修改原材质、物理或相机；只向环境表现发布当帧合法深度与环境许可。
- * 生命周期：每相机复用自有适配材质；登记撤销/Renderer销毁时精确释放；超预算保守全黑。
+ * 生命周期：本Pass持有核心世界资源；角色覆盖/外缘由独立阶段持有与局部降级，核心超预算保守阻断。
  */
 using System;
 using System.Collections.Generic;
@@ -39,24 +39,8 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
         RTHandle labelPermission;
         readonly RoomPositivePropertyScope propertyScope = new RoomPositivePropertyScope();
         readonly RoomPositiveMaterialBuckets materialBuckets = new RoomPositiveMaterialBuckets();
-        Ossastra.CharacterLighting.Rendering.CharacterCoverageCache characterCoverage;
-        Shader characterCoverageShader;
-        Ossastra.CharacterLighting.Rendering.CharacterOuterGlowCache characterOuterGlow;
-        Shader outerSeedShader,outerCompositeShader,outerDepthShader;
-        Ossastra.CharacterLighting.CharacterLightingSystem characterSystemOwner;
-        void SetCharacterScope(Ossastra.CharacterLighting.CharacterLightingSystem owner)
-        {
-            if(ReferenceEquals(characterSystemOwner,owner))return;
-            if(!ReferenceEquals(characterSystemOwner,null))characterSystemOwner.CoverageInvalidated-=ReleaseCharacterCoverage;
-            ReleaseCharacterCoverage();characterSystemOwner=owner;
-            if(owner!=null)owner.CoverageInvalidated+=ReleaseCharacterCoverage;
-        }
-        void ReleaseCharacterCoverage(){characterCoverage?.Dispose();characterCoverage=null;characterCoverageShader=null;ReleaseOuterGlow();if(characterSystemOwner!=null)characterSystemOwner.ReportCoverage(null);}
-        void ReleaseOuterGlow()
-        {
-            characterOuterGlow?.Dispose();characterOuterGlow=null;outerSeedShader=outerCompositeShader=outerDepthShader=null;
-            if(characterSystemOwner!=null)characterSystemOwner.ReportOuterGlow(0,0,"外缘已释放");
-        }
+        readonly Ossastra.CharacterLighting.Rendering.CharacterLightingRenderStage characterStage;
+        readonly RoomEnvironmentRenderStage environmentStage;
         static readonly List<ShaderTagId> sourceTags = new List<ShaderTagId>
         { new ShaderTagId("UniversalForward"), new ShaderTagId("UniversalForwardOnly"), new ShaderTagId("SRPDefaultUnlit") };
         // 原角色覆盖辅助体会继承源渲染位，且只有SRPDefaultUnlit深度pass；动态Lit绝不选择它。
@@ -86,7 +70,7 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
         }
 
         internal RoomPositivePass(Camera camera)
-        { this.camera = camera; renderPassEvent = RenderPassEvent.AfterRenderingTransparents; }
+        { this.camera = camera; characterStage=new Ossastra.CharacterLighting.Rendering.CharacterLightingRenderStage(camera); environmentStage=new RoomEnvironmentRenderStage(camera); renderPassEvent = RenderPassEvent.AfterRenderingTransparents; }
 
         internal void SetFrame(RoomMaskFrame next, RoomMaskRendererFeature nextFeature)
         {
@@ -106,12 +90,16 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
             try
             {
                 if (!Validate(out string error)) { preparationError = error; return; }
+                // 环境工作集在接管前准备；环境能力不足只停环境受光，不撤销已验证的世界许可。
+                environmentStage.PrepareSurface();
                 presentationTime = next.PresentationTime >= 0 ? next.PresentationTime : Time.unscaledTimeAsDouble;
                 fogHistory.Update(next, presentationTime);
                 if (!next.TruthMode)
                 {
                     // 原Shader克隆只借用独立队列，不改变其Caster；真正颜色随后用独立Sight材质与URP PerObjectData绘制。
                     materialBuckets.Prepare(next, ShaderFor);
+                    if(!PrepareKnownMaterialPasses(out string passError))
+                    {CancelPreparedState();preparationError=passError;return;}
                     propertyScope.Apply(next);
                 }
                 preparedFrame = Time.frameCount; preparedBeforeCulling = true; preparationError = "";
@@ -193,6 +181,7 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
                 ++Statistics.OwnedTextureCount; int samples = Mathf.Max(1, labelPermission.rt.antiAliasing);
                 Statistics.EstimatedTextureBytes += labelPermission.rt.width * (long)labelPermission.rt.height * 4 * (samples + (samples > 1 ? 1 : 0));
             }
+            if(!ready||frame.TruthMode)characterStage.Suspend();
         }
 
         bool Validate(out string error)
@@ -267,11 +256,16 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
                 if (surface.OwnerVolumes != null && !CopyVolumes(surface.OwnerVolumes, ownerMatrices, ownerExtents))
                 { error = "所属空间必须为有效的1—8个盒体；不截断或按物件中心冒充整件许可。"; return false; }
                 if (surface.Renderer == null) continue;
-                if (surface.Renderer.sharedMaterials.Length > 16)
+                // 未知核心源不能等清除世界后才统计并连带撤销Look。不可绘制的空装备/失活面不影响本帧。
+                var sourceRenderer=surface.Renderer;
+                if(!HasDrawableSource(sourceRenderer))continue;
+                if (sourceRenderer.sharedMaterials.Length > 16)
                 { error = "单表面超过16材质槽预算；拒绝无界适配。"; return false; }
+                if(RoomPositiveRenderingLayers.Classify(sourceRenderer)==0)
+                {error="核心表面含未支持或混合的源材质家族；接管前安全阻断："+sourceRenderer.name;return false;}
                 if (frame.TruthMode || surface.Kind == RoomPositiveSurfaceKind.Full) continue;
                 uint family = surface.Kind == RoomPositiveSurfaceKind.Roof ? RoomPositiveRenderingLayers.RoofBit : RoomPositiveRenderingLayers.Classify(surface.Renderer);
-                if (family == 0) continue; // 绘制阶段统计并保守省略不支持源，不授予其它内容权限。
+                if (family == 0) {error="核心源家族在准备时失效。";return false;}
                 if (RoomPositiveRenderingLayers.RequiresIndependentDraw(surface) && RoomPositiveRenderingLayers.IsIndependentLitFamily(family) &&
                     (surface.DrawMaterial == null || surface.DrawMask == 0 || surface.DrawMask == RoomPositiveRenderingLayers.IndependentBit))
                 { error = "动态Lit缺少剔除前的独立材质筛选组；拒绝借用角色共享材质。"; return false; }
@@ -281,6 +275,15 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
                 if (shader == null || !shader.isSupported)
                 { error = "缺少可运行的正向源家族Shader引用：" + family; return false; }
             }
+            return true;
+        }
+
+        static bool HasDrawableSource(Renderer renderer)
+        {
+            if(renderer==null||!renderer.enabled||renderer.forceRenderingOff||!renderer.gameObject.activeInHierarchy)return false;
+            if(renderer is SpriteRenderer sprite)return sprite.sprite!=null;
+            if(renderer is MeshRenderer)
+            {var filter=renderer.GetComponent<MeshFilter>();return filter!=null&&filter.sharedMesh!=null&&filter.sharedMesh.vertexCount>0;}
             return true;
         }
 
@@ -370,98 +373,94 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
             try
             {
                 var renderer = renderingData.cameraData.renderer;
-                CoreUtils.SetRenderTarget(cmd, renderer.cameraColorTargetHandle, renderer.cameraDepthTargetHandle, ClearFlag.All, Color.black);
-                cmd.SetGlobalFloat("_RoomWorldLabelMaskReady", 0);
                 if (ready && !frame.TruthMode && !ValidateIndependentLitSources(out string independentError))
                 { ready = false; Statistics.Error = independentError; }
+                // 环境全局先于任何预览/真值数据绘制；独立缓冲不参与清除和观察许可。
+                if(ready)environmentStage.UploadSurface(context,frame);
+                // 每个Clear后的新构造批独立限定编译策略；Restore先写入该批，再提交。
+                using(new Ossastra.Rendering.RenderCommandScope(cmd))
+                {
+                    CoreUtils.SetRenderTarget(cmd, renderer.cameraColorTargetHandle, renderer.cameraDepthTargetHandle, ClearFlag.All, Color.black);
+                    cmd.SetGlobalFloat("_RoomWorldLabelMaskReady", 0);
+                    if (ready)
+                    {
+                        Upload(cmd, ref renderingData);
+                        used.Clear(); Statistics.UnsupportedMaterialCount = 0;
+                        cmd.SetGlobalFloat("_RoomPositivePermissionMode", 0);
+                        if (previewEnabled)
+                        {
+                            CoreUtils.SetRenderTarget(cmd, previewCoverage, previewDepth, ClearFlag.All, Color.black);
+                            cmd.SetGlobalFloat("_RoomPositiveCoverageMode", 1);
+                            foreach (var surface in frame.PositiveSurfaces)
+                                if (surface.Kind != RoomPositiveSurfaceKind.Roof) DrawTruth(cmd, surface);
+                            if (previewCoverage.rt.antiAliasing > 1) cmd.ResolveAntiAliasedSurface(previewCoverage.rt);
+                            cmd.SetGlobalTexture("_RoomSightCoverageTexture", previewCoverage.nameID);
+                        }
+                        CoreUtils.SetRenderTarget(cmd, renderer.cameraColorTargetHandle, renderer.cameraDepthTargetHandle, ClearFlag.All, Color.black);
+                        cmd.SetGlobalFloat("_RoomPositiveCoverageMode", 0);
+                        if (frame.TruthMode)
+                        {
+                            cmd.SetGlobalInteger("_RoomSightPassMode", 2);
+                            foreach (var surface in frame.PositiveSurfaces) DrawTruth(cmd, surface);
+                        }
+                    }
+                }
+                context.ExecuteCommandBuffer(cmd);cmd.Clear();
                 if (ready)
                 {
-                    Upload(cmd, ref renderingData);
-                    Ossastra.EnvironmentSimulation.Rendering.EnvironmentSkyBinding.UploadForCamera(cmd,camera,frame);
-                    used.Clear(); Statistics.UnsupportedMaterialCount = 0;
-                    cmd.SetGlobalFloat("_RoomPositivePermissionMode", 0);
-                    if (previewEnabled)
+                    if(!frame.TruthMode)
                     {
-                        CoreUtils.SetRenderTarget(cmd, previewCoverage, previewDepth, ClearFlag.All, Color.black);
-                        cmd.SetGlobalFloat("_RoomPositiveCoverageMode", 1);
-                        foreach (var surface in frame.PositiveSurfaces)
-                            if (surface.Kind != RoomPositiveSurfaceKind.Roof) DrawTruth(cmd, surface);
-                        if (previewCoverage.rt.antiAliasing > 1) cmd.ResolveAntiAliasedSurface(previewCoverage.rt);
-                        cmd.SetGlobalTexture("_RoomSightCoverageTexture", previewCoverage.nameID);
-                    }
-                    CoreUtils.SetRenderTarget(cmd, renderer.cameraColorTargetHandle, renderer.cameraDepthTargetHandle, ClearFlag.All, Color.black);
-                    cmd.SetGlobalFloat("_RoomPositiveCoverageMode", 0);
-                    if (frame.TruthMode)
-                    {
-                        cmd.SetGlobalInteger("_RoomSightPassMode", 2);
-                        foreach (var surface in frame.PositiveSurfaces) DrawTruth(cmd, surface);
-                    }
-                    else
-                    {
-                        Ossastra.EnvironmentSimulation.Rendering.EnvironmentSkyBinding.AppendSkyForCamera(cmd,camera,frame);
+                        // 环境命令各自构造/提交，失败的半成命令从未进入核心缓冲。
+                        environmentStage.AppendSky(context,frame);
                         // 使用原角色所有begin回调之后的最新材质脚点，刷新自有颜色材质；不再使用overrideShader。
                         materialBuckets.RefreshAdapters();
-                        // 动画/装备已提交；自身完整alpha另存有界缓存，绝不使用世界裁剪后的轮廓。
-                        if(Ossastra.CharacterLighting.CharacterLightingSystem.TryGet(camera,out var characterLighting))
-                        {
-                            SetCharacterScope(characterLighting);
-                            if(characterLighting.WantsCoverage&&characterLighting.coverageShader!=null)
-                            {
-                                if(characterCoverage==null||characterCoverageShader!=characterLighting.coverageShader)
-                                {characterCoverage?.Dispose();characterCoverageShader=characterLighting.coverageShader;characterCoverage=new Ossastra.CharacterLighting.Rendering.CharacterCoverageCache(characterCoverageShader);}
-                                int width=renderingData.cameraData.cameraTargetDescriptor.width,height=renderingData.cameraData.cameraTargetDescriptor.height;
-                                characterCoverage.Append(cmd,camera,renderingData.cameraData.GetGPUProjectionMatrix()*renderingData.cameraData.GetViewMatrix(),width,height);
-                                CoreUtils.SetRenderTarget(cmd,renderer.cameraColorTargetHandle,renderer.cameraDepthTargetHandle);
-                                cmd.SetViewport(new Rect(0,0,width,height));
-                            }
-                            else{characterCoverage?.Dispose();characterCoverage=null;}
-                            characterLighting.ReportCoverage(characterCoverage);
-                        }
-                        else{SetCharacterScope(null);ReleaseCharacterCoverage();}
+                        // 动画/装备已提交；独立阶段只持有自己的完整alpha缓存，构造失败不丢弃核心世界命令。
+                        characterStage.PrepareCoverage(context,renderingData.cameraData.GetGPUProjectionMatrix()*renderingData.cameraData.GetViewMatrix(),
+                            renderingData.cameraData.cameraTargetDescriptor,renderer.cameraColorTargetHandle,renderer.cameraDepthTargetHandle);
                         Statistics.OwnedPropertyBlockCount = propertyScope.BlockCount;
-                        cmd.SetGlobalInteger("_RoomSightOwnerCount", 0); cmd.SetGlobalInteger("_RoomSightOwnerExterior", 0);
-                        cmd.SetGlobalInteger("_RoomSightPassMode", 1);
+                        using(new Ossastra.Rendering.RenderCommandScope(cmd))
+                        {
+                            cmd.SetGlobalInteger("_RoomSightOwnerCount", 0); cmd.SetGlobalInteger("_RoomSightOwnerExterior", 0);
+                            cmd.SetGlobalInteger("_RoomSightPassMode", 1);
+                        }
                         context.ExecuteCommandBuffer(cmd); cmd.Clear();
                         DrawFinalWorld(context, cmd, ref renderingData);
-                        Ossastra.EnvironmentSimulation.Rendering.EnvironmentSkyBinding.AppendWeatherForCamera(cmd,camera,frame,ref renderingData);
+                        environmentStage.AppendWeather(context,frame,ref renderingData);
                         // 标签许可只消费刚刚重建的合法世界深度，绝不复用旧世界遮挡。
-                        CoreUtils.SetRenderTarget(cmd, labelPermission, renderer.cameraDepthTargetHandle, ClearFlag.Color, Color.black);
-                        cmd.SetGlobalInteger("_RoomSightPassMode", 0);
-                        cmd.SetGlobalFloat("_RoomPositivePermissionMode", 1);
-                        // 环境先画，人物/信息最后排除；透明角色也不能把背后的环境色当作可后处理自身。
-                        foreach (var surface in frame.PositiveSurfaces) if (surface.WorldLookEnvironment) DrawTruth(cmd, surface, true);
-                        foreach (var surface in frame.PositiveSurfaces) if (!surface.WorldLookEnvironment) DrawTruth(cmd, surface, true);
-                        if (labelPermission.rt.antiAliasing > 1) cmd.ResolveAntiAliasedSurface(labelPermission.rt);
-                        CoreUtils.SetRenderTarget(cmd, renderer.cameraColorTargetHandle, renderer.cameraDepthTargetHandle);
-                        cmd.SetGlobalFloat("_RoomPositivePermissionMode", 0);
-                        cmd.SetGlobalTexture("_RoomVisibilityPermission", labelPermission.nameID);
-                        cmd.SetGlobalFloat("_RoomWorldLabelMaskReady", 1);
+                        using(new Ossastra.Rendering.RenderCommandScope(cmd))
+                        {
+                            CoreUtils.SetRenderTarget(cmd, labelPermission, renderer.cameraDepthTargetHandle, ClearFlag.Color, Color.black);
+                            cmd.SetGlobalInteger("_RoomSightPassMode", 0);
+                            cmd.SetGlobalFloat("_RoomPositivePermissionMode", 1);
+                            // 环境先画，人物/信息最后排除；透明角色也不能把背后的环境色当作可后处理自身。
+                            foreach (var surface in frame.PositiveSurfaces) if (surface.WorldLookEnvironment) DrawTruth(cmd, surface, true);
+                            foreach (var surface in frame.PositiveSurfaces) if (!surface.WorldLookEnvironment) DrawTruth(cmd, surface, true);
+                            if (labelPermission.rt.antiAliasing > 1) cmd.ResolveAntiAliasedSurface(labelPermission.rt);
+                            CoreUtils.SetRenderTarget(cmd, renderer.cameraColorTargetHandle, renderer.cameraDepthTargetHandle);
+                            cmd.SetGlobalFloat("_RoomPositivePermissionMode", 0);
+                            cmd.SetGlobalTexture("_RoomVisibilityPermission", labelPermission.nameID);
+                            cmd.SetGlobalFloat("_RoomWorldLabelMaskReady", 1);
+                        }
                         // 完整世界/标签/真实新深度已完成；新增像素仍在WorldLook与HUD之前。
                         // 外缘单独校验源、目标和每像素路径，不从黑色或静态历史推导角色许可。
-                        if(characterSystemOwner!=null&&characterCoverage!=null&&characterSystemOwner.WantsOuterGlow&&
-                           characterSystemOwner.outerGlowSeedShader!=null&&characterSystemOwner.outerGlowCompositeShader!=null&&characterSystemOwner.outerGlowDepthShader!=null)
-                        {
-                            if(characterOuterGlow==null||outerSeedShader!=characterSystemOwner.outerGlowSeedShader||outerCompositeShader!=characterSystemOwner.outerGlowCompositeShader||outerDepthShader!=characterSystemOwner.outerGlowDepthShader)
-                            {
-                                ReleaseOuterGlow();outerSeedShader=characterSystemOwner.outerGlowSeedShader;outerCompositeShader=characterSystemOwner.outerGlowCompositeShader;outerDepthShader=characterSystemOwner.outerGlowDepthShader;
-                                characterOuterGlow=new Ossastra.CharacterLighting.Rendering.CharacterOuterGlowCache(outerSeedShader,outerCompositeShader,outerDepthShader);
-                            }
-                            characterOuterGlow.Append(cmd,camera,renderingData.cameraData.cameraTargetDescriptor,renderer.cameraColorTargetHandle,renderer.cameraDepthTargetHandle,labelPermission,characterSystemOwner,characterCoverage,frame,UploadOwner);
-                        }
-                        else ReleaseOuterGlow();
+                        // 先完成并提交本帧核心颜色/深度/标签；可选外缘使用独立命令缓冲，失败不污染此提交。
+                        context.ExecuteCommandBuffer(cmd);cmd.Clear();
+                        characterStage.AppendOuter(context,renderingData.cameraData.cameraTargetDescriptor,renderer.cameraColorTargetHandle,
+                            renderer.cameraDepthTargetHandle,labelPermission,frame,UploadOwner);
                     }
                     stale.Clear(); foreach (var pair in materials) if (pair.Key.Source == null || !used.Contains(pair.Key)) stale.Add(pair.Key);
                     foreach (var key in stale) { DestroyOwned(materials[key]); materials.Remove(key); }
                     Statistics.OwnedMaterialCount = materials.Count + materialBuckets.OwnedMaterialCount;
                     Statistics.Active = true;
+                    if(characterStage.HasFault||environmentStage.HasFault)Statistics.Error="合法世界有效；"+characterStage.CoverageError+" "+characterStage.OuterError+" "+environmentStage.Error;
                     if (Statistics.UnsupportedMaterialCount > 0)
                         Statistics.Error = "存在未支持的源材质，已保守不画；本轮渲染验收不完整。";
                 }
                 context.ExecuteCommandBuffer(cmd); complete = true;
                 // C诊断只展示新增外缘能量；不让后续环境雾/曝光从已清黑的世界产生新颜色。
                 if (ready && Statistics.Active && !frame.TruthMode && Statistics.UnsupportedMaterialCount == 0 &&
-                    (characterSystemOwner==null||!characterSystemOwner.OuterDiagnostic))
-                    Ossastra.WorldRendering.Rendering.WorldLookLegalFrameRegistry.Publish(camera, labelPermission, renderingData.cameraData.renderer.cameraDepthTargetHandle, Time.frameCount, characterOuterGlow==null?null:characterOuterGlow.Energy);
+                    !characterStage.DiagnosticActive)
+                    Ossastra.WorldRendering.Rendering.WorldLookLegalFrameRegistry.Publish(camera, labelPermission, renderingData.cameraData.renderer.cameraDepthTargetHandle, Time.frameCount, characterStage.OuterEnergy);
                 else Ossastra.WorldRendering.Rendering.WorldLookLegalFrameRegistry.Revoke(camera);
             }
             finally
@@ -491,19 +490,52 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
             return true;
         }
 
+        bool PrepareKnownMaterialPasses(out string error)
+        {
+            error="";
+            foreach(var bucket in materialBuckets.Active)
+                if(!Ossastra.Rendering.RenderPassReadiness.Ensure(bucket.Adapter,bucket.Pass))
+                {error="已登记世界适配材质的实际Pass未就绪；接管前安全阻断。";return false;}
+            foreach(var surface in frame.PositiveSurfaces)
+            {
+                var renderer=surface.Renderer;
+                if(surface.Kind!=RoomPositiveSurfaceKind.Full||!HasDrawableSource(renderer))continue;
+                renderer.GetSharedMaterials(slots);
+                foreach(var source in slots)
+                    if(!EnsureSourcePass(source))
+                    {error="完整表面的实际源Pass未就绪；接管前安全阻断："+renderer.name;return false;}
+            }
+            return true;
+        }
+
+        // 与DrawRenderers的标签优先序一致，只准备当前会被选中的源Pass，不全量预热Shader。
+        static bool EnsureSourcePass(Material source)
+        {
+            if(source==null||source.shader==null)return false;
+            var lightMode=new ShaderTagId("LightMode");
+            foreach(var tag in sourceTags)
+                for(int pass=0;pass<source.passCount;++pass)
+                {
+                    var value=source.shader.FindPassTagValue(pass,lightMode);
+                    if(value.Equals(tag)||(tag.Equals(new ShaderTagId("SRPDefaultUnlit"))&&value.Equals(default(ShaderTagId))))
+                        return Ossastra.Rendering.RenderPassReadiness.Ensure(source,pass);
+                }
+            return false;
+        }
+
         void DrawFinalWorld(ScriptableRenderContext context, CommandBuffer cmd, ref RenderingData renderingData)
         {
             bool full = false;
             foreach (var surface in frame.PositiveSurfaces)
             {
                 var source = surface.Renderer;
-                if (source == null || !source.enabled || source.forceRenderingOff || !source.gameObject.activeInHierarchy) continue;
+                if (!HasDrawableSource(source)) continue;
                 if (RoomPositiveRenderingLayers.Classify(source) == 0) { ++Statistics.UnsupportedMaterialCount; continue; }
                 if (surface.Kind == RoomPositiveSurfaceKind.Full) full = true;
             }
             for (int queue = 0; queue < 2; ++queue)
             {
-                Ossastra.CharacterLighting.CharacterLightingSystem.Clear(cmd);
+                using(new Ossastra.Rendering.RenderCommandScope(cmd))Ossastra.CharacterLighting.CharacterLightingSystem.Clear(cmd);
                 context.ExecuteCommandBuffer(cmd);cmd.Clear();
                 bool transparent = queue != 0;
                 if (full)
@@ -523,7 +555,7 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
                     var adapter = ShadedAdapter(source, surface.Kind, family, out int pass);
                     if (adapter != null) DrawSourceGroup(context, ref renderingData, surface.DrawMask, adapter, pass, transparent, -1, true);
                 }
-                DrawIndependentUnlit(cmd, transparent);
+                using(new Ossastra.Rendering.RenderCommandScope(cmd))DrawIndependentUnlit(cmd, transparent);
                 context.ExecuteCommandBuffer(cmd); cmd.Clear();
             }
         }
@@ -569,7 +601,7 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
             {
                 var renderer = surface.Renderer;
                 if (surface.Kind == RoomPositiveSurfaceKind.Full || surface.DrawMask != RoomPositiveRenderingLayers.IndependentBit ||
-                    renderer == null || !renderer.enabled || renderer.forceRenderingOff || !renderer.gameObject.activeInHierarchy) continue;
+                    !HasDrawableSource(renderer)) continue;
                 renderer.GetSharedMaterials(slots);
                 for (int slot = 0; slot < slots.Count; ++slot)
                 {
@@ -596,7 +628,7 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
                 if (adapter == null) continue;
                 UploadOwner(cmd, item.Surface);
                 if(Ossastra.CharacterLighting.CharacterLightingSystem.TryGet(camera,out var characterLighting))
-                    characterLighting.Bind(cmd,item.Surface.Renderer,characterCoverage,frame);
+                    characterLighting.Bind(cmd,item.Surface.Renderer,characterStage.Coverage,frame);
                 else Ossastra.CharacterLighting.CharacterLightingSystem.Clear(cmd);
                 cmd.SetGlobalFloat("_RoomSightRoofMode", 0); cmd.SetGlobalFloat("_RoomSightCutRoof", 0);
                 cmd.DrawRenderer(item.Surface.Renderer, adapter, item.Slot, pass); ++Statistics.SurfaceDraws;
@@ -609,9 +641,22 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
             var drawing = CreateDrawingSettings(independentLit ? independentLitTags : sourceTags, ref renderingData, sorting);
             if (adapter != null)
             {
+                // 源keyword可能在动画/装备回调后更新；只认证即将用到的适配Pass。
+                if(!Ossastra.Rendering.RenderPassReadiness.Ensure(adapter,pass)){++Statistics.UnsupportedMaterialCount;return;}
                 // overrideMaterial持有与实际Shader一致的属性/采样器布局，避免本机overrideShader不安全路径。
                 drawing.overrideMaterial = adapter; drawing.overrideMaterialPassIndex = pass;
                 drawing.enableDynamicBatching = false; drawing.enableInstancing = false;
+            }
+            else
+            {
+                foreach(var surface in frame.PositiveSurfaces)
+                {
+                    var source=surface.Renderer;
+                    if(surface.Kind!=RoomPositiveSurfaceKind.Full||!HasDrawableSource(source))continue;
+                    source.GetSharedMaterials(slots);
+                    foreach(var material in slots)
+                        if(material==null||(IsTransparent(material)==transparent&&!EnsureSourcePass(material))){++Statistics.UnsupportedMaterialCount;return;}
+                }
             }
             var range = exactQueue < 0 ? (transparent ? RenderQueueRange.transparent : RenderQueueRange.opaque) :
                 new RenderQueueRange { lowerBound = exactQueue, upperBound = exactQueue };
@@ -630,7 +675,7 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
         {
             cmd.SetGlobalFloat("_RoomWorldLookEnvironment", surface.WorldLookEnvironment ? 1 : 0);
             var renderer = surface.Renderer;
-            if (renderer == null || !renderer.enabled || !renderer.gameObject.activeInHierarchy || renderer.forceRenderingOff) return;
+            if (!HasDrawableSource(renderer)) return;
             if (RoomPositiveRenderingLayers.Classify(renderer) == 0) { ++Statistics.UnsupportedMaterialCount; return; }
             int ownerCount = surface.OwnerVolumes == null ? 0 : surface.OwnerVolumes.Length;
             cmd.SetGlobalInteger("_RoomSightOwnerCount", ownerCount);
@@ -684,7 +729,7 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
         { if (value != null) { if (Application.isPlaying) Object.Destroy(value); else Object.DestroyImmediate(value); } }
         public void Dispose()
         {
-            SetCharacterScope(null);ReleaseCharacterCoverage();
+            characterStage.Dispose();
             Ossastra.WorldRendering.Rendering.WorldLookLegalFrameRegistry.Revoke(camera);
             CancelPreparedState(); ClearMaterials(); propertyScope.Clear(); materialBuckets.Dispose(); fogHistory.Dispose(); Statistics.OwnedPropertyBlockCount = Statistics.OwnedBufferCount = 0; Statistics.EstimatedBufferBytes = 0; Statistics.Active = false;
             independentItems.Clear(); independentLitGroups.Clear(); slots.Clear(); used.Clear(); stale.Clear();

@@ -1,0 +1,20 @@
+// Native只读：调用测试对象的实际数值快照；必须当前仅一个本轮Smoke对象。
+using System;
+using System.Linq;
+using System.Reflection;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using Funplay.Editor.Tools.Scripting;
+public sealed class ReadMinimalSmokeProbe:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  var scene=SceneManager.GetActiveScene();
+  var probes=scene.GetRootGameObjects().SelectMany(r=>r.GetComponentsInChildren<MonoBehaviour>(true)).Where(c=>c!=null&&
+   c.GetType().FullName=="Ossastra.RenderArchitectureSmoke.RenderArchitectureSmokeProbe").ToArray();
+  if(!Application.isPlaying||probes.Length!=1){ctx.ReturnValue="REFUSED: 需要Play下单一SmokeProbe，不读取主场";return;}
+  var method=probes[0].GetType().GetMethod("CaptureReport",BindingFlags.Public|BindingFlags.Instance);
+  if(method==null){ctx.ReturnValue="REFUSED: CaptureReport接口未编译";return;}
+  ctx.ReturnValue=method.Invoke(probes[0],new object[]{"native-readback"});
+ }
+}

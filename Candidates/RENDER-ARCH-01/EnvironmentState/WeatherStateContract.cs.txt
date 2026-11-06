@@ -1,0 +1,34 @@
+/* 功能：直接推进实际天气状态服务，无GameObject/Root/相机/Renderer，验收中断混合、随机调度和预算。
+ * 边界：只创建暂态天气/气候数据，不改主场、现有作者档或业务时钟。
+ */
+using System;using System.Linq;using System.Reflection;using System.Collections.Generic;using UnityEngine;using Newtonsoft.Json;using Ossastra.EnvironmentSimulation;using Funplay.Editor.Tools.Scripting;
+public sealed class WeatherStateContract:IFunplayCommand
+{
+ static readonly BindingFlags Any=BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Instance;
+ static Type State=>typeof(EnvironmentRoot).Assembly.GetType("Ossastra.EnvironmentSimulation.EnvironmentWeatherState",true);
+ static object Call(object state,string name,params object[] args)=>State.GetMethod(name,Any).Invoke(state,args);
+ static object Get(object state,string name)=>State.GetProperty(name,Any).GetValue(state);
+ static float Rain(object state){object values=Get(state,"Values");return (float)values.GetType().GetField("rain",Any).GetValue(values);}
+ static object New(WeatherProfileSO initial){var state=Activator.CreateInstance(State,true);Call(state,"EnsureInitial",initial);return state;}
+ static bool Prepare(object state,double seconds,ClimateProfileSO climate,int seed){object[] a={seconds,climate,seed,null};return (bool)State.GetMethod("TryPrepareAutomatic",Any).Invoke(state,a);}
+ public void Execute(ExecutionContext ctx)
+ {
+  var owned=new List<UnityEngine.Object>();var checks=new List<object>();bool all=true;Action<bool,string> need=(pass,name)=>{checks.Add(new{pass,name});all&=pass;};
+  try
+  {
+   var clear=ScriptableObject.CreateInstance<WeatherProfileSO>();var rain=ScriptableObject.CreateInstance<WeatherProfileSO>();var cloudy=ScriptableObject.CreateInstance<WeatherProfileSO>();var climate=ScriptableObject.CreateInstance<ClimateProfileSO>();owned.AddRange(new UnityEngine.Object[]{clear,rain,cloudy,climate});
+   clear.displayName="Clear";clear.rain=0;rain.displayName="Rain";rain.rain=1;cloudy.displayName="Cloudy";cloudy.rain=.5f;climate.seed=3030;climate.weatherProfiles=new[]{clear,rain,cloudy};climate.weatherWeights=new[]{2f,3f,5f};climate.weatherDurationSeconds=new Vector2(1,3);
+   string before=string.Join("|",owned.Select(o=>JsonUtility.ToJson(o)));float timeScale=Time.timeScale;
+   var state=New(clear);Call(state,"Transition",rain,4f);Call(state,"AdvancePrepared",2d,false,null,0,3f);need(Mathf.Abs(Rain(state)-.5f)<.0001f,"Camera independent weather reaches actual half transition");
+   Call(state,"Transition",clear,4f);need(Mathf.Abs(Rain(state)-.5f)<.0001f,"Interrupted target begins at current mixed state without jump");Call(state,"AdvancePrepared",2d,false,null,0,3f);need(Mathf.Abs(Rain(state)-.25f)<.0001f,"Interrupted transition continues from captured mixture");
+   Func<int,List<string>> replay=seed=>{var s=New(clear);var sequence=new List<string>();for(int i=0;i<80;i++){if(!Prepare(s,.5d,climate,seed))throw new Exception("Unexpected small-step refusal");Call(s,"AdvancePrepared",.5d,true,climate,seed,.75f);sequence.Add(((WeatherProfileSO)Get(s,"TargetWeather")).displayName);}return sequence;};
+   var a=replay(2468);var b=replay(2468);var changed=replay(2469);need(a.SequenceEqual(b)&&a.Distinct().Count()>1,"Equal author and runtime seeds replay nontrivial deterministic weather");need(!a.SequenceEqual(changed),"Changing runtime seed changes target schedule");
+   string originalBeforeBudget=string.Join("|",owned.Select(o=>JsonUtility.ToJson(o)));need(originalBeforeBudget==before,"Mixed and scheduled weather does not modify author data");
+   climate.weatherDurationSeconds=Vector2.one;var budget=New(clear);float held=Rain(budget);need(!Prepare(budget,65d,climate,1)&&Rain(budget)==held,"Over-budget step is refused without advancing current weather");need(Prepare(budget,64d,climate,1),"Exactly sixty four changes remain allowed");Call(budget,"AdvancePrepared",64d,true,climate,1,.75f);
+   need(!State.IsSubclassOf(typeof(MonoBehaviour))&&State.GetFields(Any).All(f=>!typeof(Camera).IsAssignableFrom(f.FieldType)&&!typeof(Renderer).IsAssignableFrom(f.FieldType)),"Weather service has no camera renderer or component lifetime dependency");need(Time.timeScale==timeScale,"World weather leaves gameplay TimeScale unchanged");
+   ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=all,checks,sequence=a});
+  }
+  catch(Exception e){ctx.ReturnValue=JsonConvert.SerializeObject(new{pass=false,checks,error=e.ToString()});}
+  finally{foreach(var o in owned)if(o!=null)UnityEngine.Object.DestroyImmediate(o);}
+ }
+}

@@ -54,6 +54,7 @@ namespace Ossastra.Development.Environment
   Font ownedOsFont;
   UnityEngine.UI.RawImage previewImage;
   Texture previewTexture;
+  Ossastra.EnvironmentSimulation.Rendering.EnvironmentSkyBinding leasedSkyBinding;
   Ossastra.Development.SceneVisibility.RoomVisibilityLabPanel leasedDiagnostics;
   bool hasDiagnosticsLease,diagnosticsShowBefore;
 
@@ -66,6 +67,7 @@ namespace Ossastra.Development.Environment
   void Update()
   {
    if(!Application.isPlaying)return;
+   ReconcileSkyPreview();
    ReconcileLegacyDiagnostics();
    if(viewRoot==null){Build();return;}
    ReconcileCapture();
@@ -193,10 +195,20 @@ namespace Ossastra.Development.Environment
   }
   public void SetExpanded(bool value)
   {
-   expanded=value;if(surface!=null){surface.sizeDelta=new Vector2(width,value?expandedHeight:35);surface.anchorMin=surface.anchorMax=anchor;surface.pivot=anchor;surface.anchoredPosition=offset;}
+   expanded=value;ReconcileSkyPreview();if(surface!=null){surface.sizeDelta=new Vector2(width,value?expandedHeight:35);surface.anchorMin=surface.anchorMax=anchor;surface.pivot=anchor;surface.anchoredPosition=offset;}
    if(!value&&surface!=null&&EventSystem.current!=null){var current=EventSystem.current.currentSelectedGameObject;if(current!=null&&current.transform.IsChildOf(surface))EventSystem.current.SetSelectedGameObject(null);}
    if(body!=null)body.SetActive(value);ReconcileLegacyDiagnostics();ReconcileCapture();RefreshWidgets();
   }
+  // 预览申请归实际消费端所有；引用换源和清空时先撤销旧绑定，不能让旧天空保留闲置RT。
+  void ReconcileSkyPreview()
+  {
+   var wanted=isActiveAndEnabled&&expanded&&skyBinding!=null?skyBinding:null;
+   if(!ReferenceEquals(leasedSkyBinding,wanted))ReleaseSkyPreview();
+   if(wanted==null){SetSkyPreviewTexture(null);return;}
+   leasedSkyBinding=wanted;leasedSkyBinding.SetPreviewRequested(this,true);SetSkyPreviewTexture(leasedSkyBinding.SkyPreview);
+  }
+  void ReleaseSkyPreview()
+  {if(leasedSkyBinding!=null)leasedSkyBinding.SetPreviewRequested(this,false);leasedSkyBinding=null;SetSkyPreviewTexture(null);}
   void ReconcileLegacyDiagnostics()
   {
    bool want=Application.isPlaying&&isActiveAndEnabled&&expanded&&legacyDiagnostics!=null&&legacyDiagnostics.gameObject.scene==gameObject.scene;
@@ -240,9 +252,10 @@ namespace Ossastra.Development.Environment
    catch(Exception error){Debug.LogWarning("环境面板中文字体未建立："+error.Message,this);}
    return TMP_Settings.defaultFontAsset;
   }
-  void OnDisable(){ReleaseLegacyDiagnostics();hovering.Clear();pressed.Clear();selected.Clear();Capture(false);if(viewRoot!=null)viewRoot.SetActive(false);}
+  void OnDisable(){ReleaseSkyPreview();ReleaseLegacyDiagnostics();hovering.Clear();pressed.Clear();selected.Clear();Capture(false);if(viewRoot!=null)viewRoot.SetActive(false);}
   void OnDestroy()
   {
+   ReleaseSkyPreview();
    ReleaseLegacyDiagnostics();Capture(false);if(viewRoot!=null)Destroy(viewRoot);viewRoot=null;refreshers.Clear();dropdowns.Clear();
    if(ownedFont!=null){if(ownedFont.atlasTextures!=null)foreach(var texture in ownedFont.atlasTextures)if(texture!=null)Destroy(texture);if(ownedFont.material!=null)Destroy(ownedFont.material);Destroy(ownedFont);ownedFont=null;}
    if(ownedOsFont!=null)Destroy(ownedOsFont);ownedOsFont=null;

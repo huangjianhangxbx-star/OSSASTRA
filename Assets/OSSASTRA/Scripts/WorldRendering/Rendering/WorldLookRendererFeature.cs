@@ -128,6 +128,8 @@ namespace Ossastra.WorldRendering.Rendering
                 var cmd = CommandBufferPool.Get("WorldLook qualified environment");
                 try
                 {
+                    using (new Ossastra.Rendering.RenderCommandScope(cmd))
+                    {
                     int samples = Mathf.Max(1, sourceDepth.rt.antiAliasing);
                     if (samples != 1 && samples != 2 && samples != 4 && samples != 8)
                     { owner.Status = "不支持的合法深度MSAA样本数；环境效果不写入。"; return; }
@@ -145,6 +147,7 @@ namespace Ossastra.WorldRendering.Rendering
                     look.SetTexture("_WorldLookCharacterGlow", hasGlow ? characterGlow.rt : Texture2D.blackTexture);
                     Blitter.BlitCameraTexture(cmd, source, colorCopy);
                     Blitter.BlitCameraTexture(cmd, colorCopy, source, look, 0);
+                    }
                     context.ExecuteCommandBuffer(cmd);
                     owner.Status = "已接入本帧合法环境：色调/空气/景深/Bloom按配置；角色与黑幕保留。";
                 }

@@ -1,0 +1,8 @@
+/* 功能：直接调用角色阶段真实的可选命令构造保护；中途抛错必须丢弃半成命令，不污染核心世界。
+ * 边界：私有CommandBuffer，未执行GPU，不修改场景/参数/全局；测试的是生产阶段实际使用的方法。
+ */
+using System;using System.Reflection;using UnityEngine.Rendering;using Newtonsoft.Json;using Ossastra.CharacterLighting;
+public static class OptionalCommandsContract
+{
+ public static string Run(){var t=typeof(CharacterLightingSystem).Assembly.GetType("Ossastra.CharacterLighting.Rendering.CharacterLightingRenderStage");var m=t==null?null:t.GetMethod("TryBuildOptional",BindingFlags.NonPublic|BindingFlags.Static);if(m==null)return "RED no isolated optional command boundary";var cmd=new CommandBuffer();try{Action<CommandBuffer> broken=c=>{c.SetGlobalFloat("_RenderArch01PrivateProbe",1);throw new InvalidOperationException("Expected optional consumer fault");};object[] badArgs={cmd,broken,null};bool failed=!(bool)m.Invoke(null,badArgs);bool discarded=cmd.sizeInBytes==0;string reason=(string)badArgs[2];Action<CommandBuffer> good=c=>c.SetGlobalFloat("_RenderArch01PrivateProbe",2);object[] goodArgs={cmd,good,null};bool recovers=(bool)m.Invoke(null,goodArgs)&&cmd.sizeInBytes>0;return JsonConvert.SerializeObject(new{pass=failed&&discarded&&reason.Contains("Expected optional consumer fault")&&recovers,failed,discarded,reason,recovers});}finally{cmd.Release();}}
+}

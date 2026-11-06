@@ -1,6 +1,6 @@
-/* 功能：场景内唯一环境显示权威；组合时间、太阳、天气与气候为不可变快照，先登记相机再通知接收者。
- * 边界：只推进自己的演示时钟，不推进游戏日历、不改Profile、不控制业务/声音/管线。
- * 生命周期：仅明确相机所在的当前场景可取得显示租约；禁用、原貌或失效时归还登记及灯光。
+/* 功能：组装显式时间来源、独立天气状态与环境帧求值，准备原生照明后提交当前相机显示。
+ * 边界：预览时钟不替代游戏日历；世界求值不依赖相机，消费者故障不能反向撤销有效环境。
+ * 生命周期：OnValidate只标记工作，主线程Update提交；显示暂停只归还登记/灯光，不重置天气状态。
  */
 using System;
 using UnityEngine;
@@ -49,21 +49,19 @@ namespace Ossastra.EnvironmentSimulation
   [Min(0)] public float weatherTransitionSeconds=3;
   public EnvironmentFrame Current{get;private set;}
   public string Status{get;private set;}="尚未采样";
-  public WeatherProfileSO CurrentWeather{get;private set;}
-  public WeatherProfileSO TargetWeather{get;private set;}
-  public float WeatherTransitionProgress=>transitioning?(float)WeatherBlend.Progress(blendElapsed,blendDuration):1;
-  // Changed仅发送完整快照；停用由Registry.Released表达，不发送半初始化或null快照。
+  public WeatherProfileSO CurrentWeather=>weather.CurrentWeather;
+  public WeatherProfileSO TargetWeather=>weather.TargetWeather;
+  public float WeatherTransitionProgress=>weather.TransitionProgress;
+  public long ConsumerFaultCount{get;private set;}
+  public string LastConsumerFault{get;private set;}="";
+  // Changed是相机无关的完整世界快照；显示撤权另由Registry.Released表达，绝不发布半初始化/null。
   public event Action<EnvironmentFrame> Changed;
   static EnvironmentRoot activeRoot;
-  const int maximumWeatherTransitionsPerStep=64;
-  WeatherProfileSO initializedWeather;
-  ClimateProfileSO scheduledClimate;
-  WeatherValues weatherFrom,weatherTo,weatherNow;
-  bool initialized,transitioning,scheduleInitialized;
-  double blendElapsed,blendDuration,elapsedSeconds,weatherRemaining,lastRealtime;
+  readonly EnvironmentWeatherState weather=new EnvironmentWeatherState();
+  volatile bool refreshRequested;
+  bool refreshing;
+  double elapsedSeconds,lastRealtime;
   long revision;
-  System.Random weatherRandom;
-  int scheduledSeed;
   Camera publishedCamera;
   EnvironmentLightingBinding appliedBinding;
   [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -72,26 +70,27 @@ namespace Ossastra.EnvironmentSimulation
   void OnDisable(){SceneManager.activeSceneChanged-=OnActiveSceneChanged;ReleaseDisplay();}
   void OnDestroy(){ReleaseDisplay();}
   void OnActiveSceneChanged(Scene oldScene,Scene newScene){RefreshNow();}
-  void OnValidate(){if(isActiveAndEnabled)RefreshNow();}
+  // Unity可在非主线程调用OnValidate；这里只写普通标记，不调用任何Unity对象或委托。
+  void OnValidate(){refreshRequested=true;}
   void Update()
   {
    double now=Time.realtimeSinceStartupAsDouble;
    double delta=Application.isPlaying?Time.unscaledDeltaTime:Math.Max(0,Math.Min(now-lastRealtime,1));lastRealtime=now;
-   if(Application.isPlaying||previewInEditMode)Advance(delta);
+   if(Application.isPlaying||previewInEditMode){refreshRequested=false;Advance(delta);}
+   else if(refreshRequested){refreshRequested=false;RefreshNow();}
   }
   public void SetTimeHours(double hours){timeHours=EnvironmentClock.WrapHours(hours);RefreshNow();}
   public void SetClockRunning(bool running){clockRunning=running;if(running)timeMode=EnvironmentTimeMode.PreviewClock;RefreshNow();}
   public void SetManualSun(bool enabled,float azimuthDegrees,float elevationDegrees)
   {var checkedPose=new SunPose(azimuthDegrees,elevationDegrees);manualSun=enabled;sunAzimuthDegrees=checkedPose.AzimuthDegrees;sunElevationDegrees=checkedPose.ElevationDegrees;RefreshNow();}
-  public void SetClimate(ClimateProfileSO profile){climate=profile;scheduleInitialized=false;RefreshNow();}
-  public void SetAutomaticWeather(bool enabled){automaticWeather=enabled;scheduleInitialized=false;RefreshNow();}
+  public void SetClimate(ClimateProfileSO profile){climate=profile;weather.InvalidateSchedule();RefreshNow();}
+  public void SetAutomaticWeather(bool enabled){automaticWeather=enabled;weather.InvalidateSchedule();RefreshNow();}
   public void SetContribution(EnvironmentContribution value){contribution=value;RefreshNow();}
   public void TransitionWeather(WeatherProfileSO target,float durationSeconds)
   {
    if(target==null)throw new ArgumentNullException(nameof(target));
    float duration=EnvironmentNumbers.Finite(durationSeconds);if(duration<0)throw new ArgumentOutOfRangeException(nameof(durationSeconds));
-   EnsureWeather();weatherFrom=weatherNow;weatherTo=target.Capture();TargetWeather=target;blendElapsed=0;blendDuration=duration;
-   transitioning=duration>0;if(!transitioning){weatherNow=weatherTo;CurrentWeather=target;}
+   EnsureWeather();weather.Transition(target,duration);
    RefreshNow();
   }
   public void ResetPreview()
@@ -100,7 +99,7 @@ namespace Ossastra.EnvironmentSimulation
    sunIntensityMultiplier=skyMultiplier=cloudSpeedMultiplier=windMultiplier=fogMultiplier=rainMultiplier=wetnessMultiplier=1;
    ambientMultiplier=1.99f;indoorAmbientScale=1;characterReadability=.02f;groundLightResponse=decorationLightResponse=characterLightResponse=2;
    sunTemperatureOffset=0;shadowStrength=.85f;cloudCoverageOverride=cloudDensityOverride=cloudShadowStrengthOverride=windYawDegreesOverride=-1;
-   automaticWeather=false;initialized=false;transitioning=false;scheduleInitialized=false;elapsedSeconds=0;RefreshNow();
+   automaticWeather=false;weather.Reset();elapsedSeconds=0;RefreshNow();
   }
   public void Advance(double deltaSeconds)
   {
@@ -108,18 +107,7 @@ namespace Ossastra.EnvironmentSimulation
    try
    {
     EnsureWeather();
-    if(automaticWeather)
-    {
-     // 在推进时刻/秒数/天气前核对最坏切换次数；失败保留上一份实际显示，绝不进入超长while。
-     try
-     {
-      EnsureSchedule();
-      double firstOverBudget=weatherRemaining+(double)climate.weatherDurationSeconds.x*maximumWeatherTransitionsPerStep;
-      if(deltaSeconds>=firstOverBudget){Status="自动天气步长超过64次切换预算；保持上一有效环境与时刻";return;}
-     }
-     catch(Exception e) when(e is ArgumentException||e is InvalidOperationException)
-     {Status="自动天气配置无效："+e.Message+"；保持上一有效环境与时刻";return;}
-    }
+    if(automaticWeather&&!weather.TryPrepareAutomatic(deltaSeconds,climate,weatherSeed,out var reason)){Status=reason;return;}
     if(timeMode==EnvironmentTimeMode.PreviewClock&&clockRunning)timeHours=EnvironmentClock.AdvanceHours(timeHours,deltaSeconds,EnvironmentNumbers.Finite(cycleMinutes)*60d);
     if(timeMode==EnvironmentTimeMode.External)
     {
@@ -129,69 +117,66 @@ namespace Ossastra.EnvironmentSimulation
      catch(ArgumentException){Status="外部时间源小时无效；保持最后有效环境与时刻";return;}
     }
     // 秒只用于循环视觉噪声，限制其范围避免长期精度退化及上传float溢出，不是业务计时。
-    elapsedSeconds=(elapsedSeconds+deltaSeconds%86400d)%86400d;AdvanceWeather(deltaSeconds);RefreshNow();
+    elapsedSeconds=(elapsedSeconds+deltaSeconds%86400d)%86400d;weather.AdvancePrepared(deltaSeconds,automaticWeather,climate,weatherSeed,weatherTransitionSeconds);RefreshNow();
    }
    catch(Exception e) when(e is ArgumentException||e is InvalidOperationException){Status="环境输入无效："+e.Message;ReleaseDisplay();}
   }
-  void EnsureWeather()
-  {
-   if(initialWeather==null)throw new InvalidOperationException("尚未指定初始天气档。");
-   if(initialized&&initializedWeather==initialWeather)return;
-   initializedWeather=initialWeather;CurrentWeather=TargetWeather=initialWeather;weatherNow=weatherFrom=weatherTo=initialWeather.Capture();
-   initialized=true;transitioning=false;scheduleInitialized=false;blendElapsed=blendDuration=0;
-  }
-  void AdvanceBlend(double seconds)
-  {
-   if(!transitioning){if(CurrentWeather!=null)weatherNow=CurrentWeather.Capture();return;}
-   blendElapsed+=seconds;float t=(float)WeatherBlend.Progress(blendElapsed,blendDuration);weatherNow=WeatherValues.Lerp(weatherFrom,weatherTo,t);
-   if(t>=1){transitioning=false;CurrentWeather=TargetWeather;weatherNow=weatherTo;}
-  }
-  void EnsureSchedule()
-  {
-   if(climate==null)throw new InvalidOperationException("自动天气需要明确气候档。");
-   int combinedSeed=unchecked(weatherSeed*397^climate.seed);
-   // Inspector可在运行中编辑源档，必须先校验当前值，不能用已初始化缓存绕过0时长。
-   climate.ValidateWeatherSchedule();
-   if(scheduleInitialized&&scheduledClimate==climate&&scheduledSeed==combinedSeed)return;
-   weatherRandom=new System.Random(combinedSeed);scheduledClimate=climate;scheduledSeed=combinedSeed;scheduleInitialized=true;weatherRemaining=NextDuration();
-  }
-  double NextDuration()=>Mathf.Lerp(climate.weatherDurationSeconds.x,climate.weatherDurationSeconds.y,(float)weatherRandom.NextDouble());
-  void AdvanceWeather(double seconds)
-  {
-   if(!automaticWeather){AdvanceBlend(seconds);return;}
-   EnsureSchedule();double remaining=seconds;
-   while(remaining>=weatherRemaining)
-   {
-    AdvanceBlend(weatherRemaining);remaining-=weatherRemaining;ChooseWeather();weatherRemaining=NextDuration();
-   }
-   AdvanceBlend(remaining);weatherRemaining-=remaining;
-  }
-  void ChooseWeather()
-  {
-   climate.ValidateWeatherSchedule();double total=0;for(int i=0;i<climate.weatherWeights.Length;i++)total+=climate.weatherWeights[i];
-   double sample=weatherRandom.NextDouble()*total;int selected=climate.weatherWeights.Length-1;
-   for(int i=0;i<climate.weatherWeights.Length;i++){sample-=climate.weatherWeights[i];if(sample<0){selected=i;break;}}
-   weatherFrom=weatherNow;TargetWeather=climate.weatherProfiles[selected];weatherTo=TargetWeather.Capture();blendDuration=EnvironmentNumbers.Nonnegative(weatherTransitionSeconds);blendElapsed=0;transitioning=blendDuration>0;
-   if(!transitioning){weatherNow=weatherTo;CurrentWeather=TargetWeather;}
-  }
+  void EnsureWeather(){weather.EnsureInitial(initialWeather);}
   public void RefreshNow()
   {
+   // 消费者若在回调中请求改参数，推迟到下一次主线程更新，避免同步重入发布链。
+   if(refreshing){refreshRequested=true;return;}
+   refreshing=true;refreshRequested=false;
+   try{EvaluateAndCommit();}finally{refreshing=false;}
+  }
+  void EvaluateAndCommit()
+  {
+   EnvironmentFrame next;
    try
    {
     EnsureWeather();if(dayCycle==null)throw new InvalidOperationException("尚未指定昼夜档。");
-    timeHours=EnvironmentClock.WrapHours(timeHours);if(!transitioning)weatherNow=CurrentWeather.Capture();
-    Current=BuildFrame();
-    bool allowed=isActiveAndEnabled&&(Application.isPlaying||previewInEditMode)&&Current.Enabled&&gameObject.scene==SceneManager.GetActiveScene()&&gameplayCamera!=null&&gameplayCamera.gameObject.scene==gameObject.scene;
-    if(!allowed){ReleaseDisplay();Status=Current.Enabled?"已采样；未取得当前场景预览租约":"已恢复场景原貌";return;}
-    if(activeRoot!=null&&activeRoot!=this)throw new InvalidOperationException("当前场景已有另一个环境显示根。");
-    activeRoot=this;
-    if(!ReferenceEquals(publishedCamera,null)&&publishedCamera!=gameplayCamera)EnvironmentCameraRegistry.Release(this,publishedCamera);
-    publishedCamera=gameplayCamera;EnvironmentCameraRegistry.Publish(this,gameplayCamera,Current);
-    if(appliedBinding!=null&&appliedBinding!=lightingBinding)appliedBinding.Release(this);
-    appliedBinding=lightingBinding;if(appliedBinding!=null)appliedBinding.Apply(this,Current);
-    Status="显示环境："+Current.WeatherName+" / "+Current.Hours.ToString("0.00")+" 时";Changed?.Invoke(Current);
+    timeHours=EnvironmentClock.WrapHours(timeHours);weather.RefreshCurrent();next=BuildFrame();
    }
-   catch(Exception e) when(e is ArgumentException||e is InvalidOperationException){Status="环境输入无效："+e.Message;ReleaseDisplay();}
+   catch(Exception error) when(error is ArgumentException||error is InvalidOperationException){Status="环境求值无效："+error.Message;ReleaseDisplay();return;}
+   Current=next;
+   // Edit显式预览允许不输出画面的Camera；Play相机停用只撤显示，世界天气继续求值。
+   bool cameraReady=gameplayCamera!=null&&(!Application.isPlaying||gameplayCamera.isActiveAndEnabled);
+   bool allowed=isActiveAndEnabled&&(Application.isPlaying||previewInEditMode)&&next.Enabled&&gameObject.scene==SceneManager.GetActiveScene()&&cameraReady&&gameplayCamera.gameObject.scene==gameObject.scene;
+   if(!allowed){ReleaseDisplay();Status=next.Enabled?"已采样；未取得当前场景预览租约":"已恢复场景原貌";NotifyWorld(next);return;}
+   try
+   {
+    if(activeRoot!=null&&activeRoot!=this)throw new InvalidOperationException("当前场景已有另一个环境显示根。");
+    EnvironmentCameraRegistry.ValidatePublish(this,gameplayCamera,next);
+   }
+   catch(Exception error) when(error is ArgumentException||error is InvalidOperationException){Status="环境显示登记无效："+error.Message;ReleaseDisplay();NotifyWorld(next);return;}
+   try
+   {
+    if(appliedBinding!=null&&appliedBinding!=lightingBinding)appliedBinding.Release(this);
+    appliedBinding=lightingBinding;if(appliedBinding!=null)appliedBinding.Apply(this,next);
+   }
+   catch(Exception error) when(error is ArgumentException||error is InvalidOperationException){Status="原生照明提交失败："+error.Message;ReleaseDisplay();NotifyWorld(next);return;}
+   activeRoot=this;
+   if(!ReferenceEquals(publishedCamera,null)&&publishedCamera!=gameplayCamera)EnvironmentCameraRegistry.Release(this,publishedCamera);
+   publishedCamera=gameplayCamera;long faults=EnvironmentCameraRegistry.ConsumerFaultCount;
+   EnvironmentCameraRegistry.Publish(this,gameplayCamera,next);
+   Status="显示环境："+next.WeatherName+" / "+next.Hours.ToString("0.00")+" 时";
+   if(EnvironmentCameraRegistry.ConsumerFaultCount!=faults)Status+="；可选显示消费者故障，环境提交保留";
+   NotifyWorld(next);
+  }
+  void NotifyWorld(EnvironmentFrame frame)
+  {
+   var listeners=Changed;if(listeners==null)return;
+   foreach(Action<EnvironmentFrame> listener in listeners.GetInvocationList())
+   {
+    try{listener(frame);}
+    catch(Exception error)
+    {
+     if(ConsumerFaultCount<long.MaxValue)ConsumerFaultCount++;
+     string message=error.Message??"";if(message.Length>256)message=message.Substring(0,256);
+     LastConsumerFault="Changed / "+listener.Method.DeclaringType?.FullName+"."+listener.Method.Name+" / "+error.GetType().Name+": "+message;
+     Status+="；世界快照消费者故障，已隔离";
+    }
+   }
   }
   void ReleaseDisplay()
   {
@@ -201,7 +186,7 @@ namespace Ossastra.EnvironmentSimulation
   }
   EnvironmentFrame BuildFrame()
   {
-   var w=weatherNow;var p=dayCycle;
+   var w=weather.Values;var p=dayCycle;
    var sun=manualSun?new SunPose(sunAzimuthDegrees,sunElevationDegrees):SunPath.Sample(timeHours,EnvironmentNumbers.Range(p.maximumSunElevation,1,89),EnvironmentNumbers.Finite(p.sunAzimuthOffset));
    float daylight=Mathf.SmoothStep(0,1,Mathf.InverseLerp(-6,12,sun.ElevationDegrees));
    // 太阳/月亮共用主灯，交接必须发生在直射强度为零的地平线处，不能在余辉中翻转影子。

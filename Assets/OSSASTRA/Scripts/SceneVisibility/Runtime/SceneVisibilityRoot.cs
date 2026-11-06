@@ -7,7 +7,8 @@ using System;
 using System.Text;
 using System.Collections.Generic;
 using C = Ossastra.Characters;
-using Ossastra.MapResearch;
+using Ossastra.Characters.ViewSpace;
+using UnityEngine.Serialization;
 using Ossastra.SceneVisibility.Rendering;
 using Ossastra.SceneVisibility.Rooms;
 using UnityEngine;
@@ -20,7 +21,7 @@ namespace Ossastra.SceneVisibility
     {
         [Header("明确上下文与配置")]
         public Camera gameplayCamera;
-        public MapResearchRoot mapView;
+        [FormerlySerializedAs("mapView")] public MonoBehaviour renderViewSource;
         public C.CharacterControlCoordinator coordinator;
         public VisibilitySettingsSO settings;
         [Tooltip("可选建筑/房间模块；未登记的旧场保持原行为。由本Root统一Begin/End，不订阅第二个相机调度者。") ]
@@ -153,7 +154,7 @@ namespace Ossastra.SceneVisibility
             if (boundCamera != gameplayCamera) Reconnect();
             try
             {
-                if (mapView != null && (!mapView.IsValid || mapView.IsStructureMode))
+                if (renderViewSource != null && (!(renderViewSource is ISceneRenderView view) || !view.GameplayRenderingAllowed))
                 { capture?.RestoreOwnedState(); roomModule?.SuspendCamera(this); lastTick = Time.unscaledTimeAsDouble; lastFrame = -1; nextDetection = 0; return; }
                 // 房间先于局部捕获快照/临时源隐藏；Feature在完整透明与后处理后消费同一帧许可。
                 if (roomModule != null && roomModule.isActiveAndEnabled) roomModule.BeginCamera(this, camera, effectEnabled && !detectionOnly);

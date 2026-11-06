@@ -1,0 +1,52 @@
+/* 功能：验证开发消费端重绑释放、诊断换源与Look验证回调延迟撤销。
+ * 边界：仅临时对象；不触碰主场、用户参数、源Profile或渲染帧。
+ * 生命周期：finally精确撤销临时相机登记并销毁全部临时对象。
+ */
+using System;using System.Collections;using System.Reflection;using UnityEngine;using Newtonsoft.Json;
+using Ossastra.EnvironmentSimulation.Rendering;using Ossastra.Development.Environment;
+using Ossastra.CharacterLighting;using Ossastra.Development.CharacterLighting;using Ossastra.WorldRendering;
+public static class ConsumerLifecycleContract
+{
+ static readonly BindingFlags Flags=BindingFlags.Instance|BindingFlags.Public|BindingFlags.NonPublic;
+ static object Call(object value,string name,params object[] args){var m=value.GetType().GetMethod(name,Flags);return m==null?null:m.Invoke(value,args);}
+ static int Requests(EnvironmentSkyBinding value){var f=value.GetType().GetField("previewRequests",Flags);var requests=f==null?null:f.GetValue(value);return requests==null?-1:(int)requests.GetType().GetProperty("Count").GetValue(requests);}
+ public static string Run()
+ {
+  if(Application.dataPath!="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets")return "WRONG PROJECT";
+  var host=new GameObject("Consumer lifecycle isolated contract");host.hideFlags=HideFlags.HideAndDontSave;host.SetActive(false);
+  var panelGo=new GameObject("Preview consumer contract");panelGo.hideFlags=HideFlags.HideAndDontSave;panelGo.SetActive(false);
+  WorldLookController look=null;Camera camera=null;
+  try
+  {
+   var a=host.AddComponent<EnvironmentSkyBinding>();var bGo=new GameObject("Second preview source");bGo.transform.SetParent(host.transform,false);var b=bGo.AddComponent<EnvironmentSkyBinding>();
+   var panel=panelGo.AddComponent<EnvironmentSimulationPanel>();panel.skyBinding=a;panelGo.SetActive(true);panel.SetExpanded(true);
+   bool previewAcquired=Requests(a)==1;panel.skyBinding=b;panel.SetExpanded(true);
+   bool previewRebindReleasesOld=Requests(a)==0&&Requests(b)==1;
+   panel.skyBinding=null;panel.SetExpanded(true);bool previewNullReleasesOld=Requests(b)==0;
+   panel.skyBinding=a;panel.SetExpanded(true);panel.enabled=false;
+   // 非ExecuteAlways面板在Edit中不保证派发生命周期；此分支直接验证停用回调，Play仍用真实禁用。
+   if(!Application.isPlaying)Call(panel,"OnDisable");bool previewDisableReleases=Requests(a)==0;
+
+   var serviceA=host.AddComponent<CharacterLightingSystem>();var serviceGo=new GameObject("Second diagnostics source");serviceGo.transform.SetParent(host.transform,false);var serviceB=serviceGo.AddComponent<CharacterLightingSystem>();
+   var diagnostics=host.AddComponent<CharacterLightingPanel>();var serviceField=diagnostics.GetType().GetField("lightingSystem",Flags);
+   bool diagnosticsRebind=false,diagnosticsNullClears=false,diagnosticsDisableClears=false;
+   if(serviceField!=null)
+   {
+    serviceField.SetValue(diagnostics,serviceA);Call(diagnostics,"ReconcileDiagnostics");
+    serviceField.SetValue(diagnostics,serviceB);Call(diagnostics,"ReadDiagnostics");
+    diagnosticsRebind=diagnostics.DiagnosticsReader!=null&&ReferenceEquals(diagnostics.DiagnosticsReader.Target,serviceB);
+    serviceField.SetValue(diagnostics,null);Call(diagnostics,"ReadDiagnostics");diagnosticsNullClears=diagnostics.DiagnosticsReader==null;
+    serviceField.SetValue(diagnostics,serviceA);Call(diagnostics,"ReconcileDiagnostics");Call(diagnostics,"OnDisable");diagnosticsDisableClears=diagnostics.DiagnosticsReader==null;
+   }
+
+   camera=host.AddComponent<Camera>();look=host.AddComponent<WorldLookController>();look.gameplayCamera=camera;look.effects.enabled=false;
+   typeof(WorldLookController).GetField("boundCamera",Flags).SetValue(look,camera);
+   var settings=(WorldLookSettings)Activator.CreateInstance(typeof(WorldLookSettings),true);WorldLookCameraRegistry.Publish(look,camera,settings);
+   Call(look,"OnValidate");bool validateOnlyMarks=WorldLookCameraRegistry.TryGet(camera,out var before)&&ReferenceEquals(before,settings);
+   Call(look,"Update");bool mainThreadConsumes=!WorldLookCameraRegistry.TryGet(camera,out var after);
+   bool pass=previewAcquired&&previewRebindReleasesOld&&previewNullReleasesOld&&previewDisableReleases&&diagnosticsRebind&&diagnosticsNullClears&&diagnosticsDisableClears&&validateOnlyMarks&&mainThreadConsumes;
+   return JsonConvert.SerializeObject(new{pass,previewAcquired,previewRebindReleasesOld,previewNullReleasesOld,previewDisableReleases,diagnosticsRebind,diagnosticsNullClears,diagnosticsDisableClears,validateOnlyMarks,mainThreadConsumes});
+  }
+  finally{if(look!=null&&camera!=null)WorldLookCameraRegistry.Release(look,camera);UnityEngine.Object.DestroyImmediate(panelGo);UnityEngine.Object.DestroyImmediate(host);}
+ }
+}

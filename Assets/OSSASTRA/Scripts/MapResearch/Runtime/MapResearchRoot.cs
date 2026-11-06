@@ -13,7 +13,7 @@ namespace Ossastra.MapResearch
     [DefaultExecutionOrder(-150)]
     [DisallowMultipleComponent]
     [RequireComponent(typeof(MapResearchCameraInput))]
-    public sealed class MapResearchRoot : MonoBehaviour, ICharacterViewContext
+    public sealed class MapResearchRoot : MonoBehaviour, ICharacterViewContext, ISceneRenderView
     {
         private readonly System.Collections.Generic.HashSet<object> uiCameraCaptures=new System.Collections.Generic.HashSet<object>();
         /// <summary>窗口只捕获镜头指令；按owner释放，不切角色控制，也不暂停。边沿丢弃旧滚轮。</summary>
@@ -77,6 +77,7 @@ namespace Ossastra.MapResearch
         public Quaternion ViewRotation => viewRotation;
         public bool FreezePresentation => structureMode;
         public bool IsStructureMode => structureMode;
+        public bool GameplayRenderingAllowed => IsValid && !IsStructureMode;
         public float ActualYaw => orbit != null ? orbit.ActualYaw : initialYaw;
         public float TargetYaw => orbit != null ? orbit.TargetYaw : initialYaw;
         public int TargetSector => orbit != null ? orbit.TargetSector : 0;

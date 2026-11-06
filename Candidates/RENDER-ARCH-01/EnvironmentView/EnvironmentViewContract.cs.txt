@@ -1,0 +1,29 @@
+/* 功能：在临时禁用的接收方验证雨故障隔离、无消费者预览和有效点灯预算；不修改主场配置。
+ * 生命周期：所有GPU对象/临时灯finally释放，借用的全局开关恢复。Root在旧代码RED后再应用生产补丁。
+ */
+using System;using System.Linq;using System.Reflection;using UnityEngine;using UnityEngine.Rendering;using Newtonsoft.Json;
+using Ossastra.EnvironmentSimulation;using Ossastra.EnvironmentSimulation.Rendering;
+public static class EnvironmentViewContract
+{
+ static object Call(object target,string name,params object[] args)=>target.GetType().GetMethod(name,BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Instance).Invoke(target,args);
+ public static string Run()
+ {
+  if(Application.dataPath!="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets")return "WRONG PROJECT";
+  var live=UnityEngine.Object.FindFirstObjectByType<EnvironmentSkyBinding>();if(live==null||live.environment==null||live.environment.Current==null)return "Missing main environment frame";
+  var go=new GameObject("Environment view isolated contract");go.SetActive(false);var lights=new GameObject[9];var cmd=new CommandBuffer();float enabled=Shader.GetGlobalFloat("_EnvironmentLightingEnabled"),rain=Shader.GetGlobalFloat("_EnvironmentRainDepthReady");
+  try
+  {
+   var b=go.AddComponent<EnvironmentSkyBinding>();b.environment=live.environment;b.skyShader=live.skyShader;b.rainShader=live.rainShader;b.reflectionSkyShader=live.reflectionSkyShader;b.rainDepthCopyShader=live.rainDepthCopyShader;
+   bool allReady=(bool)Call(b,"EnsureResources");bool previewLazy=b.SkyPreview==null;
+   b.rainShader=null;bool skySurvivesMissingRain=(bool)Call(b,"EnsureResources");
+   b.localLights=new Light[9];bool ignoresNullRegistration=true;try{Call(b,"Upload",cmd,live.environment.Current);}catch(TargetInvocationException){ignoresNullRegistration=false;}
+   var prepare=b.GetType().GetMethod("TryPrepareSurfaceData",BindingFlags.Public|BindingFlags.Instance);bool rejectsRealOverflow=false,recovers=false;
+   for(int i=0;i<lights.Length;i++){lights[i]=new GameObject("BudgetFixture"+i);lights[i].hideFlags=HideFlags.HideAndDontSave;var l=lights[i].AddComponent<Light>();l.type=LightType.Point;l.range=5;l.intensity=1;lights[i].transform.position=live.environment.gameplayCamera.transform.position+live.environment.gameplayCamera.transform.forward*10;b.localLights[i]=l;}
+   string overflowReason="missing preparation API";
+   if(prepare!=null){object[] args={live.environment.gameplayCamera,null};rejectsRealOverflow=!(bool)prepare.Invoke(b,args);overflowReason=args[1] as string;b.localLights[8].enabled=false;args=new object[]{live.environment.gameplayCamera,null};recovers=(bool)prepare.Invoke(b,args);}
+   bool pass=allReady&&previewLazy&&skySurvivesMissingRain&&ignoresNullRegistration&&rejectsRealOverflow&&recovers;
+   return JsonConvert.SerializeObject(new{pass,allReady,previewLazy,skySurvivesMissingRain,ignoresNullRegistration,rejectsRealOverflow,recovers,overflowReason});
+  }
+  finally{cmd.Release();foreach(var l in lights)if(l!=null)UnityEngine.Object.DestroyImmediate(l);UnityEngine.Object.DestroyImmediate(go);Shader.SetGlobalFloat("_EnvironmentLightingEnabled",enabled);Shader.SetGlobalFloat("_EnvironmentRainDepthReady",rain);}
+ }
+}

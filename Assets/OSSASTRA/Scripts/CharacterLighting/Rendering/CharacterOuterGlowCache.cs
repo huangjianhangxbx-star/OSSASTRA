@@ -70,7 +70,7 @@ namespace Ossastra.CharacterLighting.Rendering
    CoreUtils.SetRenderTarget(cmd,energy,ClearFlag.Color,Color.clear);
    foreach(var receiver in system.receivers)
    {
-    if(receiver==null||!receiver.isActiveAndEnabled||receiver.Owner==null||!receiver.Owner.isActiveAndEnabled||!receiver.Owner.IsAlive||receiver.gameplayCamera!=camera||!receiver.Settings.outerGlow||receiver.Settings.outerStrength<=0||receiver.Settings.maxOuterGain<=0||(diagnostic&&!receiver.Settings.outerDiagnostic))continue;
+    if(receiver==null||!receiver.isActiveAndEnabled||!receiver.SourceAvailable||receiver.gameplayCamera!=camera||!receiver.Settings.outerGlow||receiver.Settings.outerStrength<=0||receiver.Settings.maxOuterGain<=0||(diagnostic&&!receiver.Settings.outerDiagnostic))continue;
     Renderer bindRenderer=null;CharacterCoverageBinding actorBinding=default;
     foreach(var surface in members)if(coverage.TryGet(surface.Renderer,out var b)&&ReferenceEquals(b.Owner,receiver)){bindRenderer=surface.Renderer;actorBinding=b;break;}
     if(bindRenderer==null)continue;

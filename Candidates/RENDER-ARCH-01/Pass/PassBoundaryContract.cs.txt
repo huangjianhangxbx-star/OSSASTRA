@@ -1,0 +1,33 @@
+/* 功能：验证核心源家族在剔除前拒绝，并检查角色缓存从房间Pass移交独立所有者。
+ * 边界：私有相机/Renderer/材质/Feature与反射Pass，不修改主场或RendererData；finally精确释放。
+ */
+using System;using System.Linq;using System.Reflection;using UnityEngine;using Newtonsoft.Json;using Ossastra.SceneVisibility.Rooms.Rendering;
+public static class PassBoundaryContract
+{
+ public static string Run()
+ {
+  if(Application.dataPath!="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets")return "Wrong project";
+  var flags=BindingFlags.Instance|BindingFlags.Public|BindingFlags.NonPublic;var assembly=typeof(RoomMaskRendererFeature).Assembly;
+  var passType=assembly.GetType("Ossastra.SceneVisibility.Rooms.Rendering.RoomPositivePass",true);
+  var truth=Shader.Find("Hidden/Ossastra/Rooms/PositiveTruth");var source=Shader.Find("Universal Render Pipeline/Unlit");var adapter=Shader.Find("Hidden/Ossastra/Rooms/SightUnlit");var unknown=Shader.Find("Hidden/InternalErrorShader");
+  if(truth==null||source==null||adapter==null||unknown==null)return "Required actual shaders missing";
+  GameObject go=null,cameraGo=null;Material known=null,bad=null;RoomMaskRendererFeature feature=null;object pass=null;
+  try
+  {
+   cameraGo=new GameObject("PassBoundaryCamera");cameraGo.SetActive(false);var camera=cameraGo.AddComponent<Camera>();
+   go=GameObject.CreatePrimitive(PrimitiveType.Cube);go.name="PassBoundarySource";var renderer=go.GetComponent<Renderer>();known=new Material(source);bad=new Material(unknown);
+   feature=ScriptableObject.CreateInstance<RoomMaskRendererFeature>();feature.positiveTruthShader=truth;feature.positiveUnlitShader=adapter;
+   pass=Activator.CreateInstance(passType,flags,null,new object[]{camera},null);var prepare=passType.GetMethod("PrepareBeforeCulling",flags);var end=passType.GetMethod("EndScope",flags);
+   var prepared=passType.GetField("preparedBeforeCulling",flags);var error=passType.GetField("preparationError",flags);
+   var frame=new RoomMaskFrame{Enabled=true,PositiveRenderingEnabled=true,TruthMode=false,ExteriorView=true,Fog=new RoomFogSettings{Enabled=false},PositiveSurfaces=new[]{new RoomPositiveSurface{Renderer=renderer,Kind=RoomPositiveSurfaceKind.Partial,OwnerExterior=true,OwnerVolumes=Array.Empty<RoomMaskVolume>()}}};
+   renderer.sharedMaterial=bad;RoomPositiveRenderingLayers.AssignDrawMasks(frame.PositiveSurfaces);prepare.Invoke(pass,new object[]{frame,feature});
+   bool unsupportedRejected=!(bool)prepared.GetValue(pass);string unsupportedError=(string)error.GetValue(pass);end.Invoke(pass,null);bool badUntouched=ReferenceEquals(renderer.sharedMaterial,bad);
+   renderer.sharedMaterial=known;RoomPositiveRenderingLayers.AssignDrawMasks(frame.PositiveSurfaces);prepare.Invoke(pass,new object[]{frame,feature});bool knownPrepared=(bool)prepared.GetValue(pass);end.Invoke(pass,null);bool restored=ReferenceEquals(renderer.sharedMaterial,known);
+   renderer.sharedMaterial=bad;go.GetComponent<MeshFilter>().sharedMesh=null;RoomPositiveRenderingLayers.AssignDrawMasks(frame.PositiveSurfaces);prepare.Invoke(pass,new object[]{frame,feature});bool emptyUnknownIgnored=(bool)prepared.GetValue(pass);end.Invoke(pass,null);
+   bool passOwnsNoCharacterCache=!passType.GetFields(flags).Any(f=>f.FieldType.Name=="CharacterCoverageCache"||f.FieldType.Name=="CharacterOuterGlowCache");
+   bool stageExists=assembly.GetType("Ossastra.CharacterLighting.Rendering.CharacterLightingRenderStage")!=null;
+   return JsonConvert.SerializeObject(new{pass=unsupportedRejected&&knownPrepared&&badUntouched&&restored&&emptyUnknownIgnored&&passOwnsNoCharacterCache&&stageExists,unsupportedRejected,unsupportedError,knownPrepared,badUntouched,restored,emptyUnknownIgnored,passOwnsNoCharacterCache,stageExists});
+  }
+  finally{if(pass is IDisposable disposable)disposable.Dispose();foreach(var o in new UnityEngine.Object[]{go,cameraGo,known,bad,feature})if(o!=null)UnityEngine.Object.DestroyImmediate(o);}
+ }
+}

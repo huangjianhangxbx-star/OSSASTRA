@@ -8,9 +8,6 @@ using Ossastra.SceneVisibility.Rooms;
 using Ossastra.SceneVisibility.Rooms.Rendering;
 using Ossastra.EnvironmentSimulation;
 using UnityEngine;
-using XingHai.T7B;
-using XingHai.T7C1;
-using XingHai.T7C2;
 
 namespace Ossastra.WorldRendering
 {
@@ -22,14 +19,15 @@ namespace Ossastra.WorldRendering
         public SceneVisibilityRoot visibilityRoot;
         public RoomVisibilityModule rooms;
         [Header("室外：旧档只读；材质角色色板需另外显式登记")]
-        public HD2DPostProfile outdoorPresentation;
-        public OutdoorAtmosphereProfile outdoorAtmosphere;
-        public RegionalLookProfile outdoorPalette;
+        public ScriptableObject outdoorPresentation;
+        public ScriptableObject outdoorAtmosphere;
+        public ScriptableObject outdoorPalette;
         [Header("室内：空空气档保留原照明，只使用明确展示档")]
-        public HD2DPostProfile interiorPresentation;
-        public OutdoorAtmosphereProfile interiorAtmosphere;
-        public RegionalLookProfile interiorPalette;
+        public ScriptableObject interiorPresentation;
+        public ScriptableObject interiorAtmosphere;
+        public ScriptableObject interiorPalette;
         [Header("独立贡献开关；主开关关闭即原世界显示")]
+        [Tooltip("显式作者配置适配器；运行层只消费纯值。")] public MonoBehaviour profileAdapter;
         public WorldLookEffectOptions effects = new WorldLookEffectOptions();
         [Header("同相机昼夜适应；天气空气仅室外，室内保留原空气")]
         public bool useEnvironmentWeather = true;
@@ -39,6 +37,7 @@ namespace Ossastra.WorldRendering
         public string Status { get; private set; } = "等待合法房间帧";
         Camera boundCamera;
         bool subscribed;
+        int validationPending;
 
         void OnEnable()
         {
@@ -65,6 +64,7 @@ namespace Ossastra.WorldRendering
 
         void OnFramePublished(Camera camera)
         {
+            ConsumeValidation();
             // 明确改绑时先归还旧 Camera。不能让新相机继承上一相机的帧或自有资源。
             if (!ReferenceEquals(boundCamera, null) && (boundCamera == null || boundCamera != gameplayCamera)) ReleaseBoundCamera();
             if (!isActiveAndEnabled || camera == null || camera != gameplayCamera) return;
@@ -78,10 +78,12 @@ namespace Ossastra.WorldRendering
             Exterior = frame.ExteriorView;
             EnvironmentFrame environment = null;
             EnvironmentCameraRegistry.TryGet(camera, out environment);
-            var settings = WorldLookSettings.Build(camera, frame.ObserverPosition,
-                Exterior ? outdoorPresentation : interiorPresentation,
-                Exterior ? outdoorAtmosphere : interiorAtmosphere,
-                Exterior ? outdoorPalette : interiorPalette, effects, environment, Exterior && useEnvironmentWeather);
+            if(profileAdapter==null||!(profileAdapter is IWorldLookProfileAdapter adapter)){ReleaseBoundCamera();Status="缺少明确Look配置适配器";return;}
+            WorldLookProfileValues values;
+            try{values=adapter.Capture(Exterior?outdoorPresentation:interiorPresentation,Exterior?outdoorAtmosphere:interiorAtmosphere,Exterior?outdoorPalette:interiorPalette);}
+            catch(System.ArgumentException error){ReleaseBoundCamera();Status="Look配置被拒绝："+error.Message;return;}
+            if(values==null){ReleaseBoundCamera();Status="Look适配器无有效数据";return;}
+            var settings=WorldLookSettings.Build(camera,frame.ObserverPosition,values.Presentation,values.Atmosphere,values.Palette,effects,environment,Exterior&&useEnvironmentWeather);
             if (!settings.Enabled)
             { ReleaseBoundCamera(); Status = "环境 Look 已关闭"; return; }
             WorldLookCameraRegistry.Publish(this, camera, settings);
@@ -97,8 +99,17 @@ namespace Ossastra.WorldRendering
 
         void OnValidate()
         {
-            if (!ReferenceEquals(boundCamera, null) && (boundCamera == null || boundCamera != gameplayCamera || (effects != null && !effects.enabled)))
-                ReleaseBoundCamera();
+            // Unity可在加载线程调用验证；此处只写原子标记，不触碰相机、登记或GPU释放事件。
+            System.Threading.Interlocked.Exchange(ref validationPending,1);
+        }
+
+        void Update(){ConsumeValidation();}
+        void ConsumeValidation()
+        {
+            if(System.Threading.Interlocked.Exchange(ref validationPending,0)==0)return;
+            if(!ReferenceEquals(boundCamera,null)&&(boundCamera==null||boundCamera!=gameplayCamera||
+                (effects!=null&&!effects.enabled)||profileAdapter==null||!(profileAdapter is IWorldLookProfileAdapter)))
+            {ReleaseBoundCamera();Status="配置变更已在主线程撤销环境 Look";}
         }
 
         void OnDisable()

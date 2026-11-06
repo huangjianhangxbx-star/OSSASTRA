@@ -1,0 +1,141 @@
+/* Native Editor命令：从当前主场只读快照真实配置，创建独立最小烟测场，不保存/改写主场。
+ * 先由Root临时安装同目录RenderArchitectureSmokeProbe.cs.txt为同名.cs并编译。
+ * 明确拒绝Play、脏源场、多个源或字段/管线缺失；本命令不切全局管线、不构建Player。
+ */
+using System;
+using System.Linq;
+using System.Reflection;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+using Funplay.Editor.Tools.Scripting;
+using Ossastra.EnvironmentSimulation;
+using Ossastra.EnvironmentSimulation.Rendering;
+using Ossastra.CharacterLighting;
+using Ossastra.SceneVisibility.Rooms.Rendering;
+using Ossastra.WorldRendering;
+using Ossastra.WorldRendering.Rendering;
+using Ossastra.WorldRendering.Integration;
+
+public sealed class BuildMinimalSmokeScene:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  var sourceScene=SceneManager.GetActiveScene();
+  if(EditorApplication.isPlayingOrWillChangePlaymode){ctx.ReturnValue="REFUSED: 必须Edit ready";return;}
+  if(!sourceScene.IsValid()||!sourceScene.isLoaded||sourceScene.isDirty||SceneManager.sceneCount!=1)
+  {ctx.ReturnValue="REFUSED: 需要单一已保存主场；本命令不会保存或丢弃dirty源场";return;}
+  if(sourceScene.path.IndexOf("Smoke",StringComparison.OrdinalIgnoreCase)>=0){ctx.ReturnValue="REFUSED: 当前已是Smoke；请先打开真实主场";return;}
+  var all=sourceScene.GetRootGameObjects().SelectMany(r=>r.GetComponentsInChildren<MonoBehaviour>(true)).ToArray();
+  var envs=all.OfType<EnvironmentRoot>().ToArray();var looks=all.OfType<WorldLookController>().ToArray();
+  var lights=all.OfType<CharacterLightingSystem>().ToArray();
+  if(envs.Length!=1||looks.Length!=1||lights.Length!=1){ctx.ReturnValue="REFUSED: 主场EnvironmentRoot/WorldLookController/CharacterLightingSystem必须各1";return;}
+  var source=envs[0];var sourceLook=looks[0];var sourceLight=lights[0];
+  var sourceSky=all.OfType<EnvironmentSkyBinding>().SingleOrDefault(s=>s.environment==source);
+  var sourceReceiver=sourceLight.receivers==null?null:sourceLight.receivers.FirstOrDefault(r=>r!=null&&r.profile!=null);
+  if(sourceSky==null||source.gameplayCamera==null||source.dayCycle==null||source.initialWeather==null||sourceReceiver==null)
+  {ctx.ReturnValue="REFUSED: 真实天空/相机/昼夜/天气/角色Profile缺少明确引用";return;}
+  if(!(sourceLook.profileAdapter is LegacyWorldLookProfileAdapter))
+  {ctx.ReturnValue="REFUSED: 源WorldLook没有显式LegacyWorldLookProfileAdapter";return;}
+  var probeType=AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType("Ossastra.RenderArchitectureSmoke.RenderArchitectureSmokeProbe",false)).FirstOrDefault(t=>t!=null);
+  var fields=new[]{"gameplayCamera","environment","sky","lighting","source","receiver","look","environmentSurfaces","body"};
+  if(probeType==null||!typeof(MonoBehaviour).IsAssignableFrom(probeType)||fields.Any(f=>probeType.GetField(f,BindingFlags.Public|BindingFlags.Instance)==null))
+  {ctx.ReturnValue="REFUSED: 先安装并编译当前SmokeProbe；类型或公开字段不匹配";return;}
+  var pipeline=GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset;
+  var cameraData=source.gameplayCamera.GetComponent<UniversalAdditionalCameraData>();
+  if(pipeline==null||cameraData==null){ctx.ReturnValue="REFUSED: 源相机必须使用真实URP3D管线";return;}
+  var pipelineSO=new SerializedObject(pipeline);var list=pipelineSO.FindProperty("m_RendererDataList");
+  var defaultIndex=pipelineSO.FindProperty("m_DefaultRendererIndex");
+  var sourceIndex=new SerializedObject(cameraData).FindProperty("m_RendererIndex");
+  if(list==null||defaultIndex==null||sourceIndex==null){ctx.ReturnValue="REFUSED: 当前URP字段布局不符；不猜Renderer索引";return;}
+  int requestedIndex=sourceIndex.intValue,index=requestedIndex<0?defaultIndex.intValue:requestedIndex;
+  if(index<0||index>=list.arraySize){ctx.ReturnValue="REFUSED: Renderer索引越界";return;}
+  var rendererData=list.GetArrayElementAtIndex(index).objectReferenceValue as ScriptableRendererData;
+  if(rendererData==null||!(rendererData is UniversalRendererData)||
+   !rendererData.rendererFeatures.Any(f=>f is RoomMaskRendererFeature&&f.isActive)||
+   !rendererData.rendererFeatures.Any(f=>f is WorldLookRendererFeature&&f.isActive))
+  {ctx.ReturnValue="REFUSED: 真实UniversalRenderer缺RoomMask/WorldLook启用Feature";return;}
+  Shader lit=Shader.Find("Universal Render Pipeline/Lit"),bodyShader=Shader.Find("Ossastra/Characters/UprightDepthPlane");
+  if(lit==null||bodyShader==null||!lit.isSupported||!bodyShader.isSupported||sourceLight.coverageShader==null||
+   sourceLight.outerGlowSeedShader==null||sourceLight.outerGlowCompositeShader==null||sourceLight.outerGlowDepthShader==null)
+  {ctx.ReturnValue="REFUSED: Lit/实体/角色阶段显式Shader不齐";return;}
+  // 所有场景对象引用在卸载源场前截取；只保存字符串/真实Asset引用，绝不修改源资源。
+  string sourcePath=sourceScene.path,environmentJson=EditorJsonUtility.ToJson(source),skyJson=EditorJsonUtility.ToJson(sourceSky);
+  var profile=sourceReceiver.profile;var coverage=sourceLight.coverageShader;
+  var day=source.dayCycle;var initialWeather=source.initialWeather;var climate=source.climate;
+  var outerSeed=sourceLight.outerGlowSeedShader;var outerComposite=sourceLight.outerGlowCompositeShader;var outerDepth=sourceLight.outerGlowDepthShader;
+  var presentation=sourceLook.outdoorPresentation;var atmosphere=sourceLook.outdoorAtmosphere;var palette=sourceLook.outdoorPalette;
+  string effectsJson=JsonUtility.ToJson(sourceLook.effects);bool useWeather=sourceLook.useEnvironmentWeather;
+  string folder="Assets/OSSASTRA/RenderArchitectureSmoke/Generated/Run_"+DateTime.UtcNow.ToString("yyyyMMdd_HHmmss")+"_"+Guid.NewGuid().ToString("N").Substring(0,6);
+  EnsureFolder(folder);
+  var scene=EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);
+  var root=new GameObject("RENDER_ARCH_01_MINIMAL_SMOKE");ctx.RegisterObjectCreation(root);root.SetActive(false);
+  var cameraObject=Child(root,"SmokeCamera");var camera=cameraObject.AddComponent<Camera>();camera.tag="MainCamera";
+  camera.transform.rotation=Quaternion.Euler(45,45,0);camera.transform.position=new Vector3(0,1,0)-camera.transform.forward*11;
+  camera.fieldOfView=40;camera.nearClipPlane=.05f;camera.farClipPlane=80;camera.allowHDR=true;camera.allowMSAA=false;
+  var additional=cameraObject.AddComponent<UniversalAdditionalCameraData>();additional.SetRenderer(requestedIndex);additional.renderPostProcessing=false;
+  var sun=Child(root,"Sun").AddComponent<Light>();sun.type=LightType.Directional;
+  var fill=Child(root,"Fill").AddComponent<Light>();fill.type=LightType.Directional;
+  var point=Child(root,"WarmLocalLight").AddComponent<Light>();point.type=LightType.Point;point.transform.position=new Vector3(-1.5f,2,-.5f);
+  point.range=6;point.intensity=3;point.color=new Color(1,.55f,.2f);point.shadows=LightShadows.Soft;
+  var environmentObject=Child(root,"Environment");var environment=environmentObject.AddComponent<EnvironmentRoot>();
+  EditorJsonUtility.FromJsonOverwrite(environmentJson,environment);
+  environment.dayCycle=day;environment.initialWeather=initialWeather;environment.climate=climate;
+  environment.gameplayCamera=camera;environment.externalTimeSource=null;environment.previewInEditMode=false;
+  environment.timeMode=EnvironmentTimeMode.Manual;environment.timeHours=12;environment.clockRunning=false;environment.automaticWeather=false;
+  environment.effectsEnabled=true;environment.contribution=EnvironmentContribution.Combined;
+  var binding=environmentObject.AddComponent<EnvironmentLightingBinding>();binding.root=environment;binding.sun=sun;binding.fill=fill;environment.lightingBinding=binding;
+  var sky=environmentObject.AddComponent<EnvironmentSkyBinding>();EditorJsonUtility.FromJsonOverwrite(skyJson,sky);
+  sky.environment=environment;sky.previewConsumer=null;sky.indoorRegions=Array.Empty<Ossastra.SceneVisibility.Rooms.RoomRegion>();
+  sky.localLights=new[]{point};sky.rainShelters=Array.Empty<BoxCollider>();
+  var groundMaterial=new Material(lit){name="SmokeGround"};groundMaterial.SetColor("_BaseColor",new Color(.27f,.4f,.24f));
+  AssetDatabase.CreateAsset(groundMaterial,folder+"/Ground.mat");
+  var blockMaterial=new Material(lit){name="SmokeBlock"};blockMaterial.SetColor("_BaseColor",new Color(.45f,.41f,.34f));
+  AssetDatabase.CreateAsset(blockMaterial,folder+"/Block.mat");
+  var ground=Primitive(root,"Ground",PrimitiveType.Plane,new Vector3(0,0,0),Vector3.one,groundMaterial,ctx);
+  var block=Primitive(root,"Block",PrimitiveType.Cube,new Vector3(2,.75f,1),new Vector3(1.3f,1.5f,1.3f),blockMaterial,ctx);
+  var texture=new Texture2D(32,64,TextureFormat.RGBA32,false){name="SmokeOwnSilhouette",filterMode=FilterMode.Point,wrapMode=TextureWrapMode.Clamp};
+  var pixels=new Color[32*64];for(int y=0;y<64;y++)for(int x=0;x<32;x++)
+  {
+   float dx=(x-15.5f)/10f,dy=(y-49f)/11f;bool head=dx*dx+dy*dy<1,torso=x>=6&&x<26&&y>=8&&y<43;
+   bool shape=head||torso;var color=(x/4+y/4)%2==0?new Color(.85f,.8f,.7f):new Color(.24f,.36f,.55f);color.a=shape?1:0;pixels[y*32+x]=color;
+  }
+  texture.SetPixels(pixels);texture.Apply(false,false);AssetDatabase.CreateAsset(texture,folder+"/OwnSilhouette.asset");
+  var bodyMaterial=new Material(bodyShader){name="SmokeBody"};bodyMaterial.SetTexture("_MainTex",texture);bodyMaterial.SetFloat("_Cutoff",.06f);
+  AssetDatabase.CreateAsset(bodyMaterial,folder+"/Body.mat");
+  var entity=Child(root,"OrdinaryRendererEntity");entity.transform.position=Vector3.zero;
+  var body=Primitive(entity,"Body",PrimitiveType.Quad,new Vector3(0,1.4f,0),new Vector3(1.6f,2.8f,1),bodyMaterial,ctx);body.transform.rotation=Quaternion.Euler(0,45,0);
+  var receiver=entity.AddComponent<CharacterLightingReceiver>();receiver.gameplayCamera=camera;receiver.bodyRenderers=new Renderer[]{body};receiver.profile=profile;
+  var sourcePort=entity.AddComponent<RendererLightingSource>();sourcePort.entityId="smoke-ordinary-render-entity";sourcePort.receiver=receiver;
+  var lighting=root.AddComponent<CharacterLightingSystem>();lighting.gameplayCamera=camera;lighting.environment=sky;lighting.receivers=new[]{receiver};
+  lighting.coverageShader=coverage;lighting.outerGlowSeedShader=outerSeed;lighting.outerGlowCompositeShader=outerComposite;lighting.outerGlowDepthShader=outerDepth;
+  var adapter=root.AddComponent<LegacyWorldLookProfileAdapter>();var look=root.AddComponent<WorldLookController>();
+  look.gameplayCamera=camera;look.profileAdapter=adapter;look.outdoorPresentation=presentation;look.outdoorAtmosphere=atmosphere;look.outdoorPalette=palette;
+  look.effects=JsonUtility.FromJson<WorldLookEffectOptions>(effectsJson);look.useEnvironmentWeather=useWeather;
+  var probe=root.AddComponent(probeType);
+  Set(probe,"gameplayCamera",camera);Set(probe,"environment",environment);Set(probe,"sky",sky);Set(probe,"lighting",lighting);
+  Set(probe,"source",sourcePort);Set(probe,"receiver",receiver);Set(probe,"look",look);Set(probe,"environmentSurfaces",new Renderer[]{ground,block});Set(probe,"body",body);
+  root.SetActive(true);EditorSceneManager.MarkSceneDirty(scene);string scenePath=folder+"/SC_RenderArchitectureSmoke.unity";
+  bool saved=EditorSceneManager.SaveScene(scene,scenePath);
+  ctx.ReturnValue=new{saved,sourceScene=sourcePath,smokeScene=scenePath,rootId=root.GetInstanceID(),probeType=probeType.FullName,
+   pipeline=AssetDatabase.GetAssetPath(pipeline),renderer=AssetDatabase.GetAssetPath(rendererData),requestedIndex,index,
+   roleProfile=AssetDatabase.GetAssetPath(profile),pitch=camera.transform.eulerAngles.x,entitySource=sourcePort.GetType().FullName,
+   noDevelopment=true,noMapResearch=true,controllerSuccessClaimed=false,
+   next="prepare_editor Play；等待>=120真实渲染帧，然后运行ReadMinimalSmokeProbe。Player只构建返回的smokeScene。"};
+ }
+ static GameObject Child(GameObject parent,string name){var go=new GameObject(name);go.transform.SetParent(parent.transform,false);return go;}
+ static Renderer Primitive(GameObject parent,string name,PrimitiveType type,Vector3 position,Vector3 scale,Material material,ExecutionContext ctx)
+ {
+  var go=GameObject.CreatePrimitive(type);go.name=name;go.transform.SetParent(parent.transform,false);go.transform.localPosition=position;go.transform.localScale=scale;
+  var collider=go.GetComponent<Collider>();if(collider!=null)ctx.DestroyObject(collider);var renderer=go.GetComponent<Renderer>();renderer.sharedMaterial=material;return renderer;
+ }
+ static void Set(Component target,string field,object value){target.GetType().GetField(field,BindingFlags.Public|BindingFlags.Instance).SetValue(target,value);}
+ static void EnsureFolder(string path)
+ {
+  string[] parts=path.Split('/');string current=parts[0];for(int i=1;i<parts.Length;i++)
+  {string next=current+"/"+parts[i];if(!AssetDatabase.IsValidFolder(next))AssetDatabase.CreateFolder(current,parts[i]);current=next;}
+ }
+}

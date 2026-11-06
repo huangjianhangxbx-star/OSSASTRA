@@ -1,0 +1,40 @@
+/* Native Editor命令：只构建当前独立Smoke场，不改EditorBuildSettings/PlayerSettings/质量/管线。
+ * 构建会同步耗时；Root在安全检查点单次执行，完成后自行启动返回路径，不自动抢占桌面。
+ */
+using System;
+using System.IO;
+using System.Linq;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEditor;
+using UnityEditor.Build.Reporting;
+using Funplay.Editor.Tools.Scripting;
+public sealed class BuildMinimalSmokePlayer:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  var scene=SceneManager.GetActiveScene();
+  if(EditorApplication.isPlayingOrWillChangePlaymode||EditorApplication.isCompiling||EditorApplication.isUpdating||
+   !scene.IsValid()||scene.isDirty||SceneManager.sceneCount!=1||string.IsNullOrEmpty(scene.path)||
+   !scene.path.StartsWith("Assets/OSSASTRA/RenderArchitectureSmoke/Generated/",StringComparison.Ordinal))
+  {ctx.ReturnValue="REFUSED: 必须单一已保存的本轮Smoke场且Edit ready";return;}
+  var components=scene.GetRootGameObjects().SelectMany(r=>r.GetComponentsInChildren<MonoBehaviour>(true)).ToArray();
+  if(components.Any(c=>c==null)||components.Count(c=>c.GetType().FullName=="Ossastra.RenderArchitectureSmoke.RenderArchitectureSmokeProbe")!=1||
+   components.Any(c=>(c.GetType().Namespace??"").StartsWith("Ossastra.Development",StringComparison.Ordinal)||
+    (c.GetType().Namespace??"").StartsWith("Ossastra.MapResearch",StringComparison.Ordinal)))
+  {ctx.ReturnValue="REFUSED: Probe数量、MissingScript或禁用依赖不合格";return;}
+  if(!BuildPipeline.IsBuildTargetSupported(BuildTargetGroup.Standalone,BuildTarget.StandaloneWindows64))
+  {ctx.ReturnValue="REFUSED: 当前Editor未安装Windows64构建支持";return;}
+  string project=Path.GetFullPath(Path.Combine(Application.dataPath,".."));
+  string folder=Path.Combine(project,"artifacts","RENDER-ARCH-01","SmokePlayer_"+DateTime.UtcNow.ToString("yyyyMMdd_HHmmss")+"_"+Guid.NewGuid().ToString("N").Substring(0,6));
+  Directory.CreateDirectory(folder);string executable=Path.Combine(folder,"RenderArchitectureSmoke.exe");
+  var options=new BuildPlayerOptions{scenes=new[]{scene.path},locationPathName=executable,target=BuildTarget.StandaloneWindows64,
+   options=BuildOptions.Development};
+  var report=BuildPipeline.BuildPlayer(options);var summary=report.summary;
+  ctx.ReturnValue=new{success=summary.result==BuildResult.Succeeded,result=summary.result.ToString(),errors=summary.totalErrors,
+   warnings=summary.totalWarnings,bytes=summary.totalSize,seconds=summary.totalTime.TotalSeconds,scene=scene.path,executable,
+   logPath=Path.Combine(folder,"cold-start.log"),
+   arguments="-logFile <logPath> -screen-width 1280 -screen-height 720 -screen-fullscreen 0 --render-smoke-quit",
+   expected="进程独立冷启；日志两行RENDER_ARCH_SMOKE的passed均true，退出码0；不能加-batchmode/-nographics，它们不验证真实绘制。"};
+ }
+}
