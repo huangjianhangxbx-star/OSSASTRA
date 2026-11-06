@@ -1,0 +1,123 @@
+{
+  "version": "VOXEL-LIGHT-01 v1.1",
+  "date": "2026-11-07",
+  "baseline": "e122dab4cb11ee2b58657e8fbc2126981b3243bd",
+  "files": [
+    {
+      "path": "Assets/OSSASTRA/Scripts/Development/VoxelSurface/VoxelSurfacePanel.cs",
+      "sha256": "290EAEDDF18786217C6B9AE5DB27DA1103D00D93EDCCAAA89E19A9D48A989C1D"
+    },
+    {
+      "path": "Assets/OSSASTRA/Scripts/Development/VoxelSurface/VoxelSurfacePlayerProbe.cs",
+      "sha256": "95F14A120C3BB979F646CD093756A2C56CCDFC0048A28C7B6098DE0049858AF7"
+    },
+    {
+      "path": "Assets/OSSASTRA/Scripts/SceneVisibility/Rooms/Rendering/RoomMaskRendererFeature.cs",
+      "sha256": "1C6A99BA2D2F507FDD978FF402C1CFF0BC2A0DE93E958EF32D67C9CDCDC7E38B"
+    },
+    {
+      "path": "Assets/OSSASTRA/Scripts/WorldRendering/VoxelSurface/Core/VoxelSurfaceSettings.cs",
+      "sha256": "3464CD4F4BC180C55EF211B7E986A1F1BE68E17B90CF75A315C09AE962F44543"
+    },
+    {
+      "path": "Assets/OSSASTRA/Scripts/WorldRendering/VoxelSurface/Editor/VoxelSurfaceComparisonEditor.cs",
+      "sha256": "AFD376BBF8E218F877FBABB0423CF9923B2A4582F9CF4F35BA3C8C5AB84A334F"
+    },
+    {
+      "path": "Assets/OSSASTRA/Scripts/WorldRendering/VoxelSurface/Editor/VoxelSurfaceProfileSave.cs",
+      "sha256": "1DEFC8954A195665CB82E21116FDEC0A2AC0987B9BDEBED434C8085BEEC884F6"
+    },
+    {
+      "path": "Assets/OSSASTRA/Scripts/WorldRendering/VoxelSurface/Editor/VoxelSurfaceProfileSave.cs.meta",
+      "sha256": "51845F737A167DB152007AF28D1AB7D76A8CE125B3D972CDE0F9A031CCCBCF7F"
+    },
+    {
+      "path": "Assets/OSSASTRA/Scripts/WorldRendering/VoxelSurface/Rendering/SightVoxelLit.shader",
+      "sha256": "B4EB8914E1CA0B2F13BE33FFF57E42A33A21EB488EEF9B5D4FBAEFB2E03AB19A"
+    },
+    {
+      "path": "Assets/OSSASTRA/Scripts/WorldRendering/VoxelSurface/Rendering/VoxelLit.shader",
+      "sha256": "75C217ED337F58FEBD78BAF6C11D90525371BDA7318B32D62FD74DC68CA8DCF5"
+    },
+    {
+      "path": "Assets/OSSASTRA/Scripts/WorldRendering/VoxelSurface/Rendering/VoxelSurfaceInput.hlsl",
+      "sha256": "FE1BF78453FDF7B23D479D829BC02BECA4A8E328E38C73C3E79705EC42A031BC"
+    },
+    {
+      "path": "Assets/OSSASTRA/Scripts/WorldRendering/VoxelSurface/Rendering/VoxelSurfaceLighting.hlsl",
+      "sha256": "D121696919D4B7B13CA368F46893CAE4CDCF00401BFADC9FCA0771250C4EC795"
+    },
+    {
+      "path": "Assets/OSSASTRA/Scripts/WorldRendering/VoxelSurface/Runtime/VoxelLightContext.cs",
+      "sha256": "33F4B7B9A8B0E1258CDF9F26998F2FDE906E499BF943CE3AFF6DA63A7EF564BD"
+    },
+    {
+      "path": "Assets/OSSASTRA/Scripts/WorldRendering/VoxelSurface/Runtime/VoxelLightContext.cs.meta",
+      "sha256": "668EB2F079849E0F39D023F1C6F8530E73D62D23309E202D5CAE428B6A10EACF"
+    },
+    {
+      "path": "Assets/OSSASTRA/Scripts/WorldRendering/VoxelSurface/Runtime/VoxelSurfaceComparison.cs",
+      "sha256": "119CE469DDF1EA49DC10D22C7D6C3631D79DD434830A360B6F564B11BD96122E"
+    },
+    {
+      "path": "Candidates/VOXEL-LIGHT-01/generate_shader_entries.py",
+      "sha256": "D035F5CFBC5278C20AE34F980FD3285344BAA0FBFEA9A34B6D9252C7182D501A"
+    },
+    {
+      "path": "Candidates/VOXEL-LIGHT-01/v1.1/Math/README.md",
+      "sha256": "6E99BFF28FA24A08C6651AD6CDE061491FD86569572F4087EF764E87E729B94D"
+    },
+    {
+      "path": "Candidates/VOXEL-LIGHT-01/v1.1/Math/VoxelFaceGpuContract.cs.txt",
+      "sha256": "159C05A2976EE995ECF63C7E81E419281AD79DEC9595DEBD4FCDB0485263C5CA"
+    },
+    {
+      "path": "Candidates/VOXEL-LIGHT-01/v1.1/Math/VoxelVertexGpuContract.cs.txt",
+      "sha256": "EB73971412E9A93F68FCC80975017FA51AB24BA3C7BB9D5EC591AD85B6E72D2D"
+    },
+    {
+      "path": "Candidates/VOXEL-LIGHT-01/v1.1/Panel/VoxelPanelContract.cs.txt",
+      "sha256": "864D834A03B1DCFCC721E6B1F760549A5D557D02001CE4C5B0319FF35496F13E"
+    },
+    {
+      "path": "Candidates/VOXEL-LIGHT-01/v1.1/Player/BuildSavedMain.cs.txt",
+      "sha256": "729A72D997219928E831276894D90B7A0BFF4B45354657072E2C950CB13C05DD"
+    },
+    {
+      "path": "Candidates/VOXEL-LIGHT-01/v1.1/Player/PlayerProbeCompile.csproj",
+      "sha256": "D6A43456093D1355F62D9C0C9467C3A61036C5712E988818E68BD6F571DDA2DE"
+    },
+    {
+      "path": "Candidates/VOXEL-LIGHT-01/v1.1/Player/README.md",
+      "sha256": "ADC7D46979AE02BC87096955A5A8341313A394ADCFAB4A8BB4654C3146F4E621"
+    },
+    {
+      "path": "Candidates/VOXEL-LIGHT-01/v1.1/Player/VoxelSurfacePlayerProbe.cs.txt",
+      "sha256": "95F14A120C3BB979F646CD093756A2C56CCDFC0048A28C7B6098DE0049858AF7"
+    },
+    {
+      "path": "Candidates/VOXEL-LIGHT-01/v1.1/Routing/RoutingCompile.csproj",
+      "sha256": "A06470500F714AEC85890A54DEB1A66CFA8286802875201CBCBC6FD89F00758F"
+    },
+    {
+      "path": "Candidates/VOXEL-LIGHT-01/v1.1/Routing/VoxelLightContextContract.cs.txt",
+      "sha256": "7BD6801B8F0AAE333DF6A8CA4BC193B8135D3126030872D9F923CEB84827ACEB"
+    },
+    {
+      "path": "Candidates/VOXEL-LIGHT-01/v1.1/Session/README.md",
+      "sha256": "11686D214B5C790C07CF27FEBFBFE1FB7B656DECFDF8F039821171861CFAA2F1"
+    },
+    {
+      "path": "Candidates/VOXEL-LIGHT-01/v1.1/Session/SessionProductionCompile.csproj",
+      "sha256": "EDDA2229766028C32F4C3ADF968AFCD698CB969837E245434985EB731A88A431"
+    },
+    {
+      "path": "Candidates/VOXEL-LIGHT-01/v1.1/Session/VoxelSessionContract.cs.txt",
+      "sha256": "51D0ABD16C97DD988C11E86176D603171A0DCAB2400EF42497669462B31A63D7"
+    },
+    {
+      "path": "Candidates/VOXEL-LIGHT-01/v1.1/Session/VoxelSessionSaveContract.cs.txt",
+      "sha256": "8B0D14C43BD48F4CE5382AF0BDA8643D7DCB4F8071C3581E2048E364B18F0B2E"
+    }
+  ]
+}

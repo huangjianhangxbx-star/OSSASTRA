@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>netstandard2.1</TargetFramework><EnableDefaultCompileItems>false</EnableDefaultCompileItems><ImplicitUsings>disable</ImplicitUsings><RestoreIgnoreFailedSources>true</RestoreIgnoreFailedSources><NoWarn>MSB3277</NoWarn><DefineConstants>UNITY_EDITOR</DefineConstants></PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../../../Assets/OSSASTRA/Scripts/WorldRendering/VoxelSurface/Core/*.cs" />
+    <Compile Include="../../../../Assets/OSSASTRA/Scripts/WorldRendering/VoxelSurface/Runtime/*.cs" />
+    <Compile Include="../../../../Assets/OSSASTRA/Scripts/WorldRendering/VoxelSurface/Editor/*.cs" />
+    <Reference Include="E:/unity/Tuanjie Hub/2022.3.62t16/Editor/Data/Managed/UnityEngine/*.dll"><Private>false</Private></Reference>
+    <Reference Include="E:/unity/Tuanjie Hub/2022.3.62t16/Editor/Data/Managed/UnityEditor/*.dll"><Private>false</Private></Reference>
+    <Reference Include="../../../../Library/ScriptAssemblies/Unity.RenderPipelines.Universal.Runtime.dll"><Private>false</Private></Reference>
+    <Reference Include="../../../../Library/ScriptAssemblies/Unity.RenderPipelines.Core.Runtime.dll"><Private>false</Private></Reference>
+    <Reference Include="../../../../Library/ScriptAssemblies/Unity.Collections.dll"><Private>false</Private></Reference>
+    <Reference Include="../../../../Library/ScriptAssemblies/Unity.Mathematics.dll"><Private>false</Private></Reference>
+  </ItemGroup>
+</Project>

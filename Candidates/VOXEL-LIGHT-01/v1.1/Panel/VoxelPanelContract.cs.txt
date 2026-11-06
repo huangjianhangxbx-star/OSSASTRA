@@ -1,0 +1,28 @@
+/* 功能：体素面板百分比/绝对预设与会话隔离Native合同；只用私有夹具，不碰主场。
+ * RED：旧面板缺入口，已真实返回missingFeature。GREEN：实际公开入口及原C0参数。
+ */
+using System; using System.Collections.Generic; using System.Linq; using Newtonsoft.Json;
+using UnityEngine; using Ossastra.WorldRendering.VoxelSurface; using Ossastra.Development.VoxelSurface;
+public static class VoxelPanelContract {
+ public static string Run(){
+ var r=new Dictionary<string,bool>();var g=new GameObject("VoxelPanel_contract");g.SetActive(false);
+ var baseline=ScriptableObject.CreateInstance<VoxelSurfaceProfileSO>();baseline.settings.mainShape=.65f;baseline.settings.indirectDiffuse=.65f;
+ var candidate=ScriptableObject.CreateInstance<VoxelSurfaceProfileSO>();candidate.settings=baseline.settings.Clone();
+ var c=g.AddComponent<VoxelSurfaceComparison>();c.shapedProfile=candidate;c.shapedBaselineProfile=baseline;
+ var panel=g.AddComponent<VoxelSurfacePanel>();panel.comparison=c;
+ try {
+ panel.SetLitFacePercent(12.6f);panel.SetBackFacePercent(8.3f);r["percentOnePointStep"]=c.SessionSettings.litFaceBoost==.13f&&c.SessionSettings.backFaceDarkening==.08f;
+ panel.SetLitFacePercent(99);r["upperBoundRealValue"]=c.SessionSettings.litFaceBoost==.5f;
+ panel.SetBackFacePercent(-5);r["lowerBoundRealValue"]=c.SessionSettings.backFaceDarkening==0;
+ panel.ApplyPreset(VoxelSurfacePreset.Balanced);panel.ApplyPreset(VoxelSurfacePreset.LitPlusOne);panel.ApplyPreset(VoxelSurfacePreset.LitPlusOne);
+ r["litPresetAbsoluteAndIndependent"]=c.SessionSettings.litFaceBoost==.1f&&c.SessionSettings.backFaceDarkening==.1f;
+ panel.ApplyPreset(VoxelSurfacePreset.LitPlusTwo);panel.ApplyPreset(VoxelSurfacePreset.BackMinusTwo);panel.ApplyPreset(VoxelSurfacePreset.BackMinusOne);
+ r["backPresetAbsoluteAndIndependent"]=c.SessionSettings.litFaceBoost==.2f&&c.SessionSettings.backFaceDarkening==.1f;
+ panel.ApplyPreset(VoxelSurfacePreset.OriginalC0);r["restoreC0NotA"]=c.SessionSettings.mainShape==.65f&&c.SessionSettings.litFaceBoost==0&&c.SessionSettings.backFaceDarkening==0;
+ r["authorsUnchanged"]=candidate.settings.litFaceBoost==0&&baseline.settings.backFaceDarkening==0;
+ panel.SetLitFacePercent(float.NaN);panel.SetBackFacePercent(float.PositiveInfinity);r["nonfiniteNeutral"]=c.SessionSettings.litFaceBoost==0&&c.SessionSettings.backFaceDarkening==0;
+ panel.SetExpanded(true);panel.SetExpanded(false);r["collapseReleases"]=!panel.Expanded&&!panel.IsCapturingInput;
+ return JsonConvert.SerializeObject(new {pass=r.Values.All(v=>v),results=r});
+ }finally{UnityEngine.Object.DestroyImmediate(g);UnityEngine.Object.DestroyImmediate(candidate);UnityEngine.Object.DestroyImmediate(baseline);}
+ }
+}

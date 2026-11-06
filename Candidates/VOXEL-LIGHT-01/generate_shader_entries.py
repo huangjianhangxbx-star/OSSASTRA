@@ -9,7 +9,7 @@ out.mkdir(parents=True, exist_ok=True)
 provenance = '// Adapted from Unity URP14.2.0-t1, Unity Companion License; see docs/ossastra/ENV-01.\n'
 src=(urp/'Shaders/LitInput.hlsl').read_text(encoding='utf-8-sig')
 src=src.replace('UNIVERSAL_LIT_INPUT_INCLUDED','OSSASTRA_VOXEL_INPUT_INCLUDED')
-fields=['_VoxelMainShape','_VoxelIndirectDiffuse','_VoxelEnvironmentSpecular','_VoxelDirectSpecular','_VoxelHighlightStrength','_VoxelHighlightKnee','_VoxelHighlightCeiling','_VoxelDiagnostic','_VoxelVertexColors','_RoomSightRoofMode','_RoomSightCutRoof']
+fields=['_VoxelMainShape','_VoxelLitFaceBoost','_VoxelBackFaceDarkening','_VoxelIndirectDiffuse','_VoxelEnvironmentSpecular','_VoxelDirectSpecular','_VoxelHighlightStrength','_VoxelHighlightKnee','_VoxelHighlightCeiling','_VoxelDiagnostic','_VoxelVertexColors','_RoomSightRoofMode','_RoomSightCutRoof']
 prev='_Surface'; extra=''
 for field in fields:
     extra+=f'UNITY_DEFINE_PROP(float, {field}, UNITY_GDRP_NEXT_INDEX({prev}))\n';prev=field
@@ -88,6 +88,8 @@ props=base[base.index('    Properties'):base.index('    SubShader')]
 properties='''
         [Header(Voxel Surface Response)]
         _VoxelMainShape("Main light shape",Range(0,1))=0
+        _VoxelLitFaceBoost("C lit face boost",Range(0,0.5))=0
+        _VoxelBackFaceDarkening("C back face darkening",Range(0,0.5))=0
         _VoxelIndirectDiffuse("Indirect diffuse",Range(0,2))=1
         _VoxelEnvironmentSpecular("Environment reflection",Range(0,2))=1
         _VoxelDirectSpecular("Direct specular",Range(0,2))=1

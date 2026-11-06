@@ -57,3 +57,12 @@ Player仅在显式-voxel-light-smoke下，于sceneLoaded、库存Start前把真�
 首次构建曾正常取消（165.109秒、Shader13/96）；之后复用缓存完成。普通环境合同误用GetGlobalInt读整数槽、隔离合同直接比较混合斜杠路径，均经Native实证纠正，没有为测试错误改生产逻辑。MCP构建调用超时后只观察持久结果，没有重复执行同一回调。
 
 场景、作者资产、媒体、原档、二进制仅本机；R11只定向发布源码、Unity源码meta、重放候选与文档，其他dirty保留。
+
+## v1.1 实际Player增量
+详见[v1.1说明](v1.1.md)。保留本文件v1.0证据，不以新结果覆盖历史。
+- Native：DX11共享数学168、PerVertex边界1、session14、save10、route15、panel9、原settings23/原routing18通过。
+- Windows实际主场Build457.480506秒/0错43警告/529817308 bytes；14组+2D角色见证，375真实相机帧、10.2976秒、Error0、OS Exit0。
+- 五档：C0、Lit10、Lit20、Back10、Balanced15/10，同机位/时间/光源/云参数，每档21帧；11项Shader参数读回、同材质ID、缓存有界/作者与会话恢复通过。
+- 五档Draw682/SetPass610/比较cache24；许可223材质、3纹理、1buffer，资源字节固定。两Shader实际SRP兼容码0/错误0；未测模块GPU耗时。
+- 隔离Player原存档4文件前后哈希一致；Editor此前出现过自动Play与原档变化，未回滚，不将Player的严格结论外推到所有Editor时段。
+- 本机证据：artifacts/VOXEL-LIGHT-01-v11/Player_20261106_203556/reports-v11；研究/VOXEL-LIGHT-01/v1.1/native-contracts.json；18秒178帧实录game-view-20261106-202457-528121cdca9243e38561473889bc0b67.mp4。

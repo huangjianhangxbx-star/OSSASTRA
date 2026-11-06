@@ -1,5 +1,6 @@
 /* 功能：只对显式登记Renderer逐组切换原版/校准/轻分面作者材质。
- * 所有权：作者材质只读；仅需要Profile覆盖时缓存私有副本。只在切档/显式刷新时写sharedMaterials。
+ * 所有权：作者材质/Profile只读；C以独立会话副本调参，缓存私有材质，脏修改最多每帧合并刷新一次。
+ * 保存：仅发出显式Editor请求；候选落盘与本绑定组默认分开，不在运行代码保存资产或业务。
  * 归还：外部改写即逐binding让权；禁用/销毁只恢复仍完全属于自身的数组，不接管外部材质。
  */
 using System;
@@ -32,10 +33,32 @@ namespace Ossastra.WorldRendering.VoxelSurface
         public VoxelSurfaceProfileSO calibratedProfile;
         [Tooltip("C档参数覆盖；为空时直接使用轻分面作者材质，不创建副本。")]
         public VoxelSurfaceProfileSO shapedProfile;
+        [Tooltip("原C0独立作者基线。复位从此读取，不覆盖候选或退回A。")]
+        public VoxelSurfaceProfileSO shapedBaselineProfile;
+        [Tooltip("显式保存候选的独立目标；不能指向C0或B。为空时Editor可选择一个新资产。")]
+        public VoxelSurfaceProfileSO saveCandidateProfile;
+        [Tooltip("唯一接受体素灯光身份上下文的相机；不自动查找相机。")]
+        public Camera lightContextCamera;
+        [Tooltip("主方向光身份；GPU主光必须与此实际实例一致才允许独立背光调节。")]
+        public Light keyLight;
+        [Tooltip("明确允许压暗其漫反射的方向补光；其他方向光和局部灯不自动归类。")]
+        public Light directionalFill;
         [Tooltip("进入Play自动应用；编辑阶段仅保存选择，不自动更换场景材质。")]
         public VoxelSurfaceComparisonMode mode;
 
         public string Status { get; private set; } = "等待显式体素材质登记";
+        public string SaveStatus { get; private set; } = "尚未显式保存候选";
+        public string LastSavePath { get; private set; } = "";
+        public VoxelSurfaceProfileSO LastSavedProfile { get; private set; }
+        public int BindingCount
+        {
+            get { var unique = new HashSet<Renderer>(); if (bindings != null) foreach (var binding in bindings) if (binding != null && binding.renderer != null) unique.Add(binding.renderer); return unique.Count; }
+        }
+        public VoxelSurfaceProfileSO SessionSourceProfile { get { EnsureSession(); return sessionSourceProfile; } }
+        // UI只能拿到快照；所有修改走受控入口，避免外部改了对象却没有刷新。
+        public VoxelSurfaceSettings SessionSettings { get { EnsureSession(); return sessionSettings == null ? null : sessionSettings.Clone(); } }
+        public bool HasSession => shapedProfile != null && shapedProfile.settings != null;
+        public static event Action<VoxelSurfaceComparison, bool> EditorSaveRequested;
 
         sealed class BindingState
         {
@@ -51,17 +74,89 @@ namespace Ossastra.WorldRendering.VoxelSurface
         readonly Dictionary<(Material Source, VoxelSurfaceProfileSO Profile), Material> cache =
             new Dictionary<(Material, VoxelSurfaceProfileSO), Material>();
         int handedOffTotal;
+        VoxelSurfaceSettings sessionSettings;
+        VoxelSurfaceProfileSO sessionSourceProfile;
+        bool parametersDirty;
+        int lastParameterFrame = -1;
 
         void OnEnable()
         {
+            VoxelLightContext.Register(this);
             if (Application.isPlaying) ApplyMode(mode);
         }
 
-        void OnDisable() { RestoreOriginal(); }
-        void OnDestroy() { RestoreOriginal(); }
+        void OnDisable() { VoxelLightContext.Unregister(this); RestoreOriginal(); }
+        void OnDestroy() { VoxelLightContext.Unregister(this); RestoreOriginal(); }
+        void LateUpdate() { FlushPendingParameters(); }
+
+        public void SetSessionAdjustments(float litBoost, float backDarkening)
+        {
+            EnsureSession();
+            if (sessionSettings == null) return;
+            var value = sessionSettings.Clone();
+            value.litFaceBoost = litBoost; value.backFaceDarkening = backDarkening; value.Sanitize();
+            if (value.litFaceBoost == sessionSettings.litFaceBoost && value.backFaceDarkening == sessionSettings.backFaceDarkening) return;
+            sessionSettings = value; parametersDirty = true;
+        }
+
+        public void ResetSessionToC0()
+        {
+            var baseline = shapedBaselineProfile != null ? shapedBaselineProfile : shapedProfile;
+            if (baseline == null || baseline.settings == null) return;
+            sessionSourceProfile = shapedProfile;
+            sessionSettings = baseline.settings.Clone();
+            sessionSettings.litFaceBoost = 0; sessionSettings.backFaceDarkening = 0;
+            sessionSettings.Sanitize(); parametersDirty = true;
+        }
+
+        public void LoadSessionFromProfile(VoxelSurfaceProfileSO profile)
+        {
+            if (profile == null || profile.settings == null) return;
+            sessionSourceProfile = shapedProfile;
+            sessionSettings = profile.settings.Clone(); sessionSettings.Sanitize(); parametersDirty = true;
+        }
+
+        public VoxelSurfaceSettings ExportSessionSettings()
+        {
+            EnsureSession();
+            if (sessionSettings == null) return null;
+            var exported = sessionSettings.Clone(); exported.Sanitize(); exported.diagnostic = 0;
+            return exported;
+        }
+
+        public void FlushPendingParameters()
+        {
+            if (!parametersDirty || mode != VoxelSurfaceComparisonMode.Faceted || Application.isPlaying && lastParameterFrame == Time.frameCount) return;
+            ApplyMode(mode);
+        }
+
+        public void RequestSaveCandidate() { RequestEditorSave(false); }
+        public void RequestSetBindingDefault() { RequestEditorSave(true); }
+
+        void RequestEditorSave(bool setDefault)
+        {
+            if (!Application.isEditor || EditorSaveRequested == null) { SaveStatus = "此入口仅Editor可保存作者资产；Player调参为当前会话。"; return; }
+            EditorSaveRequested(this, setDefault);
+        }
+
+        public void ReportSaveResult(string status, string path, VoxelSurfaceProfileSO savedProfile)
+        {
+            SaveStatus = status ?? "";
+            if (!string.IsNullOrEmpty(path)) LastSavePath = path;
+            if (savedProfile != null) LastSavedProfile = savedProfile;
+        }
+
+        void EnsureSession()
+        {
+            if (sessionSettings != null && sessionSourceProfile == shapedProfile) return;
+            sessionSourceProfile = shapedProfile;
+            sessionSettings = HasSession ? shapedProfile.settings.Clone() : null;
+            if (sessionSettings != null) sessionSettings.Sanitize();
+        }
 
         public void ApplyMode(VoxelSurfaceComparisonMode value)
         {
+            if (isActiveAndEnabled) VoxelLightContext.Register(this);
             mode = Enum.IsDefined(typeof(VoxelSurfaceComparisonMode), value) ? value : VoxelSurfaceComparisonMode.Original;
             SynchronizeBindings();
             int applied = 0, pinned = 0, rejected = 0;
@@ -78,9 +173,15 @@ namespace Ossastra.WorldRendering.VoxelSurface
                 var profile = mode == VoxelSurfaceComparisonMode.Calibrated ? calibratedProfile :
                     mode == VoxelSurfaceComparisonMode.Faceted ? shapedProfile : null;
                 if (!CanUse(sources, state.Original, profile)) { ++rejected; continue; }
+                VoxelSurfaceSettings settings = null;
+                if (profile != null)
+                {
+                    if (mode == VoxelSurfaceComparisonMode.Faceted) { EnsureSession(); settings = sessionSettings; }
+                    else { settings = profile.settings.Clone(); settings.litFaceBoost = 0; settings.backFaceDarkening = 0; }
+                }
                 var target = new Material[sources.Length];
                 for (int slot = 0; slot < sources.Length; ++slot)
-                    target[slot] = profile == null || sources[slot] == null ? sources[slot] : GetMaterial(sources[slot], profile, refreshed);
+                    target[slot] = profile == null || sources[slot] == null ? sources[slot] : GetMaterial(sources[slot], profile, settings, refreshed);
                 if (!Same(state.Renderer.sharedMaterials, target)) state.Renderer.sharedMaterials = target;
                 state.Assigned = target;
                 ++applied;
@@ -89,6 +190,7 @@ namespace Ossastra.WorldRendering.VoxelSurface
             handedOffTotal += handedOff;
             Status = "体素" + ModeLabel(mode) + "；已应用 " + applied + "；外部改写让权 " + pinned + "；配置拒绝 " + rejected;
             if (handedOffTotal > 0) Status += "；ownership handed-off 累计 " + handedOffTotal + "（不再缓存）";
+            if (mode == VoxelSurfaceComparisonMode.Faceted) { parametersDirty = false; lastParameterFrame = Time.frameCount; }
         }
 
         public void RefreshParameters()
@@ -144,7 +246,7 @@ namespace Ossastra.WorldRendering.VoxelSurface
             states.Clear(); states.AddRange(next);
         }
 
-        Material GetMaterial(Material source, VoxelSurfaceProfileSO profile, HashSet<Material> refreshed)
+        Material GetMaterial(Material source, VoxelSurfaceProfileSO profile, VoxelSurfaceSettings settings, HashSet<Material> refreshed)
         {
             var key = (source, profile);
             if (!cache.TryGetValue(key, out var material) || material == null)
@@ -156,7 +258,7 @@ namespace Ossastra.WorldRendering.VoxelSurface
             {
                 material.shader = source.shader;
                 material.CopyPropertiesFromMaterial(source);
-                profile.settings.ApplyTo(material);
+                settings.ApplyTo(material);
             }
             return material;
         }
@@ -217,6 +319,7 @@ namespace Ossastra.WorldRendering.VoxelSurface
                 if (original[slot] != null && materials[slot] == null) return false;
             if (profile != null) foreach (var material in materials)
                 if (material != null && (!material.HasProperty("_VoxelMainShape") || !material.HasProperty("_VoxelIndirectDiffuse") ||
+                    !material.HasProperty("_VoxelLitFaceBoost") || !material.HasProperty("_VoxelBackFaceDarkening") ||
                     !material.HasProperty("_VoxelEnvironmentSpecular") || !material.HasProperty("_VoxelDirectSpecular") ||
                     !material.HasProperty("_VoxelHighlightStrength") || !material.HasProperty("_VoxelHighlightKnee") ||
                     !material.HasProperty("_VoxelHighlightCeiling") || !material.HasProperty("_VoxelDiagnostic") || !material.HasProperty("_VoxelVertexColors"))) return false;

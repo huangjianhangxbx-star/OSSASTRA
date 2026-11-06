@@ -79,6 +79,8 @@ Shader "Ossastra/WorldRendering/VoxelLit"
 
         [Header(Voxel Surface Response)]
         _VoxelMainShape("Main light shape",Range(0,1))=0
+        _VoxelLitFaceBoost("C lit face boost",Range(0,0.5))=0
+        _VoxelBackFaceDarkening("C back face darkening",Range(0,0.5))=0
         _VoxelIndirectDiffuse("Indirect diffuse",Range(0,2))=1
         _VoxelEnvironmentSpecular("Environment reflection",Range(0,2))=1
         _VoxelDirectSpecular("Direct specular",Range(0,2))=1

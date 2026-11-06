@@ -11,6 +11,10 @@ namespace Ossastra.WorldRendering.VoxelSurface
     {
         [Range(0, 1), Tooltip("主方向光的连续分面响应。0保留原始NdotL；不改变法线、镜面、阴影或局部灯距离。")]
         public float mainShape;
+        [Range(0, .5f), Tooltip("仅方案C：主方向光实际受光面的漫反射增益；0保留原C，阴影/无光不凭空提亮。")]
+        public float litFaceBoost;
+        [Range(0, .5f), Tooltip("仅方案C：低受光侧最多削弱的已登记填充漫反射比例；不削弱局部灯，也不产生亮度下限。")]
+        public float backFaceDarkening;
         [Range(0, 2), Tooltip("间接漫反射贡献倍率。1保留原PBR；不等同全局环境光强度，也不增加角色保底。")]
         public float indirectDiffuse = 1;
         [Range(0, 2), Tooltip("环境反射/环境镜面贡献倍率。与间接漫反射独立，0只关闭这部分反射。")]
@@ -36,6 +40,8 @@ namespace Ossastra.WorldRendering.VoxelSurface
         public void Sanitize()
         {
             mainShape = FiniteRange(mainShape, 0, 1, 0);
+            litFaceBoost = FiniteRange(litFaceBoost, 0, .5f, 0);
+            backFaceDarkening = FiniteRange(backFaceDarkening, 0, .5f, 0);
             indirectDiffuse = FiniteRange(indirectDiffuse, 0, 2, 1);
             environmentSpecular = FiniteRange(environmentSpecular, 0, 2, 1);
             directSpecular = FiniteRange(directSpecular, 0, 2, 1);
@@ -51,6 +57,8 @@ namespace Ossastra.WorldRendering.VoxelSurface
             var value = Clone();
             value.Sanitize();
             Set(material, "_VoxelMainShape", value.mainShape);
+            Set(material, "_VoxelLitFaceBoost", value.litFaceBoost);
+            Set(material, "_VoxelBackFaceDarkening", value.backFaceDarkening);
             Set(material, "_VoxelIndirectDiffuse", value.indirectDiffuse);
             Set(material, "_VoxelEnvironmentSpecular", value.environmentSpecular);
             Set(material, "_VoxelDirectSpecular", value.directSpecular);

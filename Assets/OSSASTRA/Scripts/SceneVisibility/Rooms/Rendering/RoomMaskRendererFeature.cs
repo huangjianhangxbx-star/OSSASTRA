@@ -55,6 +55,8 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
 
         public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
         {
+            // 当前剔除灯身份同时服务普通几何与许可重绘；不增加Pass，不依赖下方可见性是否启用。
+            Ossastra.WorldRendering.VoxelSurface.VoxelLightContext.Publish(renderingData.cameraData.camera, in renderingData);
             rendererOwner = renderer;
             var camera = renderingData.cameraData.camera;
             if (camera == null || camera.cameraType != CameraType.Game ||

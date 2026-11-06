@@ -1,0 +1,62 @@
+/* 功能：候选保存的Native合同。仅创建自有唯一临时.asset，测试结束用AssetDatabase删除。
+ * 边界：不改主场/共享作者Profile；检验诊断剥离、独立路径、拒绝覆盖C0/B和默认不连带改变。
+ */
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using Newtonsoft.Json;
+using UnityEditor;
+using UnityEngine;
+using Ossastra.WorldRendering.VoxelSurface;
+
+public static class VoxelSessionSaveContract
+{
+    public static string Run()
+    {
+        if (EditorApplication.isPlaying) return "{\"pass\":false,\"error\":\"Edit only\"}";
+        string directory = "Assets/OSSASTRA/WorldRendering/VoxelSurface/Profiles";
+        if (!AssetDatabase.IsValidFolder(directory)) return "{\"pass\":false,\"error\":\"Profiles folder missing\"}";
+        string token = Guid.NewGuid().ToString("N");
+        string c0Path = directory + "/__V11SessionC0_" + token + ".asset";
+        string bPath = directory + "/__V11SessionB_" + token + ".asset";
+        string targetPath = directory + "/__V11SessionCandidate_" + token + ".asset";
+        var results = new Dictionary<string, bool>();
+        GameObject host = null;
+        try
+        {
+            var c0 = ScriptableObject.CreateInstance<VoxelSurfaceProfileSO>(); c0.settings.mainShape = .65f;
+            AssetDatabase.CreateAsset(c0, c0Path);
+            var b = ScriptableObject.CreateInstance<VoxelSurfaceProfileSO>(); AssetDatabase.CreateAsset(b, bPath);
+            host = new GameObject("V11SessionSave_private"); host.SetActive(false); host.hideFlags = HideFlags.HideAndDontSave;
+            var comparison = host.AddComponent<VoxelSurfaceComparison>();
+            comparison.shapedProfile = c0; comparison.shapedBaselineProfile = c0; comparison.calibratedProfile = b;
+            comparison.SetSessionAdjustments(.2f, .1f);
+            results["saveCreatesIndependentCandidate"] = VoxelSurfaceProfileSave.SaveCandidate(comparison, targetPath);
+            var saved = AssetDatabase.LoadAssetAtPath<VoxelSurfaceProfileSO>(targetPath);
+            results["savedExactAndOriginalUntouched"] = saved != null && saved.settings.litFaceBoost == .2f && saved.settings.backFaceDarkening == .1f
+                && saved.settings.mainShape == .65f && c0.settings.litFaceBoost == 0 && c0.settings.backFaceDarkening == 0;
+            results["saveDoesNotChangeDefault"] = comparison.shapedProfile == c0 && comparison.mode == VoxelSurfaceComparisonMode.Original;
+            results["receiptHasPathSourceAndCount"] = comparison.SaveStatus.Contains(targetPath) && comparison.SaveStatus.Contains(c0Path) && comparison.SaveStatus.Contains("0 对象");
+            comparison.saveCandidateProfile = c0;
+            results["refuseBaselineOverwrite"] = !VoxelSurfaceProfileSave.SaveCandidate(comparison, c0Path) && c0.settings.litFaceBoost == 0;
+            comparison.saveCandidateProfile = b;
+            results["refuseBOverwrite"] = !VoxelSurfaceProfileSave.SaveCandidate(comparison, bPath);
+            comparison.saveCandidateProfile = saved;
+            results["refuseOutsideAssets"] = !VoxelSurfaceProfileSave.SaveCandidate(comparison, "../V11Invalid.asset");
+            comparison.SetSessionAdjustments(.3f, .2f);
+            results["explicitTargetOverwrite"] = VoxelSurfaceProfileSave.SaveCandidate(comparison, targetPath) && saved.settings.litFaceBoost == .3f && saved.settings.backFaceDarkening == .2f;
+            saved.settings.diagnostic = 6;
+            comparison.LoadSessionFromProfile(saved);
+            results["saveStripsDiagnosticWithoutDefaultMutation"] = VoxelSurfaceProfileSave.SaveCandidate(comparison, targetPath) && saved.settings.diagnostic == 0 && comparison.SessionSettings.diagnostic == 6;
+            comparison.SetSessionAdjustments(.4f, .1f);
+            results["refuseUnsavedSessionAsDefault"] = !VoxelSurfaceProfileSave.SetBindingDefault(comparison) && comparison.shapedProfile == c0;
+            return JsonConvert.SerializeObject(new { pass = results.Values.All(v => v), results });
+        }
+        catch (Exception error) { return JsonConvert.SerializeObject(new { pass = false, results, error = error.ToString() }); }
+        finally
+        {
+            if (host != null) UnityEngine.Object.DestroyImmediate(host);
+            AssetDatabase.DeleteAsset(targetPath); AssetDatabase.DeleteAsset(bPath); AssetDatabase.DeleteAsset(c0Path);
+        }
+    }
+}

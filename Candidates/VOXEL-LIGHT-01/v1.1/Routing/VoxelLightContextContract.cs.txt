@@ -1,0 +1,125 @@
+/* 功能：v1.1主灯/指定补光身份路由的Native合同；缺少生产功能时返回RED而非编译错误。
+ * 捕获：按名字/颜色归类未知灯、误用主灯或逐物体序号、PerVertex误拆、非登记相机泄漏与嵌套清理。
+ * 边界：测试只创建HideAndDontSave对象，手工灯光剔除输入不改变场景或真实灯。
+ */
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using Newtonsoft.Json;
+using Unity.Collections;
+using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
+using Ossastra.WorldRendering.VoxelSurface;
+
+public static class VoxelLightContextContract
+{
+    static readonly BindingFlags PublicStatic = BindingFlags.Public | BindingFlags.Static;
+    public static string Run()
+    {
+        var type = typeof(VoxelSurfaceComparison).Assembly.GetType("Ossastra.WorldRendering.VoxelSurface.VoxelLightContext");
+        if (type == null) return JsonConvert.SerializeObject(new { pass = false, missingFeature = "VoxelLightContext" });
+        var required = new[] { "Register", "Unregister", "Publish", "Resolve", "BeginCamera", "EndCamera" };
+        var missing = required.Where(n => type.GetMethod(n, PublicStatic) == null).ToArray();
+        if (missing.Length != 0) return JsonConvert.SerializeObject(new { pass = false, missingFeature = missing });
+        if (Application.isPlaying) return JsonConvert.SerializeObject(new { pass = false, prerequisite = "Edit only" });
+        var results = new Dictionary<string, bool>();
+        var owned = new List<UnityEngine.Object>();
+        NativeArray<VisibleLight> visible = default;
+        VoxelSurfaceComparison comparison = null;
+        try
+        {
+            Camera camera = Camera("Voxel route owner", owned), other = Camera("Voxel route other", owned);
+            Light key = Light("Key", LightType.Directional, owned), unknown = Light("Identical name", LightType.Directional, owned);
+            Light fill = Light("Identical name", LightType.Directional, owned), point = Light("Point", LightType.Point, owned);
+            unknown.color = fill.color = Color.blue; unknown.intensity = fill.intensity = .65f;
+            var host = new GameObject("Voxel route private"); host.hideFlags = HideFlags.HideAndDontSave; host.SetActive(false); owned.Add(host);
+            comparison = host.AddComponent<VoxelSurfaceComparison>();
+            typeof(VoxelSurfaceComparison).GetField("lightContextCamera").SetValue(comparison, camera);
+            typeof(VoxelSurfaceComparison).GetField("keyLight").SetValue(comparison, key);
+            typeof(VoxelSurfaceComparison).GetField("directionalFill").SetValue(comparison, fill);
+            visible = new NativeArray<VisibleLight>(4, Allocator.Temp);
+            visible[0] = Visible(unknown); visible[1] = Visible(key); visible[2] = Visible(point); visible[3] = Visible(fill);
+            var lights = new LightData { mainLightIndex = 1, visibleLights = visible, additionalLightsCount = 3,
+                supportsAdditionalLights = true, shadeAdditionalLightsPerVertex = false };
+            var resolution = Resolve(type, lights, key, fill);
+            results["exactReferenceNotNameOrColor"] = Key(resolution) && Fill(resolution) == 2;
+            var swapped = visible[0]; visible[0] = visible[3]; visible[3] = swapped;
+            resolution = Resolve(type, lights, key, fill);
+            results["gpuIndexFollowsActualCullOrder"] = Fill(resolution) == 0;
+            visible[0] = Visible(unknown); visible[3] = Visible(fill);
+            lights.mainLightIndex = 3;
+            resolution = Resolve(type, lights, key, fill);
+            results["fillPromotedToMainIsNotAKey"] = !Key(resolution) && Fill(resolution) == -1;
+            lights.mainLightIndex = 1; lights.shadeAdditionalLightsPerVertex = true;
+            resolution = Resolve(type, lights, key, fill);
+            results["vertexAggregateNotMisclassified"] = Key(resolution) && Fill(resolution) == -1;
+            lights.shadeAdditionalLightsPerVertex = false; lights.additionalLightsCount = 2;
+            results["truncatedFillIsNotUploaded"] = Fill(Resolve(type, lights, key, fill)) == -1;
+            lights.additionalLightsCount = 3; lights.supportsAdditionalLights = false;
+            results["disabledAdditionalLightsNeutral"] = Fill(Resolve(type, lights, key, fill)) == -1;
+            lights.supportsAdditionalLights = true; fill.type = LightType.Point; visible[3] = Visible(fill);
+            results["pointCannotOptIntoDirectionalRole"] = Fill(Resolve(type, lights, key, fill)) == -1;
+            fill.type = LightType.Directional; visible[3] = Visible(fill); fill.enabled = false;
+            results["disabledFillNeutral"] = Fill(Resolve(type, lights, key, fill)) == -1;
+            fill.enabled = true;
+            // 本机Tuanjie扩展只TryGet，不会自动Add；夹具显式创建附加数据，不能借用场景灯。
+            var keyData = key.gameObject.AddComponent<UniversalAdditionalLightData>(); keyData.renderingLayers = 4;
+            var fillData = fill.gameObject.AddComponent<UniversalAdditionalLightData>(); fillData.renderingLayers = 8;
+            lights.supportsLightLayers = true;
+            resolution = Resolve(type, lights, key, fill);
+            results["identityDoesNotRewriteLayerEligibility"] = Key(resolution) && Fill(resolution) == 2
+                && keyData.renderingLayers == 4 && fillData.renderingLayers == 8;
+            host.SetActive(true);
+            Call(type, "Register", comparison);
+            Call(type, "BeginCamera", default(ScriptableRenderContext), camera);
+            var data = new RenderingData { lightData = lights, cameraData = new CameraData { camera = camera } };
+            Call(type, "Publish", camera, data);
+            results["registeredOwnerPublishes"] = Shader.GetGlobalInt("_VoxelKeyLightValid") == 1
+                && Shader.GetGlobalInt("_VoxelFillLightValid") == 1 && Shader.GetGlobalInt("_VoxelFillLightIndex") == 2;
+            Call(type, "EndCamera", default(ScriptableRenderContext), other);
+            results["foreignEndCannotClearOwner"] = Shader.GetGlobalInt("_VoxelFillLightValid") == 1;
+            Call(type, "BeginCamera", default(ScriptableRenderContext), other);
+            data.cameraData = new CameraData { camera = other };
+            Call(type, "Publish", other, data);
+            results["foreignCameraNeutral"] = Shader.GetGlobalInt("_VoxelKeyLightValid") == 0 && Shader.GetGlobalInt("_VoxelFillLightValid") == 0;
+            Call(type, "EndCamera", default(ScriptableRenderContext), other);
+            results["nestedCameraRestoresOwner"] = Shader.GetGlobalInt("_VoxelFillLightValid") == 1 && Shader.GetGlobalInt("_VoxelFillLightIndex") == 2;
+            Call(type, "EndCamera", default(ScriptableRenderContext), camera);
+            results["ownerEndClears"] = Shader.GetGlobalInt("_VoxelKeyLightValid") == 0 && Shader.GetGlobalInt("_VoxelFillLightValid") == 0;
+            data.cameraData = new CameraData { camera = camera };
+            Call(type, "BeginCamera", default(ScriptableRenderContext), camera); Call(type, "Publish", camera, data);
+            Call(type, "Unregister", comparison);
+            results["releaseClearsGlobals"] = Shader.GetGlobalInt("_VoxelKeyLightValid") == 0 && Shader.GetGlobalInt("_VoxelFillLightValid") == 0;
+            return JsonConvert.SerializeObject(new { pass = results.Values.All(v => v), results });
+        }
+        catch (Exception error) { return JsonConvert.SerializeObject(new { pass = false, results, error = error.ToString() }); }
+        finally
+        {
+            if (comparison != null) Call(type, "Unregister", comparison);
+            if (visible.IsCreated) visible.Dispose();
+            for (int i = owned.Count - 1; i >= 0; --i) if (owned[i] != null) UnityEngine.Object.DestroyImmediate(owned[i]);
+        }
+    }
+    static object Call(Type type, string name, params object[] args) { return type.GetMethod(name, PublicStatic).Invoke(null, args); }
+    static object Resolve(Type type, LightData lights, Light key, Light fill) { return Call(type, "Resolve", lights, key, fill); }
+    static bool Key(object result) { return (bool)result.GetType().GetField("keyValid").GetValue(result); }
+    static int Fill(object result) { return (int)result.GetType().GetField("fillIndex").GetValue(result); }
+    static Camera Camera(string name, List<UnityEngine.Object> owned)
+    { var go = new GameObject(name); go.hideFlags = HideFlags.HideAndDontSave; owned.Add(go); var value = go.AddComponent<Camera>(); value.enabled = false; return value; }
+    static Light Light(string name, LightType type, List<UnityEngine.Object> owned)
+    { var go = new GameObject(name); go.hideFlags = HideFlags.HideAndDontSave; owned.Add(go); var value = go.AddComponent<Light>(); value.type = type; return value; }
+    // VisibleLight.light只读；定向输入使用本机Unity结构的实例ID字段，匹配真实Unity Light而非名字代理。
+    static VisibleLight Visible(Light light)
+    {
+        object box = new VisibleLight { lightType = light.type };
+        var field = typeof(VisibleLight).GetFields(BindingFlags.Instance | BindingFlags.NonPublic)
+            .FirstOrDefault(f => f.FieldType == typeof(int) && f.Name.IndexOf("Instance", StringComparison.OrdinalIgnoreCase) >= 0);
+        if (field == null) throw new InvalidOperationException("本机VisibleLight实例ID字段不可用；请改用实际剔除输入，不能伪报通过。");
+        field.SetValue(box, light.GetInstanceID());
+        var value = (VisibleLight)box;
+        if (value.light != light) throw new InvalidOperationException("VisibleLight输入没有对应真实Light实例。");
+        return value;
+    }
+}

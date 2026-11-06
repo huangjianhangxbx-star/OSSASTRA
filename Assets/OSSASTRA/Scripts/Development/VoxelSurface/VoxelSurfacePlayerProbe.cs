@@ -1,6 +1,7 @@
 /* 功能：仅Windows Player显式命令行启用的主场烟测；绝不挂入或保存源场景。
  * 计帧：只认可真实gameplayCamera的endCameraRendering，同一Unity帧去重；EndOfFrame仅用于屏幕捕获。
- * 边界：读取保存主场的22个比较绑定与Shader引用；只临时切材质/时刻/观察中心，不写作者档或业务。
+ * v1.1：原九档外增加同机位/午间C0、亮10%、亮20%、背暗10%、均衡五档，验证会话与两新Shader值。
+ * 边界：只临时切私有材质、时刻/观察中心与云速；原会话完整恢复，不写作者档或业务，保留严格Commerce隔离。
  */
 #if UNITY_STANDALONE_WIN && !UNITY_EDITOR
 using System;
@@ -45,7 +46,11 @@ namespace Ossastra.Development.VoxelSurface
         int cameraEvents, renderedFrames, lastRenderedFrame = -1;
         bool finished, subscribed, snapshotTaken, logsSubscribed;
         double originalHours;
-        bool originalClockRunning, originalManualSun, originalFollow;
+        bool originalClockRunning, originalManualSun, originalFollow, originalAutomaticWeather;
+        float originalCloudSpeed;
+        VoxelSurfaceSettings originalSessionSettings;
+        int[] cBaselinePrivateIds;
+        Phase cBaselinePhase;
         EnvironmentTimeMode originalTimeMode;
         VoxelSurfaceComparisonMode originalMode;
         Vector3 originalFixedTarget;
@@ -219,7 +224,7 @@ namespace Ossastra.Development.VoxelSurface
             if (comparison.bindings == null || comparison.bindings.Length != 22 ||
                 comparison.bindings.Any(b => b == null || b.renderer == null || !ValidAuthorArrays(b)) || comparison.bindings.Select(b => b.renderer).Distinct().Count() != 22)
                 throw new InvalidOperationException("主场必须明确保存22个唯一有效Renderer比较绑定");
-            if (!comparison.isActiveAndEnabled || comparison.calibratedProfile == null || comparison.shapedProfile == null)
+            if (!comparison.isActiveAndEnabled || comparison.calibratedProfile == null || comparison.shapedProfile == null || comparison.shapedBaselineProfile == null)
                 throw new InvalidOperationException("保存主场缺少启用comparison或B/C Profile引用");
             mainCamera = environment.gameplayCamera;
             if (mainCamera == null || mainCamera != map.gameplayCamera || !mainCamera.isActiveAndEnabled)
@@ -251,6 +256,32 @@ namespace Ossastra.Development.VoxelSurface
                 Debug.Log("VOXEL_PLAYER_PHASE " + JsonUtility.ToJson(phase));
                 if (!phase.pass) throw new InvalidOperationException("阶段未通过：" + phase.name + "；" + phase.reason);
             }
+            // 五组仅调整会话两条控制；时间、机位、原C0基础和云速一致，绝不写作者Profile。
+            environment.automaticWeather = false; environment.cloudSpeedMultiplier = 0; environment.SetTimeHours(12);
+            while (environment.WeatherTransitionProgress < .9999f) yield return null;
+            comparison.ResetSessionToC0();
+            var cNames = new[] { "C0_12", "C_Lit10_12", "C_Lit20_12", "C_Back10_12", "C_Balanced15_10_12" };
+            float[] cLit = { 0, .1f, .2f, 0, .15f }, cBack = { 0, 0, 0, .1f, .1f };
+            for (int index = 0; index < cNames.Length; ++index)
+            {
+                comparison.SetSessionAdjustments(cLit[index], cBack[index]);
+                comparison.ApplyMode(VoxelSurfaceComparisonMode.Faceted);
+                int startFrame = renderedFrames;
+                while (renderedFrames - startFrame < 20) yield return null;
+                yield return new WaitForEndOfFrame();
+                var phase = Capture(VoxelSurfaceComparisonMode.Faceted, 12, startFrame, cNames[index]);
+                phase.independentCComparison = true;
+                if (index == 0) { cBaselinePrivateIds = phase.appliedPrivateMaterialIds; cBaselinePhase = phase; }
+                phase.privateClonesStableAcrossControls = cBaselinePrivateIds != null && phase.appliedPrivateMaterialIds.SequenceEqual(cBaselinePrivateIds);
+                phase.sameCComparisonContext = SameComparisonContext(cBaselinePhase, phase);
+                phase.pass &= phase.privateClonesStableAcrossControls && phase.sameCComparisonContext && Mathf.Abs(phase.expectedLitFaceBoost - cLit[index]) < .0001f &&
+                    Mathf.Abs(phase.expectedBackFaceDarkening - cBack[index]) < .0001f;
+                if (!phase.pass) phase.reason += "; independent C controls/clone reuse check failed";
+                report.phases.Add(phase);
+                File.WriteAllText(Path.Combine(directory, phase.name + ".json"), JsonUtility.ToJson(phase, true));
+                Debug.Log("VOXEL_PLAYER_PHASE " + JsonUtility.ToJson(phase));
+                if (!phase.pass) throw new InvalidOperationException("独立C阶段未通过：" + phase.name + "；" + phase.reason);
+            }
             map.followParticipant = true;
             comparison.ApplyMode(VoxelSurfaceComparisonMode.Calibrated); environment.SetTimeHours(12);
             int witnessStart = renderedFrames;
@@ -258,7 +289,7 @@ namespace Ossastra.Development.VoxelSurface
             yield return new WaitForEndOfFrame();
             CaptureCharacterWitness(witnessStart);
             if (!report.characterWitnessPassed) throw new InvalidOperationException(report.characterWitnessReason);
-            Finish(true, "A/B/C九阶段及原主控跟随角色见证均经过至少20真实主相机帧；冷启至少60真实帧");
+            Finish(true, "A/B/C九阶段、C独立五阶段及原主控跟随角色见证均经过至少20真实主相机帧；冷启至少60真实帧");
         }
 
         void CaptureCharacterWitness(int startFrame)
@@ -302,6 +333,10 @@ namespace Ossastra.Development.VoxelSurface
             originalMode = comparison.mode; originalHours = environment.timeHours; originalTimeMode = environment.timeMode;
             report.startingMode = originalMode.ToString();
             originalClockRunning = environment.clockRunning; originalManualSun = environment.manualSun;
+            originalCloudSpeed = environment.cloudSpeedMultiplier; originalAutomaticWeather = environment.automaticWeather;
+            originalSessionSettings = comparison.SessionSettings;
+            if (originalSessionSettings == null) throw new InvalidOperationException("缺少可保全的原C会话");
+            report.originalSessionSettings = JsonUtility.ToJson(originalSessionSettings);
             originalFollow = map.followParticipant; originalFixedTarget = map.fixedTarget; originalFollowSmooth = map.followSmoothTime;
             environmentBefore = JsonUtility.ToJson(environment); charactersBefore = CharacterAuthors(); profilesBefore = VoxelAuthors();
             sourceAuthorsBefore = SourceAuthorsFingerprint(); report.sourceAuthorsBefore = sourceAuthorsBefore;
@@ -312,14 +347,18 @@ namespace Ossastra.Development.VoxelSurface
             snapshotTaken = true;
         }
 
-        Phase Capture(VoxelSurfaceComparisonMode mode, double hours, int startFrame)
+        Phase Capture(VoxelSurfaceComparisonMode mode, double hours, int startFrame, string uniqueName = null)
         {
-            var phase = new Phase { name = mode + "_" + hours.ToString("00", System.Globalization.CultureInfo.InvariantCulture),
+            var phase = new Phase { name = uniqueName ?? mode + "_" + hours.ToString("00", System.Globalization.CultureInfo.InvariantCulture),
                 mode = mode.ToString(), requestedHours = hours, actualCameraFrames = renderedFrames - startFrame,
                 totalActualCameraFrames = renderedFrames, actualCameraEndEvents = cameraEvents,
                 comparisonStatus = comparison.Status, elapsedSeconds = clock.Elapsed.TotalSeconds };
-            phase.expectedVoxelProfile = mode == VoxelSurfaceComparisonMode.Original ? "A: exact original material references" :
-                JsonUtility.ToJson(mode == VoxelSurfaceComparisonMode.Calibrated ? comparison.calibratedProfile.settings : comparison.shapedProfile.settings);
+            var expected = ExpectedSettings(mode);
+            phase.expectedVoxelProfile = mode == VoxelSurfaceComparisonMode.Original ? "A: exact original material references" : JsonUtility.ToJson(expected);
+            phase.expectedSessionSettings = mode == VoxelSurfaceComparisonMode.Faceted ? JsonUtility.ToJson(expected) : "C not applied";
+            phase.expectedLitFaceBoost = expected == null ? 0 : expected.litFaceBoost;
+            phase.expectedBackFaceDarkening = expected == null ? 0 : expected.backFaceDarkening;
+            phase.actualLitFaceBoost = phase.actualBackFaceDarkening = -1;
             var image = ScreenCapture.CaptureScreenshotAsTexture();
             if (image == null) throw new InvalidOperationException("Native ScreenCapture未返回屏幕纹理");
             try
@@ -344,15 +383,23 @@ namespace Ossastra.Development.VoxelSurface
                     if (material != null) sourceMaterials.Add(material);
                     materialRoutesValid &= shader != null && shader.isSupported && authored[slot] != null && shader == authored[slot].shader;
                     if (mode == VoxelSurfaceComparisonMode.Original) materialRoutesValid &= material == authored[slot];
-                    else materialRoutesValid &= family == "Ossastra/WorldRendering/VoxelLit" &&
-                        ControlsMatch(material, mode == VoxelSurfaceComparisonMode.Calibrated ? comparison.calibratedProfile.settings : comparison.shapedProfile.settings);
+                    else
+                    {
+                        materialRoutesValid &= family == "Ossastra/WorldRendering/VoxelLit" && ControlsMatch(material, expected);
+                        if (material != null && material.HasProperty("_VoxelLitFaceBoost") && material.HasProperty("_VoxelBackFaceDarkening"))
+                        { phase.actualLitFaceBoost = material.GetFloat("_VoxelLitFaceBoost"); phase.actualBackFaceDarkening = material.GetFloat("_VoxelBackFaceDarkening"); }
+                    }
                 }
             }
             phase.sourceFamilies = families.Select(p => new Family { shader = p.Key, slots = p.Value }).ToArray();
             phase.selectedSourceMaterials = sourceMaterials.Count; phase.materialRoutesValid = materialRoutesValid;
+            phase.appliedPrivateMaterialIds = mode == VoxelSurfaceComparisonMode.Original ? Array.Empty<int>() : sourceMaterials.Select(m => m.GetInstanceID()).OrderBy(id => id).ToArray();
+            phase.sourceAuthorsUnchanged = sourceAuthorsBefore == SourceAuthorsFingerprint();
+            phase.characterAuthorsUnchanged = charactersBefore == CharacterAuthors();
             phase.loadedMaterialObjects = Resources.FindObjectsOfTypeAll<Material>().Length;
             phase.loadedRenderTextureObjects = Resources.FindObjectsOfTypeAll<RenderTexture>().Length;
             phase.comparisonOwnedCacheMaterials = ComparisonCacheCount();
+            phase.privateCacheBounded = phase.comparisonOwnedCacheMaterials >= 0 && phase.comparisonOwnedCacheMaterials <= AuthorCacheLimit();
             phase.comparisonCacheMetric = phase.comparisonOwnedCacheMaterials < 0 ? "unavailable: cache field not exposed" : "actual private cache count";
             if (RoomMaskCameraRegistry.TryGetStatistics(mainCamera, out var stats) && stats != null)
             {
@@ -371,12 +418,18 @@ namespace Ossastra.Development.VoxelSurface
             var frame = environment.Current;
             phase.actualHours = frame == null ? -1 : frame.Hours; phase.sunIntensity = frame == null ? -1 : frame.SunIntensity;
             phase.sunDirection = frame == null ? Vector3.zero : frame.SunDirection; phase.ambientIntensity = frame == null ? -1 : frame.AmbientIntensity;
+            phase.sunColor = frame == null ? Color.black : frame.SunColor;
+            phase.cloudSpeed = frame == null ? -1 : frame.CloudSpeed; phase.cloudCoverage = frame == null ? -1 : frame.CloudCoverage;
+            phase.cloudDensity = frame == null ? -1 : frame.CloudDensity; phase.cloudShadowStrength = frame == null ? -1 : frame.CloudShadowStrength;
+            phase.cameraPosition = mainCamera.transform.position; phase.cameraEuler = mainCamera.transform.eulerAngles;
+            phase.cameraProjection = mainCamera.projectionMatrix;
             phase.weather = frame == null ? "unavailable" : frame.WeatherName;
             phase.drawCalls = ReadRecorder(drawCalls, drawUnavailable, out phase.drawCallsStatus);
             phase.setPassCalls = ReadRecorder(setPassCalls, setPassUnavailable, out phase.setPassStatus);
             phase.profilerScope = "global last complete frame; not per-camera or GPU timing";
             phase.pass = phase.actualCameraFrames >= 20 && materialRoutesValid && phase.positiveActive && phase.positiveDraws > 0
-                && string.IsNullOrEmpty(phase.positiveError) && Math.Abs(phase.actualHours - hours) < .001 && phase.screenWidth > 0 && phase.screenHeight > 0;
+                && string.IsNullOrEmpty(phase.positiveError) && Math.Abs(phase.actualHours - hours) < .001 && phase.screenWidth > 0 && phase.screenHeight > 0
+                && phase.sourceAuthorsUnchanged && phase.characterAuthorsUnchanged && phase.privateCacheBounded;
             phase.reason = phase.pass ? "PASS" : "real frames/material routes/positive draw/environment hour/screen capture check failed";
             return phase;
         }
@@ -392,7 +445,9 @@ namespace Ossastra.Development.VoxelSurface
             {
                 if (snapshotTaken)
                 {
+                    RestoreSession();
                     comparison.ApplyMode(originalMode);
+                    environment.cloudSpeedMultiplier = originalCloudSpeed; environment.automaticWeather = originalAutomaticWeather;
                     environment.timeMode = originalTimeMode; environment.clockRunning = originalClockRunning; environment.manualSun = originalManualSun;
                     environment.SetTimeHours(originalHours);
                     map.followParticipant = originalFollow; map.fixedTarget = originalFixedTarget; map.followSmoothTime = originalFollowSmooth;
@@ -403,7 +458,9 @@ namespace Ossastra.Development.VoxelSurface
                     report.sourceMaterialAuthorsUnchanged = sourceAuthorsBefore == report.sourceAuthorsAfter;
                     report.restoredCacheMaterials = ComparisonCacheCount(); report.authorCacheLimit = AuthorCacheLimit();
                     report.privateCacheBounded = report.restoredCacheMaterials >= 0 && report.restoredCacheMaterials <= report.authorCacheLimit;
-                    report.runtimeSettingsRestored = comparison.mode == originalMode && environment.timeHours == originalHours &&
+                    report.sessionSettingsRestored = JsonUtility.ToJson(comparison.SessionSettings) == JsonUtility.ToJson(originalSessionSettings);
+                    report.restoredSessionSettings = JsonUtility.ToJson(comparison.SessionSettings);
+                    report.runtimeSettingsRestored = report.sessionSettingsRestored && comparison.mode == originalMode && environment.timeHours == originalHours &&
                         map.followParticipant == originalFollow && map.fixedTarget == originalFixedTarget && map.followSmoothTime == originalFollowSmooth && SelectionRestored();
                     pass &= report.environmentAuthorsUnchanged && report.characterProfileAuthorsUnchanged && report.voxelProfileAuthorsUnchanged &&
                         report.sourceMaterialAuthorsUnchanged && report.privateCacheBounded && report.runtimeSettingsRestored;
@@ -443,10 +500,28 @@ namespace Ossastra.Development.VoxelSurface
             return string.Join("\n", lighting.receivers.Select(r => r == null || r.profile == null ? "MISSING" : JsonUtility.ToJson(r.profile.settings)));
         }
         string VoxelAuthors()
-        { return JsonUtility.ToJson(comparison.calibratedProfile.settings) + "\n" + JsonUtility.ToJson(comparison.shapedProfile.settings); }
+        { return JsonUtility.ToJson(comparison.calibratedProfile.settings) + "\n" + JsonUtility.ToJson(comparison.shapedProfile.settings) + "\n" + JsonUtility.ToJson(comparison.shapedBaselineProfile.settings) + "\n" +
+            (comparison.saveCandidateProfile == null ? "NO_SAVE_TARGET" : JsonUtility.ToJson(comparison.saveCandidateProfile.settings)); }
+        VoxelSurfaceSettings ExpectedSettings(VoxelSurfaceComparisonMode mode)
+        {
+            if (mode == VoxelSurfaceComparisonMode.Original) return null;
+            var expected = mode == VoxelSurfaceComparisonMode.Faceted ? comparison.SessionSettings : comparison.calibratedProfile.settings.Clone();
+            if (expected == null) throw new InvalidOperationException("当前档没有可读参数");
+            expected.Sanitize();
+            if (mode == VoxelSurfaceComparisonMode.Calibrated) { expected.litFaceBoost = 0; expected.backFaceDarkening = 0; }
+            return expected;
+        }
+        void RestoreSession()
+        {
+            // 既有入口只从Profile拷贝；一次性私有载体从不进入场景、AssetDatabase或作者引用。
+            var temporary = ScriptableObject.CreateInstance<VoxelSurfaceProfileSO>();
+            temporary.hideFlags = HideFlags.HideAndDontSave;
+            try { temporary.settings = originalSessionSettings.Clone(); comparison.LoadSessionFromProfile(temporary); }
+            finally { Destroy(temporary); }
+        }
         bool SelectionRestored()
         {
-            var profile = originalMode == VoxelSurfaceComparisonMode.Calibrated ? comparison.calibratedProfile : comparison.shapedProfile;
+            var expected = ExpectedSettings(originalMode);
             foreach (var binding in comparison.bindings)
             {
                 var authored = originalMode == VoxelSurfaceComparisonMode.Original ? binding.original :
@@ -457,7 +532,7 @@ namespace Ossastra.Development.VoxelSurface
                 {
                     if (originalMode == VoxelSurfaceComparisonMode.Original) { if (current[slot] != authored[slot]) return false; }
                     else if (current[slot] == null || authored[slot] == null || current[slot].shader != authored[slot].shader ||
-                        !current[slot].shader.isSupported || profile == null || !ControlsMatch(current[slot], profile.settings)) return false;
+                        !current[slot].shader.isSupported || expected == null || !ControlsMatch(current[slot], expected)) return false;
                 }
             }
             return true;
@@ -532,14 +607,24 @@ namespace Ossastra.Development.VoxelSurface
         }
         static string Trim(string value, int maximum)
         { return string.IsNullOrEmpty(value) || value.Length <= maximum ? value : value.Substring(0, maximum); }
+        static bool SameComparisonContext(Phase first, Phase next)
+        {
+            return first != null && next != null && (first.cameraPosition - next.cameraPosition).sqrMagnitude < .00000001f &&
+                (first.cameraEuler - next.cameraEuler).sqrMagnitude < .00000001f && first.cameraProjection == next.cameraProjection &&
+                Math.Abs(first.actualHours - next.actualHours) < .0001 && (first.sunDirection - next.sunDirection).sqrMagnitude < .00000001f &&
+                first.sunColor == next.sunColor && Mathf.Abs(first.sunIntensity - next.sunIntensity) < .0001f &&
+                Mathf.Abs(first.ambientIntensity - next.ambientIntensity) < .0001f && first.weather == next.weather &&
+                Mathf.Abs(next.cloudSpeed) < .0001f && Mathf.Abs(first.cloudCoverage - next.cloudCoverage) < .0001f &&
+                Mathf.Abs(first.cloudDensity - next.cloudDensity) < .0001f && Mathf.Abs(first.cloudShadowStrength - next.cloudShadowStrength) < .0001f;
+        }
         static bool ControlsMatch(Material material, VoxelSurfaceSettings profile)
         {
             if (profile == null) return false;
             var expected = profile.Clone(); expected.Sanitize();
             string[] names = { "_VoxelMainShape", "_VoxelIndirectDiffuse", "_VoxelEnvironmentSpecular", "_VoxelDirectSpecular",
-                "_VoxelHighlightStrength", "_VoxelHighlightKnee", "_VoxelHighlightCeiling", "_VoxelDiagnostic", "_VoxelVertexColors" };
+                "_VoxelHighlightStrength", "_VoxelHighlightKnee", "_VoxelHighlightCeiling", "_VoxelDiagnostic", "_VoxelVertexColors", "_VoxelLitFaceBoost", "_VoxelBackFaceDarkening" };
             float[] values = { expected.mainShape, expected.indirectDiffuse, expected.environmentSpecular, expected.directSpecular,
-                expected.highlightStrength, expected.highlightKnee, expected.highlightCeiling, expected.diagnostic, expected.vertexColors ? 1 : 0 };
+                expected.highlightStrength, expected.highlightKnee, expected.highlightCeiling, expected.diagnostic, expected.vertexColors ? 1 : 0, expected.litFaceBoost, expected.backFaceDarkening };
             for (int i = 0; i < names.Length; ++i)
             {
                 if (!material.HasProperty(names[i])) return false;
@@ -572,7 +657,8 @@ namespace Ossastra.Development.VoxelSurface
         [Serializable] sealed class CommerceFile { public string name, sha256; public long length; }
         [Serializable] sealed class Summary
         {
-            public bool pass, runtimeSettingsRestored, environmentAuthorsUnchanged, characterProfileAuthorsUnchanged, voxelProfileAuthorsUnchanged, sourceMaterialAuthorsUnchanged, privateCacheBounded;
+            public bool pass, runtimeSettingsRestored, sessionSettingsRestored, environmentAuthorsUnchanged, characterProfileAuthorsUnchanged, voxelProfileAuthorsUnchanged, sourceMaterialAuthorsUnchanged, privateCacheBounded;
+            public string originalSessionSettings, restoredSessionSettings;
             public string reason, scene, camera, startingMode, graphicsDevice, graphicsApi, reportDirectory, environmentAuthorsBefore, characterProfileAuthorsBefore, sourceAuthorsBefore, sourceAuthorsAfter;
             public int bindingCount, coldStartActualCameraFrames, totalActualCameraFrames, actualCameraEndEvents, runtimeErrorCount, restoredCacheMaterials, authorCacheLimit;
             public string[] runtimeErrors;
@@ -590,16 +676,20 @@ namespace Ossastra.Development.VoxelSurface
         }
         [Serializable] sealed class Phase
         {
-            public string name, mode, screenshot, reason, comparisonStatus, comparisonCacheMetric, positiveError, weather, drawCallsStatus, setPassStatus, profilerScope, expectedVoxelProfile;
-            public bool pass, materialRoutesValid, positiveActive;
+            public string name, mode, screenshot, reason, comparisonStatus, comparisonCacheMetric, positiveError, weather, drawCallsStatus, setPassStatus, profilerScope, expectedVoxelProfile, expectedSessionSettings;
+            public bool pass, materialRoutesValid, positiveActive, sourceAuthorsUnchanged, characterAuthorsUnchanged, privateCacheBounded, independentCComparison, privateClonesStableAcrossControls, sameCComparisonContext;
+            public int[] appliedPrivateMaterialIds;
+            public float expectedLitFaceBoost, expectedBackFaceDarkening, actualLitFaceBoost, actualBackFaceDarkening;
             public int actualCameraFrames, totalActualCameraFrames, actualCameraEndEvents, screenWidth, screenHeight, selectedSourceMaterials,
                 loadedMaterialObjects, loadedRenderTextureObjects, comparisonOwnedCacheMaterials, positiveDraws, positiveOwnedMaterials,
                 positiveOwnedTextures, positiveOwnedBuffers, sourceBuckets, positivePropertyBlocks, retainedMaterialConflicts,
                 worldLookOwnedMaterials, worldLookOwnedTextures, characterCoverageDraws, characterOuterDraws;
             public long positiveBufferBytes, positiveTextureBytes, characterCoverageBytes, characterOuterBytes, drawCalls, setPassCalls;
             public double requestedHours, actualHours, elapsedSeconds;
-            public float sunIntensity, ambientIntensity;
-            public Vector3 sunDirection;
+            public float sunIntensity, ambientIntensity, cloudSpeed, cloudCoverage, cloudDensity, cloudShadowStrength;
+            public Color sunColor;
+            public Vector3 sunDirection, cameraPosition, cameraEuler;
+            public Matrix4x4 cameraProjection;
             public Family[] sourceFamilies;
         }
     }

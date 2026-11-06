@@ -1,13 +1,18 @@
 /* 功能：显式体素材质的共享URP14 PBR响应；普通/许可入口使用同一漫反射、镜面与诊断。
  * 边界：不声明材质参数，不改变2D路径/光源/环境帧/深度/许可；调用前由入口初始化InputData和房间GI。
- * 接口：调用方UnityPerMaterial提供任务记录中的_Voxel*参数，并定义ENVIRONMENT_NATIVE_LIT。
+ * 接口：调用方UnityPerMaterial提供_Voxel*作者参数；现有相机Pass只读上传主光身份与明确补光的当前GPU索引。
  * 上游BRDF、灯循环与GI查询：本机URP14.2.0-t1（Unity Technologies，Unity Companion License）。
  * mixed说明：bakedGI仍是URP的烘焙/探针漫反射通道；不声称拆出其中已烘焙的直射与真实反弹。
  */
 #ifndef OSSASTRA_VOXEL_SURFACE_LIGHTING_INCLUDED
 #define OSSASTRA_VOXEL_SURFACE_LIGHTING_INCLUDED
+#define OSSASTRA_VOXEL_DUAL_FACE_CONTROLS 1
 
 #include "Assets/OSSASTRA/Scripts/EnvironmentSimulation/Rendering/EnvironmentLighting.hlsl"
+
+// 相机上下文由已有渲染特性按本帧剔除结果显式上传；valid默认0使缺少适配时精确保留C。
+// 索引不是作者配置：Forward先解析per-object索引，Clustered使用URP直接索引。
+float _VoxelKeyLightValid, _VoxelFillLightValid, _VoxelFillLightIndex;
 
 struct VoxelLightingContributions
 {
@@ -20,6 +25,78 @@ float VoxelFiniteControl(float value, float fallback)
 {
     return (asuint(value) & 0x7f800000u) == 0x7f800000u ? fallback : value;
 }
+
+// 亮面只放大已有主光漫反射；0精确回到C。主光身份不成立时不能把备用补光当太阳。
+float VoxelLitFaceGain(float normalMainDot)
+{
+    float amount = clamp(VoxelFiniteControl(_VoxelLitFaceBoost, 0), 0, .5);
+    if (amount <= 0 || _VoxelKeyLightValid < .5) return 1;
+    float x = saturate(VoxelFiniteControl(normalMainDot, 0));
+    float litWeight = x * x * (3 - 2 * x);
+    return 1 + amount * litWeight;
+}
+
+// 只降低可处理的GI/登记方向补光，最多削弱一半；没有绝对RGB保底或自发光。
+// 主光颜色强度(已含云、不含真实投影阴影)平滑门控，避免阴影扫过时产生另一道分面跳变。
+// 点/聚光的实际漫反射相对目标填充足够强时停止压暗；局部直射本身始终不变。
+float VoxelBackFillKeep(float normalMainDot, float keyStrength,
+    float localDiffuseStrength, float eligibleFillStrength, float outdoorSurface)
+{
+#if defined(_ADDITIONAL_LIGHTS_VERTEX)
+    // 已聚合的额外灯缺少可靠身份/局部贡献，不能在强点灯旁悄悄削弱GI：整项压暗回退原C。
+    return 1;
+#else
+    float amount = clamp(VoxelFiniteControl(_VoxelBackFaceDarkening, 0), 0, .5);
+    if (amount <= 0 || _VoxelKeyLightValid < .5 || outdoorSurface < .5) return 1;
+    float backWeight = 1 - smoothstep(-.2, .45, VoxelFiniteControl(normalMainDot, 1));
+    float keyGate = smoothstep(.02, .2, max(VoxelFiniteControl(keyStrength, 0), 0));
+    float local = max(VoxelFiniteControl(localDiffuseStrength, 0), 0);
+    float fill = max(VoxelFiniteControl(eligibleFillStrength, 0), 0);
+    float localPermission = 1 - smoothstep(.25, 1, local / max(fill, .0001));
+    return 1 - amount * backWeight * keyGate * localPermission;
+#endif
+}
+
+float VoxelPeak(float3 value) { return max(max(value.r, value.g), value.b); }
+
+// 贡献组合也是生产唯一入口：只从额外灯累计中扣除被登记的填充份额。
+// 原局部/未知方向漫反射及所有镜面不做整体彩色相乘；GPU合同直接调用本函数。
+void VoxelApplyBackFillControls(float normalMainDot, float keyStrength, float outdoorSurface,
+    half3 registeredFillDiffuse, half3 localDirectDiffuse,
+    inout VoxelLightingContributions gi, inout VoxelLightingContributions additional)
+{
+    float fillKeep = VoxelBackFillKeep(normalMainDot, keyStrength, VoxelPeak(localDirectDiffuse),
+        VoxelPeak(gi.diffuse + registeredFillDiffuse), outdoorSurface);
+    gi.diffuse *= fillKeep;
+    additional.diffuse -= registeredFillDiffuse * (1 - fillKeep);
+}
+
+
+#if defined(_ADDITIONAL_LIGHTS)
+int VoxelAdditionalGlobalIndex(uint lightLoopIndex)
+{
+#if USE_CLUSTERED_LIGHTING
+    return (int)lightLoopIndex;
+#else
+    return GetPerObjectLightIndex(lightLoopIndex);
+#endif
+}
+
+bool VoxelIsRegisteredFillLight(int globalIndex)
+{
+    return _VoxelFillLightValid > .5 && globalIndex >= 0 && globalIndex == (int)round(_VoxelFillLightIndex);
+}
+
+bool VoxelIsPunctualLight(int globalIndex)
+{
+    if (globalIndex < 0) return false;
+#if USE_STRUCTURED_BUFFER_FOR_LIGHT_DATA
+    return _AdditionalLightsBuffer[globalIndex].position.w > .5;
+#else
+    return _AdditionalLightsPosition[globalIndex].w > .5;
+#endif
+}
+#endif
 
 // 连续艺术方向响应：f(0)=0/f(1)=1；导数(1-s)+6s*x*(1-x)>=0。
 // 默认强度0；仅主方向光使用非零shape，额外方向/点/聚光继续原始NdotL。
@@ -162,6 +239,12 @@ half4 VoxelUniversalFragmentPBR(InputData inputData, SurfaceData surfaceData)
         inputData.positionWS, inputData.normalWS, inputData.viewDirectionWS, inputData.normalizedScreenSpaceUV);
     VoxelLightingContributions main = (VoxelLightingContributions)0;
     VoxelLightingContributions additional = (VoxelLightingContributions)0;
+    half3 registeredFillDiffuse = 0;
+    half3 localDirectDiffuse = 0;
+    float mainLayerMatches = 1;
+#ifdef _LIGHT_LAYERS
+    mainLayerMatches = IsMatchingLightLayer(mainLight.layerMask, meshRenderingLayers) ? 1 : 0;
+#endif
 #ifdef _LIGHT_LAYERS
     if (IsMatchingLightLayer(mainLight.layerMask, meshRenderingLayers))
 #endif
@@ -169,6 +252,7 @@ half4 VoxelUniversalFragmentPBR(InputData inputData, SurfaceData surfaceData)
         main = VoxelEvaluateDirectLighting(brdfData, brdfDataClearCoat, mainLight,
             inputData.normalWS, inputData.viewDirectionWS, surfaceData.clearCoatMask,
             specularHighlightsOff, _VoxelMainShape);
+        main.diffuse *= VoxelLitFaceGain(dot(inputData.normalWS, mainLight.direction));
     }
 
 #if defined(_ADDITIONAL_LIGHTS)
@@ -186,6 +270,9 @@ half4 VoxelUniversalFragmentPBR(InputData inputData, SurfaceData surfaceData)
                 inputData.normalWS, inputData.viewDirectionWS, surfaceData.clearCoatMask, specularHighlightsOff, 0);
             additional.diffuse += terms.diffuse;
             additional.specular += terms.specular;
+            int globalIndex = VoxelAdditionalGlobalIndex(lightIndex);
+            if (VoxelIsRegisteredFillLight(globalIndex)) registeredFillDiffuse += terms.diffuse;
+            else if (VoxelIsPunctualLight(globalIndex)) localDirectDiffuse += terms.diffuse;
         }
     }
 #endif
@@ -199,9 +286,22 @@ half4 VoxelUniversalFragmentPBR(InputData inputData, SurfaceData surfaceData)
                 inputData.normalWS, inputData.viewDirectionWS, surfaceData.clearCoatMask, specularHighlightsOff, 0);
             additional.diffuse += terms.diffuse;
             additional.specular += terms.specular;
+            int globalIndex = VoxelAdditionalGlobalIndex(lightIndex);
+            if (VoxelIsRegisteredFillLight(globalIndex)) registeredFillDiffuse += terms.diffuse;
+            else if (VoxelIsPunctualLight(globalIndex)) localDirectDiffuse += terms.diffuse;
         }
     LIGHT_LOOP_END
 #endif
+
+    // 两个旋钮都为0时沿用原C的累加顺序与贡献。未知方向灯不加入填充，也不冒充点灯。
+    // 表面房间归属独立于观察者：室内默认维持C，揭顶不会让室外太阳方向压黑室内一侧。
+    if (_VoxelBackFaceDarkening > 0 && !IsOnlyAOLightingFeatureEnabled())
+    {
+        float keyStrength = max(VoxelPeak(mainLight.color), 0) * mainLight.distanceAttenuation * mainLayerMatches;
+        VoxelApplyBackFillControls(dot(inputData.normalWS, mainLight.direction), keyStrength,
+            EnvironmentRoomIndex(inputData.positionWS) < 0 ? 1 : 0,
+            registeredFillDiffuse, localDirectDiffuse, gi, additional);
+    }
 
     half3 vertexDiffuse = 0;
 #if defined(_ADDITIONAL_LIGHTS_VERTEX)

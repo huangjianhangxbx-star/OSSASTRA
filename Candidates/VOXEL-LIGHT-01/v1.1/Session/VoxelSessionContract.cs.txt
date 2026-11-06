@@ -1,0 +1,91 @@
+/* 功能：v1.1独立会话参数、C0复位及作者隔离的Native合同；反射缺失给出可执行RED。
+ * 边界：仅Edit私有夹具，不操作主场或存档；资源在finally归还。
+ */
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using Newtonsoft.Json;
+using UnityEngine;
+using Ossastra.WorldRendering.VoxelSurface;
+
+public static class VoxelSessionContract
+{
+    public static string Run()
+    {
+        var s = typeof(VoxelSurfaceSettings);
+        var c = typeof(VoxelSurfaceComparison);
+        var required = new[] { "litFaceBoost", "backFaceDarkening" };
+        var missing = required.Where(n => s.GetField(n) == null).Concat(new[] { "shapedBaselineProfile", "saveCandidateProfile" }.Where(n => c.GetField(n) == null))
+            .Concat(new[] { "SetSessionAdjustments", "ResetSessionToC0", "FlushPendingParameters", "ExportSessionSettings" }.Where(n => c.GetMethod(n) == null)).ToArray();
+        if (missing.Length > 0) return JsonConvert.SerializeObject(new { pass = false, missingFeature = missing });
+        var result = new Dictionary<string, bool>();
+        var owned = new List<UnityEngine.Object>();
+        VoxelSurfaceComparison comparison = null;
+        try
+        {
+            var a = new VoxelSurfaceSettings();
+            result["neutralDefaults"] = Read(a, "litFaceBoost") == 0 && Read(a, "backFaceDarkening") == 0;
+            Write(a, "litFaceBoost", float.NaN); Write(a, "backFaceDarkening", float.PositiveInfinity); a.Sanitize();
+            result["finiteFallback"] = Read(a, "litFaceBoost") == 0 && Read(a, "backFaceDarkening") == 0;
+            Write(a, "litFaceBoost", 2f); Write(a, "backFaceDarkening", -1f); a.Sanitize();
+            result["bounded"] = Read(a, "litFaceBoost") == .5f && Read(a, "backFaceDarkening") == 0;
+            var c0 = ScriptableObject.CreateInstance<VoxelSurfaceProfileSO>(); owned.Add(c0);
+            c0.settings.mainShape = .65f; c0.settings.indirectDiffuse = .65f;
+            var candidate = ScriptableObject.CreateInstance<VoxelSurfaceProfileSO>(); owned.Add(candidate);
+            candidate.settings = c0.settings.Clone(); Write(candidate.settings, "litFaceBoost", .1f);
+            var host = new GameObject("VoxelSession_private"); host.SetActive(false); owned.Add(host);
+            comparison = host.AddComponent<VoxelSurfaceComparison>(); comparison.shapedProfile = candidate;
+            c.GetField("shapedBaselineProfile").SetValue(comparison, c0);
+            var before = JsonUtility.ToJson(candidate.settings);
+            Call(comparison, "SetSessionAdjustments", .2f, .1f);
+            var snapshot = (VoxelSurfaceSettings)c.GetProperty("SessionSettings").GetValue(comparison);
+            result["sessionIndependent"] = Read(snapshot, "litFaceBoost") == .2f && Read(snapshot, "backFaceDarkening") == .1f && JsonUtility.ToJson(candidate.settings) == before;
+            Write(snapshot, "litFaceBoost", .5f);
+            snapshot = (VoxelSurfaceSettings)c.GetProperty("SessionSettings").GetValue(comparison);
+            result["snapshotReadOnly"] = Read(snapshot, "litFaceBoost") == .2f;
+            comparison.ApplyMode(VoxelSurfaceComparisonMode.Original); comparison.ApplyMode(VoxelSurfaceComparisonMode.Calibrated); comparison.ApplyMode(VoxelSurfaceComparisonMode.Faceted);
+            snapshot = (VoxelSurfaceSettings)c.GetProperty("SessionSettings").GetValue(comparison);
+            result["abSwitchPreservesSession"] = Read(snapshot, "litFaceBoost") == .2f && Read(snapshot, "backFaceDarkening") == .1f;
+            Call(comparison, "ResetSessionToC0");
+            snapshot = (VoxelSurfaceSettings)c.GetProperty("SessionSettings").GetValue(comparison);
+            result["resetIsC0NotA"] = snapshot.mainShape == .65f && snapshot.indirectDiffuse == .65f && Read(snapshot, "litFaceBoost") == 0 && Read(snapshot, "backFaceDarkening") == 0;
+            candidate.settings.diagnostic = 6;
+            Call(comparison, "LoadSessionFromProfile", candidate);
+            var export = (VoxelSurfaceSettings)Call(comparison, "ExportSessionSettings");
+            result["saveDiagnosticNeutral"] = export.diagnostic == 0 && candidate.settings.diagnostic == 6;
+            var shader = Shader.Find("Ossastra/WorldRendering/VoxelLit");
+            if (shader == null) throw new InvalidOperationException("Missing VoxelLit");
+            var material = new Material(shader); owned.Add(material);
+            export.ApplyTo(material);
+            result["shaderUpload"] = material.HasProperty("_VoxelLitFaceBoost") && material.HasProperty("_VoxelBackFaceDarkening") && material.GetFloat("_VoxelLitFaceBoost") == .1f && material.GetFloat("_VoxelBackFaceDarkening") == 0;
+            var author = new Material(shader); owned.Add(author); author.SetFloat("_VoxelLitFaceBoost", .37f);
+            var renderHost = new GameObject("VoxelSession_renderer"); owned.Add(renderHost);
+            var renderer = renderHost.AddComponent<MeshRenderer>(); renderer.sharedMaterials = new[] { material };
+            comparison.bindings = new[] { new VoxelSurfaceComparison.Binding { renderer = renderer, original = new[] { material }, calibrated = new[] { author }, shaped = new[] { author } } };
+            comparison.calibratedProfile = c0;
+            Call(comparison, "SetSessionAdjustments", .2f, .1f); comparison.ApplyMode(VoxelSurfaceComparisonMode.Faceted);
+            var clone = renderer.sharedMaterials[0];
+            result["actualCloneReceivesSessionNotAuthor"] = clone != author && clone.GetFloat("_VoxelLitFaceBoost") == .2f && clone.GetFloat("_VoxelBackFaceDarkening") == .1f && author.GetFloat("_VoxelLitFaceBoost") == .37f;
+            bool bounded = true;
+            for (int i = 0; i < 20; ++i)
+            {
+                Call(comparison, "SetSessionAdjustments", i * .01f, .1f); Call(comparison, "FlushPendingParameters");
+                bounded &= renderer.sharedMaterials[0] == clone;
+            }
+            result["sliderRefreshReusesClone"] = bounded && Mathf.Abs(clone.GetFloat("_VoxelLitFaceBoost") - .19f) < .0001f;
+            comparison.ApplyMode(VoxelSurfaceComparisonMode.Calibrated);
+            result["bIgnoresNewControls"] = renderer.sharedMaterials[0].GetFloat("_VoxelLitFaceBoost") == 0 && renderer.sharedMaterials[0].GetFloat("_VoxelBackFaceDarkening") == 0;
+            comparison.ApplyMode(VoxelSurfaceComparisonMode.Faceted);
+            result["switchRestoresExactSessionClone"] = renderer.sharedMaterials[0] == clone && Mathf.Abs(clone.GetFloat("_VoxelLitFaceBoost") - .19f) < .0001f;
+            comparison.RestoreOriginal();
+            result["restoreReleasesPrivateCloneOnly"] = renderer.sharedMaterials[0] == material && clone == null && author != null;
+            return JsonConvert.SerializeObject(new { pass = result.Values.All(v => v), result });
+        }
+        catch (Exception e) { return JsonConvert.SerializeObject(new { pass = false, result, error = e.ToString() }); }
+        finally { if (comparison != null) comparison.RestoreOriginal(); for (int i = owned.Count - 1; i >= 0; --i) if (owned[i] != null) UnityEngine.Object.DestroyImmediate(owned[i]); }
+    }
+    static float Read(object value, string field) { return (float)value.GetType().GetField(field).GetValue(value); }
+    static void Write(object value, string field, float fieldValue) { value.GetType().GetField(field).SetValue(value, fieldValue); }
+    static object Call(object value, string method, params object[] args) { return value.GetType().GetMethod(method).Invoke(value, args); }
+}
