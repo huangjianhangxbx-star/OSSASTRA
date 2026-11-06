@@ -24,3 +24,5 @@ Native/GPU/保存重开、真实Windows375帧/14阶段/两角色见证/退出0�
 材质+响应完整Look会话与保存、显式默认写保护、既有体素面板入口，以及可重放Native安装/诊断/合同/短程Player候选。当前实际候选资产、场景、几何、美术参考、截图/录像、Player及存档证据仅本机；Shader数学、全局环境/WorldLook/2D均未改。源清单及SHA见v1.2-source-manifest.json。
 
 必要验证已完成：会话17/保存15（含默认别名RED→GREEN）、持久化重开与默认生命周期、实际Windows121帧/六状态/两角色/OS0/后续原档隔离。首次Editor隔离失败及原档checkpoint变化见v1.2.md，不作整轮原档无变化的表述。最终面板提示/完整候选读取为后续小修，编译通过，没有重跑整套Player。推送后核对远端SHA，再补发布回执。
+
+v1.2功能提交fd14bb641f97b321212f26a574903b555b5c6d95已定向推送GitHub OSSASTRA/main，独立ls-remote核完整SHA一致；33白名单文件。v1.2-source-manifest记录该功能提交的源码快照，不包含本条后补回执。未发布场景/作者资产/参考或实机媒体/二进制/存档/共享同步文件旧dirty，未同步Gitee或强推。验证与异常边界见v1.2.md。
