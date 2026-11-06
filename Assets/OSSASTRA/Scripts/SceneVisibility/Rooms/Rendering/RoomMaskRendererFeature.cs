@@ -23,6 +23,8 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
         public Shader positiveTruthShader;
         public Shader positiveSpriteLitTruthShader;
         public Shader positiveLitShader, positiveUnlitShader, positiveSimpleLitShader;
+        [Tooltip("显式VoxelLit源的许可绘制Shader；与原Lit共用调度位，不依赖Shader.Find保留构建变体。")]
+        public Shader positiveVoxelLitShader;
         public Shader positiveThinTopShader, positiveWorldTileShader, positiveDecorationShader;
         public Shader positiveDepthPlaneShader, positiveSpineShader, positiveSpriteShader, positiveSpriteLitShader;
         readonly Dictionary<int, CameraPasses> cameras = new Dictionary<int, CameraPasses>();

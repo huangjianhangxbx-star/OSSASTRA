@@ -1,0 +1,123 @@
+/* 功能：普通Voxel环境上下文的Native RED/GREEN；通过真实CommandBuffer上传而不伪造渲染上下文。
+ * 边界：私有相机/停用环境根/绑定；不调用现有主场环境，不绘图、不改变时钟/灯/材质。
+ * 恢复：原登记条目对象、环境GPU globals与主场工作集均保持；临时回调销毁后才还原globals。
+ */
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Reflection;
+using Newtonsoft.Json;
+using UnityEngine;
+using UnityEngine.Rendering;
+using Ossastra.EnvironmentSimulation;
+using Ossastra.EnvironmentSimulation.Rendering;
+using Ossastra.SceneVisibility.Rooms;
+
+public static class OrdinaryContextContract
+{
+ const BindingFlags Static=BindingFlags.Static|BindingFlags.Public|BindingFlags.NonPublic,Instance=BindingFlags.Instance|BindingFlags.Public|BindingFlags.NonPublic;
+ sealed class Fixture {internal GameObject Root;internal Camera Camera;internal EnvironmentSkyBinding Binding;internal EnvironmentRoot Environment;internal EnvironmentFrame Frame;}
+ public static string Run()
+ {
+  if(Application.dataPath!="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets")return "Wrong project";
+  var method=typeof(EnvironmentSkyBinding).GetMethod("UploadOrdinaryForCamera",Static,null,new[]{typeof(CommandBuffer),typeof(Camera)},null);
+  if(method==null)return JsonConvert.SerializeObject(new{pass=false,methodMissing=true,reason="普通Voxel没有相机环境上传入口；未触碰当前Play环境。"});
+  var bindings=(IDictionary)typeof(EnvironmentSkyBinding).GetField("bindings",Static).GetValue(null);
+  var registry=(IDictionary)typeof(EnvironmentCameraRegistry).GetField("entries",Static).GetValue(null);
+  var bindingBefore=Snapshot(bindings);var registryBefore=Snapshot(registry);var globals=new Globals();
+  if(!globals.ArraysReady)return JsonConvert.SerializeObject(new{pass=false,prerequisitesMissing=true,reason="请在主场已经绘制环境帧后运行，避免首次创建GPU全局数组后无法精确撤销。"});
+  var owned=new List<GameObject>();var results=new Dictionary<string,object>();CommandBuffer cmd=null;
+  var mainBefore=MainWorkingSetSnapshot(bindingBefore);string failure=null;
+  try
+  {
+   var a=CreateFixture("A",.27f,.31f,owned);var b=CreateFixture("B",.68f,.73f,owned);
+   AddFrame(registry,a);AddFrame(registry,b);Register(bindings,a,b);
+   cmd=new CommandBuffer{name="Voxel ordinary environment contract"};
+   Action<Camera> upload=camera=>{cmd.Clear();method.Invoke(null,new object[]{cmd,camera});Graphics.ExecuteCommandBuffer(cmd);};
+   Shader.SetGlobalFloat("_EnvironmentSurfaceRole",-1);upload(a.Camera);
+   results["matchingCameraUploaded"]=Enabled()&&Near(Shader.GetGlobalFloat("_EnvironmentWetness"),.27f)&&Near(Shader.GetGlobalVector("_EnvironmentCloudParameters").x,.31f)&&Shader.GetGlobalInteger("_EnvironmentIndoorCount")==1;
+   results["matchingCameraObservation"]=new{enabled=Shader.GetGlobalFloat("_EnvironmentLightingEnabled"),wetness=Shader.GetGlobalFloat("_EnvironmentWetness"),cloud=Shader.GetGlobalVector("_EnvironmentCloudParameters").x,roomCount=Shader.GetGlobalInteger("_EnvironmentIndoorCount"),legacyFloatSlot=Shader.GetGlobalInt("_EnvironmentIndoorCount"),a.Binding.SurfaceReady,a.Binding.SurfaceStatus};
+   results["informationRoleDoesNotLeak"]=Near(Shader.GetGlobalFloat("_EnvironmentSurfaceRole"),1);
+   Shader.SetGlobalFloat("_EnvironmentSurfaceRole",2);upload(a.Camera);results["characterRoleDoesNotLeak"]=Near(Shader.GetGlobalFloat("_EnvironmentSurfaceRole"),1);
+   upload(b.Camera);results["secondCameraUsesOwnFrame"]=Enabled()&&Near(Shader.GetGlobalFloat("_EnvironmentWetness"),.68f)&&Near(Shader.GetGlobalVector("_EnvironmentCloudParameters").x,.73f);
+   // 重新插入临时绑定，避免实现依赖字典首项/最后项；不重排主场原有条目。
+   Register(bindings,b,a);upload(a.Camera);results["reverseRegistrationKeepsOwnerA"]=Enabled()&&Near(Shader.GetGlobalFloat("_EnvironmentWetness"),.27f);
+   upload(b.Camera);results["reverseRegistrationKeepsOwnerB"]=Enabled()&&Near(Shader.GetGlobalFloat("_EnvironmentWetness"),.68f);
+   upload(null);results["nullCameraClears"]=Cleared();
+   var other=new GameObject("OrdinaryContext_unregistered");other.SetActive(false);owned.Add(other);var otherCamera=other.AddComponent<Camera>();upload(otherCamera);results["unregisteredCameraClears"]=Cleared();
+   upload(a.Camera);results["validCameraRecoversAfterClear"]=Enabled()&&Near(Shader.GetGlobalFloat("_EnvironmentWetness"),.27f);
+   // 真实工作集拒绝无效相机矩阵；不能继续保留前一个相机的开启状态。
+   var projection=a.Camera.projectionMatrix;var invalid=projection;invalid.m00=float.NaN;a.Camera.projectionMatrix=invalid;
+   upload(a.Camera);results["invalidWorkingSetOnlyClears"]=Cleared();a.Camera.projectionMatrix=projection;upload(a.Camera);results["workingSetRepairRecovers"]=Enabled();
+   // 故障注入只作用于临时绑定：命令构造中断必须清掉已构造项并关闭环境。
+   var field=typeof(EnvironmentSkyBinding).GetField("surfaceData",Instance);var working=field.GetValue(b.Binding);
+   try
+   {
+    field.SetValue(b.Binding,null);cmd.Clear();cmd.SetGlobalFloat("_EnvironmentWetness",.99f);
+    method.Invoke(null,new object[]{cmd,b.Camera});Graphics.ExecuteCommandBuffer(cmd);
+    results["constructionFailureOnlyClears"]=Cleared()&&!Near(Shader.GetGlobalFloat("_EnvironmentWetness"),.99f);
+   }
+   finally{field.SetValue(b.Binding,working);}
+   upload(b.Camera);results["constructionFailureRecovers"]=Enabled()&&Near(Shader.GetGlobalFloat("_EnvironmentWetness"),.68f);
+   results["mainWorkingSetUntouched"]=SameWorkingSets(mainBefore);
+  }
+  catch(Exception error){failure=(error is TargetInvocationException&&error.InnerException!=null?error.InnerException:error).ToString();}
+  finally
+  {
+   cmd?.Release();
+   for(int i=owned.Count-1;i>=0;--i)if(owned[i]!=null)UnityEngine.Object.DestroyImmediate(owned[i]);
+   Restore(bindings,bindingBefore);Restore(registry,registryBefore);globals.Restore();
+  }
+  results["bindingDictionaryRestored"]=SameEntries(bindings,bindingBefore);results["frameDictionaryRestored"]=SameEntries(registry,registryBefore);
+  results["globalsRestored"]=globals.Matches();bool success=failure==null;
+  foreach(var pair in results)if(pair.Value is bool value&&!value)success=false;
+  if(failure!=null)results["error"]=failure;results["pass"]=success;return JsonConvert.SerializeObject(results);
+ }
+ static Fixture CreateFixture(string label,float wet,float cloud,List<GameObject> owned)
+ {
+  var go=new GameObject("OrdinaryContext_"+label);go.hideFlags=HideFlags.HideAndDontSave;go.SetActive(false);owned.Add(go);go.transform.position=new Vector3(50000,50000,50000);
+  var camera=go.AddComponent<Camera>();camera.enabled=false;camera.orthographic=true;camera.orthographicSize=10;camera.nearClipPlane=.1f;camera.farClipPlane=100;
+  var environment=go.AddComponent<EnvironmentRoot>();environment.enabled=false;environment.gameplayCamera=camera;
+  var binding=go.AddComponent<EnvironmentSkyBinding>();binding.environment=environment;binding.syncSkyColorTo2D=false;
+  var roomGo=new GameObject("OrdinaryContext_room");roomGo.transform.SetParent(go.transform,false);roomGo.transform.localPosition=Vector3.forward*10;var room=roomGo.AddComponent<RoomRegion>();room.volumes=new[]{new RoomLocalBox{center=Vector3.zero,size=Vector3.one*4}};binding.indoorRegions=new[]{room};
+  go.SetActive(true);typeof(EnvironmentSkyBinding).GetField("registeredCamera",Instance).SetValue(binding,camera);
+  return new Fixture{Root=go,Camera=camera,Binding=binding,Environment=environment,Frame=CreateFrame(wet,cloud)};
+ }
+ static EnvironmentFrame CreateFrame(float wet,float cloud)
+ {
+  var type=typeof(EnvironmentFrame).Assembly.GetType("Ossastra.EnvironmentSimulation.EnvironmentFrameData",true);var data=Activator.CreateInstance(type,true);
+  Action<string,object> set=(name,value)=>type.GetField(name,Instance).SetValue(data,value);
+  set("enabled",true);set("contribution",EnvironmentContribution.Combined);set("wetness",wet);set("cloudCoverage",cloud);set("cloudDensity",.8f);set("cloudShadowStrength",.6f);set("cloudWorldScale",32f);set("cloudSpeed",.4f);set("windSpeed",1f);set("windDirection",Vector2.right);set("seconds",17d);
+  set("ambientSky",new Color(.2f,.3f,.4f));set("ambientEquator",new Color(.3f,.2f,.1f));set("ambientGround",Color.gray);set("ambientIntensity",1f);set("indoorAmbientScale",.25f);set("groundLightResponse",1f);set("decorationLightResponse",1f);set("characterLightResponse",1f);
+  return (EnvironmentFrame)Activator.CreateInstance(typeof(EnvironmentFrame),Instance,null,new[]{data},null);
+ }
+ static void AddFrame(IDictionary registry,Fixture fixture)
+ {
+  var type=typeof(EnvironmentCameraRegistry).GetNestedType("Entry",BindingFlags.NonPublic);var entry=Activator.CreateInstance(type,true);type.GetField("owner",Instance).SetValue(entry,fixture.Environment);type.GetField("camera",Instance).SetValue(entry,fixture.Camera);type.GetField("frame",Instance).SetValue(entry,fixture.Frame);registry[fixture.Camera.GetInstanceID()]=entry;
+ }
+ static void Register(IDictionary bindings,Fixture first,Fixture second)
+ {bindings.Remove(first.Camera.GetInstanceID());bindings.Remove(second.Camera.GetInstanceID());bindings[first.Camera.GetInstanceID()]=first.Binding;bindings[second.Camera.GetInstanceID()]=second.Binding;}
+ static List<DictionaryEntry> Snapshot(IDictionary dictionary){var result=new List<DictionaryEntry>();foreach(DictionaryEntry item in dictionary)result.Add(item);return result;}
+ static void Restore(IDictionary dictionary,List<DictionaryEntry> snapshot){dictionary.Clear();foreach(var item in snapshot)dictionary.Add(item.Key,item.Value);}
+ static bool SameEntries(IDictionary dictionary,List<DictionaryEntry> snapshot){if(dictionary.Count!=snapshot.Count)return false;foreach(var item in snapshot)if(!dictionary.Contains(item.Key)||!ReferenceEquals(dictionary[item.Key],item.Value))return false;return true;}
+ static bool Near(float a,float b)=>Mathf.Abs(a-b)<.00001f;
+ static bool Enabled()=>Near(Shader.GetGlobalFloat("_EnvironmentLightingEnabled"),1);
+ static bool Cleared()=>Near(Shader.GetGlobalFloat("_EnvironmentLightingEnabled"),0)&&Near(Shader.GetGlobalFloat("_EnvironmentRainDepthReady"),0)&&Shader.GetGlobalInteger("_EnvironmentIndoorCount")==0&&Shader.GetGlobalInteger("_EnvironmentLocalLightCount")==0&&Shader.GetGlobalInteger("_EnvironmentShelterCount")==0;
+ static Dictionary<object,int[]> MainWorkingSetSnapshot(List<DictionaryEntry> entries)
+ {var result=new Dictionary<object,int[]>();var field=typeof(EnvironmentSkyBinding).GetField("surfaceData",Instance);foreach(var entry in entries){var set=field.GetValue(entry.Value);result[set]=new[]{(int)set.GetType().GetField("roomCount",Instance).GetValue(set),(int)set.GetType().GetField("lightCount",Instance).GetValue(set),(int)set.GetType().GetField("shelterCount",Instance).GetValue(set)};}return result;}
+ static bool SameWorkingSets(Dictionary<object,int[]> before)
+ {foreach(var entry in before){var t=entry.Key.GetType();if((int)t.GetField("roomCount",Instance).GetValue(entry.Key)!=entry.Value[0]||(int)t.GetField("lightCount",Instance).GetValue(entry.Key)!=entry.Value[1]||(int)t.GetField("shelterCount",Instance).GetValue(entry.Key)!=entry.Value[2])return false;}return true;}
+ sealed class Globals
+ {
+  readonly string[] floats={"_EnvironmentRainDepthReady","_EnvironmentLightingEnabled","_EnvironmentSurfaceRole","_EnvironmentIndoorAmbientScale","_EnvironmentWetness"};
+  readonly string[] ints={"_EnvironmentIndoorCount","_EnvironmentLocalLightCount","_EnvironmentShelterCount"};
+  readonly string[] vectors={"_EnvironmentStylizedSkyTint","_EnvironmentSkyAmbient","_EnvironmentHorizonAmbient","_EnvironmentGroundAmbient","_EnvironmentLightResponse","_EnvironmentCloudParameters","_EnvironmentCloudMotion"};
+  readonly string[] matrixArrays={"_EnvironmentIndoorMatrices","_EnvironmentShelterMatrices"};
+  readonly string[] vectorArrays={"_EnvironmentIndoorHalfExtents","_EnvironmentLocalLightPositions","_EnvironmentLocalLightColors","_EnvironmentShelterExtents"};
+  readonly Dictionary<string,float> f=new Dictionary<string,float>();readonly Dictionary<string,int> n=new Dictionary<string,int>();readonly Dictionary<string,Vector4> v=new Dictionary<string,Vector4>();readonly Dictionary<string,Matrix4x4[]> m=new Dictionary<string,Matrix4x4[]>();readonly Dictionary<string,Vector4[]> a=new Dictionary<string,Vector4[]>();
+  internal bool ArraysReady=true;
+  internal Globals(){foreach(var x in floats)f[x]=Shader.GetGlobalFloat(x);foreach(var x in ints)n[x]=Shader.GetGlobalInteger(x);foreach(var x in vectors)v[x]=Shader.GetGlobalVector(x);foreach(var x in matrixArrays){m[x]=Shader.GetGlobalMatrixArray(x);ArraysReady&=m[x].Length>0;}foreach(var x in vectorArrays){a[x]=Shader.GetGlobalVectorArray(x);ArraysReady&=a[x].Length>0;}}
+  internal void Restore(){var cmd=new CommandBuffer{name="Restore ordinary-context contract globals"};try{foreach(var p in f)cmd.SetGlobalFloat(p.Key,p.Value);foreach(var p in n)cmd.SetGlobalInteger(p.Key,p.Value);foreach(var p in v)cmd.SetGlobalVector(p.Key,p.Value);foreach(var p in m)cmd.SetGlobalMatrixArray(p.Key,p.Value);foreach(var p in a)cmd.SetGlobalVectorArray(p.Key,p.Value);Graphics.ExecuteCommandBuffer(cmd);}finally{cmd.Release();}}
+  internal bool Matches(){foreach(var p in f)if(Shader.GetGlobalFloat(p.Key)!=p.Value)return false;foreach(var p in n)if(Shader.GetGlobalInteger(p.Key)!=p.Value)return false;foreach(var p in v)if(Shader.GetGlobalVector(p.Key)!=p.Value)return false;foreach(var p in m){var actual=Shader.GetGlobalMatrixArray(p.Key);if(actual.Length!=p.Value.Length)return false;for(int i=0;i<actual.Length;++i)if(actual[i]!=p.Value[i])return false;}foreach(var p in a){var actual=Shader.GetGlobalVectorArray(p.Key);if(actual.Length!=p.Value.Length)return false;for(int i=0;i<actual.Length;++i)if(actual[i]!=p.Value[i])return false;}return true;}
+ }
+}

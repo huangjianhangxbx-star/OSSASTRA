@@ -1,0 +1,49 @@
+// Native Unity build: saved actual main, never changes PlayerSettings or BuildSettings.
+using System;
+using System.IO;
+using System.Linq;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+using UnityEditor.Build.Reporting;
+using Ossastra.WorldRendering.VoxelSurface;
+public static class BuildVoxelSavedMain
+{
+ public static string Run()
+ {
+  var scene=SceneManager.GetActiveScene();
+  if(EditorApplication.isPlayingOrWillChangePlaymode||EditorApplication.isCompiling||EditorApplication.isUpdating||SceneManager.sceneCount!=1||scene.path!="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity")throw new Exception("Requires actual main in stable Edit: "+scene.path+" scenes="+SceneManager.sceneCount+" play="+EditorApplication.isPlayingOrWillChangePlaymode+" updating="+EditorApplication.isUpdating);
+  var comparison=scene.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<VoxelSurfaceComparison>(true)).Single();
+  if(comparison.bindings.Length!=22||comparison.bindings.Any(b=>b.renderer==null||b.renderer.sharedMaterials.Where((m,i)=>m!=b.original[i]).Any()))throw new Exception("Saved main must retain 22 Original source bindings");
+  // Existing ExecuteAlways authoring marks the verified scene dirty again after reopen.
+  // Root already archived the unsaved state externally; validate original material ownership before saving.
+  if(scene.isDirty&&!EditorSceneManager.SaveScene(scene))throw new Exception("Could not save verified author scene");
+  string folder=Path.GetFullPath("artifacts/VOXEL-LIGHT-01/Player_"+DateTime.UtcNow.ToString("yyyyMMdd_HHmmss"));
+  Directory.CreateDirectory(folder);string status=Path.GetFullPath("artifacts/VOXEL-LIGHT-01/build-result.json");
+  if(File.Exists(status))File.Copy(status,Path.Combine(folder,"previous-build-result.json"));
+  File.WriteAllText(status,JsonUtility.ToJson(new Result{result="queued",executable=Path.Combine(folder,"VoxelLightMain.exe")}));
+  string scenePath=scene.path;
+  EditorApplication.delayCall+=()=>
+  {
+   try{
+    File.WriteAllText(status,JsonUtility.ToJson(new Result{result="running",executable=Path.Combine(folder,"VoxelLightMain.exe")}));
+    var report=BuildPipeline.BuildPlayer(new BuildPlayerOptions{scenes=new[]{scenePath},locationPathName=Path.Combine(folder,"VoxelLightMain.exe"),target=BuildTarget.StandaloneWindows64,options=BuildOptions.Development});
+    var summary=report.summary;
+    File.WriteAllText(status,JsonUtility.ToJson(new Result{success=summary.result==BuildResult.Succeeded,result=summary.result.ToString(),executable=Path.Combine(folder,"VoxelLightMain.exe"),errors=(int)summary.totalErrors,warnings=(int)summary.totalWarnings,bytes=(long)summary.totalSize,seconds=summary.totalTime.TotalSeconds},true));
+   }catch(Exception e){File.WriteAllText(status,JsonUtility.ToJson(new Result{result=e.ToString(),executable=Path.Combine(folder,"VoxelLightMain.exe")}));Debug.LogException(e);}
+  };
+  return "Build scheduled once: "+folder+"; observe build-result.json, never replay an uncertain build";
+ }
+ public static string RunImmediate()
+ {
+  string receipt=Run();
+  // MCP's dispatcher can postpone delayCall indefinitely while the Editor is unfocused.
+  // Remove and execute only this newly queued callback, never start a second build.
+  var pending=EditorApplication.delayCall.GetInvocationList().Where(d=>d.Method.DeclaringType!=null&&d.Method.DeclaringType.FullName.StartsWith("BuildVoxelSavedMain+",StringComparison.Ordinal)).ToArray();
+  if(pending.Length!=1)throw new Exception("Expected exactly one owned build callback; got "+pending.Length);
+  var callback=(EditorApplication.CallbackFunction)pending[0];EditorApplication.delayCall-=callback;callback();
+  return receipt+"; original callback executed immediately and removed.";
+ }
+ [Serializable]public sealed class Result{public bool success;public string result,executable;public int errors,warnings;public long bytes;public double seconds;}
+}

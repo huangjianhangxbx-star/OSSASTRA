@@ -10,13 +10,14 @@ using Object = UnityEngine.Object;
 
 namespace Ossastra.SceneVisibility.Rooms.Rendering
 {
-    internal delegate Shader RoomPositiveShaderResolver(uint family, out int pass);
+    internal delegate Shader RoomPositiveShaderResolver(Material source, uint family, out int pass);
 
     internal sealed class RoomPositiveMaterialBuckets : IDisposable
     {
         internal sealed class Bucket
         {
             internal Material Original, Clone, Adapter;
+            internal Shader SourceShader;
             internal uint Family;
             internal int Queue, Pass;
             internal bool Transparent;
@@ -122,7 +123,7 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
                     if (!requestKeys.Add(key)) continue;
                     if (requestKeys.Count > MaxBuckets)
                         throw new InvalidOperationException("房间正向绘制超过256个材质桶，拒绝部分换材质。");
-                    Shader shader = resolver(family, out int pass);
+                    Shader shader = resolver(original, family, out int pass);
                     if (shader == null || !shader.isSupported || pass < 0)
                         throw new InvalidOperationException("房间材质桶缺少有效源家族Shader或Pass：" + family);
                     requests.Add(new Request { Key = key, Shader = shader, Pass = pass, Order = requests.Count });
@@ -147,6 +148,7 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
                         bucket = new Bucket { Original = request.Key.Original, Family = request.Key.Family, Transparent = request.Key.Transparent };
                         cache.Add(request.Key, bucket);
                     }
+                    bucket.SourceShader = bucket.Original.shader;
                     bucket.Pass = request.Pass;
                     bucket.Queue = (bucket.Transparent ? 3100 : 2100) + i;
                     if (bucket.Clone == null)
@@ -183,10 +185,13 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
             {
                 if (bucket.Original == null || bucket.Clone == null || bucket.Adapter == null)
                     throw new InvalidOperationException("本帧材质桶的源或自有材质已被销毁，拒绝继续绘制。");
+                if (bucket.Original.shader != bucket.SourceShader)
+                    throw new InvalidOperationException("相机剔除后源材质改变了Shader身份；等待下一帧重新建立材质桶。");
                 if (IsTransparent(bucket.Original) != bucket.Transparent)
                     throw new InvalidOperationException("相机剔除后源材质改变了队列类别；等待下一帧重新建立材质桶。");
-                Refresh(bucket);
             }
+            // 所有源先通过检查，避免后续桶失效时前面的桶已改成另一份布局。
+            foreach (var bucket in active) Refresh(bucket);
         }
 
         static bool IsTransparent(Material material) => EffectiveQueue(material) > 2500;

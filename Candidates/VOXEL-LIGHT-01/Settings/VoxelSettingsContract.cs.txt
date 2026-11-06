@@ -1,0 +1,199 @@
+/* 功能：配置/显式A-B-C比较的Native行为合同；先以反射在生产类型不存在时得到RED。
+ * 捕获：非法值进入Shader、参数写错通道、修改作者材质、重复刷新泄漏材质、整体而非逐binding让权、
+ *       外部改写后被重新接管、禁用不恢复或误删外部材质。仅Edit运行，所有私有对象finally释放。
+ */
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using Newtonsoft.Json;
+using UnityEngine;
+
+public static class VoxelSettingsContract
+{
+    const string Prefix = "Ossastra.WorldRendering.VoxelSurface.";
+    const BindingFlags Public = BindingFlags.Public | BindingFlags.Instance;
+    public static string Run()
+    {
+        if (Application.isPlaying) return JsonConvert.SerializeObject(new { pass = false, prerequisitesMissing = "仅Edit运行" });
+        var settingsType = Find("VoxelSurfaceSettings");
+        var profileType = Find("VoxelSurfaceProfileSO");
+        var comparisonType = Find("VoxelSurfaceComparison");
+        var modeType = Find("VoxelSurfaceComparisonMode");
+        if (settingsType == null || profileType == null || comparisonType == null || modeType == null)
+            return JsonConvert.SerializeObject(new { pass = false, missingSettings = settingsType == null,
+                missingProfile = profileType == null, missingComparison = comparisonType == null, missingMode = modeType == null });
+        var shader = Shader.Find("Ossastra/WorldRendering/VoxelLit");
+        if (shader == null) return JsonConvert.SerializeObject(new { pass = false, prerequisitesMissing = "VoxelLit Shader缺失" });
+        var owned = new List<UnityEngine.Object>();
+        var results = new Dictionary<string, bool>();
+        try
+        {
+            var output = Material(shader, "settings-output", owned);
+            var defaults = Activator.CreateInstance(settingsType);
+            Apply(defaults, output);
+            results["neutralControlsReachMaterial"] = Floats(output, 0, 1, 1, 1, 0, 4, 8, 0, 0);
+
+            Set(defaults, "mainShape", .3f); Set(defaults, "indirectDiffuse", .4f);
+            Set(defaults, "environmentSpecular", .5f); Set(defaults, "directSpecular", .6f);
+            Set(defaults, "highlightStrength", .7f); Set(defaults, "highlightKnee", 2f);
+            Set(defaults, "highlightCeiling", 6f); Set(defaults, "diagnostic", 5); Set(defaults, "vertexColors", true);
+            Apply(defaults, output);
+            results["independentControlsReachExactProperties"] = Floats(output, .3f, .4f, .5f, .6f, .7f, 2, 6, 5, 1);
+
+            Set(defaults, "mainShape", float.NaN); Set(defaults, "indirectDiffuse", float.PositiveInfinity);
+            Set(defaults, "environmentSpecular", -3f); Set(defaults, "directSpecular", -1f);
+            Set(defaults, "highlightStrength", float.NegativeInfinity); Set(defaults, "highlightKnee", -2f);
+            Set(defaults, "highlightCeiling", -5f); Set(defaults, "diagnostic", 99);
+            settingsType.GetMethod("Sanitize", Public).Invoke(defaults, null);
+            Apply(defaults, output);
+            float knee = output.GetFloat("_VoxelHighlightKnee"), ceiling = output.GetFloat("_VoxelHighlightCeiling");
+            results["malformedValuesAreFiniteAndBounded"] = Near(output.GetFloat("_VoxelMainShape"), 0)
+                && Near(output.GetFloat("_VoxelIndirectDiffuse"), 1) && Near(output.GetFloat("_VoxelEnvironmentSpecular"), 0)
+                && Near(output.GetFloat("_VoxelDirectSpecular"), 0) && Near(output.GetFloat("_VoxelHighlightStrength"), 0)
+                && knee > 0 && ceiling > knee && output.GetFloat("_VoxelDiagnostic") == 7;
+
+            var a = Material(shader, "author-original", owned);
+            var b = Material(shader, "author-calibrated", owned);
+            var c = Material(shader, "author-shaped", owned);
+            var external = Material(shader, "external-owner", owned);
+            b.SetFloat("_VoxelIndirectDiffuse", .93f); c.SetFloat("_VoxelMainShape", .91f);
+            var profileB = ScriptableObject.CreateInstance(profileType); owned.Add(profileB);
+            var profileC = ScriptableObject.CreateInstance(profileType); owned.Add(profileC);
+            var settingsB = Activator.CreateInstance(settingsType); var settingsC = Activator.CreateInstance(settingsType);
+            Set(settingsB, "indirectDiffuse", .25f); Set(settingsC, "mainShape", .8f);
+            Set(profileB, "settings", settingsB); Set(profileC, "settings", settingsC);
+            var first = Renderer("first", owned); var second = Renderer("second", owned);
+            first.sharedMaterials = new[] { a, a }; second.sharedMaterials = new[] { a };
+            var host = new GameObject("VoxelSettings_private_comparison"); owned.Add(host);
+            host.hideFlags = HideFlags.HideAndDontSave; host.SetActive(false);
+            var comparison = host.AddComponent(comparisonType);
+            var bindingType = comparisonType.GetField("bindings", Public).FieldType.GetElementType();
+            var bindings = Array.CreateInstance(bindingType, 2);
+            bindings.SetValue(Binding(bindingType, first, new[] { a, a }, new[] { b, b }, new[] { c, c }), 0);
+            bindings.SetValue(Binding(bindingType, second, new[] { a }, new[] { b }, new[] { c }), 1);
+            Set(comparison, "bindings", bindings); Set(comparison, "calibratedProfile", profileB); Set(comparison, "shapedProfile", profileC);
+            Mode(comparison, modeType, "Calibrated");
+            var firstApplied = first.sharedMaterials; var secondApplied = second.sharedMaterials;
+            results["explicitMultiSlotSelection"] = firstApplied.Length == 2 && firstApplied[0] != b && firstApplied[1] == firstApplied[0]
+                && secondApplied.Length == 1 && secondApplied[0] == firstApplied[0] && Near(firstApplied[0].GetFloat("_VoxelIndirectDiffuse"), .25f);
+            results["authorMaterialsRemainReadOnly"] = Near(b.GetFloat("_VoxelIndirectDiffuse"), .93f) && Near(c.GetFloat("_VoxelMainShape"), .91f);
+            comparisonType.GetMethod("RefreshParameters", Public).Invoke(comparison, null);
+            results["refreshRetainsCloneIdentity"] = Same(first.sharedMaterials, firstApplied) && Same(second.sharedMaterials, secondApplied);
+            Set(settingsB, "indirectDiffuse", .45f);
+            comparisonType.GetMethod("RefreshParameters", Public).Invoke(comparison, null);
+            results["profileEditRefreshesOnlyOwnedClone"] = Same(first.sharedMaterials, firstApplied)
+                && Near(first.sharedMaterials[0].GetFloat("_VoxelIndirectDiffuse"), .45f) && Near(b.GetFloat("_VoxelIndirectDiffuse"), .93f);
+
+            first.sharedMaterials = new[] { external, a };
+            Mode(comparison, modeType, "Faceted");
+            results["externalWriterPinsOnlyItsBinding"] = Same(first.sharedMaterials, new[] { external, a })
+                && second.sharedMaterials.Length == 1 && second.sharedMaterials[0] != c && Near(second.sharedMaterials[0].GetFloat("_VoxelMainShape"), .8f);
+            var shapedClone = second.sharedMaterials[0];
+            Mode(comparison, modeType, "Original");
+            results["originalModeKeepsExternalWrite"] = Same(first.sharedMaterials, new[] { external, a }) && Same(second.sharedMaterials, new[] { a });
+            Mode(comparison, modeType, "Calibrated");
+            results["externalPinSurvivesFurtherSwitches"] = Same(first.sharedMaterials, new[] { external, a })
+                && second.sharedMaterials[0] == secondApplied[0];
+            comparisonType.GetMethod("RestoreOriginal", Public).Invoke(comparison, null);
+            results["restoreIsPerBindingAndDestroysOnlyClones"] = Same(first.sharedMaterials, new[] { external, a })
+                && Same(second.sharedMaterials, new[] { a }) && firstApplied[0] == null && shapedClone == null
+                && a != null && b != null && c != null && external != null;
+
+            first.sharedMaterials = new[] { a, a }; second.sharedMaterials = new[] { a };
+            Mode(comparison, modeType, "Calibrated");
+            var disableClone = second.sharedMaterials[0];
+            comparisonType.GetMethod("OnDisable", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(comparison, null);
+            results["disableRestoresAndReleasesOwnedState"] = Same(first.sharedMaterials, new[] { a, a })
+                && Same(second.sharedMaterials, new[] { a }) && disableClone == null;
+
+            Mode(comparison, modeType, "Calibrated");
+            var transferredClone = first.sharedMaterials[0];
+            first.sharedMaterials = new[] { transferredClone, external };
+            Set(settingsB, "indirectDiffuse", .65f);
+            comparisonType.GetMethod("RefreshParameters", Public).Invoke(comparison, null);
+            var replacementClone = second.sharedMaterials[0];
+            results["externalCloneIsHandedOffBeforeRefresh"] = Same(first.sharedMaterials, new[] { transferredClone, external })
+                && replacementClone != transferredClone && Near(transferredClone.GetFloat("_VoxelIndirectDiffuse"), .45f)
+                && Near(replacementClone.GetFloat("_VoxelIndirectDiffuse"), .65f)
+                && ((string)comparisonType.GetProperty("Status", Public).GetValue(comparison)).Contains("ownership handed-off");
+            comparisonType.GetMethod("RefreshParameters", Public).Invoke(comparison, null);
+            results["handoffDoesNotGrowCacheOnFurtherRefresh"] = second.sharedMaterials[0] == replacementClone
+                && Near(transferredClone.GetFloat("_VoxelIndirectDiffuse"), .45f);
+            comparisonType.GetMethod("RestoreOriginal", Public).Invoke(comparison, null);
+            results["partialExternalArrayNeverBecomesMissing"] = Same(first.sharedMaterials, new[] { transferredClone, external })
+                && transferredClone != null && external != null && Same(second.sharedMaterials, new[] { a }) && replacementClone == null;
+            owned.Add(transferredClone); // 外部已保留该私有材质引用；由本合同的外部拥有者负责最后销毁。
+
+            first.sharedMaterials = new[] { a, a };
+            Set(comparison, "calibratedProfile", null);
+            Mode(comparison, modeType, "Calibrated");
+            results["noOverrideUsesAuthorSourcesWithoutClones"] = Same(first.sharedMaterials, new[] { b, b }) && Same(second.sharedMaterials, new[] { b });
+            comparisonType.GetMethod("RestoreOriginal", Public).Invoke(comparison, null);
+            results["noOverrideRestoresWithoutDestroyingAuthorSources"] = Same(first.sharedMaterials, new[] { a, a })
+                && Same(second.sharedMaterials, new[] { a }) && b != null && Near(b.GetFloat("_VoxelIndirectDiffuse"), .93f);
+
+            Set(bindings.GetValue(0), "calibrated", new Material[] { null, null });
+            Mode(comparison, modeType, "Calibrated");
+            results["missingTargetDoesNotEraseValidOriginal"] = Same(first.sharedMaterials, new[] { a, a }) && Same(second.sharedMaterials, new[] { b });
+            Set(bindings.GetValue(0), "calibrated", new[] { b, b });
+            comparisonType.GetMethod("RefreshParameters", Public).Invoke(comparison, null);
+            results["repairedTargetRecoversWithoutRebinding"] = Same(first.sharedMaterials, new[] { b, b });
+            comparisonType.GetMethod("RestoreOriginal", Public).Invoke(comparison, null);
+
+            Set(comparison, "calibratedProfile", profileB);
+            Mode(comparison, modeType, "Calibrated");
+            var rebindClone = second.sharedMaterials[0];
+            var replacementBindings = Array.CreateInstance(bindingType, 1);
+            replacementBindings.SetValue(Binding(bindingType, second, new[] { a }, new[] { b }, new[] { c }), 0);
+            Set(comparison, "bindings", replacementBindings);
+            comparisonType.GetMethod("RefreshParameters", Public).Invoke(comparison, null);
+            results["explicitRebindRestoresRemovedRenderer"] = Same(first.sharedMaterials, new[] { a, a }) && second.sharedMaterials[0] == rebindClone;
+            comparisonType.GetMethod("RestoreOriginal", Public).Invoke(comparison, null);
+            results["rebindLifecycleReleasesNormalCache"] = Same(second.sharedMaterials, new[] { a }) && rebindClone == null;
+
+            Set(comparison, "bindings", bindings);
+            Mode(comparison, modeType, "Calibrated");
+            var removedExternalClone = first.sharedMaterials[0];
+            first.sharedMaterials = new[] { removedExternalClone, external };
+            Set(comparison, "bindings", replacementBindings);
+            Set(settingsB, "indirectDiffuse", .85f);
+            comparisonType.GetMethod("RefreshParameters", Public).Invoke(comparison, null);
+            var remainingClone = second.sharedMaterials[0];
+            results["removedBindingExternalCloneIsHandedOffBeforeRefresh"] = Same(first.sharedMaterials, new[] { removedExternalClone, external })
+                && remainingClone != removedExternalClone && Near(removedExternalClone.GetFloat("_VoxelIndirectDiffuse"), .65f)
+                && Near(remainingClone.GetFloat("_VoxelIndirectDiffuse"), .85f);
+            comparisonType.GetMethod("RestoreOriginal", Public).Invoke(comparison, null);
+            results["removedExternalBindingDoesNotPreventNormalRelease"] = removedExternalClone != null
+                && Same(second.sharedMaterials, new[] { a }) && (remainingClone == removedExternalClone || remainingClone == null);
+            owned.Add(removedExternalClone);
+
+            return JsonConvert.SerializeObject(new { pass = results.Values.All(v => v), results });
+        }
+        catch (Exception error)
+        {
+            return JsonConvert.SerializeObject(new { pass = false, results, error = error.ToString() });
+        }
+        finally
+        {
+            for (int i = owned.Count - 1; i >= 0; --i) if (owned[i] != null) UnityEngine.Object.DestroyImmediate(owned[i]);
+        }
+    }
+
+    static Type Find(string name) { return AppDomain.CurrentDomain.GetAssemblies().Select(a => a.GetType(Prefix + name, false)).FirstOrDefault(t => t != null); }
+    static void Set(object target, string field, object value) { target.GetType().GetField(field, Public).SetValue(target, value); }
+    static void Apply(object settings, Material material) { settings.GetType().GetMethod("ApplyTo", Public).Invoke(settings, new object[] { material }); }
+    static void Mode(Component component, Type type, string mode) { component.GetType().GetMethod("ApplyMode", Public).Invoke(component, new[] { Enum.Parse(type, mode) }); }
+    static Material Material(Shader shader, string name, List<UnityEngine.Object> owned) { var result = new Material(shader) { name = name, hideFlags = HideFlags.HideAndDontSave }; owned.Add(result); return result; }
+    static MeshRenderer Renderer(string name, List<UnityEngine.Object> owned) { var go = new GameObject("VoxelSettings_private_" + name) { hideFlags = HideFlags.HideAndDontSave }; owned.Add(go); return go.AddComponent<MeshRenderer>(); }
+    static object Binding(Type type, Renderer renderer, Material[] a, Material[] b, Material[] c)
+    { var result = Activator.CreateInstance(type); Set(result, "renderer", renderer); Set(result, "original", a); Set(result, "calibrated", b); Set(result, "shaped", c); return result; }
+    static bool Near(float actual, float expected) { return !float.IsNaN(actual) && !float.IsInfinity(actual) && Mathf.Abs(actual - expected) < .0001f; }
+    static bool Same(Material[] actual, Material[] expected) { return actual.Length == expected.Length && actual.Where((value, index) => value != expected[index]).Count() == 0; }
+    static bool Floats(Material material, params float[] values)
+    {
+        string[] names = { "_VoxelMainShape", "_VoxelIndirectDiffuse", "_VoxelEnvironmentSpecular", "_VoxelDirectSpecular",
+            "_VoxelHighlightStrength", "_VoxelHighlightKnee", "_VoxelHighlightCeiling", "_VoxelDiagnostic", "_VoxelVertexColors" };
+        return names.Select((name, index) => material.HasProperty(name) && Near(material.GetFloat(name), values[index])).All(v => v);
+    }
+}

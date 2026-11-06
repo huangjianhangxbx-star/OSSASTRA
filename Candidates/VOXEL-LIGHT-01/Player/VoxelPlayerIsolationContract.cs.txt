@@ -1,0 +1,143 @@
+/* Native RED入口：仅候选副本移除Windows条件包裹，动态编译当前真实Probe，再查隔离方法。
+ * 初次不创建Scene/GameObject/CommerceService，不触主场Store；编译失败不算有效RED。
+ */
+using System;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Security;
+using System.Security.Cryptography;
+using System.Text;
+using Ossastra.Commerce.Runtime;
+using Ossastra.Inventory;
+using UnityEditor.SceneManagement;
+using UnityEngine;
+using UnityEngine.Events;
+using UnityEngine.SceneManagement;
+
+public static class VoxelPlayerIsolationContract
+{
+    public static string Run()
+    {
+        var result = new Result();
+        try
+        {
+            string root = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
+            string source = File.ReadAllText(Path.Combine(root, "Assets/OSSASTRA/Scripts/Development/VoxelSurface/VoxelSurfacePlayerProbe.cs"));
+            const string directive = "#if UNITY_STANDALONE_WIN && !UNITY_EDITOR";
+            int first = source.IndexOf(directive, StringComparison.Ordinal), last = source.LastIndexOf("#endif", StringComparison.Ordinal);
+            if (first < 0 || last <= first || source.Substring(last + 6).Trim().Length != 0) throw new Exception("Unexpected Probe condition wrapper");
+            source = source.Remove(last, 6).Remove(first, directive.Length);
+            string id = Guid.NewGuid().ToString("N");
+            string folder = Path.Combine(root, "Candidates/VOXEL-LIGHT-01/Player/NativeIsolation", id);
+            Directory.CreateDirectory(folder);
+            string generated = Path.Combine(folder, "WindowsProbeCandidate.cs");
+            File.WriteAllText(generated, source, Encoding.UTF8);
+            string assemblyName = "VoxelIsolationNative_" + id;
+            string project = Path.Combine(folder, "IsolationNativeCompile.csproj"), output = Path.Combine(folder, "bin");
+            File.WriteAllText(project, "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>netstandard2.1</TargetFramework><EnableDefaultCompileItems>false</EnableDefaultCompileItems><ImplicitUsings>disable</ImplicitUsings><RestoreIgnoreFailedSources>true</RestoreIgnoreFailedSources><NoWarn>MSB3277</NoWarn><AssemblyName>" + assemblyName + "</AssemblyName></PropertyGroup><ItemGroup>" +
+                "<Compile Include=\"" + SecurityElement.Escape(generated) + "\"/>" +
+                "<Reference Include=\"E:/unity/Tuanjie Hub/2022.3.62t16/Editor/Data/Managed/UnityEngine/*.dll\"><Private>false</Private></Reference>" +
+                "<Reference Include=\"" + SecurityElement.Escape(Path.Combine(root, "Library/ScriptAssemblies/*.dll")) + "\"><Private>false</Private></Reference>" +
+                "</ItemGroup></Project>");
+            string dotnet = Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.ProgramFiles), "dotnet/dotnet.exe");
+            if (!File.Exists(dotnet)) throw new Exception("dotnet executable missing: " + dotnet);
+            var start = new ProcessStartInfo(dotnet, "build \"" + project + "\" --nologo -v:q --output \"" + output + "\"")
+                { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
+            using (var process = Process.Start(start))
+            {
+                var standard = process.StandardOutput.ReadToEndAsync(); var errors = process.StandardError.ReadToEndAsync();
+                if (!process.WaitForExit(30000)) { process.Kill(); throw new Exception("Candidate compile timeout"); }
+                result.compilerOutput = standard.GetAwaiter().GetResult() + errors.GetAwaiter().GetResult();
+                if (process.ExitCode != 0) throw new Exception("Candidate compile failed; not a valid RED");
+            }
+            var assembly = Assembly.Load(File.ReadAllBytes(Path.Combine(output, assemblyName + ".dll")));
+            var type = assembly.GetType("Ossastra.Development.VoxelSurface.VoxelSurfacePlayerProbe", true);
+            var method = type.GetMethod("IsolateCommerceBeforeStart", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+            result.compileSucceeded = true; result.isolationMethodMissing = method == null;
+            result.validRed = method == null; result.pass = method != null;
+            result.reason = method == null ? "RED: current actual Windows Probe has no pre-Start Commerce isolation entry" : "Isolation entry exists; behavioral GREEN fixture still required";
+            result.candidateAssembly = Path.Combine(output, assemblyName + ".dll");
+            if (method != null) Fixture(type, method, folder, result);
+        }
+        catch (Exception error) { result.pass = false; result.reason = error.ToString(); }
+        return JsonUtility.ToJson(result, true);
+    }
+    static void Fixture(Type type, MethodInfo isolate, string folder, Result result)
+    {
+        if (Application.isPlaying) throw new Exception("Preview isolation fixture requires safe Edit");
+        string source = Path.Combine(folder, "fixture-source"), reports = Path.Combine(folder, "fixture-reports"), target = Path.Combine(reports, "isolated-commerce");
+        Directory.CreateDirectory(source); Directory.CreateDirectory(target);
+        File.WriteAllText(Path.Combine(source, "sample.comsave"), "fixture-main");
+        File.WriteAllText(Path.Combine(source, "sample.comsave.bak"), "fixture-backup");
+        File.WriteAllText(Path.Combine(source, "sample.comsave.session"), "fixture-session");
+        File.WriteAllText(Path.Combine(source, "sample.comsave.write.lock"), "");
+        File.WriteAllText(Path.Combine(target, "sample.comsave.bak"), "keep-existing");
+        string before = Fingerprint(source);
+        var scene = EditorSceneManager.NewPreviewScene();
+        try
+        {
+            var host = new GameObject("VoxelIsolation_inactive_fixture"); host.SetActive(false); SceneManager.MoveGameObjectToScene(host, scene);
+            var inventory = host.AddComponent<InventorySession>();
+            var service = host.AddComponent<CommerceService>(); service.inventory = inventory; service.profileId = "native-voxel-isolation-01"; service.saveDirectory = source;
+            var probe = host.AddComponent(type); Set(probe, "directory", reports);
+            result.unauthorizedIsInert = !(bool)isolate.Invoke(probe, new object[] { scene, true }) && service.saveDirectory == source && inventory.enabled;
+            Set(probe, "smokeAuthorized", true);
+            var callback = type.GetMethod("SmokeSceneLoaded", BindingFlags.Instance | BindingFlags.NonPublic);
+            var handler = (UnityAction<Scene, LoadSceneMode>)Delegate.CreateDelegate(typeof(UnityAction<Scene, LoadSceneMode>), probe, callback);
+            SceneManager.sceneLoaded += handler; Set(probe, "sceneHookSubscribed", true);
+            result.routedBeforeStoreCreation = (bool)isolate.Invoke(probe, new object[] { scene, true }) && service.SavePath == null && service.SaveStatus == null;
+            result.directoryAndProfileCorrect = Path.GetFullPath(service.saveDirectory) == Path.GetFullPath(target) && service.profileId == "native-voxel-isolation-01";
+            result.inventoryRestoredAfterSuccess = inventory.enabled;
+            result.copiesSourceFilesWithoutOverwrite = File.ReadAllText(Path.Combine(target, "sample.comsave")) == "fixture-main" &&
+                File.ReadAllText(Path.Combine(target, "sample.comsave.bak")) == "keep-existing" &&
+                File.ReadAllText(Path.Combine(target, "sample.comsave.session")) == "fixture-session" && File.Exists(Path.Combine(target, "sample.comsave.write.lock"));
+            File.AppendAllText(Path.Combine(target, "sample.comsave"), "-isolated-write");
+            result.repeatedRouteIsIdempotent = (bool)isolate.Invoke(probe, new object[] { scene, true }) && File.ReadAllText(Path.Combine(target, "sample.comsave")).EndsWith("-isolated-write");
+            result.destroyHookBefore = (bool)Get(probe, "sceneHookSubscribed");
+            result.destroyDirectoryBefore = service.saveDirectory;
+            result.destroyExpectedRawDirectory = target;
+            result.destroyInvocation = "explicit MethodInfo.Invoke(OnDestroy); inactive GameObject, no automatic lifecycle assumption";
+            type.GetMethod("OnDestroy", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(probe, null);
+            result.destroyHookAfter = (bool)Get(probe, "sceneHookSubscribed");
+            result.destroyDirectoryAfter = service.saveDirectory;
+            result.destroyDirectoryUnchangedByCallback = result.destroyDirectoryBefore == result.destroyDirectoryAfter;
+            result.destroyDirectoryMatchesRawTarget = service.saveDirectory == target;
+            result.destroyActualCanonicalDirectory = Path.GetFullPath(service.saveDirectory);
+            result.destroyExpectedCanonicalDirectory = Path.GetFullPath(target);
+            result.destroyDirectoryMatchesCanonicalTarget = string.Equals(result.destroyActualCanonicalDirectory, result.destroyExpectedCanonicalDirectory, StringComparison.OrdinalIgnoreCase);
+            // Native已证实raw仅有混合斜杠差异；要求真实退订、回调前后字段原样不变且规范化目录精确一致。
+            result.destroyDetachesWithoutRestoringOriginalDirectory = result.destroyHookBefore && !result.destroyHookAfter &&
+                result.destroyDirectoryUnchangedByCallback && result.destroyDirectoryMatchesCanonicalTarget;
+            result.originalHashesUnchanged = before == Fingerprint(source);
+            var failing = host.AddComponent(type); Set(failing, "directory", source); Set(failing, "smokeAuthorized", true); service.saveDirectory = source;
+            bool refused = false;
+            try { isolate.Invoke(failing, new object[] { scene, true }); } catch (TargetInvocationException) { refused = true; }
+            result.failureKeepsInventoryBlocked = refused && !inventory.enabled && service.SavePath == null && before == Fingerprint(source);
+            result.previewOnlyAndInactive = !host.activeInHierarchy;
+            result.pass = result.unauthorizedIsInert && result.routedBeforeStoreCreation && result.directoryAndProfileCorrect && result.inventoryRestoredAfterSuccess &&
+                result.copiesSourceFilesWithoutOverwrite && result.repeatedRouteIsIdempotent && result.destroyDetachesWithoutRestoringOriginalDirectory &&
+                result.originalHashesUnchanged && result.failureKeepsInventoryBlocked && result.previewOnlyAndInactive;
+            result.reason = result.pass ? "GREEN: inactive preview Commerce routing/copy/hash/fail-closed lifecycle" : "Behavior fixture failed; inspect booleans";
+        }
+        finally { EditorSceneManager.ClosePreviewScene(scene); }
+    }
+    static object Get(object target, string field) { return target.GetType().GetField(field, BindingFlags.Instance | BindingFlags.NonPublic).GetValue(target); }
+    static void Set(object target, string field, object value) { target.GetType().GetField(field, BindingFlags.Instance | BindingFlags.NonPublic).SetValue(target, value); }
+    static string Fingerprint(string path)
+    {
+        return string.Join("\n", Directory.GetFiles(path).OrderBy(f => f, StringComparer.Ordinal).Select(file =>
+        { using (var hash = SHA256.Create()) return Path.GetFileName(file) + "|" + BitConverter.ToString(hash.ComputeHash(File.ReadAllBytes(file))); }));
+    }
+    [Serializable] public sealed class Result
+    {
+        public bool pass, compileSucceeded, isolationMethodMissing, validRed;
+        public bool unauthorizedIsInert, routedBeforeStoreCreation, directoryAndProfileCorrect, inventoryRestoredAfterSuccess,
+            copiesSourceFilesWithoutOverwrite, repeatedRouteIsIdempotent, destroyDetachesWithoutRestoringOriginalDirectory,
+            originalHashesUnchanged, failureKeepsInventoryBlocked, previewOnlyAndInactive;
+        public string reason, compilerOutput, candidateAssembly;
+        public bool destroyHookBefore, destroyHookAfter, destroyDirectoryUnchangedByCallback, destroyDirectoryMatchesRawTarget, destroyDirectoryMatchesCanonicalTarget;
+        public string destroyDirectoryBefore, destroyDirectoryAfter, destroyExpectedRawDirectory, destroyActualCanonicalDirectory, destroyExpectedCanonicalDirectory, destroyInvocation;
+    }
+}

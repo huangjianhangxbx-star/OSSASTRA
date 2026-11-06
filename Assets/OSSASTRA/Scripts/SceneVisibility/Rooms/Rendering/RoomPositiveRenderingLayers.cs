@@ -10,6 +10,8 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
 {
     public static class RoomPositiveRenderingLayers
     {
+        // 调度位不等同着色实现；显式Voxel源与Lit共用筛选位，由源感知resolver选各自适配器。
+        public const string VoxelLitShaderName = "Ossastra/WorldRendering/VoxelLit";
         public const uint FullBit = 1u << 16, PartialLitBit = 1u << 17,
             PartialUnlitBit = 1u << 18, PartialThinTopBit = 1u << 19,
             PartialDecorationBit = 1u << 20, PartialDepthPlaneBit = 1u << 21,
@@ -104,7 +106,7 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
             if (material == null || material.shader == null) return 0;
             string name = material.shader.name;
             if (name == "Universal Render Pipeline/Lit" || name == "Universal Render Pipeline/Simple Lit" ||
-                name == "Universal Render Pipeline/Unlit")
+                name == "Universal Render Pipeline/Unlit" || name == VoxelLitShaderName)
             {
                 if (material.HasProperty("_Surface") && material.GetFloat("_Surface") != 0) return 0;
                 return name == "Universal Render Pipeline/Unlit" ? PartialUnlitBit :

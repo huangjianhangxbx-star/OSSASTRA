@@ -64,8 +64,21 @@ namespace Ossastra.EnvironmentSimulation.Rendering
   void OnDisable(){RenderPipelineManager.beginCameraRendering-=BeginCamera;RenderPipelineManager.endCameraRendering-=EndCamera;EnvironmentCameraRegistry.Released-=EnvironmentReleased;Release();}
   void EnvironmentReleased(int cameraId){if(!ReferenceEquals(registeredCamera,null)&&registeredCamera.GetInstanceID()==cameraId)Release();}
   void OnDestroy(){Release();}
-  void BeginCamera(ScriptableRenderContext context,Camera camera){if(camera!=registeredCamera)Shader.SetGlobalFloat("_EnvironmentLightingEnabled",0);}
-  void EndCamera(ScriptableRenderContext context,Camera camera){Shader.SetGlobalFloat("_EnvironmentLightingEnabled",0);Shader.SetGlobalFloat("_EnvironmentRainDepthReady",0);}
+  void BeginCamera(ScriptableRenderContext context,Camera camera)
+  {
+   // 其它有效接收者服务此相机时不能清掉它刚上传的上下文；订阅先后不影响owner。
+   if(camera!=null&&bindings.TryGetValue(camera.GetInstanceID(),out var owner)&&owner!=null&&owner.isActiveAndEnabled&&owner!=this)return;
+   var cmd=CommandBufferPool.Get("Environment ordinary surface context");
+   try{UploadOrdinaryForCamera(cmd,camera);context.ExecuteCommandBuffer(cmd);}
+   finally{CommandBufferPool.Release(cmd);}
+  }
+  void EndCamera(ScriptableRenderContext context,Camera camera)
+  {
+   if(camera==null||camera!=registeredCamera||!bindings.TryGetValue(camera.GetInstanceID(),out var owner)||owner!=this)return;
+   var cmd=CommandBufferPool.Get("Environment end owned camera context");
+   try{ClearSurface(cmd);context.ExecuteCommandBuffer(cmd);}
+   finally{CommandBufferPool.Release(cmd);}
+  }
   void Update()
   {
    if(environment==null||environment.gameplayCamera==null||!environment.isActiveAndEnabled||SceneManager.GetActiveScene()!=gameObject.scene||!EnvironmentCameraRegistry.TryGet(environment.gameplayCamera,out var frame)||!frame.Enabled){Release();return;}
@@ -208,6 +221,24 @@ namespace Ossastra.EnvironmentSimulation.Rendering
   // RoomPass只获得环境阶段的能力结果；false不撤销世界颜色、深度或观察许可。
   public static bool PrepareSurfaceForCamera(Camera camera,out string reason)
   {if(!TryGet(camera,out var binding,out var frame)){reason="该相机无有效环境接收登记";return false;}return binding.TryPrepareSurfaceData(camera,out reason);}
+  // 仅构造专用环境缓冲，不提交GPU；普通源使用场景物role，许可绘制仍由原MPB/逐draw覆盖。
+  // 构造失败清掉该专用缓冲的半成命令后只关闭环境；提交错误由外层保留原故障边界。
+  public static void UploadOrdinaryForCamera(CommandBuffer cmd,Camera camera)
+  {
+   if(cmd==null)throw new ArgumentNullException(nameof(cmd));
+   EnvironmentSkyBinding binding=null;
+   try
+   {
+    if(!TryGet(camera,out binding,out var frame)){ClearSurface(cmd);return;}
+    cmd.SetGlobalFloat("_EnvironmentRainDepthReady",0);cmd.SetGlobalFloat("_EnvironmentSurfaceRole",1);
+    binding.Upload(cmd,frame);
+   }
+   catch(Exception error)
+   {
+    cmd.Clear();ClearSurface(cmd);
+    if(binding!=null){binding.SurfaceReady=false;binding.SurfaceStatus="普通环境命令构造失败，仅暂停环境："+error.GetType().Name+": "+error.Message;}
+   }
+  }
   public static void UploadForCamera(CommandBuffer cmd,Camera camera,RoomMaskFrame visibility)
   {
    cmd.SetGlobalFloat("_EnvironmentRainDepthReady",0);

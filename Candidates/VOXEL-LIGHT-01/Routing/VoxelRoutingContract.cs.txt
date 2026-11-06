@@ -1,0 +1,106 @@
+/* 功能：用实际源Shader和房间Pass验证显式Voxel路由、逐槽适配及撤销；不提交GPU命令。
+ * 能捕获：未登记新家族、所有Lit调度源误用同一adapter、缺失Voxel引用连带拒绝普通Lit、
+ *         Full/Roof接线遗漏、source.shader切换后继续刷新旧adapter、MPB/材质引用未归还。
+ * 边界：仅创建私有临时相机/网格Renderer/材质/Feature；finally精确释放，不改主场配置。
+ */
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Reflection;
+using Newtonsoft.Json;
+using UnityEngine;
+using Ossastra.SceneVisibility.Rooms.Rendering;
+
+public static class VoxelRoutingContract
+{
+ const BindingFlags Flags=BindingFlags.Instance|BindingFlags.Public|BindingFlags.NonPublic;
+ const string VoxelName="Ossastra/WorldRendering/VoxelLit",SightName="Ossastra/WorldRendering/SightVoxelLit";
+ public static string Run()
+ {
+  if(Application.dataPath!="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets")return "Wrong project";
+  var shader=Shader.Find(VoxelName);var sight=Shader.Find(SightName);
+  var lit=Shader.Find("Universal Render Pipeline/Lit");var litSight=Shader.Find("Hidden/Ossastra/Rooms/SightLit");
+  var truth=Shader.Find("Hidden/Ossastra/Rooms/PositiveTruth");
+  if(shader==null||sight==null||lit==null||litSight==null||truth==null)
+   return JsonConvert.SerializeObject(new{pass=false,prerequisitesMissing=true,voxel=shader!=null,sight=sight!=null,lit=lit!=null,litSight=litSight!=null,truth=truth!=null});
+  var results=new Dictionary<string,object>();var owned=new List<UnityEngine.Object>();object pass=null;
+  try
+  {
+   var cameraGo=new GameObject("VoxelRouting_private_camera");owned.Add(cameraGo);cameraGo.SetActive(false);var camera=cameraGo.AddComponent<Camera>();
+   var go=GameObject.CreatePrimitive(PrimitiveType.Cube);owned.Add(go);go.name="VoxelRouting_private_source";go.hideFlags=HideFlags.HideAndDontSave;
+   var renderer=go.GetComponent<Renderer>();var a=new Material(shader);var b=new Material(shader);var ordinary=new Material(lit);owned.Add(a);owned.Add(b);owned.Add(ordinary);
+   var feature=ScriptableObject.CreateInstance<RoomMaskRendererFeature>();owned.Add(feature);feature.positiveTruthShader=truth;feature.positiveLitShader=litSight;
+   var voxelField=typeof(RoomMaskRendererFeature).GetField("positiveVoxelLitShader",Flags);if(voxelField!=null)voxelField.SetValue(feature,sight);
+   var passType=typeof(RoomMaskRendererFeature).Assembly.GetType("Ossastra.SceneVisibility.Rooms.Rendering.RoomPositivePass",true);
+   pass=Activator.CreateInstance(passType,Flags,null,new object[]{camera},null);
+   var prepare=passType.GetMethod("PrepareBeforeCulling",Flags);var end=passType.GetMethod("EndScope",Flags);
+   var prepared=passType.GetField("preparedBeforeCulling",Flags);var error=passType.GetField("preparationError",Flags);
+   var buckets=passType.GetField("materialBuckets",Flags).GetValue(pass);var bucketType=buckets.GetType();
+   var active=bucketType.GetProperty("Active",Flags);var refresh=bucketType.GetMethod("RefreshAdapters",Flags);
+   Func<bool> isReady=()=> (bool)prepared.GetValue(pass);
+   Action<RoomMaskFrame> begin=frame=>{RoomPositiveRenderingLayers.AssignDrawMasks(frame.PositiveSurfaces);prepare.Invoke(pass,new object[]{frame,feature});};
+   Action finish=()=>end.Invoke(pass,null);
+
+   renderer.sharedMaterials=new[]{ordinary};var ordinaryFrame=Frame(renderer,RoomPositiveSurfaceKind.Partial);
+   begin(ordinaryFrame);results["ordinaryPrepared"]=isReady();finish();results["ordinaryRestored"]=Same(renderer.sharedMaterials,new[]{ordinary});
+   results["voxelClassified"]=RoomPositiveRenderingLayers.Classify(a)==RoomPositiveRenderingLayers.PartialLitBit;
+
+   renderer.sharedMaterials=new[]{a,ordinary,b};var frame=Frame(renderer,RoomPositiveSurfaceKind.Partial);
+   var originalBlock=new MaterialPropertyBlock();originalBlock.SetFloat("_VoxelRoutingSentinel",.125f);renderer.SetPropertyBlock(originalBlock);
+   var slotBlock=new MaterialPropertyBlock();slotBlock.SetFloat("_VoxelRoutingSlotSentinel",.75f);renderer.SetPropertyBlock(slotBlock,1);
+   begin(frame);results["mixedSlotsPrepared"]=isReady();results["mixedSlotsError"]=(string)error.GetValue(pass);
+   bool correctlyRouted=isReady();int voxelBuckets=0,ordinaryBuckets=0;
+   foreach(var bucket in (IEnumerable)active.GetValue(buckets))
+   {
+    var t=bucket.GetType();var source=(Material)t.GetField("Original",Flags).GetValue(bucket);var clone=(Material)t.GetField("Clone",Flags).GetValue(bucket);var adapter=(Material)t.GetField("Adapter",Flags).GetValue(bucket);
+    bool isVoxel=ReferenceEquals(source,a)||ReferenceEquals(source,b);bool isOrdinary=ReferenceEquals(source,ordinary);
+    if(isVoxel){++voxelBuckets;correctlyRouted&=adapter.shader==sight&&clone.shader==shader;}
+    else if(isOrdinary){++ordinaryBuckets;correctlyRouted&=adapter.shader==litSight&&clone.shader==lit;}
+    else correctlyRouted=false;
+   }
+   results["perSourceAdapters"]=correctlyRouted&&voxelBuckets==2&&ordinaryBuckets==1;
+   finish();var restoredBlock=new MaterialPropertyBlock();renderer.GetPropertyBlock(restoredBlock);var restoredSlot=new MaterialPropertyBlock();renderer.GetPropertyBlock(restoredSlot,1);
+   results["mixedSlotsRestored"]=Same(renderer.sharedMaterials,new[]{a,ordinary,b});
+   results["propertyBlocksRestored"]=restoredBlock.GetFloat("_VoxelRoutingSentinel")==.125f&&restoredSlot.GetFloat("_VoxelRoutingSlotSentinel")==.75f&&restoredBlock.GetFloat("_RoomSightOwnerExterior")==0&&restoredSlot.GetFloat("_RoomSightOwnerExterior")==0;
+
+   renderer.sharedMaterials=new[]{a};var full=Frame(renderer,RoomPositiveSurfaceKind.Full);begin(full);
+   int fullBuckets=0;foreach(var unused in (IEnumerable)active.GetValue(buckets))++fullBuckets;
+   results["fullKeepsSource"]=isReady()&&fullBuckets==0&&Same(renderer.sharedMaterials,new[]{a});finish();
+   var environmentFull=Frame(renderer,RoomPositiveSurfaceKind.Partial);var surface=environmentFull.PositiveSurfaces[0];surface.EnvironmentFullSurface=true;environmentFull.PositiveSurfaces[0]=surface;
+   begin(environmentFull);renderer.GetPropertyBlock(restoredBlock);
+   results["environmentFullPrepared"]=isReady()&&restoredBlock.GetFloat("_EnvironmentFullSurface")==1;finish();
+   var roof=Frame(renderer,RoomPositiveSurfaceKind.Roof);begin(roof);bool roofAdapter=isReady();int roofCount=0;
+   foreach(var bucket in (IEnumerable)active.GetValue(buckets)){++roofCount;roofAdapter&=((Material)bucket.GetType().GetField("Adapter",Flags).GetValue(bucket)).shader==sight;}
+   renderer.GetPropertyBlock(restoredBlock);results["roofUsesVoxelAdapter"]=roofAdapter&&roofCount==1&&restoredBlock.GetFloat("_RoomSightRoofMode")==1;finish();
+
+   if(voxelField!=null)voxelField.SetValue(feature,null);
+   begin(Frame(renderer,RoomPositiveSurfaceKind.Partial));results["missingVoxelRejected"]=!isReady();results["missingVoxelError"]=(string)error.GetValue(pass);finish();
+   renderer.sharedMaterials=new[]{ordinary};begin(Frame(renderer,RoomPositiveSurfaceKind.Partial));results["missingVoxelDoesNotRejectLit"]=isReady();finish();
+   if(voxelField!=null)voxelField.SetValue(feature,sight);
+   renderer.sharedMaterials=new[]{a};begin(Frame(renderer,RoomPositiveSurfaceKind.Partial));results["referenceRepairRecovers"]=isReady();finish();
+
+   begin(Frame(renderer,RoomPositiveSurfaceKind.Partial));bool mutationRejected=false;
+   if(isReady())
+   {
+    a.shader=lit;
+    try{refresh.Invoke(buckets,null);}catch(TargetInvocationException failure){mutationRejected=failure.InnerException is InvalidOperationException;}
+   }
+   results["shaderMutationRejected"]=mutationRejected;finish();
+   begin(Frame(renderer,RoomPositiveSurfaceKind.Partial));bool rebuilt=isReady();int rebuildCount=0;
+   foreach(var bucket in (IEnumerable)active.GetValue(buckets)){++rebuildCount;rebuilt&=((Material)bucket.GetType().GetField("Adapter",Flags).GetValue(bucket)).shader==litSight;}
+   results["shaderMutationRebuilds"]=rebuilt&&rebuildCount==1;finish();a.shader=shader;
+   results["finalSourceReferencesRestored"]=Same(renderer.sharedMaterials,new[]{a});
+   bool success=true;foreach(var pair in results)if(pair.Value is bool value&&!value)success=false;results["pass"]=success;
+   return JsonConvert.SerializeObject(results);
+  }
+  finally
+  {
+   if(pass is IDisposable disposable)disposable.Dispose();
+   for(int i=owned.Count-1;i>=0;--i)if(owned[i]!=null)UnityEngine.Object.DestroyImmediate(owned[i]);
+  }
+ }
+ static bool Same(Material[] actual,Material[] expected)
+ {if(actual.Length!=expected.Length)return false;for(int i=0;i<actual.Length;++i)if(!ReferenceEquals(actual[i],expected[i]))return false;return true;}
+ static RoomMaskFrame Frame(Renderer renderer,RoomPositiveSurfaceKind kind)
+ {return new RoomMaskFrame{Enabled=true,PositiveRenderingEnabled=true,TruthMode=false,ExteriorView=true,Fog=new RoomFogSettings{Enabled=false},PositiveSurfaces=new[]{new RoomPositiveSurface{Renderer=renderer,Kind=kind,OwnerExterior=true,OwnerVolumes=Array.Empty<RoomMaskVolume>(),EnvironmentSurfaceRole=1,EnvironmentResponseOverride=1,EnvironmentReceiveShadow=1}}};}
+}

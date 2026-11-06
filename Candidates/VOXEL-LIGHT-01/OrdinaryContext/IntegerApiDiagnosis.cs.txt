@@ -1,0 +1,23 @@
+/* 功能：证明本机Unity的旧Int API读取浮点槽；只改私有probe全局并在finally分别归还两槽。
+ * 不修改当前环境、工作集、相机、登记字典或任何生产对象；不提交绘制命令。
+ */
+using UnityEngine;
+using UnityEngine.Rendering;
+using Newtonsoft.Json;
+public static class IntegerApiDiagnosis
+{
+ public static string Run()
+ {
+  const string probe="_VoxelOrdinaryContextIntegerProbe";float beforeFloat=Shader.GetGlobalFloat(probe);int beforeInteger=Shader.GetGlobalInteger(probe);
+  var cmd=new CommandBuffer{name="Ordinary context integer API diagnosis"};
+  try
+  {
+   cmd.SetGlobalFloat(probe,1.75f);cmd.SetGlobalInteger(probe,23);Graphics.ExecuteCommandBuffer(cmd);
+   int legacyRead=Shader.GetGlobalInt(probe),integerRead=Shader.GetGlobalInteger(probe);float floatRead=Shader.GetGlobalFloat(probe);
+   return JsonConvert.SerializeObject(new{pass=legacyRead==1&&integerRead==23&&floatRead==1.75f,legacyRead,integerRead,floatRead,
+    environmentLegacyRead=Shader.GetGlobalInt("_EnvironmentIndoorCount"),environmentIntegerRead=Shader.GetGlobalInteger("_EnvironmentIndoorCount"),
+    diagnosis="GetGlobalInt reads float storage; SetGlobalInteger must pair with GetGlobalInteger."});
+  }
+  finally{cmd.Clear();cmd.SetGlobalFloat(probe,beforeFloat);cmd.SetGlobalInteger(probe,beforeInteger);Graphics.ExecuteCommandBuffer(cmd);cmd.Release();}
+ }
+}

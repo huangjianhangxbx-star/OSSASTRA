@@ -270,10 +270,14 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
                     (surface.DrawMaterial == null || surface.DrawMask == 0 || surface.DrawMask == RoomPositiveRenderingLayers.IndependentBit))
                 { error = "动态Lit缺少剔除前的独立材质筛选组；拒绝借用角色共享材质。"; return false; }
                 if (surface.Kind == RoomPositiveSurfaceKind.Roof && RoomPositiveRenderingLayers.Classify(surface.Renderer) != RoomPositiveRenderingLayers.PartialLitBit)
-                { error = "当前局部屋顶像素路径只支持原URP Lit顶盖。"; return false; }
-                Shader shader = ShaderFor(family, out int unused);
-                if (shader == null || !shader.isSupported)
-                { error = "缺少可运行的正向源家族Shader引用：" + family; return false; }
+                { error = "当前局部屋顶像素路径只支持已登记的Lit顶盖。"; return false; }
+                // 同一个Lit调度位可包含原Lit和显式Voxel槽；每槽验证其真正使用的适配器。
+                foreach (var source in sourceRenderer.sharedMaterials)
+                {
+                    Shader shader = ShaderFor(source, family, out int unused);
+                    if (shader == null || !shader.isSupported)
+                    { error = "缺少可运行的正向源家族Shader引用：" + (source.shader == null ? "null" : source.shader.name); return false; }
+                }
             }
             return true;
         }
@@ -287,9 +291,12 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
             return true;
         }
 
-        Shader ShaderFor(uint family, out int pass)
+        Shader ShaderFor(Material source, uint family, out int pass)
         {
             pass = 0;
+            if ((family == RoomPositiveRenderingLayers.PartialLitBit || family == RoomPositiveRenderingLayers.RoofBit) &&
+                source != null && source.shader != null && source.shader.name == RoomPositiveRenderingLayers.VoxelLitShaderName)
+                return feature.positiveVoxelLitShader;
             if (family == RoomPositiveRenderingLayers.PartialLitBit || family == RoomPositiveRenderingLayers.RoofBit) return feature.positiveLitShader;
             if (family == RoomPositiveRenderingLayers.PartialSimpleLitBit) return feature.positiveSimpleLitShader;
             if (family == RoomPositiveRenderingLayers.PartialUnlitBit) return feature.positiveUnlitShader;
@@ -564,7 +571,7 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
 
         Material ShadedAdapter(Material source, RoomPositiveSurfaceKind kind, uint family, out int pass)
         {
-            var shader = ShaderFor(family, out pass);
+            var shader = ShaderFor(source, family, out pass);
             if (source == null || shader == null || !shader.isSupported) { ++Statistics.UnsupportedMaterialCount; return null; }
             var key = new MaterialKey(source, kind, false, false, true);
             if (!materials.TryGetValue(key, out var adapter))
