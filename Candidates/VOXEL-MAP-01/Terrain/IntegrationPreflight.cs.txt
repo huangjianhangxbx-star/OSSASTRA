@@ -1,0 +1,159 @@
+// 独立场景 Edit 只读预检：不创建/保存/修改对象，不推进任何业务状态。
+using System;
+using System.Linq;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEngine.Rendering;
+using UnityEditor;
+using Ossastra.VoxelTerrain;
+using Ossastra.SceneVisibility.Rooms;
+using Funplay.Editor.Tools.Scripting;
+
+public sealed class VoxelTerrainIntegrationPreflight : IFunplayCommand
+{
+    sealed class Check { public string name; public bool pass; public string detail; }
+    readonly List<Check> checks = new List<Check>();
+    void Add(string name,bool pass,string detail=null) { checks.Add(new Check{name=name,pass=pass,detail=detail}); }
+
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+    {
+        var scene=SceneManager.GetActiveScene(); bool wasDirty=scene.isDirty;
+        var objects=scene.GetRootGameObjects().SelectMany(r=>r.GetComponentsInChildren<Transform>(true)).Select(t=>t.gameObject).ToArray();
+        var installations=Components<VoxelTerrainInstallation>(objects);
+        Add("active author scene is in Edit",!Application.isPlaying&&scene.IsValid()&&scene.isLoaded&&!string.IsNullOrEmpty(scene.path));
+        Add("one explicit terrain installation",installations.Length==1,"count="+installations.Length);
+        if(Application.isPlaying||installations.Length!=1) { Return(ctx,scene,wasDirty); return; }
+        var install=installations[0];
+        VoxelTerrainSource source=null; VoxelTerrainMeshData[] expected=null;
+        try
+        {
+            if(install.editableSource==null||install.frozenSurfaces==null) throw new Exception("Missing imported author/frozen TextAssets");
+            source=VoxelTerrainSource.Parse(install.editableSource.text,install.frozenSurfaces.text);
+            expected=VoxelTerrainGeometry.Build(source,QualitySettings.activeColorSpace==ColorSpace.Linear);
+            Add("source SHA and native occupancy/surface contract valid",source.SourceSha256==install.sourceSha256,"cells="+source.CellCount+", quads="+source.QuadCount+", faces="+source.ExposedUnitFaceCount);
+            Add("terrain budgets respected",source.CellCount<=250000&&source.QuadCount<=250000&&expected.Sum(m=>m.Vertices.Length)<=1000000);
+        }
+        catch(Exception error) { Add("source SHA and native occupancy/surface contract valid",false,Short(error.GetBaseException().Message)); }
+
+        var chunks=Safe(install.chunks); var collision=Safe(install.collision);
+        bool meshesValid=expected!=null&&chunks.Length==expected.Length&&collision.Length==chunks.Length;
+        bool normalValid=true; int vertices=0,triangles=0; var badMeshes=new List<string>();
+        var byName=expected==null?new Dictionary<string,VoxelTerrainMeshData>():expected.ToDictionary(m=>"NativeChunk_"+m.ChunkKey.Replace(',','_'));
+        var chunkNames=new HashSet<string>();
+        for(int index=0;index<chunks.Length;index++)
+        {
+            var renderer=chunks[index];
+            if(renderer==null||!chunkNames.Add(renderer.name)||!byName.TryGetValue(renderer.name,out var data)) { meshesValid=false; badMeshes.Add(renderer==null?"null chunk":renderer.name); continue; }
+            var filter=renderer.GetComponent<MeshFilter>(); var mesh=filter==null?null:filter.sharedMesh;
+            if(mesh==null||!mesh.isReadable) { meshesValid=false; badMeshes.Add(renderer.name+": unreadable mesh"); continue; }
+            var v=mesh.vertices; var n=mesh.normals; var uv=mesh.uv;
+            bool same=v.Length==data.Vertices.Length&&n.Length==v.Length&&uv.Length==v.Length&&mesh.subMeshCount==3;
+            vertices+=v.Length;
+            if(same) for(int i=0;i<v.Length;i++) same&=Near(v[i],data.Vertices[i])&&Near(n[i],data.Normals[i])&&Vector2.Distance(uv[i],data.Uv[i])<.00001f;
+            for(int slot=0;slot<mesh.subMeshCount;slot++)
+            {
+                int[] ids=mesh.GetTriangles(slot); triangles+=ids.Length/3;
+                same&=slot<3&&ids.SequenceEqual(data.SubmeshTriangles[slot]);
+                if(n.Length!=v.Length) { normalValid=false; continue; }
+                for(int i=0;i<ids.Length;i+=3)
+                {
+                    int a=ids[i],b=ids[i+1],c=ids[i+2];
+                    normalValid&=Vector3.Dot(Vector3.Cross(v[b]-v[a],v[c]-v[a]).normalized,n[a])>.999f;
+                    if(slot==0||slot==2) normalValid&=n[a].y>.999f;
+                }
+            }
+            bool solid=index<collision.Length&&collision[index]!=null&&collision[index].enabled&&collision[index].gameObject.activeInHierarchy&&!collision[index].isTrigger&&!collision[index].convex&&collision[index].sharedMesh==mesh&&collision[index].gameObject==renderer.gameObject;
+            same&=solid&&renderer.gameObject.scene==scene;
+            meshesValid&=same;
+            if(!same)badMeshes.Add(renderer.name);
+        }
+        Add("installed meshes/colliders match frozen native chunks",meshesValid,"chunks="+chunks.Length+", vertices="+vertices+", triangles="+triangles+", bad="+string.Join(",",badMeshes.Take(5)));
+        Add("installed positive winding and grass/basin upward normals",normalValid&&vertices>0);
+        Add("native terrain root keeps source meter coordinates",Near(install.transform.position,Vector3.zero)&&Quaternion.Angle(install.transform.rotation,Quaternion.identity)<.001f&&Near(install.transform.lossyScale,Vector3.one));
+
+        AddHeight("hill A collider top",collision,new Vector2(-24,-4),.75f);
+        AddHeight("hill B collider top",collision,new Vector2(24,12),1.25f);
+        AddHeight("real pond collider bed",collision,new Vector2(15,-16),-.5f);
+        AddHeight("business row west support",collision,new Vector2(7,-24),0);
+        AddHeight("business row east support",collision,new Vector2(21,-24),0);
+        Add("old continuous support retired without deleting reference",install.retiredLowSupport!=null&&!install.retiredLowSupport.enabled);
+        Add("water is -0.18m display and never a solid support",install.water!=null&&install.water.GetComponent<Collider>()==null&&install.water.GetComponent<MeshFilter>()!=null&&install.water.GetComponent<MeshFilter>().sharedMesh!=null&&Mathf.Abs(install.water.bounds.center.y+.18f)<.001f);
+
+        var props=Safe(install.migratedProps); var previous=Safe(install.previousPropSupports); var badProps=new List<string>(); var fallbackProps=new List<string>();
+        bool references=props.Length==15&&props.Distinct().Count()==15&&previous.Length==props.Length;
+        for(int i=0;i<props.Length;i++)
+        {
+            var prop=props[i]; bool good=prop!=null&&prop.gameObject.scene==scene&&prop.supportSurface==null&&prop.support!=null&&prop.support!=install.retiredLowSupport&&prop.support.enabled&&prop.support.gameObject.activeInHierarchy&&prop.safeDropAnchor!=null&&i<previous.Length&&previous[i]==install.retiredLowSupport;
+            if(good)
+            {
+                Vector3 anchor=prop.safeDropAnchor.position;
+                bool center=prop.support.Raycast(new Ray(anchor+Vector3.up*.4f,Vector3.down),out var hit,.8f)&&hit.normal.y>=.7f&&Mathf.Abs(hit.point.y-anchor.y)<=.2f;
+                // 使用生产入口的五个有限候选与障碍检查，不把单根中心射线当作全部可拾取条件。
+                good=Ossastra.WorldProps.WorldPropPlacement.TryPlace(prop,out var placed,out var placementError);
+                if(good&&!center)fallbackProps.Add(prop.name);
+                if(!good)badProps.Add(prop.name+": "+Short(placementError)+", anchor="+anchor+", support="+prop.support.name+", centerRay="+center);
+            }
+            else badProps.Add(prop==null?"null prop":prop.name+": invalid explicit reference/state");
+            references&=good;
+        }
+        Add("15 migrated props retain old references and satisfy production same-layer placement",references,"count="+props.Length+", finite-offset fallback="+string.Join(",",fallbackProps.Take(3))+", bad="+string.Join(",",badProps.Take(5)));
+        Add("legacy ground displays retired with rollback state retained",Safe(install.previousGroundRenderers).Length>0&&Safe(install.previousGroundEnabled).Length==Safe(install.previousGroundRenderers).Length&&Safe(install.previousGroundRenderers).All(r=>r!=null&&!r.enabled));
+        // 缓存叶是合法可重建对象；回退权威必须是稳定Binding，而不是重开后会失效的叶Renderer引用。
+        var cacheBindings=Safe(install.previousCacheBindings);var cacheUse=Safe(install.previousCacheUse);
+        var sceneBindings=Components<Ossastra.GroundSurfaces.GroundSurfaceBinding>(objects);
+        bool cacheOwnership=cacheBindings.Length>0&&cacheUse.Length==cacheBindings.Length&&cacheBindings.Distinct().Count()==cacheBindings.Length&&cacheBindings.Length==sceneBindings.Length&&cacheBindings.All(b=>b!=null&&b.gameObject.scene==scene&&sceneBindings.Contains(b)&&!b.useCache);
+        Add("legacy cache rollback retains stable author bindings and useCache snapshots",cacheOwnership,"bindings="+cacheBindings.Length+", saved states="+cacheUse.Length);
+        Add("retired cache roots stay hidden while independent standing caps remain active",cacheOwnership&&cacheBindings.All(b=>b.isActiveAndEnabled&&b.cacheRoot!=null&&!b.cacheRoot.gameObject.activeSelf&&b.capCollider!=null&&b.capCollider.enabled&&b.capCollider.gameObject.activeInHierarchy&&b.capCollider.sharedMesh!=null&&!b.capCollider.transform.IsChildOf(b.cacheRoot)));
+        Add("stable renderer rollback references contain no disposable cache leaves",Safe(install.previousGroundRenderers).All(r=>r!=null&&!cacheBindings.Any(b=>b!=null&&b.cacheRoot!=null&&r.transform.IsChildOf(b.cacheRoot))));
+
+        var modules=Components<RoomVisibilityModule>(objects); var roots=Components<Ossastra.SceneVisibility.SceneVisibilityRoot>(objects);
+        RoomVisibilityModule module=modules.Length==1?modules[0]:null; var root=roots.Length==1?roots[0]:null;
+        string reason="missing or duplicated visibility roots";
+        Add("single original visibility module accepts complete installation",module!=null&&root!=null&&module.TryValidateConfiguration(root,out reason),Short(reason));
+        if(module!=null)
+        {
+            var shared=new HashSet<Renderer>(Safe(module.sharedSurfaces)); var statics=new HashSet<Renderer>(Safe(module.staticEnvironmentSurfaces));
+            Add("native terrain and water belong to both visibility surface lists",chunks.All(r=>r!=null&&shared.Contains(r)&&statics.Contains(r))&&install.water!=null&&shared.Contains(install.water)&&statics.Contains(install.water));
+        }
+        var building=install.timberHouse==null?null:install.timberHouse.GetComponent<BuildingVisibilityRoot>();
+        var roofs=building==null?new Renderer[0]:Safe(building.roofGroups).Where(g=>g!=null).SelectMany(g=>Safe(g.members)).ToArray();
+        var walls=building==null?new Renderer[0]:Safe(building.structuralMembers);
+        bool roofPhysics=roofs.Length==3&&roofs.All(r=>r!=null&&r.gameObject.activeInHierarchy&&r.enabled&&r.shadowCastingMode!=ShadowCastingMode.Off&&r.GetComponent<MeshCollider>()!=null&&r.GetComponent<MeshFilter>()!=null&&r.GetComponent<MeshCollider>().enabled&&!r.GetComponent<MeshCollider>().isTrigger&&r.GetComponent<MeshCollider>().sharedMesh==r.GetComponent<MeshFilter>().sharedMesh);
+        var roofExclusions=building==null?new Collider[0]:Safe(building.roofGroups).Where(g=>g!=null).SelectMany(g=>Safe(g.labelRaycastExclusions)).ToArray();
+        roofPhysics&=roofExclusions.Length==3&&roofs.All(r=>roofExclusions.Contains(r==null?null:r.GetComponent<Collider>()));
+        Add("three roof visuals preserve their original shadowcasters and physical meshes",roofPhysics);
+        Add("four structural walls keep collision and are separate from roof group",building!=null&&walls.Length==4&&walls.All(r=>r!=null&&!roofs.Contains(r)&&r.enabled&&r.GetComponent<MeshCollider>()!=null&&r.GetComponent<MeshCollider>().enabled)&&module!=null&&Safe(module.buildings).Contains(building)&&Safe(building.portals).Length==4);
+        var participants=root==null||root.coordinator==null?new Ossastra.Characters.CharacterRoot[0]:root.coordinator.Characters.ToArray();
+        var clearances=participants.Where(a=>a!=null).Select(a=>a.GetComponent<Ossastra.Characters.CharacterEnvironmentClearance>()).Where(c=>c!=null).ToArray();
+        Add("both actor clearances reference house walls without ingesting terrain slabs",clearances.Length==2&&clearances.All(c=>walls.All(w=>w!=null&&Safe(c.environmentSolids).Contains(w.GetComponent<Collider>()))&&!Safe(c.environmentSolids).Any(collider=>collision.Contains(collider))));
+
+        var bindings=Components<Ossastra.GroundSurfaces.GroundSurfaceBinding>(objects).Where(b=>b.capCollider!=null).ToArray();
+        var caps=install.GetComponentsInChildren<MeshRenderer>(true).Where(r=>r.name.StartsWith("Preserved3DPlateau_",StringComparison.Ordinal)).ToArray();
+        var wrongCaps=bindings.Where(b=>!b.capCollider.enabled||!caps.Any(r=>Near(r.bounds.min,b.capCollider.bounds.min)&&Near(r.bounds.max,b.capCollider.bounds.max))).Select(b=>b.name).ToArray();
+        Add("preserved high-platform cap displays match each actual old collision bound",bindings.Length>0&&caps.Length==bindings.Length&&wrongCaps.Length==0,"bindings="+bindings.Length+", displays="+caps.Length+", unmatched="+string.Join(",",wrongCaps.Take(5)));
+
+        var missing=objects.Select(g=>new{g,count=GameObjectUtility.GetMonoBehavioursWithMissingScriptCount(g)}).Where(x=>x.count>0).ToArray();
+        Add("active author scene has no missing scripts",missing.Length==0,"count="+missing.Sum(x=>x.count)+", objects="+string.Join(",",missing.Take(5).Select(x=>x.g.name)));
+        var actors=Components<Ossastra.Characters.CharacterRoot>(objects);
+        var panels=Components<Ossastra.Development.VoxelTerrain.VoxelTerrainLabPanel>(objects);
+        Add("original two actors and explicitly wired folded navigation retained",root!=null&&participants.Length==2&&participants.All(a=>a!=null&&actors.Contains(a))&&panels.Length==1&&panels[0].installation==install&&panels[0].navigation!=null&&panels[0].coordinator==root.coordinator&&panels[0].map!=null&&!panels[0].Expanded);
+        Return(ctx,scene,wasDirty);
+    }
+    void AddHeight(string label,MeshCollider[] colliders,Vector2 xz,float expected)
+    {
+        bool found=false; float height=float.NegativeInfinity,normal=0;
+        var ray=new Ray(new Vector3(xz.x,10,xz.y),Vector3.down);
+        foreach(var collider in colliders) if(collider!=null&&collider.enabled&&collider.gameObject.activeInHierarchy&&collider.Raycast(ray,out var hit,30)&&hit.point.y>height){height=hit.point.y;normal=hit.normal.y;found=true;}
+        Add(label,found&&Mathf.Abs(height-expected)<.001f&&normal>.999f,"actual="+(found?height.ToString("0.000",System.Globalization.CultureInfo.InvariantCulture):"no hit")+", expected="+expected.ToString(System.Globalization.CultureInfo.InvariantCulture));
+    }
+    void Return(Funplay.Editor.Tools.Scripting.ExecutionContext ctx,Scene scene,bool wasDirty)
+    {
+        Add("read-only preflight preserves scene dirty state",scene.isDirty==wasDirty);
+        ctx.ReturnValue=new{pass=checks.All(c=>c.pass),scene=scene.path,wasDirty,checks};
+    }
+    static T[] Components<T>(GameObject[] objects) where T:Component { return objects.SelectMany(g=>g.GetComponents<T>()).Where(c=>c!=null).ToArray(); }
+    static T[] Safe<T>(T[] array) { return array??Array.Empty<T>(); }
+    static bool Near(Vector3 a,Vector3 b) { return (a-b).sqrMagnitude<.000001f; }
+    static string Short(string text) { return text==null?null:text.Length<=220?text:text.Substring(0,220); }
+}

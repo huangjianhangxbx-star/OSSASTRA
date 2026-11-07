@@ -1,0 +1,116 @@
+// Native 合同：缺少功能类型是有效 RED；本脚本不改资产、场景或编辑器状态。
+using System;
+using System.Linq;
+using System.Collections.Generic;
+using System.Reflection;
+using System.Text;
+using System.Security.Cryptography;
+using Newtonsoft.Json.Linq;
+using UnityEngine;
+using Funplay.Editor.Tools.Scripting;
+
+public sealed class VoxelTerrainFeatureContract : IFunplayCommand
+{
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+    {
+        var checks = new List<object>();
+        var sourceType = Find("Ossastra.VoxelTerrain.VoxelTerrainSource");
+        var geometryType = Find("Ossastra.VoxelTerrain.VoxelTerrainGeometry");
+        var parse = sourceType == null ? null : sourceType.GetMethod("Parse", new[] { typeof(string), typeof(string) });
+        var build = sourceType == null || geometryType == null ? null : geometryType.GetMethod("Build", new[] { sourceType, typeof(bool) });
+        checks.Add(new { name = "Native receiver exists with explicit Parse and Build seams", pass = parse != null && build != null });
+        if (parse == null || build == null)
+        {
+            ctx.ReturnValue = new { checks, reason = "feature missing; valid RED, not compile failure" };
+            return;
+        }
+        try
+        {
+            string author = Author();
+            var surface = Surface(author);
+            var source = parse.Invoke(null, new object[] { author, surface.ToString(Newtonsoft.Json.Formatting.None) });
+            var chunks = (Array)build.Invoke(null, new object[] { source, true });
+            checks.Add(new { name = "one native voxel yields six outward faces with stable identity", pass = (string)Read(source, "AssetId") == "voxel-map-contract" && (int)Read(source, "CellCount") == 1 && (int)Read(source, "ExposedUnitFaceCount") == 6 && chunks.Length == 1 });
+            var mesh = chunks.GetValue(0);
+            var positions = (Vector3[])Read(mesh, "Vertices");
+            var normals = (Vector3[])Read(mesh, "Normals");
+            var triangles = (int[][])Read(mesh, "SubmeshTriangles");
+            bool outward = true;
+            foreach (var submesh in triangles)
+                for (int i = 0; i < submesh.Length; i += 3)
+                {
+                    int a = submesh[i], b = submesh[i + 1], c = submesh[i + 2];
+                    outward &= Vector3.Dot(Vector3.Cross(positions[b] - positions[a], positions[c] - positions[a]).normalized, normals[a]) > 0.999f;
+                }
+            checks.Add(new { name = "RH Z-up to Unity axis swap preserves positive face winding", pass = outward && positions.All(p => p.x >= 1 && p.x <= 1.25f && p.y >= 3 && p.y <= 3.25f && p.z >= -2 && p.z <= -1.75f) });
+            checks.Add(new { name = "only upward face uses grass; side and bottom stay soil", pass = triangles.Length == 3 && triangles[0].Length == 6 && triangles[1].Length == 30 && triangles[2].Length == 0 });
+            var mismatch = (JObject)surface.DeepClone(); mismatch["sourceSha256"] = new string('0', 64);
+            checks.Add(new { name = "mismatched source is rejected before geometry exists", pass = Rejects(parse, author, mismatch) });
+            var wrongAxis = (JObject)surface.DeepClone(); wrongAxis["axes"] = "LH_Y_UP";
+            checks.Add(new { name = "unknown coordinate convention is rejected", pass = Rejects(parse, author, wrongAxis) });
+            var omitted = (JObject)surface.DeepClone(); ((JArray)omitted["quads"]).RemoveAt(0);
+            checks.Add(new { name = "missing exterior face is rejected rather than patched", pass = Rejects(parse, author, omitted) });
+            var duplicate = (JObject)surface.DeepClone(); ((JArray)duplicate["quads"]).Add(duplicate["quads"][0].DeepClone());
+            checks.Add(new { name = "overlapping unit face is rejected", pass = Rejects(parse, author, duplicate) });
+            var overflow = (JObject)surface.DeepClone(); overflow["quads"][0]["w"] = 1000000;
+            checks.Add(new { name = "oversized frozen quad is rejected before allocating mesh", pass = Rejects(parse, author, overflow) });
+            var pairAuthor = JObject.Parse(author);
+            ((JArray)pairAuthor["cells"]).Add(new JObject { ["x"] = 5, ["y"] = -8, ["z"] = 12, ["color"] = 0, ["owner"] = "height" });
+            string pairJson = pairAuthor.ToString(Newtonsoft.Json.Formatting.None);
+            var pairSurface = Surface(pairJson);
+            var longSouth = Q(1,-1,-8,4,12,1); longSouth["w"] = 2;
+            var longNorth = Q(1,1,-7,4,12,1); longNorth["w"] = 2;
+            var longBottom = Q(2,-1,12,4,-8,1); longBottom["w"] = 2;
+            var longTop = Q(2,1,13,4,-8,0); longTop["w"] = 2;
+            pairSurface["quads"] = new JArray(Q(0,-1,4,-8,12,1),Q(0,1,6,-8,12,1),longSouth,longNorth,longBottom,longTop);
+            var pair = parse.Invoke(null,new object[] {pairJson,pairSurface.ToString(Newtonsoft.Json.Formatting.None)});
+            checks.Add(new { name="adjacent native voxels contain ten exterior unit faces and no internal face", pass=(int)Read(pair,"CellCount")==2 && (int)Read(pair,"ExposedUnitFaceCount")==10 && (int)Read(pair,"QuadCount")==6 });
+            ((JArray)pairSurface["quads"]).Add(Q(0,1,5,-8,12,1));
+            checks.Add(new { name="frozen internal face is rejected even with matching source hash", pass=Rejects(parse,pairJson,pairSurface) });
+            var wrongScaleAuthor = JObject.Parse(author); wrongScaleAuthor["voxelSize"] = 0.5;
+            string wrongScaleJson = wrongScaleAuthor.ToString(Newtonsoft.Json.Formatting.None);
+            var wrongScaleSurface = Surface(wrongScaleJson); wrongScaleSurface["voxelSize"] = 0.5;
+            checks.Add(new { name="matching payload cannot override fixed 0.25m native voxel size", pass=Rejects(parse,wrongScaleJson,wrongScaleSurface) });
+        }
+        catch (Exception exception)
+        {
+            checks.Add(new { name = "real source to mesh behavior executes", pass = false, error = exception.GetBaseException().Message });
+        }
+        ctx.ReturnValue = new { checks };
+    }
+
+    private static Type Find(string name) { return AppDomain.CurrentDomain.GetAssemblies().Select(a => a.GetType(name, false)).FirstOrDefault(t => t != null); }
+    private static object Read(object target, string name) { return target.GetType().GetProperty(name).GetValue(target, null); }
+    private static bool Rejects(MethodInfo parse, string author, JObject surface)
+    {
+        try { parse.Invoke(null, new object[] { author, surface.ToString(Newtonsoft.Json.Formatting.None) }); return false; }
+        catch (TargetInvocationException exception) { return exception.InnerException is ArgumentException || exception.InnerException is FormatException; }
+    }
+    private static string Author()
+    {
+        return new JObject {
+            ["schema"] = "xinghai-workshop-asset-1", ["assetId"] = "voxel-map-contract", ["revision"] = 1,
+            ["name"] = "one native cube", ["voxelSize"] = 0.25, ["anchorM"] = new JArray(0,0,0), ["rootMode"] = "grid",
+            ["protectedColumns"] = new JArray(), ["palette"] = new JArray("#ffffff", "#684832"), ["sideColor"] = 1,
+            ["materialProfile"] = new JObject { ["schema"] = "xinghai-palette-1", ["profileId"] = "contract-profile", ["profileRevision"] = 1, ["paletteId"] = "contract-palette", ["paletteRevision"] = 1, ["unit"] = "meters", ["axes"] = "RH_Z_UP", ["gridStep"] = 0.25, ["colors"] = new JArray(ProfileColor("white",1,1,1),ProfileColor("soil",104f/255,72f/255,50f/255)) },
+            ["cells"] = new JArray(new JObject { ["x"] = 4, ["y"] = -8, ["z"] = 12, ["color"] = 0, ["owner"] = "height" })
+        }.ToString(Newtonsoft.Json.Formatting.None);
+    }
+    private static JObject Surface(string author)
+    {
+        string sha; using (var hash = SHA256.Create()) sha = BitConverter.ToString(hash.ComputeHash(Encoding.UTF8.GetBytes(author))).Replace("-", "").ToLowerInvariant();
+        return new JObject {
+            ["schema"] = "ossastra-voxel-surface-1", ["sourceSha256"] = sha, ["assetId"] = "voxel-map-contract", ["revision"] = 1,
+            ["voxelSize"] = 0.25, ["axes"] = "RH_Z_UP", ["materialRoles"] = new JArray("grass", "soil"),
+            ["quads"] = new JArray(Q(0,-1,4,-8,12,1),Q(0,1,5,-8,12,1),Q(1,-1,-8,4,12,1),Q(1,1,-7,4,12,1),Q(2,-1,12,4,-8,1),Q(2,1,13,4,-8,0))
+        };
+    }
+    private static JObject Q(int axis, int sign, int plane, int a, int b, int color)
+    {
+        return new JObject { ["axis"] = axis, ["sign"] = sign, ["plane"] = plane, ["a"] = a, ["b"] = b, ["w"] = 1, ["h"] = 1, ["color"] = color, ["chunk"] = "0,-1,0" };
+    }
+    private static JObject ProfileColor(string id, float r, float g, float b)
+    {
+        return new JObject { ["colorId"] = id, ["baseColor_sRGB"] = new JArray(r,g,b), ["alpha"] = 1, ["roughness"] = 0.85, ["metallic"] = 0, ["emissive"] = new JArray(0,0,0), ["emissiveStrength"] = 0, ["alphaMode"] = "OPAQUE", ["doubleSided"] = false };
+    }
+}

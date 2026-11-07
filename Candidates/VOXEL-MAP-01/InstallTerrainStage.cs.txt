@@ -1,0 +1,169 @@
+/* 功能：在已核场景一次性烘焙原生工坊地形、实际水洼和可揭顶房屋，显式迁接原承载关系。
+ * 边界：Root唯一Native执行；旧母体/碰撞引用保留，不改原角色控制或全局环境。
+ * 重放：已存在场景安装标记时拒绝；中途断连必须先查精确对象/资产，不能盲重放。
+ */
+namespace VoxelMapNative
+{
+using System;
+using System.IO;
+using System.Linq;
+using System.Collections.Generic;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using UnityEngine;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+using UnityEngine.SceneManagement;
+using UnityEngine.Rendering;
+using Ossastra.VoxelTerrain;
+using Ossastra.WorldRendering.VoxelSurface;
+using Ossastra.SceneVisibility.Rooms;
+using Ossastra.EnvironmentSimulation.Rendering;
+using Ossastra.WorldProps;
+using Funplay.Editor.Tools.Scripting;
+using Object=UnityEngine.Object;
+
+public sealed class InstallVoxelMapStage : IFunplayCommand
+{
+ const string AssetsRoot="Assets/OSSASTRA/VoxelTerrainValidation";
+ const string Research="E:/WORLDCREATOR/XingHaiHuiLang/研究/VOXEL-MAP-01";
+ const string Main="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity";
+ readonly List<MeshRenderer> chunks=new List<MeshRenderer>();
+ readonly List<MeshCollider> colliders=new List<MeshCollider>();
+ readonly List<Renderer> legacyRenderers=new List<Renderer>();
+ readonly List<bool> legacyEnabled=new List<bool>();
+ readonly List<Renderer> newShared=new List<Renderer>();
+ VoxelSurfaceSettings settings;
+
+ public void Execute(ExecutionContext ctx)
+ {
+  var scene=SceneManager.GetActiveScene(); bool isMain=scene.path==Main;
+  if(Application.isPlaying||scene.path!=Main&&scene.path!=AssetsRoot+"/Scenes/SC_VoxelTerrainHousing_Validation.unity")throw new Exception("Requires explicit main or owned validation in Edit");
+  if(isMain&&(!File.Exists(Research+"/validation-approved.json")||!(bool)JObject.Parse(File.ReadAllText(Research+"/validation-approved.json"))["pass"]))throw new Exception("Independent validation gate missing");
+  if(Object.FindObjectOfType<VoxelTerrainInstallation>()!=null)throw new Exception("Stage already installed; inspect, do not replay");
+  var module=Object.FindObjectOfType<RoomVisibilityModule>();var visibility=Object.FindObjectOfType<Ossastra.SceneVisibility.SceneVisibilityRoot>();var comparison=Object.FindObjectOfType<VoxelSurfaceComparison>();
+  var sky=Object.FindObjectOfType<EnvironmentSkyBinding>();var commerce=Object.FindObjectOfType<Ossastra.Commerce.Runtime.CommerceService>();
+  if(module==null||visibility==null||comparison==null||sky==null||commerce==null)throw new Exception("Existing scene roots missing");
+  if(!isMain&&!commerce.saveDirectory.Contains("validation-commerce"))throw new Exception("Validation must be isolated before any Play");
+  var oldLow=Object.FindObjectsOfType<BoxCollider>().Single(c=>c.name=="低地连续碰撞_非高台AABB");
+  var houseAsset=AssetDatabase.LoadAssetAtPath<GameObject>(AssetsRoot+"/Models/TimberHouse.fbx");if(houseAsset==null)throw new Exception("Approved imported house missing");
+  foreach(string folder in new[]{AssetsRoot+"/Source",AssetsRoot+"/Generated",AssetsRoot+"/Materials",AssetsRoot+"/Materials/Timber",AssetsRoot+"/Profiles"})Folder(folder);
+  CopySource("voxel-map-01-terrain.xhasset.json");CopySource("voxel-map-01-terrain.surface.json");
+  var sourceText=AssetDatabase.LoadAssetAtPath<TextAsset>(AssetsRoot+"/Source/voxel-map-01-terrain.xhasset.json");
+  var surfaceText=AssetDatabase.LoadAssetAtPath<TextAsset>(AssetsRoot+"/Source/voxel-map-01-terrain.surface.json");
+  if(sourceText==null||surfaceText==null)throw new Exception("Imported native source missing");
+  var source=VoxelTerrainSource.Parse(sourceText.text,surfaceText.text);var data=VoxelTerrainGeometry.Build(source,QualitySettings.activeColorSpace==ColorSpace.Linear);
+  settings=comparison.lookPresets[0].responseProfile.settings.Clone();settings.diagnostic=0;
+  var terrainSettings=settings.Clone();terrainSettings.vertexColors=true;
+  var grass=MaterialAsset("Terrain_Grass",Color.white,terrainSettings,"Assets/OSSASTRA/Art/FrontierTaleReferenceLocal/textures/ground_2.png");
+  var soil=MaterialAsset("Terrain_Soil",Color.white,terrainSettings,null);var basin=MaterialAsset("Terrain_Basin",Color.white,terrainSettings,null);
+  var root=new GameObject("VoxelTerrain_原生工坊母体_草顶土侧");ctx.RegisterObjectCreation(root);var install=root.AddComponent<VoxelTerrainInstallation>();
+  install.editableSource=sourceText;install.frozenSurfaces=surfaceText;install.sourceSha256=source.SourceSha256;
+  AssetDatabase.StartAssetEditing();
+  try
+  {
+   foreach(var d in data)
+   {
+    string key=d.ChunkKey.Replace(',','_');string path=AssetsRoot+"/Generated/Terrain_"+key+".asset";
+    var mesh=AssetDatabase.LoadAssetAtPath<Mesh>(path);
+    if(mesh==null){mesh=new Mesh{name="Terrain_"+key};mesh.vertices=d.Vertices;mesh.normals=d.Normals;mesh.uv=d.Uv;mesh.colors=d.Colors;mesh.subMeshCount=3;for(int i=0;i<3;i++)mesh.SetTriangles(d.SubmeshTriangles[i],i,false);mesh.RecalculateBounds();AssetDatabase.CreateAsset(mesh,path);}
+    else if(mesh.vertexCount!=d.Vertices.Length)throw new Exception("Existing geometry differs from frozen native source");
+    var go=new GameObject("NativeChunk_"+key,typeof(MeshFilter),typeof(MeshRenderer),typeof(MeshCollider));go.transform.SetParent(root.transform,false);
+    go.GetComponent<MeshFilter>().sharedMesh=mesh;var renderer=go.GetComponent<MeshRenderer>();renderer.sharedMaterials=new[]{grass,soil,basin};
+    var collider=go.GetComponent<MeshCollider>();collider.sharedMesh=mesh;chunks.Add(renderer);colliders.Add(collider);newShared.Add(renderer);
+   }
+  }
+  finally{AssetDatabase.StopAssetEditing();}
+  var layout=JObject.Parse(File.ReadAllText(Research+"/Terrain/terrain-layout.json"));install.water=MakeWater(root.transform,layout);
+  newShared.Add(install.water);install.chunks=chunks.ToArray();install.collision=colliders.ToArray();
+  // 保留旧高台承载与真实侧壁；只把2D地表/缓存显示换成真正贴合原顶面的网格。
+  foreach(var surface in Object.FindObjectsOfType<Ossastra.GroundResearch.GroundResearchSurface>())
+   foreach(var renderer in surface.GetComponentsInChildren<Renderer>(true))
+    if(renderer is UnityEngine.Tilemaps.TilemapRenderer)Retire(renderer);
+  var oldBindings=Object.FindObjectsOfType<Ossastra.GroundSurfaces.GroundSurfaceBinding>();
+  install.previousCacheBindings=oldBindings;install.previousCacheUse=oldBindings.Select(b=>b.useCache).ToArray();
+  foreach(var binding in oldBindings)
+  {
+   // 缓存叶会在编辑器重建，不保存易失的Renderer引用；退役其稳定作者开关，站立Collider独立保留。
+   binding.useCache=false;binding.SetCacheVisible(false);PrefabUtility.RecordPrefabInstancePropertyModifications(binding);EditorUtility.SetDirty(binding);
+   if(binding.capCollider!=null)MakeExistingCap(root.transform,binding.capCollider,grass);
+  }
+  Physics.SyncTransforms();
+  foreach(var r in Object.FindObjectsOfType<SpriteRenderer>())
+   if(r.sharedMaterial!=null&&r.sharedMaterial.shader.name=="Ossastra/GroundWorkshop/DecorationCutout"&&r.GetComponentInParent<Ossastra.Characters.CharacterRoot>()==null&&r.GetComponentInParent<Ossastra.Enemies.EnemyRoot>()==null&&
+    !colliders.Any(c=>c.Raycast(new Ray(r.transform.position+Vector3.up*10,Vector3.down),out var supportHit,20)))Retire(r);
+  install.previousGroundRenderers=legacyRenderers.ToArray();install.previousGroundEnabled=legacyEnabled.ToArray();install.retiredLowSupport=oldLow;
+  Physics.SyncTransforms();
+  // 掉落必须迁移到明确同层的新chunk；保留高台supportSurface，不使用全场无限向下搜索。
+  var floorSupports=module.buildings.SelectMany(b=>b.regions).SelectMany(r=>r.members).Where(r=>r!=null).Select(r=>r.GetComponent<Collider>()).Where(c=>c!=null&&c.bounds.size.y<.25f).ToArray();
+  var candidates=colliders.Cast<Collider>().Concat(floorSupports).ToArray();var props=Object.FindObjectsOfType<WorldPropRoot>().Where(p=>p.supportSurface==null&&p.support==oldLow).ToArray();
+  install.migratedProps=props;install.previousPropSupports=props.Select(p=>p.support).ToArray();
+  foreach(var p in props)
+  {
+   if(p.safeDropAnchor==null)throw new Exception("Missing explicit drop anchor: "+p.name);
+   Vector3 anchor=p.safeDropAnchor.position;Collider selected=null;float best=float.NegativeInfinity;
+   foreach(var candidate in candidates)if(candidate.Raycast(new Ray(anchor+Vector3.up*.4f,Vector3.down),out var hit,.8f)&&hit.normal.y>=.7f&&Mathf.Abs(hit.point.y-anchor.y)<=.2f&&hit.point.y>best){best=hit.point.y;selected=candidate;}
+   if(selected==null)throw new Exception("No same-layer native support for "+p.name);p.support=selected;PrefabUtility.RecordPrefabInstancePropertyModifications(p);EditorUtility.SetDirty(p);
+  }
+  oldLow.enabled=false;PrefabUtility.RecordPrefabInstancePropertyModifications(oldLow);EditorUtility.SetDirty(oldLow);
+  // 原3D装备台恰在新水岸；只移动其完整业务根到邻近干地，身份与交互引用不变。
+  var wetStation=Object.FindObjectsOfType<Ossastra.Crafting.CraftingStation>().SingleOrDefault(s=>s.name=="EquipmentStation_B_3D");
+  if(wetStation!=null){Undo.RecordObject(wetStation.transform,"Move existing station clear of new pond");wetStation.transform.position=new Vector3(12,.02f,-21);PrefabUtility.RecordPrefabInstancePropertyModifications(wetStation.transform);EditorUtility.SetDirty(wetStation.transform);}
+  var house=VoxelTimberHouseAuthoring.Assemble(root.transform,houseAsset,new Vector3(4,.1f,-10),AssetsRoot+"/Materials/Timber",Research+"/Models/TimberHouse-v1/TimberHouseManifest.json",settings);
+  install.timberHouse=house.building.transform;
+  module.buildings=module.buildings.Concat(new[]{house.building}).ToArray();module.sightBlockers=module.sightBlockers.Concat(house.sightBlockers).Distinct().ToArray();
+  foreach(var clearance in Object.FindObjectsOfType<Ossastra.Characters.CharacterEnvironmentClearance>()){clearance.environmentSolids=clearance.environmentSolids.Concat(house.wallColliders).Distinct().ToArray();PrefabUtility.RecordPrefabInstancePropertyModifications(clearance);EditorUtility.SetDirty(clearance);}
+  // .25m体素台阶高于本样板原.2m跨阶；仅调整两名已登记队员的场景配置，不改Motor/Prefab默认。
+  foreach(var actor in visibility.coordinator.Characters){var body=actor.GetComponent<CharacterController>();if(body==null)throw new Exception("Missing original character controller");body.stepOffset=.3f;PrefabUtility.RecordPrefabInstancePropertyModifications(body);EditorUtility.SetDirty(body);}
+  sky.indoorRegions=sky.indoorRegions.Concat(new[]{house.room}).ToArray();sky.localLights=sky.localLights.Concat(new[]{house.interiorLight}).ToArray();sky.rainShelters=sky.rainShelters.Concat(new[]{house.rainShelter}).ToArray();
+  AddTrees(root.transform);
+  module.sharedSurfaces=module.sharedSurfaces.Concat(newShared).Distinct().ToArray();
+  module.staticEnvironmentSurfaces=module.staticEnvironmentSurfaces.Concat(newShared).Concat(house.renderers).Distinct().ToArray();
+  var navigation=Object.FindObjectOfType<Ossastra.Development.SceneVisibility.RoomVisibilityLabPanel>();
+  if(navigation==null||navigation.visibility!=visibility)throw new Exception("Existing navigation authority missing");
+  var lab=root.AddComponent<Ossastra.Development.VoxelTerrain.VoxelTerrainLabPanel>();lab.installation=install;lab.navigation=navigation;lab.map=navigation.map;lab.coordinator=visibility.coordinator;
+  if(!module.TryValidateConfiguration(visibility,out var reason))throw new Exception("Existing visibility rejects installation: "+reason);
+  EditorUtility.SetDirty(module);EditorUtility.SetDirty(sky);EditorUtility.SetDirty(install);
+  foreach(var asset in new UnityEngine.Object[]{grass,soil,basin})AssetDatabase.SaveAssetIfDirty(asset);
+  if(!EditorSceneManager.SaveScene(scene))throw new Exception("Scene save failed");
+  string json=JsonConvert.SerializeObject(new{pass=true,scene=scene.path,source=source.SourceSha256,cells=source.CellCount,chunks=chunks.Count,vertices=data.Sum(d=>d.Vertices.Length),waterTiles=layout["pond"]["waterTilesM"].Count(),migratedProps=props.Length,legacyRenderers=legacyRenderers.Count,building=house.building.buildingId,roofCount=house.roofs.Length,visibility="validated"},Formatting.Indented);
+  File.WriteAllText(Research+(isMain?"/main-install.json":"/validation-install.json"),json);ctx.ReturnValue=json;
+ }
+ void CopySource(string name){string path=AssetsRoot+"/Source/"+name;if(!File.Exists(path)){File.Copy(Research+"/Terrain/"+name,Path.GetFullPath(path));AssetDatabase.ImportAsset(path,ImportAssetOptions.ForceSynchronousImport);}}
+ static void Folder(string p){if(AssetDatabase.IsValidFolder(p))return;int i=p.LastIndexOf('/');if(!AssetDatabase.IsValidFolder(p.Substring(0,i)))Folder(p.Substring(0,i));AssetDatabase.CreateFolder(p.Substring(0,i),p.Substring(i+1));}
+ Material MaterialAsset(string name,Color tint,VoxelSurfaceSettings config,string texture)
+ {
+  string path=AssetsRoot+"/Materials/"+name+".mat";var m=AssetDatabase.LoadAssetAtPath<Material>(path);if(m!=null)return m;
+  var shader=Shader.Find("Ossastra/WorldRendering/VoxelLit");if(shader==null)throw new Exception("Missing existing VoxelLit");m=new Material(shader){name=name};m.SetColor("_BaseColor",tint);m.SetFloat("_Metallic",0);m.SetFloat("_Smoothness",.12f);
+  if(texture!=null){var t=AssetDatabase.LoadAssetAtPath<Texture2D>(texture);if(t==null)throw new Exception("Missing explicit texture "+texture);m.SetTexture("_BaseMap",t);}
+  config.ApplyTo(m);AssetDatabase.CreateAsset(m,path);return m;
+ }
+ void Retire(Renderer r){if(r==null||legacyRenderers.Contains(r))return;legacyRenderers.Add(r);legacyEnabled.Add(r.enabled);r.enabled=false;PrefabUtility.RecordPrefabInstancePropertyModifications(r);EditorUtility.SetDirty(r);}
+ Renderer MakeWater(Transform parent,JObject layout)
+ {
+  var vertices=new List<Vector3>();var uv=new List<Vector2>();var indices=new List<int>();float size=(float)layout["pond"]["waterTileSizeM"],height=(float)layout["pond"]["waterLevelM"];
+  foreach(var tile in layout["pond"]["waterTilesM"]){float x=(float)tile[0],z=(float)tile[1];int n=vertices.Count;vertices.AddRange(new[]{new Vector3(x,height,z),new Vector3(x,height,z+size),new Vector3(x+size,height,z+size),new Vector3(x+size,height,z)});uv.AddRange(new[]{Vector2.zero,Vector2.up,Vector2.one,Vector2.right});indices.AddRange(new[]{n,n+1,n+2,n,n+2,n+3});}
+  string path=AssetsRoot+"/Generated/PondWater.asset";var mesh=AssetDatabase.LoadAssetAtPath<Mesh>(path);if(mesh==null){mesh=new Mesh{name="PondWater_actualBasin"};mesh.SetVertices(vertices);mesh.SetUVs(0,uv);mesh.SetTriangles(indices,0);mesh.RecalculateNormals();mesh.RecalculateBounds();AssetDatabase.CreateAsset(mesh,path);}
+  // 现有合法世界仅认证不透明 Lit 核心面；用受光实心水色，不能静默绕过室内隔离。
+  var config=settings.Clone();config.vertexColors=false;var mat=MaterialAsset("Water_Shallow",new Color(.16f,.47f,.53f,1),config,null);mat.SetFloat("_Surface",0);mat.SetFloat("_SrcBlend",(float)BlendMode.One);mat.SetFloat("_DstBlend",(float)BlendMode.Zero);mat.SetFloat("_ZWrite",1);mat.SetFloat("_Smoothness",.8f);mat.DisableKeyword("_SURFACE_TYPE_TRANSPARENT");mat.SetOverrideTag("RenderType","Opaque");mat.renderQueue=(int)RenderQueue.Geometry;EditorUtility.SetDirty(mat);AssetDatabase.SaveAssetIfDirty(mat);
+  var go=new GameObject("PondWater_实际凹地边界_无物理承载",typeof(MeshFilter),typeof(MeshRenderer));go.transform.SetParent(parent,false);go.GetComponent<MeshFilter>().sharedMesh=mesh;var r=go.GetComponent<MeshRenderer>();r.sharedMaterial=mat;r.shadowCastingMode=ShadowCastingMode.Off;return r;
+ }
+ void MakeExistingCap(Transform parent,MeshCollider cap,Material material)
+ {
+  if(cap.sharedMesh==null)return;string id=cap.bounds.center.x<0?"B":"A";string path=AssetsRoot+"/Generated/LegacyCap_"+id+".asset";var mesh=AssetDatabase.LoadAssetAtPath<Mesh>(path);
+  if(mesh==null){mesh=new Mesh{name="WorldAlignedLegacyCap_"+id};mesh.vertices=cap.sharedMesh.vertices.Select(v=>cap.transform.TransformPoint(v)).ToArray();mesh.triangles=cap.sharedMesh.triangles;mesh.normals=Enumerable.Repeat(Vector3.up,mesh.vertexCount).ToArray();mesh.uv=mesh.vertices.Select(v=>new Vector2(v.x/16,v.z/16)).ToArray();mesh.colors=Enumerable.Repeat(Color.white,mesh.vertexCount).ToArray();mesh.RecalculateBounds();AssetDatabase.CreateAsset(mesh,path);}
+  var go=new GameObject("Preserved3DPlateau_"+id+"_SurfaceAligned",typeof(MeshFilter),typeof(MeshRenderer));go.transform.SetParent(parent,false);go.GetComponent<MeshFilter>().sharedMesh=mesh;var r=go.GetComponent<MeshRenderer>();r.sharedMaterial=material;newShared.Add(r);
+ }
+ void AddTrees(Transform parent)
+ {
+  var palette=JObject.Parse(File.ReadAllText(Research+"/Models/Trees-v1/TreesManifest.json"))["paletteSrgb"] as JObject;if(palette==null)throw new Exception("Tree palette missing");
+  foreach(string family in new[]{"layeredgreen","redumbrella"})
+  {
+   string path=AssetsRoot+"/Models/Tree_"+family+".fbx";if(AssetDatabase.LoadAssetAtPath<GameObject>(path)==null){File.Copy(Research+"/Models/Trees-v1/ossastra.tree."+family+".semantic-export.material.fbx",Path.GetFullPath(path));AssetDatabase.ImportAsset(path,ImportAssetOptions.ForceSynchronousImport);}
+   var prefab=AssetDatabase.LoadAssetAtPath<GameObject>(path);if(prefab==null)throw new Exception("Tree import failed");
+   Vector3[] places=family=="layeredgreen"?new[]{new Vector3(-25,0,7),new Vector3(-23,0,14),new Vector3(24,0,-2),new Vector3(27,0,6)}:new[]{new Vector3(18,0,16),new Vector3(-22,0,-18)};
+   foreach(var point in places){var g=(GameObject)PrefabUtility.InstantiatePrefab(prefab,parent);g.name="NativeTree_"+family;g.transform.position=point;foreach(var r in g.GetComponentsInChildren<Renderer>(true)){var mats=r.sharedMaterials;for(int i=0;i<mats.Length;i++){string key=palette.Properties().Select(p=>p.Name).FirstOrDefault(k=>mats[i].name.EndsWith("."+k,StringComparison.Ordinal));if(key==null)throw new Exception("Unknown tree material "+mats[i].name);var rgb=(JArray)palette[key];mats[i]=MaterialAsset("Tree_"+key,new Color((float)rgb[0],(float)rgb[1],(float)rgb[2],1),settings,null);}r.sharedMaterials=mats;newShared.Add(r);}}
+  }
+ }
+}
+}

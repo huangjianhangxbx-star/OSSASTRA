@@ -1,0 +1,75 @@
+// 用真实原生地编产物测量高度、凹地和绘制契约；不创建场景对象或资产。
+using System;
+using System.IO;
+using System.Linq;
+using System.Collections.Generic;
+using System.Reflection;
+using UnityEngine;
+using Funplay.Editor.Tools.Scripting;
+
+public sealed class VoxelTerrainGeneratedContract : IFunplayCommand
+{
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+    {
+        const string directory = "E:/WORLDCREATOR/XingHaiHuiLang/研究/VOXEL-MAP-01/Terrain/";
+        var checks = new List<object>();
+        var sourceType = Find("Ossastra.VoxelTerrain.VoxelTerrainSource");
+        var geometryType = Find("Ossastra.VoxelTerrain.VoxelTerrainGeometry");
+        if (sourceType == null || geometryType == null)
+        {
+            checks.Add(new { name = "generated terrain receiver available", pass = false });
+            ctx.ReturnValue = new { checks }; return;
+        }
+        try
+        {
+            string author = File.ReadAllText(directory + "voxel-map-01-terrain.xhasset.json");
+            string frozen = File.ReadAllText(directory + "voxel-map-01-terrain.surface.json");
+            var source = sourceType.GetMethod("Parse").Invoke(null, new object[] { author, frozen });
+            var meshes = (Array)geometryType.GetMethod("Build").Invoke(null, new object[] { source, true });
+            int vertices = 0, triangleCount = 0, grassTriangles = 0, soilTriangles = 0, basinTriangles = 0;
+            bool winding = true, attributes = true, roleDirections = true;
+            var heights = new Dictionary<string,float>();
+            var samples = new Dictionary<string,Vector2> { { "hill-a", new Vector2(-24,-4) }, { "hill-b", new Vector2(24,12) }, { "pond-bed", new Vector2(15,-16) }, { "building", new Vector2(-15,-10) }, { "business-row-start", new Vector2(7,-24) }, { "business-row-end", new Vector2(21,-24) } };
+            foreach (var sample in samples) heights.Add(sample.Key, float.NegativeInfinity);
+            foreach (var mesh in meshes)
+            {
+                var positions = (Vector3[])Read(mesh,"Vertices"); var normals = (Vector3[])Read(mesh,"Normals");
+                var colors = (Color[])Read(mesh,"Colors"); var uv = (Vector2[])Read(mesh,"Uv");
+                var submeshes = (int[][])Read(mesh,"SubmeshTriangles");
+                vertices += positions.Length; attributes &= positions.Length == normals.Length && positions.Length == colors.Length && positions.Length == uv.Length && submeshes.Length == 3;
+                for (int i=0; i<positions.Length; i++) attributes &= Vector2.Distance(uv[i],new Vector2(positions[i].x,positions[i].z)/16f) < 0.00001f;
+                for (int slot=0;slot<submeshes.Length;slot++)
+                {
+                    var triangles=submeshes[slot]; triangleCount += triangles.Length/3;
+                    if(slot==0) grassTriangles+=triangles.Length/3; else if(slot==1) soilTriangles+=triangles.Length/3; else basinTriangles+=triangles.Length/3;
+                    for(int i=0;i<triangles.Length;i+=3)
+                    {
+                        int a=triangles[i],b=triangles[i+1],c=triangles[i+2];
+                        winding &= Vector3.Dot(Vector3.Cross(positions[b]-positions[a],positions[c]-positions[a]).normalized,normals[a]) > 0.999f;
+                        if(slot==0 || slot==2) roleDirections &= normals[a].y > 0.999f;
+                        if(normals[a].y<0.999f) continue;
+                        foreach(var sample in samples)
+                            if(Inside(sample.Value,positions[a],positions[b],positions[c])) heights[sample.Key]=Mathf.Max(heights[sample.Key],positions[a].y);
+                    }
+                }
+            }
+            checks.Add(new { name="real author/frozen payload stays inside cell and geometry budgets", pass=(int)Read(source,"CellCount")>100000 && (int)Read(source,"CellCount")<=250000 && vertices<=1000000 && meshes.Length>1 });
+            checks.Add(new { name="all generated triangle winding and world UV attributes are valid", pass=winding && attributes });
+            checks.Add(new { name="grass and basin are upward surfaces; soil has its own slot", pass=roleDirections && grassTriangles>0 && soilTriangles>0 && basinTriangles>0 });
+            checks.Add(new { name="two separate 0.75m and 1.25m hills exist in actual Unity geometry", pass=Near(heights["hill-a"],0.75f) && Near(heights["hill-b"],1.25f) });
+            checks.Add(new { name="pond removes terrain to -0.5m instead of covering an intact 0m floor", pass=Near(heights["pond-bed"],-0.5f) });
+            checks.Add(new { name="original building floor and both boundary business-row endpoints remain at 0m", pass=Near(heights["building"],0) && Near(heights["business-row-start"],0) && Near(heights["business-row-end"],0) });
+            ctx.ReturnValue=new {checks,assetId=Read(source,"AssetId"),sourceSHA=Read(source,"SourceSha256"),cells=Read(source,"CellCount"),exposedUnitFaces=Read(source,"ExposedUnitFaceCount"),chunks=meshes.Length,vertices,triangles=triangleCount,grassTriangles,soilTriangles,basinTriangles,heights};
+        }
+        catch(Exception exception) { checks.Add(new {name="actual generated payload parses and builds",pass=false,error=exception.GetBaseException().Message}); ctx.ReturnValue=new {checks}; }
+    }
+    private static Type Find(string name) { return AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType(name,false)).FirstOrDefault(t=>t!=null); }
+    private static object Read(object target,string name) { return target.GetType().GetProperty(name).GetValue(target,null); }
+    private static bool Near(float a,float b) { return Mathf.Abs(a-b)<0.0001f; }
+    private static bool Inside(Vector2 point,Vector3 a,Vector3 b,Vector3 c)
+    {
+        float aa=Cross(new Vector2(a.x,a.z),new Vector2(b.x,b.z),point),bb=Cross(new Vector2(b.x,b.z),new Vector2(c.x,c.z),point),cc=Cross(new Vector2(c.x,c.z),new Vector2(a.x,a.z),point);
+        return !(aa< -0.00001f||bb< -0.00001f||cc< -0.00001f)||!(aa>0.00001f||bb>0.00001f||cc>0.00001f);
+    }
+    private static float Cross(Vector2 a,Vector2 b,Vector2 p) { return (b.x-a.x)*(p.y-a.y)-(b.y-a.y)*(p.x-a.x); }
+}

@@ -1,0 +1,58 @@
+// 仅在 Root 已装配的 Play 样板中运行；所有实际角色定位/镜头参数在 finally 恢复。
+using System;
+using System.Linq;
+using System.Collections.Generic;
+using UnityEngine;
+using Funplay.Editor.Tools.Scripting;
+
+public sealed class VoxelTerrainPanelContract : IFunplayCommand
+{
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+    {
+        var checks = new List<object>();
+        var type = AppDomain.CurrentDomain.GetAssemblies().Select(a => a.GetType("Ossastra.Development.VoxelTerrain.VoxelTerrainLabPanel",false)).FirstOrDefault(t=>t!=null);
+        if(type==null) { ctx.ReturnValue=new { checks=new[]{new {name="terrain lab navigation exists",pass=false}} }; return; }
+        var panel=UnityEngine.Object.FindObjectsOfType(type).Cast<MonoBehaviour>().SingleOrDefault();
+        if(!Application.isPlaying||panel==null) throw new Exception("One explicitly installed terrain panel in Play required");
+        var installation=(Ossastra.VoxelTerrain.VoxelTerrainInstallation)type.GetField("installation").GetValue(panel);
+        var navigation=(Ossastra.Development.SceneVisibility.RoomVisibilityLabPanel)type.GetField("navigation").GetValue(panel);
+        var map=(Ossastra.MapResearch.MapResearchRoot)type.GetField("map").GetValue(panel);
+        var coordinator=(Ossastra.Characters.CharacterControlCoordinator)type.GetField("coordinator").GetValue(panel);
+        if(installation==null||navigation==null||map==null||coordinator==null||coordinator.Current==null||(bool)type.GetProperty("IsOverview").GetValue(panel,null)) throw new Exception("Wired panel and ordinary follow state required");
+        var actor=coordinator.Current; var originalPosition=actor.transform.position;
+        float distance=map.distance,max=map.maximumZoom,pitch=map.pitch,yaw=map.initialYaw,scale=Time.timeScale;
+        bool follow=map.followParticipant; Vector3 fixedTarget=map.fixedTarget;
+        bool expanded=(bool)type.GetProperty("Expanded").GetValue(panel,null);
+        var go=type.GetMethod("GoTo"); var overview=type.GetMethod("ViewAll"); var resume=type.GetMethod("Follow");
+        try
+        {
+            checks.Add(new {name="panel begins folded below top HUD",pass=!expanded&&((Rect)type.GetProperty("PanelRect").GetValue(panel,null)).y==70});
+            bool positions=true;
+            var targets=new[]{installation.arrival,installation.timberHouse.position+Vector3.up*.15f,installation.hillA,installation.hillB,installation.pond+Vector3.back*3+Vector3.up*.6f};
+            for(int i=0;i<targets.Length;i++) positions&=(bool)go.Invoke(panel,new object[]{i})&&Vector3.Distance(actor.transform.position,targets[i])<.001f;
+            checks.Add(new {name="all five navigation buttons delegate to actual current actor placement",pass=positions});
+            bool entered=(bool)overview.Invoke(panel,null);
+            bool wide=!map.followParticipant&&map.fixedTarget==Vector3.zero&&Mathf.Approximately(map.distance,90)&&Mathf.Approximately(map.maximumZoom,110);
+            overview.Invoke(panel,null);
+            bool restored=(bool)resume.Invoke(panel,null);
+            checks.Add(new {name="repeated overview entry preserves original zoom for follow restoration",pass=entered&&wide&&restored&&map.followParticipant&&Mathf.Approximately(map.distance,distance)&&Mathf.Approximately(map.maximumZoom,max)&&map.fixedTarget==fixedTarget});
+            Vector3 beforeInvalid=actor.transform.position;
+            bool invalid=!(bool)go.Invoke(panel,new object[]{-1})&&!(bool)go.Invoke(panel,new object[]{5});
+            type.GetField("installation").SetValue(panel,null); invalid&=!(bool)go.Invoke(panel,new object[]{0}); type.GetField("installation").SetValue(panel,installation);
+            type.GetField("navigation").SetValue(panel,null); invalid&=!(bool)go.Invoke(panel,new object[]{0}); type.GetField("navigation").SetValue(panel,navigation);
+            type.GetField("coordinator").SetValue(panel,null); invalid&=!(bool)go.Invoke(panel,new object[]{0}); type.GetField("coordinator").SetValue(panel,coordinator);
+            type.GetField("map").SetValue(panel,null); invalid&=!(bool)overview.Invoke(panel,null); type.GetField("map").SetValue(panel,map);
+            checks.Add(new {name="invalid indices and missing explicit wiring refuse without relocating actor",pass=invalid&&actor.transform.position==beforeInvalid});
+            checks.Add(new {name="navigation never changes initial camera angles or world time scale",pass=Mathf.Approximately(map.initialYaw,yaw)&&Mathf.Approximately(map.pitch,pitch)&&Mathf.Approximately(Time.timeScale,scale)&&coordinator.Current==actor});
+        }
+        finally
+        {
+            type.GetField("installation").SetValue(panel,installation); type.GetField("navigation").SetValue(panel,navigation); type.GetField("map").SetValue(panel,map);
+            type.GetField("coordinator").SetValue(panel,coordinator);
+            resume.Invoke(panel,null);
+            map.distance=distance; map.maximumZoom=max; map.followParticipant=follow; map.fixedTarget=fixedTarget; map.ResetView();
+            navigation.PlaceCurrent(originalPosition); type.GetMethod("SetExpanded").Invoke(panel,new object[]{expanded});
+        }
+        ctx.ReturnValue=new {checks};
+    }
+}

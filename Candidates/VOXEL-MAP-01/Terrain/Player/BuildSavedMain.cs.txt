@@ -1,0 +1,59 @@
+// Root Native build candidate: actual saved main, explicit isolated author route, no Player/BuildSettings changes.
+using System;
+using System.IO;
+using System.Linq;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+using UnityEditor.Build.Reporting;
+using Ossastra.VoxelTerrain;
+using Ossastra.WorldRendering.VoxelSurface;
+
+public static class BuildVoxelMapMain
+{
+    const string Main="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity";
+    static EditorApplication.CallbackFunction queued;
+    public static string Run()
+    {
+        var scene=SceneManager.GetActiveScene();
+        if(EditorApplication.isPlayingOrWillChangePlaymode||EditorApplication.isCompiling||EditorApplication.isUpdating||BuildPipeline.isBuildingPlayer||SceneManager.sceneCount!=1||scene.path!=Main||queued!=null)throw new Exception("Requires actual main in stable Edit with no owned pending build");
+        var roots=scene.GetRootGameObjects();
+        var comparison=roots.SelectMany(g=>g.GetComponentsInChildren<VoxelSurfaceComparison>(true)).Single();
+        if(comparison.bindings==null||comparison.bindings.Length!=27||comparison.bindings.Any(b=>b==null||b.renderer==null||b.original==null||!b.renderer.sharedMaterials.SequenceEqual(b.original)))throw new Exception("Main must retain exactly 27 Original source bindings");
+        var install=roots.SelectMany(g=>g.GetComponentsInChildren<VoxelTerrainInstallation>(true)).Single();
+        if(install.editableSource==null||install.frozenSurfaces==null||install.chunks.Length!=224||install.collision.Length!=224||install.timberHouse==null)throw new Exception("Unique VOXEL-MAP-01 installation is incomplete");
+        var source=VoxelTerrainSource.Parse(install.editableSource.text,install.frozenSurfaces.text);
+        if(source.AssetId!="voxel-map-01-terrain"||source.SourceSha256!=install.sourceSha256||!AssetDatabase.GetAssetPath(install.editableSource).StartsWith("Assets/OSSASTRA/VoxelTerrainValidation/Source/",StringComparison.Ordinal))throw new Exception("Main installation is not the approved native source");
+        var commerce=roots.SelectMany(g=>g.GetComponentsInChildren<Ossastra.Commerce.Runtime.CommerceService>(true)).Single();
+        if(string.IsNullOrWhiteSpace(commerce.saveDirectory)||Path.GetFileName(Path.GetFullPath(commerce.saveDirectory).TrimEnd(Path.DirectorySeparatorChar,Path.AltDirectorySeparatorChar))!="main-validation-commerce")throw new Exception("Root must explicitly route main author Commerce to main-validation-commerce before building");
+        if(scene.isDirty&&!EditorSceneManager.SaveScene(scene))throw new Exception("Verified author scene could not be saved");
+        string folder=Path.GetFullPath("artifacts/VOXEL-MAP-01/Player_"+DateTime.UtcNow.ToString("yyyyMMdd_HHmmss"));Directory.CreateDirectory(folder);
+        string status=Path.GetFullPath("artifacts/VOXEL-MAP-01/build-result.json"),executable=Path.Combine(folder,"VoxelMapMain.exe");
+        if(File.Exists(status))File.Copy(status,Path.Combine(folder,"previous-build-result.json"));
+        Write(status,new Result{result="queued",executable=executable,scene=scene.path,sourceSha256=source.SourceSha256,authorCommerce=commerce.saveDirectory});
+        string scenePath=scene.path,hash=source.SourceSha256,authorRoute=commerce.saveDirectory;
+        queued=()=>
+        {
+            queued=null;
+            try
+            {
+                Write(status,new Result{result="running",executable=executable,scene=scenePath,sourceSha256=hash,authorCommerce=authorRoute});
+                var report=BuildPipeline.BuildPlayer(new BuildPlayerOptions{scenes=new[]{scenePath},locationPathName=executable,target=BuildTarget.StandaloneWindows64,options=BuildOptions.Development});
+                var summary=report.summary;
+                Write(status,new Result{success=summary.result==BuildResult.Succeeded,result=summary.result.ToString(),executable=executable,scene=scenePath,sourceSha256=hash,authorCommerce=authorRoute,errors=(int)summary.totalErrors,warnings=(int)summary.totalWarnings,bytes=(long)summary.totalSize,seconds=summary.totalTime.TotalSeconds});
+            }
+            catch(Exception error){Write(status,new Result{result=error.ToString(),executable=executable,scene=scenePath,sourceSha256=hash,authorCommerce=authorRoute});Debug.LogException(error);}
+        };
+        EditorApplication.delayCall+=queued;
+        return "One build scheduled: "+folder+"; observe artifacts/VOXEL-MAP-01/build-result.json; do not replay uncertain build";
+    }
+    public static string RunImmediate()
+    {
+        string receipt=Run();var callback=queued;
+        if(callback==null)throw new Exception("Owned build callback missing");
+        EditorApplication.delayCall-=callback;callback();return receipt+"; owned callback executed and removed";
+    }
+    static void Write(string path,Result result){File.WriteAllText(path,JsonUtility.ToJson(result,true));}
+    [Serializable] public sealed class Result {public bool success;public string result,executable,scene,sourceSha256,authorCommerce;public int errors,warnings;public long bytes;public double seconds;}
+}

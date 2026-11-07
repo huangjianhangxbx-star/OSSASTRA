@@ -1,0 +1,225 @@
+/* 功能：将本轮明确FBX/色板装配为原房间可见性系统的作者数据；Root唯一Native执行者。
+ * 边界：不运行、不保存场景、不修改旧Module/LightingBinding列表，不创建第二个可见性权威。
+ * 几何：真实四墙/地板/顶盖保持网格碰撞；Sight使用15个开孔实心盒，不以整墙AABB封窗。
+ */
+public static class VoxelTimberHouseAuthoring
+{
+    public sealed class Result
+    {
+        public Ossastra.SceneVisibility.Rooms.BuildingVisibilityRoot building;
+        public Ossastra.SceneVisibility.Rooms.RoomRegion room;
+        public UnityEngine.MeshCollider[] wallColliders;
+        public UnityEngine.BoxCollider[] sightBlockers;
+        public UnityEngine.Renderer[] renderers;
+        public UnityEngine.Renderer[] roofs;
+        public UnityEngine.Light interiorLight;
+        public UnityEngine.BoxCollider rainShelter;
+    }
+
+    public static Result Assemble(UnityEngine.Transform parent, UnityEngine.GameObject fbxPrefab,
+        UnityEngine.Vector3 worldOrigin, string materialFolder, string manifestPath,
+        Ossastra.WorldRendering.VoxelSurface.VoxelSurfaceSettings lightingSettings)
+    {
+        if (parent == null) throw new System.ArgumentNullException("parent");
+        if (fbxPrefab == null || !UnityEditor.EditorUtility.IsPersistent(fbxPrefab))
+            throw new System.ArgumentException("fbxPrefab必须是已经明确导入的持久化FBX资产");
+        if (lightingSettings == null) throw new System.ArgumentNullException("lightingSettings");
+        if (!System.IO.File.Exists(manifestPath)) throw new System.IO.FileNotFoundException("缺少模型色板manifest", manifestPath);
+        if ((parent.lossyScale - UnityEngine.Vector3.one).sqrMagnitude > .000001f)
+            throw new System.InvalidOperationException("房屋作者父根必须为单位缩放，不静默改变0.25m格度");
+        if (parent.Find("TimberHall") != null) throw new System.InvalidOperationException("TimberHall已存在；应先读回，不可重放装配");
+        var shader = UnityEngine.Shader.Find("Ossastra/WorldRendering/VoxelLit");
+        if (shader == null) throw new System.InvalidOperationException("缺少明确VoxelLit Shader");
+        var palette = ReadPalette(manifestPath);
+        var sourceRenderers = fbxPrefab.GetComponentsInChildren<UnityEngine.MeshRenderer>(true);
+        if (sourceRenderers.Length != 8) throw new System.InvalidOperationException("FBX必须恰为8个语义MeshRenderer，实际" + sourceRenderers.Length);
+        foreach (var source in sourceRenderers)
+        {
+            var filter = source.GetComponent<UnityEngine.MeshFilter>();
+            if (filter == null || filter.sharedMesh == null || !filter.sharedMesh.isReadable)
+                throw new System.InvalidOperationException("必须先通过ModelImporter启用可读真实网格：" + source.name);
+            foreach (var material in source.sharedMaterials) ResolveColor(material, palette);
+        }
+        EnsureFolder(materialFolder);
+        var settings = lightingSettings.Clone(); settings.vertexColors = false; settings.diagnostic = 0; settings.Sanitize();
+        var authored = new System.Collections.Generic.Dictionary<string, UnityEngine.Material>(System.StringComparer.Ordinal);
+        foreach (var entry in palette) authored.Add(entry.Key, AuthorMaterial(materialFolder, entry.Key, entry.Value, shader, settings));
+
+        // 独立标准Unity轴容器承载元数据，FBX自己的导入轴/单位TRS完整保留在内部。
+        // 不能把Importer产生的root旋转或缩放清零后，仍声称模型方向已得到核验。
+        var instance = Child(parent, "TimberHall");
+        instance.transform.position = worldOrigin;
+        instance.transform.rotation = UnityEngine.Quaternion.identity;
+        instance.transform.localScale = UnityEngine.Vector3.one;
+        var model = UnityEditor.PrefabUtility.InstantiatePrefab(fbxPrefab, instance.transform) as UnityEngine.GameObject;
+        if (model == null) throw new System.InvalidOperationException("PrefabUtility未返回房屋实例");
+        model.name = "TimberHall_Model";
+        var renderers = model.GetComponentsInChildren<UnityEngine.MeshRenderer>(true);
+        var semantic = new System.Collections.Generic.Dictionary<string, UnityEngine.Renderer>(System.StringComparer.Ordinal);
+        string[] names = { "Structure_Floor", "Structure_WallSouth", "Structure_WallNorth", "Structure_WallWest", "Structure_WallEast", "Cover_RoofSouth", "Cover_RoofNorth", "Cover_Ridge" };
+        var wallColliders = new System.Collections.Generic.List<UnityEngine.MeshCollider>();
+        var roofColliders = new System.Collections.Generic.List<UnityEngine.Collider>();
+        foreach (var renderer in renderers)
+        {
+            string part = null;
+            foreach (string candidate in names)
+                if (renderer.name == candidate || renderer.name.StartsWith(candidate + ".", System.StringComparison.Ordinal))
+                { if (part != null) throw new System.InvalidOperationException("语义名歧义：" + renderer.name); part = candidate; }
+            if (part == null || semantic.ContainsKey(part)) throw new System.InvalidOperationException("未知/重复语义网格：" + renderer.name);
+            semantic.Add(part, renderer);
+            var slots = renderer.sharedMaterials;
+            for (int i = 0; i < slots.Length; ++i) slots[i] = authored[ResolveColor(slots[i], palette)];
+            renderer.sharedMaterials = slots;
+            renderer.enabled = true; renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On; renderer.receiveShadows = true;
+            var meshCollider = renderer.gameObject.AddComponent<UnityEngine.MeshCollider>();
+            meshCollider.sharedMesh = renderer.GetComponent<UnityEngine.MeshFilter>().sharedMesh;
+            meshCollider.convex = false; meshCollider.isTrigger = false;
+            if (part.StartsWith("Structure_Wall", System.StringComparison.Ordinal)) wallColliders.Add(meshCollider);
+            if (part.StartsWith("Cover_", System.StringComparison.Ordinal)) roofColliders.Add(meshCollider);
+        }
+        if (semantic.Count != 8 || wallColliders.Count != 4 || roofColliders.Count != 3)
+            throw new System.InvalidOperationException("语义装配数不完整");
+        UnityEngine.Physics.SyncTransforms();
+        // FBX侧墙命名可受坐标手性影响；前后门孔必须仍在约定-Z/+Z，不偷偷猜一个旋转修正。
+        var south = semantic["Structure_WallSouth"].bounds.center - worldOrigin;
+        var north = semantic["Structure_WallNorth"].bounds.center - worldOrigin;
+        if (south.z > -2.8f || north.z < 2.8f)
+            throw new System.InvalidOperationException("FBX前后轴不符合已审核蓝图；Root须先核实际导入方向，South=" + south + " North=" + north);
+
+        var building = instance.AddComponent<Ossastra.SceneVisibility.Rooms.BuildingVisibilityRoot>();
+        building.buildingId = "timber-hall";
+        building.occupancyVolumes = new[] { new Ossastra.SceneVisibility.Rooms.RoomLocalBox { center = new UnityEngine.Vector3(0, 1.5f, 0), size = new UnityEngine.Vector3(7.1f, 3.1f, 6.1f) } };
+        building.enterInset = .02f; building.exitMargin = .12f;
+        var regionGo = Child(instance.transform, "Room_Timber");
+        var room = regionGo.AddComponent<Ossastra.SceneVisibility.Rooms.RoomRegion>();
+        room.roomId = "room-timber"; room.floorId = "Ground"; room.priority = 20;
+        // Display volumes must contain actual floor/wall geometry, not just interior free space.
+        // Building occupancy above remains the tighter entry authority; Room cannot reveal it early.
+        room.volumes = new[] { new Ossastra.SceneVisibility.Rooms.RoomLocalBox { center = new UnityEngine.Vector3(0, 2.1f, 0), size = new UnityEngine.Vector3(8.2f, 5.2f, 7.2f) } };
+        room.members = new[] { semantic["Structure_Floor"] };
+        var roofGo = Child(instance.transform, "RoofGroup_Timber");
+        var roofGroup = roofGo.AddComponent<Ossastra.SceneVisibility.Rooms.RoofVisibilityGroup>();
+        roofGroup.roofGroupId = "roof-timber";
+        var roofs = new[] { semantic["Cover_RoofSouth"], semantic["Cover_RoofNorth"], semantic["Cover_Ridge"] };
+        roofGroup.members = roofs; roofGroup.labelRaycastExclusions = roofColliders.ToArray();
+        var walls = new[] { semantic["Structure_WallSouth"], semantic["Structure_WallNorth"], semantic["Structure_WallWest"], semantic["Structure_WallEast"] };
+        var wallGroups = new System.Collections.Generic.List<Ossastra.SceneVisibility.Rooms.FrontWallGroup>();
+        foreach (var wall in walls)
+        {
+            var groupGo = Child(instance.transform, "FrontWall_" + wall.name);
+            var group = groupGo.AddComponent<Ossastra.SceneVisibility.Rooms.FrontWallGroup>();
+            group.wallId = "timber-" + wall.name;
+            group.primaryRoom = room; group.secondaryRoom = null; group.members = new[] { wall }; group.allowHide = true;
+            var outward = wall.bounds.center - worldOrigin; outward.y = 0;
+            if (outward.sqrMagnitude < 1) throw new System.InvalidOperationException("墙中心不能给出稳定室外方向：" + wall.name);
+            group.localOutwardNormal = group.transform.InverseTransformDirection(outward.normalized);
+            wallGroups.Add(group);
+        }
+        building.regions = new[] { room }; building.roofGroups = new[] { roofGroup };
+        building.structuralMembers = walls; building.frontWalls = wallGroups.ToArray();
+        var doorMesh = Aperture(materialFolder, "Aperture_Door_200x225", 2, 2.25f);
+        var sideMesh = Aperture(materialFolder, "Aperture_Window_150x125", 1.5f, 1.25f);
+        var backMesh = Aperture(materialFolder, "Aperture_Window_200x125", 2, 1.25f);
+        building.portals = new[] {
+            Portal(instance.transform, room, "door-timber", new UnityEngine.Vector3(0,1.125f,-3.5f), UnityEngine.Vector3.back, doorMesh, true),
+            Portal(instance.transform, room, "window-timber-west", new UnityEngine.Vector3(-4,1.625f,0), UnityEngine.Vector3.left, sideMesh, false),
+            Portal(instance.transform, room, "window-timber-east", new UnityEngine.Vector3(4,1.625f,0), UnityEngine.Vector3.right, sideMesh, false),
+            Portal(instance.transform, room, "window-timber-north", new UnityEngine.Vector3(0,1.625f,3.5f), UnityEngine.Vector3.forward, backMesh, false) };
+        var boxes = new System.Collections.Generic.List<UnityEngine.BoxCollider>();
+        // 南门只三段；北/东西窗各四段。共15盒，不会用一整片AABB盖住真实孔。
+        Sight(instance.transform, boxes, "South_Left", new UnityEngine.Vector3(-2.5f,1.625f,-3.25f), new UnityEngine.Vector3(3,3.25f,.5f));
+        Sight(instance.transform, boxes, "South_Right", new UnityEngine.Vector3(2.5f,1.625f,-3.25f), new UnityEngine.Vector3(3,3.25f,.5f));
+        Sight(instance.transform, boxes, "South_Lintel", new UnityEngine.Vector3(0,2.75f,-3.25f), new UnityEngine.Vector3(2,1,.5f));
+        WindowSight(instance.transform, boxes, false, 3.25f, 8, 2, "North");
+        WindowSight(instance.transform, boxes, true, -3.75f, 7, 1.5f, "West");
+        WindowSight(instance.transform, boxes, true, 3.75f, 7, 1.5f, "East");
+        if (boxes.Count != 15) throw new System.InvalidOperationException("Sight预算不是预期15");
+        var lightGo = Child(instance.transform, "InteriorWarmLight"); lightGo.transform.localPosition = new UnityEngine.Vector3(0,2.5f,0);
+        var light = lightGo.AddComponent<UnityEngine.Light>(); light.type = UnityEngine.LightType.Point;
+        light.color = new UnityEngine.Color(1,.68f,.38f,1); light.intensity = 2.5f; light.range = 5.5f;
+        light.shadows = UnityEngine.LightShadows.Soft;
+        var shelterGo = Child(instance.transform, "RainShelter_Timber"); var shelter = shelterGo.AddComponent<UnityEngine.BoxCollider>();
+        shelter.isTrigger = true; shelter.center = new UnityEngine.Vector3(0,2.25f,0); shelter.size = new UnityEngine.Vector3(9,5,8);
+        var all = new UnityEngine.Renderer[renderers.Length]; for (int i=0;i<renderers.Length;++i) all[i]=renderers[i];
+        return new Result { building=building, room=room, wallColliders=wallColliders.ToArray(), sightBlockers=boxes.ToArray(), renderers=all, roofs=roofs, interiorLight=light, rainShelter=shelter };
+    }
+
+    static System.Collections.Generic.Dictionary<string,UnityEngine.Color> ReadPalette(string path)
+    {
+        var document=Newtonsoft.Json.Linq.JObject.Parse(System.IO.File.ReadAllText(path));
+        var json=document["paletteSrgb"] as Newtonsoft.Json.Linq.JObject;
+        if(json==null) throw new System.InvalidOperationException("manifest缺少paletteSrgb对象");
+        var result=new System.Collections.Generic.Dictionary<string,UnityEngine.Color>(System.StringComparer.Ordinal);
+        foreach(var item in json.Properties())
+        {
+            var rgba=item.Value as Newtonsoft.Json.Linq.JArray;
+            if(rgba==null||rgba.Count!=4) throw new System.InvalidOperationException("非法RGBA："+item.Name);
+            float r=(float)rgba[0],g=(float)rgba[1],b=(float)rgba[2],a=(float)rgba[3];
+            foreach(float f in new[]{r,g,b,a}) if(float.IsNaN(f)||float.IsInfinity(f)||f<0||f>1) throw new System.InvalidOperationException("越界RGBA："+item.Name);
+            result.Add(item.Name,new UnityEngine.Color(r,g,b,a));
+        }
+        if(result.Count!=14) throw new System.InvalidOperationException("本房屋manifest预期14种作者色，实际"+result.Count);
+        return result;
+    }
+    static string ResolveColor(UnityEngine.Material material,System.Collections.Generic.Dictionary<string,UnityEngine.Color> palette)
+    {
+        const string prefix="VW.ossastra.timber-house.";
+        if(material==null||!material.name.StartsWith(prefix,System.StringComparison.Ordinal)) throw new System.InvalidOperationException("未知FBX作者材质："+(material==null?"null":material.name));
+        string key=material.name.Substring(prefix.Length);
+        if(!palette.ContainsKey(key)) throw new System.InvalidOperationException("材质未在明确色板登记："+material.name);
+        return key;
+    }
+    static UnityEngine.Material AuthorMaterial(string folder,string key,UnityEngine.Color rgba,UnityEngine.Shader shader,Ossastra.WorldRendering.VoxelSurface.VoxelSurfaceSettings settings)
+    {
+        string path=folder+"/Timber_"+key.Replace('.','_')+".mat";
+        var existing=UnityEditor.AssetDatabase.LoadAssetAtPath<UnityEngine.Material>(path);
+        if(existing!=null)
+        {
+            var wanted=new UnityEngine.Material(shader); wanted.SetColor("_BaseColor",rgba); wanted.SetFloat("_Metallic",0); wanted.SetFloat("_Smoothness",.15f); settings.ApplyTo(wanted);
+            try
+            {
+                var actualColor=existing.GetColor("_BaseColor");
+                if(existing.shader!=shader||!Near(actualColor.r,rgba.r)||!Near(actualColor.g,rgba.g)||!Near(actualColor.b,rgba.b)||!Near(actualColor.a,rgba.a)||!Near(existing.GetFloat("_Smoothness"),.15f)||!Near(existing.GetFloat("_Metallic"),0)||existing.GetTexture("_BaseMap")!=wanted.GetTexture("_BaseMap")) throw new System.InvalidOperationException("既有候选材质与当前明确源不符，拒绝静默覆盖："+path);
+                foreach(string property in new[]{"_VoxelMainShape","_VoxelLitFaceBoost","_VoxelBackFaceDarkening","_VoxelIndirectDiffuse","_VoxelEnvironmentSpecular","_VoxelDirectSpecular","_VoxelHighlightStrength","_VoxelHighlightKnee","_VoxelHighlightCeiling","_VoxelVertexColors","_VoxelDiagnostic"})
+                    if(!Near(existing.GetFloat(property),wanted.GetFloat(property))) throw new System.InvalidOperationException("既有候选响应不同，拒绝覆盖："+path+" / "+property);
+            }
+            finally{UnityEngine.Object.DestroyImmediate(wanted);}
+            return existing;
+        }
+        var created=new UnityEngine.Material(shader);created.name="Timber_"+key; created.SetColor("_BaseColor",rgba);
+        if(created.HasProperty("_Color"))created.SetColor("_Color",rgba);
+        created.SetFloat("_Metallic",0); created.SetFloat("_Smoothness",.15f); created.enableInstancing=true;
+        settings.ApplyTo(created);UnityEditor.AssetDatabase.CreateAsset(created,path);UnityEditor.AssetDatabase.SaveAssetIfDirty(created);
+        return created;
+    }
+    static bool Near(float a,float b){return UnityEngine.Mathf.Abs(a-b)<.00001f;}
+    static void EnsureFolder(string folder)
+    {
+        if(string.IsNullOrEmpty(folder)||!folder.StartsWith("Assets/",System.StringComparison.Ordinal)||folder.Contains("..")||folder.Contains("\\")) throw new System.ArgumentException("必须传入明确Assets子文件夹");
+        var parts=folder.Split('/');string current=parts[0];for(int i=1;i<parts.Length;++i){if(string.IsNullOrEmpty(parts[i]))throw new System.ArgumentException("目录中有空段");string next=current+"/"+parts[i];if(!UnityEditor.AssetDatabase.IsValidFolder(next))UnityEditor.AssetDatabase.CreateFolder(current,parts[i]);current=next;}
+    }
+    static UnityEngine.GameObject Child(UnityEngine.Transform parent,string name)
+    {var go=new UnityEngine.GameObject(name);go.transform.SetParent(parent,false);return go;}
+    static UnityEngine.Mesh Aperture(string folder,string name,float width,float height)
+    {
+        string path=folder+"/"+name+".asset";var existing=UnityEditor.AssetDatabase.LoadAssetAtPath<UnityEngine.Mesh>(path);
+        var expected=new[]{new UnityEngine.Vector3(-width/2,-height/2,0),new UnityEngine.Vector3(width/2,-height/2,0),new UnityEngine.Vector3(width/2,height/2,0),new UnityEngine.Vector3(-width/2,height/2,0)};
+        if(existing!=null){if(!existing.isReadable||existing.vertexCount!=4||existing.triangles.Length!=6)throw new System.InvalidOperationException("既有孔洞网格不符："+path);var actual=existing.vertices;for(int i=0;i<4;++i)if((actual[i]-expected[i]).sqrMagnitude>.00000001f)throw new System.InvalidOperationException("孔洞尺寸不符："+path);var indices=existing.triangles;var wanted=new[]{0,1,2,0,2,3};for(int i=0;i<wanted.Length;++i)if(indices[i]!=wanted[i])throw new System.InvalidOperationException("孔洞绕序不符："+path);return existing;}
+        var mesh=new UnityEngine.Mesh();mesh.name=name;mesh.vertices=expected;mesh.triangles=new[]{0,1,2,0,2,3};mesh.RecalculateNormals();mesh.RecalculateBounds();UnityEditor.AssetDatabase.CreateAsset(mesh,path);UnityEditor.AssetDatabase.SaveAssetIfDirty(mesh);return mesh;
+    }
+    static Ossastra.SceneVisibility.Rooms.ViewPortal Portal(UnityEngine.Transform parent,Ossastra.SceneVisibility.Rooms.RoomRegion room,string id,UnityEngine.Vector3 center,UnityEngine.Vector3 outward,UnityEngine.Mesh mesh,bool traversable)
+    {
+        var go=Child(parent,id);go.transform.localPosition=center;go.transform.localRotation=UnityEngine.Quaternion.LookRotation(outward,UnityEngine.Vector3.up);
+        var portal=go.AddComponent<Ossastra.SceneVisibility.Rooms.ViewPortal>();portal.portalId=id;portal.inside=room;portal.outside=null;portal.apertureMesh=mesh;portal.open=true;portal.canSeeThrough=true;portal.canTraverse=traversable;return portal;
+    }
+    static void Sight(UnityEngine.Transform parent,System.Collections.Generic.List<UnityEngine.BoxCollider> result,string id,UnityEngine.Vector3 center,UnityEngine.Vector3 size)
+    {var go=Child(parent,"SightSolid_"+id);var collider=go.AddComponent<UnityEngine.BoxCollider>();collider.center=center;collider.size=size;collider.isTrigger=false;result.Add(collider);}
+    static void WindowSight(UnityEngine.Transform parent,System.Collections.Generic.List<UnityEngine.BoxCollider> result,bool alongZ,float plane,float fullWidth,float width,string id)
+    {
+        float sideWidth=(fullWidth-width)*.5f,sideCenter=(fullWidth+width)*.25f;
+        // 左/右通高实体与上下窗台严格避开净孔；侧墙交换x/z以保持实际0.5m墙厚。
+        foreach(int sign in new[]{-1,1}) Sight(parent,result,id+"_Side"+sign,alongZ?new UnityEngine.Vector3(plane,1.625f,sign*sideCenter):new UnityEngine.Vector3(sign*sideCenter,1.625f,plane),alongZ?new UnityEngine.Vector3(.5f,3.25f,sideWidth):new UnityEngine.Vector3(sideWidth,3.25f,.5f));
+        Sight(parent,result,id+"_Sill",alongZ?new UnityEngine.Vector3(plane,.5f,0):new UnityEngine.Vector3(0,.5f,plane),alongZ?new UnityEngine.Vector3(.5f,1,width):new UnityEngine.Vector3(width,1,.5f));
+        Sight(parent,result,id+"_Head",alongZ?new UnityEngine.Vector3(plane,2.75f,0):new UnityEngine.Vector3(0,2.75f,plane),alongZ?new UnityEngine.Vector3(.5f,1,width):new UnityEngine.Vector3(width,1,.5f));
+    }
+}

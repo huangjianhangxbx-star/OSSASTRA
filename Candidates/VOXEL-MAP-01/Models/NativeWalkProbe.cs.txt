@@ -1,0 +1,276 @@
+// Temporary Native test command: real InputSystem keyboard -> existing player input -> motor.
+// No scene component, second movement authority, collision adjustment, time/focus override or save.
+public sealed class VoxelTerrainWalkProbe : Funplay.Editor.Tools.Scripting.IFunplayCommand
+{
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+    {
+        Probe.Start();
+        ctx.ReturnValue = new { scheduled = true, report = Probe.ReportPath, deadlineSeconds = 45,
+            note = "Read the report after completion; scheduled is not a test pass." };
+    }
+
+    static class Probe
+    {
+        internal const string ReportPath = "E:/WORLDCREATOR/XingHaiHuiLang/研究/VOXEL-MAP-01/walk-probe.json";
+        const string ActiveKey = "VOXEL-MAP-01.NativeWalkProbe.active";
+        const string MainScene = "Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity";
+        const string ValidationScene = "Assets/OSSASTRA/VoxelTerrainValidation/Scenes/SC_VoxelTerrainHousing_Validation.unity";
+        static readonly UnityEngine.InputSystem.Key[][] Keys = {
+            new[]{UnityEngine.InputSystem.Key.W}, new[]{UnityEngine.InputSystem.Key.W},
+            new[]{UnityEngine.InputSystem.Key.W,UnityEngine.InputSystem.Key.A},
+            new[]{UnityEngine.InputSystem.Key.S,UnityEngine.InputSystem.Key.D},
+            new[]{UnityEngine.InputSystem.Key.W,UnityEngine.InputSystem.Key.D}
+        };
+        static readonly string[] Names = { "hill-a", "hill-b", "door-enter", "door-exit", "pond-cross" };
+        static readonly float[] Durations = { 1.6f, 1.9f, 1.8f, 1.8f, 2.6f };
+        static readonly UnityEngine.Vector3[] Starts = {
+            new UnityEngine.Vector3(-26.5f,.15f,-6.5f), new UnityEngine.Vector3(20.7f,.15f,8.7f),
+            new UnityEngine.Vector3(4,.15f,-15), UnityEngine.Vector3.zero,
+            new UnityEngine.Vector3(11,.15f,-16)
+        };
+        static readonly string[] Criteria = {
+            "actual maxY>=.65; final x>=-24.6,z>=-4.6; horizontal progress>=2.8m",
+            "actual maxY>=1.10; final x>=23.5,z>=11.5; horizontal progress>=3.8m",
+            "final z>-13,abs(x-4)<.6; authoritative ActiveRoom==room-timber; progress>=3m",
+            "final z<-14.2,abs(x-4)<.6; authoritative ActiveRoom!=room-timber; progress>=3m",
+            "actual minY<=-.30; final x>=18,z within .65 of -16; progress>=6m"
+        };
+        static Ossastra.Development.SceneVisibility.RoomVisibilityLabPanel panel;
+        static Ossastra.Characters.CharacterRoot actor;
+        static UnityEngine.InputSystem.Keyboard keyboard;
+        static UnityEngine.Vector3 original;
+        static int sceneHandle, lastFrame, index, mode;
+        static float prepareElapsed, runElapsed, settleElapsed;
+        static double began, phaseBegan;
+        static bool subscribed, finishing;
+        static Report report;
+        static Segment segment;
+
+        [System.Serializable] sealed class Report
+        {
+            public string schema="ossastra-voxel-map-walk-probe-1", state="running", utcStarted, utcFinished, scene, actor, failure;
+            public bool pass, originalPositionRestored, keyReleaseQueued, keyReleaseProcessed;
+            public float wallSeconds, deadlineSeconds=45, initialStepOffset, initialMoveSpeedUnknown=-1, initialYaw, initialPitch;
+            public UnityEngine.Vector3 originalPosition, restoredPosition;
+            public Segment[] segments = new Segment[5];
+            public string inputMethod="InputSystem.QueueStateEvent(Keyboard.current, KeyboardState); existing PlaceCurrent only for phase setup/restoration";
+        }
+        [System.Serializable] sealed class Segment
+        {
+            public string name, keys, passCriteria, roomAtEnd, failure;
+            public bool complete, pass, actorReadyAtStart, playerInputAtStart, intentSamplingAtStart;
+            public int simulationFrames;
+            public float requestedInputSeconds, actualInputSeconds, wallSeconds, minY, maxY, horizontalProgress;
+            public UnityEngine.Vector3 placedStart, settledStart, finalPosition;
+        }
+
+        internal static void Start()
+        {
+            if (UnityEditor.SessionState.GetBool(ActiveKey,false)) throw new System.InvalidOperationException("A walk probe is already active; do not replay while its callback runs.");
+            if (!UnityEngine.Application.isPlaying || !UnityEditor.EditorApplication.isPlaying || UnityEditor.EditorApplication.isPaused)
+                throw new System.InvalidOperationException("Walk probe requires unpaused Play.");
+            var scene=UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+            if (scene.path!=MainScene && scene.path!=ValidationScene) throw new System.InvalidOperationException("Requires the explicit installed validation or main scene.");
+            var installed=UnityEngine.Object.FindObjectsOfType<Ossastra.VoxelTerrain.VoxelTerrainInstallation>();
+            if (installed.Length!=1 || installed[0].gameObject.scene.handle!=scene.handle || installed[0].editableSource==null || installed[0].chunks==null || installed[0].chunks.Length==0)
+                throw new System.InvalidOperationException("Exactly one valid VOXEL-MAP-01 installation marker is required.");
+            var panels=UnityEngine.Object.FindObjectsOfType<Ossastra.Development.SceneVisibility.RoomVisibilityLabPanel>();
+            if(panels.Length!=1)throw new System.InvalidOperationException("One existing RoomVisibilityLabPanel is required.");
+            panel=panels[0];
+            if(panel.visibility==null || panel.visibility.coordinator==null || panel.visibility.roomModule==null || panel.map==null)
+                throw new System.InvalidOperationException("Existing visibility/coordinator/map wiring is incomplete.");
+            if(panel.map.IsStructureMode || UnityEngine.Mathf.Abs(UnityEngine.Mathf.DeltaAngle(panel.map.ActualYaw,45))>.5f || UnityEngine.Mathf.Abs(panel.map.pitch-45)>.5f)
+                throw new System.InvalidOperationException("This input route requires existing gameplay yaw45/pitch45. Probe will not change the camera.");
+            actor=panel.visibility.coordinator.Current;
+            if(actor==null || !actor.IsAlive)throw new System.InvalidOperationException("Current living actor is required.");
+            keyboard=UnityEngine.InputSystem.Keyboard.current;
+            if(keyboard==null)throw new System.InvalidOperationException("A real current keyboard is required; probe will not add a virtual device.");
+            original=actor.transform.position; sceneHandle=scene.handle;
+            began=UnityEditor.EditorApplication.timeSinceStartup;
+            report=new Report { utcStarted=System.DateTime.UtcNow.ToString("o"), scene=scene.path, actor=actor.name,
+                originalPosition=original, initialYaw=panel.map.ActualYaw, initialPitch=panel.map.pitch };
+            var cc=actor.GetComponent<UnityEngine.CharacterController>();
+            report.initialStepOffset=cc==null?-1:cc.stepOffset;
+            index=0; lastFrame=UnityEngine.Time.frameCount; finishing=false;
+            UnityEditor.SessionState.SetBool(ActiveKey,true);
+            try
+            {
+                UnityEditor.EditorApplication.update+=Tick;
+                UnityEditor.EditorApplication.playModeStateChanged+=PlayChanged;
+                UnityEditor.AssemblyReloadEvents.beforeAssemblyReload+=Reload;
+                UnityEditor.EditorApplication.quitting+=Quitting;
+                subscribed=true;
+                BeginPhase(); WriteReport();
+                UnityEditor.EditorApplication.QueuePlayerLoopUpdate();
+            }
+            catch(System.Exception e) { Finish("Startup failure: "+e.GetBaseException().Message); throw; }
+        }
+
+        static void BeginPhase()
+        {
+            phaseBegan=UnityEditor.EditorApplication.timeSinceStartup;
+            prepareElapsed=runElapsed=settleElapsed=0; mode=0;
+            var position=index==3?report.segments[2].finalPosition:Starts[index];
+            segment=new Segment { name=Names[index],keys=string.Join("+",System.Array.ConvertAll(Keys[index],k=>k.ToString())),
+                placedStart=position,requestedInputSeconds=Durations[index],passCriteria=Criteria[index] };
+            report.segments[index]=segment;
+            QueueKeys(false);
+            if(!panel.PlaceCurrent(position))throw new System.InvalidOperationException("Existing PlaceCurrent rejected "+Names[index]);
+            segment.minY=segment.maxY=actor.transform.position.y;
+            segment.actorReadyAtStart=actor.CanSimulateIntent;
+            segment.playerInputAtStart=actor.HasPlayerInput;
+            segment.intentSamplingAtStart=panel.visibility.coordinator.IsIntentSamplingAllowed;
+        }
+
+        static void Tick()
+        {
+            if(finishing)return;
+            try
+            {
+                var now=UnityEditor.EditorApplication.timeSinceStartup;
+                if(now-began>=45) { Finish("45-second wall-clock deadline exceeded; incomplete phases are failures."); return; }
+                if(now-phaseBegan>=8) { Finish("8-second phase deadline exceeded: "+Names[index]); return; }
+                if(!UnityEngine.Application.isPlaying || !UnityEditor.EditorApplication.isPlaying || UnityEditor.EditorApplication.isPaused)
+                { Finish("Play stopped or paused during ordinary-input test."); return; }
+                if(actor==null || !actor.IsAlive || panel==null || panel.visibility==null || panel.visibility.coordinator.Current!=actor || UnityEngine.SceneManagement.SceneManager.GetActiveScene().handle!=sceneHandle)
+                { Finish("Actor/scene authority changed during test."); return; }
+                if(panel.map==null || panel.map.IsStructureMode || UnityEngine.Mathf.Abs(UnityEngine.Mathf.DeltaAngle(panel.map.ActualYaw,report.initialYaw))>.5f || UnityEngine.Mathf.Abs(panel.map.pitch-report.initialPitch)>.5f)
+                { Finish("Camera changed during test; route is invalid."); return; }
+                UnityEditor.EditorApplication.QueuePlayerLoopUpdate();
+                if(UnityEngine.Time.frameCount==lastFrame)return;
+                lastFrame=UnityEngine.Time.frameCount;
+                float dt=UnityEngine.Time.deltaTime;
+                if(float.IsNaN(dt)||float.IsInfinity(dt)||dt<0)throw new System.InvalidOperationException("Invalid actual simulation deltaTime.");
+                var p=actor.transform.position;
+                segment.minY=UnityEngine.Mathf.Min(segment.minY,p.y); segment.maxY=UnityEngine.Mathf.Max(segment.maxY,p.y);
+                if(mode==0)
+                {
+                    QueueKeys(false); prepareElapsed+=dt;
+                    if(prepareElapsed<.25f)return;
+                    segment.settledStart=p; mode=1; QueueKeys(true); return;
+                }
+                if(mode==1)
+                {
+                    runElapsed+=dt; segment.simulationFrames++; segment.actualInputSeconds=runElapsed;
+                    if(runElapsed<Durations[index]) { QueueKeys(true); return; }
+                    QueueKeys(false); mode=2; return;
+                }
+                QueueKeys(false); settleElapsed+=dt;
+                if(settleElapsed<.15f)return;
+                segment.finalPosition=p; segment.wallSeconds=(float)(now-phaseBegan);
+                segment.roomAtEnd=panel.visibility.roomModule.ActiveRoom==null?null:panel.visibility.roomModule.ActiveRoom.roomId;
+                var movement=p-segment.settledStart;
+                segment.horizontalProgress=new UnityEngine.Vector2(movement.x,movement.z).magnitude;
+                segment.complete=true; segment.pass=Evaluate(index,segment);
+                if(!segment.pass)segment.failure="Real movement did not satisfy the recorded thresholds; inspect stuck steps, input/focus/UI capture or obstruction.";
+                WriteReport();
+                index++;
+                if(index>=Names.Length) { Finish(null); return; }
+                BeginPhase();
+            }
+            catch(System.Exception e) { Finish(e.GetType().Name+": "+e.GetBaseException().Message); }
+        }
+
+        static bool Evaluate(int phase,Segment s)
+        {
+            var p=s.finalPosition;
+            if(phase==0)return s.maxY>=.65f&&p.x>=-24.6f&&p.z>=-4.6f&&s.horizontalProgress>=2.8f;
+            if(phase==1)return s.maxY>=1.10f&&p.x>=23.5f&&p.z>=11.5f&&s.horizontalProgress>=3.8f;
+            if(phase==2)return p.z>-13&&UnityEngine.Mathf.Abs(p.x-4)<.6f&&s.roomAtEnd=="room-timber"&&s.horizontalProgress>=3;
+            if(phase==3)return p.z<-14.2f&&UnityEngine.Mathf.Abs(p.x-4)<.6f&&s.roomAtEnd!="room-timber"&&s.horizontalProgress>=3;
+            return s.minY<=-.30f&&p.x>=18&&UnityEngine.Mathf.Abs(p.z+16)<.65f&&s.horizontalProgress>=6;
+        }
+
+        static void QueueKeys(bool held)
+        {
+            if(keyboard==null || !keyboard.added)return;
+            UnityEngine.InputSystem.InputSystem.QueueStateEvent(keyboard,
+                held?new UnityEngine.InputSystem.LowLevel.KeyboardState(Keys[index]):new UnityEngine.InputSystem.LowLevel.KeyboardState());
+        }
+
+        static void Finish(string failure)
+        {
+            if(finishing)return; finishing=true;
+            try
+            {
+                if(report!=null)
+                {
+                    report.failure=failure; report.utcFinished=System.DateTime.UtcNow.ToString("o");
+                    report.wallSeconds=(float)(UnityEditor.EditorApplication.timeSinceStartup-began);
+                    report.pass=string.IsNullOrEmpty(failure);
+                    for(int i=0;i<report.segments.Length;i++)report.pass &= report.segments[i]!=null&&report.segments[i].complete&&report.segments[i].pass;
+                    report.state=report.pass?"completed-pass":"completed-fail";
+                    if(segment!=null&&!segment.complete)
+                    {
+                        segment.failure=failure; segment.wallSeconds=(float)(UnityEditor.EditorApplication.timeSinceStartup-phaseBegan);
+                        if(actor!=null)segment.finalPosition=actor.transform.position;
+                    }
+                }
+                // Process an empty state now so callback removal never leaves its synthetic key held.
+                if(keyboard!=null&&keyboard.added)
+                {
+                    UnityEngine.InputSystem.InputSystem.QueueStateEvent(keyboard,new UnityEngine.InputSystem.LowLevel.KeyboardState());
+                    if(report!=null)report.keyReleaseQueued=true;
+                    UnityEngine.InputSystem.InputSystem.Update();
+                    if(report!=null)report.keyReleaseProcessed=!keyboard.anyKey.isPressed;
+                }
+                if(UnityEngine.Application.isPlaying&&panel!=null&&actor!=null&&panel.visibility!=null&&panel.visibility.coordinator!=null&&panel.visibility.coordinator.Current==actor)
+                {
+                    bool restored=panel.PlaceCurrent(original);
+                    if(report!=null) { report.restoredPosition=actor.transform.position; report.originalPositionRestored=restored&&UnityEngine.Vector3.Distance(original,actor.transform.position)<.01f; }
+                }
+                if(report!=null&&(!report.keyReleaseProcessed||!report.originalPositionRestored))
+                { report.pass=false; report.state="completed-fail"; report.failure=(report.failure??"")+" Cleanup did not confirm all keys released and original position restored."; }
+            }
+            catch(System.Exception e)
+            {
+                if(report!=null) { report.pass=false;report.state="completed-fail";report.failure=(report.failure??"")+" Cleanup: "+e.GetBaseException().Message; }
+            }
+            finally
+            {
+                if(subscribed)
+                {
+                    UnityEditor.EditorApplication.update-=Tick;
+                    UnityEditor.EditorApplication.playModeStateChanged-=PlayChanged;
+                    UnityEditor.AssemblyReloadEvents.beforeAssemblyReload-=Reload;
+                    UnityEditor.EditorApplication.quitting-=Quitting;
+                    subscribed=false;
+                }
+                UnityEditor.SessionState.SetBool(ActiveKey,false);
+                UnityEditor.EditorApplication.QueuePlayerLoopUpdate();
+                try { WriteReport(); } catch(System.Exception e) { UnityEngine.Debug.LogError("Walk probe report failed: "+e.Message); }
+                UnityEngine.Debug.Log("VOXEL-MAP-01 ordinary-input walk probe finished: "+(report==null?"failure":report.state)+"; "+ReportPath);
+            }
+        }
+
+        static void WriteReport()
+        {
+            if(report==null)return;
+            System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(ReportPath));
+            string temp=ReportPath+".tmp";
+            var settings=new Newtonsoft.Json.JsonSerializerSettings { Formatting=Newtonsoft.Json.Formatting.Indented };
+            settings.Converters.Add(new PositionJsonConverter());
+            System.IO.File.WriteAllText(temp,Newtonsoft.Json.JsonConvert.SerializeObject(report,settings),new System.Text.UTF8Encoding(false));
+            if(System.IO.File.Exists(ReportPath))System.IO.File.Copy(temp,ReportPath,true); else System.IO.File.Move(temp,ReportPath);
+            if(System.IO.File.Exists(temp))System.IO.File.Delete(temp);
+        }
+        // Unity Vector3.normalized recursively returns another Vector3; serialize position fields only.
+        sealed class PositionJsonConverter : Newtonsoft.Json.JsonConverter<UnityEngine.Vector3>
+        {
+            public override void WriteJson(Newtonsoft.Json.JsonWriter writer,UnityEngine.Vector3 value,Newtonsoft.Json.JsonSerializer serializer)
+            {
+                writer.WriteStartObject();
+                writer.WritePropertyName("x");writer.WriteValue(value.x);
+                writer.WritePropertyName("y");writer.WriteValue(value.y);
+                writer.WritePropertyName("z");writer.WriteValue(value.z);
+                writer.WriteEndObject();
+            }
+            public override UnityEngine.Vector3 ReadJson(Newtonsoft.Json.JsonReader reader,System.Type objectType,UnityEngine.Vector3 existingValue,bool hasExistingValue,Newtonsoft.Json.JsonSerializer serializer)
+            { throw new System.NotSupportedException("Walk report writer only."); }
+            public override bool CanRead => false;
+        }
+        static void PlayChanged(UnityEditor.PlayModeStateChange value) { if(value==UnityEditor.PlayModeStateChange.ExitingPlayMode||value==UnityEditor.PlayModeStateChange.EnteredEditMode)Finish("Play lifecycle exited before completion."); }
+        static void Reload() { Finish("Assembly reload before completion."); }
+        static void Quitting() { Finish("Editor quitting before completion."); }
+    }
+}
