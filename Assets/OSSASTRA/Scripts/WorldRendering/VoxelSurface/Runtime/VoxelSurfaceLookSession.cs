@@ -116,6 +116,9 @@ namespace Ossastra.WorldRendering.VoxelSurface
             {
                 if (TryResolveLookMaterial(source, out actualSource))
                 { profile = activeLook.responseProfile; settings = sessionSettings; return; }
+                // 新声明表面即使当前旧Look没有为其换色，仍消费当前受光会话；未知旧槽维持原回落。
+                if (materialRoles != null && materialRoles.Contains(source))
+                { actualSource = source; profile = activeLook.responseProfile; settings = sessionSettings; return; }
                 CaptureOriginalCLive(); actualSource = source;
                 profile = originalCLiveProfile != null ? originalCLiveProfile : shapedProfile;
                 settings = originalCLiveSettings; return;
@@ -130,7 +133,11 @@ namespace Ossastra.WorldRendering.VoxelSurface
             if (profile == baseline && bindings != null)
                 foreach (var binding in bindings) if (binding != null && Contains(binding.shaped, source)) return true;
             if (activeLook != null && profile == activeLook.responseProfile)
+            {
+                if (materialRoles != null && materialRoles.Contains(source) && bindings != null)
+                    foreach (var binding in bindings) if (binding != null && Contains(binding.shaped, source)) return true;
                 foreach (var item in sessionLookMaterials) if (item != null && item.replacement == source) return true;
+            }
             if (RetainConfiguredLook(lookPresets, source, profile)) return true;
             return RetainConfiguredLook(new[] { defaultLook, saveLookTarget }, source, profile);
         }

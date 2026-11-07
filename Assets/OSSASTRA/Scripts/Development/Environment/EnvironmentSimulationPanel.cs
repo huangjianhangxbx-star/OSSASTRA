@@ -125,6 +125,11 @@ namespace Ossastra.Development.Environment
    Float(content,"SkyIntensity","天空亮度倍率",0,2,()=>environment.skyMultiplier,v=>environment.skyMultiplier=v);
    if(skyBinding!=null&&skyBinding.environment==environment)
    {
+    widgets.Title(content,"场景融合 · 材质/受光档独立");
+    widgets.Buttons(content,"SceneEnvironmentAB",new[]{"原表现 A","增强融合 B"},i=>Change(()=>skyBinding.sceneEnvironmentEnabled=i==1));
+    var fusionLabel=widgets.Text("SceneEnvironmentStatus",widgets.Row(content,"SceneEnvironmentStatusRow",44),"",12);
+    fusionLabel.enableWordWrapping=true;
+    refreshers.Add(()=>fusionLabel.text=(skyBinding.sceneEnvironmentEnabled?"B 增强融合":"A 原表现")+" / "+(skyBinding.sceneEnvironmentProfile==null?"未登记独立环境候选":skyBinding.sceneEnvironmentProfile.name)+"\n仅场景环境漫射；不改时刻、材质风格与角色参数");
     Float(content,"ReflectionIntensity","天空反射强度",0,2,()=>skyBinding.reflectionIntensity,v=>skyBinding.reflectionIntensity=v);
     Toggle(content,"SkyColorOverride","手动覆盖天顶 / 地平线颜色",()=>skyBinding.overrideSkyColors,v=>skyBinding.overrideSkyColors=v);
     Toggle(content,"SkyColorCharacterSync","自然 / 覆盖环境色同步到角色",()=>skyBinding.syncSkyColorTo2D,v=>skyBinding.syncSkyColorTo2D=v);

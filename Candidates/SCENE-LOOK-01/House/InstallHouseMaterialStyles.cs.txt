@@ -1,0 +1,161 @@
+/* 功能：为现有木屋建立明确14材质角色与两套独立配色候选；Root唯一Native执行。
+ * 边界：保留旧Look/Response/全部预设及A/B/C源；不保存场景、不改默认、不改地形树水或任何源媒体。
+ * 资产：新增候选只改BaseColor RGB，alpha、PBR、纹理/UV与顶点色语义由原材质完整复制。
+ */
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using UnityEngine;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+using Ossastra.WorldRendering.VoxelSurface;
+using Funplay.Editor.Tools.Scripting;
+
+public sealed class InstallHouseMaterialStyles : IFunplayCommand
+{
+    const string Styles="Assets/OSSASTRA/WorldRendering/VoxelSurface/LookDev/HouseStyles/TimberHall";
+    const string SourceMaterials="Assets/OSSASTRA/VoxelTerrainValidation/Materials/Timber";
+    const string OldLooks="Assets/OSSASTRA/WorldRendering/VoxelSurface/LookDev/Looks";
+    const string Main="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity";
+    static readonly string[] Roles={"wood.frame","wood.panel","wood.floor","wood.trim","roof.base","roof.edge","stone.base","stone.cap"};
+    static readonly string[] Variants={"base","dark","light"};
+    // 有限作者色板；dark/light沿原模型同一整板变体保留±.025，不随机改变逐面颜色。
+    static readonly Color[] Clear={
+        C(.28f,.225f,.17f), C(.55f,.44f,.31f), C(.48f,.375f,.26f), C(.65f,.55f,.405f),
+        C(.385f,.43f,.445f), C(.55f,.565f,.51f), C(.445f,.49f,.50f), C(.585f,.625f,.62f)
+    };
+    static readonly Color[] Rich={
+        C(.265f,.15f,.085f), C(.55f,.335f,.17f), C(.46f,.275f,.135f), C(.66f,.46f,.25f),
+        C(.37f,.32f,.275f), C(.525f,.455f,.35f), C(.44f,.41f,.355f), C(.58f,.545f,.465f)
+    };
+
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+    {
+        var scene=UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+        if(EditorApplication.isPlayingOrWillChangePlaymode||(scene.path!=Main&&scene.path!="Assets/OSSASTRA/VoxelTerrainValidation/Scenes/SC_VoxelTerrainHousing_Validation.unity"))throw new InvalidOperationException("Requires explicit current main in Edit after preserving live parameters");
+        var comparisons=UnityEngine.Object.FindObjectsOfType<VoxelSurfaceComparison>();
+        var installations=UnityEngine.Object.FindObjectsOfType<Ossastra.VoxelTerrain.VoxelTerrainInstallation>();
+        if(comparisons.Length!=1||installations.Length!=1||comparisons[0].gameObject.scene!=scene||installations[0].gameObject.scene!=scene||installations[0].timberHouse==null)
+            throw new InvalidOperationException("Requires one explicit original Comparison and installed timber house in current scene");
+        var comparison=comparisons[0];var installation=installations[0];
+        var oldClear=AssetDatabase.LoadAssetAtPath<VoxelSurfaceLookSO>(OldLooks+"/ClearRecommended.asset");
+        var oldRich=AssetDatabase.LoadAssetAtPath<VoxelSurfaceLookSO>(OldLooks+"/RichCandidate.asset");
+        if(oldClear==null||oldRich==null||!oldClear.Validate(out var clearReason)||!oldRich.Validate(out var richReason))throw new InvalidOperationException("Original Clear/Rich Look validation failed");
+        if(oldClear.responseProfile!=oldRich.responseProfile)throw new InvalidOperationException("Palette comparison requires a single verified shared response; do not silently replace live responses");
+        var oldPresets=comparison.lookPresets??Array.Empty<VoxelSurfaceLookSO>();
+        if(!oldPresets.Contains(oldClear)||!oldPresets.Contains(oldRich))throw new InvalidOperationException("Original two Looks absent from explicit preset list");
+        var house=installation.timberHouse.GetComponentsInChildren<MeshRenderer>(true);
+        if(house.Length!=8)throw new InvalidOperationException("Expected eight reviewed semantic house renderer parts");
+        var entries=new List<VoxelSurfaceMaterialRoleSetSO.Entry>();
+        var sources=new Dictionary<string,Material>(StringComparer.Ordinal);
+        foreach(string role in Roles)
+        {
+            string[] familyVariants=role=="wood.panel"||role=="wood.floor"||role=="roof.base"?Variants:new[]{"base"};
+            foreach(string variant in familyVariants)
+            {
+                string key=role+(variant=="base"?"":"."+variant);
+                string path=SourceMaterials+"/Timber_"+key.Replace('.','_')+".mat";
+                var material=AssetDatabase.LoadAssetAtPath<Material>(path);
+                if(material==null||material.shader==null||material.shader.name!="Ossastra/WorldRendering/VoxelLit")throw new InvalidOperationException("Missing exact reviewed source material: "+path);
+                sources.Add(key,material);entries.Add(new VoxelSurfaceMaterialRoleSetSO.Entry{source=material,roleId=role,variantId=variant});
+            }
+        }
+        var used=new HashSet<Material>(house.SelectMany(r=>r.sharedMaterials));
+        if(used.Count!=14||!used.SetEquals(sources.Values))throw new InvalidOperationException("Actual house slots differ from the explicit fourteen reviewed author sources");
+        foreach(var renderer in house)
+        {
+            var matches=(comparison.bindings??Array.Empty<VoxelSurfaceComparison.Binding>()).Where(b=>b!=null&&b.renderer==renderer).ToArray();
+            if(matches.Length!=1||!Same(matches[0].original,renderer.sharedMaterials)||!Same(matches[0].calibrated,renderer.sharedMaterials)||!Same(matches[0].shaped,renderer.sharedMaterials))throw new InvalidOperationException("House source ownership is not a complete persistent A/B/C snapshot: "+renderer.name);
+        }
+        string rolePath=Styles+"/TimberHallRoles.asset";
+        if(comparison.materialRoles!=null&&AssetDatabase.GetAssetPath(comparison.materialRoles)!=rolePath)throw new InvalidOperationException("Comparison already declares another material-role asset");
+        Folder(Styles);Folder(Styles+"/Clear");Folder(Styles+"/Rich");
+        var roleSet=AuthorRoles(rolePath,entries);
+        var clearMap=AuthorPalette("Clear",Clear,sources);var richMap=AuthorPalette("Rich",Rich,sources);
+        var clear=AuthorLook("ClearTimberHall","清透木屋",oldClear,clearMap);
+        var rich=AuthorLook("RichTimberHall","浓厚暖木",oldRich,richMap);
+        ctx.RegisterObjectModification(comparison);
+        int changed=VoxelSurfaceMaterialAuthoring.ApplyToComparison(comparison,roleSet,house.Cast<Renderer>().ToArray());
+        comparison.lookPresets=oldPresets.Concat(new[]{clear,rich}.Where(look=>!oldPresets.Contains(look))).ToArray();
+        if(PrefabUtility.IsPartOfPrefabInstance(comparison))PrefabUtility.RecordPrefabInstancePropertyModifications(comparison);
+        EditorUtility.SetDirty(comparison);EditorSceneManager.MarkSceneDirty(scene);
+        // 原统一受光入口必须在房屋角色接线后仍可幂等重入，不把合法换色重新压回lightingOnly。
+        int unexpectedlyAdded=Ossastra.VoxelTerrain.Editor.VoxelTerrainLightingAuthoring.Register(installation,comparison);
+        if(unexpectedlyAdded!=0)throw new InvalidOperationException("Expected original terrain lighting registration to be complete before house-only style installation");
+        ctx.ReturnValue=new{houseRenderers=house.Length,sourceMaterialCount=sources.Count,changedPolicyBindings=changed,
+            clear=AssetDatabase.GetAssetPath(clear),rich=AssetDatabase.GetAssetPath(rich),roles=rolePath,
+            response=AssetDatabase.GetAssetPath(clear.responseProfile),oldLookCount=oldPresets.Length,presetCount=comparison.lookPresets.Length,
+            originalMode=comparison.mode.ToString(),defaultLook=comparison.defaultLook==null?null:AssetDatabase.GetAssetPath(comparison.defaultLook),
+            note="Candidate assets created and author references dirty; Root explicitly reviews/saves current scene. Mode/default/live parameters untouched."};
+    }
+
+    static Dictionary<Material,Material> AuthorPalette(string name,Color[] palette,Dictionary<string,Material> sources)
+    {
+        var result=new Dictionary<Material,Material>();
+        foreach(var source in sources)
+        {
+            string role=source.Key;float offset=0;
+            if(role.EndsWith(".dark",StringComparison.Ordinal)){role=role.Substring(0,role.Length-5);offset=-.025f;}
+            else if(role.EndsWith(".light",StringComparison.Ordinal)){role=role.Substring(0,role.Length-6);offset=.025f;}
+            int roleIndex=Array.IndexOf(Roles,role);if(roleIndex<0)throw new InvalidOperationException("Undeclared palette role");
+            var color=palette[roleIndex];color.r+=offset;color.g+=offset;color.b+=offset;color.a=source.Value.GetColor("_BaseColor").a;
+            string path=Styles+"/"+name+"/"+source.Key.Replace('.','_')+".mat";
+            var material=AssetDatabase.LoadAssetAtPath<Material>(path);
+            if(material==null)
+            {
+                material=new Material(source.Value){name=name+"Timber_"+source.Key};material.SetColor("_BaseColor",color);
+                if(material.HasProperty("_Color"))material.SetColor("_Color",color);
+                AssetDatabase.CreateAsset(material,path);AssetDatabase.SaveAssetIfDirty(material);
+            }
+            else if(material.shader!=source.Value.shader||material.GetColor("_BaseColor")!=color||!SameMedia(source.Value,material))throw new InvalidOperationException("Existing independent material differs; inspect instead of silently overwriting: "+path);
+            result.Add(source.Value,material);
+        }
+        return result;
+    }
+    static VoxelSurfaceMaterialRoleSetSO AuthorRoles(string path,List<VoxelSurfaceMaterialRoleSetSO.Entry> entries)
+    {
+        var roleSet=AssetDatabase.LoadAssetAtPath<VoxelSurfaceMaterialRoleSetSO>(path);
+        if(roleSet==null)
+        {
+            roleSet=ScriptableObject.CreateInstance<VoxelSurfaceMaterialRoleSetSO>();roleSet.name="TimberHallMaterialRoles";roleSet.entries=entries.ToArray();
+            AssetDatabase.CreateAsset(roleSet,path);AssetDatabase.SaveAssetIfDirty(roleSet);
+        }
+        else
+        {
+            if(!roleSet.Validate(out var reason)||roleSet.entries.Length!=entries.Count)throw new InvalidOperationException("Existing material roles conflict: "+reason);
+            foreach(var entry in entries)if(!roleSet.TryGetRole(entry.source,out var actual)||entry.roleId!=actual.roleId||entry.variantId!=actual.variantId)throw new InvalidOperationException("Existing material roles conflict with reviewed source declaration");
+        }
+        return roleSet;
+    }
+    static VoxelSurfaceLookSO AuthorLook(string name,string label,VoxelSurfaceLookSO old,Dictionary<Material,Material> additions)
+    {
+        var mappings=old.materials.Select(m=>m.Clone()).ToList();
+        foreach(var item in additions)
+        {
+            if(mappings.Any(m=>m.source==item.Key))throw new InvalidOperationException("Original Look already maps a house source; inspect before extending");
+            mappings.Add(new VoxelSurfaceLookSO.MaterialOverride{source=item.Key,replacement=item.Value});
+        }
+        string path=Styles+"/"+name+".asset";var result=AssetDatabase.LoadAssetAtPath<VoxelSurfaceLookSO>(path);
+        if(result==null)
+        {
+            result=ScriptableObject.CreateInstance<VoxelSurfaceLookSO>();result.name=name;result.label=label;result.responseProfile=old.responseProfile;result.developmentOnly=false;result.materials=mappings.ToArray();
+            AssetDatabase.CreateAsset(result,path);AssetDatabase.SaveAssetIfDirty(result);
+        }
+        else
+        {
+            if(result.label!=label||result.responseProfile!=old.responseProfile||result.developmentOnly||result.materials==null||result.materials.Length!=mappings.Count)throw new InvalidOperationException("Existing independent Look differs: "+path);
+            foreach(var expected in mappings)if(!result.materials.Any(m=>m!=null&&m.source==expected.source&&m.replacement==expected.replacement))throw new InvalidOperationException("Existing independent Look mapping differs: "+path);
+        }
+        if(!result.Validate(out var reason))throw new InvalidOperationException("Candidate Look invalid: "+reason);
+        return result;
+    }
+    static bool SameMedia(Material a,Material b)
+    {
+        foreach(string p in new[]{"_BaseMap","_BumpMap","_MetallicGlossMap","_OcclusionMap","_EmissionMap"})if(a.HasProperty(p)&&(a.GetTexture(p)!=b.GetTexture(p)||a.GetTextureOffset(p)!=b.GetTextureOffset(p)||a.GetTextureScale(p)!=b.GetTextureScale(p)))return false;
+        foreach(string p in new[]{"_Metallic","_Smoothness","_Surface","_Blend","_AlphaClip","_Cutoff","_Cull","_SrcBlend","_DstBlend","_ZWrite","_VoxelVertexColors"})if(a.HasProperty(p)&&a.GetFloat(p)!=b.GetFloat(p))return false;
+        return a.renderQueue==b.renderQueue&&a.enableInstancing==b.enableInstancing&&a.doubleSidedGI==b.doubleSidedGI;
+    }
+    static bool Same(Material[] a,Material[] b){return a!=null&&b!=null&&a.SequenceEqual(b);}
+    static Color C(float r,float g,float b){return new Color(r,g,b,1);}
+    static void Folder(string path){if(AssetDatabase.IsValidFolder(path))return;int n=path.LastIndexOf('/');string parent=path.Substring(0,n);Folder(parent);AssetDatabase.CreateFolder(parent,path.Substring(n+1));}
+}

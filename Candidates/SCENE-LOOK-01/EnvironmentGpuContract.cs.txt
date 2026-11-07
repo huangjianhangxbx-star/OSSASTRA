@@ -1,0 +1,198 @@
+/* 功能：真实GPU执行生产EnvironmentSceneDiffuseChroma函数，验证色度预算、空间资格与精确旁路。
+ * 边界：瞬态Shader/私有材质/2×2线性浮点RT；不写资产、不改场景、不设置任何Shader全局。
+ * 不是整场灯循环、可见性或Player的替代；外层主场普通/Sight实机对照仍必须单独完成。
+ */
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using UnityEditor;
+using UnityEngine;
+using UnityEngine.Rendering;
+using Funplay.Editor.Tools.Scripting;
+
+public sealed class SceneEnvironmentGpuContract : IFunplayCommand
+{
+    readonly List<string> failures = new List<string>();
+    int assertions;
+    Material material;
+    RenderTexture output;
+    Texture2D read;
+    CommandBuffer command;
+
+    public void Execute(ExecutionContext context)
+    {
+        if (!string.Equals(Application.dataPath.Replace('\\','/'),
+            "E:/WORLDCREATOR/new/Project_ANKALUTE/Assets", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("wrong project");
+        if (SystemInfo.graphicsDeviceType == GraphicsDeviceType.Null)
+            throw new InvalidOperationException("real graphical GPU required");
+        bool previousAsync = ShaderUtil.allowAsyncCompilation;
+        RenderTexture previousActive = RenderTexture.active;
+        Shader shader = null;
+        try
+        {
+            ShaderUtil.allowAsyncCompilation = false;
+            var factory = typeof(ShaderUtil).GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
+                .SingleOrDefault(m => m.Name == "CreateShaderAsset" && m.GetParameters().Length == 1 &&
+                    m.GetParameters()[0].ParameterType == typeof(string));
+            if (factory == null) throw new InvalidOperationException("transient shader factory unavailable");
+            shader = factory.Invoke(null, new object[] { ShaderSource }) as Shader;
+            if (shader == null) throw new InvalidOperationException("transient shader missing");
+            material = new Material(shader) { hideFlags = HideFlags.HideAndDontSave };
+            output = new RenderTexture(2,2,0,RenderTextureFormat.ARGBFloat,RenderTextureReadWrite.Linear)
+                { hideFlags = HideFlags.HideAndDontSave };
+            if (!output.Create()) throw new InvalidOperationException("linear ARGBFloat unavailable");
+            read = new Texture2D(2,2,TextureFormat.RGBAFloat,false,true)
+                { hideFlags = HideFlags.HideAndDontSave };
+            command = new CommandBuffer { name = "SCENE-LOOK-01 private diffuse chroma contract" };
+
+            Reset(); material.SetFloat("_TestOperation",1);
+            Color witness = Render();
+            var messages = ShaderUtil.GetShaderMessages(shader);
+            var errors = messages.Where(m => m.severity.ToString() == "Error").Select(m => m.message).ToArray();
+            if (errors.Length != 0 || Distance(witness,new Color(.25f,.5f,.75f,1)) > .00001f)
+                throw new InvalidOperationException("GPU harness invalid (not a feature RED): " + string.Join(" | ", errors) + " witness=" + witness);
+
+            Color basis = new Color(.2f,.4f,.1f,1);
+            Reset(); material.SetVector("_EnvironmentSceneChroma",new Vector4(0,0,0,1));
+            Check(Render(),basis,"zero strengths preserve original RGB");
+            Reset(); material.SetFloat("_EnvironmentLightingEnabled",0);
+            Check(Render(),basis,"environment disabled exact bypass");
+            Reset(); material.SetVector("_EnvironmentSceneChroma",new Vector4(1,1,1,0));
+            Check(Render(),basis,"scene feature disabled exact bypass");
+            Reset(); material.SetVector("_EnvironmentSceneTint",new Vector4(1,.5f,.25f,0));
+            Check(Render(),basis,"missing effective tint exact bypass");
+
+            // 已知暖色方向归一化亮度为 .58825；输入亮度为 .33582。
+            // 数值来自明确颜色规格，与生产分支/辅助函数无共享代码。
+            Color warm = new Color(.33582f/.58825f, .16791f/.58825f, .083955f/.58825f,1);
+            Reset(); Color full = Render();
+            Check(full,warm,"outdoor full response reaches specified warm chroma");
+            CheckLuminance(full,basis,"outdoor warm response preserves existing energy");
+            Reset(); material.SetVector("_EnvironmentSceneChroma",new Vector4(.5f,.25f,.75f,1));
+            material.SetFloat("_TestRole",0); material.SetFloat("_TestVoxelFamily",0);
+            Check(Render(),new Color((basis.r+warm.r)*.5f,(basis.g+warm.g)*.5f,(basis.b+warm.b)*.5f,1),"ground uses its own half response");
+            material.SetFloat("_TestRole",1);
+            Check(Render(),new Color(basis.r*.75f+warm.r*.25f,basis.g*.75f+warm.g*.25f,basis.b*.75f+warm.b*.25f,1),"decoration uses independent quarter response");
+            material.SetFloat("_TestVoxelFamily",1);
+            Check(Render(),new Color(basis.r*.25f+warm.r*.75f,basis.g*.25f+warm.g*.75f,basis.b*.25f+warm.b*.75f,1),"voxel uses independent three-quarter response");
+
+            // HLSL int 必须走整数上传；SetInt在此Unity版本沿用float通道，不能据此把室内资格误判为生产失败。
+            Reset(); material.SetInteger("_EnvironmentIndoorCount",1);
+            material.SetMatrixArray("_EnvironmentIndoorMatrices",new[] { Matrix4x4.identity });
+            material.SetVectorArray("_EnvironmentIndoorHalfExtents",new[] { new Vector4(1,1,1,0) });
+            material.SetVector("_TestWorld",new Vector4(.25f,.25f,.25f,0));
+            Check(Render(),basis,"actual world point in room zero bypasses outdoor tint");
+            material.SetVector("_TestWorld",new Vector4(2,.25f,.25f,0));
+            Check(Render(),warm,"outside point remains outdoor despite a registered room");
+            Reset(); material.SetFloat("_TestRole",2);
+            Check(Render(),basis,"character role bypass avoids double tint");
+            Reset(); material.SetFloat("_TestRole",-1);
+            Check(Render(),basis,"information role bypass");
+
+            Reset(); material.SetVector("_TestDiffuse",Vector4.zero);
+            material.SetVector("_MainLightColor",new Vector4(100,50,25,1));
+            material.SetInteger("_EnvironmentLocalLightCount",1);
+            material.SetVectorArray("_EnvironmentLocalLightColors",new[] { new Vector4(100,50,25,0) });
+            material.SetVectorArray("_EnvironmentLocalLightPositions",new[] { new Vector4(0,0,0,10) });
+            Check(Render(),Color.black,"zero diffuse remains black; function adds no main/local energy");
+            Reset(); material.SetVector("_EnvironmentSceneTint",new Vector4(1,1,1,1));
+            Color neutral = Render();
+            Check(neutral,new Color(.33582f,.33582f,.33582f,1),"neutral target redistributes chroma without changing luma");
+            CheckLuminance(neutral,basis,"neutral target preserves existing energy");
+
+            Reset(); material.SetVector("_EnvironmentSceneTint",new Vector4(0,0,1,1));
+            Color blue = Render();
+            CheckLuminance(blue,basis,"extreme blue remains energy-preserving");
+            Assert(Finite(blue.r)&&Finite(blue.g)&&Finite(blue.b)&&blue.r>=0&&blue.g>=0&&blue.b>=0&&
+                Mathf.Max(blue.r,blue.g,blue.b)<=.33582f*4+.0001f,"extreme chroma stays finite and within declared fourfold channel budget");
+            Reset(); material.SetVector("_EnvironmentSceneTint",new Vector4(-1,.5f,.2f,1));
+            Check(Render(),basis,"negative effective tint is rejected");
+            Reset(); material.SetVector("_EnvironmentSceneTint",new Vector4(0,0,0,1));
+            Check(Render(),basis,"black effective tint is rejected");
+
+            // 原生Lit的delta必须排除环境镜面，并与实际URP clear-coat漫射能量预算一致。
+            Reset(); material.SetFloat("_TestOperation",2);
+            material.SetFloat("_TestNativeAO",.5f);material.SetFloat("_TestNativeCoat",.65f);
+            material.SetFloat("_TestNativeNormalView",1);
+            Check(Render(),new Color(.13636f,.0487f,.01461f,1),"native indirect basis applies AO and front-facing coat exactly once");
+            material.SetFloat("_TestNativeNormalView",0);
+            Check(Render(),new Color(.049f,.0175f,.00525f,1),"native indirect basis respects grazing coat Fresnel");
+            material.SetFloat("_TestNativeCoat",0);
+            Check(Render(),new Color(.14f,.05f,.015f,1),"native zero coat returns diffuse times AO without specular");
+            material.SetFloat("_TestNativeAO",0);
+            Check(Render(),Color.black,"native zero AO does not restore indirect energy");
+
+            context.ReturnValue = new { pass=failures.Count==0, stage=failures.Count==0?"GREEN":"RED", assertions,
+                failures=failures.ToArray(), shaderSupported=shader.isSupported,graphics=SystemInfo.graphicsDeviceType.ToString(),
+                shaderMessages=messages.Select(m=>m.severity+": "+m.message).ToArray(),
+                scope="Production shared diffuse-chroma function only; not scene shading, routing, permissions, performance or Player proof" };
+        }
+        finally
+        {
+            ShaderUtil.allowAsyncCompilation=previousAsync; RenderTexture.active=previousActive;
+            command?.Release();
+            if(read!=null)UnityEngine.Object.DestroyImmediate(read);
+            if(output!=null){output.Release();UnityEngine.Object.DestroyImmediate(output);}
+            if(material!=null)UnityEngine.Object.DestroyImmediate(material);
+            if(shader!=null)UnityEngine.Object.DestroyImmediate(shader);
+        }
+    }
+
+    void Reset()
+    {
+        material.SetFloat("_TestOperation",0);
+        material.SetVector("_TestDiffuse",new Vector4(.2f,.4f,.1f,1));
+        material.SetVector("_TestWorld",new Vector4(10,0,0,0));
+        material.SetFloat("_TestRole",1);material.SetFloat("_TestVoxelFamily",1);
+        material.SetFloat("_EnvironmentLightingEnabled",1);
+        material.SetVector("_EnvironmentSceneChroma",new Vector4(1,1,1,1));
+        material.SetVector("_EnvironmentSceneTint",new Vector4(1,.5f,.25f,1));
+        material.SetInteger("_EnvironmentIndoorCount",0);
+        material.SetInteger("_EnvironmentLocalLightCount",0);
+    }
+    Color Render()
+    {
+        command.Clear();command.SetRenderTarget(output);command.SetViewport(new Rect(0,0,2,2));
+        command.ClearRenderTarget(false,true,Color.magenta);
+        command.DrawProcedural(Matrix4x4.identity,material,0,MeshTopology.Triangles,3);
+        Graphics.ExecuteCommandBuffer(command);
+        RenderTexture.active=output;read.ReadPixels(new Rect(0,0,2,2),0,0,false);read.Apply(false,false);
+        return read.GetPixel(0,0);
+    }
+    static bool Finite(float value)=>!float.IsNaN(value)&&!float.IsInfinity(value);
+    static float Distance(Color a,Color b)=>Mathf.Max(Mathf.Abs(a.r-b.r),Mathf.Abs(a.g-b.g),Mathf.Abs(a.b-b.b));
+    void Assert(bool valid,string label){assertions++;if(!valid)failures.Add(label);}
+    void Check(Color actual,Color expected,string label)
+    {float distance=Distance(actual,expected);Assert(Finite(distance)&&distance<=.0001f,label+" actual="+actual+" expected="+expected);}
+    void CheckLuminance(Color actual,Color source,string label)
+    {float a=actual.r*.2126f+actual.g*.7152f+actual.b*.0722f,b=source.r*.2126f+source.g*.7152f+source.b*.0722f;
+        Assert(Finite(a)&&Mathf.Abs(a-b)<=.0001f,label+" actual="+a+" source="+b);}
+
+    const string ShaderSource=@"Shader ""Hidden/SCENE-LOOK-01/EnvironmentGpuContract"" { SubShader { Pass {
+        Cull Off ZWrite Off ZTest Always
+        HLSLPROGRAM
+        #pragma target 4.5
+        #pragma vertex Vert
+        #pragma fragment Frag
+        #define ENVIRONMENT_NATIVE_LIT 1
+        #define _CLEARCOAT 1
+        #include ""Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl""
+        #include ""Assets/OSSASTRA/Scripts/EnvironmentSimulation/Rendering/EnvironmentLighting.hlsl""
+        float4 _TestDiffuse,_TestWorld;
+        float _TestOperation,_TestRole,_TestVoxelFamily;
+        float _TestNativeAO,_TestNativeCoat,_TestNativeNormalView;
+        float4 Vert(uint id:SV_VertexID):SV_POSITION {float2 uv=float2((id<<1)&2,id&2);return float4(uv*2-1,0,1);}
+        float4 Frag():SV_Target {
+            if(_TestOperation>1.5){
+                BRDFData brdf=(BRDFData)0;brdf.diffuse=float3(.4,.2,.1);
+                float3 view=float3(sqrt(max(0,1-_TestNativeNormalView*_TestNativeNormalView)),0,_TestNativeNormalView);
+                return float4(EnvironmentNativeIndirectDiffuse(brdf,_TestNativeCoat,float3(.7,.5,.3),_TestNativeAO,float3(0,0,1),view),1);
+            }
+            if(_TestOperation>.5)return float4(.25,.5,.75,1);
+            return float4(EnvironmentSceneDiffuseChroma(_TestDiffuse.rgb,_TestWorld.xyz,_TestRole,_TestVoxelFamily),1);
+        }
+        ENDHLSL
+    } } }";
+}

@@ -1,0 +1,10 @@
+// 功能：构建完成且已核验Player后精确删除本轮临时探针，归还作者正常业务路由，不更改正常档内容。
+using System;using System.IO;using UnityEngine;using UnityEditor;using UnityEditor.SceneManagement;using Funplay.Editor.Tools.Scripting;
+public class CleanupSceneLookPlayer:IFunplayCommand{public void Execute(ExecutionContext ctx){
+if(EditorApplication.isPlaying||BuildPipeline.isBuildingPlayer||Application.dataPath.Replace('\\','/')!="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets")throw new Exception("Stable author Edit only");
+var scene=EditorSceneManager.GetActiveScene();if(scene.path!="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity")throw new Exception("Main author required");
+var commerce=UnityEngine.Object.FindObjectOfType<Ossastra.Commerce.Runtime.CommerceService>();if(commerce==null||commerce.SavePath!=null)throw new Exception("Author store must not be initialized");
+string original=File.ReadAllLines("E:/WORLDCREATOR/XingHaiHuiLang/研究/SCENE-LOOK-01/business-before.txt")[0];if(!Directory.Exists(original))throw new Exception("Original author archive missing");
+ctx.RegisterObjectModification(commerce);commerce.saveDirectory=original;EditorUtility.SetDirty(commerce);if(!EditorSceneManager.SaveScene(scene))throw new Exception("Save failed");
+const string probe="Assets/OSSASTRA/Scripts/Development/VoxelTerrain/SceneLookPlayerProbe.cs";if(AssetDatabase.LoadAssetAtPath<MonoScript>(probe)!=null&&!AssetDatabase.DeleteAsset(probe))throw new Exception("Owned probe removal failed");
+ctx.ReturnValue=new{route=commerce.saveDirectory,probeRemoved=!File.Exists(probe),normalArchiveUntouched=true};}}

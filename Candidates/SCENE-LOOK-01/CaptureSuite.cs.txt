@@ -1,0 +1,33 @@
+// 功能：隔离主场按实际渲染帧保存同机位图，不用强制Camera.Render、不改变许可算法。
+using System;using System.IO;using System.Linq;using System.Collections.Generic;using UnityEngine;using UnityEditor;using UnityEngine.Rendering;using Funplay.Editor.Tools.Scripting;
+using Ossastra.WorldRendering.VoxelSurface;using Ossastra.EnvironmentSimulation;using Ossastra.EnvironmentSimulation.Rendering;using Ossastra.MapResearch;using Ossastra.Commerce.Runtime;using Ossastra.SceneVisibility.Rooms.Rendering;
+public class SceneLookCaptureSuite:IFunplayCommand {
+static VoxelSurfaceComparison comparison;static EnvironmentSkyBinding sky;static MapResearchRoot map;static Ossastra.Development.SceneVisibility.RoomVisibilityLabPanel lab;
+static int stage,frames;static double since;static bool captured;static readonly List<object> records=new List<object>();
+static readonly string[] names={"noon-clear","noon-rich","horizon-A","horizon-B","sunset-A","sunset-B","night-B","indoor-warm-B","indoor-cold-B","sun-only-zero-A","sun-only-zero-B"};
+public void Execute(ExecutionContext ctx){
+if(!Application.isPlaying||Application.dataPath.Replace('\\','/')!="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets")throw new Exception("Main Play required");
+var commerce=UnityEngine.Object.FindObjectOfType<CommerceService>();if(commerce==null||Path.GetFullPath(commerce.saveDirectory)!=Path.GetFullPath("E:/WORLDCREATOR/XingHaiHuiLang/研究/SCENE-LOOK-01/test-commerce"))throw new Exception("Isolated route required");
+comparison=UnityEngine.Object.FindObjectOfType<VoxelSurfaceComparison>();sky=UnityEngine.Object.FindObjectOfType<EnvironmentSkyBinding>();map=UnityEngine.Object.FindObjectOfType<MapResearchRoot>();lab=UnityEngine.Object.FindObjectOfType<Ossastra.Development.SceneVisibility.RoomVisibilityLabPanel>();
+if(comparison==null||sky==null||map==null||lab==null)throw new Exception("Explicit roots missing");
+Directory.CreateDirectory("artifacts/SCENE-LOOK-01/final");Application.runInBackground=true;var view=EditorWindow.GetWindow(typeof(EditorWindow).Assembly.GetType("UnityEditor.GameView"));view.Show();view.Focus();
+lab.showPanel=false;map.showOverlay=false;var p=UnityEngine.Object.FindObjectOfType<Ossastra.Development.VoxelTerrain.VoxelTerrainLabPanel>();if(p!=null)p.SetExpanded(false);
+stage=0;records.Clear();Apply();EditorApplication.update+=Tick;RenderPipelineManager.endCameraRendering+=Rendered;ctx.ReturnValue="11 real-render captures scheduled; read artifacts/SCENE-LOOK-01/final/capture-result.json; do not replay";}
+static void Apply(){
+string name=names[stage];comparison.ApplyLook(comparison.lookPresets.Single(l=>l.name==(name=="noon-clear"?"ClearTimberHall":"RichTimberHall")));comparison.SetSessionAdjustments(.15f,0);comparison.FlushPendingParameters();
+sky.sceneEnvironmentEnabled=name.EndsWith("B")||name=="noon-clear"||name=="noon-rich";sky.overrideSkyColors=false;
+var env=sky.environment;env.SetClockRunning(false);double hour=name.StartsWith("noon")?12:name.StartsWith("night")||name.StartsWith("indoor")?0:name.StartsWith("sunset")?17:18;
+env.SetTimeHours(hour);env.SetManualSun(false,225,0);env.SetContribution(name.StartsWith("sun-only")?EnvironmentContribution.SunOnly:EnvironmentContribution.Combined);
+map.followParticipant=false;map.fixedTarget=new Vector3(4,.1f,-10);map.distance=30;map.pitch=45;lab.PlaceCurrent(name.StartsWith("indoor")?new Vector3(4,.3f,-10):new Vector3(4,.3f,-17));
+foreach(var light in sky.localLights)if(light!=null&&light.transform.IsChildOf(UnityEngine.Object.FindObjectOfType<Ossastra.VoxelTerrain.VoxelTerrainInstallation>().timberHouse))light.color=name.Contains("cold")?new Color(.25f,.5f,1):new Color(1,.6f,.3f);
+since=EditorApplication.timeSinceStartup;frames=0;captured=false;}
+static void Rendered(ScriptableRenderContext context,Camera camera){if(map!=null&&camera==map.gameplayCamera)frames++;}
+static void Tick(){try{
+if(!Application.isPlaying){Finish("Play ended early");return;}
+EditorApplication.QueuePlayerLoopUpdate();UnityEditorInternal.InternalEditorUtility.RepaintAllViews();double elapsed=EditorApplication.timeSinceStartup-since;
+if(elapsed>30&&frames<3){Finish("No live camera frames");return;}
+if(!captured&&elapsed>=2&&frames>=3){ScreenCapture.CaptureScreenshot("artifacts/SCENE-LOOK-01/final/"+names[stage]+".png");RoomMaskCameraRegistry.TryGetStatistics(map.gameplayCamera,out var stats);var f=sky.environment.Current;records.Add(new{name=names[stage],frames,hour=f.Hours,elevation=f.Sun.ElevationDegrees,f.SunIntensity,tint=sky.ResolveSceneEnvironmentTint(f).ToString("F4"),camera=map.gameplayCamera.transform.position.ToString("F4"),rotation=map.gameplayCamera.transform.eulerAngles.ToString("F4"),stats=stats==null?null:JsonUtility.ToJson(stats),surface=sky.SurfaceStatus});captured=true;}
+if(captured&&elapsed>=3){stage++;if(stage==names.Length){Finish(null);return;}Apply();}
+}catch(Exception e){Finish(e.ToString());}}
+static void Finish(string error){EditorApplication.update-=Tick;RenderPipelineManager.endCameraRendering-=Rendered;File.WriteAllText("artifacts/SCENE-LOOK-01/final/capture-result.json",Newtonsoft.Json.JsonConvert.SerializeObject(new{pass=error==null,error,records},Newtonsoft.Json.Formatting.Indented));}
+}

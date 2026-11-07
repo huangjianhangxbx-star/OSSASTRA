@@ -1,0 +1,13 @@
+// 功能：有限重复材质/环境切换后检查当前原Comparison缓存有界复用，不以全局计数代替所有权。
+using System;using System.Linq;using System.Reflection;using UnityEngine;using UnityEditor;using Funplay.Editor.Tools.Scripting;using Ossastra.WorldRendering.VoxelSurface;using Ossastra.EnvironmentSimulation.Rendering;
+public class SceneLookCacheContract:IFunplayCommand {public void Execute(ExecutionContext ctx){
+if(!Application.isPlaying)throw new Exception("Isolated Play required");var c=UnityEngine.Object.FindObjectOfType<VoxelSurfaceComparison>();var sky=UnityEngine.Object.FindObjectOfType<EnvironmentSkyBinding>();
+var looks=c.lookPresets.Where(l=>l!=null&&!l.developmentOnly).ToArray();var oldLook=c.ActiveLook;var oldMode=c.mode;var oldSettings=c.ExportSessionSettings();bool enabled=sky.sceneEnvironmentEnabled;
+var materials=c.bindings.SelectMany(b=>b.original).Distinct().Where(m=>m!=null).ToDictionary(m=>m,m=>EditorJsonUtility.ToJson(m));
+var cacheField=c.GetType().GetField("cache",BindingFlags.Instance|BindingFlags.NonPublic);var profile=ScriptableObject.CreateInstance<VoxelSurfaceProfileSO>();
+int before=0,after=0;bool same=false;
+try{foreach(var l in looks)c.ApplyLook(l);var cache=cacheField.GetValue(c);var count=cache.GetType().GetProperty("Count");before=(int)count.GetValue(cache);
+for(int i=0;i<20;i++){foreach(var l in looks){c.ApplyLook(l);c.SetSessionAdjustments(i%2==0?0:.5f,0);c.FlushPendingParameters();sky.sceneEnvironmentEnabled=i%2==0;}}
+after=(int)count.GetValue(cacheField.GetValue(c));same=materials.All(m=>EditorJsonUtility.ToJson(m.Key)==m.Value);
+}finally{if(oldLook!=null)c.ApplyLook(oldLook);else c.RestoreOriginalCLive();profile.settings=oldSettings.Clone();c.LoadSessionFromProfile(profile);c.ApplyMode(oldMode);sky.sceneEnvironmentEnabled=enabled;UnityEngine.Object.DestroyImmediate(profile);}
+ctx.ReturnValue=new{pass=before==after&&same,rounds=20,looks=looks.Length,cacheBefore=before,cacheAfter=after,sourceMaterialsUnchanged=same,status=c.Status};}}

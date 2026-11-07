@@ -1,0 +1,80 @@
+/* 功能：只读核查本轮木屋角色声明、独立Look和原槽/PBR保留；首次安装前应明确RED。
+ * 边界：不创建对象、不改场景/材质、不保存；由Root唯一Native执行者调用。
+ */
+public sealed class HouseMaterialContract : Funplay.Editor.Tools.Scripting.IFunplayCommand
+{
+    const string Styles="Assets/OSSASTRA/WorldRendering/VoxelSurface/LookDev/HouseStyles/TimberHall";
+    const string OldLooks="Assets/OSSASTRA/WorldRendering/VoxelSurface/LookDev/Looks";
+    readonly System.Collections.Generic.List<object> checks=new System.Collections.Generic.List<object>();
+    bool pass=true;
+    void Check(string name,bool value,string detail="") { checks.Add(new {name,pass=value,detail});pass &= value; }
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+    {
+        var comparison=UnityEngine.Object.FindObjectOfType<Ossastra.WorldRendering.VoxelSurface.VoxelSurfaceComparison>();
+        var installation=UnityEngine.Object.FindObjectOfType<Ossastra.VoxelTerrain.VoxelTerrainInstallation>();
+        Check("Explicit original comparison/installation/house",comparison!=null&&installation!=null&&installation.timberHouse!=null);
+        if(comparison==null||installation==null||installation.timberHouse==null){ctx.ReturnValue=new{pass,checks};return;}
+        var field=comparison.GetType().GetField("materialRoles");
+        var roleSet=UnityEditor.AssetDatabase.LoadAssetAtPath<UnityEngine.ScriptableObject>(Styles+"/TimberHallRoles.asset");
+        Check("Persistent explicit material role set installed",field!=null&&roleSet!=null&&(field.GetValue(comparison) as UnityEngine.Object)==roleSet);
+        var clear=UnityEditor.AssetDatabase.LoadAssetAtPath<Ossastra.WorldRendering.VoxelSurface.VoxelSurfaceLookSO>(Styles+"/ClearTimberHall.asset");
+        var rich=UnityEditor.AssetDatabase.LoadAssetAtPath<Ossastra.WorldRendering.VoxelSurface.VoxelSurfaceLookSO>(Styles+"/RichTimberHall.asset");
+        Check("Two independent house Looks installed",clear!=null&&rich!=null&&clear!=rich);
+        var oldClear=UnityEditor.AssetDatabase.LoadAssetAtPath<Ossastra.WorldRendering.VoxelSurface.VoxelSurfaceLookSO>(OldLooks+"/ClearRecommended.asset");
+        var oldRich=UnityEditor.AssetDatabase.LoadAssetAtPath<Ossastra.WorldRendering.VoxelSurface.VoxelSurfaceLookSO>(OldLooks+"/RichCandidate.asset");
+        Check("Old Look assets retained",oldClear!=null&&oldRich!=null&&clear!=oldClear&&rich!=oldRich);
+        var house=installation.timberHouse.GetComponentsInChildren<UnityEngine.MeshRenderer>(true);
+        var sources=new System.Collections.Generic.HashSet<UnityEngine.Material>();
+        bool housePolicy=true,wholeSlots=true,unrelated=true;
+        foreach(var renderer in house)
+        {
+            Ossastra.WorldRendering.VoxelSurface.VoxelSurfaceComparison.Binding found=null;
+            foreach(var binding in comparison.bindings)if(binding!=null&&binding.renderer==renderer){if(found!=null)housePolicy=false;found=binding;}
+            housePolicy &= found!=null&&!found.lightingOnly;
+            if(found==null)continue;
+            foreach(var material in found.original)sources.Add(material);
+            wholeSlots &= Same(found.original,found.calibrated)&&Same(found.original,found.shaped);
+        }
+        foreach(var renderer in installation.GetComponentsInChildren<UnityEngine.MeshRenderer>(true))
+        {
+            if(renderer.transform.IsChildOf(installation.timberHouse))continue;
+            foreach(var binding in comparison.bindings)if(binding!=null&&binding.renderer==renderer)
+                unrelated &= binding.lightingOnly&&Same(binding.original,binding.calibrated)&&Same(binding.original,binding.shaped);
+        }
+        Check("Only eight explicit house renderer bindings use material Look",house.Length==8&&housePolicy);
+        Check("House complete A/B/C author source slots retained",wholeSlots);
+        Check("Other terrain/tree/water bindings remain lighting-only",unrelated);
+        Check("Fourteen exact source palette roles",sources.Count==14,"sourceCount="+sources.Count);
+        if(clear!=null&&rich!=null&&oldClear!=null&&oldRich!=null)
+        {
+            Check("Palette comparison shares original response",clear.responseProfile==rich.responseProfile&&clear.responseProfile==oldClear.responseProfile&&rich.responseProfile==oldRich.responseProfile);
+            Check("Old Clear mappings copied exactly",ContainsMappings(clear,oldClear));
+            Check("Old Rich mappings copied exactly",ContainsMappings(rich,oldRich));
+            bool covered=true,pbr=true,different=false;
+            foreach(var source in sources)
+            {
+                var a=Replacement(clear,source);var b=Replacement(rich,source);
+                covered &= a!=null&&b!=null&&a!=source&&b!=source&&a!=b;
+                if(a==null||b==null)continue;
+                pbr &= Preserve(source,a)&&Preserve(source,b);
+                different |= a.GetColor("_BaseColor")!=b.GetColor("_BaseColor");
+            }
+            Check("Both Looks map every declared house source",covered);
+            Check("Source media/PBR/alpha/vertex policy preserved",pbr);
+            Check("House palettes actually differ",different);
+            Check("Original preset array retained with two additions",Contains(comparison.lookPresets,oldClear)&&Contains(comparison.lookPresets,oldRich)&&Contains(comparison.lookPresets,clear)&&Contains(comparison.lookPresets,rich));
+        }
+        ctx.ReturnValue=new{pass,checks,houseRenderers=house.Length,houseSourceMaterials=sources.Count};
+    }
+    static bool Same(UnityEngine.Material[] a,UnityEngine.Material[] b){if(a==null||b==null||a.Length!=b.Length)return false;for(int i=0;i<a.Length;i++)if(a[i]!=b[i])return false;return true;}
+    static bool Contains(Ossastra.WorldRendering.VoxelSurface.VoxelSurfaceLookSO[] values,Ossastra.WorldRendering.VoxelSurface.VoxelSurfaceLookSO item){if(values!=null)foreach(var v in values)if(v==item)return true;return false;}
+    static UnityEngine.Material Replacement(Ossastra.WorldRendering.VoxelSurface.VoxelSurfaceLookSO look,UnityEngine.Material source){foreach(var item in look.materials)if(item!=null&&item.source==source)return item.replacement;return null;}
+    static bool ContainsMappings(Ossastra.WorldRendering.VoxelSurface.VoxelSurfaceLookSO next,Ossastra.WorldRendering.VoxelSurface.VoxelSurfaceLookSO old){foreach(var item in old.materials)if(item==null||Replacement(next,item.source)!=item.replacement)return false;return next.materials.Length==old.materials.Length+14;}
+    static bool Preserve(UnityEngine.Material source,UnityEngine.Material candidate)
+    {
+        if(source.shader!=candidate.shader||source.renderQueue!=candidate.renderQueue||source.enableInstancing!=candidate.enableInstancing||source.doubleSidedGI!=candidate.doubleSidedGI)return false;
+        foreach(string p in new[]{"_BaseMap","_BumpMap","_MetallicGlossMap","_OcclusionMap","_EmissionMap"})if(source.HasProperty(p)&&(source.GetTexture(p)!=candidate.GetTexture(p)||source.GetTextureScale(p)!=candidate.GetTextureScale(p)||source.GetTextureOffset(p)!=candidate.GetTextureOffset(p)))return false;
+        foreach(string p in new[]{"_Metallic","_Smoothness","_Surface","_Blend","_AlphaClip","_Cutoff","_Cull","_SrcBlend","_DstBlend","_ZWrite","_VoxelVertexColors"})if(source.HasProperty(p)&&source.GetFloat(p)!=candidate.GetFloat(p))return false;
+        return source.GetColor("_BaseColor").a==candidate.GetColor("_BaseColor").a;
+    }
+}

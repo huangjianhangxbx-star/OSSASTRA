@@ -1,0 +1,80 @@
+/* 功能：在真实隔离主场Play核查已声明木屋在旧Look未映射时仍跟随当前受光会话。
+ * 回归：8屋改为可换色后，旧Look必须保原屋配色但不能退回原C_live而丢失滑条；私有材质须可重用。
+ * 边界：不保存资产/场景、不改业务/角色；finally还原进入时Look、Session、Mode。
+ */
+using System;
+using System.IO;
+using System.Linq;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using Ossastra.WorldRendering.VoxelSurface;
+using Funplay.Editor.Tools.Scripting;
+
+public sealed class DeclaredHouseResponseContract : IFunplayCommand
+{
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+    {
+        if(!Application.isPlaying)throw new InvalidOperationException("Requires actual isolated main Play");
+        var scene=SceneManager.GetActiveScene();
+        if(scene.path!="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity")throw new InvalidOperationException("Requires explicit main scene");
+        var roots=scene.GetRootGameObjects();
+        var comparison=roots.SelectMany(r=>r.GetComponentsInChildren<VoxelSurfaceComparison>(true)).Single();
+        var installation=roots.SelectMany(r=>r.GetComponentsInChildren<Ossastra.VoxelTerrain.VoxelTerrainInstallation>(true)).Single();
+        var commerce=roots.SelectMany(r=>r.GetComponentsInChildren<Ossastra.Commerce.Runtime.CommerceService>(true)).Single();
+        string expected=Path.GetFullPath("E:/WORLDCREATOR/XingHaiHuiLang/研究/SCENE-LOOK-01/test-commerce").TrimEnd('\\','/');
+        if(string.IsNullOrWhiteSpace(commerce.saveDirectory)||Path.GetFullPath(commerce.saveDirectory).TrimEnd('\\','/')!=expected||
+            string.IsNullOrWhiteSpace(commerce.SavePath)||!Path.GetFullPath(commerce.SavePath).StartsWith(expected+Path.DirectorySeparatorChar,StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Both configured route and actual live Store must be isolated before testing");
+        if(installation.timberHouse==null||comparison.materialRoles==null)throw new InvalidOperationException("Explicit house/role declaration missing");
+        var house=installation.timberHouse.GetComponentsInChildren<MeshRenderer>(true);
+        var bindings=house.Select(r=>comparison.bindings.Single(b=>b.renderer==r)).ToArray();
+        if(house.Length!=8||bindings.Any(b=>b.lightingOnly||!comparison.materialRoles.ContainsAll(b.shaped,out _)))
+            throw new InvalidOperationException("Expected eight role-declared full-Look house renderer bindings");
+        var look=(comparison.lookPresets??Array.Empty<VoxelSurfaceLookSO>()).Single(l=>l!=null&&l.name=="RichCandidate");
+        if(bindings.Any(b=>b.shaped.Any(m=>look.materials.Any(item=>item.source==m))))throw new InvalidOperationException("Regression specifically requires old Look without house recolor mappings");
+        var checks=new List<object>();
+        var oldLook=comparison.ActiveLook;var oldMode=comparison.mode;var oldSettings=comparison.ExportSessionSettings();
+        if(oldSettings==null)throw new InvalidOperationException("Protected entry session required");
+        string savedSettings=JsonUtility.ToJson(oldSettings);
+        var sourceColors=bindings.SelectMany(b=>b.shaped).Distinct().ToDictionary(m=>m,m=>m.GetColor("_BaseColor"));
+        var profileFingerprints=(comparison.lookPresets??Array.Empty<VoxelSurfaceLookSO>()).Where(l=>l!=null&&l.responseProfile!=null).Select(l=>l.responseProfile).Concat(new[]{comparison.originalCLiveProfile,comparison.shapedProfile}).Where(p=>p!=null).Distinct().ToDictionary(p=>p,p=>JsonUtility.ToJson(p.settings));
+        var temporary=ScriptableObject.CreateInstance<VoxelSurfaceProfileSO>();temporary.hideFlags=HideFlags.HideAndDontSave;
+        bool restored=false;
+        try
+        {
+            if(!comparison.ApplyLook(look))throw new InvalidOperationException("Existing old Rich Look rejected");
+            comparison.SetSessionAdjustments(.37f,.21f);comparison.RefreshParameters();
+            var actual=bindings.SelectMany(b=>b.renderer.sharedMaterials).ToArray();
+            bool response=actual.All(m=>Near(m.GetFloat("_VoxelLitFaceBoost"),.37f)&&Near(m.GetFloat("_VoxelBackFaceDarkening"),.21f)&&
+                Near(m.GetFloat("_VoxelIndirectDiffuse"),comparison.SessionSettings.indirectDiffuse));
+            checks.Add(new{name="old unmapped Look keeps active response on every explicitly declared house slot",pass=response,
+                actualBoosts=actual.Select(m=>m.GetFloat("_VoxelLitFaceBoost")).Distinct().ToArray(),expectedBoost=.37f});
+            bool colors=true;
+            foreach(var binding in bindings)
+            {
+                var slots=binding.renderer.sharedMaterials;
+                colors &= slots.Length==binding.shaped.Length;
+                for(int i=0;i<Math.Min(slots.Length,binding.shaped.Length);i++)colors &= slots[i].GetColor("_BaseColor")==sourceColors[binding.shaped[i]];
+            }
+            checks.Add(new{name="old Look preserves unmapped house source palette",pass=colors});
+            var ids=bindings.Select(b=>b.renderer.sharedMaterials.Select(m=>m.GetInstanceID()).ToArray()).ToArray();
+            comparison.RefreshParameters();comparison.RefreshParameters();
+            bool stable=bindings.Select((b,i)=>b.renderer.sharedMaterials.Select(m=>m.GetInstanceID()).SequenceEqual(ids[i])).All(x=>x);
+            checks.Add(new{name="declared source active-response clones remain cached across refresh",pass=stable});
+            bool terrain=comparison.bindings.Where(b=>b.lightingOnly).SelectMany(b=>b.renderer.sharedMaterials).All(m=>Near(m.GetFloat("_VoxelLitFaceBoost"),.37f)&&Near(m.GetFloat("_VoxelBackFaceDarkening"),.21f));
+            checks.Add(new{name="other lighting-only surfaces retain active response",pass=terrain});
+        }
+        finally
+        {
+            if(oldLook!=null)comparison.ApplyLook(oldLook);else comparison.RestoreOriginalCLive();
+            temporary.settings=oldSettings.Clone();comparison.LoadSessionFromProfile(temporary);comparison.ApplyMode(oldMode);
+            restored=comparison.ActiveLook==oldLook&&comparison.mode==oldMode&&JsonUtility.ToJson(comparison.ExportSessionSettings())==savedSettings;
+            UnityEngine.Object.DestroyImmediate(temporary);
+        }
+        checks.Add(new{name="entry Look session mode restored",pass=restored});
+        checks.Add(new{name="all source colors and response assets unchanged",pass=sourceColors.All(m=>m.Key.GetColor("_BaseColor")==m.Value)&&profileFingerprints.All(p=>JsonUtility.ToJson(p.Key.settings)==p.Value)});
+        ctx.ReturnValue=new{checks,houseRenderers=house.Length,houseSources=sourceColors.Count,scope="Actual old-Look rendering material response and bounded clone reuse in isolated main Play"};
+    }
+    static bool Near(float a,float b)=>Mathf.Abs(a-b)<.00001f;
+}

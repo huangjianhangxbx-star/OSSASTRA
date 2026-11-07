@@ -303,6 +303,10 @@ half4 VoxelUniversalFragmentPBR(InputData inputData, SurfaceData surfaceData)
             registeredFillDiffuse, localDirectDiffuse, gi, additional);
     }
 
+    // 保留现有GI能量与全部直射/镜面分支；普通和Sight入口共用这一次场景漫射色度解析。
+    if (!IsOnlyAOLightingFeatureEnabled())
+        gi.diffuse = EnvironmentSceneDiffuseChroma(gi.diffuse,inputData.positionWS,_EnvironmentSurfaceRole,1);
+
     half3 vertexDiffuse = 0;
 #if defined(_ADDITIONAL_LIGHTS_VERTEX)
     // URP已逐顶点聚合的额外漫反射保持原样；此处没有每灯方向可供重新塑形。

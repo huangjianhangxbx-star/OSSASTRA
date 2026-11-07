@@ -1,4 +1,4 @@
-/* 功能：明确相机的环境渲染接收方；上传受光、房间与局部灯，解析角色自然/手动环境目标，绘制合法天空/降雨。
+/* 功能：明确相机的环境渲染接收方；上传受光、照明房间与局部灯，解析角色/场景自然及手动环境目标，绘制合法天空/降雨。
  * 边界：不创建普通Renderer，不推进环境，不读取旧世界深度；只借用天空/反射设置。
  * 生命周期：唯一相机登记；天空、反射、雨与按需预览分别准备/降级/释放，失败不撤销有效环境帧。
  */
@@ -21,6 +21,8 @@ namespace Ossastra.EnvironmentSimulation.Rendering
   [HideInInspector,FormerlySerializedAs("panel")]
   public MonoBehaviour previewConsumer; // 仅保存旧作者引用以供迁移；生产不调用开发面板。
   public RoomRegion[] indoorRegions=Array.Empty<RoomRegion>();
+  [Tooltip("可选照明专用内部体积；不改可见性房间范围、碰撞或观察权限。未登记者保留原房间体积。")]
+  public EnvironmentIndoorVolumeOverride[] indoorVolumeOverrides=Array.Empty<EnvironmentIndoorVolumeOverride>();
   public Light[] localLights=Array.Empty<Light>();
   public BoxCollider[] rainShelters=Array.Empty<BoxCollider>();
   public Shader skyShader,rainShader,reflectionSkyShader,rainDepthCopyShader;
@@ -33,6 +35,9 @@ namespace Ossastra.EnvironmentSimulation.Rendering
   [Header("自然/手动环境色与登记角色同步；不改变直射/局部灯")]
   public bool syncSkyColorTo2D=true;
   [Range(0,1)] public float stylizedSkyTintStrength=.5f;
+  [Header("场景环境融合候选；仅室外环境漫射，不覆盖人物/直射/局部灯")]
+  public SceneEnvironmentProfileSO sceneEnvironmentProfile;
+  public bool sceneEnvironmentEnabled;
   [Range(0,1)] public float rainOpacity=.24f;
   [Range(32,1024)] public int rainParticleCount=384;
   public string Status{get;private set;}="等待环境快照";
@@ -124,7 +129,7 @@ namespace Ossastra.EnvironmentSimulation.Rendering
   {if(owner==null)return;if(requested)previewRequests.Add(owner);else previewRequests.Remove(owner);if(previewRequests.Count==0)ReleasePreview();}
   void ReleasePreview(){if(preview==null)return;preview.Release();DestroyOwned(preview);preview=null;}
   public bool TryPrepareSurfaceData(Camera camera,out string reason)
-  {if(environment==null||camera==null||environment.gameplayCamera!=camera){surfaceData.Clear();SurfaceReady=false;reason=SurfaceStatus="环境表面相机/来源不匹配";return false;}SurfaceReady=surfaceData.TryPrepare(camera,indoorRegions,localLights,rainShelters,out reason);SurfaceStatus=reason;return SurfaceReady;}
+  {if(environment==null||camera==null||environment.gameplayCamera!=camera){surfaceData.Clear();SurfaceReady=false;reason=SurfaceStatus="环境表面相机/来源不匹配";return false;}SurfaceReady=surfaceData.TryPrepare(camera,indoorRegions,localLights,rainShelters,indoorVolumeOverrides,out reason);SurfaceStatus=reason;return SurfaceReady;}
   Color SkyColor(EnvironmentFrame frame,Vector3 direction)
   {
    Color top=overrideSkyColors?zenithColor:frame.SkyZenith,edge=overrideSkyColors?horizonColor:frame.SkyHorizon;
@@ -132,6 +137,25 @@ namespace Ossastra.EnvironmentSimulation.Rendering
    return Color.Lerp(color,frame.FogColor.linear*frame.SkyIntensity,frame.CloudCoverage*.18f);
   }
   static float ColorDistance(Color a,Color b)=>Mathf.Max(Mathf.Abs(a.r-b.r),Mathf.Abs(a.g-b.g),Mathf.Abs(a.b-b.b));
+  // 与现有帧共享自然/手动色源；日落色取昼夜作者档，避免SunColor切月色时发生跳色。
+  // Profile始终只读。资格按实际片元房间计算，主控入室不会把窗外整体切为室内。
+  public Vector4 ResolveSceneEnvironmentTint(EnvironmentFrame frame)
+  {
+   if(!sceneEnvironmentEnabled||sceneEnvironmentProfile==null||sceneEnvironmentProfile.settings==null||frame==null||!frame.Enabled||frame.Contribution==EnvironmentContribution.Original||frame.Contribution==EnvironmentContribution.SunOnly)return new Vector4(1,1,1,0);
+   if(!overrideSkyColors&&(environment==null||environment.dayCycle==null))return new Vector4(1,1,1,0);
+   return SceneEnvironmentColorResolver.ResolveTint(frame.AmbientSky,frame.AmbientEquator,
+    environment!=null&&environment.dayCycle!=null?environment.dayCycle.sunsetSunColor:Color.black,
+    frame.Sun.ElevationDegrees,overrideSkyColors,zenithColor,horizonColor,sceneEnvironmentProfile.settings);
+  }
+  public Vector4 SceneEnvironmentControls
+  {
+   get
+   {
+    if(!sceneEnvironmentEnabled||sceneEnvironmentProfile==null||sceneEnvironmentProfile.settings==null)return Vector4.zero;
+    var value=sceneEnvironmentProfile.settings.Sanitize();
+    return new Vector4(value.groundStrength,value.decorationStrength,value.voxelStrength,1);
+   }
+  }
   // 作者颜色仅在此解码一次到Linear；黑色/非法色关闭艺术联动，不冒充物理天空积分。
   public Vector4 ResolveStylizedSkyTint(EnvironmentFrame frame)
   {
@@ -249,6 +273,8 @@ namespace Ossastra.EnvironmentSimulation.Rendering
   {
    if(!TryPrepareSurfaceData(environment==null?null:environment.gameplayCamera,out var reason)){ClearSurface(cmd);return;}
    cmd.SetGlobalVector("_EnvironmentStylizedSkyTint",ResolveStylizedSkyTint(frame));
+   cmd.SetGlobalVector("_EnvironmentSceneTint",ResolveSceneEnvironmentTint(frame));
+   cmd.SetGlobalVector("_EnvironmentSceneChroma",SceneEnvironmentControls);
    surfaceData.Upload(cmd);
    cmd.SetGlobalFloat("_EnvironmentLightingEnabled",1);
    cmd.SetGlobalVector("_EnvironmentSkyAmbient",(Vector4)(frame.AmbientSky.linear*frame.AmbientIntensity));cmd.SetGlobalVector("_EnvironmentHorizonAmbient",(Vector4)(frame.AmbientEquator.linear*frame.AmbientIntensity));cmd.SetGlobalVector("_EnvironmentGroundAmbient",(Vector4)(frame.AmbientGround.linear*frame.AmbientIntensity));
@@ -256,7 +282,7 @@ namespace Ossastra.EnvironmentSimulation.Rendering
    cmd.SetGlobalVector("_EnvironmentCloudParameters",new Vector4(frame.CloudCoverage,frame.CloudDensity,frame.CloudShadowStrength,frame.CloudWorldScale));cmd.SetGlobalVector("_EnvironmentCloudMotion",new Vector4(frame.WindDirection.x*frame.WindSpeed*frame.CloudSpeed,frame.WindDirection.y*frame.WindSpeed*frame.CloudSpeed,(float)frame.Seconds,1));cmd.SetGlobalFloat("_EnvironmentWetness",frame.Wetness);
   }
   static void ClearSurface(CommandBuffer cmd)
-  {cmd.SetGlobalFloat("_EnvironmentLightingEnabled",0);cmd.SetGlobalInteger("_EnvironmentIndoorCount",0);cmd.SetGlobalInteger("_EnvironmentLocalLightCount",0);cmd.SetGlobalInteger("_EnvironmentShelterCount",0);cmd.SetGlobalFloat("_EnvironmentRainDepthReady",0);}
+  {cmd.SetGlobalFloat("_EnvironmentLightingEnabled",0);cmd.SetGlobalVector("_EnvironmentSceneChroma",Vector4.zero);cmd.SetGlobalInteger("_EnvironmentIndoorCount",0);cmd.SetGlobalInteger("_EnvironmentLocalLightCount",0);cmd.SetGlobalInteger("_EnvironmentShelterCount",0);cmd.SetGlobalFloat("_EnvironmentRainDepthReady",0);}
   public static void ClearSurfaceForCamera(CommandBuffer cmd)=>ClearSurface(cmd);
   public static void AppendSkyForCamera(CommandBuffer cmd,Camera camera,RoomMaskFrame visibility)
   {

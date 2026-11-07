@@ -1,0 +1,22 @@
+// 功能：隔离档主场同机位A/B操作和精确读回；只由Root Native在受测Play调用，不保存作者资产。
+using System;using System.IO;using System.Linq;using UnityEngine;using UnityEditor;using Funplay.Editor.Tools.Scripting;
+using Ossastra.WorldRendering.VoxelSurface;using Ossastra.EnvironmentSimulation;using Ossastra.EnvironmentSimulation.Rendering;using Ossastra.MapResearch;using Ossastra.Commerce.Runtime;
+public class SceneLookScenario:IFunplayCommand {
+[Serializable]public class Request {public string look="RichTimberHall";public double hour=18;public float elevation=0;public bool manual=true,enhanced=true,overrideSky=false;public int diagnostic=0;public float boost=.15f;public int contribution=4;public bool indoor=false;public bool coldLamp=false;public int rotate=0;}
+public void Execute(ExecutionContext ctx){
+if(Application.dataPath.Replace('\\','/')!="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets"||!Application.isPlaying)throw new Exception("Actual main Play only");
+var c=UnityEngine.Object.FindObjectOfType<VoxelSurfaceComparison>();var sky=UnityEngine.Object.FindObjectOfType<EnvironmentSkyBinding>();var map=UnityEngine.Object.FindObjectOfType<MapResearchRoot>();var commerce=UnityEngine.Object.FindObjectOfType<CommerceService>();
+if(c==null||sky==null||map==null||commerce==null||Path.GetFullPath(commerce.saveDirectory)!=Path.GetFullPath("E:/WORLDCREATOR/XingHaiHuiLang/研究/SCENE-LOOK-01/test-commerce")||commerce.SavePath==null||!Path.GetFullPath(commerce.SavePath).StartsWith(Path.GetFullPath(commerce.saveDirectory)+Path.DirectorySeparatorChar))throw new Exception("Missing pre-Start isolated store");
+var request=JsonUtility.FromJson<Request>(File.ReadAllText("Candidates/SCENE-LOOK-01/scenario.json"));var e=sky.environment;
+Application.runInBackground=true;var game=EditorWindow.GetWindow(typeof(EditorWindow).Assembly.GetType("UnityEditor.GameView"));game.Show();game.Focus();EditorApplication.QueuePlayerLoopUpdate();
+if(request.look=="OriginalC")c.RestoreOriginalCLive();else if(!c.ApplyLook(c.lookPresets.Single(x=>x.name==request.look)))throw new Exception("Look rejected");
+c.SetSessionAdjustments(request.boost,0);c.FlushPendingParameters();
+sky.sceneEnvironmentEnabled=request.enhanced;sky.overrideSkyColors=request.overrideSky;if(request.overrideSky){sky.zenithColor=new Color(.28f,.13f,.15f);sky.horizonColor=new Color(.9f,.45f,.19f);}
+e.SetClockRunning(false);e.SetTimeHours(request.hour);e.SetManualSun(request.manual,225,request.elevation);e.SetContribution((EnvironmentContribution)request.contribution);
+map.followParticipant=false;map.fixedTarget=new Vector3(4,.1f,-10);map.distance=30;map.pitch=45;if(request.rotate!=0)map.RequestRotationStep(request.rotate);
+var lab=UnityEngine.Object.FindObjectOfType<Ossastra.Development.SceneVisibility.RoomVisibilityLabPanel>();if(lab==null)throw new Exception("Original room panel missing");
+lab.PlaceCurrent(request.indoor?new Vector3(4,.3f,-10):new Vector3(4,.3f,-17));
+foreach(var lamp in sky.localLights)if(lamp!=null&&lamp.name.Contains("Timber"))lamp.color=request.coldLamp?new Color(.25f,.5f,1):new Color(1,.6f,.3f);
+var panel=UnityEngine.Object.FindObjectOfType<Ossastra.Development.Environment.EnvironmentSimulationPanel>();if(panel!=null)panel.SetExpanded(false);
+var charPanel=UnityEngine.Object.FindObjectOfType<Ossastra.Development.CharacterLighting.CharacterLightingPanel>();if(charPanel!=null)charPanel.SetExpanded(false);
+ctx.ReturnValue=new{look=c.ActiveLookLabel,c.BindingCount,c.LightingOnlyBindingCount,mapped=c.MappedRendererCount,tint=sky.ResolveSceneEnvironmentTint(e.Current).ToString("F4"),controls=sky.SceneEnvironmentControls.ToString("F4"),frame=new{hours=e.Current.Hours,sunElevation=e.Current.Sun.ElevationDegrees,e.Current.SunIntensity,ambientSky=e.Current.AmbientSky.ToString("F4"),ambientHorizon=e.Current.AmbientEquator.ToString("F4"),e.Current.AmbientIntensity},camera=map.GameplayCamera.transform.position.ToString("F3"),route=commerce.SavePath};}}

@@ -1,0 +1,9 @@
+// 功能：将已保存主场定向构建到独立测试档；仅导入命令行限定临时探针，完成后Native精确移除。
+using System;using System.IO;using UnityEngine;using UnityEditor;using UnityEditor.SceneManagement;using Funplay.Editor.Tools.Scripting;
+public class PrepareSceneLookPlayer:IFunplayCommand {public void Execute(ExecutionContext ctx){
+if(EditorApplication.isPlaying||Application.dataPath.Replace('\\','/')!="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets")throw new Exception("Stable Edit project required");
+var scene=EditorSceneManager.GetActiveScene();if(scene.path!="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity")throw new Exception("Actual main only");
+var commerce=UnityEngine.Object.FindObjectOfType<Ossastra.Commerce.Runtime.CommerceService>();if(commerce==null||commerce.SavePath!=null)throw new Exception("Author route beforeStart only");
+var source="E:/WORLDCREATOR/XingHaiHuiLang/研究/SCENE-LOOK-01/test-commerce";var dest="E:/WORLDCREATOR/XingHaiHuiLang/研究/SCENE-LOOK-01/main-validation-commerce";if(Directory.Exists(dest))throw new Exception("Unique author route required");Directory.CreateDirectory(dest);foreach(var file in Directory.GetFiles(source))File.Copy(file,Path.Combine(dest,Path.GetFileName(file)));
+ctx.RegisterObjectModification(commerce);commerce.saveDirectory=dest;EditorUtility.SetDirty(commerce);if(!EditorSceneManager.SaveScene(scene))throw new Exception("Save failed");
+string target="Assets/OSSASTRA/Scripts/Development/VoxelTerrain/SceneLookPlayerProbe.cs";if(File.Exists(target))throw new Exception("Probe path already exists");File.Copy("Candidates/SCENE-LOOK-01/Player/SceneLookPlayerProbe.cs.txt",target);AssetDatabase.ImportAsset(target);ctx.ReturnValue=new{authorRoute=commerce.saveDirectory,probe=target};}}

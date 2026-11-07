@@ -140,8 +140,7 @@ namespace Ossastra.Development.VoxelSurface
             GUILayout.EndHorizontal();
             if (comparison.originalCLiveProfile != null)
             {
-                GUILayout.Label("体素材质 · 同位置比较", wrappingLabel);
-                GUILayout.BeginHorizontal();
+                GUILayout.Label("材质风格 · 同位置比较（独立于环境融合）", wrappingLabel);
                 if (GUILayout.Button("原 C")) RestoreOriginalC();
                 if (comparison.lookPresets != null)
                     for (int i = 0; i < comparison.lookPresets.Length; ++i)
@@ -149,9 +148,8 @@ namespace Ossastra.Development.VoxelSurface
                         var look = comparison.lookPresets[i];
                         if (look != null && !look.developmentOnly && GUILayout.Button(look.label)) ApplyLookPreset(i);
                     }
-                GUILayout.EndHorizontal();
                 GUILayout.Label(comparison.ActiveLookLabel + " · " + comparison.PreviewState, wrappingLabel);
-                GUILayout.Label("底板为中性见证；只改变登记的体素材质。", wrappingLabel);
+                GUILayout.Label("旧候选只换旧样块；木屋候选另含明确木/瓦/石槽。地形、草木、水保留固有配色。", wrappingLabel);
             }
             var settings = comparison.SessionSettings;
             bool activeC = comparison.mode == VoxelSurfaceComparisonMode.Faceted && settings != null;

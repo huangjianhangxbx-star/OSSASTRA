@@ -31,6 +31,8 @@ namespace Ossastra.WorldRendering.VoxelSurface
 
         [Tooltip("仅这些Renderer参加比较；每个Renderer最多登记一次。")]
         public Binding[] bindings = Array.Empty<Binding>();
+        [Tooltip("显式登记允许换色的材质语义；作者接入时核验，不按名称/RGB猜测对象身份。")]
+        public VoxelSurfaceMaterialRoleSetSO materialRoles;
         [Tooltip("B档参数覆盖；为空时直接使用校准作者材质，不创建副本。")]
         public VoxelSurfaceProfileSO calibratedProfile;
         [Tooltip("C档参数覆盖；为空时直接使用轻分面作者材质，不创建副本。")]

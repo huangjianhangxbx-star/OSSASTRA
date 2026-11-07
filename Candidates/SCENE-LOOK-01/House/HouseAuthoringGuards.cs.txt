@@ -1,0 +1,57 @@
+/* 功能：定向验证材质角色空值/重复/未知源与作者预检失败不提交；不保存或修改场景。
+ * 生命周期：只创建临时SO/材质，finally精确销毁；不接管相机、渲染或业务。
+ */
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using UnityEngine;
+using UnityEditor;
+using Ossastra.WorldRendering.VoxelSurface;
+using Funplay.Editor.Tools.Scripting;
+
+public sealed class HouseAuthoringGuards : IFunplayCommand
+{
+    readonly List<object> checks=new List<object>();bool pass=true;
+    void Check(string name,bool value){checks.Add(new{name,pass=value});pass &= value;}
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+    {
+        if(EditorApplication.isPlayingOrWillChangePlaymode)throw new InvalidOperationException("Guard contract requires Edit");
+        var comparison=UnityEngine.Object.FindObjectOfType<VoxelSurfaceComparison>();
+        var installation=UnityEngine.Object.FindObjectOfType<Ossastra.VoxelTerrain.VoxelTerrainInstallation>();
+        if(comparison==null||comparison.materialRoles==null||installation==null||installation.timberHouse==null)throw new InvalidOperationException("Install explicit house roles first");
+        var roleSet=comparison.materialRoles;
+        var temporary=ScriptableObject.CreateInstance<VoxelSurfaceMaterialRoleSetSO>();Material unknown=null;
+        var before=Snapshot(comparison);bool wasDirty=comparison.gameObject.scene.isDirty;
+        try
+        {
+            Check("Installed declaration valid",roleSet.Validate(out _));
+            Check("Empty role declaration rejected",!temporary.Validate(out _));
+            temporary.entries=new[]{new VoxelSurfaceMaterialRoleSetSO.Entry{source=roleSet.entries[0].source,roleId="wood.frame",variantId="base"},new VoxelSurfaceMaterialRoleSetSO.Entry{source=roleSet.entries[0].source,roleId="roof.base",variantId="base"}};
+            Check("Same source cannot have two roles",!temporary.Validate(out _));
+            temporary.entries=new[]{new VoxelSurfaceMaterialRoleSetSO.Entry{source=roleSet.entries[0].source,roleId="",variantId="base"}};
+            Check("Missing role identity rejected",!temporary.Validate(out _));
+            temporary.entries=new[]{new VoxelSurfaceMaterialRoleSetSO.Entry{source=roleSet.entries[0].source,roleId="wood.frame",variantId="base"}};
+            unknown=new Material(roleSet.entries[0].source){name="HouseGuard_unknown_transient"};
+            Check("Unknown source never inferred by color/name",!roleSet.ContainsAll(new[]{roleSet.entries[0].source,unknown},out _));
+            Check("Transient declaration rejected by author interface",Throws(()=>VoxelSurfaceMaterialAuthoring.ValidatePersistentRoles(temporary)));
+            var renderer=installation.timberHouse.GetComponentsInChildren<MeshRenderer>(true)[0];
+            Check("Invalid later target rejected before commit",Throws(()=>VoxelSurfaceMaterialAuthoring.ApplyToComparison(comparison,roleSet,new Renderer[]{renderer,null})));
+            Check("Transient role set rejected before commit",Throws(()=>VoxelSurfaceMaterialAuthoring.ApplyToComparison(comparison,temporary,new Renderer[]{renderer})));
+            Check("Failed author requests preserve every binding/reference",before==Snapshot(comparison));
+            Check("Failed author requests preserve scene dirty",wasDirty==comparison.gameObject.scene.isDirty);
+            Check("Reapplying reviewed house is idempotent",VoxelSurfaceMaterialAuthoring.ApplyToComparison(comparison,roleSet,installation.timberHouse.GetComponentsInChildren<Renderer>(true))==0);
+            Check("Idempotency preserves every binding/reference",before==Snapshot(comparison));
+            Check("Idempotency does not dirty scene",wasDirty==comparison.gameObject.scene.isDirty);
+        }
+        finally { if(unknown!=null)UnityEngine.Object.DestroyImmediate(unknown);UnityEngine.Object.DestroyImmediate(temporary); }
+        ctx.ReturnValue=new{pass,checks};
+    }
+    static bool Throws(Action action){try{action();return false;}catch(InvalidOperationException){return true;}catch(ArgumentException){return true;}}
+    static string Snapshot(VoxelSurfaceComparison c)
+    {
+        var parts=new List<string>{Id(c.materialRoles),Id(c.defaultLook),c.mode.ToString()};
+        foreach(var b in c.bindings){parts.Add(Id(b.renderer)+":"+b.lightingOnly);foreach(var a in new[]{b.original,b.calibrated,b.shaped}){parts.Add("[");parts.AddRange(a.Select(Id));parts.Add("]");}}
+        parts.AddRange(c.lookPresets.Select(Id));return string.Join("|",parts);
+    }
+    static string Id(UnityEngine.Object value){return value==null?"null":GlobalObjectId.GetGlobalObjectIdSlow(value).ToString();}
+}

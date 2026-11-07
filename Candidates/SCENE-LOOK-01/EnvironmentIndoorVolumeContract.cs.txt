@@ -1,0 +1,63 @@
+/* 功能：实际调用环境工作集，确认照明专用室内体积与可见性体积独立。
+ * 边界：Native临时对象finally精确销毁；不改主场配置，不授可见权，不启用碰撞。
+ */
+using System;
+using System.Linq;
+using System.Reflection;
+using UnityEngine;
+using Ossastra.SceneVisibility.Rooms;
+using Ossastra.EnvironmentSimulation.Rendering;
+using Funplay.Editor.Tools.Scripting;
+public sealed class EnvironmentIndoorVolumeContract:IFunplayCommand
+{
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+ {
+  var assembly=typeof(EnvironmentSkyBinding).Assembly;
+  var entryType=assembly.GetType("Ossastra.EnvironmentSimulation.Rendering.EnvironmentIndoorVolumeOverride");
+  if(entryType==null){ctx.ReturnValue=new{pass=false,reason="Lighting-specific interior override is missing; expanded visibility volume still owns exterior shading"};return;}
+  GameObject cameraHost=null,roomHost=null,boxHost=null,lampHost=null,otherHost=null;
+  int assertions=0;var failures=new System.Collections.Generic.List<string>();
+  Action<bool,string> check=(value,label)=>{assertions++;if(!value)failures.Add(label);};
+  try
+  {
+   cameraHost=new GameObject("SceneLookContractCamera");var camera=cameraHost.AddComponent<Camera>();camera.enabled=false;
+   camera.transform.position=new Vector3(0,4,-10);camera.transform.LookAt(new Vector3(0,1,0));
+   roomHost=new GameObject("SceneLookContractRoom");var room=roomHost.AddComponent<RoomRegion>();
+   room.volumes=new[]{new RoomLocalBox{center=new Vector3(0,2.1f,0),size=new Vector3(8.2f,5.2f,7.2f)}};
+   boxHost=new GameObject("SceneLookContractLightingInterior");var box=boxHost.AddComponent<BoxCollider>();
+   box.center=new Vector3(0,1.6f,0);box.size=new Vector3(7.8f,3.1f,6.8f);box.isTrigger=true;box.enabled=false;
+   lampHost=new GameObject("SceneLookContractLamp");var lamp=lampHost.AddComponent<Light>();lamp.type=LightType.Point;lamp.range=5;lamp.intensity=1;lamp.transform.position=new Vector3(0,1.5f,0);
+   string original=JsonUtility.ToJson(room);
+   var entry=Activator.CreateInstance(entryType);entryType.GetField("room").SetValue(entry,room);entryType.GetField("volume").SetValue(entry,box);
+   var overrides=Array.CreateInstance(entryType,1);overrides.SetValue(entry,0);
+   var workType=assembly.GetType("Ossastra.EnvironmentSimulation.Rendering.EnvironmentSurfaceWorkingSet");
+   var working=Activator.CreateInstance(workType,true);
+   var prepare=workType.GetMethods().Single(m=>m.Name=="TryPrepare"&&m.GetParameters().Length==6);
+   var arguments=new object[]{camera,new[]{room},new[]{lamp},Array.Empty<BoxCollider>(),overrides,null};
+   check((bool)prepare.Invoke(working,arguments),"valid lighting-only override prepares");
+   var matrices=(Matrix4x4[])workType.GetField("matrices",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(working);
+   var extents=(Vector4[])workType.GetField("extents",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(working);
+   var colors=(Vector4[])workType.GetField("colors",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(working);
+   Func<Vector3,bool> inside=world=>{var p=matrices[0].MultiplyPoint3x4(world);var e=extents[0];return Mathf.Abs(p.x)<=e.x&&Mathf.Abs(p.y)<=e.y&&Mathf.Abs(p.z)<=e.z;};
+   check(inside(new Vector3(0,1,0)),"interior point retains indoor lighting");
+   check(inside(new Vector3(0,.1f,0)),"authored floor stays interior");
+   check(!inside(new Vector3(4,1.5f,0)),"exterior wall does not inherit expanded visibility volume");
+   check(!inside(new Vector3(0,4.5f,0)),"roof remains exterior lighting surface");
+   check(colors[0].w==1,"indoor lamp keeps matching room index");
+   check(!box.enabled,"lighting metadata never enables physics");
+   check(JsonUtility.ToJson(room)==original,"visibility room author data unchanged");
+   var duplicate=Array.CreateInstance(entryType,2);duplicate.SetValue(entry,0);duplicate.SetValue(entry,1);arguments[4]=duplicate;
+   check(!(bool)prepare.Invoke(working,arguments),"duplicate room override fails instead of selecting one");
+   check((int)workType.GetField("roomCount",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(working)==0,"failed override clears partial working set");
+   otherHost=new GameObject("SceneLookContractUnknownRoom");var other=otherHost.AddComponent<RoomRegion>();entryType.GetField("room").SetValue(entry,other);arguments[4]=overrides;
+   check(!(bool)prepare.Invoke(working,arguments),"unregistered room override rejected");
+   entryType.GetField("room").SetValue(entry,room);box.size=Vector3.zero;
+   check(!(bool)prepare.Invoke(working,arguments),"invalid interior size rejected");
+   ctx.ReturnValue=new{pass=failures.Count==0,assertions,failures};
+  }
+  finally
+  {
+   foreach(var host in new[]{cameraHost,roomHost,boxHost,lampHost,otherHost})if(host!=null)UnityEngine.Object.DestroyImmediate(host);
+  }
+ }
+}

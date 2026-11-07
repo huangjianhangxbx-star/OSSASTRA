@@ -1,5 +1,6 @@
 /* 功能：在接管绘制前准备单相机的有界环境空间与点灯工作集；只读作者登记，不拥有Unity/GPU资源。
- * 边界：不截断超预算条目、不授予可见权。离屏但拥有相关灯的房间仍保留，避免把室内灯误判为室外灯。
+ * 边界：不截断超预算条目、不授予可见权。照明专用室内覆盖与RoomRegion可见性体积独立，灯仍匹配本工作集实际室内序号。
+ * 作者覆盖：每个已登记房间最多一个同场景OBB；禁用Collider可作为只读元数据，不启用碰撞；未声明者保留原房间体积。
  * 生命周期：复用固定GPU数组与CPU集合；失败使本批计数归零，调用者只能局部关闭环境表面效果。
  */
 using System;
@@ -17,12 +18,28 @@ namespace Ossastra.EnvironmentSimulation.Rendering
   readonly Vector4[] extents=new Vector4[MaximumRooms],positions=new Vector4[MaximumLights],colors=new Vector4[MaximumLights],shelterExtents=new Vector4[MaximumShelters];
   readonly Plane[] frustum=new Plane[6];
   readonly HashSet<Light> seenLights=new HashSet<Light>();readonly HashSet<RoomRegion> seenRooms=new HashSet<RoomRegion>();readonly HashSet<BoxCollider> seenShelters=new HashSet<BoxCollider>();
+  readonly Dictionary<RoomRegion,BoxCollider> indoorOverrides=new Dictionary<RoomRegion,BoxCollider>();
   int roomCount,lightCount,shelterCount;
-  public void Clear(){roomCount=lightCount=shelterCount=0;seenLights.Clear();seenRooms.Clear();seenShelters.Clear();}
+  public void Clear(){roomCount=lightCount=shelterCount=0;seenLights.Clear();seenRooms.Clear();seenShelters.Clear();indoorOverrides.Clear();}
   public bool TryPrepare(Camera camera,RoomRegion[] rooms,Light[] lights,BoxCollider[] shelters,out string reason)
+   =>TryPrepare(camera,rooms,lights,shelters,null,out reason);
+  public bool TryPrepare(Camera camera,RoomRegion[] rooms,Light[] lights,BoxCollider[] shelters,EnvironmentIndoorVolumeOverride[] overrides,out string reason)
   {
    Clear();reason=null;if(camera==null){reason="缺少明确环境相机";return false;}
    if(!Finite(camera.worldToCameraMatrix)||!Finite(camera.projectionMatrix))return Fail("环境相机矩阵无效",out reason);
+   foreach(var item in overrides??Array.Empty<EnvironmentIndoorVolumeOverride>())
+   {
+    if(item==null||item.room==null||item.volume==null)return Fail("照明室内覆盖缺少明确房间或体积",out reason);
+    var room=item.room;var box=item.volume;bool registered=false;
+    foreach(var candidate in rooms??Array.Empty<RoomRegion>())if(candidate==room){registered=true;break;}
+    if(!registered||!room.isActiveAndEnabled)return Fail("照明室内覆盖必须属于已登记的有效房间",out reason);
+    if(indoorOverrides.ContainsKey(room))return Fail("同一房间不能重复登记照明室内覆盖",out reason);
+    if(!room.gameObject.scene.IsValid()||!room.gameObject.scene.isLoaded||room.gameObject.scene!=camera.gameObject.scene||box.gameObject.scene!=room.gameObject.scene)
+     return Fail("照明室内覆盖必须与房间及相机同场景",out reason);
+    if(!box.gameObject.activeInHierarchy||!Finite(box.center)||!Finite(box.size)||box.size.x<=0||box.size.y<=0||box.size.z<=0||!ValidScale(box.transform.lossyScale)||!Finite(box.transform.worldToLocalMatrix))
+     return Fail("照明室内覆盖OBB中心/尺寸/Transform无效",out reason);
+    indoorOverrides.Add(room,box);
+   }
    GeometryUtility.CalculateFrustumPlanes(camera,frustum);
    foreach(var light in lights??Array.Empty<Light>())
    {
@@ -37,15 +54,17 @@ namespace Ossastra.EnvironmentSimulation.Rendering
    {
     if(room==null||!room.isActiveAndEnabled||!seenRooms.Add(room))continue;
     Vector3 scale=room.transform.lossyScale;if(!ValidScale(scale)||!Finite(room.transform.worldToLocalMatrix))return Fail("房间体积Transform无效",out reason);
+    if(indoorOverrides.TryGetValue(room,out var interior))
+    {
+     var volume=new RoomMaskVolume{WorldToLocal=Matrix4x4.Translate(-interior.center)*interior.transform.worldToLocalMatrix,HalfExtents=interior.size*.5f};
+     if(!AppendRoomVolume(volume,out reason))return false;
+     continue;
+    }
     foreach(var box in room.volumes??Array.Empty<RoomLocalBox>())
     {
      if(!Finite(box.center)||!Finite(box.size)||box.size.x<=0||box.size.y<=0||box.size.z<=0)return Fail("房间体积中心/尺寸无效",out reason);
      var volume=new RoomMaskVolume{WorldToLocal=Matrix4x4.Translate(-box.center)*room.transform.worldToLocalMatrix,HalfExtents=box.size*.5f};
-     bool relevant=GeometryUtility.TestPlanesAABB(frustum,WorldBounds(volume));
-     for(int i=0;!relevant&&i<lightCount;i++)relevant=Contains(volume,new Vector3(positions[i].x,positions[i].y,positions[i].z));
-     if(!relevant)continue;
-     if(roomCount==MaximumRooms)return Fail("本相机相关房间体积超过32；环境表面/雨暂停，不截断空间",out reason);
-     matrices[roomCount]=volume.WorldToLocal;extents[roomCount++]=volume.HalfExtents;
+     if(!AppendRoomVolume(volume,out reason))return false;
     }
    }
    for(int lamp=0;lamp<lightCount;lamp++)
@@ -59,6 +78,16 @@ namespace Ossastra.EnvironmentSimulation.Rendering
     shelterMatrices[shelterCount]=Matrix4x4.Translate(-box.center)*box.transform.worldToLocalMatrix;shelterExtents[shelterCount++]=box.size*.5f;
    }
    reason="表面就绪：相关房间 "+roomCount+"/32；点灯 "+lightCount+"/8；雨棚 "+shelterCount+"/16";return true;
+  }
+  bool AppendRoomVolume(RoomMaskVolume volume,out string reason)
+  {
+   reason=null;
+   bool relevant=GeometryUtility.TestPlanesAABB(frustum,WorldBounds(volume));
+   for(int i=0;!relevant&&i<lightCount;i++)relevant=Contains(volume,new Vector3(positions[i].x,positions[i].y,positions[i].z));
+   if(!relevant)return true;
+   if(roomCount==MaximumRooms)return Fail("本相机相关房间体积超过32；环境表面/雨暂停，不截断空间",out reason);
+   matrices[roomCount]=volume.WorldToLocal;extents[roomCount++]=volume.HalfExtents;
+   return true;
   }
   bool Fail(string value,out string reason){Clear();reason=value;return false;}
   public void Upload(CommandBuffer cmd)

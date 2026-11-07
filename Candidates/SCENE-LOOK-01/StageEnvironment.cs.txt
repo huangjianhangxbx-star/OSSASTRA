@@ -1,0 +1,15 @@
+// 功能：给明确已安装木屋场景登记环境内部体积和独立候选；不改房间许可/结构/原业务。
+using System;using System.Linq;using UnityEngine;using UnityEditor;using UnityEditor.SceneManagement;using Funplay.Editor.Tools.Scripting;
+using Ossastra.VoxelTerrain;using Ossastra.EnvironmentSimulation;using Ossastra.EnvironmentSimulation.Rendering;using Ossastra.SceneVisibility.Rooms;
+public class StageSceneEnvironment:IFunplayCommand{public void Execute(ExecutionContext ctx){
+if(EditorApplication.isPlaying||Application.dataPath.Replace('\\','/')!="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets")throw new Exception("Stable author project required");
+var sky=UnityEngine.Object.FindObjectOfType<EnvironmentSkyBinding>();var install=UnityEngine.Object.FindObjectOfType<VoxelTerrainInstallation>();if(sky==null||install==null||install.timberHouse==null)throw new Exception("Missing explicit scene author");
+var house=install.timberHouse;var room=house.GetComponentInChildren<RoomRegion>(true);if(room==null||!sky.indoorRegions.Contains(room))throw new Exception("House room not registered");
+var node=house.Find("EnvironmentInterior_LightingOnly");if(node==null){var go=new GameObject("EnvironmentInterior_LightingOnly");ctx.RegisterObjectCreation(go);go.transform.SetParent(house,false);node=go.transform;}
+var volume=node.GetComponent<BoxCollider>();if(volume==null)volume=node.gameObject.AddComponent<BoxCollider>();ctx.RegisterObjectModification(volume);
+volume.center=new Vector3(0,1.6f,0);volume.size=new Vector3(7.8f,3.1f,6.8f);volume.isTrigger=true;volume.enabled=false;
+ctx.RegisterObjectModification(sky);var previous=sky.indoorVolumeOverrides??Array.Empty<EnvironmentIndoorVolumeOverride>();if(previous.Any(v=>v!=null&&v.room==room&&v.volume!=volume))throw new Exception("Conflicting explicit interior override");
+sky.indoorVolumeOverrides=previous.Where(v=>v!=null&&v.room!=room).Concat(new[]{new EnvironmentIndoorVolumeOverride{room=room,volume=volume}}).ToArray();
+sky.sceneEnvironmentProfile=AssetDatabase.LoadAssetAtPath<SceneEnvironmentProfileSO>("Assets/OSSASTRA/EnvironmentSimulation/Profiles/SceneStyles/UnifiedSunset.asset");if(sky.sceneEnvironmentProfile==null)throw new Exception("Missing independent environment candidate");
+sky.sceneEnvironmentEnabled=false;EditorUtility.SetDirty(sky);EditorSceneManager.MarkSceneDirty(sky.gameObject.scene);if(!EditorSceneManager.SaveScene(sky.gameObject.scene))throw new Exception("Scene save failed");
+ctx.ReturnValue=new{scene=sky.gameObject.scene.path,overrides=sky.indoorVolumeOverrides.Length,indoorSize=volume.size.ToString(),physicsEnabled=volume.enabled,roomVolumesUnchanged=JsonUtility.ToJson(room),profile=AssetDatabase.GetAssetPath(sky.sceneEnvironmentProfile)};}}

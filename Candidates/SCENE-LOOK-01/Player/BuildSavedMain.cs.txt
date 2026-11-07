@@ -1,0 +1,84 @@
+/* 功能：SCENE-LOOK-01实际主场Development Player唯一构建候选；显式角色/完整源槽检查，不写死历史绑定数量。
+ * 边界：Root Native独占执行；要求隔离作者存档，保留Player/BuildSettings，不复放未知构建。 */
+using System;
+using System.IO;
+using System.Linq;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+using UnityEditor.Build.Reporting;
+using Ossastra.VoxelTerrain;
+using Ossastra.WorldRendering.VoxelSurface;
+
+public static class BuildSceneLookMain
+{
+    const string Main="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity";
+    static EditorApplication.CallbackFunction queued;
+    public static string Run()
+    {
+        var scene=SceneManager.GetActiveScene();
+        if(EditorApplication.isPlayingOrWillChangePlaymode||EditorApplication.isCompiling||EditorApplication.isUpdating||BuildPipeline.isBuildingPlayer||SceneManager.sceneCount!=1||scene.path!=Main||queued!=null)throw new Exception("Requires actual main in stable Edit with no owned pending build");
+        var roots=scene.GetRootGameObjects();
+        var comparison=roots.SelectMany(g=>g.GetComponentsInChildren<VoxelSurfaceComparison>(true)).Single();
+        if(comparison.bindings==null||comparison.bindings.Any(b=>b==null||b.renderer==null||b.original==null||!b.renderer.sharedMaterials.SequenceEqual(b.original))||comparison.bindings.Select(b=>b.renderer).Distinct().Count()!=comparison.bindings.Length)throw new Exception("Main must retain complete unique original author slots");
+        var install=roots.SelectMany(g=>g.GetComponentsInChildren<VoxelTerrainInstallation>(true)).Single();
+        if(install.editableSource==null||install.frozenSurfaces==null||install.chunks.Length!=224||install.collision.Length!=224||install.timberHouse==null)throw new Exception("Unique VOXEL-MAP-01 installation is incomplete");
+        ValidateStylePolicy(comparison,install);
+        var source=VoxelTerrainSource.Parse(install.editableSource.text,install.frozenSurfaces.text);
+        if(source.AssetId!="voxel-map-01-terrain"||source.SourceSha256!=install.sourceSha256||!AssetDatabase.GetAssetPath(install.editableSource).StartsWith("Assets/OSSASTRA/VoxelTerrainValidation/Source/",StringComparison.Ordinal))throw new Exception("Main installation is not the approved native source");
+        var commerce=roots.SelectMany(g=>g.GetComponentsInChildren<Ossastra.Commerce.Runtime.CommerceService>(true)).Single();
+        if(string.IsNullOrWhiteSpace(commerce.saveDirectory)||Path.GetFileName(Path.GetFullPath(commerce.saveDirectory).TrimEnd(Path.DirectorySeparatorChar,Path.AltDirectorySeparatorChar))!="main-validation-commerce")throw new Exception("Root must explicitly route main author Commerce to main-validation-commerce before building");
+        if(scene.isDirty&&!EditorSceneManager.SaveScene(scene))throw new Exception("Verified author scene could not be saved");
+        string folder=Path.GetFullPath("artifacts/SCENE-LOOK-01/Player_"+DateTime.UtcNow.ToString("yyyyMMdd_HHmmss"));Directory.CreateDirectory(folder);
+        string status=Path.GetFullPath("artifacts/SCENE-LOOK-01/build-result.json"),executable=Path.Combine(folder,"SceneLookMain.exe");
+        if(File.Exists(status))File.Copy(status,Path.Combine(folder,"previous-build-result.json"));
+        Write(status,new Result{result="queued",executable=executable,scene=scene.path,sourceSha256=source.SourceSha256,authorCommerce=commerce.saveDirectory});
+        string scenePath=scene.path,hash=source.SourceSha256,authorRoute=commerce.saveDirectory;
+        queued=()=>
+        {
+            queued=null;
+            try
+            {
+                Write(status,new Result{result="running",executable=executable,scene=scenePath,sourceSha256=hash,authorCommerce=authorRoute});
+                var report=BuildPipeline.BuildPlayer(new BuildPlayerOptions{scenes=new[]{scenePath},locationPathName=executable,target=BuildTarget.StandaloneWindows64,options=BuildOptions.Development});
+                var summary=report.summary;
+                Write(status,new Result{success=summary.result==BuildResult.Succeeded,result=summary.result.ToString(),executable=executable,scene=scenePath,sourceSha256=hash,authorCommerce=authorRoute,errors=(int)summary.totalErrors,warnings=(int)summary.totalWarnings,bytes=(long)summary.totalSize,seconds=summary.totalTime.TotalSeconds});
+            }
+            catch(Exception error){Write(status,new Result{result=error.ToString(),executable=executable,scene=scenePath,sourceSha256=hash,authorCommerce=authorRoute});Debug.LogException(error);}
+        };
+        EditorApplication.delayCall+=queued;
+        return "One build scheduled: "+folder+"; observe artifacts/SCENE-LOOK-01/build-result.json; do not replay uncertain build";
+    }
+    public static string RunImmediate()
+    {
+        string receipt=Run();var callback=queued;
+        if(callback==null)throw new Exception("Owned build callback missing");
+        EditorApplication.delayCall-=callback;callback();return receipt+"; owned callback executed and removed";
+    }
+    static void ValidateStylePolicy(VoxelSurfaceComparison comparison,VoxelTerrainInstallation install)
+    {
+        if(comparison.materialRoles==null||!comparison.materialRoles.Validate(out var roleReason))throw new InvalidOperationException("Explicit reviewed house material-role declaration missing");
+        var house=install.timberHouse.GetComponentsInChildren<MeshRenderer>(true);
+        if(house.Length==0)throw new InvalidOperationException("No actual house renderers");
+        foreach(var renderer in install.GetComponentsInChildren<MeshRenderer>(true))
+        {
+            var owned=comparison.bindings.Where(b=>b.renderer==renderer).ToArray();
+            if(owned.Length!=1)throw new InvalidOperationException("Every installed surface needs exactly one explicit response binding: "+renderer.name);
+            var binding=owned[0];bool inHouse=renderer.transform.IsChildOf(install.timberHouse);
+            if(inHouse)
+            {
+                if(binding.lightingOnly||!comparison.materialRoles.ContainsAll(binding.original,out var reason)||!binding.original.SequenceEqual(binding.calibrated)||!binding.original.SequenceEqual(binding.shaped))throw new InvalidOperationException("House slot/policy differs from reviewed declaration: "+renderer.name);
+            }
+            else if(!binding.lightingOnly)throw new InvalidOperationException("Unrelated terrain/tree/water must preserve source palette: "+renderer.name);
+        }
+        var rich=(comparison.lookPresets??Array.Empty<VoxelSurfaceLookSO>()).SingleOrDefault(x=>x!=null&&x.name=="RichTimberHall");
+        if(rich==null||!rich.Validate(out var lookReason))throw new InvalidOperationException("Independent warm timber Look missing");
+        foreach(var renderer in house)foreach(var source in renderer.sharedMaterials)
+            if(!rich.materials.Any(m=>m!=null&&m.source==source&&m.replacement!=null))throw new InvalidOperationException("Warm timber Look does not cover a declared source");
+        var sky=install.gameObject.scene.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<Ossastra.EnvironmentSimulation.Rendering.EnvironmentSkyBinding>(true)).Single();
+        if(sky.environment==null||sky.sceneEnvironmentProfile==null||sky.sceneEnvironmentProfile.settings==null)throw new InvalidOperationException("Independent scene environment candidate missing");
+    }
+    static void Write(string path,Result result){File.WriteAllText(path,JsonUtility.ToJson(result,true));}
+    [Serializable] public sealed class Result {public bool success;public string result,executable,scene,sourceSha256,authorCommerce;public int errors,warnings;public long bytes;public double seconds;}
+}

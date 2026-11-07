@@ -1,5 +1,5 @@
 /* 功能：给原无光照地表与角色提供同一份环境底光、真实主灯阴影及受限室内补光。
- * 边界：只改变表面受光，不修改alpha、深度、观察许可、Caster或源材质；原生Lit仅追加分区GI、主灯云与有界湿润。
+ * 边界：只改变表面受光，不修改alpha、深度、观察许可、Caster或源材质；场景融合仅重分配室外环境漫射色度，不染角色、直射或镜面。
  * 生命周期：唯一可见性Pass按相机上传有界全局数据；未启用时严格返回原色。
  * 上游片元函数：Unity URP 14.2.0-t1（Unity Technologies，Unity Companion License）与 Spine URP 4.3.25
  * （Esoteric Software，Spine Runtimes License）；完整许可见 docs/ossastra/ENV-01/*-LICENSE.md。
@@ -27,6 +27,9 @@
 
 #include "Assets/OSSASTRA/Scripts/CharacterLighting/Rendering/CharacterLightingColor.hlsl"
 float4 _EnvironmentStylizedSkyTint;
+// 场景只调环境漫射色度；w分别为目标有效性和候选开关，未启用严格保留原受光。
+float4 _EnvironmentSceneTint;
+float4 _EnvironmentSceneChroma; // ground / decoration / voxel / enabled
 
 float _EnvironmentLightingEnabled;
 float _EnvironmentFullSurface;
@@ -72,6 +75,31 @@ half EnvironmentIndoorFactor(float3 world)
 {
  if (_EnvironmentLightingEnabled < .5) return 1;
  return EnvironmentRoomIndex(world) >= 0 ? saturate(_EnvironmentIndoorAmbientScale) : 1;
+}
+
+// 目标色只重新分配这份漫射已有的亮度；黑色仍黑，直射/局部灯/反射/自发光不进入此函数。
+float3 EnvironmentSceneDiffuseChroma(float3 diffuse, float3 world, float role, float voxelFamily)
+{
+ if (_EnvironmentLightingEnabled < .5 || !CharacterLightingFinite(_EnvironmentSceneChroma)
+     || !CharacterLightingFinite(_EnvironmentSceneTint) || !CharacterLightingFinite(role)
+     || _EnvironmentSceneChroma.w < .5 || _EnvironmentSceneTint.w < .5
+     || role < 0 || role > 1.5 || EnvironmentRoomIndex(world) >= 0) return diffuse;
+ float strength = voxelFamily > .5 ? _EnvironmentSceneChroma.z
+                   : (role < .5 ? _EnvironmentSceneChroma.x : _EnvironmentSceneChroma.y);
+ if (!CharacterLightingFinite(strength) || strength <= 0) return diffuse;
+ float3 target = _EnvironmentSceneTint.rgb;
+ if (!all(target >= 0) || !all(target < 1e10)) return diffuse;
+ float peak = max(target.r, max(target.g, target.b));
+ if (peak <= .000001) return diffuse;
+ target /= peak;
+ const float3 luminanceWeights = float3(.2126,.7152,.0722);
+ float targetLuminance = dot(target,luminanceWeights);
+ // 极端纯蓝等低亮色先向白退饱和，保证归一化每通道增益<=4且精确保亮；不截断能量。
+ if (targetLuminance < .25)
+  target = lerp(float3(1,1,1),target,.75 / max(1-targetLuminance,.000001));
+ target /= max(dot(target,luminanceWeights),.25);
+ float basisLuminance = dot(diffuse,luminanceWeights);
+ return lerp(diffuse,basisLuminance*target,saturate(strength));
 }
 
 // 湿润属于实际室外表面；观察者位置、揭顶显示和雨粒投影都不能让屋内或雨棚下的表面变湿。
@@ -168,8 +196,9 @@ float3 EnvironmentCharacterNormal(float3 normalHint)
 }
 
 // role：0地面、1场景装饰、2角色及装备、负值为信息标记/自发光业务表现。
-float3 EnvironmentLightingGain(float3 world, float3 normal, float role, bool characterEffects)
+float3 EnvironmentLightingGain(float3 world, float3 normal, float role, bool characterEffects, out float3 sceneAmbientGain)
 {
+ sceneAmbientGain=0;
  if (_EnvironmentLightingEnabled < .5 || role < -.5) return float3(1,1,1);
  normal = normalize(normal + float3(0, .00001, 0));
  half hemisphere = saturate(normal.y * .5 + .5);
@@ -222,23 +251,34 @@ float3 EnvironmentLightingGain(float3 world, float3 normal, float role, bool cha
  }
  // 与原生受光共用室外/遮雨判定；不把预乘装备变成额外高亮的透明片。
  half wet = EnvironmentSurfaceWetness(world, role);
+ sceneAmbientGain=ambient*(1-wet*.08)*saturate(response);
  return lerp(half3(1,1,1), lighting * (1 - wet * .08), saturate(response));
+}
+float3 EnvironmentLightingGain(float3 world,float3 normal,float role,bool characterEffects)
+{
+ float3 unusedAmbient;
+ return EnvironmentLightingGain(world,normal,role,characterEffects,unusedAmbient);
 }
 
 // 保留零alpha Additive的原业务能量；非线性只作用于不含贴图/slot alpha的增益。
 half3 EnvironmentShadeLegacy(half3 albedo, float3 world, float3 normal, float role)
 {
- return albedo * EnvironmentLightingGain(world,normal,role,false);
+ float3 ambientGain;
+ float3 gain=EnvironmentLightingGain(world,normal,role,false,ambientGain);
+ float3 ambient=albedo*ambientGain;
+ return albedo*gain+(EnvironmentSceneDiffuseChroma(ambient,world,role,0)-ambient);
 }
 half3 EnvironmentShadeWithRim(half3 albedo, float3 world, float3 normal, float role, float3 rimGain)
 {
- float3 gain=EnvironmentLightingGain(world,normal,role,true);
+ float3 ambientGain;
+ float3 gain=EnvironmentLightingGain(world,normal,role,true,ambientGain);
  if (_EnvironmentLightingEnabled>.5 && role>1.5 && _CharacterLightControls.x>.5)
  {
   gain += CharacterLightingLimitRim(rimGain * max(_CharacterLightControls.y,0),gain,_CharacterLightControls.w);
   gain = CharacterLightingProtectGain(gain,_CharacterLightShoulder.x,_CharacterLightShoulder.y,_CharacterLightControls.z);
  }
- return albedo * gain;
+ float3 ambient=albedo*ambientGain;
+ return albedo*gain+(EnvironmentSceneDiffuseChroma(ambient,world,role,0)-ambient);
 }
 half3 EnvironmentShade(half3 albedo, float3 world, float3 normal, float role)
 {
@@ -246,6 +286,20 @@ half3 EnvironmentShade(half3 albedo, float3 world, float3 normal, float role)
 }
 
 #if defined(ENVIRONMENT_NATIVE_LIT) && !defined(ENVIRONMENT_LEGACY_SPRITE)
+// URP14 GlobalIllumination的环境漫射项；只取这一项作delta，反射采样、coat镜面和AO诊断仍归原函数。
+half3 EnvironmentNativeIndirectDiffuse(BRDFData brdfData,half clearCoatMask,half3 bakedGI,
+ half occlusion,half3 normalWS,half3 viewDirectionWS)
+{
+ if (IsOnlyAOLightingFeatureEnabled()) return 0;
+ half3 diffuse=bakedGI*brdfData.diffuse;
+#if defined(_CLEARCOAT) || defined(_CLEARCOATMAP)
+ half normalView=saturate(dot(normalWS,viewDirectionWS));
+ half coatFresnel=kDielectricSpec.x+kDielectricSpec.a*Pow4(1-normalView);
+ diffuse*=1-coatFresnel*clearCoatMask;
+#endif
+ return diffuse*occlusion;
+}
+
 // 只修改运行时SurfaceData副本；干燥、受遮蔽及角色/信息完全保留原数据，不触碰材质资产。
 void EnvironmentApplyNativeWetness(inout SurfaceData surfaceData, float3 world)
 {
@@ -296,6 +350,9 @@ half4 EnvironmentUniversalFragmentPBR(InputData inputData, SurfaceData surfaceDa
                                               inputData.bakedGI, aoFactor.indirectAmbientOcclusion, inputData.positionWS,
                                               inputData.normalWS, inputData.viewDirectionWS, inputData.normalizedScreenSpaceUV
                                               UNITY_GDRP_INSTANCE_ZERO_ARGUMENT);
+    half3 sceneDiffuse=EnvironmentNativeIndirectDiffuse(brdfData,surfaceData.clearCoatMask,
+        inputData.bakedGI,aoFactor.indirectAmbientOcclusion,inputData.normalWS,inputData.viewDirectionWS);
+    lightingData.giColor += EnvironmentSceneDiffuseChroma(sceneDiffuse,inputData.positionWS,_EnvironmentSurfaceRole,1)-sceneDiffuse;
 #ifdef _LIGHT_LAYERS
     if (IsMatchingLightLayer(mainLight.layerMask, meshRenderingLayers))
 #endif
@@ -375,6 +432,7 @@ half4 EnvironmentUniversalFragmentBlinnPhong(InputData inputData, SurfaceData su
     mainLight.color *= EnvironmentDirectCloud(inputData.positionWS);
 
     inputData.bakedGI *= surfaceData.albedo;
+    inputData.bakedGI = EnvironmentSceneDiffuseChroma(inputData.bakedGI,inputData.positionWS,_EnvironmentSurfaceRole,1);
 
     LightingData lightingData = CreateLightingData(inputData, surfaceData);
 #ifdef _LIGHT_LAYERS

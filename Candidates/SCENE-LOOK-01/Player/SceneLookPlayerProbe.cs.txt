@@ -1,0 +1,264 @@
+/* 本轮实际主场 Player 短验证，仅 --scene-look-probe 绝对报告目录 启用。
+ * BeforeSceneLoad 注册 pre-Start 存档隔离；库存禁用期间先改路由再复制，失败保持禁用，不恢复源目录。
+ * 以明确flag在隔离会话启用暖木与环境融合，并采自然17时夕照；不改作者资产、角色、天气、镜头或业务。
+ * 首个真实主相机帧后观测10秒且至少8帧、45秒硬超时；源档指纹、接线、双角色和RoomMask写JSON后退出。
+ */
+#if UNITY_STANDALONE_WIN && !UNITY_EDITOR
+using System;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Collections;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Security.Cryptography;
+using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.SceneManagement;
+using Ossastra.Inventory;
+using Ossastra.Commerce.Runtime;
+using Ossastra.MapResearch;
+using Ossastra.VoxelTerrain;
+using Ossastra.SceneVisibility.Rooms;
+using Ossastra.SceneVisibility.Rooms.Rendering;
+using Ossastra.WorldRendering.VoxelSurface;
+using Ossastra.EnvironmentSimulation;
+using Ossastra.EnvironmentSimulation.Rendering;
+using Debug=UnityEngine.Debug;
+
+namespace Ossastra.Development.WorldRendering
+{
+    public sealed class SceneLookPlayerProbe:MonoBehaviour
+    {
+        const string Flag="--scene-look-probe";
+        const string Main="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity";
+        const double ObserveSeconds=10,TimeoutSeconds=45;
+        static bool booted;
+        bool authorized,finished,sceneHook,renderHook,logHook,isolated;
+        int isolatedScene,renderedFrames,lastRenderedFrame=-1,errorCount;
+        string directory,originalDirectory,isolatedDirectory,profileId,beforeFingerprint;
+        CommerceService commerce;
+        Camera mainCamera;
+        Stopwatch clock; double firstRenderSeconds=-1;
+        readonly List<string> errors=new List<string>(); readonly object logGate=new object();
+        readonly Report report=new Report();
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+        static void Bootstrap()
+        {
+            var args=System.Environment.GetCommandLineArgs();int index=Array.IndexOf(args,Flag);
+            if(index<0||booted)return;booted=true;
+            try
+            {
+                if(index+1>=args.Length||!Path.IsPathFullyQualified(args[index+1]))throw new ArgumentException("--scene-look-probe requires an absolute report directory");
+                string folder=Path.GetFullPath(args[index+1]);Directory.CreateDirectory(folder);
+                if((File.GetAttributes(folder)&FileAttributes.ReparsePoint)!=0)throw new IOException("Report directory cannot be a reparse point");
+                var host=new GameObject("SceneLookProbe_CommandLineOnly"){hideFlags=HideFlags.HideAndDontSave};host.SetActive(false);DontDestroyOnLoad(host);
+                var probe=host.AddComponent<SceneLookPlayerProbe>();probe.authorized=true;probe.directory=folder;probe.clock=Stopwatch.StartNew();
+                SceneManager.sceneLoaded+=probe.SceneLoaded;probe.sceneHook=true;
+                Application.logMessageReceivedThreaded+=probe.LogReceived;probe.logHook=true;
+                Application.runInBackground=true;host.SetActive(true);
+            }
+            catch(Exception error)
+            {
+                SceneManager.sceneLoaded+=AbortStartup;
+                Debug.LogError("SCENE_LOOK_PLAYER_RESULT "+JsonUtility.ToJson(new Report{pass=false,reason=error.Message}));Application.Quit(1);
+            }
+        }
+        static List<(InventorySession session,bool enabled)> BlockInventories(Scene scene)
+        {
+            var states=new List<(InventorySession,bool)>();
+            foreach(var root in scene.GetRootGameObjects())foreach(var inventory in root.GetComponentsInChildren<InventorySession>(true)){states.Add((inventory,inventory.enabled));inventory.enabled=false;}
+            return states;
+        }
+        static void AbortStartup(Scene scene,LoadSceneMode mode){SceneManager.sceneLoaded-=AbortStartup;BlockInventories(scene);}
+        void SceneLoaded(Scene scene,LoadSceneMode mode)
+        {
+            try{IsolateBeforeStart(scene);}
+            catch(Exception error){BlockInventories(scene);Finish(false,"pre-Start isolation failed; inventory remains disabled: "+error.Message);}
+        }
+        void IsolateBeforeStart(Scene scene)
+        {
+            if(!authorized||string.IsNullOrEmpty(directory))throw new InvalidOperationException("Missing explicit probe authorization");
+            if(isolated){if(scene.handle!=isolatedScene||commerce==null||commerce.saveDirectory!=isolatedDirectory)throw new InvalidOperationException("Unexpected second scene or isolation route change");return;}
+            var states=BlockInventories(scene);
+            if(!scene.IsValid()||!scene.isLoaded||scene.path!=Main)throw new InvalidOperationException("Only saved actual main may be probed");
+            commerce=One(scene.GetRootGameObjects().SelectMany(r=>r.GetComponentsInChildren<CommerceService>(true)),"CommerceService");
+            if(commerce.inventory==null||commerce.inventory.gameObject.scene!=scene||commerce.SavePath!=null||commerce.SaveStatus!=null)throw new InvalidOperationException("Commerce isolation is too late or inventory is not explicit");
+            string authorRoute=commerce.saveDirectory;
+            isolatedDirectory=Path.GetFullPath(Path.Combine(directory,"isolated-commerce"));
+            // 必须早于任何源目录I/O或复制失败，退出保存也始终留在该路由。
+            commerce.saveDirectory=isolatedDirectory;isolatedScene=scene.handle;profileId=commerce.profileId;
+            if(string.IsNullOrWhiteSpace(authorRoute))throw new InvalidOperationException("Root must supply isolated author route before build");
+            originalDirectory=Path.GetFullPath(authorRoute);
+            if(Path.GetFileName(originalDirectory.TrimEnd(Path.DirectorySeparatorChar,Path.AltDirectorySeparatorChar))!="main-validation-commerce")throw new InvalidOperationException("Author route must be main-validation-commerce");
+            if(Within(originalDirectory,isolatedDirectory)||Within(isolatedDirectory,originalDirectory))throw new InvalidOperationException("Source and isolated archives cannot overlap or contain each other");
+            GuardDirectory(originalDirectory);Directory.CreateDirectory(isolatedDirectory);GuardDirectory(isolatedDirectory);
+            report.sourceFilesBefore=Files(originalDirectory);beforeFingerprint=Fingerprint(report.sourceFilesBefore);
+            foreach(var file in report.sourceFilesBefore)
+            {
+                if(file.name=="<directory-missing>")continue;string target=Path.Combine(isolatedDirectory,file.name);
+                if(File.Exists(target))throw new IOException("Unique report directory required; refusing existing isolation file "+file.name);
+                File.Copy(Path.Combine(originalDirectory,file.name),target,false);
+            }
+            if(beforeFingerprint!=Fingerprint(Files(originalDirectory)))throw new IOException("Author archive changed during isolation copy");
+            if(commerce.saveDirectory!=isolatedDirectory||commerce.profileId!=profileId||commerce.SavePath!=null)throw new InvalidOperationException("Pre-Start route readback failed");
+            isolated=report.preStartIsolation=true;report.authorCommerce=originalDirectory;report.isolatedCommerce=isolatedDirectory;
+            foreach(var state in states)if(state.session!=null)state.session.enabled=state.enabled;
+        }
+
+        IEnumerator Start()
+        {
+            if(!authorized||clock==null||string.IsNullOrEmpty(directory)){enabled=false;yield break;}
+            var routine=Run();
+            while(!finished)
+            {
+                bool more;try{more=routine.MoveNext();}catch(Exception error){Finish(false,error.ToString());yield break;}
+                if(!more)yield break;yield return routine.Current;
+            }
+        }
+        IEnumerator Run()
+        {
+            if(Application.isBatchMode||SystemInfo.graphicsDeviceType==GraphicsDeviceType.Null)throw new InvalidOperationException("Real graphical Windows Player is required");
+            yield return null;
+            var scene=SceneManager.GetActiveScene();var roots=scene.GetRootGameObjects();
+            if(scene.path!=Main||!isolated||commerce==null)throw new InvalidOperationException("Actual main/isolation not ready");
+            var install=One(roots.SelectMany(r=>r.GetComponentsInChildren<VoxelTerrainInstallation>(true)),"VOXEL-MAP-01 installation");
+            var coordinator=One(roots.SelectMany(r=>r.GetComponentsInChildren<Ossastra.Characters.CharacterControlCoordinator>(true)),"original coordinator");
+            var map=One(roots.SelectMany(r=>r.GetComponentsInChildren<MapResearchRoot>(true)),"original map camera root");
+            var module=One(roots.SelectMany(r=>r.GetComponentsInChildren<RoomVisibilityModule>(true)),"original room module");
+            var visibility=One(roots.SelectMany(r=>r.GetComponentsInChildren<Ossastra.SceneVisibility.SceneVisibilityRoot>(true)),"original visibility root");
+            var comparison=One(roots.SelectMany(r=>r.GetComponentsInChildren<VoxelSurfaceComparison>(true)),"original voxel comparison");
+            mainCamera=map.gameplayCamera;
+            if(mainCamera==null||!mainCamera.enabled||mainCamera!=visibility.gameplayCamera||Mathf.Abs(map.pitch-45)>.001f)throw new InvalidOperationException("Actual main camera must retain 45 degree view");
+            if(coordinator.Characters.Count!=2||coordinator.Characters.Any(a=>a==null)||coordinator.Current==null)throw new InvalidOperationException("Original two-character coordinator/current missing");
+            if(comparison.bindings==null||comparison.bindings.Any(b=>b==null||b.renderer==null||b.original==null||b.original.Any(m=>m==null))||comparison.bindings.Select(b=>b.renderer).Distinct().Count()!=comparison.bindings.Length)throw new InvalidOperationException("Complete unique author source bindings missing");
+            ConfigureAndValidateStyle(comparison,install,roots);
+            if(install.editableSource==null||install.frozenSurfaces==null)throw new InvalidOperationException("Terrain author/frozen references missing");
+            var source=VoxelTerrainSource.Parse(install.editableSource.text,install.frozenSurfaces.text);
+            if(source.AssetId!="voxel-map-01-terrain"||source.SourceSha256!=install.sourceSha256||install.chunks.Length!=224||install.collision.Length!=224)throw new InvalidOperationException("Expected unique 224-chunk native installation");
+            for(int i=0;i<224;i++)
+            {
+                var renderer=install.chunks[i];var collider=install.collision[i];var filter=renderer==null?null:renderer.GetComponent<MeshFilter>();
+                if(renderer==null||filter==null||filter.sharedMesh==null||collider==null||!collider.enabled||collider.sharedMesh!=filter.sharedMesh||collider.gameObject!=renderer.gameObject||collider.isTrigger)throw new InvalidOperationException("Real native chunk or mesh collision missing: "+i);
+            }
+            var house=install.timberHouse==null?null:install.timberHouse.GetComponent<BuildingVisibilityRoot>();
+            if(house==null||house.regions.Length!=1||house.roofGroups.Length!=1||house.roofGroups[0]==null||house.roofGroups[0].members.Length!=3||house.roofGroups[0].members.Any(r=>r==null||r.GetComponent<MeshCollider>()==null||!r.GetComponent<MeshCollider>().enabled)||!module.buildings.Contains(house))throw new InvalidOperationException("Native house room/three physical roof sections missing");
+            if(!module.TryValidateConfiguration(visibility,out var reason))throw new InvalidOperationException("Room author configuration: "+reason);
+            report.scene=scene.path;report.camera=mainCamera.name;report.sourceSha256=source.SourceSha256;report.cells=source.CellCount;report.chunks=224;report.meshColliders=224;report.roofs=3;report.houseRooms=1;report.participants=2;report.originalBindings=comparison.BindingCount;report.pitch=map.pitch;
+            RenderPipelineManager.endCameraRendering+=CameraEnded;renderHook=true;
+            while(firstRenderSeconds<0||clock.Elapsed.TotalSeconds-firstRenderSeconds<ObserveSeconds||renderedFrames<8)yield return null;
+            yield return new WaitForEndOfFrame();
+            if(lastRenderedFrame!=Time.frameCount)throw new InvalidOperationException("No real main-camera render in screenshot frame");
+            if(!RoomMaskCameraRegistry.TryGetStatistics(mainCamera,out var stats)||!stats.Active||!string.IsNullOrEmpty(stats.Error)||stats.UnsupportedMaterialCount!=0)throw new InvalidOperationException("Actual room mask inactive/unsupported: "+(stats==null?"missing statistics":stats.Error+" / "+stats.UnsupportedMaterialCount));
+            report.roomMaskActive=stats.Active;report.roomMaskError=stats.Error;report.roomMaskUnsupported=stats.UnsupportedMaterialCount;report.roomMaskSurfaceDraws=stats.SurfaceDraws;report.roomMaskPortalDraws=stats.PortalDraws;
+            var image=ScreenCapture.CaptureScreenshotAsTexture();
+            if(image==null)throw new InvalidOperationException("Actual rendered screen capture returned no texture");
+            try{report.screenshot=Path.Combine(directory,"actual-main-camera.png");File.WriteAllBytes(report.screenshot,image.EncodeToPNG());report.screenWidth=image.width;report.screenHeight=image.height;}
+            finally{Destroy(image);}
+            Finish(true,"actual main independent warm timber Look and scene environment candidate rendered successfully");
+        }
+        void ConfigureAndValidateStyle(VoxelSurfaceComparison comparison,VoxelTerrainInstallation install,GameObject[] roots)
+        {
+            if(install.timberHouse==null||comparison.materialRoles==null||!comparison.materialRoles.Validate(out var roleReason))throw new InvalidOperationException("Explicit house roles missing");
+            int houseBindings=0;
+            foreach(var renderer in install.GetComponentsInChildren<MeshRenderer>(true))
+            {
+                var bindings=comparison.bindings.Where(b=>b.renderer==renderer).ToArray();
+                if(bindings.Length!=1)throw new InvalidOperationException("Installed renderer requires exactly one response binding: "+renderer.name);
+                var binding=bindings[0];bool inHouse=renderer.transform.IsChildOf(install.timberHouse);
+                if(inHouse)
+                {
+                    houseBindings++;
+                    if(binding.lightingOnly||!comparison.materialRoles.ContainsAll(binding.original,out var reason)||!binding.original.SequenceEqual(binding.calibrated)||!binding.original.SequenceEqual(binding.shaped))throw new InvalidOperationException("Reviewed full house source policy missing: "+renderer.name);
+                }
+                else if(!binding.lightingOnly)throw new InvalidOperationException("Terrain/tree/water lost source-palette policy: "+renderer.name);
+            }
+            if(houseBindings==0)throw new InvalidOperationException("No registered house surfaces");
+            var rich=(comparison.lookPresets??Array.Empty<VoxelSurfaceLookSO>()).SingleOrDefault(x=>x!=null&&x.name=="RichTimberHall");
+            if(rich==null||!rich.Validate(out var lookReason)||!comparison.ApplyLook(rich))throw new InvalidOperationException("Independent warm timber Look could not be applied");
+            comparison.SetSessionAdjustments(.15f,0);comparison.FlushPendingParameters();
+            foreach(var renderer in install.timberHouse.GetComponentsInChildren<MeshRenderer>(true))
+            {
+                var binding=comparison.bindings.Single(b=>b.renderer==renderer);var applied=renderer.sharedMaterials;
+                if(applied.Length!=binding.original.Length)throw new InvalidOperationException("House material slot count changed");
+                for(int slot=0;slot<applied.Length;slot++)
+                {
+                    var mapping=rich.materials.SingleOrDefault(m=>m!=null&&m.source==binding.original[slot]);
+                    if(mapping==null||applied[slot]==null||applied[slot].GetColor("_BaseColor")!=mapping.replacement.GetColor("_BaseColor")||Mathf.Abs(applied[slot].GetFloat("_VoxelLitFaceBoost")-.15f)>.0001f)throw new InvalidOperationException("Actual house palette/response did not reach private material");
+                }
+            }
+            var sky=One(roots.SelectMany(g=>g.GetComponentsInChildren<EnvironmentSkyBinding>(true)),"original environment sky receiver");
+            var environment=One(roots.SelectMany(g=>g.GetComponentsInChildren<EnvironmentRoot>(true)),"original environment root");
+            if(sky.environment!=environment||sky.sceneEnvironmentProfile==null||sky.sceneEnvironmentProfile.settings==null)throw new InvalidOperationException("Shared root/independent scene candidate missing");
+            sky.sceneEnvironmentEnabled=true;
+            // 只改此flag启用的隔离Player会话；作者配置和角色Profile仍只读。
+            environment.SetClockRunning(false);environment.SetManualSun(false,135,45);environment.SetTimeHours(17);environment.RefreshNow();
+            var frame=environment.Current;if(frame==null||!frame.Enabled)throw new InvalidOperationException("Environment frame unavailable");
+            var tint=sky.ResolveSceneEnvironmentTint(frame);var controls=sky.SceneEnvironmentControls;
+            if(tint.w<=0||controls.w<=0||Mathf.Max(controls.x,Mathf.Max(controls.y,controls.z))<=0)throw new InvalidOperationException("Scene environment candidate did not publish effective controls");
+            report.materialRoleEntries=comparison.materialRoles.entries.Length;report.houseStyleBindings=houseBindings;report.lightingOnlyBindings=comparison.LightingOnlyBindingCount;
+            report.materialLook=rich.name;report.sceneEnvironmentProfile=sky.sceneEnvironmentProfile.name;report.sceneEnvironmentEnabled=sky.sceneEnvironmentEnabled;
+            report.sunElevation=frame.Sun.ElevationDegrees;report.environmentHours=frame.Hours;
+            report.resolvedSceneTint=new[]{tint.x,tint.y,tint.z,tint.w};report.sceneControls=new[]{controls.x,controls.y,controls.z,controls.w};
+        }
+        void CameraEnded(ScriptableRenderContext context,Camera camera){if(camera!=mainCamera)return;if(lastRenderedFrame==Time.frameCount)return;lastRenderedFrame=Time.frameCount;if(firstRenderSeconds<0)firstRenderSeconds=clock.Elapsed.TotalSeconds;renderedFrames++;}
+        void Update(){if(!finished&&clock!=null&&clock.Elapsed.TotalSeconds>=TimeoutSeconds)Finish(false,"45 second timeout; actual main-camera frames="+renderedFrames);}
+        void Finish(bool pass,string reason)
+        {
+            if(finished)return;finished=true;Detach();
+            try
+            {
+                report.sourceFilesAfter=originalDirectory==null?new ArchiveFile[0]:Files(originalDirectory);
+                report.sourceArchiveUnchanged=beforeFingerprint!=null&&beforeFingerprint==Fingerprint(report.sourceFilesAfter);
+                report.actualSavePath=commerce==null?null:commerce.SavePath;
+                report.isolatedRouteValid=isolated&&commerce!=null&&commerce.saveDirectory==isolatedDirectory&&commerce.profileId==profileId&&!string.IsNullOrEmpty(report.actualSavePath)&&Within(report.actualSavePath,isolatedDirectory);
+                pass&=report.preStartIsolation&&report.sourceArchiveUnchanged&&report.isolatedRouteValid;
+            }
+            catch(Exception error){pass=false;reason+="; archive verification: "+error.Message;}
+            lock(logGate){report.runtimeErrors=errors.ToArray();report.runtimeErrorCount=errorCount;}
+            if(errorCount>0){pass=false;reason+="; Player errors="+errorCount;}
+            report.pass=pass;report.reason=Trim(reason,3000);report.actualCameraFrames=renderedFrames;report.elapsedSeconds=clock==null?0:clock.Elapsed.TotalSeconds;
+            try{if(!string.IsNullOrEmpty(directory))File.WriteAllText(Path.Combine(directory,"result.json"),JsonUtility.ToJson(report,true));}
+            catch(Exception error){report.pass=false;report.reason+="; report write: "+error.Message;}
+            Debug.Log("SCENE_LOOK_PLAYER_RESULT "+JsonUtility.ToJson(report));Application.Quit(report.pass?0:1);
+        }
+        void Detach()
+        {
+            if(sceneHook){SceneManager.sceneLoaded-=SceneLoaded;sceneHook=false;}
+            if(renderHook){RenderPipelineManager.endCameraRendering-=CameraEnded;renderHook=false;}
+            if(logHook){Application.logMessageReceivedThreaded-=LogReceived;logHook=false;}
+        }
+        void OnDestroy(){Detach();} // 绝不恢复Commerce目录，Quit/Destroy保存必须继续指向隔离Store。
+        void LogReceived(string condition,string stack,LogType type)
+        {
+            if(type!=LogType.Error&&type!=LogType.Assert&&type!=LogType.Exception)return;
+            lock(logGate){errorCount++;if(errors.Count<12)errors.Add(type+": "+Trim(condition,700)+"\n"+Trim(stack,1000));}
+        }
+        static T One<T>(IEnumerable<T> values,string label){var all=values.ToArray();if(all.Length!=1)throw new InvalidOperationException(label+" count="+all.Length);return all[0];}
+        static bool Within(string path,string parent){path=Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar,Path.AltDirectorySeparatorChar);parent=Path.GetFullPath(parent).TrimEnd(Path.DirectorySeparatorChar,Path.AltDirectorySeparatorChar);return path.Equals(parent,StringComparison.OrdinalIgnoreCase)||path.StartsWith(parent+Path.DirectorySeparatorChar,StringComparison.OrdinalIgnoreCase);}
+        static void GuardDirectory(string path){if(Directory.Exists(path)&&(File.GetAttributes(path)&FileAttributes.ReparsePoint)!=0)throw new IOException("Archive directory is a reparse point: "+path);}
+        static ArchiveFile[] Files(string path)
+        {
+            if(!Directory.Exists(path))return new[]{new ArchiveFile{name="<directory-missing>",sha256="MISSING"}};
+            return Directory.GetFiles(path,"*",SearchOption.TopDirectoryOnly).OrderBy(f=>f,StringComparer.Ordinal).Select(file=>
+            {
+                if((File.GetAttributes(file)&FileAttributes.ReparsePoint)!=0)throw new IOException("Archive file is a reparse point: "+file);
+                using(var hash=SHA256.Create())using(var stream=File.OpenRead(file))return new ArchiveFile{name=Path.GetFileName(file),length=stream.Length,sha256=BitConverter.ToString(hash.ComputeHash(stream)).Replace("-","")};
+            }).ToArray();
+        }
+        static string Fingerprint(ArchiveFile[] files){return string.Join("\n",files.Select(f=>f.name+"|"+f.length+"|"+f.sha256));}
+        static string Trim(string value,int max){return value==null||value.Length<=max?value:value.Substring(0,max);}
+        [Serializable]sealed class ArchiveFile{public string name,sha256;public long length;}
+        [Serializable]sealed class Report
+        {
+            public bool pass,preStartIsolation,isolatedRouteValid,sourceArchiveUnchanged,roomMaskActive,sceneEnvironmentEnabled;
+            public string reason,scene,camera,sourceSha256,authorCommerce,isolatedCommerce,actualSavePath,screenshot,roomMaskError,materialLook,sceneEnvironmentProfile;
+            public int cells,chunks,meshColliders,roofs,houseRooms,participants,originalBindings,actualCameraFrames,roomMaskUnsupported,roomMaskSurfaceDraws,roomMaskPortalDraws,screenWidth,screenHeight,runtimeErrorCount;
+            public int materialRoleEntries,houseStyleBindings,lightingOnlyBindings;
+            public float pitch,sunElevation;public double elapsedSeconds,environmentHours;public float[] resolvedSceneTint,sceneControls;
+            public string[] runtimeErrors;public ArchiveFile[] sourceFilesBefore,sourceFilesAfter;
+        }
+    }
+}
+#endif

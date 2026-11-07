@@ -1,6 +1,7 @@
 /* 功能：将明确体素安装根的三维表面一次性登记到既有Comparison统一受光。
  * 边界：仅Editor同场景作者接线；不扫描全场、不建材质/管理器、不保存资产或改变当前Look/参数。
- * 原引用：完整保留旧Binding对象及顺序，新组只跟受光；A/B/C源均保存当前完整持久材质槽。
+ * 原引用：完整保留旧Binding对象及顺序；新组默认只跟受光，明确房屋角色声明可保留已接入的Look策略。
+ * 材质角色：仅显式木屋子树且完整槽被持久角色集声明时接受换色绑定，不将全部地形升级为换色。
  * 失败：先验证全部目标与已有接线，再一次性追加；私有材质、跨场景或冲突策略不静默接管。
  */
 #if UNITY_EDITOR
@@ -44,7 +45,13 @@ namespace Ossastra.VoxelTerrain.Editor
                     throw new InvalidOperationException("Every terrain slot must be a persistent VoxelLit author material: " + renderer.name);
                 if (existing.TryGetValue(renderer, out var binding))
                 {
-                    if (!binding.lightingOnly || !Same(binding.original, materials) || !Same(binding.calibrated, materials) || !Same(binding.shaped, materials))
+                    bool explicitHouseStyle = false;
+                    if (!binding.lightingOnly && installation.timberHouse != null && renderer.transform.IsChildOf(installation.timberHouse) && comparison.materialRoles != null)
+                    {
+                        VoxelSurfaceMaterialAuthoring.ValidatePersistentRoles(comparison.materialRoles);
+                        explicitHouseStyle = comparison.materialRoles.ContainsAll(materials, out _);
+                    }
+                    if ((!binding.lightingOnly && !explicitHouseStyle) || !Same(binding.original, materials) || !Same(binding.calibrated, materials) || !Same(binding.shaped, materials))
                         throw new InvalidOperationException("Existing terrain binding conflicts with lighting-only ownership or complete original slots: " + renderer.name);
                     continue;
                 }
