@@ -1,0 +1,44 @@
+// Root在已保护现场的实际主场/独立场Edit执行；本合同只调用同一Editor登记入口，不保存场景。
+using System;
+using System.Linq;
+using System.Collections.Generic;
+using System.Reflection;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using Funplay.Editor.Tools.Scripting;
+
+public sealed class RegisterTerrainLightingContract : IFunplayCommand
+{
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+    {
+        var checks=new List<object>();
+        var authorType=AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType("Ossastra.VoxelTerrain.Editor.VoxelTerrainLightingAuthoring",false)).FirstOrDefault(t=>t!=null);
+        var policy=typeof(Ossastra.WorldRendering.VoxelSurface.VoxelSurfaceComparison.Binding).GetField("lightingOnly");
+        var countProperty=typeof(Ossastra.WorldRendering.VoxelSurface.VoxelSurfaceComparison).GetProperty("LightingOnlyBindingCount");
+        checks.Add(new{name="explicit lighting-only authoring seams exist",pass=authorType!=null&&policy!=null&&countProperty!=null});
+        if(authorType==null||policy==null||countProperty==null){ctx.ReturnValue=new{checks,reason="missing feature; valid RED"};return;}
+        if(Application.isPlaying)throw new Exception("Registration contract requires protected actual author scene in Edit");
+        var scene=SceneManager.GetActiveScene();var roots=scene.GetRootGameObjects();
+        var install=roots.SelectMany(r=>r.GetComponentsInChildren<Ossastra.VoxelTerrain.VoxelTerrainInstallation>(true)).Single();
+        var comparison=roots.SelectMany(r=>r.GetComponentsInChildren<Ossastra.WorldRendering.VoxelSurface.VoxelSurfaceComparison>(true)).Single();
+        var old=comparison.bindings.ToArray();var targets=install.GetComponentsInChildren<MeshRenderer>(true);
+        var source=targets.ToDictionary(r=>(Renderer)r,r=>r.sharedMaterials);
+        var register=authorType.GetMethod("Register",BindingFlags.Public|BindingFlags.Static);
+        ctx.RegisterObjectModification(comparison);
+        int added=(int)register.Invoke(null,new object[]{install,comparison});
+        var first=comparison.bindings.ToArray();int repeated=(int)register.Invoke(null,new object[]{install,comparison});
+        checks.Add(new{name="registration retains existing Binding objects and order",pass=old.Length<=first.Length&&old.Select((b,i)=>ReferenceEquals(b,first[i])).All(v=>v)});
+        checks.Add(new{name="actual installation contributes 247 unique lighting-only surfaces",pass=targets.Length==247&&comparison.BindingCount==274&&(int)countProperty.GetValue(comparison,null)==247&&targets.All(r=>comparison.bindings.Count(b=>b.renderer==r&&(bool)policy.GetValue(b))==1)});
+        checks.Add(new{name="second registration is idempotent without replacing Binding objects",pass=repeated==0&&first.Length==comparison.bindings.Length&&first.Select((b,i)=>ReferenceEquals(b,comparison.bindings[i])).All(v=>v)});
+        bool slots=true;
+        foreach(var binding in comparison.bindings.Where(b=>source.ContainsKey(b.renderer)))
+            slots&=binding.original.SequenceEqual(source[binding.renderer])&&binding.calibrated.SequenceEqual(source[binding.renderer])&&binding.shaped.SequenceEqual(source[binding.renderer])&&binding.renderer.sharedMaterials.SequenceEqual(source[binding.renderer]);
+        checks.Add(new{name="new full A/B/C author arrays retain source material identities",pass=slots});
+        var terrainSet=new HashSet<Renderer>(targets);
+        checks.Add(new{name="original 27 keep legacy policy and new policy stays within installation",pass=comparison.bindings.Count(b=>!terrainSet.Contains(b.renderer))==27&&comparison.bindings.Where(b=>!terrainSet.Contains(b.renderer)).All(b=>!(bool)policy.GetValue(b))});
+        var beforeInvalid=comparison.bindings;
+        bool refused=false;try{register.Invoke(null,new object[]{null,comparison});}catch(TargetInvocationException error){refused=error.InnerException is ArgumentException;}
+        checks.Add(new{name="missing installation rejects atomically",pass=refused&&ReferenceEquals(beforeInvalid,comparison.bindings)});
+        ctx.ReturnValue=new{checks,scene=scene.path,added,registered=comparison.BindingCount,lightingOnly=countProperty.GetValue(comparison,null),mapped=comparison.MappedRendererCount};
+    }
+}

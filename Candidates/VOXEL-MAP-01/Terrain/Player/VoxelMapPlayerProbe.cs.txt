@@ -130,7 +130,7 @@ namespace Ossastra.Development.VoxelTerrain
             mainCamera=map.gameplayCamera;
             if(mainCamera==null||!mainCamera.enabled||mainCamera!=visibility.gameplayCamera||Mathf.Abs(map.pitch-45)>.001f)throw new InvalidOperationException("Actual main camera must retain 45 degree view");
             if(coordinator.Characters.Count!=2||coordinator.Characters.Any(a=>a==null)||coordinator.Current==null)throw new InvalidOperationException("Original two-character coordinator/current missing");
-            if(comparison.bindings==null||comparison.bindings.Length!=27||comparison.bindings.Any(b=>b==null||b.renderer==null||b.original==null||b.original.Any(m=>m==null)))throw new InvalidOperationException("Original 27 author bindings missing");
+            if(comparison.bindings==null||comparison.BindingCount!=274||comparison.LightingOnlyBindingCount!=247||comparison.bindings.Any(b=>b==null||b.renderer==null||b.original==null||b.original.Any(m=>m==null)))throw new InvalidOperationException("Original author slots for 27 legacy + 247 lighting-only bindings missing");
             if(install.editableSource==null||install.frozenSurfaces==null)throw new InvalidOperationException("Terrain author/frozen references missing");
             var source=VoxelTerrainSource.Parse(install.editableSource.text,install.frozenSurfaces.text);
             if(source.AssetId!="voxel-map-01-terrain"||source.SourceSha256!=install.sourceSha256||install.chunks.Length!=224||install.collision.Length!=224)throw new InvalidOperationException("Expected unique 224-chunk native installation");
@@ -142,7 +142,7 @@ namespace Ossastra.Development.VoxelTerrain
             var house=install.timberHouse==null?null:install.timberHouse.GetComponent<BuildingVisibilityRoot>();
             if(house==null||house.regions.Length!=1||house.roofGroups.Length!=1||house.roofGroups[0]==null||house.roofGroups[0].members.Length!=3||house.roofGroups[0].members.Any(r=>r==null||r.GetComponent<MeshCollider>()==null||!r.GetComponent<MeshCollider>().enabled)||!module.buildings.Contains(house))throw new InvalidOperationException("Native house room/three physical roof sections missing");
             if(!module.TryValidateConfiguration(visibility,out var reason))throw new InvalidOperationException("Room author configuration: "+reason);
-            report.scene=scene.path;report.camera=mainCamera.name;report.sourceSha256=source.SourceSha256;report.cells=source.CellCount;report.chunks=224;report.meshColliders=224;report.roofs=3;report.houseRooms=1;report.participants=2;report.originalBindings=27;report.pitch=map.pitch;
+            report.scene=scene.path;report.camera=mainCamera.name;report.sourceSha256=source.SourceSha256;report.cells=source.CellCount;report.chunks=224;report.meshColliders=224;report.roofs=3;report.houseRooms=1;report.participants=2;report.originalBindings=comparison.BindingCount;report.pitch=map.pitch;
             RenderPipelineManager.endCameraRendering+=CameraEnded;renderHook=true;
             while(clock.Elapsed.TotalSeconds<ObserveSeconds||renderedFrames<8)yield return null;
             yield return new WaitForEndOfFrame();

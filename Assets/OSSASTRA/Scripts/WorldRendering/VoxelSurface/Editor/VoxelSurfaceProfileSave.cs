@@ -222,6 +222,7 @@ namespace Ossastra.WorldRendering.VoxelSurface
             {
                 ids.Add(binding == null || binding.renderer == null ? "missing" : GlobalObjectId.GetGlobalObjectIdSlow(binding.renderer).ToString());
                 if (binding == null) continue;
+                ids.Add(binding.lightingOnly ? "lighting-only" : "full-look");
                 foreach (var values in new[] { binding.original, binding.calibrated, binding.shaped })
                 {
                     ids.Add("[");

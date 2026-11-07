@@ -25,6 +25,8 @@ namespace Ossastra.WorldRendering.VoxelSurface
             public Material[] calibrated = Array.Empty<Material>();
             [Tooltip("轻分面作者材质，槽数必须与原版相同。资源保持只读。")]
             public Material[] shaped = Array.Empty<Material>();
+            [Tooltip("共用B/C当前受光会话，但保留自身表面配色、纹理和顶点色用途；不参与旧模型的候选换色。")]
+            public bool lightingOnly;
         }
 
         [Tooltip("仅这些Renderer参加比较；每个Renderer最多登记一次。")]
@@ -55,6 +57,10 @@ namespace Ossastra.WorldRendering.VoxelSurface
             get { var unique = new HashSet<Renderer>(); if (bindings != null) foreach (var binding in bindings) if (binding != null && binding.renderer != null) unique.Add(binding.renderer); return unique.Count; }
         }
         public VoxelSurfaceProfileSO SessionSourceProfile { get { EnsureSession(); return sessionSourceProfile; } }
+        public int LightingOnlyBindingCount
+        {
+            get { var unique = new HashSet<Renderer>(); if (bindings != null) foreach (var b in bindings) if (b != null && b.renderer != null && b.lightingOnly) unique.Add(b.renderer); return unique.Count; }
+        }
         // UI只能拿到快照；所有修改走受控入口，避免外部改了对象却没有刷新。
         public VoxelSurfaceSettings SessionSettings { get { EnsureSession(); return sessionSettings == null ? null : sessionSettings.Clone(); } }
         public bool HasSession => shapedProfile != null && shapedProfile.settings != null;
@@ -71,8 +77,8 @@ namespace Ossastra.WorldRendering.VoxelSurface
 
         readonly List<BindingState> states = new List<BindingState>();
         readonly HashSet<Renderer> observedRenderers = new HashSet<Renderer>();
-        readonly Dictionary<(Material Source, VoxelSurfaceProfileSO Profile), Material> cache =
-            new Dictionary<(Material, VoxelSurfaceProfileSO), Material>();
+        readonly Dictionary<(Material Source, VoxelSurfaceProfileSO Profile, bool LightingOnly), Material> cache =
+            new Dictionary<(Material, VoxelSurfaceProfileSO, bool), Material>();
         int handedOffTotal;
         VoxelSurfaceSettings sessionSettings;
         VoxelSurfaceProfileSO sessionSourceProfile;
@@ -181,7 +187,7 @@ namespace Ossastra.WorldRendering.VoxelSurface
                 Material[] sources = mode == VoxelSurfaceComparisonMode.Original ? state.Original :
                     mode == VoxelSurfaceComparisonMode.Calibrated ? state.Binding.calibrated : state.Binding.shaped;
                 var profile = mode == VoxelSurfaceComparisonMode.Calibrated ? calibratedProfile :
-                    mode == VoxelSurfaceComparisonMode.Faceted ? shapedProfile : null;
+                    mode == VoxelSurfaceComparisonMode.Faceted ? (state.Binding.lightingOnly && activeLook != null ? activeLook.responseProfile : shapedProfile) : null;
                 if (!CanUse(sources, state.Original, null)) { ++rejected; continue; }
                 VoxelSurfaceSettings settings = null;
                 if (profile != null)
@@ -198,14 +204,14 @@ namespace Ossastra.WorldRendering.VoxelSurface
                 for (int slot = 0; slot < sources.Length; ++slot)
                 {
                     actualSources[slot] = sources[slot]; actualProfiles[slot] = profile; actualSettings[slot] = settings;
-                    if (mode == VoxelSurfaceComparisonMode.Faceted)
+                    if (mode == VoxelSurfaceComparisonMode.Faceted && !state.Binding.lightingOnly)
                         ResolveCSlot(sources[slot], out actualSources[slot], out actualProfiles[slot], out actualSettings[slot]);
                     if (!SupportsProfile(actualSources[slot], actualProfiles[slot]) || actualProfiles[slot] != null && actualSettings[slot] == null) valid = false;
                 }
                 if (!valid) { ++rejected; continue; }
                 for (int slot = 0; slot < sources.Length; ++slot)
                     target[slot] = actualProfiles[slot] == null || actualSources[slot] == null ? actualSources[slot] :
-                        GetMaterial(actualSources[slot], actualProfiles[slot], actualSettings[slot], refreshed);
+                        GetMaterial(actualSources[slot], actualProfiles[slot], actualSettings[slot], state.Binding.lightingOnly, refreshed);
                 if (!Same(state.Renderer.sharedMaterials, target)) state.Renderer.sharedMaterials = target;
                 state.Assigned = target;
                 ++applied;
@@ -270,9 +276,9 @@ namespace Ossastra.WorldRendering.VoxelSurface
             states.Clear(); states.AddRange(next);
         }
 
-        Material GetMaterial(Material source, VoxelSurfaceProfileSO profile, VoxelSurfaceSettings settings, HashSet<Material> refreshed)
+        Material GetMaterial(Material source, VoxelSurfaceProfileSO profile, VoxelSurfaceSettings settings, bool lightingOnly, HashSet<Material> refreshed)
         {
-            var key = (source, profile);
+            var key = (source, profile, lightingOnly);
             if (!cache.TryGetValue(key, out var material) || material == null)
             {
                 material = new Material(source) { name = source.name + " [VoxelSurface private]", hideFlags = HideFlags.HideAndDontSave };
@@ -283,21 +289,26 @@ namespace Ossastra.WorldRendering.VoxelSurface
                 material.shader = source.shader;
                 material.CopyPropertiesFromMaterial(source);
                 settings.ApplyTo(material);
+                // 顶点色属于该模型的固有色数据：共用受光不能把草顶/土侧/洼底改白。
+                if (lightingOnly && source.HasProperty("_VoxelVertexColors"))
+                    material.SetFloat("_VoxelVertexColors", source.GetFloat("_VoxelVertexColors"));
             }
             return material;
         }
 
         int PruneCache()
         {
-            var remove = new List<(Material Source, VoxelSurfaceProfileSO Profile)>();
+            var remove = new List<(Material Source, VoxelSurfaceProfileSO Profile, bool LightingOnly)>();
             int handedOff = 0;
             foreach (var item in cache)
             {
                 bool retained = false;
                 foreach (var state in states)
                 {
-                    if (item.Key.Profile == calibratedProfile && Contains(state.Binding.calibrated, item.Key.Source) ||
-                        item.Key.Profile == shapedProfile && Contains(state.Binding.shaped, item.Key.Source)) { retained = true; break; }
+                    if (state.Binding.lightingOnly == item.Key.LightingOnly &&
+                        (item.Key.Profile == calibratedProfile && Contains(state.Binding.calibrated, item.Key.Source) ||
+                        item.Key.Profile == shapedProfile && Contains(state.Binding.shaped, item.Key.Source) ||
+                        item.Key.LightingOnly && activeLook != null && item.Key.Profile == activeLook.responseProfile && Contains(state.Binding.shaped, item.Key.Source))) { retained = true; break; }
                 }
                 if (retained || RetainLookKey(item.Key.Source, item.Key.Profile)) continue;
                 if (StillReferenced(item.Value)) ++handedOff;
@@ -310,7 +321,7 @@ namespace Ossastra.WorldRendering.VoxelSurface
 
         int HandOffExternalClones()
         {
-            var remove = new List<(Material Source, VoxelSurfaceProfileSO Profile)>();
+            var remove = new List<(Material Source, VoxelSurfaceProfileSO Profile, bool LightingOnly)>();
             foreach (var item in cache)
                 foreach (var renderer in observedRenderers)
                 {

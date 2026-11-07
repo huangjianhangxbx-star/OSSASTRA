@@ -1,0 +1,43 @@
+// 手工同source/profile双策略夹具；不登记相机，不写作者资产，finally归还并销毁所有临时对象。
+using System;
+using System.Reflection;
+using UnityEngine;
+using Ossastra.WorldRendering.VoxelSurface;
+using Funplay.Editor.Tools.Scripting;
+
+public sealed class TerrainLightingCachePolicyContract : IFunplayCommand
+{
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+    {
+        var policy=typeof(VoxelSurfaceComparison.Binding).GetField("lightingOnly");
+        if(policy==null){ctx.ReturnValue=new{checks=new[]{new{name="lighting-only strategy available",pass=false}}};return;}
+        var shader=Shader.Find("Ossastra/WorldRendering/VoxelLit");if(shader==null)throw new Exception("Real VoxelLit shader required");
+        GameObject host=null;Material source=null;VoxelSurfaceProfileSO profile=null;VoxelSurfaceComparison comparison=null;
+        bool separate=false,stable=false,sourceKept=false,restored=false;
+        try
+        {
+            source=new Material(shader){hideFlags=HideFlags.HideAndDontSave};source.SetFloat("_VoxelVertexColors",1);
+            profile=ScriptableObject.CreateInstance<VoxelSurfaceProfileSO>();profile.hideFlags=HideFlags.HideAndDontSave;profile.settings.vertexColors=false;
+            host=new GameObject("LightingPolicy_TransientContract"){hideFlags=HideFlags.HideAndDontSave};host.SetActive(false);
+            var a=new GameObject("Legacy").AddComponent<MeshRenderer>();a.transform.SetParent(host.transform);a.sharedMaterial=source;
+            var b=new GameObject("LightingOnly").AddComponent<MeshRenderer>();b.transform.SetParent(host.transform);b.sharedMaterial=source;
+            comparison=host.AddComponent<VoxelSurfaceComparison>();comparison.shapedProfile=profile;comparison.calibratedProfile=profile;
+            var legacy=new VoxelSurfaceComparison.Binding{renderer=a,original=new[]{source},calibrated=new[]{source},shaped=new[]{source}};
+            var light=new VoxelSurfaceComparison.Binding{renderer=b,original=new[]{source},calibrated=new[]{source},shaped=new[]{source}};policy.SetValue(light,true);
+            comparison.bindings=new[]{legacy,light};comparison.ApplyMode(VoxelSurfaceComparisonMode.Faceted);
+            var firstA=a.sharedMaterial;var firstB=b.sharedMaterial;
+            separate=firstA!=firstB&&Mathf.Abs(firstA.GetFloat("_VoxelVertexColors"))<.00001f&&Mathf.Abs(firstB.GetFloat("_VoxelVertexColors")-1)<.00001f;
+            comparison.RefreshParameters();comparison.RefreshParameters();stable=a.sharedMaterial==firstA&&b.sharedMaterial==firstB;
+            sourceKept=Mathf.Abs(source.GetFloat("_VoxelVertexColors")-1)<.00001f;
+            comparison.ApplyMode(VoxelSurfaceComparisonMode.Original);restored=a.sharedMaterial==source&&b.sharedMaterial==source;
+        }
+        finally
+        {
+            if(comparison!=null)comparison.RestoreOriginal();
+            if(host!=null)UnityEngine.Object.DestroyImmediate(host);
+            if(profile!=null)UnityEngine.Object.DestroyImmediate(profile);
+            if(source!=null)UnityEngine.Object.DestroyImmediate(source);
+        }
+        ctx.ReturnValue=new{checks=new[]{new{name="same source/profile with different policies uses distinct correct vertex-color materials",pass=separate},new{name="both policy cache entries survive repeated refresh",pass=stable},new{name="source vertex-color purpose remains untouched",pass=sourceKept},new{name="A restores exact shared original for both policies",pass=restored}}};
+    }
+}

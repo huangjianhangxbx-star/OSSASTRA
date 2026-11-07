@@ -176,7 +176,9 @@ namespace Ossastra.Development.VoxelSurface
             GUILayout.EndHorizontal();
             if (comparison.saveLookTarget != null && GUILayout.Button("读取已存完整候选")) { comparison.ApplyLook(comparison.saveLookTarget); SyncText(); }
             if (comparison.ActiveLook == null && comparison.saveCandidateProfile != null && GUILayout.Button("读取旧响应候选 Profile")) { comparison.LoadSessionFromProfile(comparison.saveCandidateProfile); SyncText(); }
-            GUILayout.Label("当前Profile：" + (comparison.SessionSourceProfile == null ? "未配置" : comparison.SessionSourceProfile.name) + "\n对象：" + (comparison.ActiveLook == null ? comparison.BindingCount : comparison.MappedRendererCount) + " · 只调体素材质", wrappingLabel);
+            GUILayout.Label("当前Profile：" + (comparison.SessionSourceProfile == null ? "未配置" : comparison.SessionSourceProfile.name) +
+                "\n统一受光：" + comparison.BindingCount + " 对象（保留自身配色 " + comparison.LightingOnlyBindingCount + "）" +
+                "\n候选换色：" + comparison.MappedRendererCount + " 对象 · 不接管2D", wrappingLabel);
             GUI.enabled = GUI.enabled && Application.isEditor;
             if (GUILayout.Button(comparison.ActiveLook == null ? "保存为候选 Profile" : "保存当前候选（材质＋响应）")) comparison.RequestSaveCandidate();
             if (GUILayout.Button("显式设为本对象集默认")) comparison.RequestSetBindingDefault();

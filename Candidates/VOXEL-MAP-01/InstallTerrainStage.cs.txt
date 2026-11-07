@@ -122,6 +122,9 @@ public sealed class InstallVoxelMapStage : IFunplayCommand
   var navigation=Object.FindObjectOfType<Ossastra.Development.SceneVisibility.RoomVisibilityLabPanel>();
   if(navigation==null||navigation.visibility!=visibility)throw new Exception("Existing navigation authority missing");
   var lab=root.AddComponent<Ossastra.Development.VoxelTerrain.VoxelTerrainLabPanel>();lab.installation=install;lab.navigation=navigation;lab.map=navigation.map;lab.coordinator=visibility.coordinator;
+  var comparison=Object.FindObjectOfType<VoxelSurfaceComparison>();
+  if(comparison==null)throw new Exception("Existing voxel lighting comparison missing");
+  Ossastra.VoxelTerrain.Editor.VoxelTerrainLightingAuthoring.Register(install,comparison);
   if(!module.TryValidateConfiguration(visibility,out var reason))throw new Exception("Existing visibility rejects installation: "+reason);
   EditorUtility.SetDirty(module);EditorUtility.SetDirty(sky);EditorUtility.SetDirty(install);
   foreach(var asset in new UnityEngine.Object[]{grass,soil,basin})AssetDatabase.SaveAssetIfDirty(asset);

@@ -1,0 +1,115 @@
+// Root仅在已隔离存档的真实主场Play执行。受控改响应，finally恢复进入时的Look/Session/Mode；不写源材质或Profile。
+using System;
+using System.Linq;
+using System.Text;
+using System.Reflection;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.SceneManagement;
+using Ossastra.WorldRendering.VoxelSurface;
+using Funplay.Editor.Tools.Scripting;
+
+public sealed class TerrainLightingIntegrationContract : IFunplayCommand
+{
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+    {
+        var checks=new List<object>();
+        var policy=typeof(VoxelSurfaceComparison.Binding).GetField("lightingOnly");
+        var count=typeof(VoxelSurfaceComparison).GetProperty("LightingOnlyBindingCount");
+        if(policy==null||count==null){ctx.ReturnValue=new{checks=new[]{new{name="lighting-only strategy available",pass=false}}};return;}
+        if(!Application.isPlaying)throw new Exception("Actual Play scene with isolated Commerce required");
+        var roots=SceneManager.GetActiveScene().GetRootGameObjects();
+        var comparison=roots.SelectMany(g=>g.GetComponentsInChildren<VoxelSurfaceComparison>(true)).Single();
+        var install=roots.SelectMany(g=>g.GetComponentsInChildren<Ossastra.VoxelTerrain.VoxelTerrainInstallation>(true)).Single();
+        var commerce=roots.SelectMany(g=>g.GetComponentsInChildren<Ossastra.Commerce.Runtime.CommerceService>(true)).Single();
+        string expectedRoute=System.IO.Path.GetFullPath("E:/WORLDCREATOR/XingHaiHuiLang/研究/VOXEL-MAP-01-LIGHT-FIX/test-commerce");
+        if(string.IsNullOrEmpty(commerce.saveDirectory)||System.IO.Path.GetFullPath(commerce.saveDirectory).TrimEnd('\\','/')!=expectedRoute||
+            string.IsNullOrEmpty(commerce.SavePath)||!System.IO.Path.GetFullPath(commerce.SavePath).StartsWith(expectedRoute+System.IO.Path.DirectorySeparatorChar,StringComparison.OrdinalIgnoreCase))
+            throw new Exception("Root must isolate both author route and actual business Store before Play contract");
+        var terrain=comparison.bindings.Where(b=>(bool)policy.GetValue(b)).ToArray();
+        var installRenderers=install.GetComponentsInChildren<MeshRenderer>(true);
+        checks.Add(new{name="actual 247 new surfaces are explicitly covered without losing 27 legacy bindings",pass=terrain.Length==247&&(int)count.GetValue(comparison,null)==247&&comparison.BindingCount==274&&installRenderers.All(r=>terrain.Count(b=>b.renderer==r)==1)});
+        if(terrain.Length!=247) {ctx.ReturnValue=new{checks};return;}
+        var oldMode=comparison.mode;var oldLook=comparison.ActiveLook;var oldSettings=comparison.SessionSettings;
+        if(oldSettings==null)throw new Exception("Current protected C session snapshot required");
+        string oldSettingsJson=JsonUtility.ToJson(oldSettings);
+        var authors=comparison.bindings.SelectMany(b=>b.original.Concat(b.calibrated).Concat(b.shaped)).Where(m=>m!=null).Distinct().ToDictionary(m=>m,m=>Signature(m,true));
+        var profiles=(comparison.lookPresets??Array.Empty<VoxelSurfaceLookSO>()).Where(l=>l!=null).Select(l=>l.responseProfile).Concat(new[]{comparison.shapedProfile,comparison.calibratedProfile,comparison.shapedBaselineProfile,comparison.originalCLiveProfile}).Where(p=>p!=null).Distinct().ToDictionary(p=>p,p=>JsonUtility.ToJson(p.settings));
+        var temporary=ScriptableObject.CreateInstance<VoxelSurfaceProfileSO>();temporary.hideFlags=HideFlags.HideAndDontSave;
+        int privateSources=0,privateMaterials=0;bool restored=false;
+        try
+        {
+            comparison.ApplyMode(VoxelSurfaceComparisonMode.Original);
+            checks.Add(new{name="A restores exact original material arrays for all 274 groups",pass=comparison.bindings.All(b=>b.renderer.sharedMaterials.SequenceEqual(b.original))});
+            comparison.ApplyMode(VoxelSurfaceComparisonMode.Calibrated);
+            bool bSurface=true,bResponse=true;
+            foreach(var binding in terrain)
+            {
+                var actual=binding.renderer.sharedMaterials;
+                for(int i=0;i<actual.Length;i++)
+                {
+                    bSurface&=Signature(actual[i],false)==Signature(binding.calibrated[i],false)&&Near(actual[i].GetFloat("_VoxelVertexColors"),binding.calibrated[i].GetFloat("_VoxelVertexColors"));
+                    bResponse&=Near(actual[i].GetFloat("_VoxelIndirectDiffuse"),comparison.calibratedProfile.settings.indirectDiffuse)&&Near(actual[i].GetFloat("_VoxelLitFaceBoost"),0)&&Near(actual[i].GetFloat("_VoxelBackFaceDarkening"),0);
+                }
+            }
+            checks.Add(new{name="B shares calibrated response while preserving each new surface and vertex-color flag",pass=bSurface&&bResponse});
+            var look=oldLook!=null?oldLook:(comparison.lookPresets??Array.Empty<VoxelSurfaceLookSO>()).FirstOrDefault(l=>l!=null&&!l.developmentOnly);
+            if(look==null||!comparison.ApplyLook(look))throw new Exception("An existing complete Look is needed to test unmapped new surfaces");
+            comparison.SetSessionAdjustments(.37f,.21f);comparison.RefreshParameters();
+            bool cSurface=true,cResponse=true;var privateBySource=new Dictionary<Material,Material>();
+            foreach(var binding in terrain)
+            {
+                var actual=binding.renderer.sharedMaterials;
+                for(int i=0;i<actual.Length;i++)
+                {
+                    var source=binding.shaped[i];
+                    cSurface&=Signature(actual[i],false)==Signature(source,false)&&Near(actual[i].GetFloat("_VoxelVertexColors"),source.GetFloat("_VoxelVertexColors"));
+                    cResponse&=Near(actual[i].GetFloat("_VoxelLitFaceBoost"),.37f)&&Near(actual[i].GetFloat("_VoxelBackFaceDarkening"),.21f)&&Near(actual[i].GetFloat("_VoxelIndirectDiffuse"),comparison.SessionSettings.indirectDiffuse);
+                    if(privateBySource.TryGetValue(source,out var shared))cResponse&=ReferenceEquals(shared,actual[i]);else privateBySource.Add(source,actual[i]);
+                }
+            }
+            checks.Add(new{name="active Look C response reaches every new slot without old palette remapping",pass=cSurface&&cResponse});
+            privateSources=privateBySource.Count;privateMaterials=privateBySource.Values.Distinct().Count();
+            var first=terrain.Select(b=>b.renderer.sharedMaterials.Select(m=>m.GetInstanceID()).ToArray()).ToArray();
+            comparison.RefreshParameters();comparison.RefreshParameters();
+            bool stable=terrain.Select((b,i)=>b.renderer.sharedMaterials.Select(m=>m.GetInstanceID()).SequenceEqual(first[i])).All(x=>x);
+            checks.Add(new{name="new shared sources reuse bounded private materials across repeated refresh",pass=stable&&privateMaterials==privateSources});
+            int expectedMapped=comparison.bindings.Where(b=>!(bool)policy.GetValue(b)).Count(b=>b.shaped.Any(source=>look.materials.Any(mapping=>mapping.source==source)));
+            checks.Add(new{name="palette mapping count includes only actual legacy recolor participants",pass=comparison.MappedRendererCount==expectedMapped});
+            var snapshot=comparison.ExportLookSession();
+            checks.Add(new{name="complete Look export retains shared response with original palette mapping scope",pass=snapshot!=null&&Near(snapshot.settings.litFaceBoost,.37f)&&Near(snapshot.settings.backFaceDarkening,.21f)&&snapshot.materials.Length==look.materials.Length});
+        }
+        finally
+        {
+            if(oldLook!=null)comparison.ApplyLook(oldLook);else comparison.RestoreOriginalCLive();
+            temporary.settings=oldSettings.Clone();comparison.LoadSessionFromProfile(temporary);comparison.ApplyMode(oldMode);
+            restored=comparison.mode==oldMode&&comparison.ActiveLook==oldLook&&JsonUtility.ToJson(comparison.SessionSettings)==oldSettingsJson;
+            UnityEngine.Object.DestroyImmediate(temporary);
+        }
+        checks.Add(new{name="entry Look/session/mode restored after test",pass=restored});
+        checks.Add(new{name="all author materials and response Profiles remain unchanged",pass=authors.All(a=>Signature(a.Key,true)==a.Value)&&profiles.All(p=>JsonUtility.ToJson(p.Key.settings)==p.Value)});
+        ctx.ReturnValue=new{checks,registered=comparison.BindingCount,lightingOnly=count.GetValue(comparison,null),mapped=comparison.MappedRendererCount,privateSources,privateMaterials,restoredMode=comparison.mode.ToString(),restoredLook=comparison.ActiveLookLabel};
+    }
+    static bool Near(float a,float b){return Mathf.Abs(a-b)<.00001f;}
+    static string Signature(Material material,bool includeResponse)
+    {
+        var text=new StringBuilder();var shader=material.shader;
+        text.Append(shader.GetInstanceID()).Append('|').Append(material.renderQueue).Append('|').Append(material.enableInstancing).Append('|').Append(material.doubleSidedGI).Append('|').Append((int)material.globalIlluminationFlags).Append('|').Append(string.Join(",",material.shaderKeywords.OrderBy(k=>k)));
+        for(int i=0;i<shader.GetPropertyCount();i++)
+        {
+            string name=shader.GetPropertyName(i);if(!includeResponse&&name.StartsWith("_Voxel",StringComparison.Ordinal))continue;
+            text.Append('|').Append(name).Append('=');
+            switch(shader.GetPropertyType(i))
+            {
+                case ShaderPropertyType.Color:var c=material.GetColor(name);Append(text,new Vector4(c.r,c.g,c.b,c.a));break;
+                case ShaderPropertyType.Vector:Append(text,material.GetVector(name));break;
+                case ShaderPropertyType.Float:case ShaderPropertyType.Range:text.Append(material.GetFloat(name).ToString("R",System.Globalization.CultureInfo.InvariantCulture));break;
+                case ShaderPropertyType.Int:text.Append(material.GetInt(name));break;
+                case ShaderPropertyType.Texture:var texture=material.GetTexture(name);var scale=material.GetTextureScale(name);var offset=material.GetTextureOffset(name);text.Append(texture==null?0:texture.GetInstanceID());Append(text,new Vector4(scale.x,scale.y,offset.x,offset.y));break;
+            }
+        }
+        return text.ToString();
+    }
+    static void Append(StringBuilder text,Vector4 vector){foreach(float value in new[]{vector.x,vector.y,vector.z,vector.w})text.Append(',').Append(value.ToString("R",System.Globalization.CultureInfo.InvariantCulture));}
+}

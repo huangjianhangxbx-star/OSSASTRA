@@ -20,7 +20,7 @@ public static class BuildVoxelMapMain
         if(EditorApplication.isPlayingOrWillChangePlaymode||EditorApplication.isCompiling||EditorApplication.isUpdating||BuildPipeline.isBuildingPlayer||SceneManager.sceneCount!=1||scene.path!=Main||queued!=null)throw new Exception("Requires actual main in stable Edit with no owned pending build");
         var roots=scene.GetRootGameObjects();
         var comparison=roots.SelectMany(g=>g.GetComponentsInChildren<VoxelSurfaceComparison>(true)).Single();
-        if(comparison.bindings==null||comparison.bindings.Length!=27||comparison.bindings.Any(b=>b==null||b.renderer==null||b.original==null||!b.renderer.sharedMaterials.SequenceEqual(b.original)))throw new Exception("Main must retain exactly 27 Original source bindings");
+        if(comparison.bindings==null||comparison.BindingCount!=274||comparison.LightingOnlyBindingCount!=247||comparison.bindings.Any(b=>b==null||b.renderer==null||b.original==null||!b.renderer.sharedMaterials.SequenceEqual(b.original)))throw new Exception("Main must retain original author slots for 27 legacy + 247 lighting-only bindings");
         var install=roots.SelectMany(g=>g.GetComponentsInChildren<VoxelTerrainInstallation>(true)).Single();
         if(install.editableSource==null||install.frozenSurfaces==null||install.chunks.Length!=224||install.collision.Length!=224||install.timberHouse==null)throw new Exception("Unique VOXEL-MAP-01 installation is incomplete");
         var source=VoxelTerrainSource.Parse(install.editableSource.text,install.frozenSurfaces.text);

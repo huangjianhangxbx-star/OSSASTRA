@@ -28,7 +28,7 @@ namespace Ossastra.WorldRendering.VoxelSurface
                 var seen = new HashSet<Renderer>();
                 foreach (var binding in bindings)
                 {
-                    if (binding == null || binding.renderer == null || binding.shaped == null) continue;
+                    if (binding == null || binding.renderer == null || binding.shaped == null || binding.lightingOnly) continue;
                     foreach (var source in binding.shaped)
                         if (TryResolveLookMaterial(source, out _)) { seen.Add(binding.renderer); break; }
                 }
@@ -50,8 +50,11 @@ namespace Ossastra.WorldRendering.VoxelSurface
             bool mapped = false;
             if (bindings != null) foreach (var binding in bindings)
                 if (binding != null && binding.renderer != null && binding.shaped != null)
+                {
+                    if (binding.lightingOnly && binding.shaped.Length > 0) mapped = true;
                     foreach (var source in binding.shaped) foreach (var item in look.materials)
                         if (source == item.source) mapped = true;
+                }
             if (!mapped) { Status = "完整候选拒绝：当前明确绑定中没有匹配的源材质"; return false; }
             CaptureOriginalCLive();
             activeLook = look; sessionLookLabel = look.label; sessionLookDevelopmentOnly = look.developmentOnly;
