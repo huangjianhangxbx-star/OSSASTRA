@@ -23,3 +23,5 @@
 本轮未重做Windows整包运行验证；既有构建/Player候选已把过期27固定守门更新为27旧+247统一受光，并各自离线编译0警告0错误。上轮138帧Player是旧覆盖范围的历史记录，不冒充本轮结果。
 
 本机证据：外部`研究/VOXEL-MAP-01-LIGHT-FIX/{p0-live-snapshot.json,p0-session.json,integration-green.json}`及项目`artifacts/VOXEL-MAP-01-LIGHT-FIX/{c-zero.png,c-lit-max.png,restored-user-preview.png}`。源码/合同/本说明按R11定向发布，作者场景、材质和截图保留本机。
+
+发布：源码 f41fd3e77379d595173fa52123eb48bd04fb6f13 已定向推送GitHub main；技术与子租约均释放。

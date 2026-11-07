@@ -1,10 +1,10 @@
 # VOXEL-MAP-01-LIGHT-FIX
 
-- 状态：technical-complete
+- 状态：complete
 - 写入模式：unity-writer=root；code-writer子租约见下
 - 请求：修复新旧模型只有部分响应体素受光面板。
-- Root独占：WorldRendering/VoxelSurface/Runtime/VoxelSurfaceComparison.cs、Editor/VoxelSurfaceProfileSave.cs；Development/VoxelSurface/VoxelSurfacePanel.cs；Candidates/VOXEL-MAP-01-LIGHT-FIX；原InstallTerrainStage候选的明确接线调用；本记录/定向交付文档；主场与独立场的Comparison明确绑定。
-- 子租约 voxel_map_arch_audit：仅 Scripts/VoxelTerrain/Editor/VoxelTerrainLightingAuthoring.cs 与 Candidates/VOXEL-MAP-01-LIGHT-FIX 下其Native合同。不操作Unity/Git。
+- 已释放Root独占（历史范围）：WorldRendering/VoxelSurface/Runtime/VoxelSurfaceComparison.cs、Editor/VoxelSurfaceProfileSave.cs；Development/VoxelSurface/VoxelSurfacePanel.cs；Candidates/VOXEL-MAP-01-LIGHT-FIX；原InstallTerrainStage候选的明确接线调用；本记录/定向交付文档；主场与独立场的Comparison明确绑定。
+- 已释放子租约 voxel_map_arch_audit：仅 Scripts/VoxelTerrain/Editor/VoxelTerrainLightingAuthoring.cs 与 Candidates/VOXEL-MAP-01-LIGHT-FIX 下其Native合同。不操作Unity/Git。
 
 沿用项目记忆、故障诊断、已有设计与TDD。同步四文档完整复核无重叠；42项原tracked dirty保留。根因已Native确认：原27绑定，新247对象覆盖0；临时比较组件实测源vertex=1，被Profile覆盖成0，RED。当前Play模式C/浓厚暖砂/亮面15%背光0已只读备份至外部研究/VOXEL-MAP-01-LIGHT-FIX/p0-live-snapshot.json与p0-session.json，后续恢复此预览，不固化新默认。
 
@@ -18,3 +18,6 @@ Root追加同任务候选租约：Candidates/VOXEL-MAP-01/Terrain/Player/{BuildS
 
 ## 验证结果与交付
 7项登记+4项缓存+9项实际Play合同通过；两场274/247保存重开通过，source/Profile与土侧顶点色保持。主场合法帧Active/Error空/Unsupported0。隔离测试后原4业务文件SHA不变；已恢复原作者路由并进入正常Play恢复用户Rich/15%-0预览，不改默认。源码/文档定向发布收尾，Unity/子租约技术工作结束。详docs/ossastra/VOXEL-MAP-01/lighting-fix.md。
+
+## 发布与交接
+源码f41fd3e77379d595173fa52123eb48bd04fb6f13已GitHub main成功推送，18个定向源码/测试/说明文件，无场景/材质/用户进度。Root、arch、审查子租约全部释放；正常主场Play已恢复原Rich/15%-0参数，原A默认保持。无本轮临时组件、测试进程、键盘合成或测试回调留存，无电源动作。
