@@ -1,0 +1,138 @@
+/* 功能：调用真实RoomVisibilityModule.AddPositiveSurface验证去重first-wins与拒绝后可重试的语义。
+ * 边界：只使用两个临时MeshRenderer/一份临时材质与网格；不改生产，不重建完整可见帧，不设置性能推演阈值。
+ * 保护：先快照live positiveSurfaces及全部HashSet<Renderer>，每例仅重置表面scratch/明确positive去重集；finally原顺序还原并销毁全部fixture。
+ * frame-clear仅模拟该scratch边界，不冒充完整BuildPositiveFrame/场景性能证明；真实.987ms基线由Root已有采样提供。
+ */
+using System;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using Funplay.Editor.Tools.Scripting;
+
+public sealed class SurfaceDedupContract : IFunplayCommand
+{
+    const BindingFlags Instance=BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Instance;
+    const string ModuleName="Ossastra.SceneVisibility.Rooms.RoomVisibilityModule";
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext context)
+    {
+        if(!Application.isPlaying||Application.dataPath.Replace('\\','/')!="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets")throw new InvalidOperationException("Actual isolated main Play required");
+        var scene=SceneManager.GetActiveScene();
+        if(scene.path!="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity")throw new InvalidOperationException("Wrong explicit main scene");
+        Type type=AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType(ModuleName,false)).FirstOrDefault(t=>t!=null);
+        if(type==null)throw new InvalidOperationException("Actual room module type unavailable");
+        var modules=scene.GetRootGameObjects().SelectMany(r=>r.GetComponentsInChildren(type,true)).ToArray();
+        if(modules.Length!=1)throw new InvalidOperationException("Expected one actual room module");
+        object module=modules[0];
+        var add=type.GetMethods(Instance).SingleOrDefault(m=>m.Name=="AddPositiveSurface"&&m.GetParameters().Length==4&&m.GetParameters()[0].ParameterType==typeof(Renderer));
+        var listField=type.GetField("positiveSurfaces",Instance);
+        var hiddenField=type.GetField("hiddenFrontMembers",Instance);
+        var surfaces=listField==null?null:listField.GetValue(module) as IList;
+        var hidden=hiddenField==null?null:hiddenField.GetValue(module) as HashSet<Renderer>;
+        if(add==null||surfaces==null||hidden==null)throw new InvalidOperationException("Actual AddPositiveSurface/surface scratch/hidden-front set unavailable");
+        var originalSurfaces=surfaces.Cast<object>().ToArray();
+        var originalRenderers=originalSurfaces.Select(RendererOf).Where(r=>!ReferenceEquals(r,null)).ToArray();
+        var snapshots=new List<SetSnapshot>();
+        for(Type current=type;current!=null;current=current.BaseType)
+            foreach(var field in current.GetFields(Instance|BindingFlags.DeclaredOnly))
+                if(field.FieldType==typeof(HashSet<Renderer>))
+                {
+                    var set=field.GetValue(module) as HashSet<Renderer>;if(set==null)continue;
+                    bool positive=field.Name.IndexOf("positive",StringComparison.OrdinalIgnoreCase)>=0||
+                        originalRenderers.Length>0&&set.Count==originalRenderers.Distinct().Count()&&set.SetEquals(originalRenderers);
+                    snapshots.Add(new SetSnapshot{fieldName=field.Name,set=set,items=set.ToArray(),positiveDedup=positive});
+                }
+        var positiveSets=snapshots.Where(s=>s.positiveDedup).ToArray();
+        var checks=new List<Check>();string error=null;
+        GameObject firstObject=null,secondObject=null;Renderer first=null,second=null;
+        Material material=null;Mesh mesh=null;bool restored=false;
+        try
+        {
+            Shader shader=Shader.Find("Ossastra/WorldRendering/VoxelLit");
+            if(shader==null)throw new InvalidOperationException("Existing VoxelLit fixture shader unavailable");
+            material=new Material(shader){name="Surface dedup fixture material",hideFlags=HideFlags.HideAndDontSave};
+            mesh=new Mesh{name="Surface dedup fixture mesh",hideFlags=HideFlags.HideAndDontSave};
+            mesh.vertices=new[]{Vector3.zero,Vector3.right,Vector3.up};mesh.triangles=new[]{0,1,2};mesh.RecalculateBounds();
+            firstObject=Create("Surface dedup fixture A",mesh,material);secondObject=Create("Surface dedup fixture B",mesh,material);
+            first=firstObject.GetComponent<MeshRenderer>();second=secondObject.GetComponent<MeshRenderer>();
+            Action<Renderer,object> invoke=(renderer,owner)=>add.Invoke(module,new object[]{renderer,null,false,owner});
+            Action reset=()=>{surfaces.Clear();foreach(var set in positiveSets)set.set.Clear();};
+            Func<Renderer,bool> notPreRegistered=renderer=>positiveSets.All(s=>!s.set.Contains(renderer));
+
+            reset();invoke(null,null);
+            Add(checks,"null renderer rejected without scratch membership",surfaces.Count==0);
+
+            reset();invoke(first,null);
+            Add(checks,"first real Add inserts one renderer",surfaces.Count==1&&RendererOf(surfaces[0])==first);
+            object winningSurface=surfaces.Count==1?surfaces[0]:null;
+            // 不同presentationOwner会改变新surface的环境角色；重复项必须完整保留首条，而非覆盖内容或顺序。
+            add.Invoke(module,new object[]{first,(Vector3?)new Vector3(9999,9999,9999),true,new object()});
+            Add(checks,"duplicate first-wins retains entire first surface and position",surfaces.Count==1&&winningSurface!=null&&winningSurface.Equals(surfaces[0]));
+
+            reset();first.enabled=false;invoke(first,null);
+            Add(checks,"disabled renderer rejected without registering dedup",surfaces.Count==0&&notPreRegistered(first));
+            first.enabled=true;invoke(first,null);
+            Add(checks,"previously disabled renderer may enter after enabled",surfaces.Count==1&&RendererOf(surfaces[0])==first);
+
+            reset();hidden.Add(first);invoke(first,null);
+            Add(checks,"hidden-front rejection does not pre-register renderer",surfaces.Count==0&&notPreRegistered(first));
+            hidden.Remove(first);invoke(first,null);
+            Add(checks,"renderer may enter after hidden-front rejection removed",surfaces.Count==1&&RendererOf(surfaces[0])==first);
+
+            reset();invoke(first,null);invoke(second,null);invoke(first,new object());
+            Add(checks,"two renderers sharing one material stay independent and ordered",surfaces.Count==2&&RendererOf(surfaces[0])==first&&RendererOf(surfaces[1])==second);
+
+            reset();invoke(first,null);reset();invoke(first,null);
+            Add(checks,"frame scratch clear permits same renderer next frame",surfaces.Count==1&&RendererOf(surfaces[0])==first);
+
+            reset();first.forceRenderingOff=true;invoke(first,null);
+            Add(checks,"forceRenderingOff rejection does not pre-register renderer",surfaces.Count==0&&notPreRegistered(first));
+            first.forceRenderingOff=false;invoke(first,null);
+            Add(checks,"renderer may enter after forceRenderingOff released",surfaces.Count==1&&RendererOf(surfaces[0])==first);
+
+            reset();firstObject.SetActive(false);invoke(first,null);
+            Add(checks,"inactive renderer rejected without registering dedup",surfaces.Count==0&&notPreRegistered(first));
+            firstObject.SetActive(true);invoke(first,null);
+            Add(checks,"renderer may enter after GameObject activation",surfaces.Count==1&&RendererOf(surfaces[0])==first);
+
+            reset();Renderer destroyed=first;UnityEngine.Object.DestroyImmediate(firstObject);firstObject=null;
+            invoke(destroyed,null);
+            Add(checks,"destroyed Unity renderer rejected without new surface",surfaces.Count==0&&notPreRegistered(destroyed));
+            invoke(second,null);
+            Add(checks,"destroyed peer does not prevent remaining renderer entry",surfaces.Count==1&&RendererOf(surfaces[0])==second);
+        }
+        catch(Exception exception){error=exception.ToString();}
+        finally
+        {
+            surfaces.Clear();foreach(object entry in originalSurfaces)surfaces.Add(entry);
+            foreach(var snapshot in snapshots){snapshot.set.Clear();snapshot.set.UnionWith(snapshot.items);}
+            restored=surfaces.Count==originalSurfaces.Length&&surfaces.Cast<object>().SequenceEqual(originalSurfaces)&&snapshots.All(s=>s.set.SetEquals(s.items));
+            if(firstObject!=null)UnityEngine.Object.DestroyImmediate(firstObject);if(secondObject!=null)UnityEngine.Object.DestroyImmediate(secondObject);
+            if(material!=null)UnityEngine.Object.DestroyImmediate(material);if(mesh!=null)UnityEngine.Object.DestroyImmediate(mesh);
+        }
+        Add(checks,"live surface order and all renderer sets restored",restored);
+        bool pass=error==null&&checks.All(c=>c.pass);
+        var report=new{schemaVersion=1,pass,status=pass?"GREEN":"RED",error,checks=checks.ToArray(),restored,
+            originalSurfaceCount=originalSurfaces.Length,snapshottedSetNames=snapshots.Select(s=>s.fieldName).ToArray(),positiveDedupSetNames=positiveSets.Select(s=>s.fieldName).ToArray(),
+            scope="Actual private AddPositiveSurface semantics using temporary renderers; frame-clear uses the exact surface scratch and detected positive dedup set. Not full BuildPositiveFrame lifecycle or a new performance threshold."};
+        string folder=Path.GetFullPath(Path.Combine(Application.dataPath,"..","artifacts","SCENE-PERF-01"));Directory.CreateDirectory(folder);
+        string path=Path.Combine(folder,"surface-dedup-contract-"+DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff")+".json");
+        File.WriteAllText(path,Newtonsoft.Json.JsonConvert.SerializeObject(report,Newtonsoft.Json.Formatting.Indented));
+        context.ReturnValue=new{path,report.pass,report.status,report.error,report.checks,report.restored,report.originalSurfaceCount,report.positiveDedupSetNames,report.scope};
+    }
+    static GameObject Create(string name,Mesh mesh,Material material)
+    {
+        var go=new GameObject(name,typeof(MeshFilter),typeof(MeshRenderer)){hideFlags=HideFlags.HideAndDontSave};
+        go.transform.position=new Vector3(9999,9999,9999);go.GetComponent<MeshFilter>().sharedMesh=mesh;go.GetComponent<MeshRenderer>().sharedMaterial=material;return go;
+    }
+    static Renderer RendererOf(object surface)
+    {
+        if(surface==null)return null;var field=surface.GetType().GetField("Renderer",Instance);return field==null?null:field.GetValue(surface) as Renderer;
+    }
+    static void Add(List<Check> checks,string name,bool pass){checks.Add(new Check{name=name,pass=pass});}
+    public sealed class Check {public string name;public bool pass;}
+    sealed class SetSnapshot {public string fieldName;public HashSet<Renderer> set;public Renderer[] items;public bool positiveDedup;}
+}

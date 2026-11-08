@@ -1,0 +1,189 @@
+/* 功能：在真实主相机Pass中观测Truth材质Copy marker调用次数，锁定同一完整材质key单次执行被重复刷新这一模式。
+ * 边界：不改生产/场景/材质/算法；不推演Renderer数量，不用源码扫描冒充调用链。独占当前实际Game相机后才比较静态marker与其cache。
+ * 生命周期：保存主/inline Recorder各自enabled，临时启用采样；5个实际帧预热+10帧观测，10秒超时及退出Play/重载均恢复并解除全部回调。
+ * 输出：实际owned material-key数与上一完成帧inlineCpuSampleCount。全零/未执行/多Game相机为不可用，不签GREEN。
+ */
+using System;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
+using UnityEngine.Profiling;
+using UnityEditor;
+using Ossastra.MapResearch;
+using Funplay.Editor.Tools.Scripting;
+
+public sealed class TruthRefreshContract : IFunplayCommand
+{
+    const string MainScene="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity";
+    const string SessionKey="SCENE-PERF-01.TruthRefreshContract.Active";
+    const int WarmupFrames=5,ObserveFrames=10;
+    const double TimeoutSeconds=10;
+    static Capture active;
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext context)
+    {
+        if(!Application.isPlaying)throw new InvalidOperationException("Actual isolated main Play required");
+        if(SessionState.GetBool(SessionKey,false))throw new InvalidOperationException("Truth refresh contract already running; inspect the current receipt");
+        var scene=UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+        if(scene.path!=MainScene)throw new InvalidOperationException("Wrong explicit main");
+        var maps=scene.GetRootGameObjects().SelectMany(r=>r.GetComponentsInChildren<MapResearchRoot>(true)).ToArray();
+        if(maps.Length!=1||maps[0].gameplayCamera==null||!maps[0].isActiveAndEnabled||!maps[0].gameplayCamera.enabled)throw new InvalidOperationException("One verified active MapResearch gameplayCamera required");
+        var camera=maps[0].gameplayCamera;
+        var additional=camera.GetComponent<UniversalAdditionalCameraData>();
+        if(additional==null||additional.scriptableRenderer==null)throw new InvalidOperationException("Actual URP camera renderer missing");
+        object featureCollection=ReadMember(additional.scriptableRenderer,"rendererFeatures");
+        if(!(featureCollection is IEnumerable features))throw new InvalidOperationException("Actual renderer feature collection unavailable");
+        var owners=new List<object>();foreach(object feature in features)if(feature!=null&&feature.GetType().Name=="RoomMaskRendererFeature")owners.Add(feature);
+        if(owners.Count!=1)throw new InvalidOperationException("Expected exactly one RoomMaskRendererFeature on this actual camera renderer");
+        var registry=ReadMember(owners[0],"positiveCameras") as IDictionary;
+        if(registry==null||!registry.Contains(camera.GetInstanceID())||registry[camera.GetInstanceID()]==null)throw new InvalidOperationException("Actual camera's registered RoomPositivePass not ready");
+        VerifySingleGameCamera(registry,camera);
+        var pass=registry[camera.GetInstanceID()];
+        var materials=ReadMember(pass,"materials") as IDictionary;
+        var marker=ReadStaticMember(pass.GetType(),"perfTruthMaterialCopy") as ProfilingSampler;
+        var inlineSampler=ReadMember(marker,"inlineSampler") as CustomSampler;
+        var mainSampler=ReadMember(marker,"sampler") as CustomSampler;
+        if(materials==null||marker==null||inlineSampler==null||mainSampler==null)throw new InvalidOperationException("Actual materials cache or static TruthCopy sampler unavailable");
+        var inline=inlineSampler.GetRecorder();var main=mainSampler.GetRecorder();
+        if(inline==null||main==null||!inline.isValid||!main.isValid)throw new InvalidOperationException("Real TruthCopy Recorder unavailable; cannot infer invocation counts");
+        string project=Path.GetFullPath(Path.Combine(Application.dataPath,".."));
+        if(project.Replace('\\','/')!="E:/WORLDCREATOR/new/Project_ANKALUTE")throw new InvalidOperationException("Wrong project");
+        string folder=Path.Combine(project,"artifacts","SCENE-PERF-01");Directory.CreateDirectory(folder);
+        string path=Path.Combine(folder,"truth-refresh-contract-"+DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff")+".json");
+        active=new Capture(camera,maps[0],registry,pass,materials,marker,main,inline,path);
+        try{active.Start();}catch{active.Dispose();active=null;throw;}
+        context.ReturnValue=new{status="sampling",path,camera=camera.name,cameraId=camera.GetInstanceID(),warmupFrames=WarmupFrames,observeFrames=ObserveFrames,timeoutSeconds=TimeoutSeconds,
+            observedKeysNow=materials.Count,scope="Actual inline Copy marker invocation count versus actual pass material cache keys; no algorithm/source inference"};
+    }
+    static object ReadMember(object target,string name)
+    {
+        if(target==null)return null;
+        for(Type t=target.GetType();t!=null;t=t.BaseType)
+        {
+            var field=t.GetField(name,BindingFlags.Instance|BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.DeclaredOnly);if(field!=null)return field.GetValue(target);
+            var property=t.GetProperty(name,BindingFlags.Instance|BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.DeclaredOnly);if(property!=null&&property.GetIndexParameters().Length==0)return property.GetValue(target,null);
+        }
+        return null;
+    }
+    static object ReadStaticMember(Type type,string name)
+    {
+        for(Type t=type;t!=null;t=t.BaseType)
+        {
+            var field=t.GetField(name,BindingFlags.Static|BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.DeclaredOnly);if(field!=null)return field.GetValue(null);
+            var property=t.GetProperty(name,BindingFlags.Static|BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.DeclaredOnly);if(property!=null&&property.GetIndexParameters().Length==0)return property.GetValue(null,null);
+        }
+        return null;
+    }
+    static void VerifySingleGameCamera(IDictionary registry,Camera expected)
+    {
+        var games=new List<Camera>();
+        foreach(DictionaryEntry entry in registry)
+        {
+            if(!(entry.Key is int id))throw new InvalidOperationException("Unexpected camera registry key type");
+            var camera=EditorUtility.InstanceIDToObject(id) as Camera;
+            if(camera!=null&&camera.cameraType==CameraType.Game&&camera.isActiveAndEnabled&&camera.gameObject.activeInHierarchy)games.Add(camera);
+        }
+        if(games.Count!=1||games[0]!=expected)throw new InvalidOperationException("Static TruthCopy marker cannot be compared to per-camera keys: active registered Game camera count="+games.Count);
+    }
+    sealed class Capture : IDisposable
+    {
+        readonly Camera camera;readonly MapResearchRoot map;readonly IDictionary registry,materials;readonly object pass;
+        readonly ProfilingSampler marker;readonly Recorder main,inline;readonly bool oldMain,oldInline;readonly string path;
+        readonly List<Sample> samples=new List<Sample>();readonly List<string> errors=new List<string>();
+        bool hooked,finished,borrowed;int warmup,lastFrame=-1,previousKeys;double started;
+        public Capture(Camera camera,MapResearchRoot map,IDictionary registry,object pass,IDictionary materials,ProfilingSampler marker,Recorder main,Recorder inline,string path)
+        {this.camera=camera;this.map=map;this.registry=registry;this.pass=pass;this.materials=materials;this.marker=marker;this.main=main;this.inline=inline;this.path=path;oldMain=main.enabled;oldInline=inline.enabled;}
+        public void Start()
+        {
+            started=Time.realtimeSinceStartupAsDouble;previousKeys=materials.Count;
+            SessionState.SetBool(SessionKey,true);
+            RenderPipelineManager.endCameraRendering+=Ended;EditorApplication.update+=Tick;EditorApplication.playModeStateChanged+=PlayChanged;
+            AssemblyReloadEvents.beforeAssemblyReload+=Reload;EditorApplication.quitting+=Quit;hooked=true;borrowed=true;
+            marker.enableRecording=true;
+        }
+        void Ended(ScriptableRenderContext context,Camera renderedCamera)
+        {
+            if(finished||renderedCamera!=camera||lastFrame==Time.frameCount)return;
+            try
+            {
+                if(Time.realtimeSinceStartupAsDouble-started>=TimeoutSeconds){Finish("timeout",false);return;}
+                VerifySingleGameCamera(registry,camera);
+                if(!registry.Contains(camera.GetInstanceID())||!ReferenceEquals(registry[camera.GetInstanceID()],pass)||!ReferenceEquals(ReadMember(pass,"materials"),materials))throw new InvalidOperationException("Actual pass/cache owner changed during contract");
+                lastFrame=Time.frameCount;int keys=materials.Count;
+                if(warmup<WarmupFrames){warmup++;previousKeys=keys;return;}
+                int copies=marker.inlineCpuSampleCount;
+                samples.Add(new Sample{gameFrame=lastFrame,ownedMaterialKeysNow=keys,previousCompletedFrameOwnedKeys=previousKeys,
+                    copySampleCount=copies,expectedMaximum=previousKeys,exceedsMaximum=copies>previousKeys,
+                    inlineRecorderEnabled=inline.enabled,mainRecorderEnabled=main.enabled,
+                    mapStructurePreview=map!=null&&map.IsStructureMode,state=SnapshotState(pass)});
+                previousKeys=keys;
+                if(samples.Count>=ObserveFrames)Finish("completed",true);
+            }
+            catch(Exception e){errors.Add(e.ToString());Finish("invalid-observation",false);}
+        }
+        void Tick(){if(finished)return;if(!Application.isPlaying||camera==null){Finish("left-play-or-camera-lost",false);return;}if(Time.realtimeSinceStartupAsDouble-started>=TimeoutSeconds)Finish("timeout",false);}
+        void PlayChanged(PlayModeStateChange state){if(state==PlayModeStateChange.ExitingPlayMode||state==PlayModeStateChange.EnteredEditMode)Finish("left-play",false);}
+        void Reload(){Finish("assembly-reload",false);}void Quit(){Finish("editor-quitting",false);}
+        void Finish(string reason,bool completed)
+        {
+            if(finished)return;finished=true;
+            bool observed=samples.Any(s=>s.copySampleCount>0&&s.expectedMaximum>0&&s.inlineRecorderEnabled);
+            bool red=samples.Any(s=>s.exceedsMaximum);
+            Dispose();
+            var report=new{schemaVersion=1,completed,red,pass=completed&&observed&&!red&&errors.Count==0,
+                status=errors.Count>0?"invalid":!observed?"unavailable: no positive actual TruthCopy marker samples with nonempty owned cache":red?"RED":"GREEN",
+                stopReason=reason,camera=camera==null?"destroyed":camera.name,cameraId=camera==null?0:camera.GetInstanceID(),
+                warmupActualFrames=warmup,observedActualFrames=samples.Count,elapsedSeconds=Time.realtimeSinceStartupAsDouble-started,
+                previousMainRecorderEnabled=oldMain,previousInlineRecorderEnabled=oldInline,
+                restoredMainRecorderEnabled=main.enabled,restoredInlineRecorderEnabled=inline.enabled,
+                recorderStatesRestored=main.enabled==oldMain&&inline.enabled==oldInline,
+                countAlignment="inlineCpuSampleCount is latest completed CPU frame; compared with cache size observed at previous actual camera end. Current size also reported; warm-up excluded.",
+                scope="One verified registered active Game camera only. Actual static TruthCopy inline marker, actual pass material-key Count. No renderer-count estimate or source-grep verdict.",
+                samples=samples.ToArray(),errors=errors.ToArray()};
+            try{File.WriteAllText(path,Newtonsoft.Json.JsonConvert.SerializeObject(report,Newtonsoft.Json.Formatting.Indented));UnityEngine.Debug.Log("TRUTH_REFRESH_CONTRACT_RESULT path="+path+" red="+red+" completed="+completed+" observed="+observed);}
+            catch(Exception e){UnityEngine.Debug.LogError("TRUTH_REFRESH_CONTRACT_WRITE_FAILED callbacks/recorders restored: "+e);}
+            if(ReferenceEquals(active,this))active=null;
+        }
+        public void Dispose()
+        {
+            if(hooked){RenderPipelineManager.endCameraRendering-=Ended;EditorApplication.update-=Tick;EditorApplication.playModeStateChanged-=PlayChanged;AssemblyReloadEvents.beforeAssemblyReload-=Reload;EditorApplication.quitting-=Quit;hooked=false;}
+            if(borrowed){borrowed=false;try{main.enabled=oldMain;}catch(Exception e){errors.Add("restore main recorder: "+e.Message);}try{inline.enabled=oldInline;}catch(Exception e){errors.Add("restore inline recorder: "+e.Message);}}
+            SessionState.SetBool(SessionKey,false);
+        }
+    }
+    static Dictionary<string,string> SnapshotState(object pass)
+    {
+        var result=new Dictionary<string,string>();
+        AddScalars(result,"pass",pass);
+        // 只读已持有的帧/状态纯标量；缺少明确成员时保留unavailable，不根据相机位置推定室外或Preview。
+        foreach(string name in new[]{"frame","currentFrame","visibility","visibilityFrame","state"})
+        {
+            object value=ReadMember(pass,name);if(value!=null)AddScalars(result,name,value);
+        }
+        if(!result.Keys.Any(k=>k.IndexOf("Exterior",StringComparison.OrdinalIgnoreCase)>=0))result["Exterior"]="unavailable: not exposed by sampled pass/frame members";
+        if(!result.Keys.Any(k=>k.IndexOf("Preview",StringComparison.OrdinalIgnoreCase)>=0))result["Preview"]="unavailable: not exposed by sampled pass/frame members";
+        return result;
+    }
+    static void AddScalars(Dictionary<string,string> result,string prefix,object target)
+    {
+        for(Type type=target.GetType();type!=null;type=type.BaseType)
+        {
+            foreach(var field in type.GetFields(BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Instance|BindingFlags.DeclaredOnly))
+                if(WantedState(field.Name)&&Scalar(field.FieldType)){try{result[prefix+"."+field.Name]=Convert.ToString(field.GetValue(target),System.Globalization.CultureInfo.InvariantCulture);}catch{}}
+            foreach(var property in type.GetProperties(BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Instance|BindingFlags.DeclaredOnly))
+                if(WantedState(property.Name)&&Scalar(property.PropertyType)&&property.GetIndexParameters().Length==0&&property.GetGetMethod(true)!=null){try{result[prefix+"."+property.Name]=Convert.ToString(property.GetValue(target,null),System.Globalization.CultureInfo.InvariantCulture);}catch{}}
+        }
+    }
+    static bool WantedState(string name)=>new[]{"Exterior","Preview","Truth","Active","Seed","Room"}.Any(t=>name.IndexOf(t,StringComparison.OrdinalIgnoreCase)>=0);
+    static bool Scalar(Type type)=>type==typeof(bool)||type==typeof(int)||type==typeof(string)||type.IsEnum;
+    public sealed class Sample
+    {
+        public int gameFrame,ownedMaterialKeysNow,previousCompletedFrameOwnedKeys,copySampleCount,expectedMaximum;
+        public bool exceedsMaximum,inlineRecorderEnabled,mainRecorderEnabled,mapStructurePreview;
+        public Dictionary<string,string> state;
+    }
+}

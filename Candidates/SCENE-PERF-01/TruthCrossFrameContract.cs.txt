@@ -1,0 +1,181 @@
+/* 功能：用临时Renderer/源材质/独立Pass直接调用真实DrawTruth，比较新Execute稳定刷新与源变化刷新成本。
+ * 边界：每次真实调用前仅清该临时Pass的used和未执行CommandBuffer；不执行GPU命令，不改主场Pass/资产/存档。
+ * 证据：250次×3轮中位ratio<.5为定向性能合同；这是新Execute构造模拟，不冒作真实跨帧或整场性能验收。
+ * 生命周期：全部临时对象HideAndDontSave，finally释放命令、Pass、适配材质和GO/网格/贴图；不注册回调或改Profiler开关。
+ */
+using System;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Collections;
+using System.Collections.Generic;
+using System.Diagnostics;
+using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEditor;
+using Funplay.Editor.Tools.Scripting;
+using Ossastra.SceneVisibility.Rooms.Rendering;
+using Object=UnityEngine.Object;
+
+public sealed class TruthCrossFrameContract : IFunplayCommand
+{
+    const string OwnerName="Ossastra.SceneVisibility.Rooms.Rendering.RoomPositivePass";
+    const int Iterations=250,Trials=3;
+    const double MaximumLoopSeconds=3,RequiredRatio=.5;
+    const BindingFlags Members=BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Instance|BindingFlags.Static;
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext context)
+    {
+        if(Application.dataPath.Replace('\\','/')!="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets")throw new InvalidOperationException("Wrong project");
+        Type owner=AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType(OwnerName,false)).FirstOrDefault(t=>t!=null);
+        var constructor=owner?.GetConstructor(Members,null,new[]{typeof(Camera)},null);
+        var draw=owner?.GetMethod("DrawTruth",Members,null,new[]{typeof(CommandBuffer),typeof(RoomPositiveSurface),typeof(bool)},null);
+        if(constructor==null||draw==null)throw new MissingMemberException("Actual RoomPositivePass(Camera)/DrawTruth seam missing");
+        foreach(string name in new[]{"frame","truthShader","previewEnabled","materials","used","Statistics"})
+            if(owner.GetField(name,Members)==null)throw new MissingMemberException("Actual Pass field missing: "+name);
+        Shader sourceShader=Shader.Find("Universal Render Pipeline/Lit"),truthShader=Shader.Find("Hidden/Ossastra/Rooms/PositiveTruth");
+        if(sourceShader==null||truthShader==null||!sourceShader.isSupported||!truthShader.isSupported)throw new InvalidOperationException("Existing Lit/PositiveTruth fixture shader unavailable");
+        string path=Path.GetFullPath(Path.Combine(Application.dataPath,"..","artifacts","SCENE-PERF-01","truth-cross-frame-contract-"+DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff")+".json"));
+        GameObject root=null;Mesh mesh=null;Material source=null;Texture2D texture=null;CommandBuffer commands=null;object pass=null;
+        IDictionary materials=null;var ownedAdapters=new List<Material>();var checks=new List<Check>();var timings=new List<Timing>();var observations=new List<Observation>();var errors=new List<string>();
+        var scene=UnityEngine.SceneManagement.SceneManager.GetActiveScene();bool originalDirty=scene.isDirty;
+        var report=new Report{scenePath=scene.path,sceneDirtyBefore=originalDirty};
+        try
+        {
+            root=new GameObject("SCENE-PERF-01 temporary DrawTruth fixture"){hideFlags=HideFlags.HideAndDontSave};
+            root.transform.position=new Vector3(1000000,1000000,1000000);
+            var camera=root.AddComponent<Camera>();camera.enabled=false;camera.cullingMask=0;
+            var filter=root.AddComponent<MeshFilter>();var renderer=root.AddComponent<MeshRenderer>();
+            renderer.shadowCastingMode=ShadowCastingMode.Off;renderer.receiveShadows=false;
+            renderer.lightProbeUsage=LightProbeUsage.Off;renderer.reflectionProbeUsage=ReflectionProbeUsage.Off;
+            mesh=new Mesh{name="DrawTruth temporary triangle",hideFlags=HideFlags.HideAndDontSave};
+            mesh.vertices=new[]{Vector3.zero,Vector3.right,Vector3.up};mesh.uv=new[]{Vector2.zero,Vector2.right,Vector2.up};mesh.triangles=new[]{0,1,2};mesh.RecalculateBounds();filter.sharedMesh=mesh;
+            source=new Material(sourceShader){name="DrawTruth temporary source",hideFlags=HideFlags.HideAndDontSave};
+            source.SetColor("_BaseColor",new Color(.41f,.33f,.27f,1));source.SetFloat("_Surface",0);source.SetFloat("_Cull",2);renderer.sharedMaterial=source;
+            texture=new Texture2D(2,2,TextureFormat.RGBA32,false){name="DrawTruth temporary texture",hideFlags=HideFlags.HideAndDontSave};
+            commands=new CommandBuffer{name="SCENE-PERF-01 unexecuted DrawTruth fixture"};
+            pass=constructor.Invoke(new object[]{camera});
+            Action<string,object> set=(name,value)=>owner.GetField(name,Members).SetValue(pass,value);
+            var frame=new RoomMaskFrame{PreviewRoofSurfaces=new Renderer[]{renderer}};set("frame",frame);set("truthShader",truthShader);set("previewEnabled",false);
+            materials=owner.GetField("materials",Members).GetValue(pass) as IDictionary;
+            object used=owner.GetField("used",Members).GetValue(pass);var clearUsed=used?.GetType().GetMethod("Clear",Members,null,Type.EmptyTypes,null);
+            if(materials==null||clearUsed==null)throw new InvalidOperationException("Actual private material dictionary/used.Clear missing");
+            var surface=new RoomPositiveSurface{Renderer=renderer,Kind=RoomPositiveSurfaceKind.Partial};
+            object[] arguments={commands,surface,false};
+            Action invoke=()=>{commands.Clear();clearUsed.Invoke(used,null);draw.Invoke(pass,arguments);};
+            Func<RoomPositiveSurfaceKind,bool,bool,bool,Material> adapter=(kind,permission,cutRoof,environmentFull)=>FindAdapter(materials,source,kind,permission,cutRoof,environmentFull);
+            Action<RoomPositiveSurfaceKind,bool,bool,bool> select=(kind,permission,cutRoof,environmentFull)=>
+            {surface.Kind=kind;surface.EnvironmentFullSurface=environmentFull;arguments[1]=surface;arguments[2]=permission;set("previewEnabled",cutRoof);};
+            invoke();Material normal=adapter(RoomPositiveSurfaceKind.Partial,false,false,false);
+            Add(checks,"initial real DrawTruth creates expected truth adapter",normal!=null&&normal.shader==truthShader&&SameColor(source,normal)&&normal.GetFloat("_RoomPositiveDepthWrite")==1&&normal.GetFloat("_RoomPositivePartial")==1);
+            for(int i=0;i<32;i++){source.SetColor("_BaseColor",new Color(.4f+(i%2)*.01f,.32f,.21f,1));invoke();}
+            var budget=Stopwatch.StartNew();
+            for(int trial=0;trial<Trials;trial++)
+            {
+                Timing stable,changed;
+                if(trial%2==0){stable=Measure(invoke,source,false,budget);changed=Measure(invoke,source,true,budget);}
+                else{changed=Measure(invoke,source,true,budget);stable=Measure(invoke,source,false,budget);}
+                stable.trial=changed.trial=trial;timings.Add(stable);timings.Add(changed);
+                if(stable.iterations!=Iterations||changed.iterations!=Iterations)break;
+            }
+            report.loopSeconds=budget.Elapsed.TotalSeconds;report.timingComplete=timings.Count==Trials*2&&timings.All(t=>t.iterations==Iterations);
+            if(report.timingComplete)
+            {
+                report.stableMedianMs=Median(timings.Where(t=>!t.sourceChangedEveryIteration).Select(t=>t.milliseconds));
+                report.changedMedianMs=Median(timings.Where(t=>t.sourceChangedEveryIteration).Select(t=>t.milliseconds));
+                report.stableToChangedRatio=report.changedMedianMs>0?report.stableMedianMs/report.changedMedianMs:double.NaN;
+                report.timingAvailable=Finite(report.stableToChangedRatio)&&report.stableMedianMs>0&&report.changedMedianMs>0;
+                if(report.timingAvailable)Add(checks,"stable new-Execute DrawTruth median cost below half of source-changing cost",report.stableToChangedRatio<RequiredRatio);
+            }
+            report.timingStatus=report.timingAvailable?"actual private DrawTruth + same Clear/reflection overhead; changing group additionally SetColor; new-Execute simulation only":
+                "unavailable/incomplete: no complete bounded timing groups; no performance GREEN";
+            Action<string,Action,Func<bool>> change=(name,mutation,matches)=>
+            {
+                int before=source.ComputeCRC();mutation();int after=source.ComputeCRC();invoke();
+                bool same=matches();observations.Add(new Observation{name=name,sourceCrcBefore=before,sourceCrcAfter=after,sourceCrcChanged=before!=after,matches=same});Add(checks,name,same);
+            };
+            change("source BaseColor reaches existing adapter",()=>source.SetColor("_BaseColor",new Color(.24f,.46f,.63f,.8f)),()=>SameColor(source,normal));
+            change("source texture reference reaches existing adapter",()=>source.SetTexture("_BaseMap",texture),()=>SameTexture(source,normal));
+            change("source texture scale/offset reaches existing adapter",()=>{source.SetTextureScale("_BaseMap",new Vector2(2.3f,.7f));source.SetTextureOffset("_BaseMap",new Vector2(.17f,.29f));},()=>SameTexture(source,normal));
+            change("source keywords update copied state and alpha-clip derivation",()=>source.EnableKeyword("_ALPHATEST_ON"),()=>SameKeywords(source,normal)&&normal.GetFloat("_RoomSourceAlphaClip")==1);
+            change("source Cull and opaque queue changes reach adapter",()=>{source.SetFloat("_Cull",1);source.renderQueue=2247;},()=>normal.GetFloat("_Cull")==1&&normal.renderQueue==2247);
+            int sourceCrc=source.ComputeCRC();
+            change("private adapter color pollution restored with unchanged source",()=>normal.SetColor("_BaseColor",Color.magenta),()=>source.ComputeCRC()==sourceCrc&&SameColor(source,normal));
+            change("private adapter keyword pollution restored with unchanged source",()=>normal.DisableKeyword("_ALPHATEST_ON"),()=>source.ComputeCRC()==sourceCrc&&SameKeywords(source,normal)&&normal.GetFloat("_RoomSourceAlphaClip")==1);
+            change("private adapter derived-depth pollution restored with unchanged source",()=>normal.SetFloat("_RoomPositiveDepthWrite",.25f),()=>source.ComputeCRC()==sourceCrc&&normal.GetFloat("_RoomPositiveDepthWrite")==1);
+            select(RoomPositiveSurfaceKind.Partial,true,false,false);invoke();var permissionAdapter=adapter(RoomPositiveSurfaceKind.Partial,true,false,false);
+            Add(checks,"permission variant separate and read-only depth",permissionAdapter!=normal&&permissionAdapter.GetFloat("_RoomPositiveDepthWrite")==0&&normal.GetFloat("_RoomPositiveDepthWrite")==1);
+            select(RoomPositiveSurfaceKind.Partial,false,false,true);invoke();var fullEnvironment=adapter(RoomPositiveSurfaceKind.Partial,false,false,true);
+            Add(checks,"EnvironmentFull variant separate and preserves Partial authority of original",fullEnvironment!=normal&&fullEnvironment.GetFloat("_RoomPositivePartial")==0&&normal.GetFloat("_RoomPositivePartial")==1&&fullEnvironment.GetColor("_RoomPositiveColor")!=normal.GetColor("_RoomPositiveColor"));
+            select(RoomPositiveSurfaceKind.Roof,false,false,false);invoke();var wholeRoof=adapter(RoomPositiveSurfaceKind.Roof,false,false,false);
+            select(RoomPositiveSurfaceKind.Roof,false,true,false);invoke();var cutRoof=adapter(RoomPositiveSurfaceKind.Roof,false,true,false);
+            Add(checks,"roof preview cut variants independent with correct derived flags",wholeRoof!=cutRoof&&wholeRoof.GetFloat("_RoomPositiveCutRoof")==0&&cutRoof.GetFloat("_RoomPositiveCutRoof")==1&&cutRoof.GetColor("_RoomPositiveColor")==new Color(.2f,.35f,.8f,1));
+            select(RoomPositiveSurfaceKind.Full,false,false,false);invoke();var full=adapter(RoomPositiveSurfaceKind.Full,false,false,false);
+            Add(checks,"Full kind has independent nonpartial truth state",full!=normal&&full.GetFloat("_RoomPositivePartial")==0&&full.GetFloat("_RoomPositiveDepthWrite")==1);
+            select(RoomPositiveSurfaceKind.Partial,false,false,false);invoke();
+            Add(checks,"returning existing base variant preserves identity and complete derived state",ReferenceEquals(normal,adapter(RoomPositiveSurfaceKind.Partial,false,false,false))&&normal.GetFloat("_RoomPositivePartial")==1&&normal.GetFloat("_RoomPositiveCutRoof")==0&&normal.GetFloat("_RoomPositiveDepthWrite")==1&&SameColor(source,normal));
+            select(RoomPositiveSurfaceKind.Partial,true,false,false);invoke();
+            Add(checks,"returning permission variant preserves its independent identity",ReferenceEquals(permissionAdapter,adapter(RoomPositiveSurfaceKind.Partial,true,false,false))&&permissionAdapter.GetFloat("_RoomPositiveDepthWrite")==0);
+            Add(checks,"real DrawTruth leaves source and Renderer material reference intact",source.ComputeCRC()==sourceCrc&&ReferenceEquals(renderer.sharedMaterial,source));
+            var statistics=owner.GetField("Statistics",Members).GetValue(pass) as RoomMaskStatistics;
+            report.surfaceDraws=statistics?.SurfaceDraws??0;report.ownedMaterialKeys=materials.Count;
+            Add(checks,"real DrawTruth records draws and supports fixture family",report.surfaceDraws>Iterations*Trials&&statistics!=null&&statistics.UnsupportedMaterialCount==0);
+        }
+        catch(Exception failure){errors.Add((failure is TargetInvocationException&&failure.InnerException!=null?failure.InnerException:failure).ToString());}
+        finally
+        {
+            if(materials!=null)foreach(DictionaryEntry entry in materials)if(entry.Value is Material material)ownedAdapters.Add(material);
+            Cleanup(()=>commands?.Dispose(),errors,"CommandBuffer.Dispose");
+            Cleanup(()=>{if(pass is IDisposable disposable)disposable.Dispose();},errors,"RoomPositivePass.Dispose");
+            // Play中的生产Dispose使用延迟Destroy；临时夹具精确清掉仍存活的自有适配器，不影响生产材质。
+            foreach(var material in ownedAdapters)Cleanup(()=>{if(material!=null)Object.DestroyImmediate(material);},errors,"private adapter");
+            Cleanup(()=>{if(root!=null)Object.DestroyImmediate(root);},errors,"temporary GameObject");
+            Cleanup(()=>{if(source!=null)Object.DestroyImmediate(source);},errors,"source material");
+            Cleanup(()=>{if(mesh!=null)Object.DestroyImmediate(mesh);},errors,"mesh");
+            Cleanup(()=>{if(texture!=null)Object.DestroyImmediate(texture);},errors,"texture");
+            report.cleanupComplete=root==null&&source==null&&mesh==null&&texture==null&&ownedAdapters.All(m=>m==null)&&(materials==null||materials.Count==0);
+            Add(checks,"all temporary resources and owned adapter dictionary released",report.cleanupComplete);
+            report.sceneDirtyAfter=scene.IsValid()&&scene.isDirty;
+            Add(checks,"fixture preserves active-scene dirty state",scene.IsValid()&&scene==UnityEngine.SceneManagement.SceneManager.GetActiveScene()&&scene.isDirty==originalDirty);
+        }
+        report.checks=checks.ToArray();report.timings=timings.ToArray();report.crcObservations=observations.ToArray();report.errors=errors.ToArray();
+        report.red=checks.Any(c=>!c.pass);report.pass=errors.Count==0&&checks.Count>0&&!report.red&&report.timingAvailable&&report.timingComplete&&report.cleanupComplete;
+        report.status=errors.Count>0?"invalid":report.red?"RED":report.pass?"GREEN":"unavailable/incomplete";
+        Directory.CreateDirectory(Path.GetDirectoryName(path));File.WriteAllText(path,Newtonsoft.Json.JsonConvert.SerializeObject(report,Newtonsoft.Json.Formatting.Indented));
+        context.ReturnValue=new{path,report.status,report.pass,report.red,report.stableMedianMs,report.changedMedianMs,report.stableToChangedRatio,report.timingAvailable,report.timingComplete,report.cleanupComplete,report.checks,report.errors,report.scope};
+    }
+    static Material FindAdapter(IDictionary materials,Material source,RoomPositiveSurfaceKind kind,bool permission,bool cutRoof,bool environmentFull)
+    {
+        foreach(DictionaryEntry item in materials)
+        {
+            object key=item.Key;Type type=key.GetType();Func<string,object> value=name=>type.GetField(name,Members)?.GetValue(key);
+            if(ReferenceEquals(value("Source"),source)&&Equals(value("Kind"),kind)&&Equals(value("Permission"),permission)&&Equals(value("CutRoof"),cutRoof)&&Equals(value("EnvironmentFull"),environmentFull)&&Equals(value("Shaded"),false))return item.Value as Material;
+        }
+        throw new InvalidOperationException("Actual DrawTruth complete-key adapter not found: "+kind+" permission="+permission+" cut="+cutRoof+" environmentFull="+environmentFull);
+    }
+    static Timing Measure(Action invoke,Material source,bool change,Stopwatch budget)
+    {
+        int performed=0;var clock=Stopwatch.StartNew();
+        for(int i=0;i<Iterations;i++)
+        {if((i&15)==0&&budget.Elapsed.TotalSeconds>=MaximumLoopSeconds)break;if(change)source.SetColor("_BaseColor",new Color(.37f+(i%2)*.011f,.29f,.19f,1));invoke();performed++;}
+        return new Timing{sourceChangedEveryIteration=change,iterations=performed,milliseconds=clock.Elapsed.TotalMilliseconds};
+    }
+    static bool SameColor(Material a,Material b)=>a.GetColor("_BaseColor")==b.GetColor("_BaseColor");
+    static bool SameTexture(Material a,Material b)=>a.GetTexture("_BaseMap")==b.GetTexture("_BaseMap")&&a.GetTextureScale("_BaseMap")==b.GetTextureScale("_BaseMap")&&a.GetTextureOffset("_BaseMap")==b.GetTextureOffset("_BaseMap");
+    static bool SameKeywords(Material a,Material b)=>a.shaderKeywords.OrderBy(k=>k).SequenceEqual(b.shaderKeywords.OrderBy(k=>k));
+    static bool Finite(double n)=>!double.IsNaN(n)&&!double.IsInfinity(n);
+    static double Median(IEnumerable<double> values){var v=values.OrderBy(n=>n).ToArray();return v.Length==0?0:v[v.Length/2];}
+    static void Add(List<Check> checks,string name,bool pass)=>checks.Add(new Check{name=name,pass=pass});
+    static void Cleanup(Action action,List<string> errors,string label){try{action();}catch(Exception e){errors.Add("cleanup "+label+": "+e);}}
+    public sealed class Check{public string name;public bool pass;}
+    public sealed class Timing{public int trial,iterations;public bool sourceChangedEveryIteration;public double milliseconds;}
+    public sealed class Observation{public string name;public int sourceCrcBefore,sourceCrcAfter;public bool sourceCrcChanged,matches;}
+    public sealed class Report
+    {
+        public int schemaVersion=1,iterationsPerGroup=Iterations,trials=Trials,surfaceDraws,ownedMaterialKeys;
+        public double maximumLoopSeconds=MaximumLoopSeconds,requiredStableToChangedRatio=RequiredRatio,loopSeconds,stableMedianMs,changedMedianMs,stableToChangedRatio;
+        public bool timingAvailable,timingComplete,cleanupComplete,pass,red,sceneDirtyBefore,sceneDirtyAfter;
+        public string status,timingStatus,scenePath;
+        public string scope="Actual private DrawTruth on temporary Pass/Renderer/materials. Each used.Clear/cmd.Clear simulates a new Execute; commands never submitted. CPU method-contract only, not literal multi-frame execution, GPU output, exact Copy invocation count or whole-scene performance acceptance.";
+        public Check[] checks;public Timing[] timings;public Observation[] crcObservations;public string[] errors;
+    }
+}

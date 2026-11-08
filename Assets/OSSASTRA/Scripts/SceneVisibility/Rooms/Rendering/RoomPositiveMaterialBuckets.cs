@@ -2,6 +2,7 @@
  * 边界：Full与独立动态绘制路线始终保留sharedMaterials引用；角色、敌人、Sprite、Spine及登记表现不由静态桶接管。
  * 不使用overrideShader，不修改原材质或物理；混合/未知源家族保守跳过。
  * 生命周期：Prepare先还原旧范围，预算与Shader先预检；只在数组仍为本范围所写时还原。外部继续引用的自有克隆保留并计数，解除引用后再释放。
+ * 缓存：仅进程内比较源与两个自有副本的原生内容CRC；源变化或借用副本被改写即刷新，不把CRC序列化。
  */
 using System;
 using System.Collections.Generic;
@@ -21,6 +22,8 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
             internal uint Family;
             internal int Queue, Pass;
             internal bool Transparent;
+            internal bool hasCopiedState;
+            internal int sourceCrc, cloneCrc, adapterCrc;
         }
 
         readonly struct Key : IEquatable<Key>
@@ -154,11 +157,16 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
                     if (bucket.Clone == null)
                     {
                         bucket.Clone = new Material(bucket.Original) { name = bucket.Original.name + " [Room visibility source queue]", hideFlags = HideFlags.HideAndDontSave };
+                        bucket.hasCopiedState = false;
                         originalsByClone.Add(bucket.Clone, bucket.Original);
                     }
                     if (bucket.Adapter == null)
+                    {
                         bucket.Adapter = new Material(request.Shader) { name = bucket.Original.name + " [Room visibility draw adapter]", hideFlags = HideFlags.HideAndDontSave };
-                    else if (bucket.Adapter.shader != request.Shader) bucket.Adapter.shader = request.Shader;
+                        bucket.hasCopiedState = false;
+                    }
+                    else if (bucket.Adapter.shader != request.Shader)
+                    { bucket.Adapter.shader = request.Shader; bucket.hasCopiedState = false; }
                     Refresh(bucket);
                     if (bucket.Pass >= bucket.Adapter.passCount)
                         throw new InvalidOperationException("房间材质桶Pass超出Shader实际范围：" + bucket.Pass);
@@ -206,9 +214,23 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
         static void Refresh(Bucket bucket)
         {
             // Clone继续使用原Shader，故原光照Caster仍读取原合同；仅颜色终绘才使用Adapter。
-            if (bucket.Clone.shader != bucket.Original.shader) bucket.Clone.shader = bucket.Original.shader;
-            bucket.Clone.CopyPropertiesFromMaterial(bucket.Original); bucket.Clone.renderQueue = bucket.Queue;
-            bucket.Adapter.CopyPropertiesFromMaterial(bucket.Original); bucket.Adapter.renderQueue = bucket.Queue;
+            int sourceCrc = bucket.Original.ComputeCRC();
+            // Clone会临时借给Renderer；只看源CRC会漏掉回调对自有副本的同引用改写。
+            bool refresh = !bucket.hasCopiedState || sourceCrc != bucket.sourceCrc ||
+                bucket.Clone.ComputeCRC() != bucket.cloneCrc || bucket.Adapter.ComputeCRC() != bucket.adapterCrc;
+            if (refresh)
+            {
+                if (bucket.Clone.shader != bucket.Original.shader) bucket.Clone.shader = bucket.Original.shader;
+                bucket.Clone.CopyPropertiesFromMaterial(bucket.Original);
+                bucket.Adapter.CopyPropertiesFromMaterial(bucket.Original);
+            }
+            bool cloneQueueChanged = bucket.Clone.renderQueue != bucket.Queue;
+            bool adapterQueueChanged = bucket.Adapter.renderQueue != bucket.Queue;
+            if (cloneQueueChanged) bucket.Clone.renderQueue = bucket.Queue;
+            if (adapterQueueChanged) bucket.Adapter.renderQueue = bucket.Queue;
+            if (refresh || cloneQueueChanged) bucket.cloneCrc = bucket.Clone.ComputeCRC();
+            if (refresh || adapterQueueChanged) bucket.adapterCrc = bucket.Adapter.ComputeCRC();
+            bucket.sourceCrc = sourceCrc; bucket.hasCopiedState = true;
         }
 
         internal void Restore()

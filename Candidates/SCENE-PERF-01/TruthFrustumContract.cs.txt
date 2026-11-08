@@ -1,0 +1,107 @@
+/* 功能：以临时独立Camera/Renderer/Pass调用真实DrawTruth，锁定常规3D完全镜外不提交、交界保守保留。
+ * 边界：仅构造未执行CommandBuffer，不改主场Pass/作者材质/渲染器；ThinTop等非目标家族仍须保守提交。
+ * 生命周期：同步执行，无帧回调；finally释放Pass适配器、材质、Mesh、两个独立GameObject和命令缓冲。
+ * 证据：Statistics.SurfaceDraws真实增量；缺少新RefreshTruthFrustum时仍运行旧DrawTruth，镜外用例应真实RED。
+ */
+using System;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.Rendering;
+using Funplay.Editor.Tools.Scripting;
+using Ossastra.SceneVisibility.Rooms.Rendering;
+using Object=UnityEngine.Object;
+
+public sealed class TruthFrustumContract : IFunplayCommand
+{
+    const BindingFlags Members=BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Instance|BindingFlags.Static;
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext context)
+    {
+        if(!Application.isPlaying||Application.dataPath.Replace('\\','/')!="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets")throw new InvalidOperationException("Actual ANKALUTE Play required");
+        var owner=AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType("Ossastra.SceneVisibility.Rooms.Rendering.RoomPositivePass",false)).FirstOrDefault(t=>t!=null);
+        var ctor=owner?.GetConstructor(Members,null,new[]{typeof(Camera)},null);
+        var draw=owner?.GetMethod("DrawTruth",Members,null,new[]{typeof(CommandBuffer),typeof(RoomPositiveSurface),typeof(bool)},null);
+        var refresh=owner?.GetMethod("RefreshTruthFrustum",Members,null,Type.EmptyTypes,null);
+        if(ctor==null||draw==null)throw new MissingMemberException("Actual RoomPositivePass Camera constructor/DrawTruth missing");
+        foreach(var name in new[]{"frame","truthShader","previewEnabled","materials","used","Statistics"})if(owner.GetField(name,Members)==null)throw new MissingMemberException("Actual Pass field missing: "+name);
+        var lit=Shader.Find("Universal Render Pipeline/Lit");var truth=Shader.Find("Hidden/Ossastra/Rooms/PositiveTruth");var thin=Shader.Find("Ossastra/GroundSurfaces/ThinTop");
+        if(lit==null||truth==null||thin==null||!lit.isSupported||!truth.isSupported||!thin.isSupported)throw new InvalidOperationException("Actual fixture Lit/PositiveTruth/ThinTop shader unavailable");
+        var scene=UnityEngine.SceneManagement.SceneManager.GetActiveScene();bool dirty=scene.isDirty;
+        string path=Path.GetFullPath(Path.Combine(Application.dataPath,"..","artifacts","SCENE-PERF-01","truth-frustum-contract-"+DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff")+".json"));
+        var checks=new List<Check>();var observations=new List<Observation>();var errors=new List<string>();var ownedAdapters=new List<Material>();
+        GameObject cameraObject=null,meshObject=null;Mesh mesh=null;Material source=null,thinSource=null;CommandBuffer commands=null;object pass=null;IDictionary materials=null;
+        var report=new Report{scenePath=scene.path,sceneDirtyBefore=dirty,refreshHelperAvailable=refresh!=null};
+        try
+        {
+            Vector3 anchor=new Vector3(10000,10000,10000);
+            cameraObject=new GameObject("SCENE-PERF-01 temporary frustum Camera"){hideFlags=HideFlags.HideAndDontSave};cameraObject.transform.position=anchor;
+            var camera=cameraObject.AddComponent<Camera>();camera.enabled=false;camera.cullingMask=0;camera.orthographic=false;camera.fieldOfView=60;camera.aspect=1;camera.nearClipPlane=1;camera.farClipPlane=30;
+            meshObject=new GameObject("SCENE-PERF-01 temporary frustum Mesh"){hideFlags=HideFlags.HideAndDontSave};meshObject.transform.position=anchor+Vector3.forward*10;
+            var filter=meshObject.AddComponent<MeshFilter>();var renderer=meshObject.AddComponent<MeshRenderer>();
+            renderer.shadowCastingMode=ShadowCastingMode.TwoSided;renderer.receiveShadows=true;renderer.lightProbeUsage=LightProbeUsage.Off;renderer.reflectionProbeUsage=ReflectionProbeUsage.Off;
+            mesh=new Mesh{name="Frustum temporary unit cube",hideFlags=HideFlags.HideAndDontSave};
+            mesh.vertices=new[]{new Vector3(-.5f,-.5f,-.5f),new Vector3(.5f,-.5f,-.5f),new Vector3(.5f,.5f,-.5f),new Vector3(-.5f,.5f,-.5f),new Vector3(-.5f,-.5f,.5f),new Vector3(.5f,-.5f,.5f),new Vector3(.5f,.5f,.5f),new Vector3(-.5f,.5f,.5f)};
+            mesh.triangles=new[]{0,2,1,0,3,2,4,5,6,4,6,7,0,1,5,0,5,4,3,7,6,3,6,2,0,4,7,0,7,3,1,2,6,1,6,5};mesh.RecalculateBounds();filter.sharedMesh=mesh;
+            source=new Material(lit){name="Frustum temporary source",hideFlags=HideFlags.HideAndDontSave};source.SetColor("_BaseColor",new Color(.37f,.29f,.19f,1));source.SetFloat("_Surface",0);source.SetFloat("_Cull",2);renderer.sharedMaterial=source;
+            thinSource=new Material(thin){name="Frustum excluded-family source",hideFlags=HideFlags.HideAndDontSave};
+            int sourceCrc=source.ComputeCRC(),thinCrc=thinSource.ComputeCRC();uint renderingLayers=renderer.renderingLayerMask;int layer=meshObject.layer;
+            commands=new CommandBuffer{name="SCENE-PERF-01 unexecuted frustum DrawTruth"};pass=ctor.Invoke(new object[]{camera});
+            owner.GetField("frame",Members).SetValue(pass,new RoomMaskFrame{PositiveRenderingEnabled=true,PreviewRoofSurfaces=Array.Empty<Renderer>()});
+            owner.GetField("truthShader",Members).SetValue(pass,truth);owner.GetField("previewEnabled",Members).SetValue(pass,false);
+            materials=(IDictionary)owner.GetField("materials",Members).GetValue(pass);object used=owner.GetField("used",Members).GetValue(pass);
+            var clear=used?.GetType().GetMethod("Clear",Members,null,Type.EmptyTypes,null);var stats=owner.GetField("Statistics",Members).GetValue(pass) as RoomMaskStatistics;
+            if(clear==null||stats==null||materials==null)throw new InvalidOperationException("Actual Pass scratch/statistics missing");
+            Add(checks,"disabled Camera and Renderer use distinct temporary GameObjects",camera.gameObject!=renderer.gameObject&&!camera.enabled);
+            Action<string,Vector3,int,bool> sample=(name,local,expected,permission)=>
+            {
+                meshObject.transform.position=anchor+local;meshObject.transform.localScale=Vector3.one;
+                commands.Clear();clear.Invoke(used,null);if(refresh!=null)refresh.Invoke(pass,null);
+                int before=stats.SurfaceDraws;draw.Invoke(pass,new object[]{commands,new RoomPositiveSurface{Renderer=renderer,Kind=RoomPositiveSurfaceKind.Partial},permission});int delta=stats.SurfaceDraws-before;
+                observations.Add(new Observation{name=name,permission=permission,expectedDraws=expected,actualDraws=delta,center=renderer.bounds.center.ToString("F4"),size=renderer.bounds.size.ToString("F4"),cameraEuler=camera.transform.eulerAngles.ToString("F4"),sourceShader=renderer.sharedMaterial.shader.name});
+                Add(checks,name,delta==expected);
+            };
+            sample("front ordinary Lit retained",new Vector3(0,0,10),1,false);
+            sample("front permission retained",new Vector3(0,0,10),1,true);
+            sample("fully outside side rejected",new Vector3(100,0,10),0,false);
+            sample("fully behind camera rejected",new Vector3(0,0,-10),0,false);
+            sample("fully beyond far clip rejected",new Vector3(0,0,50),0,false);
+            sample("touching side plane conservatively retained",new Vector3(10*Mathf.Tan(30*Mathf.Deg2Rad)+.3f,0,10),1,false);
+            sample("bounds crossing near plane retained",new Vector3(0,0,1),1,false);
+            sample("moving back into current frustum retained",new Vector3(0,0,10),1,false);
+            camera.transform.rotation=Quaternion.Euler(0,180,0);sample("camera rotation refresh rejects previous front",new Vector3(0,0,10),0,false);
+            camera.transform.rotation=Quaternion.identity;sample("camera rotation refresh restores front",new Vector3(0,0,10),1,false);
+            renderer.sharedMaterial=thinSource;sample("excluded ThinTop family remains submitted outside",new Vector3(100,0,10),1,false);renderer.sharedMaterial=source;
+            report.unsupportedCount=stats.UnsupportedMaterialCount;report.surfaceDraws=stats.SurfaceDraws;report.ownedAdapterCount=materials.Count;
+            Add(checks,"fixture sources/Renderer references and shadow/light state unchanged",source.ComputeCRC()==sourceCrc&&thinSource.ComputeCRC()==thinCrc&&ReferenceEquals(renderer.sharedMaterial,source)&&ReferenceEquals(filter.sharedMesh,mesh)&&renderer.shadowCastingMode==ShadowCastingMode.TwoSided&&renderer.receiveShadows&&renderer.enabled&&!renderer.forceRenderingOff&&renderer.renderingLayerMask==renderingLayers&&meshObject.layer==layer&&renderer.lightProbeUsage==LightProbeUsage.Off&&renderer.reflectionProbeUsage==ReflectionProbeUsage.Off);
+            Add(checks,"all fixture source families supported by actual DrawTruth",stats.UnsupportedMaterialCount==0);
+        }
+        catch(Exception failure){errors.Add((failure is TargetInvocationException&&failure.InnerException!=null?failure.InnerException:failure).ToString());}
+        finally
+        {
+            if(materials!=null)foreach(DictionaryEntry item in materials)if(item.Value is Material material)ownedAdapters.Add(material);
+            Cleanup(()=>commands?.Dispose(),errors,"commands");Cleanup(()=>{if(pass is IDisposable d)d.Dispose();},errors,"private pass");
+            foreach(var material in ownedAdapters)Cleanup(()=>{if(material!=null)Object.DestroyImmediate(material);},errors,"private adapter");
+            Cleanup(()=>{if(cameraObject!=null)Object.DestroyImmediate(cameraObject);},errors,"Camera GO");Cleanup(()=>{if(meshObject!=null)Object.DestroyImmediate(meshObject);},errors,"Mesh GO");
+            Cleanup(()=>{if(source!=null)Object.DestroyImmediate(source);},errors,"Lit source");Cleanup(()=>{if(thinSource!=null)Object.DestroyImmediate(thinSource);},errors,"ThinTop source");Cleanup(()=>{if(mesh!=null)Object.DestroyImmediate(mesh);},errors,"Mesh");
+            report.cleanupComplete=cameraObject==null&&meshObject==null&&source==null&&thinSource==null&&mesh==null&&ownedAdapters.All(m=>m==null)&&(materials==null||materials.Count==0);
+            Add(checks,"all temporary owned resources released",report.cleanupComplete);report.sceneDirtyAfter=scene.IsValid()&&scene.isDirty;
+            Add(checks,"active scene and author dirty state preserved",scene.IsValid()&&scene==UnityEngine.SceneManagement.SceneManager.GetActiveScene()&&scene.isDirty==dirty);
+        }
+        report.checks=checks.ToArray();report.observations=observations.ToArray();report.errors=errors.ToArray();report.red=checks.Any(c=>!c.pass);report.pass=errors.Count==0&&!report.red&&report.cleanupComplete;report.status=errors.Count>0?"invalid":report.red?"RED":"GREEN";
+        Directory.CreateDirectory(Path.GetDirectoryName(path));File.WriteAllText(path,Newtonsoft.Json.JsonConvert.SerializeObject(report,Newtonsoft.Json.Formatting.Indented));
+        context.ReturnValue=new{path,report.status,report.pass,report.red,report.refreshHelperAvailable,report.cleanupComplete,report.checks,report.observations,report.errors,report.scope};
+    }
+    static void Add(List<Check> checks,string name,bool pass)=>checks.Add(new Check{name=name,pass=pass});
+    static void Cleanup(Action action,List<string> errors,string name){try{action();}catch(Exception e){errors.Add("cleanup "+name+": "+e);}}
+    public sealed class Check{public string name;public bool pass;}
+    public sealed class Observation{public string name,center,size,cameraEuler,sourceShader;public bool permission;public int expectedDraws,actualDraws;}
+    public sealed class Report
+    {
+        public int schemaVersion=1,surfaceDraws,unsupportedCount,ownedAdapterCount;public string scenePath,status;public bool refreshHelperAvailable,sceneDirtyBefore,sceneDirtyAfter,cleanupComplete,red,pass;
+        public Check[] checks;public Observation[] observations;public string[] errors;
+        public string scope="Actual private DrawTruth on temporary disabled independent Camera and temporary Renderer/Pass; CommandBuffer never executed. SurfaceDraws deltas prove submission contract only, not rendered pixels/GPU speed or whole-scene performance. Missing future helper still exercises current actual path for expected RED.";
+    }
+}

@@ -1,0 +1,110 @@
+/* 功能：用独立临时Pass真实调用materialBuckets.Prepare和BuildTruthNativePlan，验证整桶资格及保守回退。
+ * 边界：准备后修改自有fixture成员模拟当帧失配，不改主场/作者材质；不执行Native/GPU，提交计数必须仍为0。
+ * 生命周期：逐case恢复真实借用范围，finally销毁Pass、克隆/适配器、材质、Mesh与自有GO；守护活动场和dirty。
+ */
+using System;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.Rendering;
+using Ossastra.SceneVisibility.Rooms.Rendering;
+using Funplay.Editor.Tools.Scripting;
+using Object=UnityEngine.Object;
+
+public sealed class NativePlanContract : IFunplayCommand
+{
+    const BindingFlags Members=BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Instance;
+    public static Shader Resolve(Material source,uint family,out int pass){pass=0;return source.shader;}
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext context)
+    {
+        var scene=UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+        if(!Application.isPlaying||scene.path!="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity"||Application.dataPath.Replace('\\','/')!="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets")throw new InvalidOperationException("Actual isolated main Play required");
+        var type=AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType("Ossastra.SceneVisibility.Rooms.Rendering.RoomPositivePass",false)).FirstOrDefault(t=>t!=null);
+        var ctor=type?.GetConstructor(Members,null,new[]{typeof(Camera)},null);var build=type?.GetMethod("BuildTruthNativePlan",Members,null,Type.EmptyTypes,null);
+        var shader=Shader.Find("Universal Render Pipeline/Lit");
+        if(ctor==null||build==null||shader==null||!shader.isSupported)throw new InvalidOperationException("Actual Pass/BuildTruthNativePlan/Lit unavailable");
+        string path=Path.GetFullPath(Path.Combine(Application.dataPath,"..","artifacts","SCENE-PERF-01","native-plan-contract-"+DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff")+".json"));
+        var checks=new List<Check>();var observations=new List<Observation>();var errors=new List<string>();var owned=new HashSet<Material>();
+        var report=new Report{scenePath=scene.path,sceneDirtyBefore=scene.isDirty};
+        GameObject cameraGo=null,aGo=null,bGo=null;Mesh mesh=null;Material source=null;object pass=null,buckets=null;MeshRenderer a=null,b=null;Material[] writtenA=null,writtenB=null;MethodInfo restore=null;
+        try
+        {
+            cameraGo=new GameObject("SCENE-PERF-01 NativePlan Camera"){hideFlags=HideFlags.HideAndDontSave};cameraGo.transform.position=new Vector3(10000,10000,10000);
+            var camera=cameraGo.AddComponent<Camera>();camera.enabled=false;camera.cullingMask=-1;
+            aGo=new GameObject("SCENE-PERF-01 NativePlan A"){hideFlags=HideFlags.HideAndDontSave};bGo=new GameObject("SCENE-PERF-01 NativePlan B"){hideFlags=HideFlags.HideAndDontSave};
+            aGo.transform.position=new Vector3(10000,10000,10010);bGo.transform.position=new Vector3(10002,10000,10010);
+            mesh=new Mesh{name="NativePlan triangle",hideFlags=HideFlags.HideAndDontSave};mesh.vertices=new[]{Vector3.zero,Vector3.right,Vector3.up};mesh.triangles=new[]{0,1,2};mesh.RecalculateBounds();
+            aGo.AddComponent<MeshFilter>().sharedMesh=mesh;bGo.AddComponent<MeshFilter>().sharedMesh=mesh;a=aGo.AddComponent<MeshRenderer>();b=bGo.AddComponent<MeshRenderer>();
+            source=new Material(shader){name="NativePlan shared original",hideFlags=HideFlags.HideAndDontSave};source.SetFloat("_Surface",0);source.SetColor("_BaseColor",new Color(.37f,.29f,.19f,1));
+            foreach(string tag in new[]{"UniversalForward","UniversalForwardOnly","SRPDefaultUnlit"})source.SetShaderPassEnabled(tag,true);
+            int originalCrc=source.ComputeCRC();a.sharedMaterial=source;b.sharedMaterial=source;
+            pass=ctor.Invoke(new object[]{camera});type.GetField("nativeTruthBucketsEnabled",Members).SetValue(pass,true);buckets=Read(pass,"materialBuckets");
+            var prepare=buckets?.GetType().GetMethod("Prepare",Members);restore=buckets?.GetType().GetMethod("Restore",Members);
+            if(prepare==null||restore==null||prepare.GetParameters().Length!=2)throw new MissingMemberException("Actual materialBuckets Prepare/Restore seam missing");
+            var resolver=Delegate.CreateDelegate(prepare.GetParameters()[1].ParameterType,typeof(NativePlanContract).GetMethod("Resolve",BindingFlags.Public|BindingFlags.Static));
+            var frame=new RoomMaskFrame{Enabled=true,PositiveRenderingEnabled=true,TruthMode=false};type.GetField("frame",Members).SetValue(pass,frame);
+            Action reset=()=>
+            {
+                if(writtenA!=null)a.sharedMaterials=writtenA;if(writtenB!=null)b.sharedMaterials=writtenB;restore.Invoke(buckets,null);writtenA=writtenB=null;
+                foreach(var group in bGo.GetComponents<LODGroup>())Object.DestroyImmediate(group);
+                a.enabled=b.enabled=true;a.forceRenderingOff=b.forceRenderingOff=false;a.shadowCastingMode=b.shadowCastingMode=ShadowCastingMode.On;
+                aGo.layer=bGo.layer=0;camera.cullingMask=-1;a.sharedMaterials=new[]{source};b.sharedMaterials=new[]{source};
+                foreach(string tag in new[]{"UniversalForward","UniversalForwardOnly","SRPDefaultUnlit"})source.SetShaderPassEnabled(tag,true);
+                frame.PositiveSurfaces=new[]{Surface(a),Surface(b)};
+                prepare.Invoke(buckets,new object[]{frame,resolver});writtenA=a.sharedMaterials;writtenB=b.sharedMaterials;
+                foreach(DictionaryEntry item in (IDictionary)Read(buckets,"cache")){var clone=Read(item.Value,"Clone") as Material;var adapter=Read(item.Value,"Adapter") as Material;if(clone!=null)owned.Add(clone);if(adapter!=null)owned.Add(adapter);}
+            };
+            Action<string,bool,Action> sample=(name,expected,mutate)=>
+            {
+                reset();mutate();build.Invoke(pass,null);
+                var plans=(ICollection)Read(pass,"truthNativeBuckets");int eligible=0,slots=0;
+                foreach(object plan in plans)if((bool)Read(plan,"Seen")&&!(bool)Read(plan,"Rejected")){eligible++;slots+=(int)Read(plan,"Slots");}
+                bool available=(bool)Read(pass,"truthNativeAvailable");int nativeCalls=(int)Read(pass,"nativeTruthBucketCount"),submittedSlots=(int)Read(pass,"nativeTruthSlotCount");
+                int cloneKeys=((IDictionary)Read(pass,"truthNativeByClone")).Count;bool rejectedFrame=frame.PositiveSurfaces==null||frame.PositiveSurfaces.Length>4096;
+                observations.Add(new Observation{name=name,expectedEligible=expected,available=available,eligibleBuckets=eligible,eligibleRegisteredSlots=slots,nativeSubmissionCalls=nativeCalls,nativeSubmittedSlots=submittedSlots,planCount=plans.Count,cloneKeyCount=cloneKeys});
+                checks.Add(new Check{name=name,pass=available==expected&&(expected?eligible==1&&slots==2:eligible==0)&&nativeCalls==0&&submittedSlots==0&&(!rejectedFrame||plans.Count==0&&cloneKeys==0)});
+            };
+            sample("two static Partial meshes sharing source form one eligible bucket",true,()=>{});
+            sample("one non-static member rejects entire borrowed bucket",false,()=>{var s=frame.PositiveSurfaces[1];s.StaticEnvironment=false;frame.PositiveSurfaces[1]=s;});
+            sample("different EnvironmentFull member rejects bucket",false,()=>{var s=frame.PositiveSurfaces[1];s.EnvironmentFullSurface=true;frame.PositiveSurfaces[1]=s;});
+            sample("different WorldLookEnvironment member rejects bucket",false,()=>{var s=frame.PositiveSurfaces[1];s.WorldLookEnvironment=true;frame.PositiveSurfaces[1]=s;});
+            sample("non-Partial member on same prepared clone rejects bucket",false,()=>{var s=frame.PositiveSurfaces[1];s.Kind=RoomPositiveSurfaceKind.Full;frame.PositiveSurfaces[1]=s;});
+            sample("Independent DrawMask member rejects bucket",false,()=>{var s=frame.PositiveSurfaces[1];s.IndependentDraw=true;s.DrawMask=RoomPositiveRenderingLayers.IndependentBit;frame.PositiveSurfaces[1]=s;});
+            sample("LOD member rejects bucket",false,()=>bGo.AddComponent<LODGroup>());
+            sample("ShadowsOnly member rejects bucket",false,()=>b.shadowCastingMode=ShadowCastingMode.ShadowsOnly);
+            sample("material slot and submesh count mismatch rejects bucket",false,()=>b.sharedMaterials=new[]{writtenB[0],writtenB[0]});
+            sample("one member outside camera layer rejects bucket",false,()=>{bGo.layer=31;camera.cullingMask=int.MaxValue;});
+            sample("disabled source pass rejects bucket",false,()=>source.SetShaderPassEnabled("UniversalForward",false));
+            sample("null surface frame clears previously eligible plan without throwing",false,()=>{build.Invoke(pass,null);if(!(bool)Read(pass,"truthNativeAvailable"))throw new InvalidOperationException("Valid plan prerequisite missing");frame.PositiveSurfaces=null;});
+            sample("4097 surface frame clears previously eligible plan without throwing",false,()=>{build.Invoke(pass,null);if(!(bool)Read(pass,"truthNativeAvailable"))throw new InvalidOperationException("Valid plan prerequisite missing");frame.PositiveSurfaces=new RoomPositiveSurface[4097];});
+            reset();a.sharedMaterials=writtenA;b.sharedMaterials=writtenB;restore.Invoke(buckets,null);writtenA=writtenB=null;
+            checks.Add(new Check{name="actual Restore returns both source material references and original content",pass=ReferenceEquals(a.sharedMaterial,source)&&ReferenceEquals(b.sharedMaterial,source)&&source.ComputeCRC()==originalCrc});
+        }
+        catch(Exception failure){errors.Add((failure is TargetInvocationException&&failure.InnerException!=null?failure.InnerException:failure).ToString());}
+        finally
+        {
+            Cleanup(()=>{if(a!=null&&writtenA!=null)a.sharedMaterials=writtenA;if(b!=null&&writtenB!=null)b.sharedMaterials=writtenB;if(buckets!=null&&restore!=null)restore.Invoke(buckets,null);},errors,"borrowed refs");
+            Cleanup(()=>{if(pass is IDisposable d)d.Dispose();},errors,"private Pass");foreach(var material in owned)Cleanup(()=>{if(material!=null)Object.DestroyImmediate(material);},errors,"owned adapter");
+            Cleanup(()=>{if(cameraGo!=null)Object.DestroyImmediate(cameraGo);},errors,"Camera");Cleanup(()=>{if(aGo!=null)Object.DestroyImmediate(aGo);},errors,"A");Cleanup(()=>{if(bGo!=null)Object.DestroyImmediate(bGo);},errors,"B");Cleanup(()=>{if(source!=null)Object.DestroyImmediate(source);},errors,"source");Cleanup(()=>{if(mesh!=null)Object.DestroyImmediate(mesh);},errors,"mesh");
+            report.cleanupComplete=cameraGo==null&&aGo==null&&bGo==null&&source==null&&mesh==null&&owned.All(m=>m==null);
+            checks.Add(new Check{name="all temporary resources released",pass=report.cleanupComplete});report.sceneDirtyAfter=scene.IsValid()&&scene.isDirty;
+            checks.Add(new Check{name="active scene and author dirty state preserved",pass=scene.IsValid()&&scene==UnityEngine.SceneManagement.SceneManager.GetActiveScene()&&scene.isDirty==report.sceneDirtyBefore});
+        }
+        report.checks=checks.ToArray();report.observations=observations.ToArray();report.errors=errors.ToArray();report.red=checks.Any(c=>!c.pass);report.pass=errors.Count==0&&!report.red&&observations.Count==13&&report.cleanupComplete;report.status=errors.Count>0?"invalid":report.pass?"GREEN":"RED";
+        Directory.CreateDirectory(Path.GetDirectoryName(path));File.WriteAllText(path,Newtonsoft.Json.JsonConvert.SerializeObject(report,Newtonsoft.Json.Formatting.Indented));
+        context.ReturnValue=new{path,report.status,report.pass,report.red,report.cleanupComplete,report.checks,report.observations,report.errors,report.scope};
+    }
+    static RoomPositiveSurface Surface(Renderer r)=>new RoomPositiveSurface{Renderer=r,Kind=RoomPositiveSurfaceKind.Partial,StaticEnvironment=true,DrawMask=RoomPositiveRenderingLayers.PartialLitBit};
+    static object Read(object o,string n)=>o==null?null:o.GetType().GetField(n,Members)?.GetValue(o);
+    static void Cleanup(Action a,List<string> errors,string n){try{a();}catch(Exception e){errors.Add("cleanup "+n+": "+e);}}
+    public sealed class Check{public string name;public bool pass;}
+    public sealed class Observation{public string name;public bool expectedEligible,available;public int eligibleBuckets,eligibleRegisteredSlots,nativeSubmissionCalls,nativeSubmittedSlots,planCount,cloneKeyCount;}
+    public sealed class Report
+    {
+        public int schemaVersion=1;public string scenePath,status;public bool sceneDirtyBefore,sceneDirtyAfter,cleanupComplete,red,pass;public Check[] checks;public Observation[] observations;public string[] errors;
+        public string scope="Actual temporary Pass materialBuckets.Prepare and BuildTruthNativePlan only; prepared-clone members mutated locally to test whole-bucket rejection. Native/GPU not executed; submission counters must remain zero. No scene objects/materials/assets or live Pass modified.";
+    }
+}

@@ -1,0 +1,297 @@
+/* 功能：真实主相机OFF/ON/OFF三相位GPU遮罩对照；每相位等待10个真帧、异步回读生产RT并保留原始RGBA字节。
+ * 边界：只改当前生产Pass的临时nativeTruthBucketsEnabled与本owner镜头指令捕获；不改世界、AI、动画、时钟、姿态或画质。
+ * 证据：非StaticEnvironment表面的屏幕包围框跨三相位并集排除、外扩8像素；其余全部RGBA严格比较并输出差异bbox。
+ * 生命周期：45秒/退出Play/重载统一恢复原bool、释放镜头捕获与Session令牌、解除回调；迟到GPU回调不改状态或写盘。
+ */
+using System;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
+using UnityEngine.Experimental.Rendering;
+using UnityEditor;
+using Ossastra.MapResearch;
+using Ossastra.SceneVisibility.Rooms.Rendering;
+using Funplay.Editor.Tools.Scripting;
+
+public sealed class TruthNativeContract : IFunplayCommand
+{
+    const string MainScene="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity";
+    const string SessionKey="SCENE-PERF-01.TruthNativeContract.Token";
+    const int WarmupFrames=10,PaddingPixels=8;
+    const double TimeoutSeconds=45;
+    const BindingFlags Members=BindingFlags.Instance|BindingFlags.Public|BindingFlags.NonPublic;
+    static Capture active;
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext context)
+    {
+        if(Application.dataPath.Replace('\\','/')!="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets")throw new InvalidOperationException("Wrong project");
+        if(!Application.isPlaying||EditorApplication.isPaused)throw new InvalidOperationException("Running unpaused main Play required");
+        if(!SystemInfo.supportsAsyncGPUReadback||SystemInfo.graphicsDeviceType==GraphicsDeviceType.Null)throw new InvalidOperationException("Actual graphical async GPU readback required");
+        if(!string.IsNullOrEmpty(SessionState.GetString(SessionKey,"")))throw new InvalidOperationException("Existing native truth capture token; inspect receipt, do not replay");
+        var scene=UnityEngine.SceneManagement.SceneManager.GetActiveScene();if(scene.path!=MainScene)throw new InvalidOperationException("Wrong explicit main scene");
+        var maps=scene.GetRootGameObjects().SelectMany(r=>r.GetComponentsInChildren<MapResearchRoot>(true)).ToArray();
+        if(maps.Length!=1||maps[0].gameplayCamera==null||!maps[0].gameplayCamera.isActiveAndEnabled)throw new InvalidOperationException("Unique enabled MapResearchRoot.gameplayCamera required");
+        var camera=maps[0].gameplayCamera;var additional=camera.GetComponent<UniversalAdditionalCameraData>();
+        if(additional==null||additional.scriptableRenderer==null)throw new InvalidOperationException("Actual URP camera renderer missing");
+        var features=Read(additional.scriptableRenderer,"rendererFeatures") as IEnumerable;if(features==null)throw new MissingMemberException("Actual rendererFeatures unavailable");
+        var owners=new List<object>();foreach(object feature in features)if(feature!=null&&feature.GetType().Name=="RoomMaskRendererFeature")owners.Add(feature);
+        if(owners.Count!=1)throw new InvalidOperationException("Exactly one current RoomMaskRendererFeature required");
+        var registry=Read(owners[0],"positiveCameras") as IDictionary;
+        if(registry==null||!registry.Contains(camera.GetInstanceID())||registry[camera.GetInstanceID()]==null)throw new InvalidOperationException("Actual main positive Pass not ready");
+        VerifyCamera(registry,camera);object pass=registry[camera.GetInstanceID()];
+        var flag=pass.GetType().GetField("nativeTruthBucketsEnabled",Members);
+        if(flag==null||flag.FieldType!=typeof(bool))throw new MissingMemberException("Actual private bool nativeTruthBucketsEnabled missing");
+        foreach(string field in new[]{"nativeTruthBucketCount","nativeTruthSlotCount"})
+            if(pass.GetType().GetField(field,Members)?.FieldType!=typeof(int))throw new MissingMemberException("Actual native counter missing: "+field);
+        if(!(Read(pass,"frame") is RoomMaskFrame))throw new InvalidOperationException("Actual published frame missing");
+        string directory=Path.GetFullPath(Path.Combine(Application.dataPath,"..","artifacts","SCENE-PERF-01","truth-native-"+DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff")));
+        if(Directory.Exists(directory))throw new IOException("Unique report directory required");Directory.CreateDirectory(directory);
+        active=new Capture(maps[0],camera,registry,pass,flag,directory);
+        try{active.Start();}catch{active.Dispose();active=null;throw;}
+        context.ReturnValue=new{status="capturing",directory,phases=new[]{"OFF","ON","OFF"},warmupActualFrames=WarmupFrames,timeoutSeconds=TimeoutSeconds,paddingPixels=PaddingPixels,
+            note="Wait for result.json. Actual production RT readbacks and per-phase PNG; no per-frame MCP polling or forced repaint."};
+    }
+    static object Read(object target,string name)
+    {
+        if(target==null)return null;
+        for(Type t=target.GetType();t!=null;t=t.BaseType)
+        {
+            var f=t.GetField(name,Members|BindingFlags.DeclaredOnly);if(f!=null)return f.GetValue(target);
+            var p=t.GetProperty(name,Members|BindingFlags.DeclaredOnly);if(p!=null&&p.GetIndexParameters().Length==0)return p.GetValue(target,null);
+        }
+        return null;
+    }
+    static void VerifyCamera(IDictionary registry,Camera expected)
+    {
+        var live=new List<Camera>();foreach(DictionaryEntry pair in registry)
+        {if(!(pair.Key is int id))throw new InvalidOperationException("Unknown camera registry key");var camera=EditorUtility.InstanceIDToObject(id) as Camera;if(camera!=null&&camera.cameraType==CameraType.Game&&camera.isActiveAndEnabled)live.Add(camera);}
+        if(live.Count!=1||live[0]!=expected)throw new InvalidOperationException("Exactly one active registered Game camera required");
+    }
+    sealed class Capture : IDisposable
+    {
+        readonly MapResearchRoot map;readonly Camera camera;readonly IDictionary registry;readonly object pass;readonly FieldInfo flag;
+        readonly string directory,token=Guid.NewGuid().ToString("N");readonly object captureOwner=new object();readonly bool originalFlag;
+        readonly List<Phase> phases=new List<Phase>();readonly List<Rect> dynamicRects=new List<Rect>();readonly List<string> errors=new List<string>();
+        bool hooked,captured,flagBorrowed,finished,hasPose,viewChanged;int phase,lastFrame=-1;double started;
+        Vector3 fixedPosition;Quaternion fixedRotation;Matrix4x4 fixedProjection;int screenWidth,screenHeight;Phase current;
+        public Capture(MapResearchRoot map,Camera camera,IDictionary registry,object pass,FieldInfo flag,string directory)
+        {this.map=map;this.camera=camera;this.registry=registry;this.pass=pass;this.flag=flag;this.directory=directory;originalFlag=(bool)flag.GetValue(pass);}
+        public void Start()
+        {
+            started=EditorApplication.timeSinceStartup;SessionState.SetString(SessionKey,token);
+            map.SetUiCameraCapture(captureOwner,true);captured=true;flagBorrowed=true;
+            RenderPipelineManager.endCameraRendering+=Ended;EditorApplication.update+=Tick;EditorApplication.playModeStateChanged+=PlayChanged;
+            AssemblyReloadEvents.beforeAssemblyReload+=Reload;EditorApplication.quitting+=Quit;hooked=true;BeginPhase();
+        }
+        void BeginPhase()
+        {
+            bool enabled=phase==1;flag.SetValue(pass,enabled);
+            current=new Phase{index=phase,nativeEnabled=enabled,name=phase==0?"off-0":phase==1?"on-1":"off-2",startedGameFrame=Time.frameCount};
+            current.screenshot=Path.Combine(directory,current.name+".png");phases.Add(current);
+        }
+        void Ended(ScriptableRenderContext context,Camera rendered)
+        {
+            if(finished||rendered!=camera||lastFrame==Time.frameCount)return;
+            try
+            {
+                if(EditorApplication.timeSinceStartup-started>=TimeoutSeconds){Finish("timeout",false);return;}
+                VerifyCamera(registry,camera);
+                if(!registry.Contains(camera.GetInstanceID())||!ReferenceEquals(registry[camera.GetInstanceID()],pass))throw new InvalidOperationException("Actual main Pass owner changed");
+                if((bool)flag.GetValue(pass)!=current.nativeEnabled)throw new InvalidOperationException("Native truth flag changed outside this capture");
+                lastFrame=Time.frameCount;current.actualFrames++;
+                var frame=Read(pass,"frame") as RoomMaskFrame;if(frame==null)throw new InvalidOperationException("Current production frame lost");
+                AccumulateExclusions(frame);
+                if(hasPose&&!SameView())viewChanged=true;
+                if(current.requested||current.actualFrames<WarmupFrames)return;
+                if(!RoomMaskCameraRegistry.TryGetStatistics(camera,out var statistics)||statistics==null||!statistics.Active||statistics.UnsupportedMaterialCount!=0||!string.IsNullOrEmpty(statistics.Error))throw new InvalidOperationException("Actual mask backend not healthy: "+(statistics?.Error??"missing statistics"));
+                if(frame.TruthMode)throw new InvalidOperationException("Final-material main required; truth-only frame has no current labelPermission");
+                if(!hasPose){fixedPosition=camera.transform.position;fixedRotation=camera.transform.rotation;fixedProjection=camera.projectionMatrix;screenWidth=Screen.width;screenHeight=Screen.height;hasPose=true;}
+                current.requested=true;current.captureGameFrame=Time.frameCount;current.cameraPosition=camera.transform.position.ToString("F6");current.cameraRotation=camera.transform.eulerAngles.ToString("F6");
+                current.exteriorView=frame.ExteriorView;current.visibilityEpoch=frame.VisibilityEpoch;current.observerPosition=frame.ObserverPosition.ToString("F6");
+                current.seedVolumeCount=frame.SeedVolumes?.Length??0;current.buildingVolumeCount=frame.BuildingVolumes?.Length??0;
+                current.staticSurfaceCount=frame.PositiveSurfaces.Count(s=>s.StaticEnvironment);current.dynamicSurfaceCount=frame.PositiveSurfaces.Length-current.staticSurfaceCount;
+                current.nativeBucketCount=(int)Read(pass,"nativeTruthBucketCount");current.nativeSlotCount=(int)Read(pass,"nativeTruthSlotCount");
+                bool producedPreview=Read(pass,"previewEnabled") is bool enabled&&enabled;
+                current.preview=new Mask{name="previewCoverage",produced=producedPreview,status=producedPreview?"requesting":"not-produced: previewEnabled=false"};
+                current.permission=new Mask{name="labelPermission",produced=true,status="requesting"};
+                if(producedPreview)RequestMask(current,current.preview,"previewCoverage");
+                RequestMask(current,current.permission,"labelPermission");
+                ScreenCapture.CaptureScreenshot(current.screenshot);
+            }
+            catch(Exception e){errors.Add(e.ToString());Finish("invalid-capture",false);}
+        }
+        void RequestMask(Phase owner,Mask mask,string field)
+        {
+            var handle=Read(pass,field) as RTHandle;var rt=handle?.rt;
+            if(rt==null||!rt.IsCreated()||rt.graphicsFormat!=GraphicsFormat.R8G8B8A8_UNorm)throw new InvalidOperationException("Current produced "+field+" RGBA8 RT unavailable");
+            mask.width=rt.width;mask.height=rt.height;mask.msaa=rt.antiAliasing;mask.textureId=rt.GetInstanceID();mask.graphicsFormat=rt.graphicsFormat.ToString();
+            long bytes=rt.width*(long)rt.height*4;if(bytes<=0||bytes>64L*1024*1024)throw new InvalidOperationException("Unexpected mask readback size");
+            mask.rawPath=Path.Combine(directory,owner.name+"-"+mask.name+".rgba.bin");
+            AsyncGPUReadback.Request(rt,0,GraphicsFormat.R8G8B8A8_UNorm,request=>
+            {
+                if(finished)return;
+                try
+                {
+                    if(request.hasError)throw new InvalidOperationException("Actual GPU readback error: "+owner.name+"/"+mask.name);
+                    byte[] data=request.GetData<byte>().ToArray();if(data.LongLength!=bytes)throw new InvalidOperationException("Unexpected actual readback byte count");
+                    mask.data=data;mask.byteCount=data.Length;mask.done=true;mask.status="actual RGBA8 readback complete";
+                }
+                catch(Exception e){errors.Add(e.ToString());Finish("readback-error",false);}
+            });
+        }
+        void AccumulateExclusions(RoomMaskFrame frame)
+        {
+            foreach(var surface in frame.PositiveSurfaces)
+            {
+                if(surface.StaticEnvironment||surface.Renderer==null)continue;
+                var renderer=surface.Renderer;if(!renderer.enabled||renderer.forceRenderingOff||!renderer.gameObject.activeInHierarchy)continue;
+                Bounds b=renderer.bounds;Vector3 lo=b.min,hi=b.max;float minX=1,minY=1,maxX=0,maxY=0;int front=0,back=0;
+                for(int n=0;n<8;n++)
+                {
+                    Vector3 p=camera.WorldToViewportPoint(new Vector3((n&1)==0?lo.x:hi.x,(n&2)==0?lo.y:hi.y,(n&4)==0?lo.z:hi.z));
+                    if(!Finite(p.x)||!Finite(p.y)||!Finite(p.z)){dynamicRects.Add(new Rect(0,0,1,1));front=back=0;break;}
+                    if(p.z<=camera.nearClipPlane){back++;continue;}front++;
+                    minX=Mathf.Min(minX,p.x);minY=Mathf.Min(minY,p.y);maxX=Mathf.Max(maxX,p.x);maxY=Mathf.Max(maxY,p.y);
+                }
+                if(front==0)continue;
+                if(back>0){dynamicRects.Add(new Rect(0,0,1,1));continue;}
+                if(maxX<0||minX>1||maxY<0||minY>1)continue;
+                dynamicRects.Add(Rect.MinMaxRect(Mathf.Clamp01(minX),Mathf.Clamp01(minY),Mathf.Clamp01(maxX),Mathf.Clamp01(maxY)));
+            }
+        }
+        bool SameView()
+        {
+            if((camera.transform.position-fixedPosition).sqrMagnitude>1e-10f||Quaternion.Angle(camera.transform.rotation,fixedRotation)>.0001f||Screen.width!=screenWidth||Screen.height!=screenHeight)return false;
+            var projection=camera.projectionMatrix;for(int n=0;n<16;n++)if(Mathf.Abs(projection[n]-fixedProjection[n])>1e-6f)return false;return true;
+        }
+        void Tick()
+        {
+            if(finished)return;
+            try
+            {
+                if(!Application.isPlaying||camera==null||map==null){Finish("left-play-or-owner-lost",false);return;}
+                if(EditorApplication.timeSinceStartup-started>=TimeoutSeconds){Finish("timeout",false);return;}
+                if(current==null||!current.requested||!Complete(current.preview)||!Complete(current.permission)||!PngComplete(current.screenshot))return;
+                current.screenshotComplete=true;
+                if(phase<2){phase++;BeginPhase();}else Finish("completed",true);
+            }
+            catch(Exception e){errors.Add(e.ToString());Finish("invalid-tick",false);}
+        }
+        static bool Complete(Mask mask)=>mask!=null&&(!mask.produced||mask.done);
+        static bool PngComplete(string path)
+        {
+            try
+            {
+                if(!File.Exists(path))return false;
+                using(var stream=new FileStream(path,FileMode.Open,FileAccess.Read,FileShare.ReadWrite))
+                {
+                    if(stream.Length<33)return false;var signature=new byte[8];if(stream.Read(signature,0,8)!=8||!signature.SequenceEqual(new byte[]{137,80,78,71,13,10,26,10}))return false;
+                    stream.Seek(-12,SeekOrigin.End);var tail=new byte[12];if(stream.Read(tail,0,12)!=12)return false;
+                    return tail.SequenceEqual(new byte[]{0,0,0,0,73,69,78,68,174,66,96,130});
+                }
+            }
+            catch(IOException){return false;}
+        }
+        void PlayChanged(PlayModeStateChange state){if(state==PlayModeStateChange.ExitingPlayMode||state==PlayModeStateChange.EnteredEditMode)Finish("left-play",false);}
+        void Reload(){Finish("assembly-reload",false);}void Quit(){Finish("editor-quitting",false);}
+        void Finish(string reason,bool completed)
+        {
+            if(finished)return;finished=true;
+            var comparisons=new List<Comparison>();bool stable=false,equal=false,nativeUsed=false,restored=false;
+            try
+            {
+                foreach(var p in phases)foreach(var mask in new[]{p.preview,p.permission})if(mask?.data!=null)File.WriteAllBytes(mask.rawPath,mask.data);
+                if(completed&&phases.Count==3)
+                {
+                    foreach(string name in new[]{"previewCoverage","labelPermission"})
+                    {
+                        var masks=phases.Select(p=>name=="previewCoverage"?p.preview:p.permission).ToArray();
+                        if(masks.All(m=>m!=null&&!m.produced)){comparisons.Add(new Comparison{name=name,status="not-produced in all phases; not certified"});continue;}
+                        if(masks.Any(m=>m==null||!m.produced||!m.done||m.data==null)||masks.Any(m=>m.width!=masks[0].width||m.height!=masks[0].height))throw new InvalidOperationException("Produced mask availability/dimensions changed between phases: "+name);
+                        bool[] excluded=Exclusions(masks[0].width,masks[0].height);
+                        comparisons.Add(Compare(name+" OFF0-vs-OFF2",masks[0],masks[2],excluded,true));
+                        comparisons.Add(Compare(name+" OFF0-vs-ON1",masks[0],masks[1],excluded,false));
+                        comparisons.Add(Compare(name+" OFF2-vs-ON1",masks[2],masks[1],excluded,false));
+                    }
+                    var measured=comparisons.Where(c=>c.comparedPixels>0).ToArray();
+                    stable=measured.Any(c=>c.baselinePair)&&measured.Where(c=>c.baselinePair).All(c=>c.differencePixels==0);
+                    equal=measured.Any(c=>!c.baselinePair)&&measured.Where(c=>!c.baselinePair).All(c=>c.differencePixels==0);
+                    nativeUsed=phases[1].nativeBucketCount>0&&phases[1].nativeSlotCount>0;
+                }
+            }
+            catch(Exception e){errors.Add("export/compare: "+e);}
+            finally
+            {
+                Dispose();try{restored=(bool)flag.GetValue(pass)==originalFlag;}catch(Exception e){errors.Add("restore verification: "+e.Message);}
+            }
+            var report=new{schemaVersion=1,completed,stopReason=reason,pass=completed&&errors.Count==0&&stable&&equal&&!viewChanged&&nativeUsed&&restored,
+                status=!completed||errors.Count>0?"invalid/incomplete":viewChanged||!stable?"inconclusive: camera or fixed static pixels changed":!nativeUsed?"unavailable: ON performed no verified native buckets/slots":equal?"GREEN":"RED",
+                startedToken=token,elapsedSeconds=EditorApplication.timeSinceStartup-started,originalNativeFlag=originalFlag,restoredNativeFlag=restored,cameraCaptureReleased=!captured,
+                screenWidth,screenHeight,cameraViewChanged=viewChanged,offBaselineStable=stable,nativeMaskEqual=equal,nativePathObserved=nativeUsed,paddingPixels=PaddingPixels,
+                dynamicProjectedRectSamples=dynamicRects.Count,excludeBothTextureYOrientations=true,
+                exclusionPolicy="All non-StaticEnvironment production Surface screen AABBs over all three phases; union padded 8 mask pixels. Both Y orientations excluded conservatively because native readback row origin is not inferred from graphics API. No pixels excluded based on OFF/ON differences.",
+                scope="Actual production previewCoverage/labelPermission RGBA8 GPU readbacks and same-phase screenshot evidence. Strict remaining RGBA equality only; no final-color pixel assertion, GPU cost or full dynamic/inside-outside certification from one viewpoint.",
+                phases=phases.ToArray(),comparisons=comparisons.ToArray(),errors=errors.ToArray()};
+            try{File.WriteAllText(Path.Combine(directory,"result.json"),Newtonsoft.Json.JsonConvert.SerializeObject(report,Newtonsoft.Json.Formatting.Indented));UnityEngine.Debug.Log("TRUTH_NATIVE_CONTRACT_RESULT directory="+directory+" status="+report.status);}
+            catch(Exception e){UnityEngine.Debug.LogError("TRUTH_NATIVE_CONTRACT_WRITE_FAILED state restoration attempted: "+e);}
+            if(ReferenceEquals(active,this))active=null;
+        }
+        bool[] Exclusions(int width,int height)
+        {
+            var result=new bool[checked(width*height)];
+            foreach(var rect in dynamicRects)
+            {Mark(result,width,height,rect);Mark(result,width,height,Rect.MinMaxRect(rect.xMin,1-rect.yMax,rect.xMax,1-rect.yMin));}
+            return result;
+        }
+        static void Mark(bool[] pixels,int width,int height,Rect rect)
+        {
+            int x0=Mathf.Clamp(Mathf.FloorToInt(rect.xMin*width)-PaddingPixels,0,width),x1=Mathf.Clamp(Mathf.CeilToInt(rect.xMax*width)+PaddingPixels,0,width);
+            int y0=Mathf.Clamp(Mathf.FloorToInt(rect.yMin*height)-PaddingPixels,0,height),y1=Mathf.Clamp(Mathf.CeilToInt(rect.yMax*height)+PaddingPixels,0,height);
+            for(int y=y0;y<y1;y++)for(int x=x0;x<x1;x++)pixels[y*width+x]=true;
+        }
+        static Comparison Compare(string name,Mask a,Mask b,bool[] excluded,bool baseline)
+        {
+            var result=new Comparison{name=name,status="strict RGBA byte comparison",baselinePair=baseline,width=a.width,height=a.height};
+            int minX=a.width,minY=a.height,maxX=-1,maxY=-1;
+            for(int pixel=0;pixel<excluded.Length;pixel++)
+            {
+                int offset=pixel*4,maxDelta=0,channels=0;
+                for(int c=0;c<4;c++){int d=Math.Abs(a.data[offset+c]-b.data[offset+c]);if(d!=0)channels++;maxDelta=Math.Max(maxDelta,d);}
+                if(channels>0)result.allPixelDifferences++;
+                if(excluded[pixel]){result.excludedPixels++;continue;}
+                result.comparedPixels++;if(channels==0)continue;
+                result.differencePixels++;result.differenceChannels+=channels;result.maxChannelDelta=Math.Max(result.maxChannelDelta,maxDelta);
+                int x=pixel%a.width,y=pixel/a.width;minX=Math.Min(minX,x);minY=Math.Min(minY,y);maxX=Math.Max(maxX,x);maxY=Math.Max(maxY,y);
+            }
+            if(result.differencePixels>0)result.differenceBounds=new[]{minX,minY,maxX,maxY};
+            if(result.comparedPixels==0)throw new InvalidOperationException("No remaining static pixels; comparison unavailable");return result;
+        }
+        public void Dispose()
+        {
+            if(hooked){RenderPipelineManager.endCameraRendering-=Ended;EditorApplication.update-=Tick;EditorApplication.playModeStateChanged-=PlayChanged;AssemblyReloadEvents.beforeAssemblyReload-=Reload;EditorApplication.quitting-=Quit;hooked=false;}
+            if(flagBorrowed){flagBorrowed=false;try{flag.SetValue(pass,originalFlag);}catch(Exception e){errors.Add("restore native flag: "+e.Message);}}
+            if(captured){try{if(map!=null)map.SetUiCameraCapture(captureOwner,false);captured=false;}catch(Exception e){errors.Add("release camera capture: "+e.Message);}}
+            if(SessionState.GetString(SessionKey,"")==token)SessionState.SetString(SessionKey,"");
+        }
+    }
+    static bool Finite(float value)=>!float.IsNaN(value)&&!float.IsInfinity(value);
+    public sealed class Phase
+    {
+        public int index,actualFrames,startedGameFrame,captureGameFrame,nativeBucketCount,nativeSlotCount,visibilityEpoch,seedVolumeCount,buildingVolumeCount,staticSurfaceCount,dynamicSurfaceCount;
+        public string name,screenshot,cameraPosition,cameraRotation,observerPosition;public bool nativeEnabled,requested,screenshotComplete,exteriorView;public Mask preview,permission;
+    }
+    public sealed class Mask
+    {
+        public string name,status,rawPath,graphicsFormat;public bool produced,done;public int width,height,msaa,textureId,byteCount;
+        [Newtonsoft.Json.JsonIgnore]public byte[] data;
+    }
+    public sealed class Comparison
+    {
+        public string name,status;public bool baselinePair;public int width,height,comparedPixels,excludedPixels,differencePixels,differenceChannels,allPixelDifferences,maxChannelDelta;
+        public int[] differenceBounds;
+    }
+}

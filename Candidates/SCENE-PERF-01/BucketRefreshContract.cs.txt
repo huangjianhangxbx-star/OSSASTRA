@@ -1,0 +1,164 @@
+/* 功能：反射调用真实RoomPositiveMaterialBuckets.Refresh，验证稳定材质重复刷新成本及源/自有副本变动后的复制等价。
+ * 边界：只创建临时Original/Clone/Adapter和一张临时贴图，不创建GameObject、不改作者材质/Renderer/场景/存档。
+ * 性能：同一MethodInfo/参数数组、稳定与每次改BaseColor各250次，3轮取中位；全部测量循环3秒硬预算，未采足不签性能GREEN。
+ * 证据：报告真实dirty-count校准、ComputeCRC逐项覆盖与副本值；不把不可用dirty计数或未采到的值伪装成RED/0ms。
+ */
+using System;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Collections.Generic;
+using System.Diagnostics;
+using UnityEngine;
+using UnityEditor;
+using Funplay.Editor.Tools.Scripting;
+
+public sealed class BucketRefreshContract : IFunplayCommand
+{
+    const string BucketOwner="Ossastra.SceneVisibility.Rooms.Rendering.RoomPositiveMaterialBuckets";
+    const int Iterations=250,Trials=3;
+    const double MaximumLoopSeconds=3,RequiredStableToChangedRatio=.5;
+    const BindingFlags Members=BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Instance|BindingFlags.Static;
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext context)
+    {
+        if(Application.dataPath.Replace('\\','/')!="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets")throw new InvalidOperationException("Wrong project");
+        Type owner=AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType(BucketOwner,false)).FirstOrDefault(t=>t!=null);
+        Type bucketType=owner==null?null:owner.GetNestedType("Bucket",BindingFlags.Public|BindingFlags.NonPublic);
+        MethodInfo refresh=owner==null?null:owner.GetMethods(Members).SingleOrDefault(m=>m.Name=="Refresh"&&m.IsStatic&&m.ReturnType==typeof(void)&&m.GetParameters().Length==1&&m.GetParameters()[0].ParameterType==bucketType);
+        if(bucketType==null||refresh==null)throw new InvalidOperationException("Actual Bucket/Refresh(Bucket) production seam unavailable");
+        foreach(string field in new[]{"Original","Clone","Adapter","SourceShader","Family","Queue","Pass","Transparent"})
+            if(bucketType.GetField(field,Members)==null)throw new InvalidOperationException("Actual Bucket field absent: "+field);
+        Shader sourceShader=Shader.Find("Ossastra/WorldRendering/VoxelLit"),adapterShader=Shader.Find("Ossastra/WorldRendering/SightVoxelLit");
+        Shader changedShader=Shader.Find("Universal Render Pipeline/Lit");
+        if(sourceShader==null||adapterShader==null||changedShader==null)throw new InvalidOperationException("Existing VoxelLit/SightVoxelLit/URP Lit shader fixtures unavailable");
+        Material original=null,clone=null,adapter=null;Texture2D texture=null;
+        var checks=new List<Check>();var observations=new List<Observation>();var timings=new List<Timing>();
+        string artifact=Path.GetFullPath(Path.Combine(Application.dataPath,"..","artifacts","SCENE-PERF-01","bucket-refresh-contract-"+DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff")+".json"));
+        var report=new Report();
+        try
+        {
+            original=new Material(sourceShader){name="Bucket fixture original",hideFlags=HideFlags.HideAndDontSave};
+            clone=new Material(original){name="Bucket fixture clone",hideFlags=HideFlags.HideAndDontSave};
+            adapter=new Material(adapterShader){name="Bucket fixture adapter",hideFlags=HideFlags.HideAndDontSave};
+            texture=new Texture2D(2,2,TextureFormat.RGBA32,false){name="Bucket fixture texture",hideFlags=HideFlags.HideAndDontSave};
+            object bucket=Activator.CreateInstance(bucketType,true);object[] arguments={bucket};
+            Action<string,object> set=(name,value)=>bucketType.GetField(name,Members).SetValue(bucket,value);
+            set("Original",original);set("Clone",clone);set("Adapter",adapter);set("SourceShader",sourceShader);
+            set("Family",(uint)1);set("Queue",2210);set("Pass",0);set("Transparent",false);
+            Action invoke=()=>refresh.Invoke(null,arguments);
+            if(!original.HasProperty("_BaseColor")||!original.HasProperty("_BaseMap"))throw new InvalidOperationException("Actual material fixture missing BaseColor/BaseMap semantics");
+            original.SetColor("_BaseColor",new Color(.41f,.33f,.27f,1));original.renderQueue=2100;invoke();
+            Add(checks,"initial actual Refresh keeps clone source shader and adapter draw shader",clone.shader==sourceShader&&adapter.shader==adapterShader);
+            Add(checks,"initial owned queue override applied to both copies",clone.renderQueue==2210&&adapter.renderQueue==2210);
+
+            // 校准实际CopyPropertiesFromMaterial是否会推动该版本Editor的dirty count；不假设每次无变化Copy必定脏计数+1。
+            original.SetColor("_BaseColor",new Color(.52f,.36f,.22f,1));
+            int calibrationBefore=EditorUtility.GetDirtyCount(clone);clone.CopyPropertiesFromMaterial(original);int calibrationAfter=EditorUtility.GetDirtyCount(clone);
+            report.dirtyCountCalibrationBefore=calibrationBefore;report.dirtyCountCalibrationAfter=calibrationAfter;
+            report.dirtyCountReliableForChangedCopy=calibrationAfter>calibrationBefore;
+            invoke();int cloneBefore=EditorUtility.GetDirtyCount(clone),adapterBefore=EditorUtility.GetDirtyCount(adapter);
+            for(int i=0;i<8;i++)invoke();
+            report.stableCloneDirtyDelta=EditorUtility.GetDirtyCount(clone)-cloneBefore;report.stableAdapterDirtyDelta=EditorUtility.GetDirtyCount(adapter)-adapterBefore;
+            report.dirtyCountStatus=report.dirtyCountReliableForChangedCopy?
+                "changed-copy calibration observed dirty increments; unchanged-copy counters remain supporting evidence, not proof of invocation absence":
+                "unavailable: changed native Copy did not increment dirty count; unchanged deltas cannot prove calls were skipped";
+            if(report.dirtyCountReliableForChangedCopy)Add(checks,"unchanged repeated actual Refresh does not repeatedly dirty owned copies",report.stableCloneDirtyDelta==0&&report.stableAdapterDirtyDelta==0);
+
+            // 预热真实反射/JIT路径，稳定组与变化组复用相同invoke/参数数组。
+            for(int i=0;i<32;i++){original.SetColor("_BaseColor",new Color(.4f+(i%2)*.01f,.32f,.21f,1));invoke();}
+            var budget=Stopwatch.StartNew();
+            for(int trial=0;trial<Trials;trial++)
+            {
+                Timing stable,changed;
+                if(trial%2==0){stable=Measure(invoke,original,false,budget);changed=Measure(invoke,original,true,budget);}
+                else{changed=Measure(invoke,original,true,budget);stable=Measure(invoke,original,false,budget);}
+                stable.trial=changed.trial=trial;timings.Add(stable);timings.Add(changed);
+                if(stable.iterations!=Iterations||changed.iterations!=Iterations)break;
+            }
+            report.loopSeconds=budget.Elapsed.TotalSeconds;report.timingComplete=timings.Count==Trials*2&&timings.All(t=>t.iterations==Iterations);
+            if(report.timingComplete)
+            {
+                report.stableMedianMs=Median(timings.Where(t=>!t.sourceChangedEveryIteration).Select(t=>t.milliseconds));
+                report.changedMedianMs=Median(timings.Where(t=>t.sourceChangedEveryIteration).Select(t=>t.milliseconds));
+                report.stableToChangedRatio=report.changedMedianMs>0?report.stableMedianMs/report.changedMedianMs:double.NaN;
+                report.timingAvailable=Finite(report.stableToChangedRatio)&&report.stableMedianMs>0&&report.changedMedianMs>0;
+                if(report.timingAvailable)Add(checks,"unchanged-source actual Refresh median cost is below half of changing-source cost",report.stableToChangedRatio<RequiredStableToChangedRatio);
+            }
+            report.timingStatus=report.timingAvailable?"actual production Refresh timings; changing group includes one SetColor per iteration; not a full Profiler/scene result":
+                "unavailable/incomplete: did not obtain all bounded timing groups; no performance GREEN";
+
+            Action<string,Action,Func<bool>> change=(name,mutation,matches)=>
+            {
+                int before=original.ComputeCRC();mutation();int after=original.ComputeCRC();invoke();
+                bool copied=matches();observations.Add(new Observation{name=name,sourceCrcBefore=before,sourceCrcAfter=after,sourceCrcChanged=before!=after,
+                    source=State(original),clone=State(clone),adapter=State(adapter),copiedExpectedValues=copied});
+                Add(checks,name+" actual Refresh preserves expected copied values",copied);
+            };
+            change("source BaseColor",()=>original.SetColor("_BaseColor",new Color(.24f,.46f,.63f,.8f)),()=>SameColor(original,clone)&&SameColor(original,adapter));
+            change("source texture reference",()=>original.SetTexture("_BaseMap",texture),()=>SameTexture(original,clone)&&SameTexture(original,adapter));
+            change("source texture scale/offset",()=>{original.SetTextureScale("_BaseMap",new Vector2(2.3f,.7f));original.SetTextureOffset("_BaseMap",new Vector2(.17f,.29f));},()=>SameTexture(original,clone)&&SameTexture(original,adapter));
+            change("source shader keywords",()=>original.EnableKeyword("_EMISSION"),()=>SameKeywords(original,clone)&&SameKeywords(original,adapter));
+            change("source same-opaque renderQueue",()=>original.renderQueue=2240,()=>clone.renderQueue==2210&&adapter.renderQueue==2210);
+            change("source GI flags",()=>original.globalIlluminationFlags=MaterialGlobalIlluminationFlags.RealtimeEmissive,()=>original.globalIlluminationFlags==clone.globalIlluminationFlags&&original.globalIlluminationFlags==adapter.globalIlluminationFlags);
+            change("source enableInstancing",()=>original.enableInstancing=!original.enableInstancing,()=>original.enableInstancing==clone.enableInstancing&&original.enableInstancing==adapter.enableInstancing);
+            change("source doubleSidedGI",()=>original.doubleSidedGI=!original.doubleSidedGI,()=>original.doubleSidedGI==clone.doubleSidedGI&&original.doubleSidedGI==adapter.doubleSidedGI);
+            change("owned queue override",()=>set("Queue",2227),()=>clone.renderQueue==2227&&adapter.renderQueue==2227);
+
+            int sourceBeforePollution=original.ComputeCRC();
+            clone.SetColor("_BaseColor",new Color(.91f,.03f,.74f,1));invoke();
+            Add(checks,"borrowed Clone color contamination restored despite unchanged source",original.ComputeCRC()==sourceBeforePollution&&SameColor(original,clone));
+            clone.DisableKeyword("_EMISSION");invoke();
+            Add(checks,"borrowed Clone keyword contamination restored despite unchanged source",original.ComputeCRC()==sourceBeforePollution&&SameKeywords(original,clone));
+            adapter.SetColor("_BaseColor",new Color(.05f,.94f,.17f,1));invoke();
+            Add(checks,"owned Adapter contamination restored despite unchanged source",original.ComputeCRC()==sourceBeforePollution&&SameColor(original,adapter));
+            change("source shader identity",()=>original.shader=changedShader,()=>clone.shader==changedShader&&adapter.shader==adapterShader&&clone.renderQueue==2227&&adapter.renderQueue==2227);
+
+            report.checks=checks.ToArray();report.crcAndCopyObservations=observations.ToArray();report.timings=timings.ToArray();
+            report.red=checks.Any(c=>!c.pass);report.pass=checks.All(c=>c.pass)&&report.timingAvailable&&report.timingComplete;
+            report.status=report.red?"RED":report.pass?"GREEN":"unavailable/incomplete";
+            report.sourceShaderFixture=sourceShader.name;report.adapterShaderFixture=adapterShader.name;
+        }
+        finally
+        {
+            if(adapter!=null)UnityEngine.Object.DestroyImmediate(adapter);if(clone!=null)UnityEngine.Object.DestroyImmediate(clone);
+            if(original!=null)UnityEngine.Object.DestroyImmediate(original);if(texture!=null)UnityEngine.Object.DestroyImmediate(texture);
+        }
+        Directory.CreateDirectory(Path.GetDirectoryName(artifact));File.WriteAllText(artifact,Newtonsoft.Json.JsonConvert.SerializeObject(report,Newtonsoft.Json.Formatting.Indented));
+        context.ReturnValue=new{report.status,report.pass,report.red,path=artifact,report.timingComplete,report.timingAvailable,report.stableMedianMs,report.changedMedianMs,report.stableToChangedRatio,report.dirtyCountStatus,
+            checks=report.checks,crcCoverage=observations.Select(o=>new{o.name,o.sourceCrcChanged,o.copiedExpectedValues}).ToArray(),scope=report.scope};
+    }
+    static Timing Measure(Action invoke,Material original,bool change,Stopwatch budget)
+    {
+        int performed=0;var clock=Stopwatch.StartNew();
+        for(int i=0;i<Iterations;i++)
+        {
+            if((i&15)==0&&budget.Elapsed.TotalSeconds>=MaximumLoopSeconds)break;
+            if(change)original.SetColor("_BaseColor",new Color(.37f+(i%2)*.011f,.29f,.19f,1));
+            invoke();performed++;
+        }
+        clock.Stop();return new Timing{sourceChangedEveryIteration=change,iterations=performed,milliseconds=clock.Elapsed.TotalMilliseconds};
+    }
+    static bool SameColor(Material a,Material b)=>a.GetColor("_BaseColor")==b.GetColor("_BaseColor");
+    static bool SameTexture(Material a,Material b)=>a.GetTexture("_BaseMap")==b.GetTexture("_BaseMap")&&a.GetTextureScale("_BaseMap")==b.GetTextureScale("_BaseMap")&&a.GetTextureOffset("_BaseMap")==b.GetTextureOffset("_BaseMap");
+    static bool SameKeywords(Material a,Material b)=>a.shaderKeywords.OrderBy(k=>k).SequenceEqual(b.shaderKeywords.OrderBy(k=>k));
+    static MaterialState State(Material m)=>new MaterialState{crc=m.ComputeCRC(),shader=m.shader==null?"missing":m.shader.name,
+        baseColor=m.HasProperty("_BaseColor")?m.GetColor("_BaseColor").ToString("F5"):"unavailable",baseMap=m.HasProperty("_BaseMap")&&m.GetTexture("_BaseMap")!=null?m.GetTexture("_BaseMap").GetInstanceID():0,
+        baseMapScale=m.HasProperty("_BaseMap")?m.GetTextureScale("_BaseMap").ToString("F5"):"unavailable",baseMapOffset=m.HasProperty("_BaseMap")?m.GetTextureOffset("_BaseMap").ToString("F5"):"unavailable",
+        keywords=m.shaderKeywords.OrderBy(k=>k).ToArray(),renderQueue=m.renderQueue,giFlags=m.globalIlluminationFlags.ToString(),enableInstancing=m.enableInstancing,doubleSidedGI=m.doubleSidedGI};
+    static void Add(List<Check> checks,string name,bool pass){checks.Add(new Check{name=name,pass=pass});}
+    static bool Finite(double value)=>!double.IsNaN(value)&&!double.IsInfinity(value);
+    static double Median(IEnumerable<double> values){var sorted=values.OrderBy(x=>x).ToArray();return sorted.Length==0?0:sorted[sorted.Length/2];}
+    public sealed class Check {public string name;public bool pass;}
+    public sealed class Timing {public int trial,iterations;public bool sourceChangedEveryIteration;public double milliseconds;}
+    public sealed class MaterialState {public int crc,baseMap,renderQueue;public string shader,baseColor,baseMapScale,baseMapOffset,giFlags;public string[] keywords;public bool enableInstancing,doubleSidedGI;}
+    public sealed class Observation {public string name;public int sourceCrcBefore,sourceCrcAfter;public bool sourceCrcChanged,copiedExpectedValues;public MaterialState source,clone,adapter;}
+    public sealed class Report
+    {
+        public int schemaVersion=1,iterationsPerGroup=Iterations,trials=Trials,dirtyCountCalibrationBefore,dirtyCountCalibrationAfter,stableCloneDirtyDelta,stableAdapterDirtyDelta;
+        public double maximumLoopSeconds=MaximumLoopSeconds,requiredStableToChangedRatio=RequiredStableToChangedRatio,loopSeconds,stableMedianMs,changedMedianMs,stableToChangedRatio;
+        public bool pass,red,timingComplete,timingAvailable,dirtyCountReliableForChangedCopy;
+        public string status,dirtyCountStatus,timingStatus,sourceShaderFixture,adapterShaderFixture;
+        public string scope="Actual private production Refresh(Bucket) on fully temporary materials only; no Renderer/scene/asset changes, no complete scene/Profiler/GPU performance claim.";
+        public Check[] checks;public Timing[] timings;public Observation[] crcAndCopyObservations;
+    }
+}

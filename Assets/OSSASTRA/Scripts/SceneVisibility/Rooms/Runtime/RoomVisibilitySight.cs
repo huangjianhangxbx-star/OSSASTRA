@@ -1,6 +1,7 @@
 /* 功能：从原Current稳定观察点求解种子房间及双向单跳门窗视域，生成正向绘制帧。
  * 边界：镜头窗景只给洞口像素不授予人物视野；不递归Partial、不推进发现/经济/物理业务。
  * 协作：Core负责几何；Rendering只画显式登记的合法片元；原Root持有唯一相机生命周期。
+ * 观测：BuildPositiveFrame仅增加五个同步CPU子范围，保留原顺序/算法；静态/动态表面范围含既有Dedup/Tag，不能重复求和。
  */
 using System;
 using System.Collections.Generic;
@@ -13,6 +14,15 @@ namespace Ossastra.SceneVisibility.Rooms
 {
  public sealed partial class RoomVisibilityModule
  {
+  // 只记录原有同步阶段，未开启采样时不引入渲染命令；CPU范围可能含原生调用。
+  internal static readonly ProfilingSampler perfBuildPositiveFrame=new ProfilingSampler("RoomVisibility.BuildPositiveFrame");
+  internal static readonly ProfilingSampler perfPositiveDedup=new ProfilingSampler("RoomVisibility.AddPositiveSurface.Dedup");
+  internal static readonly ProfilingSampler perfEnvironmentTag=new ProfilingSampler("RoomVisibility.ApplyEnvironmentTag");
+  internal static readonly ProfilingSampler perfPositivePortalCore=new ProfilingSampler("RoomVisibility.BuildPositiveFrame.PortalCore");
+  internal static readonly ProfilingSampler perfPositiveCameraWindow=new ProfilingSampler("RoomVisibility.BuildPositiveFrame.CameraWindow");
+  internal static readonly ProfilingSampler perfPositiveDynamicSurfaces=new ProfilingSampler("RoomVisibility.BuildPositiveFrame.DynamicSurfaces");
+  internal static readonly ProfilingSampler perfPositiveStaticSurfaces=new ProfilingSampler("RoomVisibility.BuildPositiveFrame.StaticSurfaces");
+  internal static readonly ProfilingSampler perfPositiveFinalizeMasks=new ProfilingSampler("RoomVisibility.BuildPositiveFrame.FinalizeMasks");
   [Header("当帧观察权威；相机旋转不改变人物观察权威")]
   public bool positiveRenderingEnabled=true;
   public bool truthMode=true;
@@ -30,6 +40,7 @@ namespace Ossastra.SceneVisibility.Rooms
   readonly List<PortalSightSnapshot> sightPortals=new List<PortalSightSnapshot>(8);
   readonly List<RoomSightDomain> sightDomains=new List<RoomSightDomain>(8);
   readonly List<RoomPositiveSurface> positiveSurfaces=new List<RoomPositiveSurface>(512);
+  readonly HashSet<Renderer> positiveSurfaceMembers=new HashSet<Renderer>();
   readonly List<RoomMaskVolume> allBuildingBoxes=new List<RoomMaskVolume>(32);
   readonly List<RoomMaskVolume> blockerBoxes=new List<RoomMaskVolume>(64);
   readonly List<PortalSightBlocker> coreBlockers=new List<PortalSightBlocker>(64);
@@ -64,7 +75,11 @@ namespace Ossastra.SceneVisibility.Rooms
   }
   void BuildPositiveFrame()
   {
-   positiveSurfaces.Clear();sightPortals.Clear();sightDomains.Clear();allBuildingBoxes.Clear();blockerBoxes.Clear();coreBlockers.Clear();hiddenFrontMembers.Clear();labelRaycastExclusionScratch.Clear();presentationMembers.Clear();rejectedPresentationMembers.Clear();
+   using(new ProfilingScope(null,perfBuildPositiveFrame))
+   {
+   using(new ProfilingScope(null,perfPositivePortalCore))
+   {
+   positiveSurfaces.Clear();positiveSurfaceMembers.Clear();sightPortals.Clear();sightDomains.Clear();allBuildingBoxes.Clear();blockerBoxes.Clear();coreBlockers.Clear();hiddenFrontMembers.Clear();labelRaycastExclusionScratch.Clear();presentationMembers.Clear();rejectedPresentationMembers.Clear();
    var current=owner.coordinator.Current;validObserver=current!=null&&current.IsAlive&&current.isActiveAndEnabled;
    environmentSurfaceRouting=EnvironmentCameraRegistry.TryGet(boundCamera,out var environmentFrame)&&environmentFrame.Enabled;
    ObserverPosition=validObserver?current.transform.position+Vector3.up*observerHeight:Vector3.zero;
@@ -105,7 +120,13 @@ namespace Ossastra.SceneVisibility.Rooms
     }
     if(revealRoofs)foreach(var roof in ActiveBuilding.roofGroups)foreach(var c in roof.labelRaycastExclusions)if(c!=null)labelRaycastExclusionScratch.Add(c);
    }
+   }
+   using(new ProfilingScope(null,perfPositiveCameraWindow))
+   {
    BuildCameraWindowFrame();UpdatePresentationEpoch();
+   }
+   using(new ProfilingScope(null,perfPositiveDynamicSurfaces))
+   {
    dynamicPresentations.Clear();RoomPresentationRegistry.Append(dynamicPresentations);
    if(validObserver)foreach(var e in dynamicPresentations)if(e.Renderer!=null&&e.Renderer.gameObject.scene==gameObject.scene)
    {
@@ -120,7 +141,13 @@ namespace Ossastra.SceneVisibility.Rooms
     var view=target.actor.GetComponent<Ossastra.Characters.CharacterEquipmentView>();
     if(view!=null&&view.PresentedRenderer!=null)AddPositiveSurface(view.PresentedRenderer,target.actor.transform.position,presentationOwner:view);
    }
+   }
+   using(new ProfilingScope(null,perfPositiveStaticSurfaces))
+   {
    if(validObserver)foreach(var r in sceneSurfaces)if(r!=null&&!presentationMembers.Contains(r))AddPositiveSurface(r,null);
+   }
+   using(new ProfilingScope(null,perfPositiveFinalizeMasks))
+   {
    knownVolumeScratch.Clear();if(ActiveRoom!=null)ActiveRoom.AppendMaskVolumes(knownVolumeScratch);
    frame.Enabled=positiveRenderingEnabled;
    frame.PositiveRenderingEnabled=positiveRenderingEnabled;frame.TruthMode=truthMode;frame.ObserverPosition=ObserverPosition;frame.ExteriorView=validObserver&&ActiveBuilding==null;
@@ -134,11 +161,14 @@ namespace Ossastra.SceneVisibility.Rooms
    frame.LabelRaycastExclusions=labelRaycastExclusionScratch.ToArray();frame.AllowsPoint=AllowsSightPoint;
    frame.KnownVolumes=frame.SeedVolumes;frame.Volumes=frame.BuildingVolumes;
    SightStatus="观察 "+ObserverPosition.ToString("F2")+" 朝向 "+ObserverForward.ToString("F2")+" / 人物片段 "+PartialViewCount+" / 真窗景 "+WindowViewCount+" / 前墙 "+HiddenFrontWallCount;
+   }
+   }
   }
   void AddPositiveSurface(Renderer r,Vector3? anchor,bool forcePartial=false,object presentationOwner=null)
   {
    if(r==null||IsOwnedVisualCoverage(r)||!r.enabled||!r.gameObject.activeInHierarchy||r.forceRenderingOff)return;
-   foreach(var s in positiveSurfaces)if(s.Renderer==r)return;
+   using(new ProfilingScope(null,perfPositiveDedup))
+    if(positiveSurfaceMembers.Contains(r))return;
    if(hiddenFrontMembers.Contains(r))return;
    if(!anchor.HasValue&&movingAnchors.TryGetValue(r,out var moving)&&moving!=null)anchor=moving.position;
    var kind=RoomPositiveSurfaceKind.Partial;
@@ -163,7 +193,7 @@ namespace Ossastra.SceneVisibility.Rooms
    if(environmentFull)kind=RoomPositiveSurfaceKind.Partial;
    var surface=new RoomPositiveSurface{Renderer=r,Kind=kind,OwnerVolumes=ownerVolumes.ToArray(),OwnerExterior=ownerExterior,IndependentDraw=presentationMembers.Contains(r),StaticEnvironment=staticEnvironment,WorldLookEnvironment=RoomWorldLookRole.IsEnvironment(r,presentationMembers.Contains(r)),
     EnvironmentFullSurface=environmentFull,EnvironmentSurfaceRole=EnvironmentRoleFor(r,presentationOwner),EnvironmentResponseOverride=1,EnvironmentReceiveShadow=1,EnvironmentMinimumOverride=0};
-   ApplyEnvironmentTag(r,ref surface);positiveSurfaces.Add(surface);
+   ApplyEnvironmentTag(r,ref surface);positiveSurfaces.Add(surface);positiveSurfaceMembers.Add(r);
   }
   static float EnvironmentRoleFor(Renderer renderer,object presentationOwner)
   {
@@ -179,6 +209,8 @@ namespace Ossastra.SceneVisibility.Rooms
   }
   static void ApplyEnvironmentTag(Renderer renderer,ref RoomPositiveSurface surface)
   {
+   using(new ProfilingScope(null,perfEnvironmentTag))
+   {
    foreach(var tag in renderer.GetComponentsInParent<EnvironmentMaterialResponse>(true))
    {
     if(tag==null||!tag.isActiveAndEnabled)continue;
@@ -192,6 +224,7 @@ namespace Ossastra.SceneVisibility.Rooms
     surface.EnvironmentReceiveShadow=tag.receiveSunShadow?1:0;
     surface.EnvironmentMinimumOverride=float.IsNaN(tag.minimumReadability)||float.IsInfinity(tag.minimumReadability)?0:Mathf.Clamp01(tag.minimumReadability);
     return;
+   }
    }
   }
   void ApplyPositiveRegistration()

@@ -1,6 +1,7 @@
 /* 功能：清除旧世界颜色/深度后，只绘制当前帧登记的合法表面；纯色路径先验证空间真值。
  * 边界：不生产房间/门户、不修改原材质、物理或相机；只向环境表现发布当帧合法深度与环境许可。
  * 生命周期：本Pass持有核心世界资源；角色覆盖/外缘由独立阶段持有与局部降级，核心超预算保守阻断。
+ * 观测：有限ProfilingSampler只标记现有完整阶段；CPU范围可包含原生调用/等待，并不等于纯C#有效工作。
  */
 using System;
 using System.Collections.Generic;
@@ -14,8 +15,42 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
 {
     internal sealed class RoomPositivePass : ScriptableRenderPass, IDisposable
     {
+        // 不跨CommandBuffer.Clear放置GPU范围；null命令缓冲范围只记录调用侧CPU，不增提交或改变绘制顺序。
+        internal static readonly ProfilingSampler perfPrepareBeforeCulling = new ProfilingSampler("RoomPositive.PrepareBeforeCulling");
+        internal static readonly ProfilingSampler perfBucketsPrepare = new ProfilingSampler("RoomPositive.Buckets.Prepare");
+        internal static readonly ProfilingSampler perfPropertyScopeApply = new ProfilingSampler("RoomPositive.PropertyScope.Apply");
+        internal static readonly ProfilingSampler perfRefreshAdapters = new ProfilingSampler("RoomPositive.RefreshAdapters");
+        internal static readonly ProfilingSampler perfCharacterCoverage = new ProfilingSampler("RoomPositive.Character.PrepareCoverage");
+        internal static readonly ProfilingSampler perfDrawFinalWorld = new ProfilingSampler("RoomPositive.DrawFinalWorld");
+        internal static readonly ProfilingSampler perfPermissionBuild = new ProfilingSampler("RoomPositive.Permission.Build");
+        internal static readonly ProfilingSampler perfPreviewCoverage = new ProfilingSampler("RoomPositive.PreviewCoverage.Build");
+        internal static readonly ProfilingSampler perfCharacterOuter = new ProfilingSampler("RoomPositive.Character.AppendOuter");
+        internal static readonly ProfilingSampler perfTruthMaterialCopy = new ProfilingSampler("RoomPositive.DrawTruth.MaterialCopy");
         readonly Camera camera;
+        bool nativeTruthBucketsEnabled = true;
+        int nativeTruthBucketCount, nativeTruthSlotCount;
+        readonly Dictionary<Material, TruthNativeBucket> truthNativeByClone = new Dictionary<Material, TruthNativeBucket>();
+        readonly List<TruthNativeBucket> truthNativeBuckets = new List<TruthNativeBucket>();
+        readonly List<Material> truthNativeSlots = new List<Material>(16);
+        bool truthNativeAvailable;
+        sealed class TruthNativeBucket
+        {
+            internal RoomPositiveMaterialBuckets.Bucket Bucket;
+            internal RoomPositiveSurface Representative;
+            internal bool Seen, Rejected, Submitted;
+            internal int Slots;
+        }
+        readonly Plane[] truthFrustumPlanes = new Plane[6];
+        bool truthFrustumValid;
+        int truthBoundsRejected;
         readonly Dictionary<MaterialKey, Material> materials = new Dictionary<MaterialKey, Material>();
+        readonly Dictionary<MaterialKey, TruthCopyState> truthCopyStates = new Dictionary<MaterialKey, TruthCopyState>();
+        struct TruthCopyState { internal int SourceCrc, AdapterCrc, DerivedMask, DerivedCrc; internal string[] Keywords; }
+        static readonly int[] truthDerivedFloats = {
+            Shader.PropertyToID("_VisualDepthEnabled"), Shader.PropertyToID("_RoomSurfaceMode"),
+            Shader.PropertyToID("_RoomSourceAlphaClip"), Shader.PropertyToID("_RoomPositiveDepthWrite"),
+            Shader.PropertyToID("_RoomPositivePartial"), Shader.PropertyToID("_RoomPositiveCutRoof"), Shader.PropertyToID("_Cull") };
+        static readonly int truthColorId = Shader.PropertyToID("_RoomPositiveColor");
         readonly HashSet<MaterialKey> used = new HashSet<MaterialKey>();
         readonly List<MaterialKey> stale = new List<MaterialKey>();
         readonly List<Material> slots = new List<Material>(8);
@@ -85,6 +120,8 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
 
         internal void PrepareBeforeCulling(RoomMaskFrame next, RoomMaskRendererFeature nextFeature)
         {
+            using (new ProfilingScope(null, perfPrepareBeforeCulling))
+            {
             CancelPreparedState(); SetFrame(next, nextFeature);
             if (!next.Enabled || !next.PositiveRenderingEnabled) return;
             try
@@ -97,16 +134,19 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
                 if (!next.TruthMode)
                 {
                     // 原Shader克隆只借用独立队列，不改变其Caster；真正颜色随后用独立Sight材质与URP PerObjectData绘制。
-                    materialBuckets.Prepare(next, ShaderFor);
+                    using (new ProfilingScope(null, perfBucketsPrepare))
+                        materialBuckets.Prepare(next, ShaderFor);
                     if(!PrepareKnownMaterialPasses(out string passError))
                     {CancelPreparedState();preparationError=passError;return;}
-                    propertyScope.Apply(next);
+                    using (new ProfilingScope(null, perfPropertyScopeApply))
+                        propertyScope.Apply(next);
                 }
                 preparedFrame = Time.frameCount; preparedBeforeCulling = true; preparationError = "";
             }
             catch (Exception error)
             {
                 CancelPreparedState(); preparationError = "剔除前源材质登记失败：" + error.Message;
+            }
             }
         }
 
@@ -259,20 +299,22 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
                 // 未知核心源不能等清除世界后才统计并连带撤销Look。不可绘制的空装备/失活面不影响本帧。
                 var sourceRenderer=surface.Renderer;
                 if(!HasDrawableSource(sourceRenderer))continue;
-                if (sourceRenderer.sharedMaterials.Length > 16)
+                var sourceMaterials = sourceRenderer.sharedMaterials;
+                if (sourceMaterials.Length > 16)
                 { error = "单表面超过16材质槽预算；拒绝无界适配。"; return false; }
-                if(RoomPositiveRenderingLayers.Classify(sourceRenderer)==0)
+                uint sourceFamily = RoomPositiveRenderingLayers.Classify(sourceRenderer);
+                if(sourceFamily==0)
                 {error="核心表面含未支持或混合的源材质家族；接管前安全阻断："+sourceRenderer.name;return false;}
                 if (frame.TruthMode || surface.Kind == RoomPositiveSurfaceKind.Full) continue;
-                uint family = surface.Kind == RoomPositiveSurfaceKind.Roof ? RoomPositiveRenderingLayers.RoofBit : RoomPositiveRenderingLayers.Classify(surface.Renderer);
+                uint family = surface.Kind == RoomPositiveSurfaceKind.Roof ? RoomPositiveRenderingLayers.RoofBit : sourceFamily;
                 if (family == 0) {error="核心源家族在准备时失效。";return false;}
                 if (RoomPositiveRenderingLayers.RequiresIndependentDraw(surface) && RoomPositiveRenderingLayers.IsIndependentLitFamily(family) &&
                     (surface.DrawMaterial == null || surface.DrawMask == 0 || surface.DrawMask == RoomPositiveRenderingLayers.IndependentBit))
                 { error = "动态Lit缺少剔除前的独立材质筛选组；拒绝借用角色共享材质。"; return false; }
-                if (surface.Kind == RoomPositiveSurfaceKind.Roof && RoomPositiveRenderingLayers.Classify(surface.Renderer) != RoomPositiveRenderingLayers.PartialLitBit)
+                if (surface.Kind == RoomPositiveSurfaceKind.Roof && sourceFamily != RoomPositiveRenderingLayers.PartialLitBit)
                 { error = "当前局部屋顶像素路径只支持已登记的Lit顶盖。"; return false; }
                 // 同一个Lit调度位可包含原Lit和显式Voxel槽；每槽验证其真正使用的适配器。
-                foreach (var source in sourceRenderer.sharedMaterials)
+                foreach (var source in sourceMaterials)
                 {
                     Shader shader = ShaderFor(source, family, out int unused);
                     if (shader == null || !shader.isSupported)
@@ -374,6 +416,8 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
         public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
         {
             if (renderingData.cameraData.camera != camera) return;
+            RefreshTruthFrustum();
+            if (ready) BuildTruthNativePlan(); else ClearTruthNativePlan();
             var cmd = CommandBufferPool.Get("RoomVisibility qualified world");
             long started = System.Diagnostics.Stopwatch.GetTimestamp();
             bool complete = false;
@@ -394,14 +438,17 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
                         Upload(cmd, ref renderingData);
                         used.Clear(); Statistics.UnsupportedMaterialCount = 0;
                         cmd.SetGlobalFloat("_RoomPositivePermissionMode", 0);
-                        if (previewEnabled)
+                        if (previewEnabled && !truthNativeAvailable)
                         {
+                            using (new ProfilingScope(cmd, perfPreviewCoverage))
+                            {
                             CoreUtils.SetRenderTarget(cmd, previewCoverage, previewDepth, ClearFlag.All, Color.black);
                             cmd.SetGlobalFloat("_RoomPositiveCoverageMode", 1);
                             foreach (var surface in frame.PositiveSurfaces)
                                 if (surface.Kind != RoomPositiveSurfaceKind.Roof) DrawTruth(cmd, surface);
                             if (previewCoverage.rt.antiAliasing > 1) cmd.ResolveAntiAliasedSurface(previewCoverage.rt);
                             cmd.SetGlobalTexture("_RoomSightCoverageTexture", previewCoverage.nameID);
+                            }
                         }
                         CoreUtils.SetRenderTarget(cmd, renderer.cameraColorTargetHandle, renderer.cameraDepthTargetHandle, ClearFlag.All, Color.black);
                         cmd.SetGlobalFloat("_RoomPositiveCoverageMode", 0);
@@ -413,6 +460,7 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
                     }
                 }
                 context.ExecuteCommandBuffer(cmd);cmd.Clear();
+                if (ready && previewEnabled && truthNativeAvailable) DrawNativePreview(context, cmd, ref renderingData);
                 if (ready)
                 {
                     if(!frame.TruthMode)
@@ -420,10 +468,12 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
                         // 环境命令各自构造/提交，失败的半成命令从未进入核心缓冲。
                         environmentStage.AppendSky(context,frame);
                         // 使用原角色所有begin回调之后的最新材质脚点，刷新自有颜色材质；不再使用overrideShader。
-                        materialBuckets.RefreshAdapters();
+                        using (new ProfilingScope(null, perfRefreshAdapters))
+                            materialBuckets.RefreshAdapters();
                         // 动画/装备已提交；独立阶段只持有自己的完整alpha缓存，构造失败不丢弃核心世界命令。
-                        characterStage.PrepareCoverage(context,renderingData.cameraData.GetGPUProjectionMatrix()*renderingData.cameraData.GetViewMatrix(),
-                            renderingData.cameraData.cameraTargetDescriptor,renderer.cameraColorTargetHandle,renderer.cameraDepthTargetHandle);
+                        using (new ProfilingScope(null, perfCharacterCoverage))
+                            characterStage.PrepareCoverage(context,renderingData.cameraData.GetGPUProjectionMatrix()*renderingData.cameraData.GetViewMatrix(),
+                                renderingData.cameraData.cameraTargetDescriptor,renderer.cameraColorTargetHandle,renderer.cameraDepthTargetHandle);
                         Statistics.OwnedPropertyBlockCount = propertyScope.BlockCount;
                         using(new Ossastra.Rendering.RenderCommandScope(cmd))
                         {
@@ -431,11 +481,17 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
                             cmd.SetGlobalInteger("_RoomSightPassMode", 1);
                         }
                         context.ExecuteCommandBuffer(cmd); cmd.Clear();
-                        DrawFinalWorld(context, cmd, ref renderingData);
+                        using (new ProfilingScope(null, perfDrawFinalWorld))
+                            DrawFinalWorld(context, cmd, ref renderingData);
                         environmentStage.AppendWeather(context,frame,ref renderingData);
                         // 标签许可只消费刚刚重建的合法世界深度，绝不复用旧世界遮挡。
+                        if (truthNativeAvailable) DrawNativePermission(context, cmd, ref renderingData);
+                        else
+                        {
                         using(new Ossastra.Rendering.RenderCommandScope(cmd))
                         {
+                            using (new ProfilingScope(cmd, perfPermissionBuild))
+                            {
                             CoreUtils.SetRenderTarget(cmd, labelPermission, renderer.cameraDepthTargetHandle, ClearFlag.Color, Color.black);
                             cmd.SetGlobalInteger("_RoomSightPassMode", 0);
                             cmd.SetGlobalFloat("_RoomPositivePermissionMode", 1);
@@ -447,16 +503,19 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
                             cmd.SetGlobalFloat("_RoomPositivePermissionMode", 0);
                             cmd.SetGlobalTexture("_RoomVisibilityPermission", labelPermission.nameID);
                             cmd.SetGlobalFloat("_RoomWorldLabelMaskReady", 1);
+                            }
+                        }
                         }
                         // 完整世界/标签/真实新深度已完成；新增像素仍在WorldLook与HUD之前。
                         // 外缘单独校验源、目标和每像素路径，不从黑色或静态历史推导角色许可。
                         // 先完成并提交本帧核心颜色/深度/标签；可选外缘使用独立命令缓冲，失败不污染此提交。
                         context.ExecuteCommandBuffer(cmd);cmd.Clear();
-                        characterStage.AppendOuter(context,renderingData.cameraData.cameraTargetDescriptor,renderer.cameraColorTargetHandle,
-                            renderer.cameraDepthTargetHandle,labelPermission,frame,UploadOwner);
+                        using (new ProfilingScope(null, perfCharacterOuter))
+                            characterStage.AppendOuter(context,renderingData.cameraData.cameraTargetDescriptor,renderer.cameraColorTargetHandle,
+                                renderer.cameraDepthTargetHandle,labelPermission,frame,UploadOwner);
                     }
                     stale.Clear(); foreach (var pair in materials) if (pair.Key.Source == null || !used.Contains(pair.Key)) stale.Add(pair.Key);
-                    foreach (var key in stale) { DestroyOwned(materials[key]); materials.Remove(key); }
+                    foreach (var key in stale) { DestroyOwned(materials[key]); materials.Remove(key); truthCopyStates.Remove(key); }
                     Statistics.OwnedMaterialCount = materials.Count + materialBuckets.OwnedMaterialCount;
                     Statistics.Active = true;
                     if(characterStage.HasFault||environmentStage.HasFault)Statistics.Error="合法世界有效；"+characterStage.CoverageError+" "+characterStage.OuterError+" "+environmentStage.Error;
@@ -679,11 +738,18 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
         }
 
         void DrawTruth(CommandBuffer cmd, RoomPositiveSurface surface, bool permission = false)
+        { DrawTruthFallback(cmd, surface, permission, false); }
+
+        void DrawTruthFallback(CommandBuffer cmd, RoomPositiveSurface surface, bool permission, bool skipNative)
         {
+            // 全槽已由本次native调用提交时，省掉旧逐物体分类/owner/材质准备；重新读实际引用，不能跳过混合或被外部换材的对象。
+            if (skipNative && AllTruthSlotsSubmitted(surface.Renderer)) return;
             cmd.SetGlobalFloat("_RoomWorldLookEnvironment", surface.WorldLookEnvironment ? 1 : 0);
             var renderer = surface.Renderer;
             if (!HasDrawableSource(renderer)) return;
-            if (RoomPositiveRenderingLayers.Classify(renderer) == 0) { ++Statistics.UnsupportedMaterialCount; return; }
+            uint rendererFamily = RoomPositiveRenderingLayers.Classify(renderer);
+            if (rendererFamily == 0) { ++Statistics.UnsupportedMaterialCount; return; }
+            if (TruthOutsideFrustum(renderer, rendererFamily)) { ++truthBoundsRejected; return; }
             int ownerCount = surface.OwnerVolumes == null ? 0 : surface.OwnerVolumes.Length;
             cmd.SetGlobalInteger("_RoomSightOwnerCount", ownerCount);
             cmd.SetGlobalInteger("_RoomSightOwnerExterior", surface.OwnerExterior ? 1 : 0);
@@ -695,25 +761,184 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
             renderer.GetSharedMaterials(slots);
             for (int slot = 0; slot < slots.Count; ++slot)
             {
+                if (skipNative && truthNativeByClone.TryGetValue(slots[slot], out var native) && native.Submitted) continue;
                 var source = materialBuckets.ResolveOriginal(slots[slot]); uint family = RoomPositiveRenderingLayers.Classify(source);
-                bool cutRoof = previewEnabled && surface.Kind == RoomPositiveSurfaceKind.Roof && Array.IndexOf(frame.PreviewRoofSurfaces, renderer) >= 0;
+                var adapter = ExtractTruthAdapter(source, family, surface, permission, out int truthPass);
+                if (adapter == null) continue;
+                cmd.DrawRenderer(renderer, adapter, slot, truthPass);
+                ++Statistics.SurfaceDraws;
+            }
+        }
+
+        // 只接管已准备、同一Truth合同的静态opaque桶；计数是native调用/登记槽数，不冒充GPU可见draw数。
+        void BuildTruthNativePlan()
+        {
+            ClearTruthNativePlan();
+            if (!nativeTruthBucketsEnabled || frame == null || frame.TruthMode || camera == null || camera.stereoEnabled ||
+                frame.PositiveSurfaces == null || frame.PositiveSurfaces.Length > 4096) return;
+            foreach (var bucket in materialBuckets.Active)
+            {
+                if (bucket.Transparent || bucket.Clone == null || bucket.Original == null ||
+                    (bucket.Family != RoomPositiveRenderingLayers.PartialLitBit && bucket.Family != RoomPositiveRenderingLayers.PartialSimpleLitBit && bucket.Family != RoomPositiveRenderingLayers.PartialUnlitBit)) continue;
+                if (!bucket.Original.GetShaderPassEnabled("UniversalForward") || !bucket.Original.GetShaderPassEnabled("UniversalForwardOnly") ||
+                    !bucket.Original.GetShaderPassEnabled("SRPDefaultUnlit")) continue;
+                var plan = new TruthNativeBucket { Bucket = bucket };
+                truthNativeByClone.Add(bucket.Clone, plan); truthNativeBuckets.Add(plan);
+            }
+            foreach (var surface in frame.PositiveSurfaces)
+            {
+                var renderer = surface.Renderer; if (renderer == null) continue;
+                renderer.GetSharedMaterials(truthNativeSlots);
+                var filter = renderer.GetComponent<MeshFilter>(); var mesh = filter == null ? null : filter.sharedMesh;
+                bool eligible = surface.StaticEnvironment && surface.Kind == RoomPositiveSurfaceKind.Partial && renderer is MeshRenderer &&
+                    HasDrawableSource(renderer) && (camera.cullingMask & (1 << renderer.gameObject.layer)) != 0 &&
+                    renderer.shadowCastingMode != ShadowCastingMode.ShadowsOnly && renderer.GetComponentInParent<LODGroup>() == null &&
+                    mesh != null && mesh.subMeshCount == truthNativeSlots.Count && truthNativeSlots.Count > 0;
+                // Any missing/unprepared/mixed slot rejects all participating buckets, not just the bad slot.
+                for (int slot = 0; slot < truthNativeSlots.Count; ++slot)
+                    if (truthNativeSlots[slot] == null || !truthNativeByClone.ContainsKey(truthNativeSlots[slot])) eligible = false;
+                foreach (var material in truthNativeSlots)
+                {
+                    if (material == null || !truthNativeByClone.TryGetValue(material, out var plan)) continue;
+                    if (!eligible || surface.DrawMask != plan.Bucket.Family || material.renderQueue != plan.Bucket.Queue) plan.Rejected = true;
+                    if (!plan.Seen) { plan.Seen = true; plan.Representative = surface; }
+                    else if (plan.Representative.WorldLookEnvironment != surface.WorldLookEnvironment || plan.Representative.EnvironmentFullSurface != surface.EnvironmentFullSurface) plan.Rejected = true;
+                    ++plan.Slots;
+                }
+            }
+            foreach (var plan in truthNativeBuckets) if (plan.Seen && !plan.Rejected) { truthNativeAvailable = true; break; }
+        }
+
+        void ClearTruthNativePlan()
+        {
+            nativeTruthBucketCount = nativeTruthSlotCount = 0;
+            truthNativeAvailable = false; truthNativeByClone.Clear(); truthNativeBuckets.Clear();
+        }
+
+        bool AllTruthSlotsSubmitted(Renderer renderer)
+        {
+            if (renderer == null) return false;
+            renderer.GetSharedMaterials(truthNativeSlots);
+            if (truthNativeSlots.Count == 0) return false;
+            foreach (var material in truthNativeSlots)
+                if (material == null || !truthNativeByClone.TryGetValue(material, out var plan) || !plan.Submitted) return false;
+            return true;
+        }
+
+        void DrawTruthSurfaces(ScriptableRenderContext context, CommandBuffer cmd, ref RenderingData renderingData, bool permission, int environmentFilter)
+        {
+            foreach (var plan in truthNativeBuckets) plan.Submitted = false;
+            // Owner is per Renderer/slot in the already prepared RoomPositivePropertyScope.
+            // Restore/submit command compilation scope before invoking native DrawRenderers.
+            using (new Ossastra.Rendering.RenderCommandScope(cmd))
+                cmd.SetGlobalFloat("_RoomWorldLookEnvironment", environmentFilter == 1 ? 1 : 0);
+            context.ExecuteCommandBuffer(cmd); cmd.Clear();
+            foreach (var plan in truthNativeBuckets)
+            {
+                if (!plan.Seen || plan.Rejected || (environmentFilter >= 0 && plan.Representative.WorldLookEnvironment != (environmentFilter == 1))) continue;
+                var bucket = plan.Bucket;
+                var adapter = ExtractTruthAdapter(bucket.Original, bucket.Family, plan.Representative, permission, out int truthPass);
+                if (adapter == null || truthPass != 3 || !Ossastra.Rendering.RenderPassReadiness.Ensure(adapter, truthPass)) continue;
+                var drawing = CreateDrawingSettings(sourceTags, ref renderingData, renderingData.cameraData.defaultOpaqueSortFlags);
+                drawing.overrideMaterial = adapter; drawing.overrideMaterialPassIndex = truthPass;
+                drawing.enableDynamicBatching = false; drawing.enableInstancing = false;
+                var filtering = new FilteringSettings(new RenderQueueRange { lowerBound = bucket.Queue, upperBound = bucket.Queue }, camera.cullingMask, bucket.Family);
+                context.DrawRenderers(renderingData.cullResults, ref drawing, ref filtering);
+                plan.Submitted = true; ++nativeTruthBucketCount; nativeTruthSlotCount += plan.Slots;
+            }
+            using (new Ossastra.Rendering.RenderCommandScope(cmd))
+            {
+                foreach (var surface in frame.PositiveSurfaces)
+                {
+                    if ((!permission && surface.Kind == RoomPositiveSurfaceKind.Roof) ||
+                        (environmentFilter >= 0 && surface.WorldLookEnvironment != (environmentFilter == 1))) continue;
+                    DrawTruthFallback(cmd, surface, permission, true);
+                }
+            }
+            context.ExecuteCommandBuffer(cmd); cmd.Clear();
+        }
+
+        void DrawNativePreview(ScriptableRenderContext context, CommandBuffer cmd, ref RenderingData renderingData)
+        {
+            // CPU-only marker: a GPU ProfilingScope must not cross Clear/native DrawRenderers.
+            using (new ProfilingScope(null, perfPreviewCoverage))
+            {
+                using (new Ossastra.Rendering.RenderCommandScope(cmd))
+                {
+                    CoreUtils.SetRenderTarget(cmd, previewCoverage, previewDepth, ClearFlag.All, Color.black);
+                    cmd.SetGlobalFloat("_RoomPositiveCoverageMode", 1);
+                }
+                context.ExecuteCommandBuffer(cmd); cmd.Clear();
+                DrawTruthSurfaces(context, cmd, ref renderingData, false, -1);
+                using (new Ossastra.Rendering.RenderCommandScope(cmd))
+                {
+                    if (previewCoverage.rt.antiAliasing > 1) cmd.ResolveAntiAliasedSurface(previewCoverage.rt);
+                    cmd.SetGlobalTexture("_RoomSightCoverageTexture", previewCoverage.nameID);
+                    CoreUtils.SetRenderTarget(cmd, renderingData.cameraData.renderer.cameraColorTargetHandle, renderingData.cameraData.renderer.cameraDepthTargetHandle, ClearFlag.All, Color.black);
+                    cmd.SetGlobalFloat("_RoomPositiveCoverageMode", 0);
+                }
+                context.ExecuteCommandBuffer(cmd); cmd.Clear();
+            }
+        }
+
+        void DrawNativePermission(ScriptableRenderContext context, CommandBuffer cmd, ref RenderingData renderingData)
+        {
+            using (new ProfilingScope(null, perfPermissionBuild))
+            {
+                using (new Ossastra.Rendering.RenderCommandScope(cmd))
+                {
+                    CoreUtils.SetRenderTarget(cmd, labelPermission, renderingData.cameraData.renderer.cameraDepthTargetHandle, ClearFlag.Color, Color.black);
+                    cmd.SetGlobalInteger("_RoomSightPassMode", 0); cmd.SetGlobalFloat("_RoomPositivePermissionMode", 1);
+                }
+                context.ExecuteCommandBuffer(cmd); cmd.Clear();
+                DrawTruthSurfaces(context, cmd, ref renderingData, true, 1);
+                DrawTruthSurfaces(context, cmd, ref renderingData, true, 0);
+                using (new Ossastra.Rendering.RenderCommandScope(cmd))
+                {
+                    if (labelPermission.rt.antiAliasing > 1) cmd.ResolveAntiAliasedSurface(labelPermission.rt);
+                    CoreUtils.SetRenderTarget(cmd, renderingData.cameraData.renderer.cameraColorTargetHandle, renderingData.cameraData.renderer.cameraDepthTargetHandle);
+                    cmd.SetGlobalFloat("_RoomPositivePermissionMode", 0);
+                    cmd.SetGlobalTexture("_RoomVisibilityPermission", labelPermission.nameID); cmd.SetGlobalFloat("_RoomWorldLabelMaskReady", 1);
+                }
+                context.ExecuteCommandBuffer(cmd); cmd.Clear();
+            }
+        }
+
+        Material ExtractTruthAdapter(Material source, uint family, RoomPositiveSurface surface, bool permission, out int truthPass)
+        {
+            truthPass = 3;
+                bool cutRoof = previewEnabled && surface.Kind == RoomPositiveSurfaceKind.Roof && Array.IndexOf(frame.PreviewRoofSurfaces, surface.Renderer) >= 0;
                 var key = new MaterialKey(source, surface.Kind, cutRoof, permission,environmentFull:surface.EnvironmentFullSurface);
                 if (!materials.TryGetValue(key, out var adapter))
                 {
                     Shader adapterShader = family == RoomPositiveRenderingLayers.PartialLitSpineBit ? spriteLitTruthShader : truthShader;
-                    if (adapterShader == null || !adapterShader.isSupported) { ++Statistics.UnsupportedMaterialCount; continue; }
+                    if (adapterShader == null || !adapterShader.isSupported) { ++Statistics.UnsupportedMaterialCount; return null; }
                     adapter = new Material(adapterShader) { name = source.name + " [Room positive truth]", hideFlags = HideFlags.HideAndDontSave };
                     materials.Add(key, adapter);
                 }
-                used.Add(key); adapter.CopyPropertiesFromMaterial(source);
+                bool firstUse = used.Add(key);
                 bool upright = source.shader.name.StartsWith("Ossastra/Characters/Upright", StringComparison.Ordinal);
-                if (!upright && adapter.HasProperty("_VisualDepthEnabled")) adapter.SetFloat("_VisualDepthEnabled", 0);
                 int mode = family == RoomPositiveRenderingLayers.PartialThinTopBit ? 1 :
                     family == RoomPositiveRenderingLayers.PartialDecorationBit ? 2 :
                     (family == RoomPositiveRenderingLayers.PartialDepthPlaneBit || family == RoomPositiveRenderingLayers.PartialMapDepthBit) ? 3 :
                     (family == RoomPositiveRenderingLayers.PartialSpineBit || family == RoomPositiveRenderingLayers.PartialSkeletonBit) ? 4 :
                     (family == RoomPositiveRenderingLayers.PartialSpriteBit || family == RoomPositiveRenderingLayers.PartialDefaultSpriteBit) ? 5 :
                     family == RoomPositiveRenderingLayers.PartialWorldTileBit ? 6 : 0;
+                // 同一Execute只在首用检查；跨帧校验源和自有副本，变化/污染时才重抄。
+                // 签名在全部派生覆盖后记录；Owner仍逐draw上传，许可/屋顶/环境模式各自持有完整Key。
+                if (firstUse)
+                {
+                Shader expectedShader = family == RoomPositiveRenderingLayers.PartialLitSpineBit ? spriteLitTruthShader : truthShader;
+                if (expectedShader == null || !expectedShader.isSupported) { ++Statistics.UnsupportedMaterialCount; used.Remove(key); return null; }
+                if (adapter.shader != expectedShader) { adapter.shader = expectedShader; truthCopyStates.Remove(key); }
+                int sourceCrc = source.ComputeCRC();
+                bool refresh = !truthCopyStates.TryGetValue(key, out var copyState) || copyState.SourceCrc != sourceCrc || adapter.ComputeCRC() != copyState.AdapterCrc ||
+                    TruthDerivedCrc(adapter, copyState.DerivedMask) != copyState.DerivedCrc || !SameTruthKeywords(adapter, copyState.Keywords);
+                if (refresh)
+                {
+                using (new ProfilingScope(null, perfTruthMaterialCopy))
+                    adapter.CopyPropertiesFromMaterial(source);
+                if (!upright && adapter.HasProperty("_VisualDepthEnabled")) adapter.SetFloat("_VisualDepthEnabled", 0);
                 if (family != RoomPositiveRenderingLayers.PartialLitSpineBit)
                 {
                     adapter.SetFloat("_RoomSurfaceMode", mode);
@@ -725,13 +950,77 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
                 adapter.SetColor("_RoomPositiveColor", surface.Kind == RoomPositiveSurfaceKind.Partial&&!surface.EnvironmentFullSurface ? new Color(1, .38f, .04f, 1) :
                     surface.Kind == RoomPositiveSurfaceKind.Roof ? new Color(.2f, .35f, .8f, 1) : new Color(.05f, .9f, .85f, 1));
                 adapter.SetFloat("_Cull", mode == 0 && source.HasProperty("_Cull") ? source.GetFloat("_Cull") : 0);
+                int derivedMask = 0;
+                for (int i = 0; i < truthDerivedFloats.Length; ++i) if (adapter.HasProperty(truthDerivedFloats[i])) derivedMask |= 1 << i;
+                if (adapter.HasProperty(truthColorId)) derivedMask |= 1 << truthDerivedFloats.Length;
+                truthCopyStates[key] = new TruthCopyState { SourceCrc = sourceCrc, AdapterCrc = adapter.ComputeCRC(), DerivedMask = derivedMask,
+                    DerivedCrc = TruthDerivedCrc(adapter, derivedMask), Keywords = adapter.shaderKeywords };
+                }
+                }
                 bool hardware = mode == 0 || mode == 2 || mode == 6 || (mode == 3 && !upright);
-                cmd.DrawRenderer(renderer, adapter, slot, family == RoomPositiveRenderingLayers.PartialLitSpineBit ? 0 : mode == 5 ? 1 : hardware ? 3 : 0);
-                ++Statistics.SurfaceDraws;
-            }
+                truthPass = family == RoomPositiveRenderingLayers.PartialLitSpineBit ? 0 : mode == 5 ? 1 : hardware ? 3 : 0;
+                return adapter;
         }
 
-        void ClearMaterials() { foreach (var value in materials.Values) DestroyOwned(value); materials.Clear(); }
+        // 当前分支的Material CRC未覆盖异Shader复制后的全部派生值/未知关键词；这些由本模块显式补检。
+        static int TruthDerivedCrc(Material adapter, int mask)
+        {
+            unchecked
+            {
+                int hash = 17;
+                for (int i = 0; i < truthDerivedFloats.Length; ++i) if ((mask & (1 << i)) != 0) hash = hash * 31 + adapter.GetFloat(truthDerivedFloats[i]).GetHashCode();
+                if ((mask & (1 << truthDerivedFloats.Length)) != 0) hash = hash * 31 + adapter.GetColor(truthColorId).GetHashCode();
+                return hash;
+            }
+        }
+        static bool SameTruthKeywords(Material adapter, string[] expected)
+        {
+            var actual = adapter.shaderKeywords;
+            if (expected == null || actual.Length != expected.Length) return false;
+            for (int i = 0; i < actual.Length; ++i) if (!string.Equals(actual[i], expected[i], StringComparison.Ordinal)) return false;
+            return true;
+        }
+        // 每次Execute刷新；只省镜外标准3D Truth提交，不改登记、Caster、FinalWorld或任何2D路径。
+        void RefreshTruthFrustum()
+        {
+            truthBoundsRejected = 0; truthFrustumValid = false;
+            if (camera == null || camera.stereoEnabled) return;
+            var projection = camera.projectionMatrix; var view = camera.worldToCameraMatrix;
+            if (!TruthMatrixFinite(projection) || !TruthMatrixFinite(view)) return;
+            var vp = projection * view; if (!TruthMatrixFinite(vp)) return;
+            GeometryUtility.CalculateFrustumPlanes(vp, truthFrustumPlanes);
+            foreach (var p in truthFrustumPlanes)
+                if (!Finite(new Vector4(p.normal.x,p.normal.y,p.normal.z,p.distance)) || p.normal.sqrMagnitude < 1e-12f) return;
+            truthFrustumValid = true;
+        }
+        bool TruthOutsideFrustum(Renderer renderer, uint family)
+        {
+            if (!truthFrustumValid || !(renderer is MeshRenderer) ||
+                (family != RoomPositiveRenderingLayers.PartialLitBit && family != RoomPositiveRenderingLayers.PartialSimpleLitBit && family != RoomPositiveRenderingLayers.PartialUnlitBit)) return false;
+            try
+            {
+                var filter = renderer.GetComponent<MeshFilter>(); var mesh = filter == null ? null : filter.sharedMesh;
+                if (mesh == null || mesh.vertexCount == 0) return false;
+                var local = mesh.bounds; var bounds = renderer.bounds; var m = renderer.localToWorldMatrix;
+                if (!TruthBoundsValid(local) || !TruthBoundsValid(bounds) || !TruthMatrixFinite(m)) return false;
+                Vector3 e = local.extents, x = m.MultiplyVector(new Vector3(e.x,0,0)), y = m.MultiplyVector(new Vector3(0,e.y,0)), z = m.MultiplyVector(new Vector3(0,0,e.z));
+                var extents = new Vector3(Mathf.Abs(x.x)+Mathf.Abs(y.x)+Mathf.Abs(z.x), Mathf.Abs(x.y)+Mathf.Abs(y.y)+Mathf.Abs(z.y), Mathf.Abs(x.z)+Mathf.Abs(y.z)+Mathf.Abs(z.z));
+                var world = new Bounds(m.MultiplyPoint3x4(local.center), extents * 2); if (!TruthBoundsValid(world)) return false;
+                // 合并mesh变换后包围体，避免缩小的Renderer自定义bounds造成误裁；触边再留0.02余量。
+                bounds.Encapsulate(world); bounds.Expand(.02f);
+                return TruthBoundsValid(bounds) && !GeometryUtility.TestPlanesAABB(truthFrustumPlanes, bounds);
+            }
+            catch { return false; } // 无法取得可信包围体时沿用原绘制，不能因诊断性预筛隐藏未知内容。
+        }
+        static bool TruthMatrixFinite(Matrix4x4 matrix)
+        { for (int row=0;row<4;++row) if (!Finite(matrix.GetRow(row))) return false; return true; }
+        static bool TruthBoundsValid(Bounds bounds)
+        {
+            var e = bounds.extents;
+            return Finite(bounds.center) && Finite(e) && e.x>=0 && e.y>=0 && e.z>=0 && e.sqrMagnitude>1e-12f && e.sqrMagnitude<float.MaxValue;
+        }
+
+        void ClearMaterials() { foreach (var value in materials.Values) DestroyOwned(value); materials.Clear(); truthCopyStates.Clear(); }
         static void DestroyOwned(Object value)
         { if (value != null) { if (Application.isPlaying) Object.Destroy(value); else Object.DestroyImmediate(value); } }
         public void Dispose()

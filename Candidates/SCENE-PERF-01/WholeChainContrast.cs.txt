@@ -1,0 +1,235 @@
+/* 功能：同一主相机固定输入owner下进行正向世界整链ON→OFF→ON对照，每阶段30暖+120个真实相机帧。
+ * 边界：仅临时切换原RoomVisibilityModule.positiveRenderingEnabled；不改机位/时钟/画质/世界，不强制重绘。
+ * OFF会连带撤除正向世界及依赖的合法环境/角色阶段；这是整链开销定位，不是最终画面或功能验收。
+ * 生命周期：450个实际帧、60秒总超时；结束/异常/退出Play/重载统一恢复原开关并释放同一相机捕获owner和全部回调。
+ * 时间：FrameTiming按非零frameStartTimestamp去重，CPU/GPU仅保留有效正值；presentWait在有效CPU主线程样本内允许真实0。
+ */
+using System;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.SceneManagement;
+using UnityEditor;
+using Ossastra.MapResearch;
+using Ossastra.SceneVisibility.Rooms;
+using Ossastra.EnvironmentSimulation;
+using Funplay.Editor.Tools.Scripting;
+
+public sealed class SceneWholeChainContrast : IFunplayCommand
+{
+    const string MainScene="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity";
+    const string SessionKey="SCENE-PERF-01.WholeChainContrast.Active";
+    const int WarmupFrames=30,SampleFrames=120;
+    const double TimeoutSeconds=60;
+    static Capture active;
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext context)
+    {
+        if(!Application.isPlaying)throw new InvalidOperationException("Actual main Play required; Root must preserve/isolate business data first");
+        if(SessionState.GetBool(SessionKey,false))throw new InvalidOperationException("Whole-chain contrast already active; inspect existing receipt");
+        var scene=SceneManager.GetActiveScene();
+        if(scene.path!=MainScene||Application.dataPath.Replace('\\','/')!="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets")throw new InvalidOperationException("Wrong explicit main/project");
+        var roots=scene.GetRootGameObjects();
+        var map=roots.SelectMany(r=>r.GetComponentsInChildren<MapResearchRoot>(true)).Single();
+        var module=roots.SelectMany(r=>r.GetComponentsInChildren<RoomVisibilityModule>(true)).Single();
+        var environment=roots.SelectMany(r=>r.GetComponentsInChildren<EnvironmentRoot>(true)).Single();
+        var coordinator=roots.SelectMany(r=>r.GetComponentsInChildren<Ossastra.Characters.CharacterControlCoordinator>(true)).Single();
+        if(!map.isActiveAndEnabled||map.gameplayCamera==null||!map.gameplayCamera.enabled||!module.isActiveAndEnabled||!module.positiveRenderingEnabled)
+            throw new InvalidOperationException("Verified active map camera/module with original positiveRenderingEnabled=true required");
+        string folder=Path.GetFullPath(Path.Combine(Application.dataPath,"..","artifacts","SCENE-PERF-01"));Directory.CreateDirectory(folder);
+        string path=Path.Combine(folder,"whole-chain-contrast-"+DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff")+".json");
+        active=new Capture(map,module,environment,coordinator,path);
+        try{active.Start();}catch{active.Dispose();active=null;throw;}
+        context.ReturnValue=new{status="sampling",path,stages=new[]{"ON-1","OFF","ON-2"},warmupPerStage=WarmupFrames,samplesPerStage=SampleFrames,totalActualCameraFrames=450,timeoutSeconds=TimeoutSeconds,
+            scope="Only positiveRenderingEnabled changes; OFF removes dependent legal environment/character reconstruction stages and is not a functional/visual acceptance state"};
+    }
+    sealed class Capture : IDisposable
+    {
+        readonly MapResearchRoot map;readonly Camera camera;readonly RoomVisibilityModule module;readonly EnvironmentRoot environment;
+        readonly Ossastra.Characters.CharacterControlCoordinator coordinator;readonly string path;readonly bool originalPositive;
+        readonly object captureOwner=new object();readonly FrameTiming[] timingBuffer=new FrameTiming[1];readonly HashSet<ulong> timestamps=new HashSet<ulong>();
+        readonly Metric batches=new Metric("batches"),setPass=new Metric("setPassCalls");
+        readonly List<Stage> stages=new List<Stage>();readonly List<string> errors=new List<string>();
+        readonly Report report=new Report();
+        Stage current;bool hooked,cameraCaptured,finished,positiveBorrowed;int phase,lastGameFrame=-1,totalCameraFrames;
+        double started,lastCameraTime;
+        Vector3 measuredPosition;Quaternion measuredRotation;bool hasGlobalPose;float measuredFov,measuredSize;bool measuredOrtho;
+        int measuredWidth,measuredHeight;
+        public Capture(MapResearchRoot map,RoomVisibilityModule module,EnvironmentRoot environment,Ossastra.Characters.CharacterControlCoordinator coordinator,string path)
+        {this.map=map;camera=map.gameplayCamera;this.module=module;this.environment=environment;this.coordinator=coordinator;this.path=path;originalPositive=module.positiveRenderingEnabled;}
+        public void Start()
+        {
+            started=Time.realtimeSinceStartupAsDouble;report.startedUtc=DateTime.UtcNow.ToString("O");report.camera=camera.name;report.cameraId=camera.GetInstanceID();
+            report.originalPositiveRenderingEnabled=originalPositive;report.entry=Snapshot();
+            SessionState.SetBool(SessionKey,true);map.SetUiCameraCapture(captureOwner,true);cameraCaptured=true;positiveBorrowed=true;
+            RenderPipelineManager.endCameraRendering+=Ended;EditorApplication.update+=Tick;EditorApplication.playModeStateChanged+=PlayChanged;
+            AssemblyReloadEvents.beforeAssemblyReload+=Reload;EditorApplication.quitting+=Quit;hooked=true;
+            BeginPhase(0);
+        }
+        void BeginPhase(int next)
+        {
+            phase=next;bool enabled=next!=1;module.positiveRenderingEnabled=enabled;
+            current=new Stage{label=next==0?"ON-1":next==1?"OFF":"ON-2",requestedPositive=enabled,entry=Snapshot()};stages.Add(current);
+            lastCameraTime=Time.realtimeSinceStartupAsDouble;
+        }
+        void Ended(ScriptableRenderContext context,Camera renderedCamera)
+        {
+            if(finished||renderedCamera!=camera||lastGameFrame==Time.frameCount)return;
+            try
+            {
+                if(Time.realtimeSinceStartupAsDouble-started>=TimeoutSeconds){Finish("timeout",false);return;}
+                if(!Application.isPlaying||map==null||module==null){Finish("owner-lost-or-left-play",false);return;}
+                lastGameFrame=Time.frameCount;totalCameraFrames++;
+                double now=Time.realtimeSinceStartupAsDouble;
+                if(current.warmedFrames<WarmupFrames)
+                {current.warmedFrames++;lastCameraTime=now;ReadTiming(false);return;}
+                if(current.frames.Count==0)
+                {
+                    current.start=Snapshot();current.firstGameFrame=lastGameFrame;
+                    if(!hasGlobalPose)
+                    {
+                        measuredPosition=camera.transform.position;measuredRotation=camera.transform.rotation;measuredFov=camera.fieldOfView;
+                        measuredSize=camera.orthographicSize;measuredOrtho=camera.orthographic;measuredWidth=Screen.width;measuredHeight=Screen.height;hasGlobalPose=true;
+                    }
+                }
+                if(module.positiveRenderingEnabled!=current.requestedPositive)throw new InvalidOperationException("Requested positive-rendering state was externally changed during contrast");
+                double ms=(now-lastCameraTime)*1000;lastCameraTime=now;if(!Finite(ms)||ms<=0)throw new InvalidOperationException("Invalid actual frame interval");
+                current.frames.Add(ms);current.lastGameFrame=lastGameFrame;
+                double b=batches.Read(),s=setPass.Read();if(b>=0)current.batches.Add(b);if(s>=0)current.setPass.Add(s);
+                if(Vector3.Distance(camera.transform.position,measuredPosition)>.0001f||Quaternion.Angle(camera.transform.rotation,measuredRotation)>.001f||
+                    camera.orthographic!=measuredOrtho||Math.Abs(camera.fieldOfView-measuredFov)>.0001f||Math.Abs(camera.orthographicSize-measuredSize)>.0001f)current.poseMismatchFrames++;
+                if(Screen.width!=measuredWidth||Screen.height!=measuredHeight)current.screenMismatchFrames++;
+                ReadTiming(true);
+                if(current.frames.Count>=SampleFrames)
+                {
+                    current.end=Snapshot();
+                    if(phase==2)Finish("completed",true);else BeginPhase(phase+1);
+                }
+            }
+            catch(Exception e){errors.Add(e.ToString());Finish("sampling-error",false);}
+        }
+        void ReadTiming(bool keep)
+        {
+            try
+            {
+                if(FrameTimingManager.GetLatestTimings(1,timingBuffer)>0)
+                {
+                    var value=timingBuffer[0];bool fresh=value.frameStartTimestamp!=0&&timestamps.Add(value.frameStartTimestamp);
+                    if(keep)
+                    {
+                        if(!fresh)current.duplicateOrInvalidTimingFrames++;
+                        else
+                        {
+                            current.uniqueFrameTimingSamples++;current.frameTimingTimestamps.Add(value.frameStartTimestamp.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                            if(Positive(value.cpuFrameTime))current.cpuFrame.Add(value.cpuFrameTime);
+                            if(Positive(value.cpuMainThreadFrameTime))current.cpuMain.Add(value.cpuMainThreadFrameTime);
+                            if(Positive(value.cpuMainThreadFrameTime)&&Finite(value.cpuMainThreadPresentWaitTime)&&value.cpuMainThreadPresentWaitTime>=0)current.presentWait.Add(value.cpuMainThreadPresentWaitTime);
+                            if(Positive(value.cpuRenderThreadFrameTime))current.cpuRender.Add(value.cpuRenderThreadFrameTime);
+                            if(Positive(value.gpuFrameTime))current.gpu.Add(value.gpuFrameTime);
+                        }
+                    }
+                }
+                else if(keep)current.missingTimingFrames++;
+                FrameTimingManager.CaptureFrameTimings();
+            }
+            catch(Exception e){if(current.timingError==null)current.timingError=e.GetType().Name+": "+e.Message;}
+        }
+        void Tick(){if(finished)return;if(!Application.isPlaying||camera==null||module==null){Finish("owner-lost-or-left-play",false);return;}if(Time.realtimeSinceStartupAsDouble-started>=TimeoutSeconds)Finish("timeout",false);}
+        void PlayChanged(PlayModeStateChange state){if(state==PlayModeStateChange.ExitingPlayMode||state==PlayModeStateChange.EnteredEditMode)Finish("left-play",false);}
+        void Reload(){Finish("assembly-reload",false);}void Quit(){Finish("editor-quitting",false);}
+        void Finish(string reason,bool completed)
+        {
+            if(finished)return;finished=true;
+            try
+            {
+                if(current!=null&&current.end==null)current.end=Snapshot();
+                report.completed=completed;report.stopReason=reason;report.totalActualCameraFrames=totalCameraFrames;report.stages=stages.Select(s=>s.Export()).ToArray();
+                var starts=stages.Where(s=>s.start!=null).Select(s=>s.start).ToArray();var ends=stages.Where(s=>s.end!=null).Select(s=>s.end).ToArray();
+                var conditions=starts.Concat(ends).ToArray();
+                report.poseConsistent=hasGlobalPose&&stages.All(s=>s.poseMismatchFrames==0);report.screenConsistent=hasGlobalPose&&stages.All(s=>s.screenMismatchFrames==0);
+                report.environmentConsistent=conditions.Length>0&&conditions.All(c=>c.environment==conditions[0].environment);
+                report.qualityConsistent=conditions.Length>0&&conditions.All(c=>c.quality==conditions[0].quality);
+                report.observerConsistent=conditions.Length>0&&conditions[0].observerId!=0&&conditions.All(c=>c.observerId==conditions[0].observerId);
+                report.comparable=completed&&report.poseConsistent&&report.screenConsistent&&report.environmentConsistent&&report.qualityConsistent&&report.observerConsistent&&errors.Count==0;
+                report.unityBatchesStatus=batches.Status;report.unitySetPassStatus=setPass.Status;
+            }
+            catch(Exception e){errors.Add("finish: "+e);}
+            finally
+            {
+                Dispose();report.finishedUtc=DateTime.UtcNow.ToString("O");report.elapsedSeconds=Time.realtimeSinceStartupAsDouble-started;
+                report.positiveRenderingRestored=module!=null&&module.positiveRenderingEnabled==originalPositive;report.cameraCaptureReleased=!cameraCaptured;report.errors=errors.ToArray();
+            }
+            try{File.WriteAllText(path,Newtonsoft.Json.JsonConvert.SerializeObject(report,Newtonsoft.Json.Formatting.Indented));UnityEngine.Debug.Log("SCENE_WHOLE_CHAIN_CONTRAST_RESULT path="+path+" completed="+completed+" comparable="+report.comparable+" restored="+report.positiveRenderingRestored);}
+            catch(Exception e){UnityEngine.Debug.LogError("SCENE_WHOLE_CHAIN_CONTRAST_WRITE_FAILED cleanup attempted: "+e);}
+            if(ReferenceEquals(active,this))active=null;
+        }
+        public void Dispose()
+        {
+            if(hooked){RenderPipelineManager.endCameraRendering-=Ended;EditorApplication.update-=Tick;EditorApplication.playModeStateChanged-=PlayChanged;AssemblyReloadEvents.beforeAssemblyReload-=Reload;EditorApplication.quitting-=Quit;hooked=false;}
+            try{if(positiveBorrowed){if(module!=null)module.positiveRenderingEnabled=originalPositive;positiveBorrowed=false;}}
+            finally{try{if(cameraCaptured){if(map!=null)map.SetUiCameraCapture(captureOwner,false);cameraCaptured=false;}}finally{SessionState.SetBool(SessionKey,false);}}
+        }
+        Conditions Snapshot()
+        {
+            var e=environment==null?null:environment.Current;int qualityLevel=QualitySettings.GetQualityLevel();var names=QualitySettings.names;
+            var pipeline=GraphicsSettings.currentRenderPipeline;var urp=pipeline as UnityEngine.Rendering.Universal.UniversalRenderPipelineAsset;
+            bool? effective=null;var field=module==null?null:module.GetType().GetField("frame",BindingFlags.Instance|BindingFlags.Public|BindingFlags.NonPublic);
+            object frame=field==null?null:field.GetValue(module);var positiveField=frame==null?null:frame.GetType().GetField("PositiveRenderingEnabled",BindingFlags.Instance|BindingFlags.Public|BindingFlags.NonPublic);
+            if(positiveField!=null&&positiveField.FieldType==typeof(bool))effective=(bool)positiveField.GetValue(frame);
+            return new Conditions{cameraPose=camera==null?"unavailable":camera.transform.position.ToString("F6")+" / "+camera.transform.eulerAngles.ToString("F6")+
+                "; fov="+camera.fieldOfView.ToString("R",System.Globalization.CultureInfo.InvariantCulture)+"; ortho="+camera.orthographic+"; size="+camera.orthographicSize.ToString("R",System.Globalization.CultureInfo.InvariantCulture),
+                mapView=map==null?"unavailable":"pitch="+map.pitch+"; yaw="+map.ActualYaw+"; distance="+map.distance+"; follow="+map.followParticipant+"; target="+map.fixedTarget.ToString("F6"),
+                width=Screen.width,height=Screen.height,observerId=coordinator==null||coordinator.Current==null?0:coordinator.Current.GetInstanceID(),
+                requestedPositive=module!=null&&module.positiveRenderingEnabled,effectiveFramePositive=effective,
+                environment=e==null?"unavailable":"hours="+e.Hours.ToString("R",System.Globalization.CultureInfo.InvariantCulture)+"; clockRunning="+environment.clockRunning+"; manualSun="+environment.manualSun+
+                    "; elevation="+e.Sun.ElevationDegrees.ToString("R",System.Globalization.CultureInfo.InvariantCulture)+"; azimuth="+e.Sun.AzimuthDegrees.ToString("R",System.Globalization.CultureInfo.InvariantCulture),
+                quality="level="+qualityLevel+"; name="+(qualityLevel>=0&&qualityLevel<names.Length?names[qualityLevel]:"unavailable")+"; vsync="+QualitySettings.vSyncCount+
+                    "; target="+Application.targetFrameRate+"; AA="+QualitySettings.antiAliasing+"; shadows="+QualitySettings.shadows+"; shadowDistance="+QualitySettings.shadowDistance+
+                    "; pipeline="+(pipeline==null?"none":pipeline.name)+"; renderScale="+(urp==null?"unavailable":urp.renderScale.ToString("R",System.Globalization.CultureInfo.InvariantCulture))+
+                    "; urpMSAA="+(urp==null?"unavailable":urp.msaaSampleCount.ToString())};
+        }
+    }
+    sealed class Metric
+    {
+        readonly PropertyInfo property;public string Status;
+        public Metric(string name){var type=AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType("UnityEditor.UnityStats",false)).FirstOrDefault(t=>t!=null);property=type==null?null:type.GetProperty(name,BindingFlags.Static|BindingFlags.Public|BindingFlags.NonPublic);Status=property==null?"unavailable: UnityStats."+name+" absent":"available: UnityStats."+name;}
+        public double Read(){if(property==null)return -1;try{double value=Convert.ToDouble(property.GetValue(null,null));return Finite(value)&&value>=0?value:-1;}catch(Exception e){Status="unavailable: "+e.Message;return -1;}}
+    }
+    sealed class Stage
+    {
+        public string label,timingError;public bool requestedPositive;public int warmedFrames,firstGameFrame=-1,lastGameFrame=-1,poseMismatchFrames,screenMismatchFrames,uniqueFrameTimingSamples,duplicateOrInvalidTimingFrames,missingTimingFrames;
+        public Conditions entry,start,end;
+        public readonly List<double> frames=new List<double>(),batches=new List<double>(),setPass=new List<double>(),cpuFrame=new List<double>(),cpuMain=new List<double>(),presentWait=new List<double>(),cpuRender=new List<double>(),gpu=new List<double>();
+        public readonly List<string> frameTimingTimestamps=new List<string>();
+        public StageReport Export()=>new StageReport{label=label,requestedPositive=requestedPositive,warmedFrames=warmedFrames,actualSampleFrames=frames.Count,firstGameFrame=firstGameFrame,lastGameFrame=lastGameFrame,
+            poseMismatchFrames=poseMismatchFrames,screenMismatchFrames=screenMismatchFrames,entry=entry,start=start,end=end,timingError=timingError,
+            uniqueFrameTimingSamples=uniqueFrameTimingSamples,duplicateOrInvalidTimingFrames=duplicateOrInvalidTimingFrames,missingTimingFrames=missingTimingFrames,frameTimingTimestamps=frameTimingTimestamps.ToArray(),
+            frameMs=Summary.Of(frames),batches=Summary.Of(batches),setPassCalls=Summary.Of(setPass),cpuFrameMs=Summary.Of(cpuFrame),cpuMainMs=Summary.Of(cpuMain),presentWaitMs=Summary.Of(presentWait),cpuRenderMs=Summary.Of(cpuRender),gpuMs=Summary.Of(gpu),actualFrameIntervalsMs=frames.ToArray()};
+    }
+    static bool Finite(double value)=>!double.IsNaN(value)&&!double.IsInfinity(value);
+    static bool Positive(double value)=>Finite(value)&&value>0;
+    public sealed class Summary
+    {
+        public bool available;public int samples;public double mean,p50,p95,min,max;
+        public static Summary Of(List<double> input){var v=input.OrderBy(x=>x).ToArray();var r=new Summary{available=v.Length>0,samples=v.Length};if(v.Length==0)return r;r.mean=v.Average();r.p50=v[(int)Math.Ceiling(v.Length*.5)-1];r.p95=v[(int)Math.Ceiling(v.Length*.95)-1];r.min=v[0];r.max=v[v.Length-1];return r;}
+    }
+    public sealed class Conditions{public string cameraPose,mapView,environment,quality;public int width,height,observerId;public bool requestedPositive;public bool? effectiveFramePositive;}
+    public sealed class StageReport
+    {
+        public string label,timingError;public bool requestedPositive;public int warmedFrames,actualSampleFrames,firstGameFrame,lastGameFrame,poseMismatchFrames,screenMismatchFrames,uniqueFrameTimingSamples,duplicateOrInvalidTimingFrames,missingTimingFrames;
+        public Conditions entry,start,end;public string[] frameTimingTimestamps;public double[] actualFrameIntervalsMs;
+        public Summary frameMs,batches,setPassCalls,cpuFrameMs,cpuMainMs,presentWaitMs,cpuRenderMs,gpuMs;
+    }
+    public sealed class Report
+    {
+        public int schemaVersion=1,warmupPerStage=WarmupFrames,samplesPerStage=SampleFrames,totalActualCameraFrames,cameraId;
+        public double timeoutSeconds=TimeoutSeconds,elapsedSeconds;
+        public string camera,startedUtc,finishedUtc,stopReason,unityBatchesStatus,unitySetPassStatus;
+        public bool completed,comparable,originalPositiveRenderingEnabled,positiveRenderingRestored,cameraCaptureReleased,poseConsistent,screenConsistent,environmentConsistent,qualityConsistent,observerConsistent;
+        public Conditions entry;public StageReport[] stages;public string[] errors;
+        public string scope="ON-1/OFF/ON-2 whole-positive-chain cost attribution only. OFF also removes dependent legal environment/character reconstruction stages; its image/function is not accepted. World/gameplay continues. No pose/clock/quality changes or forced repaint.";
+        public string timingRule="FrameTiming samples require nonzero globally unique frameStartTimestamp; CPU frame/main/render/GPU require finite positive values. Present-wait zero is accepted only alongside a valid positive CPU-main sample. Unavailable summaries are not zero-ms evidence.";
+    }
+}

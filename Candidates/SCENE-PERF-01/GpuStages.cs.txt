@@ -1,0 +1,259 @@
+/* 功能：在实际Play主相机回调中读取本机URP已声明的ProfilingSampler阶段CPU/GPU时间。
+ * 边界：只反射真实URPProfileId枚举，不猜测不存在的阶段；不改ProfilerDriver标志、场景或渲染参数，不强制重绘。
+ * 生命周期：最多120个实际相机帧/30秒；只暂借sampler记录开关，逐个保存并精确归还，重载/停Play/退出统一清理。
+ * 输出：仅sampleCount>0的有限时间进入统计；零样本明确unavailable。阶段包含关系可能重叠，不能求和冒充总帧或CPU有效工作。
+ */
+using System;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Text.RegularExpressions;
+using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
+using UnityEditor;
+using Ossastra.MapResearch;
+using Funplay.Editor.Tools.Scripting;
+
+public sealed class ScenePerformanceGpuStages : IFunplayCommand
+{
+    const string Main="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity";
+    const string SessionKey="SCENE-PERF-01.GpuStages.Active";
+    const int FrameTarget=120;
+    const double Timeout=30;
+    static Observer running;
+
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext context)
+    {
+        if(!Application.isPlaying)throw new InvalidOperationException("Play only; no scene or parameter mutation is performed by this command");
+        if(SessionState.GetBool(SessionKey,false))throw new InvalidOperationException("GPU stages sampler already active; inspect its receipt rather than replay");
+        var scene=UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+        if(scene.path!=Main||Application.dataPath.Replace('\\','/')!="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets")throw new InvalidOperationException("Wrong project/main scene");
+        var maps=scene.GetRootGameObjects().SelectMany(r=>r.GetComponentsInChildren<MapResearchRoot>(true)).ToArray();
+        if(maps.Length!=1||maps[0].gameplayCamera==null||!maps[0].isActiveAndEnabled||!maps[0].gameplayCamera.enabled)throw new InvalidOperationException("Requires one verified active actual main camera");
+        string directory=Path.GetFullPath("artifacts/SCENE-PERF-01");Directory.CreateDirectory(directory);
+        string path=Path.Combine(directory,"gpu-stages-"+DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff")+".json");
+        if(File.Exists(path))throw new IOException("Unique report path required");
+        running=new Observer(maps[0].gameplayCamera,path,maps[0]);
+        try{running.Start();}catch{running.Dispose();running=null;throw;}
+        context.ReturnValue=new{status="sampling",path,requiredActualFrames=FrameTarget,totalTimeoutSeconds=Timeout,
+            camera=maps[0].gameplayCamera.name,stages=running.StageNames,
+            note="Receipt only; GPU data require actual positive sampler counts. This command does not enable GPU profiling or force rendering."};
+    }
+
+    sealed class Observer : IDisposable
+    {
+        readonly Camera camera;
+        readonly MapResearchRoot map;
+        readonly string path;
+        readonly List<Stage> stages=new List<Stage>();
+        readonly List<double> callbackUs=new List<double>();
+        readonly string started=DateTime.UtcNow.ToString("O");
+        double start;
+        int sampledFrames,lastFrame=-1;
+        bool hooked,finished,cameraCaptured;
+        string enumName="",gpuFlagBefore="",setupError="",restoreError="";
+        string[] enumNames=Array.Empty<string>();
+        string[] customSamplerFields=Array.Empty<string>();
+        public string[] StageNames=>stages.Select(s=>s.Name).ToArray();
+        public Observer(Camera target,string output,MapResearchRoot mapRoot){camera=target;path=output;map=mapRoot;}
+        public void Start()
+        {
+            map.SetUiCameraCapture(this,true);cameraCaptured=true;
+            // 本机实际程序集与枚举值才是权威；不把候选阶段字符串当成已有采样器。
+            var enumType=SafeTypes(typeof(UniversalRenderPipeline).Assembly).SingleOrDefault(t=>t!=null&&t.IsEnum&&t.Name=="URPProfileId");
+            if(enumType==null)throw new InvalidOperationException("Current URP assembly has no URPProfileId enum");
+            enumName=enumType.FullName;enumNames=Enum.GetNames(enumType);
+            var names=enumNames.Where(n=>Regex.IsMatch(n,"Shadow|Depth|Sky|Copy|Opaque|Transparent|Draw|Render|PostProcess|Bloom|AmbientOcclusion|SSAO|ColorGrading|Motion|Blit|Final|Resolve|Lighting|Light",RegexOptions.IgnoreCase)).ToArray();
+            if(names.Length==0||names.Length>200)throw new InvalidOperationException("Actual URP stage selection is empty or exceeds explicit 200-stage budget");
+            var get=typeof(ProfilingSampler).GetMethods(BindingFlags.Public|BindingFlags.Static).Single(m=>m.Name=="Get"&&m.IsGenericMethodDefinition&&m.GetParameters().Length==1).MakeGenericMethod(enumType);
+            gpuFlagBefore=ReadGpuFlag();
+            foreach(string name in names)
+            {
+                var sampler=get.Invoke(null,new[]{Enum.Parse(enumType,name)});
+                if(sampler==null){stages.Add(Stage.Unavailable(name,"Get returned null"));continue;}
+                var stage=new Stage(name,sampler);stages.Add(stage);stage.Enable();
+            }
+            // 当前Pass的静态观测端口与URP共用读取/归还合同；仅取实际ProfilingSampler字段，不创建平行采样权威。
+            var customFields=new List<string>();
+            foreach(var typeName in new[]{"Ossastra.SceneVisibility.Rooms.Rendering.RoomPositivePass","Ossastra.SceneVisibility.Rooms.RoomVisibilityModule"})
+            {
+            var roomPassType=AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType(typeName,false)).FirstOrDefault(t=>t!=null);
+            if(roomPassType!=null)
+            {
+                var fields=roomPassType.GetFields(BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Static)
+                    .Where(f=>f.FieldType==typeof(ProfilingSampler)).ToArray();
+                customFields.AddRange(fields.Select(f=>roomPassType.FullName+"."+f.Name));
+                foreach(var field in fields)
+                {
+                    var sampler=field.GetValue(null) as ProfilingSampler;
+                    if(sampler==null){stages.Add(Stage.Unavailable("RoomPositive."+field.Name,"actual sampler field is null"));continue;}
+                    var stage=new Stage(sampler.name,sampler);stages.Add(stage);stage.Enable();
+                }
+            }
+            }
+            customSamplerFields=customFields.ToArray();
+            start=Time.realtimeSinceStartupAsDouble;SessionState.SetBool(SessionKey,true);
+            RenderPipelineManager.endCameraRendering+=CameraEnded;EditorApplication.update+=Tick;
+            EditorApplication.playModeStateChanged+=PlayChanged;AssemblyReloadEvents.beforeAssemblyReload+=BeforeReload;EditorApplication.quitting+=BeforeQuit;
+            hooked=true;
+        }
+        void CameraEnded(ScriptableRenderContext context,Camera renderedCamera)
+        {
+            if(finished||renderedCamera!=camera||lastFrame==Time.frameCount)return;
+            long tick=Stopwatch.GetTimestamp();
+            try
+            {
+                if(!Application.isPlaying){Finish("left-play",false);return;}
+                if(Time.realtimeSinceStartupAsDouble-start>=Timeout){Finish("timeout",false);return;}
+                lastFrame=Time.frameCount;sampledFrames++;
+                foreach(var stage in stages)stage.Sample();
+                callbackUs.Add((Stopwatch.GetTimestamp()-tick)*1000000d/Stopwatch.Frequency);
+                if(sampledFrames>=FrameTarget)Finish("completed",true);
+            }
+            catch(Exception error){setupError=error.GetType().Name+": "+error.Message;Finish("sample-error",false);}
+        }
+        void Tick()
+        {
+            if(finished)return;
+            if(!Application.isPlaying||camera==null){Finish("left-play-or-camera-destroyed",false);return;}
+            if(Time.realtimeSinceStartupAsDouble-start>=Timeout)Finish("timeout",false);
+        }
+        void PlayChanged(PlayModeStateChange state){if(state==PlayModeStateChange.ExitingPlayMode||state==PlayModeStateChange.EnteredEditMode)Finish("left-play",false);}
+        void BeforeReload(){Finish("before-reload",false);}
+        void BeforeQuit(){Finish("before-editor-quit",false);}
+        void Finish(string reason,bool completed)
+        {
+            if(finished)return;finished=true;
+            string gpuFlagAfter=ReadGpuFlag();double elapsed=Time.realtimeSinceStartupAsDouble-start;
+            Dispose();
+            var result=new{schemaVersion=1,completed,stopReason=reason,error=setupError,restoreError,startedUtc=started,finishedUtc=DateTime.UtcNow.ToString("O"),
+                scene=Main,cameraName=camera==null?"destroyed":camera.name,cameraInstanceId=camera==null?0:camera.GetInstanceID(),graphics=SystemInfo.graphicsDeviceType.ToString(),
+                actualCameraFrames=sampledFrames,requiredFrames=FrameTarget,timeoutSeconds=Timeout,elapsedSeconds=elapsed,
+                enumType=enumName,allActualEnumNames=enumNames,customStaticSamplerFields=customSamplerFields,selectedActualStageNames=StageNames,
+                profileGpuFlagAtStart=gpuFlagBefore,profileGpuFlagAtFinish=gpuFlagAfter,profilerFlagsChangedByThisProbe=false,
+                gpuStatus=stages.Any(s=>s.GpuCount>0)?"Some stages have positive actual GPU sampler counts; use per-stage sample counts":"unavailable: no stage returned positive actual GPU sample counts; GPU profiling may be disabled/unsupported",
+                scope="Editor URP ProfilingSampler observations, may describe previous completed frame. CPU elapsed/inline elapsed are sampler scopes, not proof of exclusive useful work. Nested stages overlap and must not be summed. No forced redraw or rendering changes.",
+                callbackMicroseconds=Summary.Of(callbackUs),stages=stages.Select(s=>s.Report()).ToArray()};
+            try{File.WriteAllText(path,Newtonsoft.Json.JsonConvert.SerializeObject(result,Newtonsoft.Json.Formatting.Indented));}
+            catch(Exception writeError){UnityEngine.Debug.LogWarning("SCENE_PERF_GPU_STAGES_REPORT "+writeError.Message);}
+        }
+        public void Dispose()
+        {
+            if(hooked)
+            {
+                RenderPipelineManager.endCameraRendering-=CameraEnded;EditorApplication.update-=Tick;EditorApplication.playModeStateChanged-=PlayChanged;
+                AssemblyReloadEvents.beforeAssemblyReload-=BeforeReload;EditorApplication.quitting-=BeforeQuit;hooked=false;
+            }
+            foreach(var stage in stages)try{stage.Restore();}catch(Exception failure){restoreError+=stage.Name+": "+failure.Message+"; ";}
+            if(cameraCaptured){if(map!=null)map.SetUiCameraCapture(this,false);cameraCaptured=false;}
+            SessionState.SetBool(SessionKey,false);
+        }
+    }
+
+    sealed class Stage
+    {
+        public readonly string Name;
+        readonly object sampler;
+        readonly Metric gpu,cpu,inline;
+        readonly List<RecordingLease> recordings=new List<RecordingLease>();
+        PropertyInfo enabledProperty;
+        bool oldEnabled,hasOldEnabled,enabled;
+        string error="";
+        public int GpuCount=>gpu==null?0:gpu.Values.Count;
+        Stage(string name,string unavailable){Name=name;error="unavailable: "+unavailable;}
+        public static Stage Unavailable(string name,string reason)=>new Stage(name,reason);
+        public Stage(string name,object value)
+        {
+            Name=name;sampler=value;var type=value.GetType();
+            gpu=new Metric(type,"gpuElapsedTime","gpuSampleCount");cpu=new Metric(type,"cpuElapsedTime","cpuSampleCount");inline=new Metric(type,"inlineCpuElapsedTime","inlineCpuSampleCount");
+            enabledProperty=type.GetProperty("enableRecording",BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Instance);
+            if(enabledProperty==null||enabledProperty.GetSetMethod(true)==null)throw new InvalidOperationException("ProfilingSampler enableRecording setter unavailable");
+            if(enabledProperty.GetGetMethod(true)!=null){oldEnabled=Convert.ToBoolean(enabledProperty.GetValue(sampler,null));hasOldEnabled=true;}
+            // 部分URP分支的enableRecording仅setter；原生两个Recorder的enabled可以独立不同，必须逐个归还。
+            for(var current=type;current!=null;current=current.BaseType)
+            foreach(var field in current.GetFields(BindingFlags.Instance|BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.DeclaredOnly))
+            {
+                var item=field.GetValue(sampler);
+                if(!(item is UnityEngine.Profiling.Recorder recorder))continue;
+                recordings.Add(new RecordingLease(recorder));
+            }
+            if(recordings.Count==0&&!hasOldEnabled)throw new InvalidOperationException("Cannot preserve original sampler recording state; refusing to enable it");
+        }
+        public void Enable(){if(sampler==null)return;enabled=true;enabledProperty.SetValue(sampler,true,null);}
+        public void Sample()
+        {
+            if(sampler==null||!string.IsNullOrEmpty(error))return;
+            gpu.Read(sampler);cpu.Read(sampler);inline.Read(sampler);
+        }
+        public void Restore()
+        {
+            if(!enabled)return;enabled=false;
+            if(recordings.Count>0){foreach(var item in recordings)item.Restore();}
+            else if(hasOldEnabled)enabledProperty.SetValue(sampler,oldEnabled,null);
+        }
+        public object Report()=>new{stage=Name,samplerName=sampler==null?null:Convert.ToString(sampler.GetType().GetProperty("name")?.GetValue(sampler,null)),error,
+            recordingStateRestored=!enabled,oldRecorderStates=recordings.Select(r=>r.Old).ToArray(),
+            gpu=gpu==null?null:gpu.Report(),cpu=cpu==null?null:cpu.Report(),inlineCpu=inline==null?null:inline.Report()};
+    }
+    sealed class RecordingLease
+    {
+        readonly UnityEngine.Profiling.Recorder recorder;
+        public readonly bool Old;
+        public RecordingLease(UnityEngine.Profiling.Recorder value){recorder=value;Old=value.enabled;}
+        public void Restore(){recorder.enabled=Old;}
+    }
+    sealed class Metric
+    {
+        readonly PropertyInfo elapsed,count;
+        readonly string name,countName;
+        public readonly List<double> Values=new List<double>();
+        readonly List<int> counts=new List<int>();
+        int missing;
+        string error="";
+        public Metric(Type type,string elapsedName,string sampleCountName)
+        {
+            name=elapsedName;countName=sampleCountName;elapsed=type.GetProperty(elapsedName,BindingFlags.Instance|BindingFlags.Public|BindingFlags.NonPublic);count=type.GetProperty(sampleCountName,BindingFlags.Instance|BindingFlags.Public|BindingFlags.NonPublic);
+            if(elapsed?.GetGetMethod(true)==null||count?.GetGetMethod(true)==null)error="unavailable: actual sampler property absent";
+        }
+        public void Read(object sampler)
+        {
+            if(error.Length>0){missing++;return;}
+            try
+            {
+                int samples=Convert.ToInt32(count.GetValue(sampler,null));
+                if(samples<=0){missing++;return;}
+                double value=Convert.ToDouble(elapsed.GetValue(sampler,null));
+                if(double.IsNaN(value)||double.IsInfinity(value)||value<0){missing++;return;}
+                Values.Add(value);counts.Add(samples);
+            }
+            catch(Exception failure){error="unavailable: "+failure.GetType().Name+": "+failure.Message;missing++;}
+        }
+        public object Report()=>new{property=name,sampleCountProperty=countName,unit="ms (ProfilingSampler API)",
+            status=error.Length>0?error:Values.Count>0?"available: elapsed time observed only when actual sample count > 0":"unavailable: no positive actual sampler sample counts",
+            unavailableObservedFrames=missing,observedSampleCounts=counts.ToArray(),summary=Summary.Of(Values),observedElapsedMilliseconds=Values.ToArray()};
+    }
+    static Type[] SafeTypes(Assembly assembly)
+    {try{return assembly.GetTypes();}catch(ReflectionTypeLoadException failure){return failure.Types.Where(t=>t!=null).ToArray();}}
+    static string ReadGpuFlag()
+    {
+        try
+        {
+            var type=AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType("UnityEditorInternal.ProfilerDriver",false)).FirstOrDefault(t=>t!=null);
+            var property=type?.GetProperty("profileGPU",BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Static);
+            return property?.GetGetMethod(true)==null?"unavailable: profileGPU getter absent":Convert.ToString(property.GetValue(null,null));
+        }
+        catch(Exception failure){return "unavailable: "+failure.GetType().Name;}
+    }
+    sealed class Summary
+    {
+        public bool available;public int samples;public double p50,p95,mean,min,max;
+        public static Summary Of(List<double> input)
+        {
+            var values=input.OrderBy(x=>x).ToArray();var result=new Summary{available=values.Length>0,samples=values.Length};if(values.Length==0)return result;
+            result.p50=values[(int)Math.Ceiling(values.Length*.5)-1];result.p95=values[(int)Math.Ceiling(values.Length*.95)-1];result.mean=values.Average();result.min=values[0];result.max=values[values.Length-1];return result;
+        }
+    }
+}
