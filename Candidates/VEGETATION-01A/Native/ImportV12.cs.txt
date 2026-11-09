@@ -1,0 +1,7 @@
+using System;using System.IO;using System.Collections.Generic;using UnityEditor;using UnityEngine;using Funplay.Editor.Tools.Scripting;
+public sealed class ImportGrassV12:IFunplayCommand{public void Execute(ExecutionContext ctx){if(Application.isPlaying)throw new InvalidOperationException("Edit only");const string d="Assets/OSSASTRA/Scripts/WorldRendering/Vegetation/";var pairs=new[]{
+ new[]{"V12Runtime/GrassLayerProfileSO.cs.txt","Runtime/GrassLayerProfileSO.cs"},new[]{"V12Runtime/GrassTerrainColorSourceSO.cs.txt","Runtime/GrassTerrainColorSourceSO.cs"},new[]{"V12Runtime/GrassLayer.cs.txt","Runtime/GrassLayer.cs"},new[]{"V12Runtime/GrassLabControls.cs.txt","Development/GrassLabControls.cs"},
+ new[]{"TerrainBake/TerrainBaseColorBaker.cs.txt","Editor/TerrainBaseColorBaker.cs"},new[]{"TerrainBake/TerrainBaseColorBake.shader","Rendering/TerrainBaseColorBake.shader"},
+ new[]{"VideoShader/GrassLayer.shader.txt","Rendering/GrassLayer.shader"},new[]{"VideoShader/GrassWind.hlsl.txt","Rendering/GrassWind.hlsl"},new[]{"VideoShader/GrassArtColor.hlsl.txt","Rendering/GrassArtColor.hlsl"}};
+ foreach(var p in pairs)if(!File.Exists("Candidates/VEGETATION-01A/"+p[0]))throw new InvalidOperationException("Not frozen: "+p[0]);
+ AssetDatabase.StartAssetEditing();try{foreach(var p in pairs){File.WriteAllBytes(d+p[1],File.ReadAllBytes("Candidates/VEGETATION-01A/"+p[0]));AssetDatabase.ImportAsset(d+p[1],ImportAssetOptions.ForceUpdate);}}finally{AssetDatabase.StopAssetEditing();}ctx.ReturnValue=new{count=pairs.Length,mainSaved=false};}}

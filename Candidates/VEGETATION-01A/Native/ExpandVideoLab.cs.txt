@@ -1,0 +1,147 @@
+/* 功能：R1确认后恢复GrassLab已有双地形全量记录，并为第二地形首次烘焙独立未受光底色。
+ * 边界：只保存本Lab、专用B作者Profile及两项新B底色资产；不重采、不建地图、不操作Main。
+ * 生命周期：同名/回执即拒绝；突变前留恢复引用，失败留部分结果供检查，绝不自动重放。
+ * 保存回读范围：同Editor资产字段 + 磁盘场景精确组件引用/模式 + 原放置记录计数/SHA；非冷启动证明。
+ */
+using System;
+using System.IO;
+using System.Linq;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Security.Cryptography;
+using System.Text.RegularExpressions;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+using Newtonsoft.Json.Linq;
+using Ossastra.WorldRendering.Vegetation;
+using Ossastra.WorldRendering.Vegetation.Development;
+using Ossastra.WorldRendering.Vegetation.Editor;
+using Funplay.Editor.Tools.Scripting;
+
+public sealed class ExpandVideoGrassLab:IFunplayCommand
+{
+ const string Dir="Assets/OSSASTRA/WorldRendering/Vegetation/GrassLab/";
+ const string LabPath=Dir+"SC_GrassWindLab.unity";
+ const string MainPath="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity";
+ const string R1Receipt="artifacts/VEGETATION-01A/r1-patch-setup.json";
+ const string ReceiptPath="artifacts/VEGETATION-01A/full-lab-expansion.json";
+ const string BTexturePath=Dir+"FullLabB_TerrainBaseColor.asset";
+ const string BSourcePath=Dir+"FullLabB_TerrainColorSource.asset";
+ JObject receipt;readonly List<string> created=new List<string>();
+ static void Require(bool yes,string message){if(!yes)throw new InvalidOperationException(message);}
+ static string Hash(string path){using(var h=SHA256.Create())using(var s=File.OpenRead(path))return BitConverter.ToString(h.ComputeHash(s)).Replace("-","");}
+ static JObject Without(string json,params string[] names){var j=JObject.Parse(json);foreach(var name in names)j.Remove(name);return j;}
+ static float[] V(Vector3 v)=>new[]{v.x,v.y,v.z};
+ static float[] R(Rect r)=>new[]{r.x,r.y,r.width,r.height};
+ static bool RectMatches(Rect rect,Bounds bounds)=>Mathf.Abs(rect.x-bounds.min.x)<.001f&&Mathf.Abs(rect.y-bounds.min.z)<.001f&&Mathf.Abs(rect.width-bounds.size.x)<.001f&&Mathf.Abs(rect.height-bounds.size.z)<.001f;
+ static string AssetPath(UnityEngine.Object value){var path=AssetDatabase.GetAssetPath(value);Require(!string.IsNullOrEmpty(path)&&File.Exists(path),"Saved author asset required: "+(value==null?"null":value.name));return path;}
+ static object ColorMetadata(GrassLayer layer)=>new{surfaceId=layer.terrainColor.surfaceId,version=layer.terrainColor.version,semantics=layer.terrainColor.semantics,sourcePath=AssetPath(layer.terrainColor),texturePath=AssetPath(layer.terrainColor.texture),worldXZ=R(layer.terrainColor.worldXZ),width=layer.terrainColor.texture.width,height=layer.terrainColor.texture.height,sources=layer.terrainSources.Select(s=>GlobalObjectId.GetGlobalObjectIdSlow(s).ToString()).ToArray()};
+ static object LayerFacts(GrassLayer layer)=>new{name=layer.name,enabled=layer.enabled,placements=layer.data.placements.Length,clumps=layer.ClumpCount,blocks=layer.BlockCount,vertices=layer.VertexCount,triangles=layer.TriangleCount,mode=layer.mode.ToString(),castShadows=layer.castShadows,dataPath=AssetPath(layer.data),dataSha=Hash(AssetPath(layer.data)),profilePath=AssetPath(layer.profile),baseColor=ColorMetadata(layer)};
+ void WriteReceipt(){File.WriteAllText(ReceiptPath,receipt.ToString());}
+ void Create(UnityEngine.Object value,string path)
+ {
+  Require(!File.Exists(path)&&AssetDatabase.LoadMainAssetAtPath(path)==null,"New target appeared; no overwrite: "+path);
+  AssetDatabase.CreateAsset(value,path);created.Add(path);receipt["createdAssets"]=JArray.FromObject(created);WriteReceipt();AssetDatabase.SaveAssetIfDirty(value);
+ }
+ static string ComponentDocument(string scene,Component component)
+ {
+  string id=GlobalObjectId.GetGlobalObjectIdSlow(component).targetObjectId.ToString(CultureInfo.InvariantCulture);
+  var match=Regex.Match(scene,@"(?ms)^--- !u!114 &"+Regex.Escape(id)+@"\r?\n.*?(?=^---|\z)");Require(match.Success,"Saved component document missing: "+component.name);return match.Value;
+ }
+ static void HasReference(string doc,string field,UnityEngine.Object asset)
+ {
+  var guid=AssetDatabase.AssetPathToGUID(AssetPath(asset));Require(Regex.IsMatch(doc,@"(?m)^  "+Regex.Escape(field)+@": \{[^\r\n]*guid: "+Regex.Escape(guid)+@"[, }]"),"Saved reference readback failed: "+field);
+ }
+ static int SavedPlacementCount(string path)=>Regex.Matches(File.ReadAllText(path),@"(?m)^    worldRoot:").Count;
+ public void Execute(ExecutionContext ctx)
+ {
+  Require(Application.dataPath.Replace('\\','/')=="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets","Exact intended project required");
+  Require(!Application.isPlaying&&!EditorApplication.isPlayingOrWillChangePlaymode&&!EditorApplication.isCompiling&&!EditorApplication.isUpdating,"Stable Edit required");
+  Require(!File.Exists(ReceiptPath),"Expansion receipt exists; inspect exact outcome instead of replay");
+  Require(!File.Exists(BTexturePath)&&!File.Exists(BSourcePath)&&AssetDatabase.LoadMainAssetAtPath(BTexturePath)==null&&AssetDatabase.LoadMainAssetAtPath(BSourcePath)==null,"B color targets already exist; never overwrite/rebake silently");
+  var lab=SceneManager.GetSceneByPath(LabPath);
+  Require(lab.IsValid()&&lab.isLoaded&&SceneManager.sceneCount==1&&SceneManager.GetSceneAt(0)==lab,"Only existing GrassLab may be loaded; do not load or operate Main");
+  var borrow=JObject.Parse(File.ReadAllText("artifacts/VEGETATION-01A/main-borrow.json"));
+  Require((string)borrow["status"]=="isolated-scene"&&(string)borrow["scene"]==MainPath&&Hash(MainPath)==(string)borrow["mainSafeSha"],"Read-only Main hash guard disagrees with reconciled isolated-scene receipt");
+  var r1=JObject.Parse(File.ReadAllText(R1Receipt));Require((string)r1["status"]=="saved"&&(string)r1["scene"]==LabPath,"Saved R1 receipt required");
+  var roots=lab.GetRootGameObjects();var controls=roots.SelectMany(g=>g.GetComponentsInChildren<GrassLabControls>(true)).Single();
+  Require(controls.layers!=null&&controls.layers.Length==2&&controls.layers.All(l=>l!=null&&l.gameObject.scene==lab),"Existing local two-layer controls required");
+  var a=controls.layers[0];var b=controls.layers[1];
+  Require(a.name=="GrassPatchA"&&b.name=="GrassPatchB"&&a.isActiveAndEnabled&&!b.enabled&&b.gameObject.activeInHierarchy,"Expected enabled A / disabled B checkpoint required");
+  Require(controls.camera!=null&&controls.camera.gameObject.scene==lab,"Exact Lab camera required");
+  Require(a.surfaces!=null&&a.surfaces.Length==1&&a.surfaces[0]!=null&&a.surfaces[0].collider!=null&&b.surfaces!=null&&b.surfaces.Length==1&&b.surfaces[0]!=null&&b.surfaces[0].collider!=null,"One explicit surface per layer required");
+  Require(a.surfaces[0].collider.gameObject.scene==lab&&b.surfaces[0].collider.gameObject.scene==lab&&a.surfaces[0].id!=b.surfaces[0].id,"Independent local terrain identities required");
+  string originalPath=(string)r1["originalReferences"]["oldDataPath"];
+  Require(originalPath==Dir+"GrassPatchA_Placement.asset"&&AssetDatabase.AssetPathToGUID(originalPath)==(string)r1["originalReferences"]["oldDataGuid"]&&Hash(originalPath)==(string)r1["originalReferences"]["oldDataSha"],"R1 recorded original full A data changed; no reconstruction or resampling");
+  var fullA=AssetDatabase.LoadAssetAtPath<GrassPatchDataSO>(originalPath);
+  Require(fullA!=null&&fullA.placements!=null&&fullA.placements.Length==3512&&(int)r1["originalPlacements"]==3512,"Exact original A 3512 records required");
+  Require(a.data!=null&&AssetPath(a.data)==Dir+"R1_placements.asset"&&a.data.placements.Length==856,"R1 active subset checkpoint differs");
+  Require(b.data!=null&&AssetPath(b.data)==Dir+"GrassPatchB_Placement.asset"&&b.data.placements!=null&&b.data.placements.Length==587,"Original B 587 records required");
+  foreach(var pair in new[]{new{layer=a,data=fullA},new{layer=b,data=b.data}})
+  {
+   Require(pair.data.surfaceIds!=null&&pair.data.surfaceIds.Length==1&&pair.data.surfaceIds[0]==pair.layer.surfaces[0].id,"Saved placement identity mismatch: "+pair.layer.name);
+   Require(pair.data.placements.All(p=>p.surfaceIndex==0&&Vector3.Distance(pair.layer.surfaces[0].collider.transform.TransformPoint(p.localRoot),p.worldRoot)<.002f),"Saved roots drifted; never resample silently: "+pair.layer.name);
+  }
+  var profileA=AssetDatabase.LoadAssetAtPath<GrassLayerProfileSO>(Dir+"GrassCandidateA_v11.asset");
+  var profileB=AssetDatabase.LoadAssetAtPath<GrassLayerProfileSO>(Dir+"GrassCandidateB_v12.asset");
+  Require(profileA!=null&&profileB!=null&&profileA!=profileB&&controls.candidateA==profileA&&controls.candidateB==profileB&&a.profile==profileB,"Existing dedicated A/B references required");
+  Require(profileB.material!=null&&AssetPath(profileB.material)==Dir+"GrassCandidateB_v12.mat"&&profileB.useTerrainColor&&profileB.windTexture!=null&&profileB.motion==GrassMotion.CombinedColor&&profileB.appearance==GrassAppearance.Environment&&profileB.rgbDetail==0,"Existing video B setup required; no unrelated field normalization");
+  var sourceA=AssetDatabase.LoadAssetAtPath<GrassTerrainColorSourceSO>(Dir+"R1_TerrainColorSource.asset");
+  Require(sourceA!=null&&a.terrainColor==sourceA&&sourceA.texture!=null&&sourceA.surfaceId==a.surfaces[0].id&&sourceA.version>0&&RectMatches(sourceA.worldXZ,a.surfaces[0].collider.bounds),"A full-terrain R1 color coverage required");
+  string[] expectedSourceNames={"MainTerrain","R1_TerrainZone_Green","R1_TerrainZone_YellowGreen","R1_TerrainZone_Teal"};
+  Require(a.terrainSources!=null&&a.terrainSources.Length==4&&a.terrainSources.All(s=>s!=null&&s.gameObject.scene==lab)&&a.terrainSources.Select(s=>s.name).SequenceEqual(expectedSourceNames),"A explicit four color sources must remain intact and ordered");
+  var bTerrain=b.surfaces[0].collider.GetComponent<MeshRenderer>();var bFilter=b.surfaces[0].collider.GetComponent<MeshFilter>();
+  Require(bTerrain!=null&&bTerrain.gameObject.scene==lab&&bTerrain.name=="SecondLShapeTerrain"&&bFilter!=null&&bFilter.sharedMesh!=null,"Exact existing second terrain renderer required");
+  Require(b.terrainColor==null,"B already has a color source; inspect instead of replacing");
+  var bakeShader=AssetDatabase.LoadAssetAtPath<Shader>("Assets/OSSASTRA/Scripts/WorldRendering/Vegetation/Rendering/TerrainBaseColorBake.shader");
+  Require(bakeShader!=null&&bakeShader.isSupported,"Supported explicit base-color bake shader required");
+  string profileJson=JsonUtility.ToJson(profileB),profileAJson=JsonUtility.ToJson(profileA),mainSha=Hash(MainPath),labSha=Hash(LabPath);
+  var guardPaths=((JArray)r1["createdAssets"]).Select(t=>(string)t).Concat(new[]{originalPath,AssetPath(b.data),AssetPath(profileA),AssetPath(profileA.material),AssetPath(profileB.material),AssetPath(profileA.image),AssetPath(profileB.image),AssetPath(a.surfaces[0].collider.sharedMesh),AssetPath(bFilter.sharedMesh),R1Receipt}).Distinct().ToArray();
+  var guards=guardPaths.Select(p=>new{path=p,sha=Hash(p),metaSha=File.Exists(p+".meta")?Hash(p+".meta"):null}).ToArray();
+  var originalASources=(MeshRenderer[])a.terrainSources.Clone();var originalBData=b.data;
+  receipt=JObject.FromObject(new{status="admitted-before-mutation",utc=DateTime.UtcNow.ToString("o"),scene=LabPath,labDiskBefore=labSha,labDirtyBefore=lab.isDirty,mainReadOnlySha=mainSha,mainSceneTouched=false,
+   originalReferences=new{layerA=GlobalObjectId.GetGlobalObjectIdSlow(a).ToString(),aSubsetPath=AssetPath(a.data),aFullPath=originalPath,aFullGuid=AssetDatabase.AssetPathToGUID(originalPath),layerB=GlobalObjectId.GetGlobalObjectIdSlow(b).ToString(),bDataPath=AssetPath(b.data),aColor=ColorMetadata(a)},
+   before=new{controls=EditorJsonUtility.ToJson(controls,true),a=EditorJsonUtility.ToJson(a,true),b=EditorJsonUtility.ToJson(b,true),profileB=profileJson},guards,
+   plannedPlacements=new{a=3512,b=587,total=4099},newAssets=new[]{BTexturePath,BSourcePath},noScatter=true,noMapCreation=true});WriteReceipt();
+  try
+  {
+   SceneManager.SetActiveScene(lab);ctx.RegisterObjectModification(a);ctx.RegisterObjectModification(b);ctx.RegisterObjectModification(controls);ctx.RegisterObjectModification(profileB);ctx.RegisterObjectModification(controls.camera.transform);ctx.RegisterObjectModification(controls.camera);
+   GrassTerrainColorSourceSO sourceB;
+   using(var baked=TerrainBaseColorBaker.Bake(b.surfaces[0].id,new[]{bTerrain},b.surfaces[0].collider.bounds,256,bakeShader,1))
+   {
+    Require(baked.sourceCount==1&&baked.unlitBaseColor&&baked.linearTexture&&RectMatches(baked.worldXZ,b.surfaces[0].collider.bounds),"Exact single-renderer unlit linear B map required");
+    var texture=baked.DetachTexture();texture.name="FullLabB_TerrainBaseColor";Create(texture,BTexturePath);
+    sourceB=ScriptableObject.CreateInstance<GrassTerrainColorSourceSO>();sourceB.name="FullLabB_TerrainColorSource";sourceB.surfaceId=baked.surfaceId;sourceB.texture=texture;sourceB.worldXZ=baked.worldXZ;sourceB.version=baked.version;Create(sourceB,BSourcePath);
+    receipt["bakeB"]=JObject.FromObject(new{sourceCount=1,resolution=256,surfaceId=baked.surfaceId,worldXZ=R(baked.worldXZ),version=baked.version,unlitBaseColor=true,linearTexture=true,oneTime=true,extraCameraCreated=false});WriteReceipt();
+   }
+   profileB.tint=new Color(.9f,.9f,.9f,profileB.tint.a);profileB.depthColorStrength=.04f;profileB.windColorStrength=.65f;
+   Require(JToken.DeepEquals(Without(profileJson,"tint","depthColorStrength","windColorStrength"),Without(JsonUtility.ToJson(profileB),"tint","depthColorStrength","windColorStrength")),"Unexpected B geometry/other field change");
+   Require(JsonUtility.ToJson(profileA)==profileAJson,"Candidate A changed unexpectedly");EditorUtility.SetDirty(profileB);AssetDatabase.SaveAssetIfDirty(profileB);
+   a.profile=profileB;a.data=fullA;a.castShadows=false;a.mode=GrassWindMode.Light;
+   b.profile=profileB;b.terrainSources=new[]{bTerrain};b.terrainColor=sourceB;b.castShadows=false;b.mode=GrassWindMode.Light;
+   a.RebuildFromSaved();b.enabled=true; // Existing disabled B OnEnable rebuilds its unchanged 587 saved records exactly once.
+   controls.target=new Vector3(1.5f,.5f,0);controls.distance=20;controls.cameraPitch=45;controls.followAvatar=false;controls.acceptKeyboardInput=true;controls.expanded=true;controls.SetMode(GrassWindMode.Light,false);controls.RefreshView();
+   Require(a.data==fullA&&b.data==originalBData&&a.profile==profileB&&b.profile==profileB&&a.terrainColor==sourceA&&a.terrainSources.SequenceEqual(originalASources),"Layer author/data/A source preservation failed");
+   Require(a.ClumpCount==3512&&b.ClumpCount==587&&a.isActiveAndEnabled&&b.isActiveAndEnabled,"Full existing two-terrain reconstruction counts failed");
+   Require(guards.All(g=>Hash(g.path)==g.sha&&(g.metaSha==null||Hash(g.path+".meta")==g.metaSha))&&Hash(MainPath)==mainSha,"Protected original/R1/source/Main file changed");
+   EditorSceneManager.MarkSceneDirty(lab);Require(EditorSceneManager.SaveScene(lab,LabPath,false),"Exact Lab save failed");
+   Require(!lab.isDirty&&SceneManager.sceneCount==1&&SceneManager.GetSceneAt(0)==lab,"Lab save/readback or scene isolation failed");
+   var savedProfile=AssetDatabase.LoadAssetAtPath<GrassLayerProfileSO>(Dir+"GrassCandidateB_v12.asset");
+   Require(savedProfile==profileB&&Mathf.Abs(savedProfile.tint.r-.9f)<.0001f&&Mathf.Abs(savedProfile.tint.g-.9f)<.0001f&&Mathf.Abs(savedProfile.tint.b-.9f)<.0001f&&Mathf.Abs(savedProfile.depthColorStrength-.04f)<.0001f&&Mathf.Abs(savedProfile.windColorStrength-.65f)<.0001f,"Saved candidate B field readback failed");
+   string sceneText=File.ReadAllText(LabPath),docA=ComponentDocument(sceneText,a),docB=ComponentDocument(sceneText,b),docControls=ComponentDocument(sceneText,controls);
+   HasReference(docA,"data",fullA);HasReference(docB,"data",originalBData);HasReference(docA,"profile",profileB);HasReference(docB,"profile",profileB);HasReference(docA,"terrainColor",sourceA);HasReference(docB,"terrainColor",sourceB);HasReference(docControls,"candidateA",profileA);HasReference(docControls,"candidateB",profileB);
+   foreach(string doc in new[]{docA,docB})Require(Regex.IsMatch(doc,@"(?m)^  m_Enabled: 1\r?$")&&Regex.IsMatch(doc,@"(?m)^  mode: 3\r?$")&&Regex.IsMatch(doc,@"(?m)^  castShadows: 0\r?$"),"Saved enabled/light/no-grass-shadow state failed");
+   Require(SavedPlacementCount(originalPath)==3512&&SavedPlacementCount(AssetPath(originalBData))==587,"Disk original placement record counts failed");
+   Require(guards.All(g=>Hash(g.path)==g.sha&&(g.metaSha==null||Hash(g.path+".meta")==g.metaSha))&&Hash(MainPath)==mainSha,"Protected files changed during exact save");
+   receipt["status"]="saved-and-readback";receipt["layers"]=JArray.FromObject(new[]{LayerFacts(a),LayerFacts(b)});
+   receipt["newAssets"]=JArray.FromObject(created.Select(p=>new{path=p,guid=AssetDatabase.AssetPathToGUID(p),sha=Hash(p)}));
+   receipt["candidateB"]=JObject.FromObject(new{path=AssetPath(profileB),sha=Hash(AssetPath(profileB)),tint=new[]{profileB.tint.r,profileB.tint.g,profileB.tint.b,profileB.tint.a},profileB.depthColorStrength,profileB.windColorStrength,otherFieldsUnchanged=true});
+   receipt["controls"]=JObject.FromObject(new{target=V(controls.target),controls.distance,controls.cameraPitch,controls.acceptKeyboardInput,controls.expanded,controls.followAvatar,mode=controls.CurrentMode.ToString(),shadows=controls.Shadows,candidateA=AssetPath(controls.candidateA),candidateB=AssetPath(controls.candidateB)});
+   receipt["labDiskAfter"]=Hash(LabPath);receipt["totalPlacements"]=4099;receipt["totalClumps"]=a.ClumpCount+b.ClumpCount;receipt["mainUnchanged"]=true;receipt["protectedFilesUnchanged"]=true;receipt["readbackScope"]="Same-editor asset fields plus disk scene component references/modes and original placement counts/SHA; cold scene reopen delegated to Root";receipt["savedUtc"]=DateTime.UtcNow.ToString("o");WriteReceipt();
+   ctx.ReturnValue=new{output=Path.GetFullPath(ReceiptPath),pass=true,aClumps=a.ClumpCount,bClumps=b.ClumpCount,total=4099,newAssets=created.Count,labSaved=true,mainSceneTouched=false,noScatter=true,coldReopenVerified=false};
+  }
+  catch(Exception error){receipt["status"]="failed-partial-inspect-before-recovery";receipt["error"]=error.GetType().Name+": "+error.Message;receipt["createdAssets"]=JArray.FromObject(created);WriteReceipt();throw;}
+ }
+}

@@ -1,0 +1,157 @@
+/* 功能：独立二维草场四态/环境风、八档相机与角色静态代理观察路线。
+ * 边界：不是游戏角色控制器；只移动本场代理且只采明确草表面，不用全局射线、不改主场/CHAR/原图。
+ * 生命周期：仅正常Update读取输入；无时钟/天气新权威、无逐草工作、无持久全局参数或输入租约。
+ */
+using System;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.InputSystem;
+using Ossastra.MapResearch;
+using Ossastra.EnvironmentSimulation;
+
+namespace Ossastra.WorldRendering.Vegetation.Development
+{
+ [DisallowMultipleComponent]
+ public sealed class GrassLabControls : MonoBehaviour
+ {
+  const string SceneRoot="Assets/OSSASTRA/WorldRendering/Vegetation/GrassLab/";
+  public GrassLayer[] layers=Array.Empty<GrassLayer>();
+  public new Camera camera;
+  public Transform avatar,avatarVisual;
+  public EnvironmentRoot environment;
+  public Vector3 target;
+  public float initialYaw=315,distance=19,rotationDegreesPerSecond=180,moveSpeed=2.5f;
+  public bool followAvatar,showPanel=true,expanded=true,acceptKeyboardInput=true;
+  public GrassWindMode CurrentMode{get;private set;}=GrassWindMode.Environment;
+  public bool Shadows{get;private set;}
+  public float ActualYaw=>orbit==null?initialYaw:orbit.ActualYaw;
+  public float TargetYaw=>orbit==null?initialYaw:orbit.TargetYaw;
+  public string Status{get;private set;}="独立二维草候选；未接Room门户/黑幕，不是玩法控制器。";
+  MapOrbitState orbit;
+  readonly HashSet<Material> activeMaterials=new HashSet<Material>();
+  string statistics="等待本场草层";
+  float nextStatistics;
+  Rect PanelRect=>new Rect(12,12,332,expanded?398:34);
+
+  void OnEnable(){EnsureOrbit();if(layers!=null&&layers.Length>0&&layers[0]!=null){CurrentMode=layers[0].mode;Shadows=layers[0].castShadows;}}
+  void EnsureOrbit(){if(orbit==null)orbit=new MapOrbitState(Finite(initialYaw)?initialYaw:315);}
+  bool OwnsScene()=>gameObject.scene.IsValid()&&gameObject.scene.path.StartsWith(SceneRoot,StringComparison.Ordinal);
+  bool ValidCamera()=>OwnsScene()&&camera!=null&&camera.gameObject.scene==gameObject.scene;
+
+  void Update()
+  {
+   if(!Application.isPlaying||!OwnsScene())return;
+   EnsureOrbit();float dt=Mathf.Min(Time.unscaledDeltaTime,.1f);
+   if(acceptKeyboardInput&&!PointerOverPanel()&&GUIUtility.hotControl==0)
+   {
+    var keyboard=Keyboard.current;
+    if(keyboard!=null)
+    {
+     int turn=(keyboard.rightArrowKey.wasPressedThisFrame?1:0)-(keyboard.leftArrowKey.wasPressedThisFrame?1:0);
+     if(turn!=0)RequestRotation(turn);
+     var move=new Vector2((keyboard.dKey.isPressed?1:0)-(keyboard.aKey.isPressed?1:0),(keyboard.wKey.isPressed?1:0)-(keyboard.sKey.isPressed?1:0));
+     if(move.sqrMagnitude>0)MoveAvatar(move,dt);
+    }
+    var mouse=Mouse.current;if(mouse!=null){float scroll=mouse.scroll.ReadValue().y;if(Mathf.Abs(scroll)>.01f)RequestRotation(scroll>0?1:-1);}
+   }
+   orbit.Tick(dt,rotationDegreesPerSecond);
+   if(Time.unscaledTime>=nextStatistics){nextStatistics=Time.unscaledTime+.5f;RefreshStatistics();}
+  }
+
+  void LateUpdate(){if(Application.isPlaying)RefreshView();}
+  public void RefreshView()
+  {
+   if(!ValidCamera())return;EnsureOrbit();
+   var center=followAvatar&&avatar!=null&&avatar.gameObject.scene==gameObject.scene?avatar.position+Vector3.up*.45f:target;
+   var rotation=Quaternion.Euler(45,orbit.ActualYaw,0);camera.fieldOfView=45;
+   camera.transform.SetPositionAndRotation(center-rotation*Vector3.forward*Mathf.Clamp(distance,5,32),rotation);
+   if(avatarVisual!=null&&avatar!=null&&avatarVisual!=avatar&&avatarVisual.IsChildOf(avatar)&&avatarVisual.gameObject.scene==gameObject.scene)
+    avatarVisual.rotation=Quaternion.Euler(0,orbit.ActualYaw,0);
+  }
+  public bool RequestRotation(int direction)
+  {
+   if(!ValidCamera()||direction==0)return false;EnsureOrbit();orbit.RequestStep(direction);
+   Status="观察旋转至 "+orbit.TargetYaw.ToString("0")+"°；俯角45°保持。";return true;
+  }
+  public void ResetView(){EnsureOrbit();orbit.Reset();distance=19;followAvatar=false;RefreshView();Status="已恢复45°俯角、原八档起点与样区中心。";}
+  public void SetMode(GrassWindMode value,bool castShadows)
+  {
+   if(!OwnsScene()){Status="拒绝：此控制器只服务GrassLab独立场。";return;}
+   if(!Enum.IsDefined(typeof(GrassWindMode),value)){Status="风态无效，保持原状态。";return;}
+   foreach(var layer in layers??Array.Empty<GrassLayer>())if(layer!=null&&layer.gameObject.scene!=gameObject.scene){Status="草层跨场景，未执行切换。";return;}
+   foreach(var layer in layers??Array.Empty<GrassLayer>())if(layer!=null)layer.SetMode(value,castShadows);
+   CurrentMode=value;Shadows=castShadows;RefreshStatistics();Status="当前："+ModeLabel(value)+"；只切本草层，不改变环境风权威。";
+  }
+  public void SetWindDirection(Vector2 direction)
+  {
+   if(!OwnsScene()||!Finite(direction.x)||!Finite(direction.y)||direction.sqrMagnitude<.000001f){Status="试验风向无效。";return;}
+   foreach(var layer in layers??Array.Empty<GrassLayer>())if(layer!=null&&layer.gameObject.scene==gameObject.scene)layer.testWindDirection=direction.normalized;
+   Status="本草场试验风向已改变；环境风模式仍读取环境来源。";
+  }
+  public bool SetTimeHours(double hours)
+  {
+   if(!OwnsScene()||environment==null||environment.gameObject.scene!=gameObject.scene||environment.gameplayCamera!=camera||double.IsNaN(hours)||double.IsInfinity(hours))
+   {Status="未指定本场同相机环境根；没有改动时刻。";return false;}
+   environment.SetClockRunning(false);environment.SetTimeHours(hours);Status="本场环境时刻 "+environment.timeHours.ToString("0.00")+"；原昼夜档未写入。";return true;
+  }
+
+  // 仅为草场可读性路线服务：在明确地表上移动静态代理，不声称验证游戏角色运动。
+  public bool MoveAvatar(Vector2 input,float deltaSeconds)
+  {
+   if(!ValidCamera()||avatar==null||avatar.gameObject.scene!=gameObject.scene||!Finite(input.x)||!Finite(input.y)||!Finite(deltaSeconds)||deltaSeconds<=0)return false;
+   EnsureOrbit();var horizontal=Quaternion.Euler(0,orbit.ActualYaw,0)*new Vector3(input.x,0,input.y);
+   horizontal=Vector3.ClampMagnitude(horizontal,1)*Mathf.Max(0,moveSpeed)*Mathf.Min(deltaSeconds,.1f);
+   var desired=avatar.position+horizontal;bool found=false;float nearest=float.PositiveInfinity;Vector3 picked=avatar.position;
+   foreach(var layer in layers??Array.Empty<GrassLayer>())
+   {
+    if(layer==null||layer.gameObject.scene!=gameObject.scene)continue;
+    foreach(var surface in layer.surfaces??Array.Empty<GrassSurfaceBinding>())
+    {
+     var collider=surface==null?null:surface.collider;if(collider==null||!collider.enabled||!collider.gameObject.activeInHierarchy||collider.gameObject.scene!=gameObject.scene)continue;
+     var bounds=collider.bounds;RaycastHit hit;
+     if(!collider.Raycast(new Ray(new Vector3(desired.x,bounds.max.y+2,desired.z),Vector3.down),out hit,bounds.size.y+4)||hit.normal.y<.5f)continue;
+     float difference=Mathf.Abs(hit.point.y-avatar.position.y);if(difference>.6f||difference>=nearest)continue;
+     nearest=difference;picked=hit.point;found=true;
+    }
+   }
+   if(!found)return false;avatar.position=picked;return true;
+  }
+
+  bool PointerOverPanel()
+  {
+   if(!showPanel||Mouse.current==null)return false;var p=Mouse.current.position.ReadValue();return PanelRect.Contains(new Vector2(p.x,Screen.height-p.y));
+  }
+  void RefreshStatistics()
+  {
+   int clumps=0,blocks=0,triangles=0,vertices=0;activeMaterials.Clear();
+   foreach(var layer in layers??Array.Empty<GrassLayer>())if(layer!=null&&layer.gameObject.scene==gameObject.scene)
+   {clumps+=layer.ClumpCount;blocks+=layer.BlockCount;triangles+=layer.TriangleCount;vertices+=layer.VertexCount;foreach(var renderer in layer.Renderers)if(renderer!=null&&renderer.sharedMaterial!=null)activeMaterials.Add(renderer.sharedMaterial);}
+   statistics=clumps+" 簇 / "+blocks+" 块 / "+triangles+" 三角 / "+vertices+" 顶点\n当前引用材质 "+activeMaterials.Count+"（非GPU批次统计）";
+  }
+  public static string ModeLabel(GrassWindMode mode)
+  {switch(mode){case GrassWindMode.Original:return "原地表";case GrassWindMode.Static:return "静止草";case GrassWindMode.Light:return "轻风";case GrassWindMode.Gust:return "阵风";default:return "环境风";}}
+  static bool Finite(float n)=>!float.IsNaN(n)&&!float.IsInfinity(n);
+
+  void OnGUI()
+  {
+   if(!Application.isPlaying||!showPanel||!OwnsScene())return;
+   GUILayout.BeginArea(PanelRect,GUI.skin.box);
+   try
+   {
+    if(GUILayout.Button((expanded?"收起":"展开")+" 二维草风动独立小样"))expanded=!expanded;
+    if(!expanded)return;
+    GUILayout.Label("贴图草层，地形/碰撞不动；45°俯角\n未接Room门户/黑幕，未铺入主场");
+    GUILayout.BeginHorizontal();if(GUILayout.Button("原地表"))SetMode(GrassWindMode.Original,Shadows);if(GUILayout.Button("静止草"))SetMode(GrassWindMode.Static,Shadows);GUILayout.EndHorizontal();
+    GUILayout.BeginHorizontal();if(GUILayout.Button("轻风"))SetMode(GrassWindMode.Light,Shadows);if(GUILayout.Button("阵风"))SetMode(GrassWindMode.Gust,Shadows);if(GUILayout.Button("环境风"))SetMode(GrassWindMode.Environment,Shadows);GUILayout.EndHorizontal();
+    bool shadows=GUILayout.Toggle(Shadows,"草叶投影（独立成本项）");if(shadows!=Shadows)SetMode(CurrentMode,shadows);
+    GUILayout.BeginHorizontal();if(GUILayout.Button("风向 X"))SetWindDirection(Vector2.right);if(GUILayout.Button("风向 Z"))SetWindDirection(Vector2.up);GUILayout.EndHorizontal();
+    GUILayout.BeginHorizontal();if(GUILayout.Button("←45°"))RequestRotation(-1);if(GUILayout.Button("45°→"))RequestRotation(1);if(GUILayout.Button("恢复镜头"))ResetView();GUILayout.EndHorizontal();
+    followAvatar=GUILayout.Toggle(followAvatar,"跟随本场静态角色代理");
+    GUILayout.BeginHorizontal();if(GUILayout.Button("正午12时"))SetTimeHours(12);if(GUILayout.Button("暮色18时"))SetTimeHours(18);if(GUILayout.Button("深夜0时"))SetTimeHours(0);GUILayout.EndHorizontal();
+    GUILayout.Label("WASD移动代理；左右箭头/滚轮转镜头\n代理仅采本场明确表面，不是玩法验证。");
+    GUILayout.Label(statistics);GUILayout.Label(Status);
+   }
+   finally{GUILayout.EndArea();}
+  }
+ }
+}

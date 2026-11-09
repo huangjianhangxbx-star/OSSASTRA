@@ -1,0 +1,6 @@
+$ErrorActionPreference='Stop'
+function GitProcess([string[]]$arguments){$info=[Diagnostics.ProcessStartInfo]::new('git');$info.WorkingDirectory=$PWD.Path;$info.UseShellExecute=$false;$info.RedirectStandardOutput=$true;$info.RedirectStandardError=$true;$info.RedirectStandardInput=$true;foreach($a in $arguments){$info.ArgumentList.Add($a)};return [Diagnostics.Process]::Start($info)}
+foreach($pair in @(@('docs/agent-sync/TASK_REGISTRY.md','Candidates/VEGETATION-01A/registry-tail.md'),@('docs/agent-sync/PROJECT_STATE.md','Candidates/VEGETATION-01A/state-tail.md'))){
+ $p=GitProcess @('show',('HEAD:'+$pair[0]));$memory=[IO.MemoryStream]::new();$p.StandardOutput.BaseStream.CopyTo($memory);$errorText=$p.StandardError.ReadToEnd();$p.WaitForExit();if($p.ExitCode){throw $errorText};$tail=[IO.File]::ReadAllBytes((Join-Path $PWD $pair[1]));$memory.Write($tail,0,$tail.Length);$bytes=$memory.ToArray();$memory.Dispose();$p.Dispose()
+ $p=GitProcess @('hash-object','-w','--stdin');$p.StandardInput.BaseStream.Write($bytes,0,$bytes.Length);$p.StandardInput.Close();$sha=$p.StandardOutput.ReadToEnd().Trim();$errorText=$p.StandardError.ReadToEnd();$p.WaitForExit();if($p.ExitCode){throw $errorText};$p.Dispose();git update-index --add --cacheinfo ('100644,'+$sha+','+$pair[0]);if($LASTEXITCODE){throw 'Index update failed'}
+}

@@ -1,0 +1,273 @@
+{
+  "candidateAPath": "Assets/OSSASTRA/WorldRendering/Vegetation/GrassLab/GrassCandidateA_v11.asset",
+  "candidateA": {
+    "MonoBehaviour": {
+      "m_Enabled": true,
+      "m_EditorHideFlags": 0,
+      "m_Name": "GrassCandidateA_v11",
+      "m_EditorClassIdentifier": "",
+      "image": {
+        "fileID": 2800000,
+        "guid": "40b2fb88ab8f6774eb84dcc6b2791c1e",
+        "type": 3
+      },
+      "uvRect": {
+        "serializedVersion": "2",
+        "x": 0.15625,
+        "y": 0.0546875,
+        "width": 0.7109375,
+        "height": 0.90625
+      },
+      "footpoint": {
+        "x": 0.48351648449897766,
+        "y": 0.0086206896230578423
+      },
+      "material": {
+        "fileID": 2100000,
+        "guid": "48215a26324a80040bfa3a82c5c6b857",
+        "type": 2
+      },
+      "seed": 18273,
+      "density": 36.0,
+      "maxDensity": 72.0,
+      "heightRange": {
+        "x": 0.31999999284744263,
+        "y": 0.5
+      },
+      "widthRange": {
+        "x": 0.30000001192092896,
+        "y": 0.47999998927116394
+      },
+      "maximumSlope": 48.0,
+      "edgeInset": 0.11999999731779099,
+      "chunkSize": 3.0,
+      "verticalSegments": 3,
+      "maximumPlacements": 30000,
+      "maximumBend": 0.14000000059604645,
+      "windResponse": 1.0,
+      "cutoff": 0.34999999403953552,
+      "farStart": 18.0,
+      "farEnd": 26.0,
+      "tint": {
+        "r": 1.0,
+        "g": 1.0,
+        "b": 1.0,
+        "a": 1.0
+      },
+      "rootTint": {
+        "r": 0.77999997138977051,
+        "g": 0.82999998331069946,
+        "b": 0.699999988079071,
+        "a": 1.0
+      },
+      "tipTint": {
+        "r": 1.0299999713897705,
+        "g": 1.0499999523162842,
+        "b": 0.9100000262260437,
+        "a": 1.0
+      },
+      "appearance": 0,
+      "motion": 0,
+      "rgbDetail": 0.0,
+      "useTerrainColor": true,
+      "nearColor": {
+        "r": 0.64999997615814209,
+        "g": 0.81999999284744263,
+        "b": 0.31000000238418579,
+        "a": 1.0
+      },
+      "farColor": {
+        "r": 0.37999999523162842,
+        "g": 0.63999998569488525,
+        "b": 0.40000000596046448,
+        "a": 1.0
+      },
+      "bottomColor": {
+        "r": 0.25999999046325684,
+        "g": 0.46000000834465027,
+        "b": 0.12999999523162842,
+        "a": 1.0
+      },
+      "shadowColor": {
+        "r": 0.30000001192092896,
+        "g": 0.4699999988079071,
+        "b": 0.5,
+        "a": 1.0
+      },
+      "nearFarRange": {
+        "x": 5.0,
+        "y": 25.0
+      },
+      "heightBlend": 0.60000002384185791,
+      "depthColorStrength": 0.25,
+      "windTexture": {
+        "instanceID": 0
+      },
+      "windNoiseScale": {
+        "x": 6.0,
+        "y": 9.0
+      },
+      "windNoiseContrast": {
+        "x": 0.20000000298023224,
+        "y": 0.800000011920929
+      },
+      "windNoiseSpeed": 1.0,
+      "fineWindStrength": 0.34999999403953552,
+      "coarseWindStrength": 0.800000011920929,
+      "windColorStrength": 0.25,
+      "windTextureLod": 0.0,
+      "artDebug": 0
+    }
+  },
+  "candidateBPath": "Assets/OSSASTRA/WorldRendering/Vegetation/GrassLab/GrassCandidateB_v12.asset",
+  "candidateB": {
+    "MonoBehaviour": {
+      "m_Enabled": true,
+      "m_EditorHideFlags": 0,
+      "m_Name": "GrassCandidateB_v12",
+      "m_EditorClassIdentifier": "",
+      "image": {
+        "fileID": 2800000,
+        "guid": "40b2fb88ab8f6774eb84dcc6b2791c1e",
+        "type": 3
+      },
+      "uvRect": {
+        "serializedVersion": "2",
+        "x": 0.15625,
+        "y": 0.0546875,
+        "width": 0.7109375,
+        "height": 0.90625
+      },
+      "footpoint": {
+        "x": 0.48351648449897766,
+        "y": 0.0086206896230578423
+      },
+      "material": {
+        "fileID": 2100000,
+        "guid": "aa6ab29ed09cef344adc952e9305f28a",
+        "type": 2
+      },
+      "seed": 18273,
+      "density": 36.0,
+      "maxDensity": 72.0,
+      "heightRange": {
+        "x": 0.31999999284744263,
+        "y": 0.5
+      },
+      "widthRange": {
+        "x": 0.30000001192092896,
+        "y": 0.47999998927116394
+      },
+      "maximumSlope": 48.0,
+      "edgeInset": 0.11999999731779099,
+      "chunkSize": 3.0,
+      "verticalSegments": 3,
+      "maximumPlacements": 30000,
+      "maximumBend": 0.14000000059604645,
+      "windResponse": 1.0,
+      "cutoff": 0.34999999403953552,
+      "farStart": 18.0,
+      "farEnd": 26.0,
+      "tint": {
+        "r": 0.89999997615814209,
+        "g": 0.89999997615814209,
+        "b": 0.89999997615814209,
+        "a": 1.0
+      },
+      "rootTint": {
+        "r": 0.77999997138977051,
+        "g": 0.82999998331069946,
+        "b": 0.699999988079071,
+        "a": 1.0
+      },
+      "tipTint": {
+        "r": 1.0299999713897705,
+        "g": 1.0499999523162842,
+        "b": 0.9100000262260437,
+        "a": 1.0
+      },
+      "appearance": 2,
+      "motion": 4,
+      "rgbDetail": 0.0,
+      "useTerrainColor": true,
+      "nearColor": {
+        "r": 0.64999997615814209,
+        "g": 0.81999999284744263,
+        "b": 0.31000000238418579,
+        "a": 1.0
+      },
+      "farColor": {
+        "r": 0.37999999523162842,
+        "g": 0.63999998569488525,
+        "b": 0.40000000596046448,
+        "a": 1.0
+      },
+      "bottomColor": {
+        "r": 0.25999999046325684,
+        "g": 0.46000000834465027,
+        "b": 0.12999999523162842,
+        "a": 1.0
+      },
+      "shadowColor": {
+        "r": 0.30000001192092896,
+        "g": 0.4699999988079071,
+        "b": 0.5,
+        "a": 1.0
+      },
+      "nearFarRange": {
+        "x": 5.0,
+        "y": 25.0
+      },
+      "heightBlend": 0.60000002384185791,
+      "depthColorStrength": 0.039999999105930328,
+      "windTexture": {
+        "fileID": 2800000,
+        "guid": "06798030e59e29444b030d387f63e26f",
+        "type": 2
+      },
+      "windNoiseScale": {
+        "x": 6.0,
+        "y": 9.0
+      },
+      "windNoiseContrast": {
+        "x": 0.20000000298023224,
+        "y": 0.800000011920929
+      },
+      "windNoiseSpeed": 1.0,
+      "fineWindStrength": 0.34999999403953552,
+      "coarseWindStrength": 0.800000011920929,
+      "windColorStrength": 0.64999997615814209,
+      "windTextureLod": 0.0,
+      "artDebug": 0
+    }
+  },
+  "sourceImageSha": "B759E13E4540E6423306BB2AB241E20CA8A70421E2FEAC4E0BAAB9A474DAB1AC",
+  "maps": [
+    {
+      "name": "GrassPatchA",
+      "source": "GrassPatchA/surface",
+      "version": 2,
+      "texture": "Assets/OSSASTRA/WorldRendering/Vegetation/GrassLab/R1_TerrainBaseColor.asset",
+      "worldXZ": [
+        -7.5,
+        -5.8,
+        15.0,
+        11.6
+      ],
+      "clumps": 3512
+    },
+    {
+      "name": "GrassPatchB",
+      "source": "GrassPatchB/surface",
+      "version": 1,
+      "texture": "Assets/OSSASTRA/WorldRendering/Vegetation/GrassLab/FullLabB_TerrainBaseColor.asset",
+      "worldXZ": [
+        10.0,
+        -3.0,
+        5.0,
+        5.0
+      ],
+      "clumps": 587
+    }
+  ]
+}

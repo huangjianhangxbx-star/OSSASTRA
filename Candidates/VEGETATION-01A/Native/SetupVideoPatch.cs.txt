@@ -1,0 +1,179 @@
+/* 功能：在既有独立GrassLab创建R1小块、三段地表基础色与一次性颜色图，绑定原记录子集及视频B。
+ * 边界：只改明确Lab/独立A-B候选；不改源图、原放置数据/主Profile/碰撞/主场/共享后端。
+ * 生命周期：同名或既有执行回执即拒绝；先保存作者引用和状态，所有创建/失败路径留回执，不自动重放或清理用户内容。
+ */
+using System;
+using System.IO;
+using System.Linq;
+using System.Collections.Generic;
+using System.Security.Cryptography;
+using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.SceneManagement;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+using Newtonsoft.Json.Linq;
+using Ossastra.WorldRendering.Vegetation;
+using Ossastra.WorldRendering.Vegetation.Development;
+using Ossastra.WorldRendering.Vegetation.Editor;
+using Funplay.Editor.Tools.Scripting;
+
+public sealed class SetupVideoGrassPatch:IFunplayCommand
+{
+ const string DirectoryPath="Assets/OSSASTRA/WorldRendering/Vegetation/GrassLab/";
+ const string LabPath=DirectoryPath+"SC_GrassWindLab.unity";
+ const string MainPath="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity";
+ const string ReceiptPath="artifacts/VEGETATION-01A/r1-patch-setup.json";
+ const float X0=-5.5f,X1=-.9f,Z0=-2.6f,Z1=2.4f;
+ static readonly string[] ZoneNames={"R1_TerrainZone_Green","R1_TerrainZone_YellowGreen","R1_TerrainZone_Teal"};
+ static readonly Color[] ZoneColors={new Color(.34f,.6f,.1f),new Color(.55f,.65f,.15f),new Color(.17f,.43f,.36f)};
+ JObject receipt;readonly List<string> created=new List<string>();
+ static bool Inside(Vector3 p)=>p.x>=X0&&p.x<=X1&&p.z>=Z0&&p.z<=Z1;
+ static int Zone(float z)=>Mathf.Min(2,Mathf.FloorToInt((z-Z0)/(Z1-Z0)*3));
+ static float[] V(Vector3 p)=>new[]{p.x,p.y,p.z};
+ static float[] C(Color p)=>new[]{p.r,p.g,p.b,p.a};
+ static string Hash(string path){using(var h=SHA256.Create())using(var s=File.OpenRead(path))return BitConverter.ToString(h.ComputeHash(s)).Replace("-","");}
+ static string TextHash(string text){using(var h=SHA256.Create())return BitConverter.ToString(h.ComputeHash(System.Text.Encoding.UTF8.GetBytes(text))).Replace("-","");}
+ static void Require(bool condition,string message){if(!condition)throw new InvalidOperationException(message);}
+ static JObject Without(string json,params string[] fields){var value=JObject.Parse(json);foreach(var field in fields)value.Remove(field);return value;}
+ void WriteReceipt(){File.WriteAllText(ReceiptPath,receipt.ToString());}
+ void Asset(UnityEngine.Object asset,string filename)
+ {
+  string path=DirectoryPath+filename;
+  Require(AssetDatabase.LoadMainAssetAtPath(path)==null&&!File.Exists(path),"Asset appeared after admission; no overwrite: "+path);
+  AssetDatabase.CreateAsset(asset,path);AssetDatabase.SaveAssetIfDirty(asset);created.Add(path);
+  receipt["createdAssets"]=JArray.FromObject(created);WriteReceipt();
+ }
+ static Mesh PatchMesh(Mesh source,Transform sourceTransform,Transform owner,int[] selected,int number)
+ {
+  var positions=source.vertices;var normals=source.normals;var uv=source.uv;
+  var indices=new Dictionary<int,int>();var v=new List<Vector3>();var n=new List<Vector3>();var tex=new List<Vector2>();var triangles=new List<int>();
+  foreach(int original in selected)
+  {
+   if(!indices.TryGetValue(original,out var index))
+   {
+    index=v.Count;indices.Add(original,index);
+    var world=sourceTransform.TransformPoint(positions[original])+Vector3.up*.003f;
+    v.Add(owner.InverseTransformPoint(world));
+    var worldNormal=sourceTransform.localToWorldMatrix.inverse.transpose.MultiplyVector(normals[original]).normalized;
+    n.Add(owner.localToWorldMatrix.transpose.MultiplyVector(worldNormal).normalized);
+    tex.Add(uv.Length==positions.Length?uv[original]:Vector2.zero);
+   }
+   triangles.Add(index);
+  }
+  var mesh=new Mesh{name=ZoneNames[number]+"_Mesh",indexFormat=v.Count>65000?IndexFormat.UInt32:IndexFormat.UInt16};
+  mesh.SetVertices(v);mesh.SetNormals(n);mesh.SetUVs(0,tex);mesh.SetTriangles(triangles,0);mesh.RecalculateBounds();return mesh;
+ }
+ static Texture2D WindData()
+ {
+  const int size=64;var texture=new Texture2D(size,size,TextureFormat.RGBA32,true,true)
+   {name="R1_WindData64",wrapMode=TextureWrapMode.Repeat,filterMode=FilterMode.Bilinear};
+  var pixels=new Color[size*size];
+  for(int y=0;y<size;y++)for(int x=0;x<size;x++)
+  {
+   double a=2*Math.PI*(x+.5)/size,b=2*Math.PI*(y+.5)/size;
+   // Integer spatial frequencies are periodic on both texture axes; diagnostic wind data, not new painted grass.
+   float value=(float)(.5+.18*Math.Sin(a+.7)*Math.Cos(b+.3)+.14*Math.Sin(2*a+b+.5)+.08*Math.Cos(a-3*b+.2));
+   value=Mathf.Clamp01(value);pixels[y*size+x]=new Color(value,value,value,1);
+  }
+  texture.SetPixels(pixels);texture.Apply(true,false);return texture;
+ }
+ public void Execute(ExecutionContext ctx)
+ {
+  Require(Application.dataPath.Replace('\\','/')=="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets","Intended project required");
+  Require(!Application.isPlaying&&!EditorApplication.isPlayingOrWillChangePlaymode&&!EditorApplication.isCompiling&&!EditorApplication.isUpdating,"Stable Edit required");
+  Require(!File.Exists(ReceiptPath),"R1 setup receipt already exists; inspect exact state, do not replay");
+  Require(AssetDatabase.IsValidFolder(DirectoryPath.TrimEnd('/')),"Existing owned GrassLab folder required");
+  var lab=SceneManager.GetSceneByPath(LabPath);var main=SceneManager.GetSceneByPath(MainPath);
+  Require(lab.IsValid()&&lab.isLoaded&&!main.isLoaded,"Owned Lab loaded; restored Main must stay unloaded");
+  var borrow=JObject.Parse(File.ReadAllText("artifacts/VEGETATION-01A/main-borrow.json"));
+  Require((string)borrow["status"]=="isolated-scene"&&(string)borrow["scene"]==MainPath&&Hash(MainPath)==(string)borrow["mainSafeSha"],"Exact active Main borrow/disk identity required");
+  Require(!main.isLoaded,"Original Main must remain in the existing inactive borrow; no root auto-enable");
+  var all=lab.GetRootGameObjects();var controls=all.SelectMany(g=>g.GetComponentsInChildren<GrassLabControls>(true)).Single();
+  var root=all.Single(g=>g.name=="GrassLabRoot_独立二维草候选").transform;
+  Require(controls.layers!=null&&controls.layers.Length==2&&controls.layers.All(l=>l!=null&&l.gameObject.scene==lab),"Two exact existing Lab layers required");
+  var a=controls.layers[0];var b=controls.layers[1];
+  Require(a.name=="GrassPatchA"&&b.name=="GrassPatchB"&&a.isActiveAndEnabled,"Existing A/B layer order and enabled A required");
+  Require(a.surfaces!=null&&a.surfaces.Length==1&&a.surfaces[0]!=null&&a.surfaces[0].collider!=null,"A exact single surface required");
+  var surface=a.surfaces[0];var terrain=surface.collider.GetComponent<MeshRenderer>();var filter=surface.collider.GetComponent<MeshFilter>();
+  Require(terrain!=null&&terrain.name=="MainTerrain"&&terrain.gameObject.scene==lab&&filter!=null&&filter.sharedMesh!=null,"Exact MainTerrain renderer/mesh required");
+  var mesh=filter.sharedMesh;
+  Require(mesh.subMeshCount==1&&mesh.normals.Length==mesh.vertexCount&&terrain.sharedMaterials.Length==1,"Original one-submesh terrain with normals required");
+  var profileA=AssetDatabase.LoadAssetAtPath<GrassLayerProfileSO>(DirectoryPath+"GrassCandidateA_v11.asset");
+  var profileB=AssetDatabase.LoadAssetAtPath<GrassLayerProfileSO>(DirectoryPath+"GrassCandidateB_v12.asset");
+  var materialA=AssetDatabase.LoadAssetAtPath<Material>(DirectoryPath+"GrassCandidateA_v11.mat");
+  var materialB=AssetDatabase.LoadAssetAtPath<Material>(DirectoryPath+"GrassCandidateB_v12.mat");
+  var bakeShader=AssetDatabase.LoadAssetAtPath<Shader>("Assets/OSSASTRA/Scripts/WorldRendering/Vegetation/Rendering/TerrainBaseColorBake.shader");
+  var litShader=Shader.Find("Universal Render Pipeline/Lit");
+  Require(profileA!=null&&profileB!=null&&profileA!=profileB&&materialA!=null&&materialB!=null&&materialA!=materialB&&bakeShader!=null&&bakeShader.isSupported&&litShader!=null,"Exact independent A/B and supported bake/Lit shaders required");
+  Require(profileB.useTerrainColor,"Existing B must permit TerrainColor; no unrelated flag normalization");
+  var original=a.data;
+  Require(original!=null&&original.placements!=null&&original.surfaceIds!=null&&original.surfaceIds.Length==1&&original.surfaceIds[0]==surface.id,"Original explicit placement/surface data required");
+  string originalPath=AssetDatabase.GetAssetPath(original),originalProfilePath=AssetDatabase.GetAssetPath(a.profile),terrainMeshPath=AssetDatabase.GetAssetPath(mesh);
+  Require(originalPath.StartsWith(DirectoryPath,StringComparison.Ordinal)&&!string.IsNullOrEmpty(originalProfilePath)&&!string.IsNullOrEmpty(terrainMeshPath),"Persistent original author references required");
+  var placements=original.placements.Where(p=>Inside(p.worldRoot)).ToArray();
+  Require(placements.Length>0&&placements.Length<original.placements.Length,"R1 must be a nonempty strict subset; original full map is not replaced");
+  Require(placements.All(p=>p.surfaceIndex==0&&Vector3.Distance(surface.collider.transform.TransformPoint(p.localRoot),p.worldRoot)<.002f),"Saved world roots no longer match exact surface; do not reinterpret placement records");
+  var sourcePositions=mesh.vertices;var sourceTriangles=mesh.triangles;var zones=new[]{new List<int>(),new List<int>(),new List<int>()};
+  for(int i=0;i<sourceTriangles.Length;i+=3)
+  {
+   var center=(terrain.transform.TransformPoint(sourcePositions[sourceTriangles[i]])+terrain.transform.TransformPoint(sourcePositions[sourceTriangles[i+1]])+terrain.transform.TransformPoint(sourcePositions[sourceTriangles[i+2]]))/3;
+   if(!Inside(center))continue;var zone=zones[Zone(center.z)];zone.Add(sourceTriangles[i]);zone.Add(sourceTriangles[i+1]);zone.Add(sourceTriangles[i+2]);
+  }
+  Require(zones.All(z=>z.Count>0),"All three R1 color zones require original triangles");
+  var newNames=new List<string>{"R1_placements.asset","R1_TerrainBaseColor.asset","R1_TerrainColorSource.asset","R1_WindData64.asset"};
+  foreach(string name in ZoneNames){newNames.Add(name+"_Mesh.asset");newNames.Add(name+".mat");}
+  foreach(string name in newNames)Require(!File.Exists(DirectoryPath+name)&&AssetDatabase.LoadMainAssetAtPath(DirectoryPath+name)==null,"Owned R1 target already exists; no replay: "+name);
+  Require(!all.SelectMany(g=>g.GetComponentsInChildren<Transform>(true)).Any(t=>ZoneNames.Contains(t.name)),"R1 scene objects already exist; inspect instead of duplicating");
+  string dataSha=Hash(originalPath),meshSha=Hash(terrainMeshPath),mainSha=Hash(MainPath),aJson=JsonUtility.ToJson(profileA),bJson=JsonUtility.ToJson(profileB),labSha=Hash(LabPath);
+  var sourceImagePaths=new[]{AssetDatabase.GetAssetPath(profileA.image),AssetDatabase.GetAssetPath(profileB.image)}.Where(p=>!string.IsNullOrEmpty(p)).Distinct().ToArray();
+  var imageGuards=sourceImagePaths.Select(p=>new{path=p,sha=Hash(p),metaSha=File.Exists(p+".meta")?Hash(p+".meta"):null}).ToArray();
+  receipt=JObject.FromObject(new{status="admitted-before-mutation",utc=DateTime.UtcNow.ToString("o"),scene=LabPath,labGuid=AssetDatabase.AssetPathToGUID(LabPath),labDiskBefore=labSha,labDirtyBefore=lab.isDirty,mainDirtyBefore=false,mainSha,
+   originalReferences=new{layerA=GlobalObjectId.GetGlobalObjectIdSlow(a).ToString(),oldDataPath=originalPath,oldDataGuid=AssetDatabase.AssetPathToGUID(originalPath),oldDataSha=dataSha,oldProfilePath=originalProfilePath,oldProfileGuid=AssetDatabase.AssetPathToGUID(originalProfilePath),oldTerrainColorPath=AssetDatabase.GetAssetPath(a.terrainColor),layerB=GlobalObjectId.GetGlobalObjectIdSlow(b).ToString(),layerBEnabled=b.enabled,layerBProfilePath=AssetDatabase.GetAssetPath(b.profile)},
+   before=new{controls=EditorJsonUtility.ToJson(controls,true),layerA=EditorJsonUtility.ToJson(a,true),layerB=EditorJsonUtility.ToJson(b,true),profileA=aJson,profileB=bJson},region=new{xMin=X0,xMax=X1,zMin=Z0,zMax=Z1,triangleRule="world triangle center inside R1; z split into equal thirds"},originalPlacements=original.placements.Length,subsetPlacements=placements.Length,sourceImageGuards=imageGuards});
+  WriteReceipt();
+  try
+  {
+   SceneManager.SetActiveScene(lab);ctx.RegisterObjectModification(a);ctx.RegisterObjectModification(b);ctx.RegisterObjectModification(controls);ctx.RegisterObjectModification(profileA);ctx.RegisterObjectModification(profileB);
+   var patch=ScriptableObject.CreateInstance<GrassPatchDataSO>();patch.name="R1_placements";patch.seed=original.seed;patch.density=original.density;patch.maxDensity=original.maxDensity;patch.surfaceIds=(string[])original.surfaceIds.Clone();patch.placements=placements;Asset(patch,"R1_placements.asset");
+   var sourceRenderers=new List<MeshRenderer>{terrain};var zoneFacts=new List<object>();
+   for(int i=0;i<3;i++)
+   {
+    var zoneMesh=PatchMesh(mesh,terrain.transform,root,zones[i].ToArray(),i);Asset(zoneMesh,ZoneNames[i]+"_Mesh.asset");
+    var material=new Material(litShader){name=ZoneNames[i]+"_Material"};material.SetColor("_BaseColor",ZoneColors[i]);material.SetTexture("_BaseMap",null);material.SetFloat("_Smoothness",.05f);Asset(material,ZoneNames[i]+".mat");
+    var go=new GameObject(ZoneNames[i]);SceneManager.MoveGameObjectToScene(go,lab);go.transform.SetParent(root,false);go.layer=terrain.gameObject.layer;ctx.RegisterObjectCreation(go);
+    go.AddComponent<MeshFilter>().sharedMesh=zoneMesh;var renderer=go.AddComponent<MeshRenderer>();renderer.sharedMaterial=material;renderer.shadowCastingMode=ShadowCastingMode.Off;renderer.receiveShadows=true;renderer.renderingLayerMask=terrain.renderingLayerMask;sourceRenderers.Add(renderer);
+    zoneFacts.Add(new{name=ZoneNames[i],triangles=zones[i].Count/3,vertices=zoneMesh.vertexCount,color=C(ZoneColors[i]),collisionAdded=false,worldYOffset=.003f});
+   }
+   GrassTerrainColorSourceSO colorSource;
+   using(var baked=TerrainBaseColorBaker.Bake(surface.id,sourceRenderers.ToArray(),surface.collider.bounds,256,bakeShader,1))
+   {
+    Require(baked.sourceCount==4&&baked.unlitBaseColor&&baked.linearTexture,"Explicit unlit four-renderer base-color bake required");
+    var texture=baked.DetachTexture();texture.name="R1_TerrainBaseColor";Asset(texture,"R1_TerrainBaseColor.asset");
+    colorSource=ScriptableObject.CreateInstance<GrassTerrainColorSourceSO>();colorSource.name="R1_TerrainColorSource";colorSource.surfaceId=baked.surfaceId;colorSource.texture=texture;colorSource.worldXZ=baked.worldXZ;colorSource.version=baked.version;Asset(colorSource,"R1_TerrainColorSource.asset");
+    receipt["bake"]=JObject.FromObject(new{resolution=256,surfaceId=baked.surfaceId,sourceCount=baked.sourceCount,worldXZ=new{x=baked.worldXZ.x,y=baked.worldXZ.y,width=baked.worldXZ.width,height=baked.worldXZ.height},unlitBaseColor=true,linearTexture=true,alphaValidity=true,oneTime=true,extraCameraCreated=false});
+   }
+   var wind=WindData();Asset(wind,"R1_WindData64.asset");
+   profileA.material=materialA;
+   profileB.material=materialB;profileB.windTexture=wind;profileB.motion=GrassMotion.CombinedColor;profileB.appearance=GrassAppearance.Environment;profileB.rgbDetail=0;
+   Require(JToken.DeepEquals(Without(aJson,"material"),Without(JsonUtility.ToJson(profileA),"material")),"Unexpected A field change outside dedicated material binding");
+   Require(JToken.DeepEquals(Without(bJson,"material","windTexture","motion","appearance","rgbDetail"),Without(JsonUtility.ToJson(profileB),"material","windTexture","motion","appearance","rgbDetail")),"B geometry or other preserved profile fields changed");
+   EditorUtility.SetDirty(profileA);AssetDatabase.SaveAssetIfDirty(profileA);EditorUtility.SetDirty(profileB);AssetDatabase.SaveAssetIfDirty(profileB);
+   a.profile=profileB;a.data=patch;a.terrainColor=colorSource;a.terrainSources=sourceRenderers.ToArray();b.enabled=false;a.RebuildFromSaved();
+   controls.candidateA=profileA;controls.candidateB=profileB;controls.target=new Vector3(-3,.7f,0);controls.distance=10;controls.cameraPitch=45;controls.followAvatar=false;controls.expanded=false;controls.RefreshView();
+   Require(Hash(originalPath)==dataSha&&Hash(terrainMeshPath)==meshSha&&Hash(MainPath)==mainSha,"Original placement/terrain/Main disk changed");
+   Require(imageGuards.All(g=>Hash(g.path)==g.sha&&(g.metaSha==null||Hash(g.path+".meta")==g.metaSha)),"Source image or meta changed");
+   Require(patch.seed==original.seed&&patch.density==original.density&&patch.maxDensity==original.maxDensity&&patch.surfaceIds.SequenceEqual(original.surfaceIds),"Saved subset metadata changed");
+   EditorSceneManager.MarkSceneDirty(lab);Require(EditorSceneManager.SaveScene(lab,LabPath,false),"Owned Lab save failed");
+   Require(!main.isLoaded&&Hash(MainPath)==mainSha,"Main dirty/disk state changed");
+   receipt["status"]="saved";receipt["savedAssets"]=JArray.FromObject(created.Select(p=>new{path=p,guid=AssetDatabase.AssetPathToGUID(p),sha=Hash(p)}));
+   receipt["existingCandidateUpdates"]=JArray.FromObject(new[]{new{path=AssetDatabase.GetAssetPath(profileA),sha=Hash(AssetDatabase.GetAssetPath(profileA))},new{path=AssetDatabase.GetAssetPath(profileB),sha=Hash(AssetDatabase.GetAssetPath(profileB))}});
+   receipt["zones"]=JArray.FromObject(zoneFacts);receipt["placementsHash"]=TextHash(JsonUtility.ToJson(patch));receipt["labDiskAfter"]=Hash(LabPath);receipt["mainPreserved"]=true;receipt["originalDataPreserved"]=true;receipt["originalTerrainMeshPreserved"]=true;receipt["sourceImagesPreserved"]=true;receipt["clumps"]=a.ClumpCount;receipt["blocks"]=a.BlockCount;receipt["vertices"]=a.VertexCount;receipt["triangles"]=a.TriangleCount;receipt["savedUtc"]=DateTime.UtcNow.ToString("o");WriteReceipt();
+   ctx.ReturnValue=new{output=Path.GetFullPath(ReceiptPath),pass=true,placements=placements.Length,originalPlacements=original.placements.Length,assets=created.Count,clumps=a.ClumpCount,blocks=a.BlockCount,labSaved=true,mainSaved=false,portalIntegrated=false};
+  }
+  catch(Exception error)
+  {
+   receipt["status"]="failed-partial-inspect-before-recovery";receipt["error"]=error.GetType().Name+": "+error.Message;receipt["createdAssets"]=JArray.FromObject(created);WriteReceipt();throw;
+  }
+ }
+}

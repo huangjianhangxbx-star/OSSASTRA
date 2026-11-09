@@ -1,0 +1,36 @@
+// Finite diagnostic only. Root imports/removes this temporary asset; no production test pass.
+Shader "Hidden/Ossastra/Diagnostics/GrassWindProbe"
+{
+ Properties
+ {
+  _Point("Rest world point",Vector)=(2,.4,3,1)
+  _Root("Stable world root",Vector)=(2,0,3,1)
+  _Weight("Bend weight",Float)=1
+  _GrassWind("Direction times strength / phase seconds / maximum displacement",Vector)=(1,0,0,.14)
+ }
+ SubShader
+ {
+  Tags{"RenderPipeline"="UniversalPipeline"}
+  Pass
+  {
+   Name "Probe"
+   Cull Off ZWrite Off ZTest Always Blend One Zero
+   HLSLPROGRAM
+   #pragma target 4.5
+   #pragma vertex Vert
+   #pragma fragment Frag
+   #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+   #define _GRASS_WIND 1
+   #include "Assets/OSSASTRA/Scripts/WorldRendering/Vegetation/Rendering/GrassWind.hlsl"
+   CBUFFER_START(UnityPerMaterial)
+   float4 _Point,_Root,_GrassWind;
+   float _Weight;
+   CBUFFER_END
+   struct Varying{float4 positionCS:SV_POSITION;};
+   Varying Vert(uint vertexID:SV_VertexID){Varying o;o.positionCS=GetFullScreenTriangleVertexPosition(vertexID);return o;}
+   float4 Frag(Varying input):SV_Target{return float4(GrassDeform(_Point.xyz,_Root.xyz,_Weight,_GrassWind),1);}
+   ENDHLSL
+  }
+ }
+ Fallback Off
+}

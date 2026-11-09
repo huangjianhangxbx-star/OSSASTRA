@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>netstandard2.1</TargetFramework><EnableDefaultCompileItems>false</EnableDefaultCompileItems><ImplicitUsings>disable</ImplicitUsings><RestoreIgnoreFailedSources>true</RestoreIgnoreFailedSources></PropertyGroup>
+  <ItemGroup><Compile Include="GrassScatter.cs.txt"/><Reference Include="UnityEngine.CoreModule"><HintPath>E:/unity/Tuanjie Hub/2022.3.62t16/Editor/Data/Managed/UnityEngine/UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference></ItemGroup>
+</Project>

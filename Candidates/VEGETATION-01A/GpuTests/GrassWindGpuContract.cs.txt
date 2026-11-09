@@ -1,0 +1,125 @@
+/* 功能：在私有2x2 float RT中采样正式GrassDeform，验证根、零风、弯曲权重、有界位移、周期和有限值。
+ * 边界：只读实际Profile最大摆幅；不写全局、场景、材质资产或天气，不重放草卡片、Alpha、阴影和许可。
+ * 生命周期：无常驻Pass/对象；finally还原active RT并释放全部材质、RT、读回纹理和CommandBuffer。
+ */
+using System;
+using System.IO;
+using System.Linq;
+using System.Collections.Generic;
+using System.Security.Cryptography;
+using UnityEngine;
+using UnityEditor;
+using UnityEngine.Rendering;
+using Newtonsoft.Json.Linq;
+using Funplay.Editor.Tools.Scripting;
+
+public sealed class GrassWindGpuContract:IFunplayCommand
+{
+ const string Request="artifacts/VEGETATION-01A/gpu-probe-request.json";
+ const string ProfileFolder="Assets/OSSASTRA/WorldRendering/Vegetation/GrassLab/";
+ const string ProbePath="Assets/OSSASTRA/Scripts/WorldRendering/Vegetation/Rendering/GrassWindProbe.shader";
+ const string GrassPath="Assets/OSSASTRA/Scripts/WorldRendering/Vegetation/Rendering/GrassLayer.shader";
+ const string HlslPath="Assets/OSSASTRA/Scripts/WorldRendering/Vegetation/Rendering/GrassWind.hlsl";
+ const float Epsilon=.00001f;
+ static float[] V(Vector3 p)=>new[]{p.x,p.y,p.z};
+ static bool Finite(float n)=>!float.IsNaN(n)&&!float.IsInfinity(n);
+ static bool Finite(Vector3 p)=>Finite(p.x)&&Finite(p.y)&&Finite(p.z);
+ static string Hash(string path){using(var h=SHA256.Create())using(var s=File.OpenRead(path))return BitConverter.ToString(h.ComputeHash(s)).Replace("-","");}
+ static Vector3 Sample(Material material,RenderTexture target,Texture2D read,Vector3 point,Vector3 root,float weight,Vector2 directionStrength,float phaseSeconds,float maximumBend)
+ {
+  material.SetVector("_Point",new Vector4(point.x,point.y,point.z,1));
+  material.SetVector("_Root",new Vector4(root.x,root.y,root.z,1));
+  material.SetFloat("_Weight",weight);
+  material.SetVector("_GrassWind",new Vector4(directionStrength.x,directionStrength.y,phaseSeconds,maximumBend));
+  var command=new CommandBuffer{name="Finite private GrassDeform GPU contract"};
+  try
+  {
+   command.SetRenderTarget(target);command.SetViewport(new Rect(0,0,2,2));command.ClearRenderTarget(false,true,Color.clear);
+   command.DrawProcedural(Matrix4x4.identity,material,0,MeshTopology.Triangles,3);
+   Graphics.ExecuteCommandBuffer(command);
+  }
+  finally{command.Release();}
+  RenderTexture.active=target;read.ReadPixels(new Rect(0,0,2,2),0,0,false);read.Apply(false,false);
+  var pixels=read.GetPixels();var p=pixels[0];var result=new Vector3(p.r,p.g,p.b);
+  if(!pixels.All(c=>Finite(c.r)&&Finite(c.g)&&Finite(c.b)&&Finite(c.a)))throw new InvalidOperationException("Private float output contains NaN/Infinity");
+  if(pixels.Any(c=>Vector3.Distance(result,new Vector3(c.r,c.g,c.b))>Epsilon||Mathf.Abs(c.a-1)>Epsilon))throw new InvalidOperationException("Fullscreen probe did not uniformly fill all 2x2 float pixels");
+  return result;
+ }
+ public void Execute(ExecutionContext ctx)
+ {
+  if(Application.dataPath.Replace('\\','/')!="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets")throw new InvalidOperationException("Intended project required");
+  if(EditorApplication.isCompiling||EditorApplication.isUpdating)throw new InvalidOperationException("Stable imported assemblies required");
+  if(!SystemInfo.SupportsRenderTextureFormat(RenderTextureFormat.ARGBFloat)||!SystemInfo.SupportsTextureFormat(TextureFormat.RGBAFloat))throw new InvalidOperationException("ARGBFloat RT/RGBAFloat CPU readback unavailable; do not substitute 8bit");
+  var request=JObject.Parse(File.ReadAllText(Request));string profilePath=(string)request["profilePath"];
+  if(string.IsNullOrEmpty(profilePath)||!profilePath.StartsWith(ProfileFolder,StringComparison.Ordinal)||profilePath.Contains("..")||!profilePath.EndsWith(".asset",StringComparison.Ordinal))throw new InvalidOperationException("Explicit owned grass profile path required");
+  var profile=AssetDatabase.LoadAssetAtPath<ScriptableObject>(profilePath);
+  if(profile==null||profile.GetType().FullName!="Ossastra.WorldRendering.Vegetation.GrassLayerProfileSO")throw new InvalidOperationException("Exact GrassLayerProfileSO missing");
+  var property=new SerializedObject(profile).FindProperty("maximumBend");
+  if(property==null||property.propertyType!=SerializedPropertyType.Float)throw new InvalidOperationException("Actual maximumBend field missing");
+  float maximumBend=property.floatValue;if(!Finite(maximumBend)||maximumBend<=0||maximumBend>.5f)throw new InvalidOperationException("Positive finite profile maximumBend <=.5 required for this contract");
+  string profileBefore=Hash(profilePath),hlslBefore=Hash(HlslPath);
+  var probe=AssetDatabase.LoadAssetAtPath<Shader>(ProbePath);var grass=AssetDatabase.LoadAssetAtPath<Shader>(GrassPath);
+  if(probe==null||grass==null)throw new InvalidOperationException("Explicit imported temporary probe and production GrassLayer shaders required");
+  var messages=new List<string>();var failures=new List<string>();var samples=new List<object>();var checks=new List<object>();var passes=new List<object>();
+  var previous=RenderTexture.active;Material material=null,passMaterial=null;RenderTexture target=null;Texture2D read=null;string exception=null;bool cleanup=false,activeRestored=false;
+  Action<string,bool,object> check=(name,passed,detail)=>{checks.Add(new{name,passed,detail});if(!passed)failures.Add(name);};
+  try
+  {
+   foreach(var shader in new[]{probe,grass})foreach(var m in ShaderUtil.GetShaderMessages(shader))if(m.severity.ToString()=="Error")messages.Add(shader.name+": "+m.message);
+   check("no cached shader compiler errors",messages.Count==0,messages.ToArray());
+   material=new Material(probe){name="Grass wind private probe",hideFlags=HideFlags.HideAndDontSave};
+   passMaterial=new Material(grass){name="Grass named-pass check",hideFlags=HideFlags.HideAndDontSave};
+   foreach(string name in new[]{"ForwardLit","DepthOnly","DepthNormals","ShadowCaster"}){int index=passMaterial.FindPass(name);passes.Add(new{name,index});check("production pass "+name,index>=0,index);}
+   target=new RenderTexture(2,2,0,RenderTextureFormat.ARGBFloat,RenderTextureReadWrite.Linear){name="Grass wind 2x2 private float",hideFlags=HideFlags.HideAndDontSave,antiAliasing=1,useMipMap=false,autoGenerateMips=false,filterMode=FilterMode.Point,wrapMode=TextureWrapMode.Clamp};
+   if(!target.Create())throw new InvalidOperationException("Private float RT creation failed");
+   read=new Texture2D(2,2,TextureFormat.RGBAFloat,false,true){name="Grass wind finite CPU readback",hideFlags=HideFlags.HideAndDontSave};
+   Vector3 root=new Vector3(2,0,3),tip=root+Vector3.up*.4f,baseEdge=root+Vector3.right*.15f;Vector2 wind=new Vector2(.9f,0);
+   Func<string,Vector3,float,Vector2,float,float,Vector3> measure=(label,point,weight,dir,seconds,bend)=>{
+    var value=Sample(material,target,read,point,root,weight,dir,seconds,bend);
+    samples.Add(new{label,point=V(point),root=V(root),weight,windXY=new[]{dir.x,dir.y},phaseSeconds=seconds,maximumBend=bend,result=V(value),displacement=Vector3.Distance(point,value)});return value;};
+   foreach(float seconds in new[]{0f,4f,8f,12f,16f})
+   {
+    var value=measure("anchored root",root,0,wind,seconds,maximumBend);check("root stationary t="+seconds,Vector3.Distance(value,root)<=Epsilon,V(value));
+   }
+   var edge=measure("root-row horizontal edge",baseEdge,0,wind,7.3f,maximumBend);check("full root row remains anchored",Vector3.Distance(edge,baseEdge)<=Epsilon,V(edge));
+   var still=measure("zero wind",tip,1,Vector2.zero,5.2f,maximumBend);check("zero wind stationary",Vector3.Distance(still,tip)<=Epsilon,V(still));
+   var zeroBend=measure("zero maximum bend",tip,1,wind,5.2f,0);check("zero bend stationary",Vector3.Distance(zeroBend,tip)<=Epsilon,V(zeroBend));
+   var full=measure("full tip phase0",tip,1,wind,0,maximumBend);var partial=measure("half-height weight",tip,.5f,wind,0,maximumBend);var later=measure("full tip phase4",tip,1,wind,4,maximumBend);
+   check("wind visibly changes tip",Vector3.Distance(full,later)>.0001f,new{distance=Vector3.Distance(full,later)});
+   check("partial weight bends less",Vector3.Distance(tip,partial)>Epsilon&&Vector3.Distance(tip,partial)<Vector3.Distance(tip,full),new{partial=Vector3.Distance(tip,partial),full=Vector3.Distance(tip,full)});
+   var period=measure("full tip phase16",tip,1,wind,16,maximumBend);check("16-second period",Vector3.Distance(full,period)<=Epsilon,new{difference=Vector3.Distance(full,period)});
+   var left=measure("before phase wrap",tip,1,wind,15.999f,maximumBend);var right=measure("after phase wrap",tip,1,wind,.001f,maximumBend);
+   check("wrap neighborhood continuous",Vector3.Distance(left,right)<=maximumBend*.005f+Epsilon,new{difference=Vector3.Distance(left,right),limit=maximumBend*.005f+Epsilon});
+   var repeatA=measure("repeat A",tip,1,wind,5.25f,maximumBend);var repeatB=measure("repeat B",tip,1,wind,5.25f,maximumBend);check("same root and time reproduce",Vector3.Distance(repeatA,repeatB)<=Epsilon,V(repeatA));
+   float peak=0;var finiteTimes=new[]{-1000000000000d,-.001d,0d,.001d,1d,3.5d,7.999d,12d,15.999d,16d,16.001d,1000d,1000000d,1000000000000d};
+   foreach(double seconds in finiteTimes)
+   {
+    // Mirrors the public transport: runtime submits environment Seconds modulo16, not a new clock.
+    float phase=(float)((seconds%16+16)%16);
+    foreach(var direction in new[]{Vector2.right,Vector2.up,new Vector2(.6f,.8f)})
+    {
+     var value=measure("finite transport seconds="+seconds,tip,1,direction,phase,maximumBend);peak=Mathf.Max(peak,Vector3.Distance(value,tip));
+     if(!Finite(value))failures.Add("Nonfinite representative time "+seconds);
+    }
+   }
+   check("representative finite transported times",failures.All(f=>!f.StartsWith("Nonfinite",StringComparison.Ordinal)),finiteTimes);
+   check("displacement within conservative profile bound",peak<=maximumBend*1.5f+Epsilon,new{peak,limit=maximumBend*1.5f+Epsilon});
+  }
+  catch(Exception e){exception=e.GetType().Name+": "+e.Message;failures.Add(exception);}
+  finally
+  {
+   RenderTexture.active=previous;
+   if(read!=null)UnityEngine.Object.DestroyImmediate(read);
+   if(target!=null){target.Release();UnityEngine.Object.DestroyImmediate(target);}
+   if(material!=null)UnityEngine.Object.DestroyImmediate(material);
+   if(passMaterial!=null)UnityEngine.Object.DestroyImmediate(passMaterial);
+   cleanup=read==null&&target==null&&material==null&&passMaterial==null;activeRestored=ReferenceEquals(RenderTexture.active,previous);
+  }
+  bool profilePreserved=Hash(profilePath)==profileBefore,hlslPreserved=Hash(HlslPath)==hlslBefore;
+  check("private resources released",cleanup,null);check("active render target restored",activeRestored,null);check("profile preserved",profilePreserved,null);check("formal HLSL preserved",hlslPreserved,null);
+  string output=Path.GetFullPath("artifacts/VEGETATION-01A/gpu-wind-contract-"+DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff")+".json");Directory.CreateDirectory(Path.GetDirectoryName(output));
+  var result=new{pass=failures.Count==0,profilePath,maximumBend,profileBefore,hlslBefore,probeSha=Hash(ProbePath),shaderSha=Hash(GrassPath),checks,passes,samples,failures,exception,cleanup,activeRestored,profilePreserved,hlslPreserved,rtFormat="ARGBFloat/Linear, 2x2",scope="Actual included GrassDeform HLSL in a private float fragment probe; fixture submits explicit point/root/weight and wind. Finite-time transport uses Seconds modulo16 as runtime does. Not actual mesh deformation draw, alpha silhouette, lighting, shadow, permission, render-frame output or GPU performance. Named production passes/cached compiler errors do not prove every variant is compiled."};
+  File.WriteAllText(output,Newtonsoft.Json.JsonConvert.SerializeObject(result,Newtonsoft.Json.Formatting.Indented));
+  ctx.ReturnValue=new{output,result.pass,checkCount=checks.Count,sampleCount=samples.Count,failures=result.failures.ToArray(),cleanup,activeRestored,profilePreserved,hlslPreserved};
+ }
+}

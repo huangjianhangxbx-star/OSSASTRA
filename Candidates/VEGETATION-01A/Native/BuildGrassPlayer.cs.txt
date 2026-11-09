@@ -1,0 +1,74 @@
+/* 功能：仅将已保存的独立GrassLab构建为Windows64 Release Player，保留逐阶段耗时回执。
+ * 边界：不执行、不修改EditorBuildSettings/PlayerSettings、不切场、不保存作者资产，不构建Main或其它场。
+ * 生命周期：调用BuildPlayer前先写building回执；已有回执拒绝重放。未知结果由Root核回执，不自动重试。
+ */
+using System;
+using System.IO;
+using System.Linq;
+using System.Diagnostics;
+using System.Security.Cryptography;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEditor;
+using UnityEditor.Build.Reporting;
+using Newtonsoft.Json.Linq;
+using Funplay.Editor.Tools.Scripting;
+
+public sealed class BuildGrassLabPlayer:IFunplayCommand
+{
+ const string Project="E:/WORLDCREATOR/new/Project_ANKALUTE";
+ const string Lab="Assets/OSSASTRA/WorldRendering/Vegetation/GrassLab/SC_GrassWindLab.unity";
+ const string Main="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity";
+ const string Output="LocalBuilds/VEGETATION-01A/GrassLab.exe";
+ const string Receipt="artifacts/VEGETATION-01A/v12/grass-player-build.json";
+ static string Hash(string path)
+ {
+  if(!File.Exists(path))return null;
+  using(var sha=SHA256.Create())using(var stream=File.OpenRead(path))return BitConverter.ToString(sha.ComputeHash(stream)).Replace("-","");
+ }
+ static void Require(bool value,string reason){if(!value)throw new InvalidOperationException(reason);}
+ static string SceneSettings()=>string.Join("\n",EditorBuildSettings.scenes.Select(s=>s.path+"|"+s.enabled));
+ public void Execute(ExecutionContext ctx)
+ {
+  Require(Application.dataPath.Replace('\\','/')==Project+"/Assets","Exact ANKALUTE project required");
+  Require(!Application.isPlaying&&!EditorApplication.isPlayingOrWillChangePlaymode&&!EditorApplication.isCompiling&&!EditorApplication.isUpdating&&!BuildPipeline.isBuildingPlayer,"Stable Edit and no active Build required");
+  Require(EditorUserBuildSettings.activeBuildTarget==BuildTarget.StandaloneWindows64,"Windows64 must already be active; this command does not switch build target or settings");
+  var lab=SceneManager.GetSceneByPath(Lab);var main=SceneManager.GetSceneByPath(Main);
+  Require(lab.IsValid()&&lab.isLoaded&&SceneManager.sceneCount==1&&SceneManager.GetActiveScene()==lab&&!main.isLoaded,"Only exact owned Lab must be loaded and active; Main must stay unloaded");
+  Require(!lab.isDirty,"Lab contains unsaved changes; save only the owned Lab explicitly before this build");
+  Require(File.Exists(Lab)&&AssetDatabase.LoadAssetAtPath<SceneAsset>(Lab)!=null,"Exact saved Lab scene asset required");
+  Require(!File.Exists(Receipt),"Build receipt already exists; inspect it and explicitly archive before another build, never replay an unknown BuildPlayer call");
+  string output=Path.GetFullPath(Output).Replace('\\','/'),allowed=Project+"/LocalBuilds/VEGETATION-01A/";
+  Require(output==allowed+"GrassLab.exe","Output escaped exact owned build directory");
+  const string settingsPath="ProjectSettings/ProjectSettings.asset",buildSettingsPath="ProjectSettings/EditorBuildSettings.asset";
+  string settingsHash=Hash(settingsPath),buildSettingsHash=Hash(buildSettingsPath),sceneSettings=SceneSettings(),labHash=Hash(Lab),mainHash=Hash(Main);
+  Require(settingsHash!=null&&buildSettingsHash!=null&&labHash!=null&&mainHash!=null,"Project/settings/Main guard files required");
+  Directory.CreateDirectory(Path.GetDirectoryName(output));Directory.CreateDirectory(Path.GetDirectoryName(Receipt));
+  var receipt=JObject.FromObject(new{status="building",utc=DateTime.UtcNow.ToString("o"),project=Project,scenes=new[]{Lab},output,target=BuildTarget.StandaloneWindows64.ToString(),options=BuildOptions.None.ToString(),release=true,
+   editorBuildSettingsChanged=false,playerSettingsChanged=false,settingsBefore=new{projectSettings=settingsHash,editorBuildSettings=buildSettingsHash,scenes=sceneSettings},labShaBefore=labHash,mainShaBefore=mainHash,sceneDirtyBefore=lab.isDirty,buildGuid=Guid.NewGuid().ToString("N")});
+  File.WriteAllText(Receipt,receipt.ToString());
+  var timer=Stopwatch.StartNew();
+  try
+  {
+   // Explicit one-scene list: the global build-scene list is read only and is never replaced.
+   var report=BuildPipeline.BuildPlayer(new BuildPlayerOptions{scenes=new[]{Lab},locationPathName=Output,target=BuildTarget.StandaloneWindows64,options=BuildOptions.None});
+   timer.Stop();Require(report!=null,"BuildPipeline returned no BuildReport");var summary=report.summary;
+   bool guards=Hash(settingsPath)==settingsHash&&Hash(buildSettingsPath)==buildSettingsHash&&SceneSettings()==sceneSettings&&Hash(Lab)==labHash&&Hash(Main)==mainHash&&!main.isLoaded&&SceneManager.sceneCount==1&&lab.isLoaded&&!lab.isDirty;
+   receipt["status"]=summary.result==BuildResult.Succeeded&&guards?"succeeded":"failed";
+   receipt["finishedUtc"]=DateTime.UtcNow.ToString("o");receipt["wallSeconds"]=timer.Elapsed.TotalSeconds;
+   receipt["summary"]=JObject.FromObject(new{result=summary.result.ToString(),platform=summary.platform.ToString(),summary.outputPath,summary.totalErrors,summary.totalWarnings,summary.totalSize,totalSeconds=summary.totalTime.TotalSeconds,guid=summary.guid.ToString()});
+   receipt["steps"]=JArray.FromObject(report.steps.Select(s=>new{s.name,s.depth,seconds=s.duration.TotalSeconds,messages=s.messages.Where(m=>m.type==LogType.Error||m.type==LogType.Exception||m.type==LogType.Warning).Take(40).Select(m=>new{type=m.type.ToString(),m.content}).ToArray()}));
+   receipt["guardPreserved"]=guards;receipt["projectSettingsShaAfter"]=Hash(settingsPath);receipt["editorBuildSettingsShaAfter"]=Hash(buildSettingsPath);receipt["labShaAfter"]=Hash(Lab);receipt["mainShaAfter"]=Hash(Main);
+   receipt["exeExists"]=File.Exists(output);if(File.Exists(output)){receipt["exeBytes"]=new FileInfo(output).Length;receipt["exeSha"]=Hash(output);}
+   File.WriteAllText(Receipt,receipt.ToString());
+   Require(summary.result==BuildResult.Succeeded,"GrassLab build failed; inspect exact receipt/BuildReport before any retry");
+   Require(guards,"Build completed but protected settings/scene guard changed; inspect receipt, do not auto-restore user state");
+   ctx.ReturnValue=new{receipt=Path.GetFullPath(Receipt),output,pass=true,release=true,wallSeconds=timer.Elapsed.TotalSeconds,summary.totalWarnings,summary.totalErrors,mainBuilt=false,settingsChanged=false,playerStarted=false};
+  }
+  catch(Exception error)
+  {
+   timer.Stop();receipt["status"]="failed-inspect-before-retry";receipt["finishedUtc"]=DateTime.UtcNow.ToString("o");receipt["wallSeconds"]=timer.Elapsed.TotalSeconds;receipt["error"]=error.GetType().Name+": "+error.Message;
+   receipt["projectSettingsShaAfter"]=Hash(settingsPath);receipt["editorBuildSettingsShaAfter"]=Hash(buildSettingsPath);receipt["labShaAfter"]=Hash(Lab);receipt["mainShaAfter"]=Hash(Main);File.WriteAllText(Receipt,receipt.ToString());throw;
+  }
+ }
+}

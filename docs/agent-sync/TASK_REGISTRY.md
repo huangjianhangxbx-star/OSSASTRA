@@ -1150,3 +1150,6 @@ P1/K0.7-C1及每角色完整A/B、有限GPU/定向屏幕采样、正式编译/�
 
 ## CHAR-LIGHT-01 v1.3 complete/read-only（2026-11-09）
 功能ccdbc87bbbc8fd3a6fae3c785507ef1b4e9ec3a6已GitHub main精确核验；38自有文件，原42dirty/无主meta不夹带。A级P1完整A/B与参数清单交付，Main Edit ready/45/dirtytrue、原Profile/场景磁盘/4业务源守恒、摄影/输入/私有路由/临时Shader均归还。B是可读回的一键候选，非Main/Player自动默认；详本任务和v1.3交付/发布回执。Root及所有子代理Unity/源码/候选/文档/Git租约全部释放，不自动下一阶段、不电源操作。
+
+## VEGETATION-01A v1.2 独立候选交付 / Unity释放（2026-11-10）
+R0–R5独立候选与本机指南/实录完成；Root与所有子writer停止Unity/源码写入，仅定向Git发布收尾。4099簇/27块，二维Alpha与逐surface基础色/艺术颜色/两层风/颜色风，不改共享Environment/Room，不自动主场回接。GPU风50/100与Legacy24/58、资源释放/冷重开、真实Player两密度及Editor四态通过；Player GPU null，预算不代签，视觉待用户。Main曾未知保存临时off；37根已按原记录修复并重开Edit/dirtytrue，原Main SHA不保持，原CHAR/源图守恒；详任务/交付/final-restoration。所有原42dirty与无主meta不纳入发布；不做电源操作。

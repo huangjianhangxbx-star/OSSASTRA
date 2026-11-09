@@ -1,0 +1,86 @@
+/* 功能：独立草样区的显式生成、重建与保存入口。
+ * 边界：仅自有GrassLab场/配置/数据；不自动OnValidate生成，不保存Main或全资产。
+ * 生命周期：生成数据持久化，显示块仍由GrassLayer按保存数据重建；关闭仅恢复原地表显示。
+ */
+#if UNITY_EDITOR
+using System;
+using System.Linq;
+using UnityEngine;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+
+namespace Ossastra.WorldRendering.Vegetation.Editor
+{
+ [CustomEditor(typeof(GrassLayer))]
+ public sealed class GrassLayerEditor : UnityEditor.Editor
+ {
+  const string AssetRoot="Assets/OSSASTRA/WorldRendering/Vegetation/GrassLab/";
+  string message="生成与保存只在编辑态显式执行；原图、地形碰撞及主场保持。";
+  MessageType messageType=MessageType.Info;
+
+  public override void OnInspectorGUI()
+  {
+   DrawDefaultInspector();
+   var layer=(GrassLayer)target;
+   EditorGUILayout.Space();
+   EditorGUILayout.LabelField("二维草层作者操作",EditorStyles.boldLabel);
+   EditorGUILayout.HelpBox("当前仅独立URP候选；未接入Room门户/黑幕，不自动铺进主场。",MessageType.Warning);
+   using(new EditorGUI.DisabledScope(Application.isPlaying))
+   {
+    if(GUILayout.Button("生成放置数据并预览"))Run(()=>Generate(layer));
+    if(GUILayout.Button("从保存数据重建显示块"))Run(()=>{RequireOwned(layer);layer.RebuildFromSaved();return "已从当前保存数据重建显示块；未重新采样或改动原地形。";});
+    if(GUILayout.Button("保存本草场配置、数据与场景"))Run(()=>Save(layer));
+   }
+   if(GUILayout.Button("关闭草层 / 恢复原地表"))
+   {
+    if(!Owned(layer.gameObject.scene.path)){message="拒绝操作：只允许本GrassLab草场。";messageType=MessageType.Error;}
+    else{layer.SetMode(GrassWindMode.Original,layer.castShadows);message="草层已关闭；原地形、贴图与碰撞未改。";messageType=MessageType.Info;}
+   }
+   EditorGUILayout.HelpBox(message,messageType);
+   EditorGUILayout.LabelField("当前显示",layer.ClumpCount+" 簇 / "+layer.BlockCount+" 块 / "+layer.TriangleCount+" 三角");
+  }
+
+  void Run(Func<string> operation)
+  {
+   try{message=operation();messageType=MessageType.Info;}
+   catch(Exception error){message=error.Message;messageType=MessageType.Error;}
+  }
+
+  static void RequireOwned(GrassLayer layer)
+  {
+   if(Application.isPlaying)throw new InvalidOperationException("请先退出此独立草场的Play，再生成或保存。运行时风态切换无需保存。");
+   if(layer==null||!layer.gameObject.scene.IsValid()||!Owned(layer.gameObject.scene.path))
+    throw new InvalidOperationException("拒绝操作：只允许已保存到GrassLab目录的自有场景，不保存主场或未命名场。");
+   if(layer.profile==null||layer.data==null)throw new InvalidOperationException("先指定本草场独立Profile与放置数据资产。");
+   if(!Owned(AssetDatabase.GetAssetPath(layer.profile))||!Owned(AssetDatabase.GetAssetPath(layer.data)))
+    throw new InvalidOperationException("拒绝写入：Profile与放置数据都必须属于GrassLab目录；源草图可只读引用外部素材。");
+  }
+  static bool Owned(string path)=>!string.IsNullOrWhiteSpace(path)&&path.StartsWith(AssetRoot,StringComparison.Ordinal)&&path.IndexOf("..",StringComparison.Ordinal)<0;
+
+  static string Generate(GrassLayer layer)
+  {
+   RequireOwned(layer);
+   var placements=layer.Generate(); // 成功完成全部采样后才改写作者数据。
+   Undo.RecordObject(layer.data,"生成二维草层放置数据");
+   layer.data.placements=placements;
+   layer.data.seed=layer.profile.seed;layer.data.density=layer.profile.density;layer.data.maxDensity=layer.profile.maxDensity;
+   layer.data.surfaceIds=layer.surfaces.Select(s=>s.id).ToArray();
+   EditorUtility.SetDirty(layer.data);layer.RebuildFromSaved();
+   return "已生成 "+placements.Length+" 簇；种子 "+layer.data.seed+"。请显式保存本草场后重开读回。";
+  }
+
+  static string Save(GrassLayer layer)
+  {
+   RequireOwned(layer);
+   string profilePath=AssetDatabase.GetAssetPath(layer.profile),dataPath=AssetDatabase.GetAssetPath(layer.data),scenePath=layer.gameObject.scene.path;
+   string profileJson=EditorJsonUtility.ToJson(layer.profile),dataJson=EditorJsonUtility.ToJson(layer.data);
+   AssetDatabase.SaveAssetIfDirty(layer.profile);AssetDatabase.SaveAssetIfDirty(layer.data);
+   if(!EditorSceneManager.SaveScene(layer.gameObject.scene,scenePath,false))throw new InvalidOperationException("本草场场景未保存；没有保存任何其它场景。");
+   var profile=AssetDatabase.LoadAssetAtPath<GrassLayerProfileSO>(profilePath);var data=AssetDatabase.LoadAssetAtPath<GrassPatchDataSO>(dataPath);
+   if(profile==null||data==null||EditorJsonUtility.ToJson(profile)!=profileJson||EditorJsonUtility.ToJson(data)!=dataJson)
+    throw new InvalidOperationException("本草场配置/数据读回不一致，请保留现场核查；没有批量保存或回滚其它资产。");
+   return "已保存并读回：\n"+profilePath+"\n"+dataPath+"\n"+scenePath;
+  }
+ }
+}
+#endif

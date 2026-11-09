@@ -1,0 +1,45 @@
+/* Root按需在Unity执行；子任务不调用。三色/世界偏移/深度/有效alpha合同。 */
+using System;using System.IO;using System.Linq;using UnityEngine;using UnityEditor;using UnityEditor.SceneManagement;using UnityEngine.SceneManagement;
+using Ossastra.WorldRendering.Vegetation.Editor;using Funplay.Editor.Tools.Scripting;
+public sealed class ValidateTerrainBaseColorBake:IFunplayCommand
+{
+ static Mesh Plane(float x0,float z0,float x1,float z1,float y)
+ {
+  var mesh=new Mesh{hideFlags=HideFlags.HideAndDontSave};mesh.vertices=new[]{new Vector3(x0,y,z0),new Vector3(x0,y,z1),new Vector3(x1,y,z1),new Vector3(x1,y,z0)};
+  mesh.uv=new[]{Vector2.zero,Vector2.up,Vector2.one,Vector2.right};mesh.triangles=new[]{0,1,2,0,2,3};mesh.RecalculateBounds();return mesh;
+ }
+ static MeshRenderer Add(Scene scene,Mesh mesh,Material material)
+ {var go=new GameObject("TerrainBakeContractSource"){hideFlags=HideFlags.HideAndDontSave};SceneManager.MoveGameObjectToScene(go,scene);go.AddComponent<MeshFilter>().sharedMesh=mesh;var r=go.AddComponent<MeshRenderer>();r.sharedMaterial=material;return r;}
+ static bool Near(Color actual,Color expected)=>Mathf.Abs(actual.r-expected.r)<.05f&&Mathf.Abs(actual.g-expected.g)<.05f&&Mathf.Abs(actual.b-expected.b)<.05f&&actual.a>.95f;
+ static float[] Values(Color c)=>new[]{c.r,c.g,c.b,c.a};
+ public void Execute(ExecutionContext ctx)
+ {
+  if(Application.isPlaying)throw new InvalidOperationException("Edit required for explicit base-color bake");
+  const string shaderPath="Assets/OSSASTRA/Scripts/WorldRendering/Vegetation/Rendering/TerrainBaseColorBake.shader";
+  var bakeShader=AssetDatabase.LoadAssetAtPath<Shader>(shaderPath);var sourceShader=Shader.Find("Universal Render Pipeline/Unlit");if(bakeShader==null||sourceShader==null)throw new InvalidOperationException("Explicit bake/source shader missing");
+  var scene=EditorSceneManager.NewPreviewScene();var meshes=new[]{Plane(-4,10,-1,15,0),Plane(-1,10,2,15,0),Plane(-1,12.5f,2,15,.3f)};var materials=new Material[3];TerrainBaseColorBaker.Result result=null,maskResult=null;var oldActive=RenderTexture.active;bool oldSrgbWrite=GL.sRGBWrite;
+  try
+  {
+   var colors=new[]{Color.red,Color.green,Color.blue};for(int i=0;i<3;i++){materials[i]=new Material(sourceShader){hideFlags=HideFlags.HideAndDontSave};materials[i].SetColor("_BaseColor",colors[i]);materials[i].SetTexture("_BaseMap",Texture2D.whiteTexture);}
+   var r=meshes.Select((m,i)=>Add(scene,m,materials[i])).ToArray();var crc=materials.Select(m=>m.ComputeCRC()).ToArray();var bounds=new Bounds(new Vector3(-1,.15f,12.5f),new Vector3(6,.3f,5));
+   bool mpbRejected=false;var block=new MaterialPropertyBlock();block.SetColor("_BaseColor",Color.magenta);r[0].SetPropertyBlock(block);
+   try{using(var unexpected=TerrainBaseColorBaker.Bake("mpb-unsupported",new[]{r[0]},bounds,64,bakeShader,1)){} }
+   catch(InvalidOperationException error){mpbRejected=error.Message.Contains("MaterialPropertyBlock");}
+   finally{r[0].SetPropertyBlock(null);}
+   // Elevated blue renders FIRST; later coplanar green must not overwrite its top-facing depth.
+   result=TerrainBaseColorBaker.Bake("three-color-layer",new[]{r[2],r[0],r[1]},bounds,64,bakeShader,7);
+   Color red=result.texture.GetPixel(16,32),green=result.texture.GetPixel(48,16),blue=result.texture.GetPixel(48,48);
+   bool orientation=Near(red,Color.red)&&Near(green,Color.green)&&Near(blue,Color.blue);
+   maskResult=TerrainBaseColorBaker.Bake("validity-layer",new[]{r[0],r[2]},bounds,64,bakeShader,8);
+   Color hole=maskResult.texture.GetPixel(48,16);bool validity=hole.a<.01f;
+   bool sourceUnchanged=materials.Select(m=>m.ComputeCRC()).SequenceEqual(crc);bool targetRestored=ReferenceEquals(RenderTexture.active,oldActive)&&GL.sRGBWrite==oldSrgbWrite;
+   var uv=result.worldToUv.MultiplyPoint3x4(new Vector3(-1,99,12.5f));bool mapping=Mathf.Abs(uv.x-.5f)<.00001f&&Mathf.Abs(uv.y-.5f)<.00001f;
+   bool pass=orientation&&validity&&sourceUnchanged&&targetRestored&&mapping&&mpbRejected;
+   string output=Path.GetFullPath("artifacts/VEGETATION-01A/v12/terrain-bake-contract.json");Directory.CreateDirectory(Path.GetDirectoryName(output));File.WriteAllText(output,Newtonsoft.Json.JsonConvert.SerializeObject(new{pass,orientationAndDepth=orientation,validity,sourceUnchanged,targetRestored,mapping,mpbRejected,red=Values(red),green=Values(green),blue=Values(blue),hole=Values(hole),worldXZ=new[]{result.worldXZ.x,result.worldXZ.y,result.worldXZ.width,result.worldXZ.height},result.surfaceId,result.version,result.unlitBaseColor,result.linearTexture},Newtonsoft.Json.Formatting.Indented));ctx.ReturnValue=new{output,pass};
+  }
+  finally
+  {
+   result?.Dispose();maskResult?.Dispose();foreach(var material in materials)if(material!=null)UnityEngine.Object.DestroyImmediate(material);foreach(var mesh in meshes)if(mesh!=null)UnityEngine.Object.DestroyImmediate(mesh);EditorSceneManager.ClosePreviewScene(scene);RenderTexture.active=oldActive;
+  }
+ }
+}

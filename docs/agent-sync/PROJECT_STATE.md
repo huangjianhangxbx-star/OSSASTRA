@@ -671,3 +671,9 @@ Core新20/Legacy20、离线时序13、Native历史8；实景门窗10/10，真实
 两当前角色完整作者/运行A均K16/C32，实际Bind回读保护1、无遮挡gain Y1.131873未触发。P1中档K0.7/C1分别保存，两角色其他参数/正常开关不动；GPU同样点Y0.928892，屏幕白发内部层次改善。暮色/夜间内部样点逐像素不变，暖室受灯浅肤约8%压缩但暖/冷照明保持，无Shader/绑定/曝光/底光/太阳/Alpha改动。
 原Main增加现有角色光感Panel的Editor完整A/B选择；四独立候选可重进后再次加载，**没有改变Main/Player启动默认**，原作者Profile不覆盖。A/B覆盖后保存默认方法/按钮保护，普通原调参保存保留。源图/配置身份及Shader诊断范围见docs/ossastra/CHAR-LIGHT-01/v1.3/交付.md。
 最终Main Edit/ready/原dirtytrue；4业务源SHA守恒，两次私有路由归还、摄影与UI输入归还、唯一临时Shader Native清理。发布只登记本轮Panel/源候选与参数清单和报告，原42dirty、无主meta与媒体保留。LOOKDEV另对话正在只读旧截图/概念图，不占本任务Unity租约；未把末段未知运行参数变化归因它。R11精确SHA见本轮发布回执。
+
+## 2026-11-10 VEGETATION-01A v1.2 独立候选 / 主场未集成
+- 当前独立SC_GrassWindLab为单套既有二维草图+27合并块/4099簇；逐surface静态未受光基础色、逐簇高度/近远色、教程手工阴影与现有环境单次受光、细摆/世界纹理粗风/颜色联动；不增加天气或Room权威。
+- 新风GPU50检查100采样及Legacy24/58、贴地/排除、禁用释放/重建/冷重开通过；36秒与32秒实录和真实Player四态两密度保留。Player GPU未取得，不认证该预算或主场60；视觉待用户审阅，Room后端当前不支持本草Shader，不回接主场。
+- 主场隔离时发生未知保存，临时off写盘；Root依main-borrow修复37根保留较新内容并卸载，结束重开Edit/dirtytrue、原根状态一致，CHAR/原PNG/meta守恒。Main原SHA未保持，详交付事故记录，不把阶段mainTouched=false当全程守恒。
+- 本机入口：研究/植被/VEGETATION-01A/delivery/v1.2/index.html；普通试玩LocalBuilds/VEGETATION-01A/GrassLab.exe；源与说明定向发布，不含媒体/构建/私有场景。全部Unity与子writer已释放，Root只做Git收尾；原42dirty保留，不执行电源动作。

@@ -1,0 +1,145 @@
+/* Finite private GPU contract for production video wind/art includes. Root imports/executes.
+ * No scene/profile/weather/quality/keyword-global mutations. Temporary 4x2 linear float target only.
+ * The .14m bend and synthetic repeat noise are explicit fixtures, not Lab performance/visual certification.
+ */
+using System;
+using System.IO;
+using System.Linq;
+using System.Collections.Generic;
+using System.Security.Cryptography;
+using UnityEngine;
+using UnityEditor;
+using UnityEngine.Rendering;
+using Funplay.Editor.Tools.Scripting;
+
+public sealed class ValidateVideoWind:IFunplayCommand
+{
+ const string Folder="Assets/OSSASTRA/Scripts/WorldRendering/Vegetation/Rendering/";
+ const string ProbePath=Folder+"GrassVideoWindProbe.shader";
+ const float Bend=.14f,Epsilon=.00001f;
+ sealed class Reading
+ {
+  public Vector3 point;
+  public float coarse,fine,linked,height;
+ }
+ static bool Finite(float value)=>!float.IsNaN(value)&&!float.IsInfinity(value);
+ static float[] V(Vector3 value)=>new[]{value.x,value.y,value.z};
+ static float[] V(Vector2 value)=>new[]{value.x,value.y};
+ static string Hash(string path)
+ {using(var algorithm=SHA256.Create())using(var stream=File.OpenRead(path))return BitConverter.ToString(algorithm.ComputeHash(stream)).Replace("-","");}
+ static Texture2D Noise()
+ {
+  const int size=32;var texture=new Texture2D(size,size,TextureFormat.RGBAFloat,true,true){name="Private deterministic periodic wind fixture",hideFlags=HideFlags.HideAndDontSave,wrapMode=TextureWrapMode.Repeat,filterMode=FilterMode.Bilinear};
+  var colors=new Color[size*size];
+  for(int y=0;y<size;y++)for(int x=0;x<size;x++)
+  {
+   float a=2*Mathf.PI*(x+.5f)/size,b=2*Mathf.PI*(y+.5f)/size;
+   float value=.5f+.22f*Mathf.Sin(a)+.18f*Mathf.Cos(b)+.08f*Mathf.Sin(a+b);
+   colors[y*size+x]=new Color(value,value,value,1);
+  }
+  texture.SetPixels(colors);texture.Apply(true,false);return texture;
+ }
+ static Reading Sample(Material material,RenderTexture target,Texture2D read,Vector3 point,Vector3 root,float weight,Vector2 direction,float seconds,int mode,bool wind=true,float displacement=1,float fineStrength=.35f,float coarseStrength=.8f)
+ {
+  material.SetVector("_Point",new Vector4(point.x,point.y,point.z,1));material.SetVector("_Root",new Vector4(root.x,root.y,root.z,1));
+  material.SetFloat("_Weight",weight);material.SetFloat("_WindMode",mode);material.SetFloat("_WindDisplacement",displacement);material.SetFloat("_FineWindStrength",fineStrength);material.SetFloat("_CoarseWindStrength",coarseStrength);
+  material.SetVector("_GrassWind",new Vector4(direction.x,direction.y,seconds,Bend));
+  if(wind)material.EnableKeyword("_GRASS_WIND");else material.DisableKeyword("_GRASS_WIND");
+  var command=new CommandBuffer{name="Finite production video wind GPU fixture"};
+  try
+  {
+   command.SetRenderTarget(target);command.SetViewport(new Rect(0,0,4,2));command.ClearRenderTarget(false,true,Color.clear);
+   command.DrawProcedural(Matrix4x4.identity,material,0,MeshTopology.Triangles,3);Graphics.ExecuteCommandBuffer(command);
+  }
+  finally{command.Release();}
+  RenderTexture.active=target;read.ReadPixels(new Rect(0,0,4,2),0,0,false);read.Apply(false,false);
+  var pixels=read.GetPixels();
+  if(pixels.Any(c=>!Finite(c.r)||!Finite(c.g)||!Finite(c.b)||!Finite(c.a)))throw new InvalidOperationException("Nonfinite 4x2 float GPU output");
+  var geometry=pixels[0];var signal=pixels[2];
+  for(int y=0;y<2;y++)for(int x=0;x<4;x++)
+  {
+   var expected=x<2?geometry:signal;var actual=pixels[y*4+x];
+   if(Mathf.Abs(actual.r-expected.r)>Epsilon||Mathf.Abs(actual.g-expected.g)>Epsilon||Mathf.Abs(actual.b-expected.b)>Epsilon||Mathf.Abs(actual.a-expected.a)>Epsilon)throw new InvalidOperationException("Fullscreen float fixture left/right halves not uniformly filled");
+  }
+  if(Mathf.Abs(geometry.a-signal.a)>Epsilon)throw new InvalidOperationException("Coarse signal mismatch between outputs");
+  return new Reading{point=new Vector3(geometry.r,geometry.g,geometry.b),coarse=geometry.a,fine=signal.r,linked=signal.g,height=signal.b};
+ }
+ public void Execute(ExecutionContext ctx)
+ {
+  if(Application.dataPath.Replace('\\','/')!="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets")throw new InvalidOperationException("Exact intended project required");
+  if(EditorApplication.isCompiling||EditorApplication.isUpdating)throw new InvalidOperationException("Stable imported assemblies required");
+  if(!SystemInfo.SupportsRenderTextureFormat(RenderTextureFormat.ARGBFloat)||!SystemInfo.SupportsTextureFormat(TextureFormat.RGBAFloat))throw new InvalidOperationException("Float RT/readback required; do not use 8bit fallback");
+  var probe=AssetDatabase.LoadAssetAtPath<Shader>(ProbePath);if(probe==null)throw new InvalidOperationException("Imported temporary probe missing: "+ProbePath);
+  var sourcePaths=new[]{Folder+"GrassWind.hlsl",Folder+"GrassArtColor.hlsl",Folder+"GrassLayer.shader"};
+  var before=sourcePaths.Select(Hash).ToArray();var failures=new List<string>();var checks=new List<object>();var samples=new List<object>();
+  Action<string,bool,object> check=(name,passed,detail)=>{checks.Add(new{name,passed,detail});if(!passed)failures.Add(name);};
+  Material material=null;RenderTexture target=null;Texture2D read=null,noise=null;var previous=RenderTexture.active;bool oldSrgb=GL.sRGBWrite;string exception=null;bool cleanup=false,activeRestored=false;
+  try
+  {
+   var errors=ShaderUtil.GetShaderMessages(probe).Where(m=>m.severity.ToString()=="Error").Select(m=>m.message).ToArray();check("probe cached compiler errors absent",errors.Length==0,errors);
+   material=new Material(probe){name="Video wind private fixture",hideFlags=HideFlags.HideAndDontSave};noise=Noise();material.SetTexture("_WindTexture",noise);
+   material.SetVector("_WindNoiseScale",new Vector4(6,9,0,0));material.SetVector("_WindNoiseContrast",new Vector4(.05f,.95f,0,0));material.SetFloat("_WindNoiseSpeed",1.37f);material.SetFloat("_WindTextureLod",0);material.SetFloat("_WindColorStrength",1);material.SetFloat("_HeightBlend",.85f);
+   target=new RenderTexture(4,2,0,RenderTextureFormat.ARGBFloat,RenderTextureReadWrite.Linear){name="Private video wind 4x2 float",hideFlags=HideFlags.HideAndDontSave,antiAliasing=1,useMipMap=false,autoGenerateMips=false,filterMode=FilterMode.Point};
+   if(!target.Create())throw new InvalidOperationException("Private ARGBFloat RT creation failed");
+   read=new Texture2D(4,2,TextureFormat.RGBAFloat,false,true){name="Video wind private readback",hideFlags=HideFlags.HideAndDontSave};GL.sRGBWrite=false;
+   Vector3 root=new Vector3(2,0,3),tip=root+Vector3.up*.4f;Vector2 direction=new Vector2(.6f,.8f);
+   Func<string,Vector3,Vector3,float,Vector2,float,int,bool,float,float,float,Reading> measure=(label,point,origin,weight,dir,time,mode,moving,displace,fine,coarse)=>
+   {
+    var value=Sample(material,target,read,point,origin,weight,dir,time,mode,moving,displace,fine,coarse);
+    samples.Add(new{label,point=V(point),root=V(origin),weight,windXY=V(dir),seconds=time,mode,windKeyword=moving,displacement=displace,fineStrength=fine,coarseStrength=coarse,result=V(value.point),value.coarse,value.fine,value.linked,value.height});return value;
+   };
+   Func<string,float,float,int,Reading> at=(label,weight,time,mode)=>measure(label,tip,root,weight,direction,time,mode,true,1,.35f,.8f);
+   foreach(int mode in new[]{1,2,3,4})
+   {
+    var anchored=measure("root row",root+new Vector3(.1f,0,.025f),root,0,direction,7.3f,mode,true,1,.35f,.8f);
+    check("root row stationary mode "+mode,Vector3.Distance(anchored.point,root+new Vector3(.1f,0,.025f))<=Epsilon,V(anchored.point));
+    var zero=measure("zero actual wind",tip,root,1,Vector2.zero,5.1f,mode,true,1,.35f,.8f);check("zero wind stationary mode "+mode,Vector3.Distance(zero.point,tip)<=Epsilon,V(zero.point));
+    var stationary=measure("static keyword",tip,root,.25f,direction,5.1f,mode,false,1,.35f,.8f);
+    check("static keyword removes shape and color wind mode "+mode,Vector3.Distance(stationary.point,tip)<=Epsilon&&Mathf.Abs(stationary.linked-stationary.height)<=Epsilon,new{result=V(stationary.point),stationary.linked,stationary.height});
+    var first=at("phase 0",1,0,mode);var repeat=at("phase 16",1,16,mode);var repeat2=at("phase 32",1,32,mode);
+    check("exact 16 and 32 second repeat mode "+mode,Vector3.Distance(first.point,repeat.point)<=Epsilon&&Vector3.Distance(first.point,repeat2.point)<=Epsilon&&Mathf.Abs(first.coarse-repeat.coarse)<=Epsilon&&Mathf.Abs(first.fine-repeat2.fine)<=Epsilon,new{position16=Vector3.Distance(first.point,repeat.point),position32=Vector3.Distance(first.point,repeat2.point),coarse16=Mathf.Abs(first.coarse-repeat.coarse),fine32=Mathf.Abs(first.fine-repeat2.fine)});
+    foreach(float boundary in new[]{16f,32f})
+    {
+     const float epsilon=.001f;var beforeWrap=at("left of wrap",1,boundary-epsilon,mode);var center=at("at wrap",1,boundary,mode);var afterWrap=at("right of wrap",1,boundary+epsilon,mode);
+     float gap=Vector3.Distance(beforeWrap.point,afterWrap.point),coarseGap=Mathf.Abs(beforeWrap.coarse-afterWrap.coarse),fineGap=Mathf.Abs(beforeWrap.fine-afterWrap.fine);
+     check("both wrap sides continuous mode "+mode+" at "+boundary,gap<=.0002f&&coarseGap<=.003f&&fineGap<=.003f,new{gap,coarseGap,fineGap});
+     // Hardware bilinear filtering quantizes sub-texel weights; retain 1ms position-gap check above, compare velocity at actual 60Hz scale.
+     const float frameStep=1f/60;var frameLeft=at("frame left of wrap",1,boundary-frameStep,mode);var frameRight=at("frame right of wrap",1,boundary+frameStep,mode);var leftVelocity=(center.point-frameLeft.point)/frameStep;var rightVelocity=(frameRight.point-center.point)/frameStep;
+     check("wrap frame-scale velocity continuous mode "+mode+" at "+boundary,Vector3.Distance(leftVelocity,rightVelocity)<=.006f,new{leftVelocity=V(leftVelocity),rightVelocity=V(rightVelocity),difference=Vector3.Distance(leftVelocity,rightVelocity)});
+    }
+    var phase4=at("phase4",1,4,mode);var phase9=at("phase9",1,9,mode);
+    check("actual shape changes with time mode "+mode,Mathf.Max(Vector3.Distance(first.point,phase4.point),Vector3.Distance(first.point,phase9.point))>.00001f,new{delta4=Vector3.Distance(first.point,phase4.point),delta9=Vector3.Distance(first.point,phase9.point)});
+    if(mode==1)check("fine-only does not read coarse into output",Mathf.Abs(first.coarse-.5f)<=Epsilon&&Mathf.Abs(phase4.coarse-.5f)<=Epsilon,new{first=first.coarse,later=phase4.coarse});
+    if(mode>=2)check("coarse texture advects mode "+mode,Mathf.Max(Mathf.Abs(first.coarse-phase4.coarse),Mathf.Abs(first.coarse-phase9.coarse))>.001f,new{first=first.coarse,phase4=phase4.coarse,phase9=phase9.coarse});
+   }
+   var combined=at("combined geometry",.25f,9f,3);var linked=at("combined with color",.25f,9f,4);
+   check("color link does not change geometry",Vector3.Distance(combined.point,linked.point)<=Epsilon,new{difference=Vector3.Distance(combined.point,linked.point)});
+   check("only CombinedColor changes blend weight",Mathf.Abs(combined.linked-combined.height)<=Epsilon&&Mathf.Abs(linked.linked-linked.height)>.00001f&&linked.linked>=0&&linked.linked<=1,new{combined.linked,combined.height,colorLinked=linked.linked,colorBase=linked.height});
+   var colorOnly=measure("color wind with no displacement",tip,root,.25f,direction,9f,4,true,0,.35f,.8f);
+   check("diagnostic color-only shape remains anchored",Vector3.Distance(colorOnly.point,tip)<=Epsilon&&Mathf.Abs(colorOnly.linked-colorOnly.height)>.00001f,new{result=V(colorOnly.point),colorOnly.linked,colorOnly.height});
+   float peakHorizontal=0,peakVertical=0;bool bounded=true;
+   foreach(var origin in new[]{root,new Vector3(-7,3,11)})foreach(var dir in new[]{Vector2.right,Vector2.up,new Vector2(-.6f,.8f),new Vector2(2,-3)})foreach(float time in new[]{.001f,7.3f,15.999f})
+   {
+    var point=origin+Vector3.up*.4f;var result=measure("bounded rotation and intensity",point,origin,1,dir,time,4,true,1,2,2);var delta=result.point-point;
+    float horizontal=new Vector2(delta.x,delta.z).magnitude,vertical=Mathf.Abs(delta.y);peakHorizontal=Mathf.Max(peakHorizontal,horizontal);peakVertical=Mathf.Max(peakVertical,vertical);
+    bounded&=horizontal<=Bend+Epsilon&&vertical<=Bend*.08f+Epsilon&&result.coarse>=0&&result.coarse<=1&&result.fine>=-1&&result.fine<=1;
+   }
+   check("directions and overstrength remain within declared bend",bounded,new{peakHorizontal,peakVertical,maxHorizontal=Bend,maxVertical=Bend*.08f});
+   material.SetFloat("_WindTextureLod",2);var lod=at("explicit vertex texture LOD2",1,3.7f,4);check("explicit vertex LOD remains finite and bounded",Vector3.Distance(lod.point,tip)<=Bend*1.004f+Epsilon&&lod.coarse>=0&&lod.coarse<=1,new{result=V(lod.point),lod.coarse});
+   var drawErrors=ShaderUtil.GetShaderMessages(probe).Where(m=>m.severity.ToString()=="Error").Select(m=>m.message).ToArray();check("no shader errors after finite draws",drawErrors.Length==0,drawErrors);
+  }
+  catch(Exception e){exception=e.GetType().Name+": "+e.Message;failures.Add(exception);}
+  finally
+  {
+   RenderTexture.active=previous;GL.sRGBWrite=oldSrgb;
+   if(read!=null)UnityEngine.Object.DestroyImmediate(read);if(noise!=null)UnityEngine.Object.DestroyImmediate(noise);
+   if(target!=null){target.Release();UnityEngine.Object.DestroyImmediate(target);}if(material!=null)UnityEngine.Object.DestroyImmediate(material);
+   cleanup=read==null&&noise==null&&target==null&&material==null;activeRestored=ReferenceEquals(RenderTexture.active,previous)&&GL.sRGBWrite==oldSrgb;
+  }
+  check("private GPU objects released",cleanup,null);check("active RT and sRGB write restored",activeRestored,null);
+  bool sourcePreserved=sourcePaths.Select(Hash).SequenceEqual(before);check("production source preserved",sourcePreserved,null);
+  string output=Path.GetFullPath("artifacts/VEGETATION-01A/v12/gpu-video-wind-"+DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff")+".json");Directory.CreateDirectory(Path.GetDirectoryName(output));
+  var report=new{pass=failures.Count==0,checks,samples,failures,exception,cleanup,activeRestored,sourcePreserved,sourcePaths,sourceSha256=before,probeSha256=Hash(ProbePath),device=SystemInfo.graphicsDeviceName,api=SystemInfo.graphicsDeviceType.ToString(),maximumBendFixture=Bend,noiseFixture="32x32 periodic RGBAFloat linear/bilinear/repeat, seedless documented sin/cos input, mips generated",target="4x2 ARGBFloat linear, vertex production include, private readback",scope="Finite math/signal GPU fixture only. Not actual card alpha, shadow, depth, environment color, Room permission, temporal appearance, Lab profile, performance or final visual acceptance. Cached compiler messages do not prove all production variants."};
+  File.WriteAllText(output,Newtonsoft.Json.JsonConvert.SerializeObject(report,Newtonsoft.Json.Formatting.Indented));ctx.ReturnValue=new{output,report.pass,checkCount=checks.Count,sampleCount=samples.Count,failures=failures.ToArray(),cleanup,activeRestored,sourcePreserved};
+ }
+}

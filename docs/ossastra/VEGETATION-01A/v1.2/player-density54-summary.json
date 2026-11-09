@@ -1,0 +1,499 @@
+{
+  "validRenderedFourState": true,
+  "sourcePath": "E:\\WORLDCREATOR\\new\\Project_ANKALUTE\\LocalBuilds\\VEGETATION-01A\\artifacts\\VEGETATION-01A\\player-54-20261109-174616.json",
+  "sourceSha": "6EA35DE83CF9FD30FA0DBFFC15F757C0542E286B6486DA9546A80484F2AEBA9E",
+  "startedUtc": "2026-11-09T17:46:16.031592Z",
+  "finishedUtc": "2026-11-09T17:47:08.1017176Z",
+  "device": "NVIDIA GeForce RTX 4080 SUPER",
+  "processor": "Intel(R) Core(TM) i7-14700KF",
+  "api": "Direct3D11",
+  "editor": false,
+  "completed": true,
+  "comparable": true,
+  "error": null,
+  "cleanupWarnings": [],
+  "states": [
+    {
+      "state": "S0",
+      "mode": "Original",
+      "appearance": "Tutorial",
+      "motion": "CombinedColor",
+      "frameMs": {
+        "source": "Time.unscaledDeltaTime",
+        "unit": "ms",
+        "status": "available",
+        "count": 27372,
+        "p50": 0.32794999424368143,
+        "p95": 0.5026899860240513,
+        "p99": 0.6847289751749487,
+        "milliseconds": null
+      },
+      "gpuMs": {
+        "source": "FrameTimingManager.gpuFrameTime: unique timestamp, finite and positive only",
+        "unit": "ms",
+        "status": "unavailable: no valid samples",
+        "count": 0,
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "milliseconds": null
+      },
+      "mainElapsedMs": {
+        "source": "Internal/Main Thread / 1e6; total including waits",
+        "unit": "ms",
+        "status": "available",
+        "count": 27372,
+        "p50": 0.329,
+        "p95": 0.5023899999999993,
+        "p99": 0.6617160000000003,
+        "milliseconds": null
+      },
+      "grassCameraMs": null,
+      "drawCalls": {
+        "source": "Render/Draw Calls Count",
+        "unit": "Count",
+        "status": "available",
+        "count": 27372,
+        "p50": 40.0,
+        "p95": 40.0,
+        "p99": 40.0,
+        "milliseconds": null
+      },
+      "setPass": {
+        "source": "Render/SetPass Calls Count",
+        "unit": "Count",
+        "status": "available",
+        "count": 27372,
+        "p50": 7.0,
+        "p95": 7.0,
+        "p99": 7.0,
+        "milliseconds": null
+      },
+      "triangles": {
+        "source": "Render/Triangles Count",
+        "unit": "Count",
+        "status": "available",
+        "count": 27372,
+        "p50": 18514.0,
+        "p95": 18514.0,
+        "p99": 18514.0,
+        "milliseconds": null
+      },
+      "vertices": {
+        "source": "Render/Vertices Count",
+        "unit": "Count",
+        "status": "available",
+        "count": 27372,
+        "p50": 14663.0,
+        "p95": 14663.0,
+        "p99": 14663.0,
+        "milliseconds": null
+      },
+      "conditions": true,
+      "samples": 27372,
+      "layers": [
+        {
+          "name": "GrassPatchA",
+          "clumps": 5259,
+          "ownedRenderers": 23,
+          "ownedMaterials": 2,
+          "dataDensity": 54.0,
+          "placementsFingerprint": "D0A2BA5C866DDC46"
+        },
+        {
+          "name": "GrassPatchB",
+          "clumps": 903,
+          "ownedRenderers": 4,
+          "ownedMaterials": 2,
+          "dataDensity": 54.0,
+          "placementsFingerprint": "E37ACF664B6158A6"
+        }
+      ],
+      "camera": {
+        "screenWidth": 1600,
+        "screenHeight": 900,
+        "cameraPosition": [
+          11.5,
+          14.6421366,
+          -9.999999
+        ],
+        "cameraRotation": [
+          -0.3535534,
+          0.3535534,
+          -0.146446645,
+          -0.853553355
+        ],
+        "quality": 5,
+        "vSync": 0,
+        "targetFrameRate": -1
+      },
+      "environmentSeconds": [
+        6.331013578281272,
+        16.331134177860804
+      ]
+    },
+    {
+      "state": "S1",
+      "mode": "Static",
+      "appearance": "Tutorial",
+      "motion": "CombinedColor",
+      "frameMs": {
+        "source": "Time.unscaledDeltaTime",
+        "unit": "ms",
+        "status": "available",
+        "count": 24188,
+        "p50": 0.41909998981282115,
+        "p95": 0.519529997836798,
+        "p99": 0.6789259891957047,
+        "milliseconds": null
+      },
+      "gpuMs": {
+        "source": "FrameTimingManager.gpuFrameTime: unique timestamp, finite and positive only",
+        "unit": "ms",
+        "status": "unavailable: no valid samples",
+        "count": 0,
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "milliseconds": null
+      },
+      "mainElapsedMs": {
+        "source": "Internal/Main Thread / 1e6; total including waits",
+        "unit": "ms",
+        "status": "available",
+        "count": 24188,
+        "p50": 0.4178,
+        "p95": 0.5215,
+        "p99": 0.6648,
+        "milliseconds": null
+      },
+      "grassCameraMs": null,
+      "drawCalls": {
+        "source": "Render/Draw Calls Count",
+        "unit": "Count",
+        "status": "available",
+        "count": 24188,
+        "p50": 67.0,
+        "p95": 67.0,
+        "p99": 67.0,
+        "milliseconds": null
+      },
+      "setPass": {
+        "source": "Render/SetPass Calls Count",
+        "unit": "Count",
+        "status": "available",
+        "count": 24188,
+        "p50": 9.0,
+        "p95": 9.0,
+        "p99": 9.0,
+        "milliseconds": null
+      },
+      "triangles": {
+        "source": "Render/Triangles Count",
+        "unit": "Count",
+        "status": "available",
+        "count": 24188,
+        "p50": 92458.0,
+        "p95": 92458.0,
+        "p99": 92458.0,
+        "milliseconds": null
+      },
+      "vertices": {
+        "source": "Render/Vertices Count",
+        "unit": "Count",
+        "status": "available",
+        "count": 24188,
+        "p50": 113255.0,
+        "p95": 113255.0,
+        "p99": 113255.0,
+        "milliseconds": null
+      },
+      "conditions": true,
+      "samples": 24188,
+      "layers": [
+        {
+          "name": "GrassPatchA",
+          "clumps": 5259,
+          "ownedRenderers": 23,
+          "ownedMaterials": 2,
+          "dataDensity": 54.0,
+          "placementsFingerprint": "D0A2BA5C866DDC46"
+        },
+        {
+          "name": "GrassPatchB",
+          "clumps": 903,
+          "ownedRenderers": 4,
+          "ownedMaterials": 2,
+          "dataDensity": 54.0,
+          "placementsFingerprint": "E37ACF664B6158A6"
+        }
+      ],
+      "camera": {
+        "screenWidth": 1600,
+        "screenHeight": 900,
+        "cameraPosition": [
+          11.5,
+          14.6421366,
+          -9.999999
+        ],
+        "cameraRotation": [
+          -0.3535534,
+          0.3535534,
+          -0.146446645,
+          -0.853553355
+        ],
+        "quality": 5,
+        "vSync": 0,
+        "targetFrameRate": -1
+      },
+      "environmentSeconds": [
+        19.367104881908745,
+        29.367447583179455
+      ]
+    },
+    {
+      "state": "S2",
+      "mode": "Light",
+      "appearance": "Tutorial",
+      "motion": "CombinedColor",
+      "frameMs": {
+        "source": "Time.unscaledDeltaTime",
+        "unit": "ms",
+        "status": "available",
+        "count": 23960,
+        "p50": 0.4220000118948519,
+        "p95": 0.5229100235737859,
+        "p99": 0.6747410155367106,
+        "milliseconds": null
+      },
+      "gpuMs": {
+        "source": "FrameTimingManager.gpuFrameTime: unique timestamp, finite and positive only",
+        "unit": "ms",
+        "status": "unavailable: no valid samples",
+        "count": 0,
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "milliseconds": null
+      },
+      "mainElapsedMs": {
+        "source": "Internal/Main Thread / 1e6; total including waits",
+        "unit": "ms",
+        "status": "available",
+        "count": 23960,
+        "p50": 0.4207,
+        "p95": 0.524905,
+        "p99": 0.657341,
+        "milliseconds": null
+      },
+      "grassCameraMs": null,
+      "drawCalls": {
+        "source": "Render/Draw Calls Count",
+        "unit": "Count",
+        "status": "available",
+        "count": 23960,
+        "p50": 67.0,
+        "p95": 67.0,
+        "p99": 67.0,
+        "milliseconds": null
+      },
+      "setPass": {
+        "source": "Render/SetPass Calls Count",
+        "unit": "Count",
+        "status": "available",
+        "count": 23960,
+        "p50": 9.0,
+        "p95": 9.0,
+        "p99": 9.0,
+        "milliseconds": null
+      },
+      "triangles": {
+        "source": "Render/Triangles Count",
+        "unit": "Count",
+        "status": "available",
+        "count": 23960,
+        "p50": 92458.0,
+        "p95": 92458.0,
+        "p99": 92458.0,
+        "milliseconds": null
+      },
+      "vertices": {
+        "source": "Render/Vertices Count",
+        "unit": "Count",
+        "status": "available",
+        "count": 23960,
+        "p50": 113255.0,
+        "p95": 113255.0,
+        "p99": 113255.0,
+        "milliseconds": null
+      },
+      "conditions": true,
+      "samples": 23960,
+      "layers": [
+        {
+          "name": "GrassPatchA",
+          "clumps": 5259,
+          "ownedRenderers": 23,
+          "ownedMaterials": 2,
+          "dataDensity": 54.0,
+          "placementsFingerprint": "D0A2BA5C866DDC46"
+        },
+        {
+          "name": "GrassPatchB",
+          "clumps": 903,
+          "ownedRenderers": 4,
+          "ownedMaterials": 2,
+          "dataDensity": 54.0,
+          "placementsFingerprint": "E37ACF664B6158A6"
+        }
+      ],
+      "camera": {
+        "screenWidth": 1600,
+        "screenHeight": 900,
+        "cameraPosition": [
+          11.5,
+          14.6421366,
+          -9.999999
+        ],
+        "cameraRotation": [
+          -0.3535534,
+          0.3535534,
+          -0.146446645,
+          -0.853553355
+        ],
+        "quality": 5,
+        "vSync": 0,
+        "targetFrameRate": -1
+      },
+      "environmentSeconds": [
+        32.37000838207314,
+        42.37006028290489
+      ]
+    },
+    {
+      "state": "S3",
+      "mode": "Light",
+      "appearance": "Environment",
+      "motion": "CombinedColor",
+      "frameMs": {
+        "source": "Time.unscaledDeltaTime",
+        "unit": "ms",
+        "status": "available",
+        "count": 22788,
+        "p50": 0.4338999860920012,
+        "p95": 0.5525000160560012,
+        "p99": 0.7000129751395435,
+        "milliseconds": null
+      },
+      "gpuMs": {
+        "source": "FrameTimingManager.gpuFrameTime: unique timestamp, finite and positive only",
+        "unit": "ms",
+        "status": "unavailable: no valid samples",
+        "count": 0,
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "milliseconds": null
+      },
+      "mainElapsedMs": {
+        "source": "Internal/Main Thread / 1e6; total including waits",
+        "unit": "ms",
+        "status": "available",
+        "count": 22788,
+        "p50": 0.4326,
+        "p95": 0.5513299999999995,
+        "p99": 0.6804130000000002,
+        "milliseconds": null
+      },
+      "grassCameraMs": null,
+      "drawCalls": {
+        "source": "Render/Draw Calls Count",
+        "unit": "Count",
+        "status": "available",
+        "count": 22788,
+        "p50": 121.0,
+        "p95": 121.0,
+        "p99": 121.0,
+        "milliseconds": null
+      },
+      "setPass": {
+        "source": "Render/SetPass Calls Count",
+        "unit": "Count",
+        "status": "available",
+        "count": 22788,
+        "p50": 11.0,
+        "p95": 11.0,
+        "p99": 11.0,
+        "milliseconds": null
+      },
+      "triangles": {
+        "source": "Render/Triangles Count",
+        "unit": "Count",
+        "status": "available",
+        "count": 22788,
+        "p50": 240346.0,
+        "p95": 240346.0,
+        "p99": 240346.0,
+        "milliseconds": null
+      },
+      "vertices": {
+        "source": "Render/Vertices Count",
+        "unit": "Count",
+        "status": "available",
+        "count": 22788,
+        "p50": 310439.0,
+        "p95": 310439.0,
+        "p99": 310439.0,
+        "milliseconds": null
+      },
+      "conditions": true,
+      "samples": 22788,
+      "layers": [
+        {
+          "name": "GrassPatchA",
+          "clumps": 5259,
+          "ownedRenderers": 23,
+          "ownedMaterials": 2,
+          "dataDensity": 54.0,
+          "placementsFingerprint": "D0A2BA5C866DDC46"
+        },
+        {
+          "name": "GrassPatchB",
+          "clumps": 903,
+          "ownedRenderers": 4,
+          "ownedMaterials": 2,
+          "dataDensity": 54.0,
+          "placementsFingerprint": "E37ACF664B6158A6"
+        }
+      ],
+      "camera": {
+        "screenWidth": 1600,
+        "screenHeight": 900,
+        "cameraPosition": [
+          11.5,
+          14.6421366,
+          -9.999999
+        ],
+        "cameraRotation": [
+          -0.3535534,
+          0.3535534,
+          -0.146446645,
+          -0.853553355
+        ],
+        "quality": 5,
+        "vSync": 0,
+        "targetFrameRate": -1
+      },
+      "environmentSeconds": [
+        45.37268848367967,
+        55.37306198402075
+      ]
+    }
+  ],
+  "deltaP50ms": {
+    "staticMinusGround": 0.09114999556913972,
+    "windMinusStatic": 0.002900022082030773,
+    "completeMinusGround": 0.10594999184831977
+  },
+  "limits": "Frame/Main elapsed includes waits. GPU unavailable remains null; GPU budget not certified. Independent Lab is not Main 60FPS evidence. Hidden zero-draw run invalidated separately."
+}
