@@ -1155,3 +1155,6 @@ P1/K0.7-C1及每角色完整A/B、有限GPU/定向屏幕采样、正式编译/�
 R0–R5独立候选与本机指南/实录完成；Root与所有子writer停止Unity/源码写入，仅定向Git发布收尾。4099簇/27块，二维Alpha与逐surface基础色/艺术颜色/两层风/颜色风，不改共享Environment/Room，不自动主场回接。GPU风50/100与Legacy24/58、资源释放/冷重开、真实Player两密度及Editor四态通过；Player GPU null，预算不代签，视觉待用户。Main曾未知保存临时off；37根已按原记录修复并重开Edit/dirtytrue，原Main SHA不保持，原CHAR/源图守恒；详任务/交付/final-restoration。所有原42dirty与无主meta不纳入发布；不做电源操作。
 
 VEGETATION-01A v1.2 publication verified：产品4c54eae38587eecedd0ce6bdbd5f0327e2717511已GitHub main核验，124自有路径；原42dirty保留。Main Edit/45°/dirtytrue、0 loaded GrassLayer，无Player/采样，临时probe已清理。独立候选交付，视觉待用户、Player GPU预算未认证、Room未接；Root及所有子writer/Unity/源码/Git租约全部释放，不自动后续阶段或电源动作。
+
+## 2026-11-10 VEGETATION-01A 主场半幅功能交付 / writers released
+用户明确认可v1.2并授权Main半幅。原Native草顶3067.75m²精确选正X1533.875m²，排除建筑/道路/高处/实体后38106簇184块；MainGrass独立6资产、原环境/45度/37根/CHAR与草原图保留，单survey禁用碰撞，无新天气/物理管理器。原Room叶登记＋草自身Sight/Truth保留风/Alpha/标签/黑幕；44接口/20GPU/11视锥及生命周期、冷重开通过，真实木屋内外检查。Main已Native保存并重开，最终Edit/1场/dirtytrue，不额外Save运行期旧缓存。功能交付但组合性能预算未通过：Editor固定off/on/off整帧27.34/41.02/27.18ms，GPU11.62/35.45/11.49ms；两定向修正未获整帧净收益，不冒称60或旧Lab成本。详ossastra/VEGETATION-01A/主场半幅接入.md；全部Root/子writer/Unity/源码租约释放，Git仅定向发布收尾，无电源动作。

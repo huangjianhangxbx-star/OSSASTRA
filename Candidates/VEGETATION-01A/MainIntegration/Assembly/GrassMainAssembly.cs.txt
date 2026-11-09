@@ -1,0 +1,227 @@
+/* Native candidate, not imported. Root must inspect census before changing Install to true.
+ * Census reads only exact Main/NativeChunk/source/author metadata and writes its own JSON receipt.
+ * Install creates own MainGrass assets/root, never saves Main or edits source terrain/physics/lighting.
+ * Any failure leaves an explicit partial receipt: inspect it; never replay an interrupted mutation.
+ */
+using System;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Globalization;
+using System.Collections.Generic;
+using System.Security.Cryptography;
+using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.SceneManagement;
+using UnityEngine.Tilemaps;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using Funplay.Editor.Tools.Scripting;
+using Ossastra.VoxelTerrain;
+using Ossastra.EnvironmentSimulation;
+using Ossastra.GroundResearch;
+using Ossastra.SceneVisibility.Rooms;
+using Ossastra.WorldRendering.Vegetation;
+using Ossastra.WorldRendering.Vegetation.Editor;
+
+public sealed class GrassMainAssembly : IFunplayCommand
+{
+ static readonly bool Install=false; // Root switches only after reviewing plan-census.json; no automatic continuation.
+ const bool PositiveX=true;
+ const string Main="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity";
+ const string TerrainName="VoxelTerrain_原生工坊母体_草顶土侧";
+ const string AuthorProfile="Assets/OSSASTRA/WorldRendering/Vegetation/GrassLab/GrassCandidateB_v12.asset";
+ const string Own="Assets/OSSASTRA/WorldRendering/Vegetation/MainGrass/";
+ const string RootName="GrassMain_原生地台半幅_二维草浪";
+ const string SurfaceId="main-native-grass-half-x-v12";
+ const string ReceiptDir="artifacts/VEGETATION-01A/main-integration/";
+ const string CensusPath=ReceiptDir+"plan-census.json";
+ const string InstallPath=ReceiptDir+"assembly-receipt.json";
+ const float BuildingPadding=.4f;
+ static readonly CultureInfo Inv=CultureInfo.InvariantCulture;
+ Scene scene;VoxelTerrainInstallation installation;GrassLayerProfileSO originalProfile;
+ readonly List<Triangle> all=new List<Triangle>();readonly List<Triangle> selected=new List<Triangle>();
+ readonly List<MeshCollider> overhangs=new List<MeshCollider>();readonly List<BuildingVisibilityRoot> buildings=new List<BuildingVisibilityRoot>();
+ readonly List<Road> roads=new List<Road>();readonly List<string> createdAssets=new List<string>();
+ readonly List<UnityEngine.Object> temporary=new List<UnityEngine.Object>();
+ Bounds totalBounds,halfBounds;float cutX;double totalArea,halfArea,estimatedEligibleArea;int duplicateTriangles;
+ string sourceFingerprint,profileBefore;JObject receipt;
+ struct Vertex{public Vector3 p;public Vector2 uv;public Color color;}
+ sealed class Triangle{public Vertex a,b,c;public Material material;public string source;public double area;}
+ sealed class Road{public GroundResearchSurface surface;public Tilemap map;public string layer;}
+ static void Need(bool value,string message){if(!value)throw new InvalidOperationException(message);}
+ static string Sha(string value){using(var h=SHA256.Create())return BitConverter.ToString(h.ComputeHash(Encoding.UTF8.GetBytes(value))).Replace("-","");}
+ static string FileSha(string path){using(var h=SHA256.Create())using(var s=File.OpenRead(path))return BitConverter.ToString(h.ComputeHash(s)).Replace("-","");}
+ static string Id(UnityEngine.Object o)=>GlobalObjectId.GetGlobalObjectIdSlow(o).ToString();
+ static float[] V(Vector3 p)=>new[]{p.x,p.y,p.z};
+ static string PointKey(Vector3 p)=>Math.Round(p.x*10000).ToString(Inv)+","+Math.Round(p.y*10000).ToString(Inv)+","+Math.Round(p.z*10000).ToString(Inv);
+ static string Key(Triangle t)=>string.Join(";",new[]{PointKey(t.a.p),PointKey(t.b.p),PointKey(t.c.p)}.OrderBy(s=>s,StringComparer.Ordinal));
+ static double Area(Vector3 a,Vector3 b,Vector3 c)=>Math.Abs((double)(b.z-a.z)*(c.x-a.x)-(double)(b.x-a.x)*(c.z-a.z))*.5;
+ static Vertex Lerp(Vertex a,Vertex b,float t)=>new Vertex{p=Vector3.LerpUnclamped(a.p,b.p,t),uv=Vector2.LerpUnclamped(a.uv,b.uv,t),color=Color.LerpUnclamped(a.color,b.color,t)};
+ static List<Vertex> Clip(Triangle t,float x,bool positive)
+ {
+  var input=new[]{t.a,t.b,t.c};var output=new List<Vertex>(4);
+  for(int i=0;i<3;i++){var a=input[i];var b=input[(i+1)%3];bool ia=positive?a.p.x>=x:a.p.x<=x,ib=positive?b.p.x>=x:b.p.x<=x;if(ia)output.Add(a);if(ia!=ib)output.Add(Lerp(a,b,(x-a.p.x)/(b.p.x-a.p.x)));}
+  return output;
+ }
+ static double PolygonArea(List<Vertex> p){double a=0;for(int i=1;i+1<p.Count;i++)a+=Area(p[0].p,p[i].p,p[i+1].p);return a;}
+ static void EnsureFolder(string p){if(AssetDatabase.IsValidFolder(p))return;int slash=p.LastIndexOf('/');EnsureFolder(p.Substring(0,slash));Need(!string.IsNullOrEmpty(AssetDatabase.CreateFolder(p.Substring(0,slash),p.Substring(slash+1))),"Cannot create own asset folder: "+p);}
+ void SaveNew(UnityEngine.Object o,string name)
+ {
+  string path=Own+name;Need(!File.Exists(path)&&AssetDatabase.LoadMainAssetAtPath(path)==null,"Own destination exists; inspect outcome rather than overwrite: "+path);
+  AssetDatabase.CreateAsset(o,path);createdAssets.Add(path);EditorUtility.SetDirty(o);AssetDatabase.SaveAssetIfDirty(o);WriteReceipt();
+ }
+ void WriteReceipt(){if(receipt==null)return;receipt["createdAssets"]=JArray.FromObject(createdAssets);File.WriteAllText(InstallPath,receipt.ToString());}
+ void Read()
+ {
+  Need(Application.dataPath.Replace('\\','/')=="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets","Wrong project");
+  Need(!Application.isPlaying&&!EditorApplication.isPlayingOrWillChangePlaymode&&!EditorApplication.isCompiling&&!EditorApplication.isUpdating,"Stable Edit required");
+  scene=SceneManager.GetActiveScene();Need(scene.path==Main&&scene.isLoaded&&SceneManager.sceneCount==1,"Exact single current Main required");
+  var roots=scene.GetRootGameObjects();Need(!roots.Any(r=>r.name==RootName),"Own root already exists; inspect rather than replay");
+  var terrain=roots.SingleOrDefault(r=>r.name==TerrainName);Need(terrain!=null,"Explicit original Native terrain root missing");installation=terrain.GetComponent<VoxelTerrainInstallation>();
+  Need(installation!=null&&installation.chunks!=null&&installation.chunks.Length==224&&installation.collision!=null&&installation.collision.Length==224,"Expected explicit 224 Native render/collision pairs");
+  Need(installation.chunks.All(r=>r!=null&&r.gameObject.scene==scene&&r.transform.IsChildOf(terrain.transform)),"Native source refs drifted");
+  Need(!roots.SelectMany(r=>r.GetComponentsInChildren<GrassLayer>(true)).Any(),"Unexpected existing Main grass owner");
+  originalProfile=AssetDatabase.LoadAssetAtPath<GrassLayerProfileSO>(AuthorProfile);Need(originalProfile!=null&&originalProfile.image!=null&&originalProfile.material!=null,"Approved B profile missing");
+  Need(Mathf.Abs(originalProfile.density-36)<.0001f&&originalProfile.motion==GrassMotion.CombinedColor&&originalProfile.appearance==GrassAppearance.Environment,"Approved B geometry/motion differs; do not normalize silently");profileBefore=EditorJsonUtility.ToJson(originalProfile);
+  var worldMono=roots.SelectMany(r=>r.GetComponentsInChildren<MonoBehaviour>(true)).Where(m=>m!=null).ToArray();
+  buildings.AddRange(worldMono.OfType<BuildingVisibilityRoot>().Where(b=>b.isActiveAndEnabled));
+  Need(buildings.Count>=2&&buildings.All(b=>b.occupancyVolumes!=null&&b.occupancyVolumes.Length>0),"Current registered building occupancy required");
+  foreach(var s in worldMono.OfType<GroundResearchSurface>())foreach(var l in s.layers??Array.Empty<GroundLayer>())
+   if(l!=null&&l.displayName=="浅石道路"){Need(l.tilemap!=null&&s.Owns(l.tilemap),"Explicit registered road tilemap missing");roads.Add(new Road{surface=s,map=l.tilemap,layer=l.displayName});}
+  // Exact old platform/ramp collision only, plus all actual Native sources, to reject hidden low roots.
+  overhangs.AddRange(installation.collision.Where(c=>c!=null&&c.enabled&&c.gameObject.activeInHierarchy));
+  foreach(string name in new[]{"高台A_三米_凹L与非整格缺口","高台B_五米_斜切边缘","连续缓坡_真实MeshCollider_带两米平台过渡"})
+  {
+   var old=roots.SingleOrDefault(r=>r.name==name);Need(old!=null,"Expected old source root disappeared: "+name);
+   overhangs.AddRange(old.GetComponentsInChildren<MeshCollider>(true).Where(c=>c.enabled&&c.gameObject.activeInHierarchy));
+  }
+  var sb=new StringBuilder();var dedup=new HashSet<string>(StringComparer.Ordinal);
+  for(int ri=0;ri<installation.chunks.Length;ri++)
+  {
+   var r=installation.chunks[ri];Need(r.enabled&&r.gameObject.activeInHierarchy,"Native terrain not currently displayed: "+r.name);Need(!r.HasPropertyBlock(),"Native source has MPB: inspect effective base-color override before bake: "+r.name);
+   var f=r.GetComponent<MeshFilter>();var collider=installation.collision[ri];Need(f!=null&&f.sharedMesh!=null&&f.sharedMesh.isReadable,"Readable Native mesh required: "+r.name);Need(collider!=null&&collider.sharedMesh==f.sharedMesh,"Native mesh/collider identity mismatch: "+r.name);
+   var mesh=f.sharedMesh;var mats=r.sharedMaterials;Need(mats.Length==mesh.subMeshCount,"Native slot count mismatch");var vertices=mesh.vertices;var uv=mesh.uv;var colors=mesh.colors;
+   Need(uv.Length==vertices.Length,"Native UV array missing");sb.Append(Id(r)).Append('|').Append(Id(mesh)).Append('|').Append(r.localToWorldMatrix.ToString("R")).Append('|');
+   for(int slot=0;slot<mats.Length;slot++)
+   {
+    var mat=mats[slot];Need(mat!=null&&mat.shader!=null,"Null Native source material");sb.Append(EditorJsonUtility.ToJson(mat)).Append('|');
+    if(mat.name!="Terrain_Grass")continue;
+    Need(mat.shader.name=="Ossastra/WorldRendering/VoxelLit","Grass material family differs");
+    Need(!mat.IsKeywordEnabled("_DETAIL_MULX2")&&!mat.IsKeywordEnabled("_DETAIL_SCALED")&&!mat.IsKeywordEnabled("_PARALLAXMAP")&&!mat.IsKeywordEnabled("_ALPHAPREMULTIPLY_ON"),"Unsupported source base-color feature");
+    float vertexWeight=mat.HasProperty("_VoxelVertexColors")?Mathf.Clamp01(mat.GetFloat("_VoxelVertexColors")):0;
+    Need(vertexWeight==0||colors.Length==vertices.Length,"Native vertex color enabled but missing");var indices=mesh.GetTriangles(slot);Need(indices.Length%3==0,"Invalid Native triangles");
+    for(int i=0;i<indices.Length;i+=3)
+    {
+     int ia=indices[i],ib=indices[i+1],ic=indices[i+2];var a=r.localToWorldMatrix.MultiplyPoint3x4(vertices[ia]);var b=r.localToWorldMatrix.MultiplyPoint3x4(vertices[ib]);var c=r.localToWorldMatrix.MultiplyPoint3x4(vertices[ic]);
+     var normal=Vector3.Cross(b-a,c-a);if(normal.sqrMagnitude<1e-12f||normal.normalized.y<.5f)continue;
+     Func<int,Vector3,Vertex> vertex=(index,p)=>new Vertex{p=p,uv=uv[index],color=Color.LerpUnclamped(Color.white,colors.Length==vertices.Length?new Color(colors[index].r,colors[index].g,colors[index].b,1):Color.white,vertexWeight)};
+     var t=new Triangle{a=vertex(ia,a),b=vertex(ib,b),c=vertex(ic,c),material=mat,source=Id(r),area=Area(a,b,c)};if(t.area<1e-9)continue;
+     string key=Key(t);if(!dedup.Add(key)){duplicateTriangles++;continue;}all.Add(t);sb.Append(key).Append('|').Append(t.a.uv.ToString("R")).Append(t.b.uv.ToString("R")).Append(t.c.uv.ToString("R")).Append(t.a.color.ToString("R")).Append(t.b.color.ToString("R")).Append(t.c.color.ToString("R"));
+    }
+   }
+  }
+  Need(all.Count>0,"No explicit upward Grass triangles found");
+  totalBounds=new Bounds(all[0].a.p,Vector3.zero);foreach(var t in all){totalArea+=t.area;totalBounds.Encapsulate(t.a.p);totalBounds.Encapsulate(t.b.p);totalBounds.Encapsulate(t.c.p);}
+  Need(totalArea>10,"Unexpected tiny Native surface");float low=totalBounds.min.x,high=totalBounds.max.x;
+  for(int step=0;step<32;step++){float mid=(low+high)*.5f;double area=all.Sum(t=>PolygonArea(Clip(t,mid,true)));if(area>totalArea*.5)low=mid;else high=mid;}cutX=(low+high)*.5f;
+  foreach(var t in all){var polygon=Clip(t,cutX,PositiveX);for(int i=1;i+1<polygon.Count;i++){var a=polygon[0];var b=polygon[i];var c=polygon[i+1];double area=Area(a.p,b.p,c.p);if(area<1e-9)continue;selected.Add(new Triangle{a=a,b=b,c=c,material=t.material,source=t.source,area=area});halfArea+=area;}}
+  Need(Math.Abs(halfArea/totalArea-.5)<.0001,"Exact projected half-area failed");halfBounds=new Bounds(selected[0].a.p,Vector3.zero);foreach(var t in selected){halfBounds.Encapsulate(t.a.p);halfBounds.Encapsulate(t.b.p);halfBounds.Encapsulate(t.c.p);}
+  foreach(var b in buildings)sb.Append(Id(b)).Append(EditorJsonUtility.ToJson(b)).Append(b.transform.localToWorldMatrix.ToString("R"));
+  foreach(var road in roads){sb.Append(Id(road.map)).Append(road.map.transform.localToWorldMatrix.ToString("R"));foreach(var pos in road.map.cellBounds.allPositionsWithin)if(road.map.HasTile(pos))sb.Append(pos.ToString()).Append(Id(road.map.GetTile(pos)));}
+  foreach(var c in overhangs)sb.Append(Id(c)).Append(c.bounds.ToString("R"));sourceFingerprint=Sha(sb.ToString());
+  foreach(var t in selected)if(!Excluded((t.a.p+t.b.p+t.c.p)/3))estimatedEligibleArea+=t.area;
+ }
+ string ExclusionReason(Vector3 p)
+ {
+  foreach(var building in buildings)
+  {
+   var local=building.transform.InverseTransformPoint(p);var scale=building.transform.lossyScale;
+   foreach(var box in building.occupancyVolumes){var d=local-box.center;var h=box.size*.5f;if(Mathf.Abs(d.x)<=h.x+BuildingPadding/Mathf.Abs(scale.x)&&Mathf.Abs(d.z)<=h.z+BuildingPadding/Mathf.Abs(scale.z))return "building-footprint";}
+  }
+  foreach(var road in roads)
+  {
+   float y=road.surface.WorldBounds.center.y;if(Mathf.Abs(p.y-y)>.55f)continue;
+   foreach(var offset in new[]{Vector2.zero,Vector2.left*.26f,Vector2.right*.26f,Vector2.up*.26f,Vector2.down*.26f})
+    if(road.map.HasTile(road.map.WorldToCell(new Vector3(p.x+offset.x,y,p.z+offset.y))))return "registered-road";
+  }
+  foreach(var c in overhangs)
+  {
+   var bounds=c.bounds;if(p.x<bounds.min.x||p.x>bounds.max.x||p.z<bounds.min.z||p.z>bounds.max.z||bounds.max.y<p.y+.04f)continue;
+   float top=bounds.max.y+1;RaycastHit hit;if(c.Raycast(new Ray(new Vector3(p.x,top,p.z),Vector3.down),out hit,top-p.y+.1f)&&hit.point.y>p.y+.04f)return "higher-explicit-surface";
+  }
+  return null;
+ }
+ bool Excluded(Vector3 p)=>ExclusionReason(p)!=null;
+ JObject Census()
+ {
+  var reasonArea=new Dictionary<string,double>();foreach(var t in selected){string reason=ExclusionReason((t.a.p+t.b.p+t.c.p)/3);if(reason!=null){if(!reasonArea.ContainsKey(reason))reasonArea.Add(reason,0);reasonArea[reason]+=t.area;}}
+  return JObject.FromObject(new{status="census-only-no-scene-mutation",utc=DateTime.UtcNow.ToString("o"),scene=scene.path,dirty=scene.isDirty,mainDiskSha=FileSha(Main),sourceFingerprint,
+   authorProfile=AuthorProfile,authorProfileSha=Sha(profileBefore),nativeRoot=Id(installation),nativeChunkCount=224,sourceTriangles=all.Count,duplicateTriangles,selectedTriangles=selected.Count,
+   areaSemantics="World XZ projected Grass triangles; exact half before exclusion; eligible area is triangle-centroid estimate, final placement exclusions are exact per root",
+   totalGrassArea=totalArea,selectedHalfArea=halfArea,halfRatio=halfArea/totalArea,cutX,positiveX=PositiveX,totalBounds=new{min=V(totalBounds.min),max=V(totalBounds.max)},halfBounds=new{min=V(halfBounds.min),max=V(halfBounds.max)},
+   estimatedEligibleArea,estimatedClumps=estimatedEligibleArea*36,estimatedExcludedArea=reasonArea,arrival=V(installation.arrival),roomAnchor=new[]{4f,0f,-16f},
+   materials=selected.Select(t=>t.material).Distinct().Select(m=>new{name=m.name,path=AssetDatabase.GetAssetPath(m),shader=m.shader.name,baseTexture=m.HasProperty("_BaseMap")?AssetDatabase.GetAssetPath(m.GetTexture("_BaseMap")):null,vertexColors=m.HasProperty("_VoxelVertexColors")?m.GetFloat("_VoxelVertexColors"):0}).ToArray(),
+   buildings=buildings.Select(b=>new{b.buildingId,id=Id(b),paddingXZ=BuildingPadding,boxes=b.occupancyVolumes.Length}).ToArray(),
+   roads=roads.Select(r=>new{id=Id(r.map),surface=Id(r.surface),r.layer,r.map.name,distinctTileTypes=r.map.GetUsedTilesCount(),height=r.surface.WorldBounds.center.y,disabledAuthorSource=!r.map.gameObject.activeInHierarchy}).ToArray(),
+   overhangs=overhangs.Select(c=>new{id=Id(c),c.name,min=V(c.bounds.min),max=V(c.bounds.max)}).ToArray(),expectedNewAssets=new[]{"GrassMain_Profile.asset","GrassMain_Material.mat","GrassMain_SurveyMesh.asset","GrassMain_Placements.asset","GrassMain_TerrainBaseColor.asset","GrassMain_TerrainColorSource.asset"},
+   collisionsUnchanged=true,worldLightingUnchanged=true,terrainUnchanged=true,mainSaved=false});
+ }
+ Mesh MeshFor(IEnumerable<Triangle> triangles,Material only=null)
+ {
+  var vertices=new List<Vector3>();var uv=new List<Vector2>();var colors=new List<Color>();var indices=new List<int>();
+  foreach(var t in triangles){if(only!=null&&t.material!=only)continue;foreach(var v in new[]{t.a,t.b,t.c}){indices.Add(vertices.Count);vertices.Add(v.p);uv.Add(v.uv);colors.Add(v.color);}}
+  Need(vertices.Count>0,"Empty owned mesh");var mesh=new Mesh{name="GrassMain_UpwardGrassHalf_Survey",indexFormat=vertices.Count>65535?IndexFormat.UInt32:IndexFormat.UInt16};mesh.SetVertices(vertices);mesh.SetUVs(0,uv);mesh.SetColors(colors);mesh.SetTriangles(indices,0);mesh.RecalculateNormals();mesh.RecalculateBounds();return mesh;
+ }
+ void InstallNow(ExecutionContext ctx)
+ {
+  Need(File.Exists(CensusPath),"Run census first");var plan=JObject.Parse(File.ReadAllText(CensusPath));Need((string)plan["status"]=="census-only-no-scene-mutation"&&(string)plan["sourceFingerprint"]==sourceFingerprint&&(string)plan["authorProfileSha"]==Sha(profileBefore),"Source/author changed after census; inspect then recensus with a new explicit receipt");
+  Need(!File.Exists(InstallPath),"Existing install receipt; inspect outcome rather than replay");Need(halfArea*36*1.1<120000,"Pre-exclusion half patch exceeds 120k capacity safety limit; split/review before install");
+  var roots=scene.GetRootGameObjects();var env=roots.SelectMany(r=>r.GetComponentsInChildren<EnvironmentRoot>(true)).Single();Need(env.gameplayCamera!=null&&env.gameplayCamera.gameObject.scene==scene,"Main environment/camera missing");
+  Need(typeof(GrassLayer).GetField("registerRoomVisibility")!=null&&typeof(GrassLayer).GetField("roomExteriorAnchor")!=null,"Root Room integration fields are not compiled yet");
+  receipt=Census();receipt["status"]="admitted-before-mutation";receipt["mainSaved"]=false;WriteReceipt();
+  GameObject owner=null;MeshCollider surveyCollider=null;
+  try
+  {
+   EnsureFolder(Own.TrimEnd('/'));foreach(var suffix in (JArray)plan["expectedNewAssets"])Need(AssetDatabase.LoadMainAssetAtPath(Own+(string)suffix)==null&&!File.Exists(Own+(string)suffix),"New own target exists");
+   var profile=UnityEngine.Object.Instantiate(originalProfile);profile.name="GrassMain_Profile";profile.maximumPlacements=Mathf.Min(120000,Mathf.Max(originalProfile.maximumPlacements,(int)Math.Ceiling(totalArea*36*1.1)));SaveNew(profile,"GrassMain_Profile.asset");
+   var material=new Material(originalProfile.material){name="GrassMain_Material"};SaveNew(material,"GrassMain_Material.mat");profile.material=material;EditorUtility.SetDirty(profile);AssetDatabase.SaveAssetIfDirty(profile);
+   var survey=MeshFor(selected);SaveNew(survey,"GrassMain_SurveyMesh.asset");owner=new GameObject(RootName);SceneManager.MoveGameObjectToScene(owner,scene);ctx.RegisterObjectCreation(owner);owner.SetActive(false);
+   var surface=new GameObject("GrassSurvey_仅生成采样_运行时碰撞禁用");surface.transform.SetParent(owner.transform,false);surveyCollider=surface.AddComponent<MeshCollider>();surveyCollider.sharedMesh=survey;
+   var layer=owner.AddComponent<GrassLayer>();layer.enabled=false;layer.profile=profile;layer.environment=env;layer.gameplayCamera=env.gameplayCamera;layer.surfaces=new[]{new GrassSurfaceBinding{id=SurfaceId,collider=surveyCollider}};layer.exclusions=Array.Empty<BoxCollider>();layer.terrainSources=Array.Empty<MeshRenderer>();layer.mode=GrassWindMode.Environment;layer.castShadows=false;
+   var so=new SerializedObject(layer);var room=so.FindProperty("registerRoomVisibility");var anchor=so.FindProperty("roomExteriorAnchor");Need(room!=null&&anchor!=null,"Root Room grass integration fields not yet ready; do not install partial Main");room.boolValue=true;anchor.vector3Value=new Vector3(4,0,-16);so.ApplyModifiedPropertiesWithoutUndo();
+   // The sampling owner becomes active only with its GrassLayer disabled; original physics stays unchanged.
+   owner.SetActive(true);Physics.SyncTransforms();var placements=layer.Generate();var reasons=new Dictionary<string,int>();var accepted=new List<GrassPlacement>();
+   foreach(var p in placements){string reason=ExclusionReason(p.worldRoot);if(reason==null)accepted.Add(p);else{if(!reasons.ContainsKey(reason))reasons.Add(reason,0);reasons[reason]++;}}
+   surveyCollider.enabled=false;Physics.SyncTransforms();Need(accepted.Count>100,"Unexpected empty/tiny Main half patch");Need(accepted.All(p=>p.worldRoot.x>=cutX-.0001f&&ExclusionReason(p.worldRoot)==null),"Placement half/exclusion check failed");
+   var data=ScriptableObject.CreateInstance<GrassPatchDataSO>();data.name="GrassMain_Placements";data.seed=profile.seed;data.density=profile.density;data.maxDensity=profile.maxDensity;data.surfaceIds=new[]{SurfaceId};data.placements=accepted.ToArray();SaveNew(data,"GrassMain_Placements.asset");layer.data=data;
+   var proxies=new List<MeshRenderer>();var unlit=Shader.Find("Universal Render Pipeline/Unlit");Need(unlit!=null&&unlit.isSupported,"Known unlit bake proxy shader missing");
+   foreach(var source in selected.Select(t=>t.material).Distinct())
+   {
+    var proxy=new GameObject("GrassBaseColorBakeProxy [temporary]"){hideFlags=HideFlags.HideAndDontSave};temporary.Add(proxy);SceneManager.MoveGameObjectToScene(proxy,scene);
+    var mesh=MeshFor(selected,source);mesh.hideFlags=HideFlags.HideAndDontSave;temporary.Add(mesh);proxy.AddComponent<MeshFilter>().sharedMesh=mesh;
+    var copy=new Material(unlit){name="Grass unlit base proxy [temporary]",hideFlags=HideFlags.HideAndDontSave};temporary.Add(copy);copy.SetColor("_BaseColor",source.HasProperty("_BaseColor")?source.GetColor("_BaseColor"):Color.white);
+    copy.SetTexture("_BaseMap",source.HasProperty("_BaseMap")?source.GetTexture("_BaseMap"):Texture2D.whiteTexture);if(source.HasProperty("_BaseMap")){copy.SetTextureScale("_BaseMap",source.GetTextureScale("_BaseMap"));copy.SetTextureOffset("_BaseMap",source.GetTextureOffset("_BaseMap"));}
+    var renderer=proxy.AddComponent<MeshRenderer>();renderer.sharedMaterial=copy;renderer.enabled=false;renderer.shadowCastingMode=ShadowCastingMode.Off;proxies.Add(renderer);
+   }
+   var bakeShader=AssetDatabase.LoadAssetAtPath<Shader>("Assets/OSSASTRA/Scripts/WorldRendering/Vegetation/Rendering/TerrainBaseColorBake.shader");Need(bakeShader!=null,"Own baker shader missing");
+   using(var baked=TerrainBaseColorBaker.Bake(SurfaceId,proxies.ToArray(),halfBounds,512,bakeShader,1))
+   {
+    var texture=baked.DetachTexture();texture.name="GrassMain_TerrainBaseColor";SaveNew(texture,"GrassMain_TerrainBaseColor.asset");var map=ScriptableObject.CreateInstance<GrassTerrainColorSourceSO>();map.name="GrassMain_TerrainColorSource";map.surfaceId=SurfaceId;map.texture=texture;map.worldXZ=baked.worldXZ;map.version=baked.version;map.semantics="UnlitLinearBaseColor; explicit Native Grass top triangles; proxy folds _VoxelVertexColors; alpha=valid; UV.v=+worldZ";SaveNew(map,"GrassMain_TerrainColorSource.asset");layer.terrainColor=map;
+   }
+   CleanupTemporary();layer.enabled=true;Need(layer.ClumpCount==data.placements.Length&&layer.OwnedMaterialCount==2&&!surveyCollider.enabled,"Main rebuild or sampling collider release failed");Need(EditorJsonUtility.ToJson(originalProfile)==profileBefore,"Original B changed");
+   EditorUtility.SetDirty(layer);EditorSceneManager.MarkSceneDirty(scene);receipt["status"]="assembled-awaiting-root-save-and-verification";receipt["layerId"]=Id(layer);receipt["rootId"]=Id(owner);receipt["surveyColliderEnabled"]=surveyCollider.enabled;receipt["generatedBeforeExclusions"]=placements.Length;receipt["excludedPlacements"]=JObject.FromObject(reasons);receipt["placements"]=data.placements.Length;receipt["blocks"]=layer.BlockCount;receipt["vertices"]=layer.VertexCount;receipt["triangles"]=layer.TriangleCount;receipt["materials"]=layer.OwnedMaterialCount;receipt["mainSaved"]=false;receipt["mainDirty"]=scene.isDirty;receipt["originalProfileUnchanged"]=true;receipt["createdAssets"]=JArray.FromObject(createdAssets.Select(p=>new{path=p,guid=AssetDatabase.AssetPathToGUID(p),sha=FileSha(p)}));File.WriteAllText(InstallPath,receipt.ToString());
+   ctx.ReturnValue=new{pass=true,receipt=InstallPath,layer.ClumpCount,layer.BlockCount,cutX,halfRatio=halfArea/totalArea,mainSaved=false,requiresRootSave=true};
+  }
+  catch(Exception error){if(surveyCollider!=null)surveyCollider.enabled=false;CleanupTemporary();receipt["status"]="partial-failure-inspect-before-recovery";receipt["error"]=error.GetType().Name+": "+error.Message;receipt["createdAssets"]=JArray.FromObject(createdAssets);File.WriteAllText(InstallPath,receipt.ToString());throw;}
+ }
+ void CleanupTemporary(){for(int i=temporary.Count-1;i>=0;i--)if(temporary[i]!=null)UnityEngine.Object.DestroyImmediate(temporary[i]);temporary.Clear();}
+ public void Execute(ExecutionContext ctx)
+ {
+  Read();Directory.CreateDirectory(ReceiptDir);
+  if(!Install){Need(!File.Exists(CensusPath),"Census receipt exists; keep it and inspect rather than silently replace");var plan=Census();File.WriteAllText(CensusPath,plan.ToString());ctx.ReturnValue=new{receipt=CensusPath,sourceFingerprint,sourceTriangles=all.Count,selectedTriangles=selected.Count,totalArea,halfArea,halfRatio=halfArea/totalArea,cutX,estimatedEligibleArea,estimatedClumps=estimatedEligibleArea*36,mainSaved=false,sceneMutated=false};return;}
+  InstallNow(ctx);
+ }
+}

@@ -1,0 +1,60 @@
+ // Appended Room passes reuse the original deformed vertices, normalized height,
+ // per-clump LOD clip and source-alpha clip. Legacy pass indices 0..3 stay intact.
+ Pass{
+  Name "RoomSight"
+  HLSLPROGRAM
+  #pragma target 4.5
+  #pragma vertex GrassVertex
+  #pragma fragment RoomGrassFragment
+  #pragma shader_feature_local _GRASS_WIND
+  #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
+  #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
+  #include "Assets/OSSASTRA/Scripts/SceneVisibility/Rooms/Rendering/RoomSightClip.hlsl"
+  #include "Assets/OSSASTRA/Scripts/EnvironmentSimulation/Rendering/EnvironmentLighting.hlsl"
+  half4 RoomGrassSurface(GrassVarying i,bool front)
+  {
+   half4 source=GrassColor(i);float3 normal=normalize(lerp((front?1:-1)*normalize(i.normal),float3(0,1,0),.72));
+   bool shade=EnvironmentCanShadeWorld(i.world);
+   if(_ArtMode<.5)return half4(shade?EnvironmentShade(source.rgb,i.world,normal,1):source.rgb,1);
+   float4 terrain=GrassTerrainSample(i.root);float viewDistance=length(GetWorldSpaceViewDir(i.world));
+   if(_ArtDebug>.5&&_ArtDebug<1.5)return half4(GrassHeightBlend(i.weight).xxx,1);
+   if(_ArtDebug>1.5&&_ArtDebug<2.5)return half4(terrain.a>.5?terrain.rgb:float3(1,0,1),1);
+   if(_ArtDebug>3.5&&_ArtDebug<4.5)return half4(GrassNearFactor(viewDistance).xxx,1);
+   if(_ArtDebug>4.5)return half4(i.coarse.xxx,1);
+   if(_ArtMode<1.5||(_ArtDebug>2.5&&_ArtDebug<3.5))
+   {
+    float shadow=_EnvironmentReceiveShadow<.5||!shade?1:EnvironmentMainShadow(i.world);
+    if(_ArtDebug>2.5&&_ArtDebug<3.5)return half4(shadow.xxx,1);
+    return half4(GrassVideoArt(source.rgb,terrain.rgb,i.weight,viewDistance,shadow,i.coarse,_GrassWind),1);
+   }
+   float3 designed=GrassVideoArt(source.rgb,terrain.rgb,i.weight,viewDistance,1,i.coarse,_GrassWind);
+   return half4(shade?EnvironmentShade(designed,i.world,normal,1):designed,1);
+  }
+  half4 RoomGrassFragment(GrassVarying i,bool front:SV_IsFrontFace):SV_Target
+  {
+   float3 world=RoomSightWorldFromDeviceDepth(i.positionCS.xy,i.positionCS.z);
+   if(_EnvironmentFullSurface<.5)clip(RoomSightPartialContains(world)?1:-1);
+   return EnvironmentFogColor(RoomGrassSurface(i,front),world,0);
+  }
+  ENDHLSL
+ }
+ Pass{
+  Name "RoomTruth"
+  ZWrite[_RoomPositiveDepthWrite]
+  HLSLPROGRAM
+  #pragma target 4.5
+  #pragma vertex GrassVertex
+  #pragma fragment RoomGrassTruth
+  #pragma shader_feature_local _GRASS_WIND
+  #include "Assets/OSSASTRA/Scripts/SceneVisibility/Rooms/Rendering/RoomSightClip.hlsl"
+  float _RoomPositivePartial,_RoomPositiveCutRoof;float4 _RoomPositiveColor;
+  half4 RoomGrassTruth(GrassVarying i):SV_Target
+  {
+   GrassColor(i);
+   float3 world=RoomSightWorldFromDeviceDepth(i.positionCS.xy,i.positionCS.z);
+   if(_RoomPositivePartial>.5)clip(RoomSightPartialContains(world)?1:-1);
+   RoomSightPreviewRoofClip(i.positionCS.xy,_RoomPositiveCutRoof);
+   return RoomSightTruthColor(world,_RoomPositiveColor,_RoomPositivePartial);
+  }
+  ENDHLSL
+ }

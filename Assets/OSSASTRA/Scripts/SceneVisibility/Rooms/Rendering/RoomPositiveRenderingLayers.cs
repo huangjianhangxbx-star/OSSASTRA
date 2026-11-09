@@ -20,6 +20,7 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
     {
         // 调度位不等同着色实现；显式Voxel源与Lit共用筛选位，由源感知resolver选各自适配器。
         public const string VoxelLitShaderName = "Ossastra/WorldRendering/VoxelLit";
+        public const string GrassShaderName = "Ossastra/Vegetation/GrassLayer";
         public const uint FullBit = 1u << 16, PartialLitBit = 1u << 17,
             PartialUnlitBit = 1u << 18, PartialThinTopBit = 1u << 19,
             PartialDecorationBit = 1u << 20, PartialDepthPlaneBit = 1u << 21,
@@ -174,7 +175,7 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
             }
             if (name == "Ossastra/GroundSurfaces/ThinTop") return PartialThinTopBit;
             if (name == "Ossastra/GroundResearch/MaskWorldTile") return PartialWorldTileBit;
-            if (name == "Ossastra/GroundWorkshop/DecorationCutout") return PartialDecorationBit;
+            if (name == "Ossastra/GroundWorkshop/DecorationCutout" || name == GrassShaderName) return PartialDecorationBit;
             if (name == "Ossastra/MapResearch/DepthPlane") return PartialMapDepthBit;
             if (name == "Ossastra/Characters/UprightDepthPlane") return PartialDepthPlaneBit;
             if (name == "Spine/Skeleton") return PartialSkeletonBit;

@@ -1,0 +1,109 @@
+using System;
+using System.IO;
+using System.Collections.Generic;
+using System.Reflection;
+using UnityEngine;
+using Ossastra.SceneVisibility.Rooms;
+using Ossastra.SceneVisibility.Rooms.Rendering;
+using Funplay.Editor.Tools.Scripting;
+
+// Native Edit-Mode RED/GREEN contract. No scene save, room-frame publication or
+// profile writes. One transient presentation binding is released in finally.
+// Calls the real classifier/assignment/resolver/adapter seam.
+public sealed class RoomGrassSourceContract : IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  if(Application.isPlaying)throw new InvalidOperationException("Requires Edit Mode; do not stop Play implicitly");
+  const BindingFlags hidden=BindingFlags.Instance|BindingFlags.NonPublic|BindingFlags.Public;
+  var rows=new List<object>();int passed=0,failed=0;
+  Action<string,bool,string> check=(name,ok,detail)=>{rows.Add(new{name,pass=ok,detail});if(ok)passed++;else failed++;};
+  GameObject go=null;Material grass=null,unknown=null;RoomMaskRendererFeature feature=null;object positive=null;
+  try
+  {
+   var shader=Shader.Find("Ossastra/Vegetation/GrassLayer");
+   check("actual grass shader is supported",shader!=null&&shader.isSupported,shader==null?"missing":shader.name);
+   if(shader==null)throw new InvalidOperationException("Actual grass shader missing");
+   grass=new Material(shader){hideFlags=HideFlags.HideAndDontSave,name="RoomGrassContract source"};
+   grass.SetVector("_GrassWind",new Vector4(.3f,.2f,7.25f,.14f));grass.SetFloat("_Cutoff",.37f);grass.SetFloat("_RGBDetail",.65f);grass.EnableKeyword("_GRASS_WIND");
+   var sourceCrc=grass.ComputeCRC();
+   check("grass joins existing decoration scheduling family",RoomPositiveRenderingLayers.Classify(grass)==RoomPositiveRenderingLayers.PartialDecorationBit,RoomPositiveRenderingLayers.Classify(grass).ToString());
+   var errorShader=Shader.Find("Hidden/InternalErrorShader");
+   if(errorShader==null)throw new InvalidOperationException("Required unknown-family fixture unavailable");
+   unknown=new Material(errorShader){hideFlags=HideFlags.HideAndDontSave};
+   check("unknown shader stays rejected",RoomPositiveRenderingLayers.Classify(unknown)==0,RoomPositiveRenderingLayers.Classify(unknown).ToString());
+   var legacy=new[]{"ForwardLit","DepthOnly","DepthNormals","ShadowCaster"};
+   for(int i=0;i<legacy.Length;i++)check("legacy pass index "+i,grass.FindPass(legacy[i])==i,grass.FindPass(legacy[i]).ToString());
+   check("RoomSight is an appended explicit pass",grass.FindPass("RoomSight")>=4,grass.FindPass("RoomSight").ToString());
+   check("RoomTruth is a distinct appended explicit pass",grass.FindPass("RoomTruth")>=4&&grass.FindPass("RoomTruth")!=grass.FindPass("RoomSight"),grass.FindPass("RoomTruth").ToString());
+
+   go=new GameObject("RoomGrassContract transient"){hideFlags=HideFlags.HideAndDontSave};
+   var renderer=go.AddComponent<MeshRenderer>();renderer.sharedMaterial=grass;var camera=go.AddComponent<Camera>();camera.enabled=false;
+   var surface=new RoomPositiveSurface{Renderer=renderer,Kind=RoomPositiveSurfaceKind.Partial,OwnerExterior=true,WorldLookEnvironment=true,EnvironmentSurfaceRole=1,EnvironmentResponseOverride=1,EnvironmentReceiveShadow=1};
+   var surfaces=new[]{surface};RoomPositiveRenderingLayers.AssignDrawMasks(surfaces);surface=surfaces[0];
+   check("partial grass is scheduled without Full permission",surface.DrawMask==RoomPositiveRenderingLayers.PartialDecorationBit,surface.DrawMask.ToString());
+   check("grass does not consume dynamic-lit group budget",surface.DrawMaterial==null&&!RoomPositiveRenderingLayers.RequiresIndependentDraw(surface),surface.DrawMask.ToString());
+   var binding=RoomPresentationBinding.Attach(renderer,new Vector3(10000,0,10000),true,null,false,0);
+   try
+   {
+    var inspect=typeof(RoomVisibilityModule).GetMethod("InspectPositiveSource",BindingFlags.Static|BindingFlags.NonPublic);
+    if(inspect==null)throw new MissingMethodException("InspectPositiveSource");
+    var sourceArgs=new object[]{renderer,true,binding,false,0f};inspect.Invoke(null,sourceArgs);
+    check("registered grass keeps environment postprocess role",(bool)sourceArgs[3],sourceArgs[3].ToString());
+    check("registered grass accepts explicit ground lighting role",Mathf.Approximately((float)sourceArgs[4],0),sourceArgs[4].ToString());
+    check("registration requests partial permission",binding!=null,"RoomPresentationBinding.Attach forcePartial=true");
+   }
+   finally{if(binding!=null)UnityEngine.Object.DestroyImmediate(binding);}
+   var type=typeof(RoomMaskRendererFeature).Assembly.GetType("Ossastra.SceneVisibility.Rooms.Rendering.RoomPositivePass",true);
+   positive=Activator.CreateInstance(type,hidden,null,new object[]{camera},null);
+   feature=ScriptableObject.CreateInstance<RoomMaskRendererFeature>();feature.hideFlags=HideFlags.HideAndDontSave;
+   feature.positiveTruthShader=Shader.Find("Hidden/Ossastra/Rooms/PositiveTruth");
+   feature.positiveDecorationShader=Shader.Find("Hidden/Ossastra/Rooms/SightDecoration");
+   if(feature.positiveTruthShader==null||feature.positiveDecorationShader==null)throw new InvalidOperationException("Legacy fixture shaders missing");
+   var frame=new RoomMaskFrame{Enabled=true,PositiveRenderingEnabled=true,TruthMode=false,ExteriorView=false,PositiveSurfaces=surfaces};
+   type.GetMethod("SetFrame",hidden).Invoke(positive,new object[]{frame,feature});
+   var resolve=type.GetMethod("ShaderFor",hidden);var resolveArgs=new object[]{grass,RoomPositiveRenderingLayers.PartialDecorationBit,0};
+   var resolved=(Shader)resolve.Invoke(positive,resolveArgs);
+   check("partial adapter retains grass source shader",resolved==shader,resolved==null?"null":resolved.name);
+   check("partial adapter selects explicit RoomSight",(int)resolveArgs[2]>=4&&(int)resolveArgs[2]==grass.FindPass("RoomSight"),resolveArgs[2].ToString());
+   var extract=type.GetMethod("ExtractTruthAdapter",hidden);
+   Func<RoomPositiveSurface,bool,Material> adapter=(s,permission)=>
+   {
+    var args=new object[]{grass,RoomPositiveRenderingLayers.PartialDecorationBit,s,permission,0};
+    var material=(Material)extract.Invoke(positive,args);
+    check((permission?"permission":"truth")+" retains deformed alpha shader",material!=null&&material.shader==shader,material==null?"null":material.shader.name);
+    check((permission?"permission":"truth")+" selects explicit RoomTruth",material!=null&&(int)args[4]>=4&&(int)args[4]==grass.FindPass("RoomTruth"),args[4].ToString());
+    if(material!=null)
+    {
+     check((permission?"permission":"truth")+" preserves wind and source alpha",material.GetVector("_GrassWind")==grass.GetVector("_GrassWind")&&Mathf.Approximately(material.GetFloat("_Cutoff"),.37f)&&material.IsKeywordEnabled("_GRASS_WIND"),material.GetVector("_GrassWind").ToString());
+     check((permission?"permission":"truth")+" writes correct depth state",Mathf.Approximately(material.GetFloat("_RoomPositiveDepthWrite"),permission?0:1),material.GetFloat("_RoomPositiveDepthWrite").ToString());
+     check((permission?"permission":"truth")+" retains partial permission",Mathf.Approximately(material.GetFloat("_RoomPositivePartial"),s.Kind==RoomPositiveSurfaceKind.Partial&&!s.EnvironmentFullSurface?1:0),material.GetFloat("_RoomPositivePartial").ToString());
+    }
+    return material;
+   };
+   var truth=adapter(surface,false);var permissionMat=adapter(surface,true);
+   check("truth and permission keep independent state",truth!=null&&permissionMat!=null&&truth!=permissionMat,truth==permissionMat?"same":"distinct");
+   var full=surface;full.Kind=RoomPositiveSurfaceKind.Full;adapter(full,false);
+   var environmentFull=surface;environmentFull.EnvironmentFullSurface=true;adapter(environmentFull,false);
+   check("source was not modified by resolver or adapters",sourceCrc==grass.ComputeCRC(),grass.ComputeCRC().ToString());
+
+   // A later Execute clears its used-key set, then the real cache must refresh
+   // changed wind data without accumulating a new source material.
+   var used=type.GetField("used",hidden).GetValue(positive);used.GetType().GetMethod("Clear").Invoke(used,null);
+   grass.SetVector("_GrassWind",new Vector4(-.2f,.1f,12.5f,.14f));var refreshed=adapter(surface,false);
+   check("next draw refreshes time without replacing adapter",refreshed!=null&&ReferenceEquals(truth,refreshed)&&refreshed.GetVector("_GrassWind")==grass.GetVector("_GrassWind"),refreshed==null?"null":refreshed.GetVector("_GrassWind").ToString());
+  }
+  catch(Exception e){check("contract invocation completes",false,e.ToString());}
+  finally
+  {
+   if(positive is IDisposable disposable)disposable.Dispose();
+   if(feature!=null)UnityEngine.Object.DestroyImmediate(feature);
+   if(grass!=null)UnityEngine.Object.DestroyImmediate(grass);
+   if(unknown!=null)UnityEngine.Object.DestroyImmediate(unknown);
+   if(go!=null)UnityEngine.Object.DestroyImmediate(go);
+  }
+  var result=new{passed,failed,success=failed==0,rows,noSceneSave=true,noRoomFramePublication=true,temporaryPresentationBindingReleased=true};
+  Directory.CreateDirectory("artifacts/VEGETATION-01A/MainIntegration");
+  File.WriteAllText("artifacts/VEGETATION-01A/MainIntegration/room-source-contract-"+DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fff")+".json",Newtonsoft.Json.JsonConvert.SerializeObject(result,Newtonsoft.Json.Formatting.Indented));ctx.ReturnValue=result;
+ }
+}

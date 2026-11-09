@@ -249,7 +249,11 @@ namespace Ossastra.SceneVisibility.Rooms
     actorOrEnemy=renderer.GetComponentInParent<Ossastra.Characters.CharacterRoot>(true)!=null||renderer.GetComponentInParent<Ossastra.Enemies.EnemyRoot>(true)!=null;
    actorOrNpc=actorOrEnemy;
    if((needsWorld||needsRole)&&!actorOrNpc)actorOrNpc=renderer.GetComponentInParent<Ossastra.Npcs.NpcRoot>(true)!=null;
-   worldLook=needsWorld&&!actorOrNpc&&renderer.GetComponentInParent<Spine.Unity.SkeletonRenderer>(true)==null;
+   // Registered grass chunks remain environment pixels, despite using the transient
+   // presentation registry for precise rebuild/disable ownership. This grants no view.
+   bool grass=sources.Family==RoomPositiveRenderingLayers.PartialDecorationBit&&sources.Materials.Length>0;
+   if(grass)foreach(var material in sources.Materials)if(material==null||material.shader==null||material.shader.name!=RoomPositiveRenderingLayers.GrassShaderName){grass=false;break;}
+   worldLook=(needsWorld||grass)&&!particle&&!actorOrNpc&&renderer.GetComponentInParent<Spine.Unity.SkeletonRenderer>(true)==null;
    sources.Independent|=actorOrEnemy;
    environmentRole=EnvironmentRoleFor(renderer,presentationOwner,actorOrNpc,sources.Family);return sources;
   }

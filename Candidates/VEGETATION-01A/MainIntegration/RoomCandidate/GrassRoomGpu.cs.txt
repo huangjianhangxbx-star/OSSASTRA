@@ -1,0 +1,105 @@
+using System;
+using System.IO;
+using System.Linq;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEditor;
+using UnityEngine.Rendering;
+using Ossastra.WorldRendering.Vegetation;
+using Funplay.Editor.Tools.Scripting;
+
+// Private, finite raster contract. All Room/environment uniforms are per-draw
+// MPB values, not shared globals. No camera.Render, registry publish or save.
+// The command's temporary view/projection state is restored in finally.
+public sealed class GrassRoomGpuContract : IFunplayCommand
+{
+ const int N=256;
+ const string Profile="Assets/OSSASTRA/WorldRendering/Vegetation/GrassLab/GrassCandidateB_v12.asset";
+ static bool MatrixEqual(Matrix4x4 a,Matrix4x4 b){for(int i=0;i<16;i++)if(!a[i].Equals(b[i]))return false;return true;}
+ static int Coverage(Color32[] pixels)=>pixels.Count(p=>p.a>127);
+ static int Difference(Color32[] a,Color32[] b){int count=0;for(int i=0;i<a.Length;i++)if((a[i].a>127)!=(b[i].a>127))count++;return count;}
+ public void Execute(ExecutionContext ctx)
+ {
+  if(Application.isPlaying||EditorApplication.isCompiling||EditorApplication.isUpdating)throw new InvalidOperationException("Requires stable Edit Mode");
+  var author=AssetDatabase.LoadAssetAtPath<GrassLayerProfileSO>(Profile);
+  if(author==null||author.image==null||author.material==null)throw new InvalidOperationException("Actual v1.2 profile/image/material missing");
+  var shader=author.material.shader;if(shader==null||shader.name!="Ossastra/Vegetation/GrassLayer")throw new InvalidOperationException("Actual grass shader required");
+  var errors=ShaderUtil.GetShaderMessages(shader).Where(m=>m.severity.ToString()=="Error").Select(m=>m.message).ToArray();
+  if(errors.Length>0)throw new InvalidOperationException("Grass shader compiler errors: "+string.Join(";",errors));
+  var oldActive=RenderTexture.active;var oldV=Shader.GetGlobalMatrix("unity_MatrixV");var oldP=Shader.GetGlobalMatrix("unity_MatrixP");var oldVP=Shader.GetGlobalMatrix("unity_MatrixVP");
+  var rows=new List<object>();var failures=new List<string>();var samples=new List<object>();
+  Action<string,bool,object> check=(name,pass,detail)=>{rows.Add(new{name,pass,detail});if(!pass)failures.Add(name);};
+  GameObject holder=null;GrassLayerProfileSO profile=null;GrassPatchDataSO data=null;Material mat=null;RenderTexture rt=null;Texture2D read=null;
+  List<GrassMeshBuilder.Block> blocks=null;string exception=null;bool restored=false;
+  try
+  {
+   holder=new GameObject("GrassRoomGpu transient"){hideFlags=HideFlags.HideAndDontSave};var collider=holder.AddComponent<MeshCollider>();
+   profile=UnityEngine.Object.Instantiate(author);profile.hideFlags=HideFlags.HideAndDontSave;profile.chunkSize=3;profile.maximumBend=.14f;
+   data=ScriptableObject.CreateInstance<GrassPatchDataSO>();data.hideFlags=HideFlags.HideAndDontSave;data.surfaceIds=new[]{"private-raster"};
+   data.placements=new[]{
+    new GrassPlacement{surfaceIndex=0,localRoot=new Vector3(.25f,0,0),localNormal=Vector3.up,width=.55f,height=.8f,yaw=15,phase=.5f},
+    new GrassPlacement{surfaceIndex=0,localRoot=new Vector3(.95f,0,.05f),localNormal=Vector3.up,width=.55f,height=.8f,yaw=65,phase=1.7f}};
+   blocks=GrassMeshBuilder.Build(profile,data,new[]{new GrassSurfaceBinding{id="private-raster",collider=collider}},holder.transform);
+   check("actual MeshBuilder produces two clumps",blocks.Sum(b=>b.count)==2,new{blocks=blocks.Count,clumps=blocks.Sum(b=>b.count)});
+   mat=new Material(shader){hideFlags=HideFlags.HideAndDontSave,name="Grass Room private raster"};mat.CopyPropertiesFromMaterial(author.material);
+   mat.SetTexture("_MainTex",author.image);mat.SetColor("_Color",Color.white);mat.SetColor("_RootTint",Color.white);mat.SetColor("_TipTint",Color.white);mat.SetFloat("_Cutoff",author.cutoff);
+   mat.SetVector("_GrassCameraLod",new Vector4(0,0,1000,1001));mat.SetFloat("_ArtMode",0);mat.SetFloat("_WindMode",3);mat.SetFloat("_WindDisplacement",1);
+   mat.SetFloat("_FineWindStrength",.35f);mat.SetFloat("_CoarseWindStrength",.8f);mat.SetTexture("_WindTexture",author.windTexture==null?Texture2D.grayTexture:author.windTexture);mat.EnableKeyword("_GRASS_WIND");
+   mat.SetFloat("_RoomPositiveDepthWrite",1);mat.SetFloat("_RoomPositivePartial",1);mat.SetFloat("_RoomPositiveCutRoof",0);mat.SetColor("_RoomPositiveColor",Color.white);
+   int forward=mat.FindPass("ForwardLit"),sight=mat.FindPass("RoomSight"),truth=mat.FindPass("RoomTruth");
+   if(forward<0||sight<0||truth<0)throw new InvalidOperationException("All three actual production passes required");
+   foreach(int pass in new[]{forward,sight,truth})if(!Ossastra.Rendering.RenderPassReadiness.Ensure(mat,pass))throw new InvalidOperationException("Production pass not ready: "+pass);
+   rt=new RenderTexture(N,N,24,RenderTextureFormat.ARGB32,RenderTextureReadWrite.Linear){hideFlags=HideFlags.HideAndDontSave,name="Grass Room private raster",antiAliasing=1,useMipMap=false,autoGenerateMips=false};if(!rt.Create())throw new InvalidOperationException("Private RT creation failed");
+   read=new Texture2D(N,N,TextureFormat.RGBA32,false,true){hideFlags=HideFlags.HideAndDontSave};
+   var position=new Vector3(.6f,2.4f,-2);var rotation=Quaternion.LookRotation(new Vector3(.6f,.4f,0)-position,Vector3.up);
+   var view=Matrix4x4.Scale(new Vector3(1,1,-1))*Matrix4x4.TRS(position,rotation,Vector3.one).inverse;
+   var projection=GL.GetGPUProjectionMatrix(Matrix4x4.Ortho(-1.1f,1.1f,-.85f,.85f,.1f,10),true);var inverse=(projection*view).inverse;
+   Func<int,float,bool,bool,Color32[]> render=(pass,time,limited,permission)=>
+   {
+    mat.SetVector("_GrassWind",new Vector4(.8f,.2f,time,.14f));mat.SetFloat("_RoomPositiveDepthWrite",permission?0:1);
+    var block=new MaterialPropertyBlock();
+    block.SetInteger("_RoomSightSeedCount",limited?1:0);block.SetInteger("_RoomSightBuildingCount",0);block.SetInteger("_RoomSightDomainCount",0);block.SetInteger("_RoomSightBlockerCount",0);
+    block.SetInteger("_RoomSightOwnerCount",0);block.SetInteger("_RoomSightOwnerExterior",0);block.SetInteger("_RoomSightExteriorView",limited?0:1);
+    block.SetInteger("_RoomSightWindowCount",0);block.SetInteger("_RoomSightCameraBlockerCount",0);block.SetInteger("_RoomSightPassMode",1);block.SetInteger("_RoomFogHistoryCount",0);
+    block.SetFloat("_RoomSightStaticEnvironment",0);block.SetFloat("_RoomPositiveCoverageMode",0);block.SetFloat("_RoomPositivePermissionMode",permission?1:0);block.SetFloat("_RoomWorldLookEnvironment",1);
+    block.SetFloat("_EnvironmentLightingEnabled",0);block.SetFloat("_EnvironmentFullSurface",0);block.SetVector("_RoomFogStyle",Vector4.zero);
+    block.SetVector("_RoomSightTargetSize",new Vector4(N,N,1f/N,1f/N));block.SetMatrix("_RoomSightInverseViewProjection",inverse);
+    block.SetVector("_WorldSpaceCameraPos",new Vector4(position.x,position.y,position.z,1));block.SetVector("unity_OrthoParams",new Vector4(2.2f,1.7f,0,1));
+    // The half-space x<=.6 is represented by one exact seed box. Large Y/Z
+    // margins ensure this fixture isolates the X clipping boundary.
+    block.SetMatrixArray("_RoomSightSeedMatrices",new[]{Matrix4x4.Translate(new Vector3(.4f,0,0))});block.SetVectorArray("_RoomSightSeedExtents",new[]{new Vector4(1,10,10,0)});
+    var cmd=new CommandBuffer{name="Grass Room finite private raster"};
+    try{cmd.SetRenderTarget(rt);cmd.SetViewport(new Rect(0,0,N,N));cmd.ClearRenderTarget(true,true,Color.clear);cmd.SetViewProjectionMatrices(view,projection);foreach(var item in blocks)cmd.DrawMesh(item.mesh,Matrix4x4.identity,mat,0,pass,block);Graphics.ExecuteCommandBuffer(cmd);}
+    finally{cmd.Release();}
+    RenderTexture.active=rt;read.ReadPixels(new Rect(0,0,N,N),0,0,false);read.Apply(false,false);var pixels=read.GetPixels32();samples.Add(new{pass,time,limited,permission,covered=Coverage(pixels)});return pixels;
+   };
+   Color32[] previous=null;
+   foreach(float time in new[]{0f,4f})
+   {
+    var normal=render(forward,time,false,false);var qualified=render(sight,time,false,false);var actualTruth=render(truth,time,false,false);var label=render(truth,time,false,true);
+    check("nonempty source silhouette t="+time,Coverage(normal)>100,Coverage(normal));
+    check("RoomSight wind alpha matches source t="+time,Difference(normal,qualified)==0,Difference(normal,qualified));
+    check("RoomTruth wind alpha matches source t="+time,Difference(normal,actualTruth)==0,Difference(normal,actualTruth));
+    check("label wind alpha matches source t="+time,Difference(normal,label)==0,Difference(normal,label));
+    if(previous!=null)check("actual wind moves the raster silhouette",Difference(previous,normal)>2,Difference(previous,normal));previous=normal;
+    var limitedColor=render(sight,time,true,false);var limitedTruth=render(truth,time,true,false);var limitedLabel=render(truth,time,true,true);
+    check("partial clipping removes only a nonempty subset t="+time,Coverage(limitedColor)>0&&Coverage(limitedColor)<Coverage(normal),new{full=Coverage(normal),partial=Coverage(limitedColor)});
+    check("clipped truth matches final alpha t="+time,Difference(limitedColor,limitedTruth)==0,Difference(limitedColor,limitedTruth));
+    check("clipped label matches final alpha t="+time,Difference(limitedColor,limitedLabel)==0,Difference(limitedColor,limitedLabel));
+    int escaped=0;for(int y=0;y<N;y++)for(int x=N/2+2;x<N;x++)if(limitedColor[y*N+x].a>127||limitedTruth[y*N+x].a>127||limitedLabel[y*N+x].a>127)escaped++;
+    check("forbidden right half has zero final/truth/label pixels t="+time,escaped==0,escaped);
+   }
+  }
+  catch(Exception e){exception=e.ToString();failures.Add(exception);}
+  finally
+  {
+   var restore=new CommandBuffer{name="Restore private grass raster view state"};
+   try{restore.SetViewProjectionMatrices(oldV,oldP);restore.SetGlobalMatrix("unity_MatrixV",oldV);restore.SetGlobalMatrix("unity_MatrixP",oldP);restore.SetGlobalMatrix("unity_MatrixVP",oldVP);Graphics.ExecuteCommandBuffer(restore);restored=true;}
+   finally{restore.Release();RenderTexture.active=oldActive;if(read!=null)UnityEngine.Object.DestroyImmediate(read);if(rt!=null){rt.Release();UnityEngine.Object.DestroyImmediate(rt);}if(mat!=null)UnityEngine.Object.DestroyImmediate(mat);if(blocks!=null)foreach(var item in blocks)GrassMeshBuilder.Dispose(item.mesh);if(data!=null)UnityEngine.Object.DestroyImmediate(data);if(profile!=null)UnityEngine.Object.DestroyImmediate(profile);if(holder!=null)UnityEngine.Object.DestroyImmediate(holder);}
+  }
+  check("temporary view matrices restored",restored&&MatrixEqual(Shader.GetGlobalMatrix("unity_MatrixV"),oldV)&&MatrixEqual(Shader.GetGlobalMatrix("unity_MatrixP"),oldP)&&MatrixEqual(Shader.GetGlobalMatrix("unity_MatrixVP"),oldVP),restored);
+  check("active RT restored",ReferenceEquals(RenderTexture.active,oldActive),null);
+  var result=new{success=failures.Count==0,checks=rows,samples,failures,exception,scope="Two clumps from actual MeshBuilder; real production ForwardLit/RoomSight/RoomTruth and label mode, private 256x256 MSAA1 RT. Uniforms are per-draw MPB; no Room frame publication, profile or scene save. Does not certify Main portals, timing or performance."};
+  Directory.CreateDirectory("artifacts/VEGETATION-01A/MainIntegration");string output="artifacts/VEGETATION-01A/MainIntegration/room-gpu-"+DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fff")+".json";File.WriteAllText(output,Newtonsoft.Json.JsonConvert.SerializeObject(result,Newtonsoft.Json.Formatting.Indented));ctx.ReturnValue=new{output,result.success,checks=rows.Count,samples=samples.Count,failures};
+ }
+}

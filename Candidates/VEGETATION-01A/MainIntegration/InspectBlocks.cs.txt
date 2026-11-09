@@ -1,0 +1,2 @@
+using System;using System.Linq;using UnityEngine;using UnityEngine.SceneManagement;using Funplay.Editor.Tools.Scripting;
+public sealed class InspectGrassSolids:IFunplayCommand{public void Execute(ExecutionContext ctx){var s=SceneManager.GetActiveScene();ctx.ReturnValue=s.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<BoxCollider>(true)).Where(b=>b.enabled&&!b.isTrigger&&b.gameObject.activeInHierarchy).Select(b=>new{name=b.name,id=b.GetInstanceID(),min=b.bounds.min.ToString("F2"),max=b.bounds.max.ToString("F2")}).ToArray();}}

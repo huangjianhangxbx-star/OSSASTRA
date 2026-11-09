@@ -1,5 +1,5 @@
 /* 功能：显式表面采样、保存数据重建小合并块，并消费同相机环境风。
- * 边界：只创建自有贴图承载层，不动碰撞/地皮/天气，不登记或绕过Room许可；当前仅独立URP候选。
+ * 边界：只创建自有贴图承载层，不动碰撞/地皮/天气；可选接原Room叶登记，始终服从片元许可。
  * 生命周期：无逐草Update/射线；仅生成时采样。每相机有限写自有材质，禁用释放全部显示资源与事件。
  */
 using System;using System.Collections.Generic;using System.Linq;using UnityEngine;using UnityEngine.Rendering;using Unity.Profiling;using Ossastra.EnvironmentSimulation;
@@ -16,6 +16,10 @@ namespace Ossastra.WorldRendering.Vegetation
   public GrassSurfaceBinding[] surfaces=Array.Empty<GrassSurfaceBinding>();
   public BoxCollider[] exclusions=Array.Empty<BoxCollider>();
   public EnvironmentRoot environment;public Camera gameplayCamera;
+  [Tooltip("主场接入时启用；使用原Room叶登记，禁用/重建时精确撤销，不写作者sharedSurfaces。")]
+  public bool registerRoomVisibility;
+  [Tooltip("明确已核对的室外锚点；草层只铺室外，片元许可仍按实际草的位置判断。")]
+  public Vector3 roomExteriorAnchor;
   public GrassWindMode mode=GrassWindMode.Environment;
   public bool castShadows;public Vector2 testWindDirection=new Vector2(1,.35f);
   public string Status{get;private set;}="尚未生成";
@@ -53,7 +57,9 @@ namespace Ossastra.WorldRendering.Vegetation
     staticMaterial=new Material(profile.material){name="Grass static [owned]",hideFlags=HideFlags.DontSave};windMaterial=new Material(profile.material){name="Grass wind [owned]",hideFlags=HideFlags.DontSave};staticMaterial.DisableKeyword("_GRASS_WIND");windMaterial.EnableKeyword("_GRASS_WIND");
     foreach(var m in new[]{staticMaterial,windMaterial}){m.SetTexture("_MainTex",profile.image);m.SetColor("_Color",profile.tint);m.SetColor("_RootTint",profile.rootTint);m.SetColor("_TipTint",profile.tipTint);m.SetFloat("_Cutoff",profile.cutoff);m.SetFloat("_EnvironmentResponseOverride",1);m.SetFloat("_EnvironmentReceiveShadow",1);m.SetFloat("_EnvironmentMinimumOverride",0);}
     if(float.IsNaN(profile.maximumBend)||float.IsInfinity(profile.maximumBend)||profile.maximumBend<0||profile.maximumBend>.5f)throw new InvalidOperationException("草摆幅无效");bakedMaximumBend=profile.maximumBend;if(profile.farEnd<=profile.farStart||float.IsNaN(profile.farEnd)||float.IsInfinity(profile.farEnd))throw new InvalidOperationException("远处密度区间无效");var farBlocks=GrassMeshBuilder.Build(profile,data,surfaces,transform,true).ToDictionary(b=>b.cell);foreach(var b in farBlocks.Values)meshes.Add(b.mesh);var blocks=GrassMeshBuilder.Build(profile,data,surfaces,transform);foreach(var b in blocks){meshes.Add(b.mesh);var go=new GameObject("GrassBlock_"+b.cell){hideFlags=HideFlags.DontSave};go.transform.SetParent(transform,false);var filter=go.AddComponent<MeshFilter>();filter.sharedMesh=b.mesh;filters.Add(filter);nearMeshes.Add(b.mesh);farMeshes.Add(farBlocks.TryGetValue(b.cell,out var farBlock)?farBlock.mesh:null);var renderer=go.AddComponent<MeshRenderer>();renderer.sharedMaterial=windMaterial;renderer.shadowCastingMode=castShadows?ShadowCastingMode.TwoSided:ShadowCastingMode.Off;renderer.receiveShadows=true;renderer.lightProbeUsage=LightProbeUsage.Off;renderer.reflectionProbeUsage=ReflectionProbeUsage.Off;renderers.Add(renderer);ClumpCount+=b.count;VertexCount+=b.mesh.vertexCount;TriangleCount+=(int)b.mesh.GetIndexCount(0)/3;}
-    RefreshAppearance();priorHidden=new bool[renderers.Count];ApplyMode();Status="独立二维草层："+ClumpCount+"簇 / "+BlockCount+"合并块；未接门户后端";
+    RefreshAppearance();priorHidden=new bool[renderers.Count];ApplyMode();
+    if(registerRoomVisibility)foreach(var renderer in renderers)Ossastra.SceneVisibility.Rooms.RoomPresentationBinding.Attach(renderer,roomExteriorAnchor,true,null,false,0);
+    Status="二维草层："+ClumpCount+"簇 / "+BlockCount+"合并块；"+(registerRoomVisibility?"原Room片元许可":"独立URP候选");
    }catch{ReleaseView();throw;}
   }
   public void SetMode(GrassWindMode value,bool shadows){mode=value;castShadows=shadows;ApplyMode();}
@@ -88,6 +94,6 @@ namespace Ossastra.WorldRendering.Vegetation
   }
   void EndCamera(ScriptableRenderContext context,Camera camera){if(camera==leasedCamera)RestoreCamera();}
   void RestoreCamera(){if(leasedCamera==null)return;for(int i=0;i<renderers.Count&&i<priorHidden.Length;i++)if(renderers[i]!=null)renderers[i].forceRenderingOff=priorHidden[i];if(staticMaterial!=null)staticMaterial.SetVector("_GrassWind",priorStaticWind);if(windMaterial!=null)windMaterial.SetVector("_GrassWind",priorDynamicWind);leasedCamera=null;}
-  void ReleaseView(){RestoreCamera();foreach(var r in renderers)if(r!=null)GrassMeshBuilder.Dispose(r.gameObject);renderers.Clear();filters.Clear();nearMeshes.Clear();farMeshes.Clear();foreach(var mesh in meshes)GrassMeshBuilder.Dispose(mesh);meshes.Clear();GrassMeshBuilder.Dispose(staticMaterial);GrassMeshBuilder.Dispose(windMaterial);staticMaterial=windMaterial=null;priorHidden=Array.Empty<bool>();ClumpCount=VertexCount=TriangleCount=0;}
+  void ReleaseView(){RestoreCamera();foreach(var r in renderers)if(r!=null){var binding=r.GetComponent<Ossastra.SceneVisibility.Rooms.RoomPresentationBinding>();if(binding!=null)binding.Suspend();GrassMeshBuilder.Dispose(r.gameObject);}renderers.Clear();filters.Clear();nearMeshes.Clear();farMeshes.Clear();foreach(var mesh in meshes)GrassMeshBuilder.Dispose(mesh);meshes.Clear();GrassMeshBuilder.Dispose(staticMaterial);GrassMeshBuilder.Dispose(windMaterial);staticMaterial=windMaterial=null;priorHidden=Array.Empty<bool>();ClumpCount=VertexCount=TriangleCount=0;}
  }
 }

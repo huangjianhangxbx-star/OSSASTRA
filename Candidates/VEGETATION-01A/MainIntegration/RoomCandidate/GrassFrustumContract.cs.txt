@@ -1,0 +1,66 @@
+using System;
+using System.IO;
+using System.Collections.Generic;
+using System.Reflection;
+using UnityEngine;
+using UnityEngine.Rendering;
+using Ossastra.SceneVisibility.Rooms.Rendering;
+using Funplay.Editor.Tools.Scripting;
+
+// No scene save/render/Room publication. Tests the real conservative helper and
+// real final-world command construction: an outside grass chunk must submit 0.
+public sealed class GrassConservativeFrustumContract : IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  if(Application.isPlaying)throw new InvalidOperationException("Edit Mode required");
+  const BindingFlags hidden=BindingFlags.Instance|BindingFlags.NonPublic|BindingFlags.Public;
+  var rows=new List<object>();int failed=0;
+  Action<string,bool,object> check=(name,pass,detail)=>{rows.Add(new{name,pass,detail});if(!pass)failed++;};
+  GameObject holder=null,cameraObject=null;Mesh mesh=null;Material grass=null,decoration=null;RoomMaskRendererFeature feature=null;object positive=null;CommandBuffer cmd=null;
+  try
+  {
+   var grassShader=Shader.Find("Ossastra/Vegetation/GrassLayer");var decorationShader=Shader.Find("Ossastra/GroundWorkshop/DecorationCutout");
+   if(grassShader==null||decorationShader==null)throw new InvalidOperationException("Actual grass and ordinary Decoration fixtures required");
+   grass=new Material(grassShader){hideFlags=HideFlags.HideAndDontSave};decoration=new Material(decorationShader){hideFlags=HideFlags.HideAndDontSave};
+   cameraObject=new GameObject("GrassFrustum camera [temporary]"){hideFlags=HideFlags.HideAndDontSave};var camera=cameraObject.AddComponent<Camera>();camera.enabled=false;camera.orthographic=true;camera.orthographicSize=5;camera.aspect=1;camera.nearClipPlane=.1f;camera.farClipPlane=100;camera.transform.position=new Vector3(0,0,-10);camera.transform.rotation=Quaternion.identity;
+   holder=new GameObject("GrassFrustum chunk [temporary]"){hideFlags=HideFlags.HideAndDontSave};var renderer=holder.AddComponent<MeshRenderer>();var filter=holder.AddComponent<MeshFilter>();
+   mesh=new Mesh{name="GrassFrustum expanded wind bounds [temporary]",hideFlags=HideFlags.HideAndDontSave};mesh.vertices=new[]{new Vector3(-.25f,-.25f,0),new Vector3(.25f,-.25f,0),new Vector3(0,.25f,0)};mesh.triangles=new[]{0,1,2};mesh.normals=new[]{Vector3.back,Vector3.back,Vector3.back};mesh.uv=new[]{Vector2.zero,Vector2.right,Vector2.up};mesh.colors=new[]{Color.white,Color.white,Color.white};
+   // This matches the real MeshBuilder's declared maximumBend*1.5 expansion.
+   mesh.RecalculateBounds();var expanded=mesh.bounds;expanded.Expand(new Vector3(.42f,.084f,.42f));mesh.bounds=expanded;filter.sharedMesh=mesh;renderer.sharedMaterial=grass;
+   var type=typeof(RoomMaskRendererFeature).Assembly.GetType("Ossastra.SceneVisibility.Rooms.Rendering.RoomPositivePass",true);positive=Activator.CreateInstance(type,hidden,null,new object[]{camera},null);
+   feature=ScriptableObject.CreateInstance<RoomMaskRendererFeature>();feature.hideFlags=HideFlags.HideAndDontSave;feature.positiveTruthShader=Shader.Find("Hidden/Ossastra/Rooms/PositiveTruth");feature.positiveDecorationShader=Shader.Find("Hidden/Ossastra/Rooms/SightDecoration");
+   var surface=new RoomPositiveSurface{Renderer=renderer,Kind=RoomPositiveSurfaceKind.Partial,IndependentDraw=true,DrawMask=RoomPositiveRenderingLayers.IndependentBit,OwnerExterior=true,WorldLookEnvironment=true,EnvironmentSurfaceRole=0,EnvironmentResponseOverride=1,EnvironmentReceiveShadow=1};
+   var frame=new RoomMaskFrame{Enabled=true,PositiveRenderingEnabled=true,TruthMode=false,PositiveSurfaces=new[]{surface}};
+   type.GetMethod("SetFrame",hidden).Invoke(positive,new object[]{frame,feature});type.GetMethod("RefreshTruthFrustum",hidden).Invoke(positive,null);
+   var outside=type.GetMethod("TruthOutsideFrustum",hidden);Func<Renderer,bool> rejected=r=>(bool)outside.Invoke(positive,new object[]{r,RoomPositiveRenderingLayers.PartialDecorationBit});
+   holder.transform.position=Vector3.zero;renderer.ResetBounds();check("visible grass kept",!rejected(renderer),renderer.bounds.ToString());
+   holder.transform.position=new Vector3(100,0,0);renderer.ResetBounds();check("wholly outside grass rejected",rejected(renderer),renderer.bounds.ToString());
+
+   // Invoke real final-world command assembly without submitting it to a GPU.
+   // The baseline currently creates a draw even though this chunk is far outside.
+   var stats=(RoomMaskStatistics)type.GetField("Statistics",hidden).GetValue(positive);stats.SurfaceDraws=0;cmd=new CommandBuffer{name="Grass outside draw construction contract"};
+   type.GetMethod("DrawIndependentUnlit",hidden).Invoke(positive,new object[]{cmd,false});
+   check("outside grass adds zero final-world DrawRenderer commands",stats.SurfaceDraws==0,new{draws=stats.SurfaceDraws,commandBytes=cmd.sizeInBytes});cmd.Clear();
+
+   // Both bounds must participate. A custom small renderer bound cannot hide a
+   // visible mesh; a larger renderer bound cannot be replaced by a small mesh.
+   renderer.bounds=new Bounds(Vector3.zero,Vector3.one*2);check("enlarged world renderer bounds retain visible intersection",!rejected(renderer),renderer.bounds.ToString());
+   holder.transform.position=Vector3.zero;renderer.bounds=new Bounds(new Vector3(100,0,0),Vector3.one*.01f);check("undersized or displaced custom bound cannot cull visible mesh",!rejected(renderer),renderer.bounds.ToString());
+   renderer.ResetBounds();holder.transform.position=new Vector3(5.4f,0,0);check("declared wind-expanded boundary retained",!rejected(renderer),renderer.bounds.ToString());
+   holder.transform.position=new Vector3(5.6f,0,0);check("strictly outside expanded wind bound rejected",rejected(renderer),renderer.bounds.ToString());
+   holder.transform.position=new Vector3(100,0,0);renderer.ResetBounds();renderer.sharedMaterial=decoration;
+   check("ordinary decoration is not newly culled",!rejected(renderer),decoration.shader.name);
+   renderer.sharedMaterials=new[]{grass,decoration};check("mixed grass and ordinary decoration stays conservative",!rejected(renderer),"mixed source slots");
+   renderer.sharedMaterial=grass;filter.sharedMesh=null;check("missing mesh stays conservative",!rejected(renderer),null);filter.sharedMesh=mesh;
+   type.GetField("truthFrustumValid",hidden).SetValue(positive,false);check("untrusted frustum stays conservative",!rejected(renderer),null);
+  }
+  catch(Exception e){check("contract invocation completes",false,e.ToString());}
+  finally
+  {
+   if(cmd!=null)cmd.Release();if(positive is IDisposable disposable)disposable.Dispose();
+   if(feature!=null)UnityEngine.Object.DestroyImmediate(feature);if(grass!=null)UnityEngine.Object.DestroyImmediate(grass);if(decoration!=null)UnityEngine.Object.DestroyImmediate(decoration);if(mesh!=null)UnityEngine.Object.DestroyImmediate(mesh);if(holder!=null)UnityEngine.Object.DestroyImmediate(holder);if(cameraObject!=null)UnityEngine.Object.DestroyImmediate(cameraObject);
+  }
+  var result=new{success=failed==0,failed,checks=rows,noSceneSave=true,noRendering=true,noRoomFramePublication=true};Directory.CreateDirectory("artifacts/VEGETATION-01A/MainIntegration");string output="artifacts/VEGETATION-01A/MainIntegration/grass-frustum-"+DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fff")+".json";File.WriteAllText(output,Newtonsoft.Json.JsonConvert.SerializeObject(result,Newtonsoft.Json.Formatting.Indented));ctx.ReturnValue=new{output,result.success,failed,checks=rows};
+ }
+}

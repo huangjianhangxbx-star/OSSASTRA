@@ -42,6 +42,7 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
             internal int Slots;
         }
         readonly Plane[] truthFrustumPlanes = new Plane[6];
+        readonly List<Material> grassBoundsMaterials = new List<Material>(4);
         bool truthFrustumValid;
         int truthBoundsRejected;
         readonly Dictionary<MaterialKey, Material> materials = new Dictionary<MaterialKey, Material>();
@@ -352,6 +353,9 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
         Shader ShaderFor(Material source, uint family, out int pass)
         {
             pass = 0;
+            // The source owns the wind/alpha/Room passes. Scheduling reuses Decoration.
+            if (family == RoomPositiveRenderingLayers.PartialDecorationBit && IsGrassSource(source))
+            { pass = source.FindPass("RoomSight"); return pass < 0 ? null : source.shader; }
             if ((family == RoomPositiveRenderingLayers.PartialLitBit || family == RoomPositiveRenderingLayers.RoofBit) &&
                 source != null && source.shader != null && source.shader.name == RoomPositiveRenderingLayers.VoxelLitShaderName)
                 return feature.positiveVoxelLitShader;
@@ -370,6 +374,9 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
             if (family == RoomPositiveRenderingLayers.PartialLitSpineBit) return feature.positiveSpriteLitShader;
             return null;
         }
+
+        static bool IsGrassSource(Material source) => source != null && source.shader != null &&
+            source.shader.name == RoomPositiveRenderingLayers.GrassShaderName;
 
         static bool Finite(Vector4 value) => !float.IsNaN(value.x) && !float.IsInfinity(value.x) &&
             !float.IsNaN(value.y) && !float.IsInfinity(value.y) && !float.IsNaN(value.z) &&
@@ -684,6 +691,9 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
                 var renderer = surface.Renderer;
                 if (surface.Kind == RoomPositiveSurfaceKind.Full || surface.DrawMask != RoomPositiveRenderingLayers.IndependentBit ||
                     !HasDrawableSource(renderer)) continue;
+                // CommandBuffer.DrawRenderer does not consume URP cullResults. Grass uses its
+                // finite wind-expanded mesh bounds; retain all other independent/depth families.
+                if (TruthOutsideFrustum(renderer, RoomPositiveRenderingLayers.Classify(renderer))) continue;
                 renderer.GetSharedMaterials(slots);
                 for (int slot = 0; slot < slots.Count; ++slot)
                 {
@@ -923,11 +933,12 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
         Material ExtractTruthAdapter(Material source, uint family, RoomPositiveSurface surface, bool permission, out int truthPass)
         {
             truthPass = 3;
+                bool grass = IsGrassSource(source);
                 bool cutRoof = previewEnabled && surface.Kind == RoomPositiveSurfaceKind.Roof && Array.IndexOf(frame.PreviewRoofSurfaces, surface.Renderer) >= 0;
                 var key = new MaterialKey(source, surface.Kind, cutRoof, permission,environmentFull:surface.EnvironmentFullSurface);
                 if (!materials.TryGetValue(key, out var adapter))
                 {
-                    Shader adapterShader = family == RoomPositiveRenderingLayers.PartialLitSpineBit ? spriteLitTruthShader : truthShader;
+                    Shader adapterShader = grass ? source.shader : family == RoomPositiveRenderingLayers.PartialLitSpineBit ? spriteLitTruthShader : truthShader;
                     if (adapterShader == null || !adapterShader.isSupported) { ++Statistics.UnsupportedMaterialCount; return null; }
                     adapter = new Material(adapterShader) { name = source.name + " [Room positive truth]", hideFlags = HideFlags.HideAndDontSave };
                     materials.Add(key, adapter);
@@ -944,7 +955,7 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
                 // 签名在全部派生覆盖后记录；Owner仍逐draw上传，许可/屋顶/环境模式各自持有完整Key。
                 if (firstUse)
                 {
-                Shader expectedShader = family == RoomPositiveRenderingLayers.PartialLitSpineBit ? spriteLitTruthShader : truthShader;
+                Shader expectedShader = grass ? source.shader : family == RoomPositiveRenderingLayers.PartialLitSpineBit ? spriteLitTruthShader : truthShader;
                 if (expectedShader == null || !expectedShader.isSupported) { ++Statistics.UnsupportedMaterialCount; used.Remove(key); return null; }
                 if (adapter.shader != expectedShader) { adapter.shader = expectedShader; truthCopyStates.Remove(key); }
                 int sourceCrc = source.ComputeCRC();
@@ -955,7 +966,7 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
                 using (new ProfilingScope(null, perfTruthMaterialCopy))
                     adapter.CopyPropertiesFromMaterial(source);
                 if (!upright && adapter.HasProperty("_VisualDepthEnabled")) adapter.SetFloat("_VisualDepthEnabled", 0);
-                if (family != RoomPositiveRenderingLayers.PartialLitSpineBit)
+                if (!grass && family != RoomPositiveRenderingLayers.PartialLitSpineBit)
                 {
                     adapter.SetFloat("_RoomSurfaceMode", mode);
                     adapter.SetFloat("_RoomSourceAlphaClip", source.IsKeywordEnabled("_ALPHATEST_ON") ? 1 : 0);
@@ -965,7 +976,7 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
                 adapter.SetFloat("_RoomPositiveCutRoof", key.CutRoof ? 1 : 0);
                 adapter.SetColor("_RoomPositiveColor", surface.Kind == RoomPositiveSurfaceKind.Partial&&!surface.EnvironmentFullSurface ? new Color(1, .38f, .04f, 1) :
                     surface.Kind == RoomPositiveSurfaceKind.Roof ? new Color(.2f, .35f, .8f, 1) : new Color(.05f, .9f, .85f, 1));
-                adapter.SetFloat("_Cull", mode == 0 && source.HasProperty("_Cull") ? source.GetFloat("_Cull") : 0);
+                if (!grass) adapter.SetFloat("_Cull", mode == 0 && source.HasProperty("_Cull") ? source.GetFloat("_Cull") : 0);
                 int derivedMask = 0;
                 for (int i = 0; i < truthDerivedFloats.Length; ++i) if (adapter.HasProperty(truthDerivedFloats[i])) derivedMask |= 1 << i;
                 if (adapter.HasProperty(truthColorId)) derivedMask |= 1 << truthDerivedFloats.Length;
@@ -974,7 +985,8 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
                 }
                 }
                 bool hardware = mode == 0 || mode == 2 || mode == 6 || (mode == 3 && !upright);
-                truthPass = family == RoomPositiveRenderingLayers.PartialLitSpineBit ? 0 : mode == 5 ? 1 : hardware ? 3 : 0;
+                truthPass = grass ? adapter.FindPass("RoomTruth") : family == RoomPositiveRenderingLayers.PartialLitSpineBit ? 0 : mode == 5 ? 1 : hardware ? 3 : 0;
+                if (truthPass < 0) { ++Statistics.UnsupportedMaterialCount; return null; }
                 return adapter;
         }
 
@@ -1012,7 +1024,8 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
         bool TruthOutsideFrustum(Renderer renderer, uint family)
         {
             if (!truthFrustumValid || !(renderer is MeshRenderer) ||
-                (family != RoomPositiveRenderingLayers.PartialLitBit && family != RoomPositiveRenderingLayers.PartialSimpleLitBit && family != RoomPositiveRenderingLayers.PartialUnlitBit)) return false;
+                (family != RoomPositiveRenderingLayers.PartialLitBit && family != RoomPositiveRenderingLayers.PartialSimpleLitBit && family != RoomPositiveRenderingLayers.PartialUnlitBit &&
+                 !IsGrassRenderer(renderer, family))) return false;
             try
             {
                 var filter = renderer.GetComponent<MeshFilter>(); var mesh = filter == null ? null : filter.sharedMesh;
@@ -1027,6 +1040,17 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
                 return TruthBoundsValid(bounds) && !GeometryUtility.TestPlanesAABB(truthFrustumPlanes, bounds);
             }
             catch { return false; } // 无法取得可信包围体时沿用原绘制，不能因诊断性预筛隐藏未知内容。
+        }
+
+        bool IsGrassRenderer(Renderer renderer, uint family)
+        {
+            if(family != RoomPositiveRenderingLayers.PartialDecorationBit) return false;
+            renderer.GetSharedMaterials(grassBoundsMaterials);
+            bool grass = grassBoundsMaterials.Count > 0;
+            foreach(var source in grassBoundsMaterials)
+                if(source == null || source.shader == null || source.shader.name != RoomPositiveRenderingLayers.GrassShaderName) { grass = false; break; }
+            grassBoundsMaterials.Clear();
+            return grass;
         }
         static bool TruthMatrixFinite(Matrix4x4 matrix)
         { for (int row=0;row<4;++row) if (!Finite(matrix.GetRow(row))) return false; return true; }

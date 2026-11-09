@@ -1,0 +1,34 @@
+{
+  "error": null,
+  "scope": "Editor fixed camera off/on/off; whole-frame elapsed and optional FrameTiming GPU, not Player budget or CPU-effective work",
+  "rows": [
+    {
+      "state": "grass-off",
+      "samples": 180,
+      "p50": 27.34299935400486,
+      "p95": 30.297499150037766,
+      "gpuSamples": 172,
+      "gpuP50": 11.619328,
+      "gpuP95": 28.52352
+    },
+    {
+      "state": "grass-on",
+      "samples": 180,
+      "p50": 41.017200797796249,
+      "p95": 46.011198312044144,
+      "gpuSamples": 154,
+      "gpuP50": 35.447808,
+      "gpuP95": 42.522624
+    },
+    {
+      "state": "grass-off",
+      "samples": 180,
+      "p50": 27.18069963157177,
+      "p95": 31.558699905872345,
+      "gpuSamples": 170,
+      "gpuP50": 11.490304,
+      "gpuP95": 28.35968
+    }
+  ],
+  "restored": true
+}

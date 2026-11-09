@@ -26,7 +26,13 @@ namespace Ossastra.WorldRendering.Vegetation.Editor
    var layer=(GrassLayer)target;
    EditorGUILayout.Space();
    EditorGUILayout.LabelField("二维草层作者操作",EditorStyles.boldLabel);
-   EditorGUILayout.HelpBox("当前仅独立URP候选；未接入Room门户/黑幕，不自动铺进主场。",MessageType.Warning);
+   if(layer.registerRoomVisibility&&!Owned(layer.gameObject.scene.path))
+   {
+    EditorGUILayout.HelpBox("主场草层已接入房间可见性。当前使用已保存的半幅放置；取消组件勾选可隐藏草层，原地形保留。",MessageType.Info);
+    EditorGUILayout.LabelField("当前显示",layer.ClumpCount+" 簇 / "+layer.BlockCount+" 块 / "+layer.TriangleCount+" 三角");
+    return;
+   }
+   EditorGUILayout.HelpBox("独立URP候选；勾选Room登记后由原门户/黑幕控制可见性。",MessageType.Info);
    using(new EditorGUI.DisabledScope(Application.isPlaying))
    {
     if(GUILayout.Button("生成放置数据并预览"))Run(()=>Generate(layer));

@@ -679,3 +679,6 @@ Core新20/Legacy20、离线时序13、Native历史8；实景门窗10/10，真实
 - 本机入口：研究/植被/VEGETATION-01A/delivery/v1.2/index.html；普通试玩LocalBuilds/VEGETATION-01A/GrassLab.exe；源与说明定向发布，不含媒体/构建/私有场景。全部Unity与子writer已释放，Root只做Git收尾；原42dirty保留，不执行电源动作。
 
 VEGETATION-01A v1.2 publication verified：产品4c54eae38587eecedd0ce6bdbd5f0327e2717511已GitHub main核验，124自有路径；原42dirty保留。Main Edit/45°/dirtytrue、0 loaded GrassLayer，无Player/采样，临时probe已清理。独立候选交付，视觉待用户、Player GPU预算未认证、Room未接；Root及所有子writer/Unity/源码/Git租约全部释放，不自动后续阶段或电源动作。
+
+## 2026-11-10 VEGETATION-01A 主场半幅功能交付 / writers released
+用户明确认可v1.2并授权Main半幅。原Native草顶3067.75m²精确选正X1533.875m²，排除建筑/道路/高处/实体后38106簇184块；MainGrass独立6资产、原环境/45度/37根/CHAR与草原图保留，单survey禁用碰撞，无新天气/物理管理器。原Room叶登记＋草自身Sight/Truth保留风/Alpha/标签/黑幕；44接口/20GPU/11视锥及生命周期、冷重开通过，真实木屋内外检查。Main已Native保存并重开，最终Edit/1场/dirtytrue，不额外Save运行期旧缓存。功能交付但组合性能预算未通过：Editor固定off/on/off整帧27.34/41.02/27.18ms，GPU11.62/35.45/11.49ms；两定向修正未获整帧净收益，不冒称60或旧Lab成本。详ossastra/VEGETATION-01A/主场半幅接入.md；全部Root/子writer/Unity/源码租约释放，Git仅定向发布收尾，无电源动作。
