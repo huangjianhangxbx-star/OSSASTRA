@@ -677,3 +677,5 @@ Core新20/Legacy20、离线时序13、Native历史8；实景门窗10/10，真实
 - 新风GPU50检查100采样及Legacy24/58、贴地/排除、禁用释放/重建/冷重开通过；36秒与32秒实录和真实Player四态两密度保留。Player GPU未取得，不认证该预算或主场60；视觉待用户审阅，Room后端当前不支持本草Shader，不回接主场。
 - 主场隔离时发生未知保存，临时off写盘；Root依main-borrow修复37根保留较新内容并卸载，结束重开Edit/dirtytrue、原根状态一致，CHAR/原PNG/meta守恒。Main原SHA未保持，详交付事故记录，不把阶段mainTouched=false当全程守恒。
 - 本机入口：研究/植被/VEGETATION-01A/delivery/v1.2/index.html；普通试玩LocalBuilds/VEGETATION-01A/GrassLab.exe；源与说明定向发布，不含媒体/构建/私有场景。全部Unity与子writer已释放，Root只做Git收尾；原42dirty保留，不执行电源动作。
+
+VEGETATION-01A v1.2 publication verified：产品4c54eae38587eecedd0ce6bdbd5f0327e2717511已GitHub main核验，124自有路径；原42dirty保留。Main Edit/45°/dirtytrue、0 loaded GrassLayer，无Player/采样，临时probe已清理。独立候选交付，视觉待用户、Player GPU预算未认证、Room未接；Root及所有子writer/Unity/源码/Git租约全部释放，不自动后续阶段或电源动作。

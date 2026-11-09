@@ -1,6 +1,6 @@
 # VEGETATION-01A
 
-- 状态：独立候选已交付，定向源码发布中；Unity与所有子writer已释放，仅Root收尾Git。
+- 状态：独立候选已交付；产品4c54eae已GitHub核验，Root与所有子writer的Unity/源码/Git租约释放。视觉待用户、Player GPU预算未认证、主场未接。
 - 批准输入：v1.0 ZIP SHA25765AAFD10D322EF59BBB6A4F24F3D728FF8F66134110AAD282714D08752864；v1.1二维素材与Shader优先补充覆盖冲突草型条款。
 - 独占：Candidates/VEGETATION-01A/、docs/ossastra/VEGETATION-01A/；拟新增Assets/OSSASTRA/Scripts/WorldRendering/Vegetation/和Assets/OSSASTRA/WorldRendering/Vegetation/GrassLab/，导入前核对无既有同职责目录。
 - 只读：Main、CHAR Profile、原素材、Environment/Room共享后端、PERF夹具。LOOKDEV仍file-only，当前没有其他Unity租约。源分支23e50dd、既有42 tracked dirty与无主meta保留。
