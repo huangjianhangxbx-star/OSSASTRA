@@ -1147,3 +1147,6 @@ P1/K0.7-C1及每角色完整A/B、有限GPU/定向屏幕采样、正式编译/�
 - 用户明确本分支可与CHAR并行出概念图。所有权仅 E:/WORLDCREATOR/XingHaiHuiLang/研究/画面风格/LOOKDEV-01/ 下approved-plan、baselines、concepts、prompts及评审图文/HTML；唯一追加同步记录，不接管CHAR的Unity/Git/Panel/Profile/主场租约，不暂停其他线程，不更改PERF结论。
 - 已读批准包8D234FE0C438F76DC0BAED65E7D920DDCCBEF7A948F9ADE308DACD25D6262F31。复用CHAR已有noon-medium.png 45°透视/FOV45/1600×900原始HUD基准，不抢拍摄。首批6图+总览+取舍，停Gate V；无新增Shader/Unity小样/主场替换。概念生成与原实机证据分开保存。
 - 并行子B只B1/B2+对应prompt/notes，子C只C1/C2+对应prompt/notes，scope只P0_基准与并行保护.md；均无Unity/工程/Git写入。
+
+## CHAR-LIGHT-01 v1.3 complete/read-only（2026-11-09）
+功能ccdbc87bbbc8fd3a6fae3c785507ef1b4e9ec3a6已GitHub main精确核验；38自有文件，原42dirty/无主meta不夹带。A级P1完整A/B与参数清单交付，Main Edit ready/45/dirtytrue、原Profile/场景磁盘/4业务源守恒、摄影/输入/私有路由/临时Shader均归还。B是可读回的一键候选，非Main/Player自动默认；详本任务和v1.3交付/发布回执。Root及所有子代理Unity/源码/候选/文档/Git租约全部释放，不自动下一阶段、不电源操作。
