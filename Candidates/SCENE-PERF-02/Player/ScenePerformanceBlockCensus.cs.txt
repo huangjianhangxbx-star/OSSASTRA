@@ -1,0 +1,157 @@
+/* CPU-only post-measurement census. Reads original/restored MPBs and immutable payload values once.
+ * Only --scene-perf02-cpu plus --scene-perf02-mpb-census enables it. No SetPropertyBlock/material writes,
+ * Camera.Render, GPU readback, role registration or permission changes. Missing restoration proof is inconclusive.
+ */
+#if UNITY_STANDALONE_WIN && !UNITY_EDITOR
+using System;
+using System.IO;
+using System.Linq;
+using System.Collections;
+using System.Collections.Generic;
+using System.Reflection;
+using System.Globalization;
+using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
+using UnityEngine.Profiling;
+using Ossastra.SceneVisibility.Rooms.Rendering;
+
+namespace Ossastra.Development.WorldRendering
+{
+ [DefaultExecutionOrder(11000)]
+ public sealed class ScenePerformanceBlockCensus:MonoBehaviour
+ {
+  const BindingFlags Flags=BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Instance;
+  static bool booted;
+  MonoBehaviour owner;Camera targetCamera;string directory;bool hooked,captured,written;int lastMarkedFrame=-1;
+  readonly Census result=new Census();
+  static readonly string[] OwnedNames={"_RoomSightOwnerCount","_RoomSightOwnerExterior","_RoomSightStaticEnvironment","_EnvironmentFullSurface","_EnvironmentSurfaceRole","_EnvironmentResponseOverride","_EnvironmentReceiveShadow","_EnvironmentMinimumOverride","_RoomSightOwnerMatrices","_RoomSightOwnerExtents","_RoomSightRoofMode","_RoomSightCutRoof"};
+
+  [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+  static void Boot()
+  {
+   var args=System.Environment.GetCommandLineArgs();if(Array.IndexOf(args,"--scene-perf02-mpb-census")<0||booted)return;booted=true;
+   int cpu=Array.IndexOf(args,"--scene-perf02-cpu");
+   if(cpu<0||cpu+1>=args.Length||!Path.IsPathFullyQualified(args[cpu+1])||Array.IndexOf(args,"--scene-perf02-run")>=0)return;
+   var host=new GameObject("ScenePerf02_BlockCensus_CLIOnly"){hideFlags=HideFlags.HideAndDontSave};DontDestroyOnLoad(host);
+   host.AddComponent<ScenePerformanceBlockCensus>().directory=Path.GetFullPath(args[cpu+1]);
+  }
+  IEnumerator Start()
+  {
+   // Subscribe after the existing SceneRoot/owner targetCamera-end handlers, well before its thirty-frame warmup.
+   yield return null;yield return null;
+   try
+   {
+    owner=Resources.FindObjectsOfTypeAll<MonoBehaviour>().Single(v=>v!=null&&v.GetType().FullName=="Ossastra.Development.WorldRendering.ScenePerformanceContinuationProbe");
+    if(!(bool)Read(owner,"cpuMode")||!(bool)Read(owner,"isolated"))throw new InvalidOperationException("Same-launch isolated CPU owner not ready");
+    targetCamera=Read(owner,"mainCamera") as Camera;if(targetCamera==null)throw new InvalidOperationException("Actual CPU owner's main targetCamera missing");
+    result.ownerType=owner.GetType().FullName;result.cameraName=targetCamera.name;result.cameraId=targetCamera.GetInstanceID();
+    RenderPipelineManager.endCameraRendering+=Ended;hooked=true;
+   }
+   catch(Exception e){result.reason="setup inconclusive: "+e.Message;captured=true;}
+  }
+  void Ended(ScriptableRenderContext context,Camera value)
+  {
+   if(captured||value!=targetCamera||owner==null)return;
+   try
+   {
+    if((int)Read(owner,"sampled")!=64||!(bool)Read(owner,"stopPending"))return;
+    var report=Read(owner,"report");lastMarkedFrame=(int)Read(report,"cpuLastMarkedFrame");
+    if(lastMarkedFrame<0||Time.frameCount<=lastMarkedFrame)return;
+    captured=true;result.frame=Time.frameCount;result.lastMarkedFrame=lastMarkedFrame;result.outsideSelected64Frames=true;
+    if(!RoomMaskCameraRegistry.TryGet(targetCamera,out var frame)||frame==null)throw new InvalidOperationException("No current targetCamera frame after scope cleanup");
+    result.frameExterior=frame.ExteriorView;result.positiveRendering=frame.PositiveRenderingEnabled;result.surfaceCount=frame.PositiveSurfaces==null?0:frame.PositiveSurfaces.Length;
+    var actualRenderer=targetCamera.GetUniversalAdditionalCameraData().scriptableRenderer;
+    var matches=Resources.FindObjectsOfTypeAll<RoomMaskRendererFeature>().Where(f=>f!=null&&ReferenceEquals(Read(f,"rendererOwner"),actualRenderer)).ToArray();
+    if(matches.Length!=1)throw new InvalidOperationException("Actual renderer-owned feature count="+matches.Length);
+    var feature=matches[0];result.featureName=feature.name;result.featureId=feature.GetInstanceID();
+    var cameras=Read(feature,"positiveCameras") as IDictionary;
+    if(cameras==null||!cameras.Contains(targetCamera.GetInstanceID()))throw new InvalidOperationException("Actual targetCamera's positive pass unavailable");
+    var pass=cameras[targetCamera.GetInstanceID()];var scope=Read(pass,"propertyScope");var buckets=Read(pass,"materialBuckets");
+    var entries=Read(scope,"entries") as IDictionary;var swaps=Read(buckets,"swaps") as ICollection;
+    if(entries==null||swaps==null)throw new InvalidOperationException("Exact restoration fields unavailable");
+    result.scopeEntries=entries.Count;result.pendingMaterialSwaps=swaps.Count;
+    foreach(DictionaryEntry pair in entries)
+    {
+     if((bool)Read(Read(pair.Value,"RendererBlock"),"Written"))result.writtenRendererBlocks++;
+     foreach(var slot in (IEnumerable)Read(pair.Value,"Slots"))if((bool)Read(slot,"Written"))result.writtenSlotBlocks++;
+    }
+    result.scopeRestored=result.pendingMaterialSwaps==0&&result.writtenRendererBlocks==0&&result.writtenSlotBlocks==0;
+    if(!result.scopeRestored)throw new InvalidOperationException("Actual targetCamera scope still owns material/MPB writes; no original-block census asserted");
+    result.retainedMaterialConflicts=(int)ReadProperty(buckets,"RetainedConflictCount");
+    var resolve=buckets.GetType().GetMethod("ResolveOriginal",Flags);if(resolve==null)throw new MissingMethodException("Read-only material origin resolver absent");
+    var rows=new List<SurfaceRow>();
+    foreach(var surface in frame.PositiveSurfaces??Array.Empty<RoomPositiveSurface>())
+    {
+     var renderer=surface.Renderer;if(renderer==null)continue;
+     var row=new SurfaceRow{rendererId=renderer.GetInstanceID(),path=PathOf(renderer.transform),rendererType=renderer.GetType().FullName,enabled=renderer.enabled,active=renderer.gameObject.activeInHierarchy,
+      kind=surface.Kind.ToString(),drawMask=surface.DrawMask,independent=surface.IndependentDraw,staticEnvironment=surface.StaticEnvironment,worldLookEnvironment=surface.WorldLookEnvironment,environmentFull=surface.EnvironmentFullSurface,
+      ownerExterior=surface.OwnerExterior,environmentRole=surface.EnvironmentSurfaceRole,response=surface.EnvironmentResponseOverride,minimum=surface.EnvironmentMinimumOverride,receiveShadow=surface.EnvironmentReceiveShadow,
+      roofMode=surface.Kind==RoomPositiveSurfaceKind.Roof,cutRoof=surface.Kind==RoomPositiveSurfaceKind.Roof&&frame.ExteriorView&&frame.PreviewRoofSurfaces!=null&&Array.IndexOf(frame.PreviewRoofSurfaces,renderer)>=0,
+      volumes=(surface.OwnerVolumes??Array.Empty<RoomMaskVolume>()).Select(v=>new Volume{worldToLocal=Values(v.WorldToLocal),halfExtents=new[]{v.HalfExtents.x,v.HalfExtents.y,v.HalfExtents.z}}).ToArray()};
+     var rendererBlock=new MaterialPropertyBlock();renderer.GetPropertyBlock(rendererBlock);row.rendererBlock=Block(rendererBlock);
+     var materials=renderer.sharedMaterials;var slots=new List<SlotRow>(materials.Length);
+     for(int n=0;n<materials.Length;n++)
+     {
+      var block=new MaterialPropertyBlock();renderer.GetPropertyBlock(block,n);
+      var material=materials[n];var origin=material==null?null:resolve.Invoke(buckets,new object[]{material}) as Material;
+      slots.Add(new SlotRow{slot=n,bindingMaterial=MaterialRow.Of(material),sourceMaterial=MaterialRow.Of(origin),ownedCloneStillBound=material!=null&&!ReferenceEquals(material,origin),originalBlock=Block(block)});
+     }
+     row.slots=slots.ToArray();row.allBlocksEmpty=row.rendererBlock.empty&&row.slots.All(s=>s.originalBlock.empty);
+     row.payloadKey=PayloadKey(row);rows.Add(row);
+    }
+    result.surfaces=rows.ToArray();
+    result.materialPayloadCohorts=rows.SelectMany(r=>r.slots.Select(s=>new{row=r,slot=s,key=(s.sourceMaterial==null?0:s.sourceMaterial.id)+"|"+r.payloadKey}))
+     .GroupBy(x=>x.key).Select(g=>new Cohort{key=g.Key,material=g.First().slot.sourceMaterial,payload=g.First().row.payloadKey,surfaces=g.Select(x=>x.row.rendererId).Distinct().Count(),slots=g.Count(),
+      emptyRendererAndAllSlots=g.Count(x=>x.row.allBlocksEmpty),nonemptyOriginalRendererBlocks=g.Count(x=>!x.row.rendererBlock.empty),nonemptyOriginalSlotBlocks=g.Count(x=>!x.slot.originalBlock.empty),
+      staticSlots=g.Count(x=>x.row.staticEnvironment),ownedCloneBindings=g.Count(x=>x.slot.ownedCloneStillBound),rendererIds=g.Select(x=>x.row.rendererId).Distinct().ToArray()}).OrderByDescending(c=>c.slots).ToArray();
+    result.restoredRendererBlocksEmpty=rows.Count(r=>r.rendererBlock.empty);result.restoredRendererBlocksNonempty=rows.Count(r=>!r.rendererBlock.empty);result.totalOriginalSlots=rows.Sum(r=>r.slots.Length);result.originalSlotsNonempty=rows.Sum(r=>r.slots.Count(s=>!s.originalBlock.empty));
+    result.conclusive=result.retainedMaterialConflicts==0;result.reason=result.conclusive?"Read-only census after verified actual targetCamera cleanup; private material payload feasibility is not implemented or benchmarked":"Scope restored but external retained material conflicts present; source-binding census is inconclusive";
+   }
+   catch(Exception e){captured=true;result.conclusive=false;result.reason="capture inconclusive: "+e.Message;}
+  }
+  void Update(){TryWrite();}
+  void TryWrite()
+  {
+   if(!captured||written||owner==null||Profiler.enabled)return;
+   try
+   {
+    if((bool)Read(owner,"profilerBorrowed"))return;
+    if((int)Read(owner,"sampled")!=64)return;
+    result.cpuStoppedBeforeWrite=true;result.schemaVersion=1;result.scope="One restored real-targetCamera snapshot outside the64 selected CPU frames; no MPB/material/scene/GPU writes; any existing owned property presence is reported, not assumed contamination";
+    Directory.CreateDirectory(directory);File.WriteAllText(Path.Combine(directory,"mpb-census.json"),JsonUtility.ToJson(result,true));written=true;
+   }
+   catch(Exception e){result.reason+="; census write inconclusive: "+e.Message;}
+  }
+  void OnApplicationQuit(){TryWrite();Unhook();}void OnDestroy(){Unhook();}
+  void Unhook(){if(hooked){RenderPipelineManager.endCameraRendering-=Ended;hooked=false;}}
+  static object Read(object value,string name){if(value==null)throw new InvalidOperationException("Null owner for "+name);var field=value.GetType().GetField(name,Flags);if(field==null)throw new MissingFieldException(value.GetType().FullName,name);return field.GetValue(value);}
+  static object ReadProperty(object value,string name){var p=value.GetType().GetProperty(name,Flags);if(p==null)throw new MissingMemberException(value.GetType().FullName,name);return p.GetValue(value);}
+  static BlockRow Block(MaterialPropertyBlock block)=>new BlockRow{empty=block.isEmpty,ownedPropertiesPresent=OwnedNames.Where(n=>block.HasProperty(Shader.PropertyToID(n))).ToArray()};
+  static float[] Values(Matrix4x4 value){var r=new float[16];for(int n=0;n<16;n++)r[n]=value[n];return r;}
+  static string PathOf(Transform t){var names=new List<string>();for(;t!=null;t=t.parent)names.Add(t.name);names.Reverse();return string.Join("/",names);}
+  static string PayloadKey(SurfaceRow r)=>string.Join("|",r.kind,r.drawMask,r.independent,r.staticEnvironment,r.worldLookEnvironment,r.environmentFull,r.ownerExterior,r.roofMode,r.cutRoof,
+   F(r.environmentRole),F(r.response),F(r.minimum),F(r.receiveShadow),string.Join(";",r.volumes.Select(v=>string.Join(",",v.worldToLocal.Select(F))+":"+string.Join(",",v.halfExtents.Select(F)))));
+  static string F(float x)=>x.ToString("R",CultureInfo.InvariantCulture);
+  [Serializable]public sealed class BlockRow{public bool empty;public string[] ownedPropertiesPresent;}
+  [Serializable]public sealed class Volume{public float[] worldToLocal,halfExtents;}
+  [Serializable]public sealed class MaterialRow
+  {
+   public int id,renderQueue;public string name,shader;public uint family;
+   public static MaterialRow Of(Material m)=>m==null?null:new MaterialRow{id=m.GetInstanceID(),name=m.name,shader=m.shader==null?null:m.shader.name,renderQueue=m.renderQueue,family=RoomPositiveRenderingLayers.Classify(m)};
+  }
+  [Serializable]public sealed class SlotRow{public int slot;public MaterialRow bindingMaterial,sourceMaterial;public bool ownedCloneStillBound;public BlockRow originalBlock;}
+  [Serializable]public sealed class SurfaceRow
+  {
+   public int rendererId;public uint drawMask;public string path,rendererType,kind,payloadKey;public bool enabled,active,independent,staticEnvironment,worldLookEnvironment,environmentFull,ownerExterior,roofMode,cutRoof,allBlocksEmpty;
+   public float environmentRole,response,minimum,receiveShadow;public Volume[] volumes;public BlockRow rendererBlock;public SlotRow[] slots;
+  }
+  [Serializable]public sealed class Cohort{public string key,payload;public MaterialRow material;public int surfaces,slots,emptyRendererAndAllSlots,nonemptyOriginalRendererBlocks,nonemptyOriginalSlotBlocks,staticSlots,ownedCloneBindings;public int[] rendererIds;}
+  [Serializable]public sealed class Census
+  {
+   public int schemaVersion,frame,lastMarkedFrame,cameraId,featureId,surfaceCount,scopeEntries,pendingMaterialSwaps,writtenRendererBlocks,writtenSlotBlocks,retainedMaterialConflicts,restoredRendererBlocksEmpty,restoredRendererBlocksNonempty,totalOriginalSlots,originalSlotsNonempty;
+   public bool conclusive,outsideSelected64Frames,scopeRestored,cpuStoppedBeforeWrite,frameExterior,positiveRendering;public string reason,scope,ownerType,cameraName,featureName;public SurfaceRow[] surfaces;public Cohort[] materialPayloadCohorts;
+  }
+ }
+}
+#endif

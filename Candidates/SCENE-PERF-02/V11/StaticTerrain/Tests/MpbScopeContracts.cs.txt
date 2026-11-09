@@ -1,0 +1,266 @@
+/* Native method contract only. No rendering/timing, asset writes, global state or
+ * production changes. Root runs outside a Player timing window. When compiled
+ * together with the candidate, command-local scope/helper types are selected;
+ * otherwise it checks installed production. Baseline lacking ApplyTerrain is a
+ * real API/retention RED, after the original Apply/Restore semantics pass.
+ */
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using UnityEngine;
+using UnityEditor;
+using UnityEngine.SceneManagement;
+using Funplay.Editor.Tools.Scripting;
+using Ossastra.VoxelTerrain;
+using Ossastra.EnvironmentSimulation;
+using Ossastra.SceneVisibility.Rooms.Rendering;
+using Object = UnityEngine.Object;
+
+public sealed class StaticTerrainMpbScopeContracts : IFunplayCommand
+{
+    const BindingFlags B = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+    static readonly string[] Floats = { "_RoomSightStaticEnvironment", "_EnvironmentFullSurface",
+        "_EnvironmentSurfaceRole", "_EnvironmentResponseOverride", "_EnvironmentReceiveShadow",
+        "_EnvironmentMinimumOverride", "_RoomSightRoofMode", "_RoomSightCutRoof" };
+    sealed class Check { public string name; public bool pass; public object evidence; }
+
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+    {
+        if (Application.dataPath.Replace('\\', '/') != "E:/WORLDCREATOR/new/Project_ANKALUTE/Assets" ||
+            EditorApplication.isCompiling || EditorApplication.isUpdating)
+            throw new InvalidOperationException("Stable ANKALUTE only; never run during normal Player timing");
+        Type scopeType = LocalOrInstalled("Ossastra.SceneVisibility.Rooms.Rendering.RoomPositivePropertyScope");
+        Type helperType = LocalOrInstalled("Ossastra.SceneVisibility.Rooms.RoomStaticTerrainPreparation", false);
+        var checks = new List<Check>();
+        var errors = new List<string>();
+        var objects = new List<Object>();
+        object a = null, b = null, helperA = null, helperB = null;
+        bool candidate = scopeType.GetMethod("ApplyTerrain", B) != null && helperType != null;
+        var scene = SceneManager.GetActiveScene(); bool dirty = scene.isDirty, playing = Application.isPlaying;
+        int sceneCount = SceneManager.sceneCount;
+        try
+        {
+            Shader shader = Shader.Find(RoomPositiveRenderingLayers.VoxelLitShaderName);
+            if (shader == null) throw new InvalidOperationException("Actual VoxelLit shader required");
+            var material = Own(new Material(shader) { hideFlags = HideFlags.HideAndDontSave }, objects, ctx);
+            var mesh = Own(new Mesh { hideFlags = HideFlags.HideAndDontSave }, objects, ctx);
+            mesh.vertices = new[] { Vector3.zero, Vector3.right, Vector3.forward };
+            mesh.subMeshCount = 2;
+            mesh.SetTriangles(new[] { 0, 1, 2 }, 0); mesh.SetTriangles(new[] { 0, 1, 2 }, 1);
+            // Qualification requires real Scene membership. HideAndDontSave on
+            // GameObjects removes them from the Scene internally; only owned
+            // Mesh/Material assets use that flag. This synchronous fixture is
+            // destroyed before returning, without a yield or camera render.
+            var root = Own(new GameObject("MpbScopeContract"), objects, ctx);
+            var installation = root.AddComponent<VoxelTerrainInstallation>();
+            var renderers = new MeshRenderer[2];
+            for (int i = 0; i < 2; ++i)
+            {
+                var child = Own(new GameObject("Terrain" + i), objects, ctx);
+                child.transform.SetParent(root.transform, false);
+                child.AddComponent<MeshFilter>().sharedMesh = mesh;
+                renderers[i] = child.AddComponent<MeshRenderer>();
+                renderers[i].sharedMaterials = new[] { material, material };
+            }
+            installation.chunks = renderers;
+            var ca = Own(new GameObject("MpbCameraA"), objects, ctx).AddComponent<Camera>();
+            var cb = Own(new GameObject("MpbCameraB"), objects, ctx).AddComponent<Camera>();
+            ca.enabled = cb.enabled = false;
+            int crc = material.ComputeCRC();
+            a = Activator.CreateInstance(scopeType, true); b = Activator.CreateInstance(scopeType, true);
+            var frame = Frame(renderers);
+
+            Call(a, "Apply", frame);
+            Add(checks, "legacy Apply writes complete zero-owner payload", Matches(renderers, frame), null);
+            Call(a, "Restore");
+            Add(checks, "legacy Restore returns every renderer and slot to empty", Empty(renderers), null);
+
+            if (candidate)
+            {
+                helperA = Helper(helperType, installation, scene); helperB = Helper(helperType, installation, scene);
+                frame = Prepare(helperA, ca, renderers);
+                Call(a, "ApplyTerrain", frame, helperA);
+                var first = TemplateBlocks(a);
+                Add(checks, "two empty two-slot renderers share one complete immutable template",
+                    first.Length == 1 && Matches(renderers, frame) && SlotsEmpty(renderers), new { templates = first.Length });
+                Call(a, "Restore");
+                Add(checks, "template path restores original renderer and every slot", Empty(renderers), null);
+
+                frame = Prepare(helperA, ca, renderers);
+                Call(a, "ApplyTerrain", frame, helperA);
+                var second = TemplateBlocks(a);
+                Add(checks, "stable next capture reuses same template object", first.Length == 1 && second.Length == 1 &&
+                    ReferenceEquals(first[0], second[0]), null);
+                Call(a, "Restore");
+
+                var otherFrame = Prepare(helperB, cb, renderers);
+                Call(b, "ApplyTerrain", otherFrame, helperB);
+                var other = TemplateBlocks(b);
+                Add(checks, "separate camera scope never aliases template objects", other.Length == 1 && first.Length == 1 &&
+                    !ReferenceEquals(other[0], first[0]) && Matches(renderers, otherFrame), null);
+                Call(b, "Restore");
+
+                var foreignRenderer = new MaterialPropertyBlock();
+                foreignRenderer.SetFloat("_MpbForeignRenderer", 17.25f);
+                foreignRenderer.SetColor("_MpbForeignColor", new Color(.1f, .3f, .7f, .9f));
+                foreignRenderer.SetMatrixArray("_MpbForeignMatrix", new[] { Matrix4x4.Translate(new Vector3(3, 2, 1)) });
+                foreignRenderer.SetInteger("_RoomSightOwnerCount", 7);
+                renderers[0].SetPropertyBlock(foreignRenderer);
+                var foreignSlot = new MaterialPropertyBlock();
+                foreignSlot.SetVector("_MpbForeignSlot", new Vector4(4, 3, 2, 1));
+                foreignSlot.SetVectorArray("_MpbForeignArray", new[] { new Vector4(1, 3, 5, 7), new Vector4(2, 4, 6, 8) });
+                foreignSlot.SetInteger("_RoomSightOwnerExterior", 9);
+                renderers[1].SetPropertyBlock(foreignSlot, 1);
+                frame = Prepare(helperA, ca, renderers);
+                Call(a, "ApplyTerrain", frame, helperA);
+                var r0 = Read(renderers[0]); var r1 = Read(renderers[1], 1);
+                Add(checks, "foreign renderer and foreign last slot both select full merge fallback",
+                    TemplateBlocks(a).Length == 0 && Matches(renderers, frame) &&
+                    r0.GetFloat("_MpbForeignRenderer") == 17.25f &&
+                    r0.GetColor("_MpbForeignColor") == new Color(.1f, .3f, .7f, .9f) &&
+                    r0.GetMatrixArray("_MpbForeignMatrix")[0] == Matrix4x4.Translate(new Vector3(3, 2, 1)) &&
+                    r1.GetVector("_MpbForeignSlot") == new Vector4(4, 3, 2, 1) &&
+                    r1.GetVectorArray("_MpbForeignArray").SequenceEqual(new[] { new Vector4(1, 3, 5, 7), new Vector4(2, 4, 6, 8) }) &&
+                    r1.GetInteger("_RoomSightOwnerExterior") == 0, null);
+                Call(a, "Restore");
+                r0 = Read(renderers[0]); r1 = Read(renderers[1], 1);
+                Add(checks, "fallback Restore preserves exact supplied foreign fields and conflicting owned values",
+                    r0.GetFloat("_MpbForeignRenderer") == 17.25f && r0.GetInteger("_RoomSightOwnerCount") == 7 &&
+                    r0.GetColor("_MpbForeignColor") == new Color(.1f, .3f, .7f, .9f) &&
+                    r0.GetMatrixArray("_MpbForeignMatrix")[0] == Matrix4x4.Translate(new Vector3(3, 2, 1)) &&
+                    r1.GetVector("_MpbForeignSlot") == new Vector4(4, 3, 2, 1) &&
+                    r1.GetVectorArray("_MpbForeignArray").SequenceEqual(new[] { new Vector4(1, 3, 5, 7), new Vector4(2, 4, 6, 8) }) &&
+                    r1.GetInteger("_RoomSightOwnerExterior") == 9 && Read(renderers[1]).isEmpty &&
+                    Read(renderers[0], 0).isEmpty && Read(renderers[0], 1).isEmpty, null);
+                ClearBlocks(renderers);
+
+                var tag = renderers[1].gameObject.AddComponent<EnvironmentMaterialResponse>();
+                tag.renderers = new Renderer[] { renderers[1] }; tag.minimumReadability = .2f;
+                frame = Prepare(helperA, ca, renderers);
+                Call(a, "ApplyTerrain", frame, helperA);
+                Add(checks, "different complete payloads create separate templates", TemplateBlocks(a).Length == 2 && Matches(renderers, frame), null);
+                Call(a, "Restore");
+                tag.minimumReadability = .6f;
+                frame = Prepare(helperA, ca, new[] { renderers[1] });
+                Call(a, "ApplyTerrain", frame, helperA);
+                Add(checks, "unused old payload keys are pruned to active eligible rows", TemplateBlocks(a).Length == 1 && Matches(new[] { renderers[1] }, frame), null);
+                Call(a, "Restore");
+
+                frame = Prepare(helperA, ca, renderers); Call(helperA, "EndPrepare");
+                Call(a, "ApplyTerrain", frame, helperA);
+                Add(checks, "expired preCull receipt cannot use template", TemplateBlocks(a).Length == 0 && Matches(renderers, frame), null);
+                Call(a, "Restore");
+
+                // Noneligible owner/roof still uses original Append and complete arrays.
+                var roofFrame = Frame(new[] { renderers[0] }); roofFrame.ExteriorView = true;
+                roofFrame.PreviewRoofSurfaces = new Renderer[] { renderers[0] };
+                var roof = roofFrame.PositiveSurfaces[0]; roof.Kind = RoomPositiveSurfaceKind.Roof;
+                roof.OwnerVolumes = new[] { new RoomMaskVolume { WorldToLocal = Matrix4x4.Translate(new Vector3(1, 2, 3)), HalfExtents = new Vector3(2, 4, 6) } };
+                roofFrame.PositiveSurfaces[0] = roof;
+                Call(a, "ApplyTerrain", roofFrame, helperA);
+                var rb = Read(renderers[0]);
+                Add(checks, "roof and owner matrix arrays stay on legacy complete path", TemplateBlocks(a).Length == 0 &&
+                    rb.GetInteger("_RoomSightOwnerCount") == 1 && rb.GetFloat("_RoomSightRoofMode") == 1 &&
+                    rb.GetFloat("_RoomSightCutRoof") == 1 && rb.GetMatrixArray("_RoomSightOwnerMatrices")[0] == roof.OwnerVolumes[0].WorldToLocal &&
+                    rb.GetVectorArray("_RoomSightOwnerExtents")[0] == (Vector4)roof.OwnerVolumes[0].HalfExtents, null);
+                Call(a, "Restore");
+
+                frame = Prepare(helperA, ca, renderers);
+                Call(a, "ApplyTerrain", frame, helperA); Call(a, "Restore");
+                int templateCount = TemplateBlocks(a).Length;
+                int entryBlocks = EntryBlockCount(a);
+                Add(checks, "BlockCount accounts for immutable template allocations", GetInt(a, "BlockCount") == entryBlocks + templateCount, new { entryBlocks, templateCount });
+                Call(a, "Apply", frame);
+                Add(checks, "legacy entry stops using and prunes terrain templates", TemplateBlocks(a).Length == 0 && Matches(renderers, frame), null);
+                Call(a, "Restore");
+                Call(a, "Clear"); Call(b, "Clear");
+                Add(checks, "Clear releases templates, entries and all written state", GetInt(a, "BlockCount") == 0 && TemplateBlocks(a).Length == 0 && Empty(renderers), null);
+            }
+            Add(checks, "source material CRC and actual shared slot order are unchanged", material.ComputeCRC() == crc &&
+                renderers.All(r => r.sharedMaterials.Length == 2 && ReferenceEquals(r.sharedMaterials[0], material) && ReferenceEquals(r.sharedMaterials[1], material)), null);
+        }
+        catch (Exception e) { errors.Add((e is TargetInvocationException && e.InnerException != null ? e.InnerException : e).ToString()); }
+        finally
+        {
+            foreach (var scope in new[] { a, b }) if (scope != null) try { Call(scope, "Clear"); } catch (Exception e) { errors.Add("Clear: " + e); }
+            foreach (var helper in new[] { helperA, helperB }) if (helper != null) try { Call(helper, "Clear"); } catch (Exception e) { errors.Add("helper Clear: " + e); }
+            for (int i = objects.Count - 1; i >= 0; --i) if (objects[i] != null) Object.DestroyImmediate(objects[i]);
+        }
+        Add(checks, "main active scene/count/dirty and Play state not switched", SceneManager.GetActiveScene() == scene && SceneManager.sceneCount == sceneCount && scene.isDirty == dirty && Application.isPlaying == playing, null);
+        bool semanticPass = errors.Count == 0 && checks.All(c => c.pass);
+        ctx.ReturnValue = new { candidate, semanticPass, baselineRed = semanticPass && !candidate, candidatePass = semanticPass && candidate,
+            scopeAssembly = scopeType.Assembly.FullName, checks, errors, limitation = "Actual engine MPB/Prepare methods only; no GPU or Player performance certification" };
+    }
+
+    static T Own<T>(T value, List<Object> objects, Funplay.Editor.Tools.Scripting.ExecutionContext ctx) where T : Object
+    { objects.Add(value); ctx.RegisterObjectCreation(value); return value; }
+    static Type LocalOrInstalled(string name, bool required = true)
+    { var type = typeof(StaticTerrainMpbScopeContracts).Assembly.GetType(name) ?? typeof(RoomMaskFrame).Assembly.GetType(name); if (required && type == null) throw new InvalidOperationException("Missing " + name); return type; }
+    static object Helper(Type type, VoxelTerrainInstallation installation, Scene scene)
+    { var helper = Activator.CreateInstance(type, true); Call(helper, "Bind", new[] { installation }, scene); return helper; }
+    static RoomMaskFrame Prepare(object helper, Camera camera, MeshRenderer[] renderers)
+    {
+        Call(helper, "CaptureBuild", camera);
+        var frame = Frame(renderers);
+        for (int i = 0; i < renderers.Length; ++i)
+        {
+            object[] args = { renderers[i], null, null };
+            if (!(bool)helper.GetType().GetMethod("TryBuild", B).Invoke(helper, args))
+                throw new InvalidOperationException("Real terrain preparation rejected fixture: " + Qualification(helper, renderers[i]));
+            frame.PositiveSurfaces[i] = (RoomPositiveSurface)args[1];
+        }
+        Call(helper, "CapturePrepare", camera, frame); return frame;
+    }
+    static RoomMaskFrame Frame(MeshRenderer[] renderers) => new RoomMaskFrame { PositiveSurfaces = renderers.Select(r => new RoomPositiveSurface {
+        Renderer = r, Kind = RoomPositiveSurfaceKind.Partial, OwnerVolumes = Array.Empty<RoomMaskVolume>(), OwnerExterior = false,
+        StaticEnvironment = true, WorldLookEnvironment = true, EnvironmentSurfaceRole = 1, EnvironmentResponseOverride = 1,
+        EnvironmentReceiveShadow = 1, EnvironmentMinimumOverride = 0, DrawMask = RoomPositiveRenderingLayers.PartialLitBit }).ToArray() };
+    static object Call(object target, string name, params object[] args) => target.GetType().GetMethod(name, B).Invoke(target, args);
+    static string Qualification(object helper, MeshRenderer renderer)
+    {
+        var type = helper.GetType();
+        var expected = (Scene)type.GetField("scene", B).GetValue(helper);
+        var installs = (VoxelTerrainInstallation[])type.GetField("installations", B).GetValue(helper);
+        var rows = (IDictionary)type.GetField("rows", B).GetValue(helper);
+        object row = rows.Contains(renderer) ? rows[renderer] : null;
+        var filter = renderer.GetComponent<MeshFilter>();
+        var materials = renderer.sharedMaterials;
+        return "expectedScene=" + expected.handle + "; rendererScene=" + renderer.gameObject.scene.handle +
+            "; rendererActive=" + renderer.gameObject.activeInHierarchy + "; enabled=" + renderer.enabled +
+            "; forceOff=" + renderer.forceRenderingOff + "; meshVertices=" +
+            (filter != null && filter.sharedMesh != null ? filter.sharedMesh.vertexCount.ToString() : "missing") +
+            "; epoch=" + type.GetField("epoch", B).GetValue(helper) + "; rows=" + rows.Count +
+            "; rowBuildEpoch=" + (row != null ? row.GetType().GetField("BuildEpoch", B).GetValue(row).ToString() : "missing") +
+            "; installations=" + string.Join("|", installs.Select(x => x == null ? "null" :
+                "scene:" + x.gameObject.scene.handle + ",active:" + x.isActiveAndEnabled + ",child:" + renderer.transform.IsChildOf(x.transform) +
+                ",member:" + (x.chunks != null && Array.IndexOf(x.chunks, renderer) >= 0))) +
+            "; sources=" + string.Join("|", materials.Select(m => m == null ? "null" :
+                (m.shader != null ? m.shader.name : "noShader") + ",queue:" + m.renderQueue +
+                ",effective:" + (m.renderQueue < 0 && m.shader != null ? m.shader.renderQueue : m.renderQueue) +
+                ",surface:" + (m.HasProperty("_Surface") ? m.GetFloat("_Surface").ToString() : "none")));
+    }
+    static int GetInt(object target, string name) => (int)target.GetType().GetProperty(name, B).GetValue(target);
+    static MaterialPropertyBlock Read(Renderer renderer, int slot = -1) { var block = new MaterialPropertyBlock(); if (slot < 0) renderer.GetPropertyBlock(block); else renderer.GetPropertyBlock(block, slot); return block; }
+    static bool SlotsEmpty(MeshRenderer[] renderers) => renderers.All(r => Enumerable.Range(0, r.sharedMaterials.Length).All(i => Read(r, i).isEmpty));
+    static bool Empty(MeshRenderer[] renderers) => renderers.All(r => Read(r).isEmpty) && SlotsEmpty(renderers);
+    static void ClearBlocks(MeshRenderer[] renderers) { foreach (var r in renderers) { r.SetPropertyBlock(null); for (int i = 0; i < r.sharedMaterials.Length; ++i) r.SetPropertyBlock(null, i); } }
+    static object[] TemplateBlocks(object scope)
+    { var field = scope.GetType().GetField("templates", B); if (field == null) return Array.Empty<object>(); var dictionary = (IDictionary)field.GetValue(scope); return dictionary.Values.Cast<object>().Select(x => x.GetType().GetField("Block", B).GetValue(x)).ToArray(); }
+    static int EntryBlockCount(object scope)
+    { var entries = (IDictionary)scope.GetType().GetField("entries", B).GetValue(scope); int count = 0; foreach (var e in entries.Values) count += 2 + ((IList)e.GetType().GetField("Slots", B).GetValue(e)).Count * 2; return count; }
+    static bool Matches(MeshRenderer[] renderers, RoomMaskFrame frame)
+    {
+        foreach (var renderer in renderers)
+        {
+            var s = frame.PositiveSurfaces.First(x => ReferenceEquals(x.Renderer, renderer)); var block = Read(renderer);
+            if (block.GetInteger("_RoomSightOwnerCount") != 0 || block.GetInteger("_RoomSightOwnerExterior") != (s.OwnerExterior ? 1 : 0)) return false;
+            float[] values = { s.StaticEnvironment ? 1 : 0, s.EnvironmentFullSurface ? 1 : 0, s.EnvironmentSurfaceRole,
+                s.EnvironmentResponseOverride, s.EnvironmentReceiveShadow, s.EnvironmentMinimumOverride, 0, 0 };
+            for (int i = 0; i < Floats.Length; ++i) if (block.GetFloat(Floats[i]) != values[i]) return false;
+        }
+        return true;
+    }
+    static void Add(List<Check> checks, string name, bool pass, object evidence) => checks.Add(new Check { name = name, pass = pass, evidence = evidence });
+}

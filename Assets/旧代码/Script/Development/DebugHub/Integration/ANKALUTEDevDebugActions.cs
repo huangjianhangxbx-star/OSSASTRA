@@ -62,8 +62,10 @@ public static class ANKALUTEDevDebugActions
             registry.Register(CreateForceOutcomeAction(
                 battleSessionResolver,
                 DRPGBattleOutcome.Defeat)),
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
             registry.Register(CreateEntryReplayAction(presentationResolver)),
             registry.Register(CreateHordeDeployAction(battleSessionResolver)),
+#endif
             registry.Register(CreateCharacterMenuAction(gameMenuRouterResolver)),
             registry.Register(CreateContextAction(contextResolver)),
             registry.Register(CreateActionSpecReportAction(preparedActionResolver))
@@ -131,6 +133,7 @@ public static class ANKALUTEDevDebugActions
             });
     }
 
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
     private static IDevDebugAction CreateEntryReplayAction(
         Func<DRPGBattlePresentationRoot> resolver)
     {
@@ -180,6 +183,8 @@ public static class ANKALUTEDevDebugActions
                         : "当前已达到同屏上限，或没有后备敌人。");
             });
     }
+
+#endif
 
     private static IDevDebugAction CreateForceOutcomeAction(
         Func<DRPGBattleSession> resolver,

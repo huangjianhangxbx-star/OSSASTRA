@@ -1,0 +1,77 @@
+using System;
+using System.IO;
+using System.Linq;
+using System.Runtime.Loader;
+using System.Reflection;
+using System.Security.Cryptography;
+using System.Collections.Generic;
+using System.Text.Json;
+using Ossastra.Development.WorldRendering;
+using Ossastra.Commerce.Persistence;
+
+static class DefaultPlaytestContract
+{
+ const string Project="E:/WORLDCREATOR/new/Project_ANKALUTE";
+ const string ApprovedSource="E:/WORLDCREATOR/XingHaiHuiLang/研究/SCENE-PERF-02/test-commerce-v2";
+ const string Profile="kt-vis06-natural-01";
+ static int Main()
+ {
+  AssemblyLoadContext.Default.Resolving+=(context,name)=>
+  {
+   foreach(var folder in new[]{Project+"/Library/ScriptAssemblies","E:/unity/Tuanjie Hub/2022.3.62t16/Editor/Data/Managed/UnityEngine","E:/unity/Tuanjie Hub/2022.3.62t16/Editor/Data/Managed"})
+   {string path=Path.Combine(folder,name.Name+".dll");if(File.Exists(path))return context.LoadFromAssemblyPath(path);}
+   return null;
+  };
+  return Run();
+ }
+ static int Run()
+ {
+  string root=Path.Combine(Project,"Candidates/SCENE-PERF-02/Player/DefaultPlaytestContractRuns",DateTime.UtcNow.ToString("yyyyMMdd_HHmmss")+"_"+Guid.NewGuid().ToString("N"));
+  Directory.CreateDirectory(root);var facts=new List<object>();bool pass=false;string error=null;
+  try
+  {
+   string sourceBefore=Fingerprint(ApprovedSource),destination=Path.Combine(root,"playtest-profile");
+   Check(ScenePerformanceDefaultPlaytestIsolation.IsMeasurementInvocation(new[]{"exe","--scene-perf02-cpu","run"}),"cpu CLI excluded");
+   Check(ScenePerformanceDefaultPlaytestIsolation.IsMeasurementInvocation(new[]{"exe","--scene-perf02-run","run"}),"normalrun CLI excluded");
+   Check(!ScenePerformanceDefaultPlaytestIsolation.IsMeasurementInvocation(new[]{"exe"}),"unflagged eligible");
+   facts.Add(new{name="same actual Boot CLI predicate",pass=true});
+   Check(ScenePerformanceDefaultPlaytestIsolation.EnsureProfile(ApprovedSource,destination,Profile),"first launch creates");
+   Check(sourceBefore==Fingerprint(destination)&&sourceBefore==Fingerprint(ApprovedSource),"first launch exact four copies/source unchanged");
+   facts.Add(new{name="actual EnsureProfile first create",pass=true});
+   UpdateValidSavedEnvelope(destination);
+   string changed=Fingerprint(destination);Check(changed!=sourceBefore,"simulated latest valid saved checkpoint differs from frozen source");
+   Check(!ScenePerformanceDefaultPlaytestIsolation.EnsureProfile(ApprovedSource,destination,Profile),"second launch keeps existing");
+   Check(changed==Fingerprint(destination),"existing latest checkpoint preserved byte for byte");
+   facts.Add(new{name="second launch preserves a newer domain-valid checkpoint",pass=true});
+   string bad=Path.Combine(root,"bad-existing");Directory.CreateDirectory(bad);CopyAll(destination,bad);
+   string primary=new CommerceFileSaveStore(bad).PathForProfile(Profile);byte[] corrupted=File.ReadAllBytes(primary);corrupted[0]^=1;File.WriteAllBytes(primary,corrupted);
+   string badBefore=Fingerprint(bad);ExpectFailure(()=>ScenePerformanceDefaultPlaytestIsolation.EnsureProfile(ApprovedSource,bad,Profile));
+   Check(badBefore==Fingerprint(bad),"invalid existing profile is preserved, not replaced");
+   facts.Add(new{name="invalid existing data rejected without overwrite",pass=true});
+   string incompleteSource=Path.Combine(root,"incomplete-source");Directory.CreateDirectory(incompleteSource);
+   foreach(var file in Directory.GetFiles(ApprovedSource).Take(3))File.Copy(file,Path.Combine(incompleteSource,Path.GetFileName(file)),false);
+   string missingDestination=Path.Combine(root,"must-not-create");ExpectFailure(()=>ScenePerformanceDefaultPlaytestIsolation.EnsureProfile(incompleteSource,missingDestination,Profile));
+   Check(!Directory.Exists(missingDestination),"incomplete frozen input does not seed a profile");
+   facts.Add(new{name="incomplete source rejected before publish",pass=true});
+   string intact=Fingerprint(destination);ExpectFailure(()=>ScenePerformanceDefaultPlaytestIsolation.EnsureProfile(ApprovedSource,destination,"wrong-profile"));
+   Check(intact==Fingerprint(destination),"wrong profile identity does not overwrite");
+   ExpectFailure(()=>ScenePerformanceDefaultPlaytestIsolation.EnsureProfile(ApprovedSource,ApprovedSource,Profile));
+   Check(sourceBefore==Fingerprint(ApprovedSource),"approved frozen source unchanged in all cases");
+   facts.Add(new{name="identity and overlapping source rejected; source SHA unchanged",pass=true});pass=true;
+  }
+  catch(Exception e){error=e.ToString();}
+  string output=Path.Combine(root,"result.json");File.WriteAllText(output,JsonSerializer.Serialize(new{pass,error,scope="Real filesystem transaction and CLI predicate used by candidate Loaded/Boot. No Unity or Player execution; runtime sceneLoaded/pre-Start ordering and actual second Player launch remain Root checks.",approvedSource=ApprovedSource,root,facts},new JsonSerializerOptions{WriteIndented=true}));
+  Console.WriteLine(JsonSerializer.Serialize(new{pass,output,error}));return pass?0:1;
+ }
+ static void UpdateValidSavedEnvelope(string folder)
+ {
+  var store=new CommerceFileSaveStore(folder);var loaded=store.Load(Profile);Check(loaded.Status==CommerceSaveLoadStatus.Loaded,"loaded sandbox snapshot");
+  var original=loaded.Snapshot;string session=Guid.NewGuid().ToString("N");store.ActivateSession(Profile,session);
+  var next=new CommerceSaveSnapshot(Profile,session,original.StateRevision,original.SaveSequence+1,original.Payload,original.PayloadSchema,original.DefinitionFingerprint);
+  store.WriteAsync(next,System.Threading.CancellationToken.None).GetAwaiter().GetResult();Check(store.Load(Profile).Status==CommerceSaveLoadStatus.Loaded,"new valid snapshot");
+ }
+ static void Check(bool value,string label){if(!value)throw new Exception("FAIL: "+label);}
+ static void ExpectFailure(Func<bool> action){bool failed=false;try{action();}catch{failed=true;}Check(failed,"expected rejection");}
+ static void CopyAll(string source,string destination){foreach(var p in Directory.GetFiles(source))File.Copy(p,Path.Combine(destination,Path.GetFileName(p)),false);}
+ static string Fingerprint(string folder)=>string.Join("|",Directory.GetFiles(folder).OrderBy(Path.GetFileName,StringComparer.Ordinal).Select(p=>Path.GetFileName(p)+":"+Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(p)))));
+}

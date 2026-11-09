@@ -1,0 +1,247 @@
+/* Root-only Native method contract. Real helper/renderer/material/bucket methods;
+ * no camera render, GPU readback, author asset writes or performance claims.
+ * Compile with the frozen helper+Layers+Buckets sources; unique assembly identity.
+ * Ordinary temporary GameObjects are destroyed synchronously before returning.
+ */
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using UnityEngine;
+using UnityEditor;
+using UnityEngine.SceneManagement;
+using Funplay.Editor.Tools.Scripting;
+using Ossastra.VoxelTerrain;
+using Ossastra.SceneVisibility.Rooms;
+using Ossastra.SceneVisibility.Rooms.Rendering;
+using Object = UnityEngine.Object;
+
+public sealed class StaticTerrainBucketContracts : IFunplayCommand
+{
+    const BindingFlags B = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+    sealed class Check { public string name; public bool pass; public object evidence; }
+    sealed class Plan
+    {
+        internal object Identity, Keys;
+        internal Material[] Original, Written;
+    }
+    static Shader PureResolver(Material source, uint family, out int pass)
+    {
+        var shader = Shader.Find("Ossastra/WorldRendering/SightVoxelLit");
+        pass = shader != null ? 0 : -1; // Exact Voxel family pass used by production ShaderFor.
+        return shader;
+    }
+
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+    {
+        if (Application.dataPath.Replace('\\', '/') != "E:/WORLDCREATOR/new/Project_ANKALUTE/Assets" ||
+            EditorApplication.isCompiling || EditorApplication.isUpdating)
+            throw new InvalidOperationException("Stable ANKALUTE Native only; never run during Player timing");
+        var scene = SceneManager.GetActiveScene(); string path = scene.path;
+        bool dirty = scene.isDirty, playing = Application.isPlaying; int sceneCount = SceneManager.sceneCount;
+        var checks = new List<Check>(); var errors = new List<string>(); var objects = new List<Object>();
+        var owners = new List<RoomPositiveMaterialBuckets>();
+        RoomStaticTerrainPreparation helper = null;
+        MeshRenderer[] current = Array.Empty<MeshRenderer>();
+        var expected = new Dictionary<Renderer, Material[]>();
+        try
+        {
+            var sourceShader = Shader.Find(RoomPositiveRenderingLayers.VoxelLitShaderName);
+            int adapterPass; var adapterShader = PureResolver(null, RoomPositiveRenderingLayers.PartialLitBit, out adapterPass);
+            if (sourceShader == null || adapterShader == null || !adapterShader.isSupported || adapterPass < 0)
+                throw new InvalidOperationException("Actual VoxelLit and SightVoxelLit ForwardLit required");
+            var texture = Own(new Texture2D(1, 1) { hideFlags = HideFlags.HideAndDontSave }, objects, ctx);
+            texture.SetPixel(0, 0, Color.white); texture.Apply();
+            var m0 = Own(new Material(sourceShader) { hideFlags = HideFlags.HideAndDontSave }, objects, ctx);
+            var m1 = Own(new Material(sourceShader) { hideFlags = HideFlags.HideAndDontSave }, objects, ctx);
+            var external = Own(new Material(sourceShader) { hideFlags = HideFlags.HideAndDontSave }, objects, ctx);
+            m0.SetColor("_BaseColor", new Color(.2f, .4f, .7f, 1)); m1.SetColor("_BaseColor", new Color(.7f, .3f, .1f, 1));
+            m0.SetFloat("_Smoothness", .31f); m1.SetFloat("_Smoothness", .62f);
+            m0.SetTexture("_BaseMap", texture); m1.SetTexture("_BaseMap", texture);
+            var mesh = Own(new Mesh { hideFlags = HideFlags.HideAndDontSave }, objects, ctx);
+            mesh.vertices = new[] { Vector3.zero, Vector3.right, Vector3.forward }; mesh.subMeshCount = 2;
+            mesh.SetTriangles(new[] { 0, 1, 2 }, 0); mesh.SetTriangles(new[] { 0, 1, 2 }, 1);
+            var root = Own(new GameObject("BucketContract"), objects, ctx);
+            var installation = root.AddComponent<VoxelTerrainInstallation>();
+            var r0 = Renderer(root.transform, "Terrain0", mesh, new[] { m0, m1 }, objects, ctx);
+            var r1 = Renderer(root.transform, "Terrain1", mesh, new[] { m0, m1 }, objects, ctx);
+            current = installation.chunks = new[] { r0, r1 };
+            expected[r0] = new[] { m0, m1 }; expected[r1] = new[] { m0, m1 };
+            var camera = Own(new GameObject("BucketContractCamera"), objects, ctx).AddComponent<Camera>(); camera.enabled = false;
+            helper = new RoomStaticTerrainPreparation(); helper.Bind(new[] { installation }, scene);
+            var buckets = new RoomPositiveMaterialBuckets(); owners.Add(buckets);
+            var crcs = Crc(m0, m1, external);
+
+            var frame = Capture(helper, camera, current);
+            buckets.PrepareTerrain(frame, PureResolver, helper, true);
+            var first = Plans(buckets);
+            Add(checks, "actual preCull prepare borrows full ordered clone slots and copies adapter/source properties",
+                first.Count == 2 && Borrowed(buckets, first) && Copied(buckets, adapterShader) && Unchanged(crcs),
+                new { plans = first.Count, buckets = buckets.Active.Count, owned = buckets.OwnedMaterialCount });
+            buckets.Restore(); helper.EndPrepare();
+            Add(checks, "Restore returns exact source references/order with no swaps or pins", Restored(expected) && Swaps(buckets).Count == 0 && buckets.RetainedConflictCount == 0, null);
+
+            frame = Capture(helper, camera, current);
+            buckets.PrepareTerrain(frame, PureResolver, helper, true);
+            var second = Plans(buckets);
+            Add(checks, "stable second real call reuses Swap, Original, Keys and Written storage",
+                first.Count == second.Count && first.All(x => SamePlan(x.Value, second[x.Key])), null);
+            buckets.Restore(); helper.EndPrepare();
+
+            r0.sharedMaterials = expected[r0] = new[] { m1, m0 };
+            frame = Capture(helper, camera, current); buckets.PrepareTerrain(frame, PureResolver, helper, true);
+            var reordered = Plans(buckets);
+            Add(checks, "slot reorder rebuilds only affected retained plan and preserves exact slot order",
+                !ReferenceEquals(second[r0].Identity, reordered[r0].Identity) && SamePlan(second[r1], reordered[r1]) &&
+                Same(reordered[r0].Original, expected[r0]) && Borrowed(buckets, reordered), null);
+            buckets.Restore(); helper.EndPrepare();
+
+            m0.SetColor("_BaseColor", new Color(.9f, .15f, .35f, 1)); crcs = Crc(m0, m1, external);
+            frame = Capture(helper, camera, current); buckets.PrepareTerrain(frame, PureResolver, helper, true);
+            var recolored = Plans(buckets);
+            Add(checks, "same-reference source color edit refreshes existing clone/adapter without stale properties",
+                Copied(buckets, adapterShader) && Unchanged(crcs) && SamePlan(reordered[r0], recolored[r0]) && SamePlan(reordered[r1], recolored[r1]), null);
+            buckets.Restore(); helper.EndPrepare();
+
+            r0.enabled = false;
+            frame = Capture(helper, camera, new[] { r1 });
+            bool inactiveRejected = !helper.TryBuild(r0, out _, out _);
+            buckets.PrepareTerrain(frame, PureResolver, helper, true);
+            var withoutInactive = Plans(buckets);
+            Add(checks, "inactive member loses prepared plan while unrelated retained plan is reused",
+                inactiveRejected && withoutInactive.Count == 1 && !withoutInactive.ContainsKey(r0) &&
+                SamePlan(recolored[r1], withoutInactive[r1]) && Same(r0.sharedMaterials, expected[r0]), null);
+            buckets.Restore(); helper.EndPrepare(); r0.enabled = true;
+            frame = Capture(helper, camera, current); buckets.PrepareTerrain(frame, PureResolver, helper, true);
+            var beforeWithdraw = Plans(buckets); buckets.Restore(); helper.EndPrepare();
+
+            installation.chunks[0] = null; // actual same-array membership withdrawal
+            frame = Capture(helper, camera, new[] { r1 });
+            bool withdrawnRejected = !helper.TryBuild(r0, out _, out _);
+            buckets.PrepareTerrain(frame, PureResolver, helper, true);
+            var withdrawn = Plans(buckets);
+            Add(checks, "same chunks array edit withdraws member and only its retained plan",
+                withdrawnRejected && withdrawn.Count == 1 && SamePlan(beforeWithdraw[r1], withdrawn[r1]) && Same(r0.sharedMaterials, expected[r0]), null);
+            buckets.Restore(); helper.EndPrepare(); installation.chunks[0] = r0;
+            frame = Capture(helper, camera, current); buckets.PrepareTerrain(frame, PureResolver, helper, true);
+            var beforeNew = Plans(buckets); buckets.Restore(); helper.EndPrepare();
+
+            var r2 = Renderer(root.transform, "Terrain2", mesh, new[] { m0, m1 }, objects, ctx);
+            expected[r2] = new[] { m0, m1 }; current = installation.chunks = new[] { r0, r1, r2 };
+            frame = Capture(helper, camera, current); buckets.PrepareTerrain(frame, PureResolver, helper, true);
+            var added = Plans(buckets);
+            Add(checks, "new exact Renderer receives new plan without replacing unrelated plans",
+                added.Count == 3 && added.ContainsKey(r2) && SamePlan(beforeNew[r0], added[r0]) && SamePlan(beforeNew[r1], added[r1]), null);
+
+            // An actual foreign array retains one owned clone. Restore must yield
+            // to that array, pin its clone, and not dispose somebody else's source.
+            var heldClone = r0.sharedMaterials[0];
+            var foreign = new[] { heldClone, external }; r0.sharedMaterials = foreign;
+            buckets.Restore(); helper.EndPrepare();
+            Add(checks, "foreign array overwrite while borrowed is preserved and pins referenced clone",
+                Same(r0.sharedMaterials, foreign) && heldClone != null && buckets.RetainedConflictCount == 1 &&
+                Same(r1.sharedMaterials, expected[r1]) && Same(r2.sharedMaterials, expected[r2]) && Unchanged(crcs), null);
+            buckets.Dispose();
+            Add(checks, "Dispose retains foreign-held clone but releases its adapter and other unpinned resources",
+                Same(r0.sharedMaterials, foreign) && heldClone != null && buckets.RetainedConflictCount == 1 && buckets.OwnedMaterialCount == 1 && external != null && Unchanged(crcs),
+                new { owned = buckets.OwnedMaterialCount, pins = buckets.RetainedConflictCount });
+            r0.sharedMaterials = expected[r0]; buckets.Dispose();
+            Add(checks, "external holder release permits final clone and pin cleanup", buckets.OwnedMaterialCount == 0 && buckets.RetainedConflictCount == 0 && Restored(expected), null);
+
+            var failures = new RoomPositiveMaterialBuckets(); owners.Add(failures);
+            frame = Capture(helper, camera, current); int calls = 0; bool sawOwnThrow = false;
+            RoomPositiveShaderResolver throwing = (Material source, uint family, out int pass) =>
+            { ++calls; if (calls == 2) throw new InvalidOperationException("BucketContractResolverThrow"); return PureResolver(source, family, out pass); };
+            try { failures.PrepareTerrain(frame, throwing, helper, false); }
+            catch (InvalidOperationException e) { sawOwnThrow = e.Message == "BucketContractResolverThrow"; }
+            Add(checks, "resolver exception occurs before any Native borrow and invalidates retained receipt",
+                sawOwnThrow && calls == 2 && Swaps(failures).Count == 0 && Restored(expected) && !helper.TryPrepared(r0, out _) && Unchanged(crcs), null);
+            failures.Dispose(); helper.EndPrepare();
+
+            // Unknown resolver mutates a slot that this same Prepare already
+            // captured. A fresh semantic/slot boundary must reject before borrow,
+            // not silently overwrite the foreign replacement with old plans.
+            var replacing = new RoomPositiveMaterialBuckets(); owners.Add(replacing);
+            frame = Capture(helper, camera, current); calls = 0; bool slotRejected = false;
+            var replacement = new[] { m0, m1 };
+            RoomPositiveShaderResolver replaceSlot = (Material source, uint family, out int pass) =>
+            { ++calls; if (calls == 2) r0.sharedMaterials = replacement; return PureResolver(source, family, out pass); };
+            try { replacing.PrepareTerrain(frame, replaceSlot, helper, false); }
+            catch (InvalidOperationException) { slotRejected = true; }
+            Add(checks, "unknown resolver changing already captured slots is rejected before borrow and keeps foreign replacement",
+                calls >= 2 && slotRejected && Swaps(replacing).Count == 0 && Same(r0.sharedMaterials, replacement) &&
+                Same(r1.sharedMaterials, expected[r1]) && Same(r2.sharedMaterials, expected[r2]) && !helper.TryPrepared(r0, out _) && Unchanged(crcs), null);
+            r0.sharedMaterials = expected[r0]; replacing.Dispose(); helper.EndPrepare();
+
+            var changing = new RoomPositiveMaterialBuckets(); owners.Add(changing);
+            frame = Capture(helper, camera, current); calls = 0; bool sourceRejected = false; int originalQueue = m1.renderQueue;
+            RoomPositiveShaderResolver changeSource = (Material source, uint family, out int pass) =>
+            { ++calls; if (calls == 2) m1.renderQueue = 2401; return PureResolver(source, family, out pass); };
+            try { changing.PrepareTerrain(frame, changeSource, helper, false); }
+            catch (InvalidOperationException) { sourceRejected = true; }
+            Add(checks, "unknown resolver changing already captured source queue is rejected before Native borrow",
+                calls >= 2 && sourceRejected && Swaps(changing).Count == 0 && Restored(expected) &&
+                m1.renderQueue == 2401 && m0.ComputeCRC() == crcs[m0] && external.ComputeCRC() == crcs[external] && !helper.TryPrepared(r0, out _), null);
+            m1.renderQueue = originalQueue; changing.Dispose(); helper.EndPrepare(); crcs = Crc(m0, m1, external);
+
+            var legacy = new RoomPositiveMaterialBuckets(); owners.Add(legacy);
+            frame = Capture(helper, camera, current);
+            legacy.Prepare(frame, PureResolver);
+            Add(checks, "legacy Prepare(frame,resolver) remains usable with complete source/adapter semantics", Plans(legacy).Count == 3 && Copied(legacy, adapterShader) && Unchanged(crcs), null);
+            legacy.Restore(); legacy.Dispose(); helper.EndPrepare();
+            Add(checks, "all bucket owners dispose with zero swaps, pins and owned material references",
+                owners.All(x => { x.Dispose(); return x.OwnedMaterialCount == 0 && x.RetainedConflictCount == 0 && Swaps(x).Count == 0; }) && Restored(expected) && Unchanged(crcs), null);
+        }
+        catch (Exception e) { errors.Add(e.ToString()); }
+        finally
+        {
+            // All renderers/materials below belong solely to this fixture.
+            foreach (var pair in expected) if (pair.Key != null) pair.Key.sharedMaterials = pair.Value;
+            foreach (var owner in owners) try { owner.Dispose(); } catch (Exception e) { errors.Add("Dispose: " + e); }
+            helper?.Clear();
+            for (int i = objects.Count - 1; i >= 0; --i) if (objects[i] != null) Object.DestroyImmediate(objects[i]);
+        }
+        Add(checks, "original main active scene/path/count/dirty/play remain unchanged",
+            SceneManager.GetActiveScene() == scene && scene.path == path && SceneManager.sceneCount == sceneCount && scene.isDirty == dirty && Application.isPlaying == playing, null);
+        bool passAll = errors.Count == 0 && checks.All(x => x.pass);
+        ctx.ReturnValue = new { passAll, checks, errors, assembly = GetType().Assembly.FullName,
+            limitation = "Actual isolated helper/Native material methods. Not integrated frame, GPU, allocation or Player performance proof; Destroy may defer Native material destruction in Play." };
+    }
+
+    static T Own<T>(T value, List<Object> objects, Funplay.Editor.Tools.Scripting.ExecutionContext ctx) where T : Object
+    { objects.Add(value); ctx.RegisterObjectCreation(value); return value; }
+    static MeshRenderer Renderer(Transform parent, string name, Mesh mesh, Material[] materials, List<Object> objects, Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+    { var go = Own(new GameObject(name), objects, ctx); go.transform.SetParent(parent, false); go.AddComponent<MeshFilter>().sharedMesh = mesh; var renderer = go.AddComponent<MeshRenderer>(); renderer.sharedMaterials = materials; return renderer; }
+    static RoomMaskFrame Capture(RoomStaticTerrainPreparation helper, Camera camera, MeshRenderer[] renderers)
+    {
+        helper.CaptureBuild(camera); var surfaces = new RoomPositiveSurface[renderers.Length];
+        for (int i = 0; i < renderers.Length; ++i)
+            if (!helper.TryBuild(renderers[i], out surfaces[i], out _)) throw new InvalidOperationException("Actual helper rejected fixture renderer " + renderers[i].name);
+        var frame = new RoomMaskFrame { PositiveSurfaces = surfaces };
+        helper.CapturePrepare(camera, frame);
+        foreach (var renderer in renderers) if (!helper.TryPrepared(renderer, out _)) throw new InvalidOperationException("Actual preCull helper receipt missing " + renderer.name);
+        return frame;
+    }
+    static object Read(object owner, string name) => owner.GetType().GetField(name, B).GetValue(owner);
+    static IList Swaps(RoomPositiveMaterialBuckets buckets) => (IList)Read(buckets, "swaps");
+    static Dictionary<Renderer, Plan> Plans(RoomPositiveMaterialBuckets buckets)
+    { var result = new Dictionary<Renderer, Plan>(); foreach (var swap in Swaps(buckets)) result.Add((Renderer)Read(swap, "Renderer"), new Plan { Identity = swap, Original = (Material[])Read(swap, "Original"), Written = (Material[])Read(swap, "Written"), Keys = Read(swap, "Keys") }); return result; }
+    static bool Same(Material[] a, Material[] b) => a.Length == b.Length && a.Where((value, i) => !ReferenceEquals(value, b[i])).Count() == 0;
+    static bool SamePlan(Plan a, Plan b) => ReferenceEquals(a.Identity, b.Identity) && ReferenceEquals(a.Keys, b.Keys) && ReferenceEquals(a.Original, b.Original) && ReferenceEquals(a.Written, b.Written);
+    static bool Restored(Dictionary<Renderer, Material[]> expected) => expected.All(x => x.Key != null && Same(x.Key.sharedMaterials, x.Value));
+    static Dictionary<Material, int> Crc(params Material[] materials) => materials.ToDictionary(x => x, x => x.ComputeCRC());
+    static bool Unchanged(Dictionary<Material, int> crcs) => crcs.All(x => x.Key != null && x.Key.ComputeCRC() == x.Value);
+    static bool Copied(RoomPositiveMaterialBuckets buckets, Shader adapter)
+    {
+        return buckets.Active.Count != 0 && buckets.Active.All(x => x.Original != null && x.Clone != null && x.Adapter != null &&
+            x.Clone.shader == x.Original.shader && x.Adapter.shader == adapter && x.Clone.renderQueue == x.Queue && x.Adapter.renderQueue == x.Queue &&
+            x.Clone.GetColor("_BaseColor") == x.Original.GetColor("_BaseColor") && x.Adapter.GetColor("_BaseColor") == x.Original.GetColor("_BaseColor") &&
+            x.Clone.GetFloat("_Smoothness") == x.Original.GetFloat("_Smoothness") && x.Adapter.GetFloat("_Smoothness") == x.Original.GetFloat("_Smoothness") &&
+            ReferenceEquals(x.Clone.GetTexture("_BaseMap"), x.Original.GetTexture("_BaseMap")) && ReferenceEquals(x.Adapter.GetTexture("_BaseMap"), x.Original.GetTexture("_BaseMap")));
+    }
+    static bool Borrowed(RoomPositiveMaterialBuckets buckets, Dictionary<Renderer, Plan> plans)
+    { return plans.All(x => Same(x.Key.sharedMaterials, x.Value.Written) && x.Value.Written.Length == x.Value.Original.Length &&
+        x.Value.Written.Where((m, i) => !buckets.Active.Any(b => ReferenceEquals(b.Clone, m) && ReferenceEquals(b.Original, x.Value.Original[i]))).Count() == 0); }
+    static void Add(List<Check> checks, string name, bool pass, object evidence) => checks.Add(new Check { name = name, pass = pass, evidence = evidence });
+}

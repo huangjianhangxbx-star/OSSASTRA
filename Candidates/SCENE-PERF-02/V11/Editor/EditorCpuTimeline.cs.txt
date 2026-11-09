@@ -1,0 +1,316 @@
+/* 功能：临时采集已核实主场30至40个真实游戏相机帧，导出最近20帧主线程/渲染线程的CPU marker、自身时间及等待分量。
+ * 边界：不清Profiler历史、不SaveProfile，不改场景/渲染/质量/帧率，不强制重绘；不把两个并行线程耗时相加冒充帧时间。
+ * 生命周期：CPU专用采集，不启GPU；保存并临时设Profiler开关，15秒总超时、退出Play、重载、退出均解除回调并恢复原开关。
+ * 算法：每个sample自身时间=包含时间-直接子节点包含时间；用recursive child count跳过子树，不二次累计嵌套总耗时。
+ * 限制：Profiler开启本身有开销；等待按明确marker名称分类，非等待自身时间不等于已经证明的有效玩法工作；GPU缺数据不捏造。
+ */
+using System;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEditor;
+using UnityEditorInternal;
+using UnityEditor.Profiling;
+using Ossastra.MapResearch;
+using Funplay.Editor.Tools.Scripting;
+
+public sealed class Perf02V11EditorCpuTimeline : IFunplayCommand
+{
+    const string MainScene="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity";
+    const string ActiveKey="SCENE-PERF-02.V11.EditorCpu.Active";
+    const int MinimumCameraFrames=30,TargetCameraFrames=40,RequestedProfilerFrames=20,MaximumThreads=128;
+    const double TimeoutSeconds=15;
+    static Capture active;
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext context)
+    {
+        if(!Application.isPlaying)throw new InvalidOperationException("Play only; Root must preserve/isolate the actual main before CPU profiling");
+        if(SessionState.GetBool(ActiveKey,false))throw new InvalidOperationException("CPU timeline already running; inspect the existing receipt instead of replaying");
+        if(Screen.width!=1600||Screen.height!=900)throw new InvalidOperationException("Actual GameView must remain 1600x900; no resizing by this command");
+        var scene=UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+        if(scene.path!=MainScene)throw new InvalidOperationException("Wrong explicit main scene");
+        var maps=scene.GetRootGameObjects().SelectMany(r=>r.GetComponentsInChildren<MapResearchRoot>(true)).ToArray();
+        if(maps.Length!=1||maps[0].gameplayCamera==null||!maps[0].isActiveAndEnabled||!maps[0].gameplayCamera.enabled)
+            throw new InvalidOperationException("Expected the verified active MapResearchRoot.gameplayCamera");
+        if(!ReadDriverMethodBool("IsConnectionEditor",null))throw new InvalidOperationException("Profiler target is not confirmed current Editor; no automatic retargeting");
+        string project=Path.GetFullPath(Path.Combine(Application.dataPath,".."));
+        if(project.Replace('\\','/')!="E:/WORLDCREATOR/new/Project_ANKALUTE")throw new InvalidOperationException("Wrong project");
+        string folder=Path.Combine(project,"artifacts","SCENE-PERF-02","V11","Editor");Directory.CreateDirectory(folder);
+        string path=Path.Combine(folder,"cpu-timeline-"+DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff")+".json");
+        if(File.Exists(path))throw new IOException("Unique CPU report path required");
+        active=new Capture(maps[0].gameplayCamera,path);
+        try{active.Start();}
+        catch{active.Dispose();active=null;throw;}
+        context.ReturnValue=new{status="sampling",path,camera=maps[0].gameplayCamera.name,cameraId=maps[0].gameplayCamera.GetInstanceID(),
+            minimumActualCameraFrames=MinimumCameraFrames,maximumActualCameraFrames=TargetCameraFrames,totalTimeoutSeconds=TimeoutSeconds,requestedCompletedProfilerFrames=RequestedProfilerFrames,
+            note="Editor-inclusive CPU-only receipt (profileEditor=true); no GPU profiling or per-frame MCP polling. Export immediately after 30 actual camera frames and 20 new profiler frames, at latest 40 camera frames/15 seconds; flags restored."};
+    }
+
+    sealed class Capture : IDisposable
+    {
+        readonly Camera camera;
+        readonly string path;
+        readonly Report report=new Report();
+        readonly List<FrameReceipt> rendered=new List<FrameReceipt>();
+        readonly HashSet<int> observedProfilerFrames=new HashSet<int>();
+        readonly List<ThreadFrame> frames=new List<ThreadFrame>();
+        readonly List<ThreadInventoryItem> threadInventory=new List<ThreadInventoryItem>();
+        readonly List<string> errors=new List<string>();
+        readonly Flags original;
+        bool hooked,finished,restoreNeeded;
+        int lastGameFrame=-1,initialProfilerLast;
+        double started;
+        public Capture(Camera target,string output)
+        {
+            camera=target;path=output;original=Flags.Read();
+            report.scene=MainScene;report.cameraName=target.name;report.cameraInstanceId=target.GetInstanceID();
+            report.previousProfilerFlags=original;report.startedUtc=DateTime.UtcNow.ToString("O");
+        }
+        public void Start()
+        {
+            started=Time.realtimeSinceStartupAsDouble;initialProfilerLast=ProfilerDriver.lastFrameIndex;
+            report.initialProfilerLast=initialProfilerLast;
+            SessionState.SetBool(ActiveKey,true);
+            RenderPipelineManager.endCameraRendering+=CameraEnded;EditorApplication.update+=Tick;
+            EditorApplication.playModeStateChanged+=PlayChanged;AssemblyReloadEvents.beforeAssemblyReload+=Reloading;
+            EditorApplication.quitting+=Quitting;hooked=true;restoreNeeded=true;
+            ProfilerDriver.deepProfiling=false;ProfilerDriver.profileEditor=true;
+            report.gpuSupported=ReadDriverPropertyBool("isGPUProfilerSupported")&&ReadDriverPropertyBool("isGPUProfilerSupportedByOS")&&!ReadDriverPropertyBool("isGPUProfilerBuggyOnDriver");
+            // 本探针专门区分CPU工作与等待，不为收CPU树开启高开销GPU profiling；原值在finally归还。
+            ProfilerDriver.profileGPU=false;
+            ProfilerDriver.enabled=true;
+            report.captureProfilerFlags=Flags.Read();
+        }
+        void CameraEnded(ScriptableRenderContext context,Camera renderedCamera)
+        {
+            if(finished||renderedCamera!=camera||lastGameFrame==Time.frameCount)return;
+            try
+            {
+                if(!Application.isPlaying){Finish("left-play",false);return;}
+                double now=Time.realtimeSinceStartupAsDouble;
+                if(now-started>=TimeoutSeconds){Finish("timeout",false);return;}
+                lastGameFrame=Time.frameCount;int profilerLast=ProfilerDriver.lastFrameIndex;
+                rendered.Add(new FrameReceipt{gameFrame=lastGameFrame,profilerLastIndex=profilerLast,secondsSinceStart=now-started});
+                // 排除执行前的最后历史帧；导出仅选择实际采集期间相机回调观察到的新帧索引。
+                if(profilerLast>=0&&profilerLast!=initialProfilerLast)observedProfilerFrames.Add(profilerLast);
+                if(rendered.Count>=MinimumCameraFrames&&observedProfilerFrames.Count>=RequestedProfilerFrames)Finish("completed",true);
+                else if(rendered.Count>=TargetCameraFrames)Finish("camera-limit-profiler-incomplete",false);
+            }
+            catch(Exception e){errors.Add("camera callback: "+e);Finish("sampling-error",false);}
+        }
+        void Tick()
+        {
+            if(finished)return;
+            if(!Application.isPlaying||camera==null){Finish("left-play-or-camera-lost",false);return;}
+            if(Time.realtimeSinceStartupAsDouble-started>=TimeoutSeconds)Finish("timeout",false);
+        }
+        void PlayChanged(PlayModeStateChange state){if(state==PlayModeStateChange.ExitingPlayMode||state==PlayModeStateChange.EnteredEditMode)Finish("left-play",false);}
+        void Reloading(){Finish("assembly-reload",false);}
+        void Quitting(){Finish("editor-quitting",false);}
+        void Unhook()
+        {
+            if(!hooked)return;
+            RenderPipelineManager.endCameraRendering-=CameraEnded;EditorApplication.update-=Tick;
+            EditorApplication.playModeStateChanged-=PlayChanged;AssemblyReloadEvents.beforeAssemblyReload-=Reloading;
+            EditorApplication.quitting-=Quitting;hooked=false;
+        }
+        void Finish(string reason,bool completed)
+        {
+            if(finished)return;finished=true;Unhook();
+            try
+            {
+                report.stopReason=reason;report.cameraCaptureCompleted=completed;report.actualCameraFrames=rendered.Count;
+                report.endProfilerLast=ProfilerDriver.lastFrameIndex;report.endProfilerFirst=ProfilerDriver.firstFrameIndex;
+                ExportRecentFrames();
+                report.threadFrames=frames.ToArray();
+                report.mainThread=Aggregate("Main Thread");report.renderThread=Aggregate("Render Thread");
+                report.cpuDataAvailable=frames.Any(f=>f.kind=="Main Thread"&&f.sampleCount>0);
+                report.cpuDataStatus=report.cpuDataAvailable?"available: current Editor session raw CPU sample trees":
+                    "unavailable: no eligible completed Main Thread raw sample view; no CPU attribution inferred from total frame duration";
+                report.observedCameraFrames=rendered.ToArray();
+            }
+            catch(Exception e){errors.Add("export: "+e);report.cpuDataStatus="incomplete export; inspect errors";}
+            finally
+            {
+                Dispose();report.finishedUtc=DateTime.UtcNow.ToString("O");report.elapsedSeconds=Time.realtimeSinceStartupAsDouble-started;
+                report.threadInventory=threadInventory.ToArray();
+                report.restoredProfilerFlags=Flags.Read();report.flagsRestored=original.Same(report.restoredProfilerFlags);
+                report.errors=errors.ToArray();
+            }
+            try
+            {
+                File.WriteAllText(path,Newtonsoft.Json.JsonConvert.SerializeObject(report,Newtonsoft.Json.Formatting.Indented));
+                UnityEngine.Debug.Log("SCENE_CPU_TIMELINE_RESULT path="+path+" actualCameraFrames="+rendered.Count+
+                    " rawThreadFrames="+frames.Count+" cpuAvailable="+report.cpuDataAvailable+" flagsRestored="+report.flagsRestored);
+            }
+            catch(Exception e){UnityEngine.Debug.LogError("SCENE_CPU_TIMELINE_WRITE_FAILED callbacks released/flags restore attempted: "+e);}
+            if(ReferenceEquals(active,this))active=null;
+        }
+        void ExportRecentFrames()
+        {
+            // 某些Editor帧末lastFrameIndex短暂为-1，不能把已经观察到的有效索引全部丢掉。
+            // 只选此次真实相机回调曾确认的新索引，按实际观察顺序取最近20帧，不借旧历史凑数。
+            var selected=rendered.Select(r=>r.profilerLastIndex).Where(i=>i>=0&&i!=initialProfilerLast)
+                .Reverse().Distinct().Take(RequestedProfilerFrames).Reverse().ToArray();
+            report.usedObservedIndexFallback=report.endProfilerLast<0;
+            report.selectedProfilerFrameIndices=selected;
+            foreach(int index in selected)
+            {
+                if(Time.realtimeSinceStartupAsDouble-started>=TimeoutSeconds){errors.Add("15-second deadline reached while exporting bounded recent views");break;}
+                for(int thread=0;thread<MaximumThreads;thread++)
+                {
+                    using(var view=ProfilerDriver.GetRawFrameDataView(index,thread))
+                    {
+                        if(view==null||!view.valid)continue;
+                        bool sessionMatches=ReadDriverMethodBool("FrameDataBelongsToCurrentEditorSession",new object[]{view});
+                        threadInventory.Add(new ThreadInventoryItem{profilerFrame=index,threadIndex=view.threadIndex,threadName=view.threadName,
+                            threadGroup=view.threadGroupName,threadId=view.threadId,sampleCount=view.sampleCount,sessionMatches=sessionMatches});
+                        if(!sessionMatches)continue;
+                        string kind=ThreadKind(view.threadName);if(kind==null)continue;
+                        frames.Add(ReadThread(view,kind));
+                    }
+                }
+            }
+        }
+        static string ThreadKind(string name)
+        {
+            if(string.IsNullOrEmpty(name))return null;
+            if(string.Equals(name,"Main Thread",StringComparison.OrdinalIgnoreCase)||name.StartsWith("Main Thread ",StringComparison.OrdinalIgnoreCase))return "Main Thread";
+            if(name.IndexOf("RHI",StringComparison.OrdinalIgnoreCase)>=0||name.StartsWith("Render Thread",StringComparison.OrdinalIgnoreCase)||name.StartsWith("GfxDeviceWorker",StringComparison.OrdinalIgnoreCase))return "Render Thread";
+            return null;
+        }
+        static ThreadFrame ReadThread(RawFrameDataView view,string kind)
+        {
+            var result=new ThreadFrame{kind=kind,threadName=view.threadName,threadGroup=view.threadGroupName,threadIndex=view.threadIndex,
+                threadId=view.threadId,profilerFrame=view.frameIndex,frameTimeMs=view.frameTimeMs,frameStartTimeMs=view.frameStartTimeMs,
+                frameGpuTimeMs=view.frameGpuTimeMs,sampleCount=view.sampleCount};
+            var markers=new Dictionary<string,Marker>();
+            for(int sample=0;sample<view.sampleCount;sample++)
+            {
+                string name=view.GetSampleName(sample)??"<unnamed>";
+                double inclusive=view.GetSampleTimeMs(sample);if(!Finite(inclusive)||inclusive<0){result.invalidSamples++;continue;}
+                int descendants=view.GetSampleChildrenCountRecursive(sample),child=sample+1;
+                int subtreeEnd=Math.Min(view.sampleCount,sample+1+Math.Max(0,descendants));
+                double childrenMs=0;
+                int directChildren=view.GetSampleChildrenCount(sample);
+                for(int n=0;n<directChildren&&child<subtreeEnd;n++)
+                {
+                    double value=view.GetSampleTimeMs(child);if(Finite(value)&&value>=0)childrenMs+=value;
+                    int next=child+1+Math.Max(0,view.GetSampleChildrenCountRecursive(child));
+                    if(next<=child)break;child=next;
+                }
+                double self=inclusive-childrenMs;
+                if(self<-.0001)result.overlapOrCrossFrameSamples++;
+                self=Math.Max(0,self);
+                if(!markers.TryGetValue(name,out var marker)){marker=new Marker{name=name,isWait=IsWait(name)};markers.Add(name,marker);}
+                marker.calls++;marker.inclusiveMs+=inclusive;marker.selfMs+=self;
+                result.sumExclusiveSampleMs+=self;
+                if(marker.isWait)result.waitMarkerExclusiveMs+=self;
+            }
+            result.nonWaitMarkerExclusiveMs=Math.Max(0,result.sumExclusiveSampleMs-result.waitMarkerExclusiveMs);
+            result.topSelf=markers.Values.OrderByDescending(m=>m.selfMs).Take(50).ToArray();
+            result.topInclusive=markers.Values.OrderByDescending(m=>m.inclusiveMs).Take(50).ToArray();
+            result.waitMarkers=markers.Values.Where(m=>m.isWait&&m.selfMs>0).OrderByDescending(m=>m.selfMs).ToArray();
+            // 总线程预算按排他的self求和，不累计每层inclusive；下面全表只服务跨20帧聚合，最后不单独序列化。
+            result.allMarkers=markers.Values.ToArray();return result;
+        }
+        ThreadAggregate Aggregate(string kind)
+        {
+            var relevant=frames.Where(f=>f.kind==kind).ToArray();var all=new Dictionary<string,Marker>();
+            foreach(var f in relevant)foreach(var item in f.allMarkers)
+            {
+                if(!all.TryGetValue(item.name,out var target)){target=new Marker{name=item.name,isWait=item.isWait};all.Add(item.name,target);}
+                target.calls+=item.calls;target.selfMs+=item.selfMs;target.inclusiveMs+=item.inclusiveMs;
+            }
+            int n=relevant.Length;
+            foreach(var marker in all.Values){marker.meanSelfMsPerThreadFrame=n==0?0:marker.selfMs/n;marker.meanInclusiveMsPerThreadFrame=n==0?0:marker.inclusiveMs/n;}
+            return new ThreadAggregate{kind=kind,available=n>0,threadFrames=n,
+                meanFrameTimeMs=n==0?0:relevant.Average(f=>f.frameTimeMs),
+                meanExclusiveSampleMs=n==0?0:relevant.Average(f=>f.sumExclusiveSampleMs),
+                meanWaitMarkerExclusiveMs=n==0?0:relevant.Average(f=>f.waitMarkerExclusiveMs),
+                meanNonWaitMarkerExclusiveMs=n==0?0:relevant.Average(f=>f.nonWaitMarkerExclusiveMs),
+                topSelf=all.Values.OrderByDescending(m=>m.selfMs).Take(50).ToArray(),
+                topInclusive=all.Values.OrderByDescending(m=>m.inclusiveMs).Take(50).ToArray(),
+                waitMarkers=all.Values.Where(m=>m.isWait&&m.selfMs>0).OrderByDescending(m=>m.selfMs).ToArray()};
+        }
+        public void Dispose()
+        {
+            Unhook();
+            if(restoreNeeded)
+            {
+                restoreNeeded=false;
+                // 各字段独立恢复，即使其中一项抛出也继续归还其余开关。
+                Restore(()=>ProfilerDriver.profileGPU=original.profileGPU,"profileGPU");
+                Restore(()=>ProfilerDriver.profileEditor=original.profileEditor,"profileEditor");
+                Restore(()=>ProfilerDriver.deepProfiling=original.deepProfiling,"deepProfiling");
+                Restore(()=>ProfilerDriver.enabled=original.enabled,"enabled");
+            }
+            SessionState.SetBool(ActiveKey,false);
+        }
+        void Restore(Action setter,string name){try{setter();}catch(Exception e){errors.Add("restore "+name+": "+e.Message);}}
+    }
+    static bool Finite(double value)=>!double.IsNaN(value)&&!double.IsInfinity(value);
+    static bool ReadDriverMethodBool(string name,object[] arguments)
+    {
+        int count=arguments==null?0:arguments.Length;
+        var method=typeof(ProfilerDriver).GetMethods(BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Static)
+            .SingleOrDefault(m=>m.Name==name&&m.GetParameters().Length==count&&m.ReturnType==typeof(bool));
+        return method!=null&&(bool)method.Invoke(null,arguments);
+    }
+    static bool ReadDriverPropertyBool(string name)
+    {
+        var property=typeof(ProfilerDriver).GetProperty(name,BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Static);
+        return property!=null&&property.PropertyType==typeof(bool)&&(bool)property.GetValue(null,null);
+    }
+    static bool IsWait(string name)=>name.IndexOf("Wait",StringComparison.OrdinalIgnoreCase)>=0||
+        string.Equals(name,"Idle",StringComparison.OrdinalIgnoreCase)||name.EndsWith(".Idle",StringComparison.OrdinalIgnoreCase)||
+        name.IndexOf("Sleep",StringComparison.OrdinalIgnoreCase)>=0;
+    public sealed class Flags
+    {
+        public bool enabled,profileGPU,profileEditor,deepProfiling;
+        public static Flags Read()=>new Flags{enabled=ProfilerDriver.enabled,profileGPU=ProfilerDriver.profileGPU,profileEditor=ProfilerDriver.profileEditor,deepProfiling=ProfilerDriver.deepProfiling};
+        public bool Same(Flags b)=>b!=null&&enabled==b.enabled&&profileGPU==b.profileGPU&&profileEditor==b.profileEditor&&deepProfiling==b.deepProfiling;
+    }
+    public sealed class FrameReceipt {public int gameFrame,profilerLastIndex;public double secondsSinceStart;}
+    public sealed class ThreadInventoryItem
+    {
+        public int profilerFrame,threadIndex,sampleCount;public string threadName,threadGroup;public ulong threadId;public bool sessionMatches;
+    }
+    public sealed class Marker
+    {
+        public string name;public bool isWait;public int calls;
+        public double inclusiveMs,selfMs,meanInclusiveMsPerThreadFrame,meanSelfMsPerThreadFrame;
+    }
+    public sealed class ThreadFrame
+    {
+        public string kind,threadName,threadGroup;public int profilerFrame,threadIndex,sampleCount,invalidSamples,overlapOrCrossFrameSamples;
+        public ulong threadId;public double frameTimeMs,frameStartTimeMs,frameGpuTimeMs;
+        public double sumExclusiveSampleMs,waitMarkerExclusiveMs,nonWaitMarkerExclusiveMs;
+        public Marker[] topSelf,topInclusive,waitMarkers;
+        [Newtonsoft.Json.JsonIgnore] public Marker[] allMarkers;
+    }
+    public sealed class ThreadAggregate
+    {
+        public string kind;public bool available;public int threadFrames;
+        public double meanFrameTimeMs,meanExclusiveSampleMs,meanWaitMarkerExclusiveMs,meanNonWaitMarkerExclusiveMs;
+        public Marker[] topSelf,topInclusive,waitMarkers;
+    }
+    public sealed class Report
+    {
+        public int schemaVersion=1,minimumActualCameraFrames=MinimumCameraFrames,targetActualCameraFrames=TargetCameraFrames,requestedProfilerFrames=RequestedProfilerFrames,cameraInstanceId,actualCameraFrames,initialProfilerLast,endProfilerFirst,endProfilerLast;
+        public bool cameraCaptureCompleted,cpuDataAvailable,gpuSupported,flagsRestored,usedObservedIndexFallback;
+        public string scene,cameraName,startedUtc,finishedUtc,stopReason,cpuDataStatus;
+        public int actualScreenWidth=Screen.width,actualScreenHeight=Screen.height;
+        public string submissionThreadRule="Actual names containing RHI or beginning Render Thread / GfxDeviceWorker; aggregate remains labelled Render Thread for compatibility. Never add it to parallel Main frame time.";
+        public string scope="Editor-inclusive CPU-only instrumentation; profileEditor=true deliberately includes EditorLoop/UI costs; GPU profiling disabled for capture and all original flags restored. CPU profiling still adds overhead. Compare against unprofiled baseline; not standalone Player/device proof.";
+        public string exclusiveRule="self=inclusive-sum(direct child inclusive); recursive descendant count skips child subtrees. Never sum inclusive hierarchy levels or add parallel Main/Render Thread frame times.";
+        public string waitClassification="Name contains Wait or Sleep, equals Idle, or ends .Idle. Sum exclusive self only; nonWaitMarkerExclusiveMs remains unclassified CPU time, not proof all work is useful. Present/JobHandle.Complete are not automatically labelled wait.";
+        public double timeoutSeconds=TimeoutSeconds,elapsedSeconds;
+        public Flags previousProfilerFlags,captureProfilerFlags,restoredProfilerFlags;
+        public FrameReceipt[] observedCameraFrames;public int[] selectedProfilerFrameIndices;
+        public ThreadFrame[] threadFrames;public ThreadAggregate mainThread,renderThread;public string[] errors;
+        public ThreadInventoryItem[] threadInventory;
+    }
+}

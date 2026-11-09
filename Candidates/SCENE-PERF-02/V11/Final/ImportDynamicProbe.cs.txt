@@ -1,0 +1,29 @@
+// Root-only single import. No existing asset overwrite, scene save, route change,
+// frozen-scene edit or runtime initialization. Durable receipt precedes import.
+using System;using System.IO;using System.Linq;using System.Security.Cryptography;
+using UnityEngine;using UnityEngine.SceneManagement;using UnityEditor;
+using Funplay.Editor.Tools.Scripting;using Ossastra.Commerce.Runtime;
+public sealed class ImportScenePerf02FinalDynamicProbe:IFunplayCommand
+{
+ const string Main="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity";
+ const string Frozen="Assets/OSSASTRA/Development/ScenePerformance02Build/ScenePerfBuild_20261108_143830_5286804.unity";
+ const string FrozenSha="C26E9C071F4E45B166B21C6666426FCDF97F495119E0BE48B39E72B9C3CC1DA6";
+ const string Source="Candidates/SCENE-PERF-02/Player/ScenePerformanceDynamicRouteProbe.cs.txt";
+ const string SourceSha="CFDAEB483F44A333889A7DA27E1252CDE4A1824492F83F9B990345BCBD14850D";
+ const string Target="Assets/OSSASTRA/Scripts/Development/ScenePerformanceDynamicRouteProbe.cs";
+ public void Execute(ExecutionContext ctx)
+ {
+  if(Application.dataPath.Replace('\\','/')!="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets"||Application.isPlaying||EditorApplication.isPlayingOrWillChangePlaymode||EditorApplication.isCompiling||EditorApplication.isUpdating||BuildPipeline.isBuildingPlayer)throw new InvalidOperationException("Stable intended pre-Start Edit required");
+  var scene=SceneManager.GetActiveScene();if(SceneManager.sceneCount!=1||scene.path!=Main)throw new InvalidOperationException("Unique author main required");
+  var services=scene.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<CommerceService>(true)).ToArray();if(services.Length!=1||services[0].SavePath!=null)throw new InvalidOperationException("Exactly one pre-Start author Commerce required");
+  var commerce=services[0];bool dirty=scene.isDirty;string route=commerce.saveDirectory,profile=commerce.profileId,mainSha=Hash(Main);int handle=scene.handle;
+  if(!File.Exists(Source)||Hash(Source)!=SourceSha||!File.Exists(Frozen)||Hash(Frozen)!=FrozenSha)throw new IOException("Exact reviewed Dynamic candidate and immutable C26 scene required");
+  if(File.Exists(Target)||File.Exists(Target+".meta")||AssetDatabase.LoadAssetAtPath<MonoScript>(Target)!=null)throw new IOException("Dynamic probe already exists: inspect durable receipt and asset; never overwrite/replay");
+  string receipt=Path.GetFullPath("artifacts/SCENE-PERF-02/Final/dynamic-import-"+DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff")+".json");Directory.CreateDirectory(Path.GetDirectoryName(receipt));
+  Action<string> write=status=>File.WriteAllText(receipt,Newtonsoft.Json.JsonConvert.SerializeObject(new{status,source=Source,sourceSha256=SourceSha,target=Target,frozenScene=Frozen,frozenSha256=FrozenSha,mainScene=Main,mainSceneSha256=mainSha,sceneHandle=handle,dirtyBefore=dirty,commerceRoute=route,profile,preStartVerified=commerce.SavePath==null,sceneSaved=false},Newtonsoft.Json.Formatting.Indented));
+  write("validated-before-single-copy");File.Copy(Source,Target,false);
+  if(Hash(Target)!=SourceSha||SceneManager.GetActiveScene()!=scene||scene.handle!=handle||scene.isDirty!=dirty||Hash(Main)!=mainSha||Hash(Frozen)!=FrozenSha||commerce.SavePath!=null||commerce.saveDirectory!=route||commerce.profileId!=profile)throw new InvalidOperationException("Pre-import identity changed; inspect exact newly copied asset, do not overwrite or replay");
+  write("copied-sha-and-preStart-verified-import-requested");AssetDatabase.ImportAsset(Target);ctx.ReturnValue=new{receipt,target=Target,sourceSha256=SourceSha,sceneSaved=false,preStartVerified=true};
+ }
+ static string Hash(string path){using(var sha=SHA256.Create())using(var stream=File.OpenRead(path))return BitConverter.ToString(sha.ComputeHash(stream)).Replace("-","");}
+}

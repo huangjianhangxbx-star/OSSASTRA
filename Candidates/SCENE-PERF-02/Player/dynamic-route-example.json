@@ -1,0 +1,244 @@
+{
+  "schemaVersion": 1,
+  "loop": true,
+  "initializeAtExterior": true,
+  "steps": [
+    {
+      "kind": "move",
+      "worldTarget": {
+        "y": 0.1,
+        "x": -16.0,
+        "z": -18.2
+      },
+      "radius": 0.3,
+      "verticalTolerance": 0.7,
+      "minimumSeconds": 0.25,
+      "maximumSeconds": 18
+    },
+    {
+      "kind": "orbit",
+      "direction": 1,
+      "minimumSeconds": 1.25,
+      "maximumSeconds": 6
+    },
+    {
+      "kind": "orbit",
+      "direction": 1,
+      "minimumSeconds": 1.25,
+      "maximumSeconds": 6
+    },
+    {
+      "kind": "move",
+      "worldTarget": {
+        "y": 0.1,
+        "x": -16.0,
+        "z": -16.8
+      },
+      "radius": 0.3,
+      "verticalTolerance": 0.7,
+      "minimumSeconds": 0.25,
+      "maximumSeconds": 18
+    },
+    {
+      "kind": "move",
+      "worldTarget": {
+        "y": 0.1,
+        "x": -16.0,
+        "z": -15.2
+      },
+      "radius": 0.3,
+      "verticalTolerance": 0.7,
+      "minimumSeconds": 0.25,
+      "maximumSeconds": 18
+    },
+    {
+      "kind": "move",
+      "worldTarget": {
+        "y": 0.1,
+        "x": -16.0,
+        "z": -13.0
+      },
+      "radius": 0.3,
+      "verticalTolerance": 0.7,
+      "minimumSeconds": 0.25,
+      "maximumSeconds": 18
+    },
+    {
+      "kind": "switch",
+      "open": false,
+      "minimumSeconds": 1.0,
+      "maximumSeconds": 6
+    },
+    {
+      "kind": "move",
+      "worldTarget": {
+        "y": 0.1,
+        "x": -15.5,
+        "z": -12.5
+      },
+      "radius": 0.3,
+      "verticalTolerance": 0.7,
+      "minimumSeconds": 0.25,
+      "maximumSeconds": 18
+    },
+    {
+      "kind": "shutter",
+      "open": true,
+      "minimumSeconds": 1.5,
+      "maximumSeconds": 6
+    },
+    {
+      "kind": "orbit",
+      "direction": 1,
+      "minimumSeconds": 1.25,
+      "maximumSeconds": 6
+    },
+    {
+      "kind": "orbit",
+      "direction": 1,
+      "minimumSeconds": 1.25,
+      "maximumSeconds": 6
+    },
+    {
+      "kind": "shutter",
+      "open": false,
+      "minimumSeconds": 1.5,
+      "maximumSeconds": 6
+    },
+    {
+      "kind": "door",
+      "open": false,
+      "minimumSeconds": 1.5,
+      "maximumSeconds": 6
+    },
+    {
+      "kind": "door",
+      "open": true,
+      "minimumSeconds": 1.5,
+      "maximumSeconds": 6
+    },
+    {
+      "kind": "move",
+      "worldTarget": {
+        "y": 0.1,
+        "x": -13.0,
+        "z": -12.0
+      },
+      "radius": 0.3,
+      "verticalTolerance": 0.7,
+      "minimumSeconds": 0.25,
+      "maximumSeconds": 18
+    },
+    {
+      "kind": "move",
+      "worldTarget": {
+        "y": 0.1,
+        "x": -11.0,
+        "z": -12.0
+      },
+      "radius": 0.3,
+      "verticalTolerance": 0.7,
+      "minimumSeconds": 0.25,
+      "maximumSeconds": 18
+    },
+    {
+      "kind": "orbit",
+      "direction": 1,
+      "minimumSeconds": 1.25,
+      "maximumSeconds": 6
+    },
+    {
+      "kind": "switch",
+      "open": false,
+      "minimumSeconds": 1.0,
+      "maximumSeconds": 6
+    },
+    {
+      "kind": "move",
+      "worldTarget": {
+        "y": 0.1,
+        "x": -13.0,
+        "z": -12.0
+      },
+      "radius": 0.3,
+      "verticalTolerance": 0.7,
+      "minimumSeconds": 0.25,
+      "maximumSeconds": 18
+    },
+    {
+      "kind": "move",
+      "worldTarget": {
+        "y": 0.1,
+        "x": -16.0,
+        "z": -13.0
+      },
+      "radius": 0.3,
+      "verticalTolerance": 0.7,
+      "minimumSeconds": 0.25,
+      "maximumSeconds": 18
+    },
+    {
+      "kind": "orbit",
+      "direction": 1,
+      "minimumSeconds": 1.25,
+      "maximumSeconds": 6
+    },
+    {
+      "kind": "move",
+      "worldTarget": {
+        "y": 0.1,
+        "x": -16.0,
+        "z": -15.2
+      },
+      "radius": 0.3,
+      "verticalTolerance": 0.7,
+      "minimumSeconds": 0.25,
+      "maximumSeconds": 18
+    },
+    {
+      "kind": "move",
+      "worldTarget": {
+        "y": 0.1,
+        "x": -16.0,
+        "z": -16.8
+      },
+      "radius": 0.3,
+      "verticalTolerance": 0.7,
+      "minimumSeconds": 0.25,
+      "maximumSeconds": 18
+    },
+    {
+      "kind": "move",
+      "worldTarget": {
+        "y": 0.1,
+        "x": -16.0,
+        "z": -18.2
+      },
+      "radius": 0.3,
+      "verticalTolerance": 0.7,
+      "minimumSeconds": 0.25,
+      "maximumSeconds": 18
+    },
+    {
+      "kind": "orbit",
+      "direction": 1,
+      "minimumSeconds": 1.25,
+      "maximumSeconds": 6
+    },
+    {
+      "kind": "orbit",
+      "direction": 1,
+      "minimumSeconds": 1.25,
+      "maximumSeconds": 6
+    },
+    {
+      "kind": "wait",
+      "open": false,
+      "minimumSeconds": 5.0,
+      "maximumSeconds": 6
+    }
+  ],
+  "candidateOnly": true,
+  "coordinateEvidence": "Candidates/KT-VIS-04/BuildRoomSample.cs.txt + ConfigureIncrement.cs.txt, Candidates/KT-VIS-05/ConfigureFinal.cs.txt; current Native positions/colliders must be confirmed before acceptance",
+  "requiredNormalSeconds": 120
+}

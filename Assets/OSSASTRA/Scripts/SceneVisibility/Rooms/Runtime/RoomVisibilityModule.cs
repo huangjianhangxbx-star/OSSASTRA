@@ -13,7 +13,7 @@ using Ossastra.SceneVisibility.Rooms.Rendering;
 namespace Ossastra.SceneVisibility.Rooms
 {
     [DisallowMultipleComponent]
-    public sealed partial class RoomVisibilityModule : MonoBehaviour
+    public sealed partial class RoomVisibilityModule : MonoBehaviour, IRoomStaticTerrainOwner
     {
         [Header("作者登记；不根据名称、Layer或门户连通猜建筑")]
         public BuildingVisibilityRoot[] buildings = Array.Empty<BuildingVisibilityRoot>();
@@ -39,6 +39,13 @@ namespace Ossastra.SceneVisibility.Rooms
         readonly HashSet<Renderer> roofMembers = new HashSet<Renderer>();
         readonly RoomRendererScope visualScope = new RoomRendererScope();
         readonly RoomMaskFrame frame = new RoomMaskFrame();
+        readonly RoomStaticTerrainPreparation staticTerrainPreparation = new RoomStaticTerrainPreparation();
+        internal RoomStaticTerrainPreparation StaticTerrainPreparation => staticTerrainPreparation;
+        Renderer[] IRoomStaticTerrainOwner.SharedTerrainSurfaces=>sharedSurfaces;
+        bool IRoomStaticTerrainOwner.IsRetainedTerrainStatic(Renderer renderer)=>IsRetainedTerrainStatic(renderer);
+        internal bool IsRetainedTerrainStatic(Renderer renderer)=>renderer!=null&&IsReady&&
+            !roofMembers.Contains(renderer)&&!permanentMembers.Contains(renderer)&&!contentOwners.ContainsKey(renderer)&&
+            !movingAnchors.ContainsKey(renderer)&&!presentationMembers.Contains(renderer)&&IsStaticEnvironment(renderer);
         readonly List<RoomMaskVolume> knownVolumeScratch = new List<RoomMaskVolume>(8);
         readonly List<Collider> labelRaycastExclusionScratch = new List<Collider>(16);
         readonly List<RoomRegion> regionScratch = new List<RoomRegion>(16);
@@ -56,6 +63,7 @@ namespace Ossastra.SceneVisibility.Rooms
         Vector3 lastFoot;
         int lastLifeGeneration;
         bool initialized, globalEnabled, immediateRequested = true;
+        bool cameraScopeOpen;
         BuildingVisibilityRoot statusBuilding;
         RoomRegion statusRoom;
         int statusDiscoveryCount = -1;
@@ -240,6 +248,10 @@ namespace Ossastra.SceneVisibility.Rooms
         {
             if (context == null || camera == null || camera != context.gameplayCamera) return;
             if (!initialized || owner != context || boundCamera != camera) Initialize(context);
+            // End only this owner's previous exact camera borrow before capturing source references.
+            // Repeated same-frame Begin must not classify our previous queue clones as author sources.
+            if(cameraScopeOpen)RoomMaskCameraRegistry.EndScope(this, camera);
+            cameraScopeOpen=false;
             visualScope.Dispose();
             positiveScope.Dispose();
             globalEnabled = enabled && effectEnabled && isActiveAndEnabled;
@@ -254,6 +266,7 @@ namespace Ossastra.SceneVisibility.Rooms
                 foreach (var roof in ActiveBuilding.roofGroups) if (roof != null)
                     foreach (var member in roof.members) visualScope.Suppress(member);
             ApplyPositiveRegistration();
+            cameraScopeOpen=true;
             RoomMaskCameraRegistry.Publish(this, camera, frame);
             if (statusBuilding != ActiveBuilding || statusRoom != ActiveRoom || statusDiscoveryCount != discovered.Count)
             {
@@ -268,7 +281,7 @@ namespace Ossastra.SceneVisibility.Rooms
         {
             if (context != owner || camera != boundCamera) return;
             try { visualScope.Dispose(); positiveScope.Dispose(); }
-            finally { RoomMaskCameraRegistry.EndScope(this, camera); }
+            finally { RoomMaskCameraRegistry.EndScope(this, camera);cameraScopeOpen=false; }
         }
 
         public void SuspendCamera(SceneVisibilityRoot context)
@@ -399,6 +412,10 @@ namespace Ossastra.SceneVisibility.Rooms
         }
         void ReleaseOwnedState()
         {
+            cameraScopeOpen=false;
+            staticTerrainPreparation.Clear();
+            positiveSourceFacts.Clear();
+            ClearSharedSurfaceMembership();
             visualScope.Dispose();
             positiveScope.Dispose();
             // Camera可能先于模块被Unity销毁；保留其托管包装器以撤销同一InstanceID的自有登记。

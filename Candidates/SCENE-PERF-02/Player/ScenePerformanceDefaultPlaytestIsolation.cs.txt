@@ -1,0 +1,119 @@
+/* Only unflagged, explicitly owned ScenePerformance02Build copies get a persistent local playtest profile.
+ * Before Start: disable inventory sessions, redirect every found CommerceService to the safe profile FIRST,
+ * verify the exact approved four-file source/profile, initialize only once without overwriting prior playtest.
+ * CLI measurements, the author main scene and general builds are unchanged. Failure never returns to source.
+ */
+#if UNITY_STANDALONE_WIN && !UNITY_EDITOR
+using System;
+using System.IO;
+using System.Linq;
+using System.Collections.Generic;
+using System.Security.Cryptography;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using Ossastra.Inventory;
+using Ossastra.Commerce.Runtime;
+using Ossastra.Commerce.Persistence;
+
+namespace Ossastra.Development.WorldRendering
+{
+ public static class ScenePerformanceDefaultPlaytestIsolation
+ {
+  const string OwnedFolder="Assets/OSSASTRA/Development/ScenePerformance02Build/";
+  const string TaskRoot="E:/WORLDCREATOR/XingHaiHuiLang/研究/SCENE-PERF-02";
+  const string FrozenSource=TaskRoot+"/test-commerce-v2";
+  const string Playtest=TaskRoot+"/playtest-profile";
+  const string Profile="kt-vis06-natural-01";
+  static bool subscribed;
+
+  [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+  static void Boot()
+  {
+   var args=System.Environment.GetCommandLineArgs();
+   if(subscribed||IsMeasurementInvocation(args))return;
+   SceneManager.sceneLoaded+=Loaded;subscribed=true;
+  }
+  static void Loaded(Scene scene,LoadSceneMode mode)
+  {
+   string path=scene.path.Replace('\\','/');
+   if(!path.StartsWith(OwnedFolder,StringComparison.Ordinal)||path.Contains("..")||!Path.GetFileName(path).StartsWith("ScenePerfBuild_",StringComparison.Ordinal)||!path.EndsWith(".unity",StringComparison.Ordinal))return;
+   SceneManager.sceneLoaded-=Loaded;subscribed=false;
+   var sessions=new List<(InventorySession session,bool enabled)>();
+   try
+   {
+    var roots=scene.GetRootGameObjects();
+    foreach(var root in roots)foreach(var session in root.GetComponentsInChildren<InventorySession>(true)){sessions.Add((session,session.enabled));session.enabled=false;}
+    var services=roots.SelectMany(r=>r.GetComponentsInChildren<CommerceService>(true)).ToArray();
+    var originalRoutes=services.Select(c=>c.saveDirectory).ToArray();
+    // Redirect before all remaining validation/IO. No failure path restores the frozen source route.
+    foreach(var service in services)service.saveDirectory=Playtest;
+    // Tuanjie first-load callbacks report raw mode2. Validate the actual single
+    // active owned scene instead of treating that engine enum as scene identity.
+    if(services.Length!=1||sessions.Count==0||SceneManager.sceneCount!=1||SceneManager.GetActiveScene().handle!=scene.handle)throw new InvalidOperationException("Exact single active owned scene/Commerce/inventory startup required: services="+services.Length+", sessions="+sessions.Count+", loadMode="+mode+", sceneCount="+SceneManager.sceneCount+", scene="+scene.path);
+    var commerce=services[0];
+    if(commerce.SavePath!=null||commerce.SaveStatus!=null||commerce.inventory==null||commerce.profileId!=Profile||!Same(originalRoutes[0],FrozenSource))throw new InvalidOperationException("Owned build pre-Start/source/profile identity differs from approved frozen-v2");
+    bool created=EnsureProfile(FrozenSource,Playtest,Profile);string[] expected=ExpectedFiles(FrozenSource,Profile);
+    if(commerce.saveDirectory!=Playtest||commerce.profileId!=Profile||commerce.SavePath!=null||commerce.SaveStatus!=null)throw new InvalidOperationException("Final pre-Start isolation/source verification failed");
+    foreach(var state in sessions)if(state.session!=null)state.session.enabled=state.enabled;
+    var receipt=new Receipt{pass=true,scene=path,profileId=Profile,safeRoute=Playtest,approvedSource=FrozenSource,createdNewPlaytest=created,sourceUnchanged=true,preStart=true,actualLoadMode=(int)mode,actualSceneCount=SceneManager.sceneCount,activeSceneMatches=SceneManager.GetActiveScene().handle==scene.handle,expectedFiles=expected,utc=DateTime.UtcNow.ToString("O"),scope="Unflagged owned Player copy only; no source overwrite, renderer/camera/quality/profiler changes"};
+    // Audit lives outside both four-file profile directories. Failure to write it cannot revert the safe route.
+    File.WriteAllText(Path.Combine(TaskRoot,"playtest-profile-launch-latest.json"),JsonUtility.ToJson(receipt,true));
+   }
+   catch(Exception e)
+   {
+    foreach(var state in sessions)if(state.session!=null)state.session.enabled=false;
+    foreach(var root in scene.GetRootGameObjects())foreach(var c in root.GetComponentsInChildren<CommerceService>(true))c.saveDirectory=Playtest;
+    Debug.LogError("SCENE_PERF02_UNFLAGGED_ISOLATION_FAILED "+e.Message);Application.Quit(1);
+   }
+  }
+  internal static bool IsMeasurementInvocation(string[] args)=>Array.IndexOf(args,"--scene-perf02-cpu")>=0||Array.IndexOf(args,"--scene-perf02-run")>=0;
+  // The same filesystem transaction is exercised by the isolated contract; only Loaded fixes production paths.
+  internal static bool EnsureProfile(string source,string destination,string profile)
+  {
+   source=Path.GetFullPath(source);destination=Path.GetFullPath(destination);
+   if(Within(source,destination)||Within(destination,source))throw new IOException("Source and playtest directories must be disjoint");
+   GuardDirectoryChain(source);GuardDirectoryChain(destination);
+   if(!Directory.Exists(source))throw new DirectoryNotFoundException(source);
+   string[] expected=ExpectedFiles(source,profile);ValidateDirectory(source,expected,profile);
+   var before=Fingerprint(source,expected);bool created=false;
+   if(Directory.Exists(destination))ValidateDirectory(destination,expected,profile);
+   else
+   {
+    // Publish a complete new directory atomically; never merge into or overwrite an existing profile.
+    string staged=Path.Combine(Path.GetDirectoryName(destination),".playtest-profile-init-"+Guid.NewGuid().ToString("N"));
+    GuardDirectoryChain(staged);Directory.CreateDirectory(staged);
+    foreach(var file in expected)File.Copy(Path.Combine(source,file),Path.Combine(staged,file),false);
+    ValidateDirectory(staged,expected,profile);
+    if(before!=Fingerprint(source,expected)||before!=Fingerprint(staged,expected))throw new IOException("Frozen source changed or staged bytes differ");
+    Directory.Move(staged,destination);created=true;
+   }
+   if(before!=Fingerprint(source,expected))throw new IOException("Frozen source changed while initializing playtest");
+   return created;
+  }
+  static string[] ExpectedFiles(string source,string profile)
+  {
+   string name=Path.GetFileName(new CommerceFileSaveStore(source).PathForProfile(profile));
+   return new[]{name,name+".bak",name+".session",name+".write.lock"}.OrderBy(v=>v,StringComparer.Ordinal).ToArray();
+  }
+  static void ValidateDirectory(string folder,string[] expected,string profile)
+  {
+   GuardDirectoryChain(folder);
+   var actual=Directory.GetFileSystemEntries(folder).Select(Path.GetFileName).OrderBy(v=>v,StringComparer.Ordinal).ToArray();
+   if(!actual.SequenceEqual(expected,StringComparer.Ordinal))throw new IOException("Exact four-file profile directory required: "+folder);
+   foreach(var name in expected){string path=Path.Combine(folder,name);if(!File.Exists(path)||(File.GetAttributes(path)&FileAttributes.ReparsePoint)!=0)throw new IOException("Profile must contain regular files only");}
+   var store=new CommerceFileSaveStore(folder);var primary=store.Load(profile);var backup=store.LoadBackup(profile);
+   if(primary.Status!=CommerceSaveLoadStatus.Loaded||backup.Status!=CommerceSaveLoadStatus.Loaded||primary.Snapshot.ProfileId!=profile||backup.Snapshot.ProfileId!=profile)throw new InvalidDataException("Existing profile/backup identity or envelope is invalid; preserved without overwrite");
+  }
+  static string Fingerprint(string folder,string[] names)=>string.Join("|",names.Select(n=>n+":"+Hash(Path.Combine(folder,n))));
+  static string Hash(string path){using(var sha=SHA256.Create())using(var file=File.OpenRead(path))return BitConverter.ToString(sha.ComputeHash(file)).Replace("-","");}
+  static bool Same(string a,string b)=>!string.IsNullOrEmpty(a)&&string.Equals(Path.GetFullPath(a).TrimEnd('\\','/'),Path.GetFullPath(b).TrimEnd('\\','/'),StringComparison.OrdinalIgnoreCase);
+  static bool Within(string value,string root)=>Same(value,root)||Path.GetFullPath(value).StartsWith(Path.GetFullPath(root).TrimEnd('\\','/')+Path.DirectorySeparatorChar,StringComparison.OrdinalIgnoreCase);
+  static void GuardDirectoryChain(string folder)
+  {
+   for(var item=new DirectoryInfo(Path.GetFullPath(folder));item!=null;item=item.Parent)
+    if(item.Exists&&(item.Attributes&FileAttributes.ReparsePoint)!=0)throw new IOException("Reparse parent rejected: "+item.FullName);
+  }
+  [Serializable]sealed class Receipt{public bool pass,createdNewPlaytest,sourceUnchanged,preStart,activeSceneMatches;public int actualLoadMode,actualSceneCount;public string scene,profileId,safeRoute,approvedSource,utc,scope;public string[] expectedFiles;}
+ }
+}
+#endif

@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+ <PropertyGroup><AssemblyName>ScenePerf02StaticTerrainRuntimeOverlay</AssemblyName><TargetFramework>netstandard2.1</TargetFramework><EnableDefaultCompileItems>false</EnableDefaultCompileItems><ImplicitUsings>disable</ImplicitUsings><DefineConstants>UNITY_EDITOR</DefineConstants><NoWarn>MSB3277;CS0436</NoWarn></PropertyGroup>
+ <ItemGroup>
+  <Compile Include="RoomStaticTerrainPreparation.cs.txt" />
+  <Compile Include="RoomPositiveRenderingLayers.cs.txt" />
+  <Compile Include="RoomPositiveScope.cs.txt" />
+  <Compile Include="Support/CompileOnly/RoomVisibilityModule.cs.txt" />
+  <Compile Include="Support/CompileOnly/RoomVisibilitySight.cs.txt" />
+  <Compile Include="Support/CompileOnly/RoomRegionStaticBridge.cs.txt" />
+  <Compile Include="Support/CompileOnly/PortalSightGeometryInternal.cs.txt" />
+  <Compile Include="RoomVisibilityPresentation.cs.txt" />
+  <Compile Include="Support/*.cs.txt" />
+  <Reference Include="E:/unity/Tuanjie Hub/2022.3.62t16/Editor/Data/Managed/UnityEngine/*.dll" />
+  <Reference Include="E:/WORLDCREATOR/new/Project_ANKALUTE/Library/ScriptAssemblies/*.dll" />
+ </ItemGroup>
+</Project>

@@ -1,0 +1,147 @@
+/* Necessary capability gate only. Pre-Cull private material payload versus pre-Cull
+ * MPB, using actual SRP Cull/DrawRenderers and existing shaders. No new shader,
+ * production binding, cull-after-MPB fallback, pipeline or camera/quality edit.
+ * Root executes outside normal timing; async readbacks and exact cleanup.
+ */
+using System;using System.IO;using System.Linq;using System.Collections.Generic;
+using UnityEngine;using UnityEngine.Rendering;using UnityEngine.SceneManagement;using UnityEditor;
+using Funplay.Editor.Tools.Scripting;using Object=UnityEngine.Object;
+
+public sealed class StaticTerrainPrivateMaterialBindingCapability:IFunplayCommand
+{
+ static Session active;
+ public void Execute(ExecutionContext ctx)
+ {
+  if(Application.dataPath.Replace('\\','/')!="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets"||Application.isPlaying||EditorApplication.isPlayingOrWillChangePlaymode||EditorApplication.isCompiling||EditorApplication.isUpdating)throw new InvalidOperationException("Stable ANKALUTE Edit required; never execute during normal timing");
+  if(active!=null)throw new InvalidOperationException("One owned capability already pending");
+  if(!SystemInfo.supportsAsyncGPUReadback||SystemInfo.graphicsDeviceType==GraphicsDeviceType.Null||Resources.FindObjectsOfTypeAll<SceneView>().Length==0)throw new InvalidOperationException("Actual GPU/readback and existing SceneView required");
+  active=new Session();try{active.Begin();ctx.ReturnValue=new{status="queued-private-material-necessary-capability",active.path,timeoutSeconds=25,scope="Pre-Cull owner binding and aggregate-MPB detection only; not environment-light/shadow/lifecycle/Batcher/performance certification"};}catch{active.Cleanup();active=null;throw;}
+ }
+ sealed class Case
+ {
+  internal string shader,label;internal Material target;internal MeshRenderer renderer;internal RenderTexture rt;
+  internal uint mask;internal int pass,owner,globalOwner;internal bool material,slot,cullCompleted,pixelPass;internal bool visible;
+  internal Color32[] pixels;internal int bright=-1;internal Dictionary<string,bool> declared;
+ }
+ sealed class Session
+ {
+  internal readonly string path=Path.GetFullPath("artifacts/SCENE-PERF-02/v11-private-material-binding-capability-"+DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff")+".json");
+  readonly List<Case> cases=new List<Case>();readonly List<GameObject> objects=new List<GameObject>();
+  readonly List<Material> materials=new List<Material>();readonly List<int> crcs=new List<int>();readonly List<RenderTexture> textures=new List<RenderTexture>();readonly List<string> errors=new List<string>();
+  Mesh mesh;Material source;Camera camera;Scene scene;bool dirty,begun,ended,complete,timeout,queuedRestore,aggregateProbePass;int sceneCount,pending;double deadline;RenderTexture oldActive;
+  bool noBlockBefore,rendererDetected,slotDetected,clearedAfter;
+  static readonly string[] Ints={"_RoomSightSeedCount","_RoomSightBuildingCount","_RoomSightDomainCount","_RoomSightBlockerCount","_RoomSightWindowCount","_RoomSightCameraBlockerCount","_RoomSightOwnerCount","_RoomSightOwnerExterior","_RoomSightExteriorView","_RoomSightPassMode","_RoomFogHistoryCount"};
+  static readonly string[] Floats={"_RoomPositivePermissionMode","_RoomPositiveCoverageMode","_RoomSightStaticEnvironment","_EnvironmentFullSurface","_EnvironmentSurfaceRole","_EnvironmentResponseOverride","_EnvironmentReceiveShadow","_EnvironmentMinimumOverride","_EnvironmentLightingEnabled","_RoomSightRoofMode","_RoomSightCutRoof"};
+  static readonly string[] Vectors={"_RoomFogStyle","_WorldSpaceCameraPos","_RoomSightTargetSize","_ScaledScreenParams"};
+  static readonly string[] PayloadNames={"_RoomSightOwnerCount","_RoomSightOwnerExterior","_RoomSightStaticEnvironment","_EnvironmentFullSurface","_EnvironmentSurfaceRole","_EnvironmentResponseOverride","_EnvironmentReceiveShadow","_EnvironmentMinimumOverride","_RoomSightRoofMode","_RoomSightCutRoof"};
+  internal void Begin()
+  {
+   scene=SceneManager.GetActiveScene();dirty=scene.isDirty;sceneCount=SceneManager.sceneCount;oldActive=RenderTexture.active;deadline=EditorApplication.timeSinceStartup+25;
+   mesh=new Mesh{name="private binding capability quad",hideFlags=HideFlags.HideAndDontSave};mesh.vertices=new[]{new Vector3(-.7f,-.7f,0),new Vector3(.7f,-.7f,0),new Vector3(.7f,.7f,0),new Vector3(-.7f,.7f,0)};mesh.normals=Enumerable.Repeat(Vector3.back,4).ToArray();mesh.tangents=Enumerable.Repeat(new Vector4(1,0,0,-1),4).ToArray();mesh.colors=Enumerable.Repeat(Color.white,4).ToArray();mesh.uv=new[]{Vector2.zero,Vector2.right,Vector2.one,Vector2.up};mesh.subMeshCount=2;mesh.SetTriangles(Array.Empty<int>(),0);mesh.SetTriangles(new[]{0,2,1,0,3,2},1);mesh.RecalculateBounds();
+   camera=Make("disabled private camera").AddComponent<Camera>();camera.enabled=false;camera.orthographic=true;camera.orthographicSize=1;camera.aspect=1;camera.nearClipPlane=.1f;camera.farClipPlane=10;camera.transform.position=new Vector3(10000,10000,9998);camera.transform.rotation=Quaternion.identity;
+   var voxel=Shader.Find("Ossastra/WorldRendering/VoxelLit");if(voxel==null||!voxel.isSupported)throw new InvalidOperationException("Existing source VoxelLit unavailable");source=new Material(voxel){name="private source VoxelLit",hideFlags=HideFlags.HideAndDontSave};Configure(source,voxel.name);materials.Add(source);
+   foreach(string name in new[]{"Hidden/Ossastra/Rooms/PositiveTruth","Ossastra/WorldRendering/SightVoxelLit","Hidden/Ossastra/Rooms/SightLit"})
+   {
+    Add(name,"mpb-allow",false,0,-1,false,true);
+    Add(name,"material-allow",true,0,-1,false,true);
+    Add(name,"mpb-deny",false,-1,0,false,false);
+    Add(name,"material-deny",true,-1,0,false,false);
+    Add(name,"material-allow-last-slot-deny",true,0,0,true,false);
+   }
+   // HasPropertyBlock must see any slot, not merely the Renderer-level block.
+   var probe=cases[1].renderer;noBlockBefore=!probe.HasPropertyBlock();var foreign=new MaterialPropertyBlock();foreign.SetFloat("_PrivateBindingForeign",37);
+   probe.SetPropertyBlock(foreign);rendererDetected=probe.HasPropertyBlock();probe.SetPropertyBlock(null);
+   probe.SetPropertyBlock(foreign,1);slotDetected=probe.HasPropertyBlock();probe.SetPropertyBlock(null,1);clearedAfter=!probe.HasPropertyBlock();
+   aggregateProbePass=noBlockBefore&&rendererDetected&&slotDetected&&clearedAfter;
+   foreach(var material in materials)crcs.Add(material.ComputeCRC());
+   RenderPipelineManager.beginContextRendering+=OnBegin;RenderPipelineManager.endContextRendering+=OnEnd;EditorApplication.update+=Tick;AssemblyReloadEvents.beforeAssemblyReload+=Abort;
+   Write(false,"waiting-for-natural-context",false,false,false);EditorApplication.QueuePlayerLoopUpdate();SceneView.RepaintAll();
+  }
+  GameObject Make(string name){var go=new GameObject("Private binding "+name){hideFlags=HideFlags.HideAndDontSave};objects.Add(go);return go;}
+  void Add(string shaderName,string label,bool material,int owner,int globalOwner,bool slot,bool visible)
+  {
+   if(cases.Count>=16)throw new InvalidOperationException("Bounded private renderer mask budget exceeded");
+   var shader=Shader.Find(shaderName);if(shader==null||!shader.isSupported)throw new InvalidOperationException("Existing target unavailable: "+shaderName);
+   var target=new Material(shader){name="private binding "+label,hideFlags=HideFlags.HideAndDontSave};Configure(target,shaderName);materials.Add(target);
+   var declared=PayloadNames.ToDictionary(n=>n,n=>target.HasProperty(n));
+   if(material)SetMaterialPayload(target,owner); // Before any actual cull, never mutated during queued draws.
+   var go=Make(label);go.transform.position=new Vector3(10000,10000,10000);go.AddComponent<MeshFilter>().sharedMesh=mesh;
+   var renderer=go.AddComponent<MeshRenderer>();renderer.sharedMaterials=new[]{source,source};renderer.renderingLayerMask=1u<<(16+cases.Count);renderer.shadowCastingMode=ShadowCastingMode.Off;
+   if(!material)renderer.SetPropertyBlock(Payload(owner));
+   if(slot)renderer.SetPropertyBlock(Payload(-1),1);
+   var rt=new RenderTexture(32,32,24,RenderTextureFormat.ARGB32,RenderTextureReadWrite.Linear){hideFlags=HideFlags.HideAndDontSave,name="private material binding32"};if(!rt.Create())throw new InvalidOperationException("Private RT allocation failed");textures.Add(rt);
+   int pass=shaderName=="Hidden/Ossastra/Rooms/PositiveTruth"?3:0;if(pass>=target.passCount)throw new InvalidOperationException("Exact existing target pass unavailable");
+   cases.Add(new Case{shader=shaderName,label=label,material=material,owner=owner,globalOwner=globalOwner,slot=slot,visible=visible,target=target,renderer=renderer,rt=rt,pass=pass,mask=renderer.renderingLayerMask,declared=declared});
+  }
+  void OnBegin(ScriptableRenderContext context,List<Camera> cameras)
+  {
+   if(begun||complete)return;begun=true;
+   var ints=Ints.Select(Shader.GetGlobalInteger).ToArray();var floats=Floats.Select(Shader.GetGlobalFloat).ToArray();var vectors=Vectors.Select(Shader.GetGlobalVector).ToArray();var oldV=Shader.GetGlobalMatrix("unity_MatrixV");var oldP=Shader.GetGlobalMatrix("glstate_matrix_projection");var cmd=new CommandBuffer{name="private material binding isolated capability"};
+   try
+   {
+    foreach(var c in cases)
+    {
+     if(!camera.TryGetCullingParameters(out var parameters))throw new InvalidOperationException("Actual private culling parameters unavailable");parameters.cullingOptions=CullingOptions.None;var cull=context.Cull(ref parameters);c.cullCompleted=true;
+     cmd.SetRenderTarget(c.rt);cmd.ClearRenderTarget(true,true,Color.clear);cmd.SetViewport(new Rect(0,0,32,32));cmd.SetViewProjectionMatrices(camera.worldToCameraMatrix,GL.GetGPUProjectionMatrix(camera.projectionMatrix,true));
+     foreach(string name in Ints)cmd.SetGlobalInteger(name,0);cmd.SetGlobalInteger("_RoomSightOwnerCount",c.globalOwner);cmd.SetGlobalInteger("_RoomSightExteriorView",1);
+     foreach(string name in Floats)cmd.SetGlobalFloat(name,0);cmd.SetGlobalFloat("_RoomSightStaticEnvironment",1);cmd.SetGlobalFloat("_EnvironmentSurfaceRole",1);cmd.SetGlobalFloat("_EnvironmentResponseOverride",1);cmd.SetGlobalFloat("_EnvironmentReceiveShadow",1);
+     cmd.SetGlobalVector("_RoomFogStyle",Vector4.zero);cmd.SetGlobalVector("_WorldSpaceCameraPos",camera.transform.position);cmd.SetGlobalVector("_RoomSightTargetSize",new Vector4(32,32,1f/32,1f/32));cmd.SetGlobalVector("_ScaledScreenParams",new Vector4(32,32,1f+1f/32,1f+1f/32));
+     context.ExecuteCommandBuffer(cmd);cmd.Clear();
+     var drawing=new DrawingSettings(new ShaderTagId("UniversalForward"),new SortingSettings(camera){criteria=SortingCriteria.None}){overrideMaterial=c.target,overrideMaterialPassIndex=c.pass,enableDynamicBatching=false,enableInstancing=false,perObjectData=PerObjectData.None};drawing.SetShaderPassName(1,new ShaderTagId("UniversalForwardOnly"));drawing.SetShaderPassName(2,new ShaderTagId("SRPDefaultUnlit"));var filtering=new FilteringSettings(RenderQueueRange.opaque,camera.cullingMask,c.mask);
+     context.DrawRenderers(cull,ref drawing,ref filtering);
+    }
+   }
+   catch(Exception e){errors.Add("actual Cull/DrawRenderers: "+e);}
+   finally
+   {
+    try{cmd.Clear();for(int i=0;i<Ints.Length;++i)cmd.SetGlobalInteger(Ints[i],ints[i]);for(int i=0;i<Floats.Length;++i)cmd.SetGlobalFloat(Floats[i],floats[i]);for(int i=0;i<Vectors.Length;++i)cmd.SetGlobalVector(Vectors[i],vectors[i]);cmd.SetViewProjectionMatrices(oldV,oldP);context.ExecuteCommandBuffer(cmd);queuedRestore=true;}catch(Exception e){errors.Add("queued outer state restore: "+e);}cmd.Release();
+   }
+  }
+  void OnEnd(ScriptableRenderContext context,List<Camera> cameras)
+  {
+   if(!begun||ended||complete)return;ended=true;
+   foreach(var c in cases){pending++;try{AsyncGPUReadback.Request(c.rt,0,TextureFormat.RGBA32,r=>{if(complete)return;try{if(r.hasError)throw new InvalidOperationException("GPU readback error");c.pixels=r.GetData<Color32>().ToArray();}catch(Exception e){errors.Add(e.ToString());}finally{pending--;}});}catch(Exception e){pending--;errors.Add(e.ToString());}}
+  }
+  void Tick()
+  {
+   if(complete)return;if(ended&&pending==0){Finish(timeout?"inconclusive-timeout-readback-ended":"completed");return;}
+   if(!timeout&&EditorApplication.timeSinceStartup>deadline){timeout=true;errors.Add("Natural context/readback timeout; no capability success");if(pending==0)Finish("inconclusive-timeout");else{RenderPipelineManager.beginContextRendering-=OnBegin;RenderPipelineManager.endContextRendering-=OnEnd;Write(false,"inconclusive-timeout-resources-retained-until-readback",false,false,false);}}
+  }
+  void Abort(){if(complete)return;errors.Add("Assembly reload interrupted capability");Finish("inconclusive-reload");}
+  void Finish(string status)
+  {
+   complete=true;bool sourceUnchanged=false,parity=false;
+   try
+   {
+    foreach(var c in cases){c.bright=c.pixels==null?-1:c.pixels.Count(p=>p.r+p.g+p.b>12);c.pixelPass=c.cullCompleted&&(c.visible?c.bright>100:c.bright==0);}
+    parity=cases.GroupBy(c=>c.shader).All(group=>Difference(group.First(c=>c.label=="mpb-allow").pixels,group.First(c=>c.label=="material-allow").pixels)<=1);
+    sourceUnchanged=materials.Select((m,i)=>m!=null&&m.ComputeCRC()==crcs[i]).All(x=>x);
+   }
+   catch(Exception e){errors.Add("validation: "+e);}
+   finally{Cleanup();}
+   bool scenePreserved=scene.IsValid()&&scene==SceneManager.GetActiveScene()&&scene.isDirty==dirty&&SceneManager.sceneCount==sceneCount;
+   bool cleaned=objects.All(x=>x==null)&&materials.All(x=>x==null)&&textures.All(x=>x==null)&&mesh==null;
+   bool necessary=errors.Count==0&&begun&&ended&&cases.All(c=>c.pixelPass)&&parity&&aggregateProbePass&&sourceUnchanged&&scenePreserved&&cleaned&&queuedRestore;
+   Write(necessary,status,sourceUnchanged,cleaned,scenePreserved,parity);active=null;
+  }
+  internal void Cleanup()
+  {
+   RenderPipelineManager.beginContextRendering-=OnBegin;RenderPipelineManager.endContextRendering-=OnEnd;EditorApplication.update-=Tick;AssemblyReloadEvents.beforeAssemblyReload-=Abort;
+   foreach(var go in objects)if(go!=null)Object.DestroyImmediate(go);foreach(var material in materials)if(material!=null)Object.DestroyImmediate(material);foreach(var rt in textures)if(rt!=null){rt.Release();Object.DestroyImmediate(rt);}if(mesh!=null)Object.DestroyImmediate(mesh);RenderTexture.active=oldActive;
+  }
+  void Write(bool necessary,string status,bool sourceUnchanged,bool cleaned,bool scenePreserved,bool parity=false)
+  {
+   Directory.CreateDirectory(Path.GetDirectoryName(path));File.WriteAllText(path,Newtonsoft.Json.JsonConvert.SerializeObject(new{status,necessaryPrerequisitesPass=necessary,productionBindingAllowed=false,sourceUnchanged,resourcesCleaned=cleaned,scenePreserved,queuedRestore,parity,
+    aggregateMpbDetection=new{aggregateProbePass,noBlockBefore,rendererDetected,lastSlotDetected=slotDetected,clearedAfter},errors=errors.ToArray(),
+    rows=cases.Select(c=>new{c.shader,c.label,c.material,c.owner,c.globalOwner,c.slot,c.visible,c.bright,c.pixelPass,c.cullCompleted,materialPropertyDeclaration=c.declared}).ToArray(),
+    scope="Only pre-Cull owner scalar binding and aggregate HasPropertyBlock are tested on real existing shaders/Cull/DrawRenderers. Environment-light response fields are written but not GPU-isolated here; whole lighting/shadows/probe/batcher/mixed-bucket/lifecycle and net gain remain uncertified. No production algorithm is permitted by this receipt. Negative owner controls stop the route without new shader/URP work."},Newtonsoft.Json.Formatting.Indented));
+  }
+  static int Difference(Color32[] a,Color32[] b){if(a==null||b==null||a.Length!=b.Length)return int.MaxValue;int max=0;for(int i=0;i<a.Length;++i){max=Math.Max(max,Math.Abs(a[i].r-b[i].r));max=Math.Max(max,Math.Abs(a[i].g-b[i].g));max=Math.Max(max,Math.Abs(a[i].b-b[i].b));}return max;}
+ }
+ static MaterialPropertyBlock Payload(int owner)
+ {var b=new MaterialPropertyBlock();b.SetInteger("_RoomSightOwnerCount",owner);b.SetInteger("_RoomSightOwnerExterior",0);b.SetFloat("_RoomSightStaticEnvironment",1);b.SetFloat("_EnvironmentFullSurface",0);b.SetFloat("_EnvironmentSurfaceRole",1);b.SetFloat("_EnvironmentResponseOverride",1);b.SetFloat("_EnvironmentReceiveShadow",1);b.SetFloat("_EnvironmentMinimumOverride",0);b.SetFloat("_RoomSightRoofMode",0);b.SetFloat("_RoomSightCutRoof",0);return b;}
+ static void SetMaterialPayload(Material m,int owner)
+ {m.SetInteger("_RoomSightOwnerCount",owner);m.SetInteger("_RoomSightOwnerExterior",0);m.SetFloat("_RoomSightStaticEnvironment",1);m.SetFloat("_EnvironmentFullSurface",0);m.SetFloat("_EnvironmentSurfaceRole",1);m.SetFloat("_EnvironmentResponseOverride",1);m.SetFloat("_EnvironmentReceiveShadow",1);m.SetFloat("_EnvironmentMinimumOverride",0);m.SetFloat("_RoomSightRoofMode",0);m.SetFloat("_RoomSightCutRoof",0);}
+ static void Configure(Material m,string name)
+ {if(m.HasProperty("_Cull"))m.SetFloat("_Cull",0);if(m.HasProperty("_Surface"))m.SetFloat("_Surface",0);if(m.HasProperty("_BaseColor"))m.SetColor("_BaseColor",Color.white);if(m.HasProperty("_BaseMap"))m.SetTexture("_BaseMap",Texture2D.whiteTexture);if(m.HasProperty("_EmissionColor")){m.SetColor("_EmissionColor",Color.white);m.EnableKeyword("_EMISSION");}if(m.HasProperty("_VoxelDiagnostic"))m.SetFloat("_VoxelDiagnostic",1);if(name=="Hidden/Ossastra/Rooms/PositiveTruth"){m.SetFloat("_RoomPositivePartial",1);m.SetColor("_RoomPositiveColor",new Color(.7f,.3f,.1f,1));m.SetFloat("_RoomPositiveDepthWrite",1);m.SetFloat("_RoomSurfaceMode",0);m.SetFloat("_RoomSourceAlphaClip",0);}}
+}

@@ -1,0 +1,315 @@
+/* Adapted from the existing SCENE-PERF-01 Baseline; Root-only, actual author-main Play.
+ * Observe >=5 seconds and 60 consecutive stable actual-camera warmup frames, then 60 seconds; total timeout 100 seconds.
+ * Requires 1600x900 and profiler recording stopped. No window, scene, camera, clock or quality writes.
+ * Reports actual same-camera intervals, p50/p95/p99, budget count and available GPU timings.
+ * Editor timings include Editor overhead. Unavailable GPU/recorder data are never written as zero proof.
+ */
+using System;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Collections.Generic;
+using System.Diagnostics;
+using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEditor;
+using Unity.Profiling;
+using Ossastra.MapResearch;
+using Funplay.Editor.Tools.Scripting;
+
+public sealed class Perf02V11EditorNormal : IFunplayCommand
+{
+    const string ScenePath="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity";
+    const string SessionKey="SCENE-PERF-02.V11.EditorNormal.Active";
+    const int WarmupFrames=60;
+    const double TimeoutSeconds=100,ThresholdMilliseconds=1000d/60d,SampleSeconds=60,WarmupSeconds=5;
+    static Sampler running;
+
+    public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext context)
+    {
+        if(UnityEditorInternal.ProfilerDriver.enabled||UnityEditorInternal.ProfilerDriver.profileGPU||UnityEditorInternal.ProfilerDriver.deepProfiling)throw new InvalidOperationException("Normal Editor sample requires recording/GPU/deep profiling stopped; original flags are not changed by this command");
+        if(!Application.isPlaying||EditorApplication.isPlayingOrWillChangePlaymode!=true)
+            throw new InvalidOperationException("Play only; Root must preserve and isolate the current main before sampling");
+        if(SessionState.GetBool(SessionKey,false))throw new InvalidOperationException("A SCENE-PERF-01 sampler is already active; inspect its existing receipt, do not replay");
+        if(Screen.width!=1600||Screen.height!=900)throw new InvalidOperationException("Actual GameView must remain 1600x900; no resizing by this command");
+        var scene=UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+        if(scene.path!=ScenePath)throw new InvalidOperationException("Wrong main scene");
+        var maps=scene.GetRootGameObjects().SelectMany(r=>r.GetComponentsInChildren<MapResearchRoot>(true)).ToArray();
+        if(maps.Length!=1||maps[0]==null||maps[0].gameplayCamera==null||!maps[0].isActiveAndEnabled||!maps[0].gameplayCamera.enabled)
+            throw new InvalidOperationException("Expected one verified active MapResearchRoot.gameplayCamera");
+        string project=Path.GetFullPath(Path.Combine(Application.dataPath,".."));
+        if(!string.Equals(project.Replace('\\','/'),"E:/WORLDCREATOR/new/Project_ANKALUTE",StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Wrong Unity project");
+        string directory=Path.Combine(project,"artifacts","SCENE-PERF-02","V11","Editor");Directory.CreateDirectory(directory);
+        string path=Path.Combine(directory,"editor-normal-"+DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff")+".json");
+        if(File.Exists(path))throw new IOException("Unique report path required");
+        running=new Sampler(maps[0].gameplayCamera,maps[0],scene.path,path);
+        try{running.Start();}
+        catch{running.Dispose();running=null;throw;}
+        context.ReturnValue=new{status="sampling",path,warmupFrames=WarmupFrames,requiredSampleSeconds=SampleSeconds,
+            totalTimeoutSeconds=TimeoutSeconds,redThresholdMs=ThresholdMilliseconds,
+            camera=maps[0].gameplayCamera.name,cameraId=maps[0].gameplayCamera.GetInstanceID(),
+            note="Receipt only; inspect JSON after completion. No forced redraw or scene parameter changes."};
+    }
+
+    sealed class Sampler : IDisposable
+    {
+        readonly Camera camera;
+        readonly MapResearchRoot map;
+        readonly string path;
+        readonly Report report;
+        readonly Metric[] stats;
+        readonly ThreadMetric mainThread=new ThreadMetric("Main Thread");
+        readonly ThreadMetric renderThread=new ThreadMetric("Render Thread");
+        readonly List<double> intervals=new List<double>();
+        readonly List<double> gpuTimes=new List<double>();
+        readonly List<double> frameTimingCpuTimes=new List<double>();
+        readonly List<double> callbackMicroseconds=new List<double>();
+        readonly List<FrameSample> samples=new List<FrameSample>();
+        readonly FrameTiming[] frameTimingBuffer=new FrameTiming[1];
+        bool hooked,finished;
+        int warmup,lastFrame=-1,stableWarmup;
+        Vector3 warmPosition,measuredPosition;Quaternion warmRotation,measuredRotation;
+        double startSeconds,lastCameraSeconds,samplingStarted=-1;
+        string gpuError="";
+
+        public Sampler(Camera target,MapResearchRoot map,string scene,string output)
+        {
+            camera=target;this.map=map;path=output;
+            report=new Report{scene=scene,cameraName=target.name,cameraInstanceId=target.GetInstanceID(),
+                graphicsDevice=SystemInfo.graphicsDeviceType.ToString(),startedUtc=DateTime.UtcNow.ToString("O")};
+            var statsType=AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType("UnityEditor.UnityStats",false)).FirstOrDefault(t=>t!=null);
+            stats=new[]{"drawCalls","batches","setPassCalls","triangles","vertices","shadowCasters","cpuTime","renderTime"}
+                .Select(name=>new Metric(statsType,name)).ToArray();
+        }
+        public void Start()
+        {
+            startSeconds=Time.realtimeSinceStartupAsDouble;
+            CaptureConditions(true);warmPosition=camera.transform.position;warmRotation=camera.transform.rotation;
+            mainThread.Start();renderThread.Start();
+            SessionState.SetBool(SessionKey,true);
+            RenderPipelineManager.endCameraRendering+=CameraEnded;
+            EditorApplication.update+=Tick;
+            EditorApplication.playModeStateChanged+=PlayChanged;
+            AssemblyReloadEvents.beforeAssemblyReload+=BeforeReload;
+            EditorApplication.quitting+=BeforeQuit;
+            hooked=true;
+        }
+        void CameraEnded(ScriptableRenderContext context,Camera renderedCamera)
+        {
+            if(finished||renderedCamera!=camera||Time.frameCount==lastFrame)return;
+            long callbackStart=Stopwatch.GetTimestamp();
+            try
+            {
+                if(!Application.isPlaying){Finish("left-play",false);return;}
+                double now=Time.realtimeSinceStartupAsDouble;
+                if(now-startSeconds>=TimeoutSeconds){Finish("timeout",false);return;}
+                lastFrame=Time.frameCount;
+                if(samplingStarted<0)
+                {
+                    warmup++;bool stable=(camera.transform.position-warmPosition).sqrMagnitude<1e-8f&&Quaternion.Angle(camera.transform.rotation,warmRotation)<.001f;
+                    stableWarmup=stable?stableWarmup+1:0;warmPosition=camera.transform.position;warmRotation=camera.transform.rotation;lastCameraSeconds=now;
+                    TryReadFrameTiming(false);
+                    if(now-startSeconds>=WarmupSeconds&&stableWarmup>=WarmupFrames){samplingStarted=now;measuredPosition=camera.transform.position;measuredRotation=camera.transform.rotation;CaptureConditions(true);}
+                    return;
+                }
+                if((camera.transform.position-measuredPosition).sqrMagnitude>1e-8f||Quaternion.Angle(camera.transform.rotation,measuredRotation)>.001f)report.changedCameraFrames++;
+                if(Screen.width!=1600||Screen.height!=900)report.changedResolutionFrames++;
+                double frameMs=(now-lastCameraSeconds)*1000;lastCameraSeconds=now;
+                if(!Finite(frameMs)||frameMs<=0)throw new InvalidOperationException("Invalid actual camera frame interval");
+                intervals.Add(frameMs);
+                var values=new double[stats.Length];
+                for(int i=0;i<stats.Length;i++)values[i]=stats[i].Read();
+                double mainNs=mainThread.Read(),renderNs=renderThread.Read();
+                double gpuMs=TryReadFrameTiming(true);
+                samples.Add(new FrameSample{frame=lastFrame,secondsSinceStart=now-startSeconds,frameMs=frameMs,
+                    unityStats=values,mainThreadNanoseconds=mainNs,renderThreadNanoseconds=renderNs,gpuFrameMs=gpuMs});
+                callbackMicroseconds.Add((Stopwatch.GetTimestamp()-callbackStart)*1000000d/Stopwatch.Frequency);
+                if(now-samplingStarted>=SampleSeconds)Finish("completed",true);
+            }
+            catch(Exception error){report.error=error.ToString();Finish("sampling-error",false);}
+        }
+        double TryReadFrameTiming(bool keep)
+        {
+            try
+            {
+                uint count=FrameTimingManager.GetLatestTimings(1,frameTimingBuffer);
+                double gpu=count==0?0:frameTimingBuffer[0].gpuFrameTime;
+                double cpu=count==0?0:frameTimingBuffer[0].cpuFrameTime;
+                if(keep&&Finite(cpu)&&cpu>0)frameTimingCpuTimes.Add(cpu);
+                if(keep&&Finite(gpu)&&gpu>0)gpuTimes.Add(gpu);
+                // 标准时间观测请求，不更改PlayerSettings/相机/渲染器；未启用支持时GetLatestTimings仍返回0。
+                FrameTimingManager.CaptureFrameTimings();
+                return Finite(gpu)&&gpu>0?gpu:-1;
+            }
+            catch(Exception error){gpuError=error.GetType().Name+": "+error.Message;return -1;}
+        }
+        void Tick()
+        {
+            if(finished)return;
+            if(!Application.isPlaying||camera==null){Finish("left-play-or-camera-lost",false);return;}
+            if(Time.realtimeSinceStartupAsDouble-startSeconds>=TimeoutSeconds)Finish("timeout",false);
+        }
+        void PlayChanged(PlayModeStateChange state){if(state==PlayModeStateChange.ExitingPlayMode||state==PlayModeStateChange.EnteredEditMode)Finish("left-play",false);}
+        void BeforeReload(){Finish("assembly-reload",false);}
+        void BeforeQuit(){Finish("editor-quitting",false);}
+        void Finish(string reason,bool completed)
+        {
+            if(finished)return;finished=true;
+            try
+            {
+                report.finishedUtc=DateTime.UtcNow.ToString("O");report.stopReason=reason;report.completed=completed;
+                report.elapsedSeconds=Time.realtimeSinceStartupAsDouble-startSeconds;
+                report.warmedActualFrames=warmup;report.sampledActualFrames=intervals.Count;
+                report.sampleGameFrameFirst=samples.Count==0?-1:samples[0].frame;
+                report.sampleGameFrameLast=samples.Count==0?-1:samples[samples.Count-1].frame;
+                CaptureConditions(false);
+                report.frameMilliseconds=Summary.Of(intervals,"actual same-camera end-render interval","ms");
+                report.overBudgetActualFrames=intervals.Count(ms=>ms>ThresholdMilliseconds);report.overBudgetFraction=intervals.Count==0?1:(double)report.overBudgetActualFrames/intervals.Count;report.measuredSeconds=samplingStarted<0?0:Time.realtimeSinceStartupAsDouble-samplingStarted;
+                report.sustainedRed=intervals.Count>0&&(report.frameMilliseconds.p50>ThresholdMilliseconds||report.frameMilliseconds.mean>ThresholdMilliseconds);
+                report.red=!completed||intervals.Count==0||report.frameMilliseconds.p95>ThresholdMilliseconds||report.frameMilliseconds.p99>ThresholdMilliseconds||report.overBudgetFraction>.01;
+                report.redReason=report.red?"Incomplete capture or Editor p95/p99/over-budget-fraction fails 16.667ms / 1% target; not a standalone Player result":
+                    completed?"Editor p95/p99 and over-budget-fraction meet the 16.667ms / 1% target for this measured condition":"Incomplete run; absence of RED is not a pass";
+                report.unityStatNames=stats.Select(m=>m.Name).ToArray();report.unityStats=stats.Select(m=>m.Summarize()).ToArray();
+                report.mainThread=mainThread.Summarize();report.renderThread=renderThread.Summarize();
+                report.gpuFrameMilliseconds=Summary.Of(gpuTimes,"FrameTimingManager.gpuFrameTime","ms");
+                report.frameTimingCpuMilliseconds=Summary.Of(frameTimingCpuTimes,"FrameTimingManager.cpuFrameTime","ms");
+                report.gpuStatus=gpuTimes.Count>0?"available; latest completed frame timings, may lag same-camera callbacks":
+                    string.IsNullOrEmpty(gpuError)?"unavailable: no positive GPU timing returned; not inferred from FPS":gpuError;
+                report.callbackMicroseconds=Summary.Of(callbackMicroseconds,"sampling callback observed overhead excluding final report I/O","microseconds");
+                report.measuredConditionsStable=report.changedCameraFrames==0&&report.changedResolutionFrames==0;report.samples=samples.ToArray();
+            }
+            finally{Dispose();}
+            try
+            {
+                // Native片段属于动态程序集；JsonUtility会静默丢掉嵌套报告类型，纯字段DTO改用完整JSON序列化。
+                File.WriteAllText(path,Newtonsoft.Json.JsonConvert.SerializeObject(report,Newtonsoft.Json.Formatting.Indented));
+                UnityEngine.Debug.Log("SCENE_PERF_BASELINE_RESULT path="+path+" completed="+completed+" red="+report.red+
+                    " frames="+intervals.Count+" p50_ms="+report.frameMilliseconds.p50.ToString("F3")+" p95_ms="+report.frameMilliseconds.p95.ToString("F3"));
+            }
+            catch(Exception error){UnityEngine.Debug.LogError("SCENE_PERF_BASELINE_WRITE_FAILED callbacks released: "+error);}
+            if(ReferenceEquals(running,this))running=null;
+        }
+        public void Dispose()
+        {
+            if(hooked)
+            {
+                RenderPipelineManager.endCameraRendering-=CameraEnded;EditorApplication.update-=Tick;
+                EditorApplication.playModeStateChanged-=PlayChanged;AssemblyReloadEvents.beforeAssemblyReload-=BeforeReload;
+                EditorApplication.quitting-=BeforeQuit;hooked=false;
+            }
+            mainThread.Dispose();renderThread.Dispose();SessionState.SetBool(SessionKey,false);
+        }
+        void CaptureConditions(bool atStart)
+        {
+            string cameraView=camera==null?"unavailable: camera lost":
+                "position="+camera.transform.position.ToString("F6")+"; euler="+camera.transform.eulerAngles.ToString("F6")+
+                "; orthographic="+camera.orthographic+"; fov="+camera.fieldOfView.ToString("R",System.Globalization.CultureInfo.InvariantCulture)+
+                "; size="+camera.orthographicSize.ToString("R",System.Globalization.CultureInfo.InvariantCulture)+"; pixelRect="+camera.pixelRect.ToString("F3");
+            string mapView=map==null?"unavailable: map lost":
+                "pitch="+map.pitch.ToString("R",System.Globalization.CultureInfo.InvariantCulture)+
+                "; actualYaw="+map.ActualYaw.ToString("R",System.Globalization.CultureInfo.InvariantCulture)+
+                "; distance="+map.distance.ToString("R",System.Globalization.CultureInfo.InvariantCulture)+
+                "; followParticipant="+map.followParticipant+"; fixedTarget="+map.fixedTarget.ToString("F6");
+            if(Screen.width!=1600||Screen.height!=900)throw new InvalidOperationException("Actual GameView must remain 1600x900; no resizing by this command");
+        var scene=UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+            var environments=scene.GetRootGameObjects().SelectMany(r=>r.GetComponentsInChildren<Ossastra.EnvironmentSimulation.EnvironmentRoot>(true)).ToArray();
+            string clock="unavailable: expected one explicit EnvironmentRoot, found "+environments.Length;
+            if(environments.Length==1)
+            {
+                var environment=environments[0];var frame=environment.Current;
+                clock="authorTimeHours="+environment.timeHours.ToString("R",System.Globalization.CultureInfo.InvariantCulture)+
+                    "; clockRunning="+environment.clockRunning+"; manualSun="+environment.manualSun+
+                    "; frameHours="+(frame==null?"unavailable":frame.Hours.ToString("R",System.Globalization.CultureInfo.InvariantCulture))+
+                    "; frameSunElevation="+(frame==null?"unavailable":frame.Sun.ElevationDegrees.ToString("R",System.Globalization.CultureInfo.InvariantCulture))+
+                    "; frameSunAzimuth="+(frame==null?"unavailable":frame.Sun.AzimuthDegrees.ToString("R",System.Globalization.CultureInfo.InvariantCulture));
+            }
+            if(atStart){report.cameraViewStart=cameraView;report.mapViewStart=mapView;report.environmentClockStart=clock;report.screenWidthStart=Screen.width;report.screenHeightStart=Screen.height;}
+            else{report.cameraViewEnd=cameraView;report.mapViewEnd=mapView;report.environmentClockEnd=clock;report.screenWidthEnd=Screen.width;report.screenHeightEnd=Screen.height;}
+        }
+    }
+    sealed class Metric
+    {
+        public readonly string Name;
+        readonly PropertyInfo property;
+        readonly List<double> values=new List<double>();
+        string error;
+        public Metric(Type type,string name)
+        {
+            Name=name;
+            property=type==null?null:type.GetProperty(name,BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Static);
+            if(property==null||property.GetGetMethod(true)==null)error="unavailable: static readable UnityStats property absent";
+        }
+        public double Read()
+        {
+            if(property==null||!string.IsNullOrEmpty(error))return -1;
+            try{double value=Convert.ToDouble(property.GetValue(null,null));if(!Finite(value))throw new InvalidOperationException("nonfinite property");values.Add(value);return value;}
+            catch(Exception e){error="unavailable: "+e.GetType().Name+": "+e.Message;return -1;}
+        }
+        public Summary Summarize()
+        {
+            string unit=Name=="cpuTime"||Name=="renderTime"?"raw UnityStats API value; unit not assumed":"count";
+            var summary=Summary.Of(values,"UnityStats."+Name,unit);summary.status=string.IsNullOrEmpty(error)?(summary.available?"available":"unavailable: no actual samples"):error;return summary;
+        }
+    }
+    sealed class ThreadMetric : IDisposable
+    {
+        readonly string name;
+        readonly List<double> values=new List<double>();
+        ProfilerRecorder recorder;
+        bool valid;
+        string status="unavailable: not started";
+        public ThreadMetric(string marker){name=marker;}
+        public void Start()
+        {
+            try{recorder=ProfilerRecorder.StartNew(ProfilerCategory.Internal,name,1);valid=recorder.Valid;status=valid?"available; latest completed profiler frame":"unavailable: marker not registered";}
+            catch(Exception e){status="unavailable: "+e.GetType().Name+": "+e.Message;}
+        }
+        public double Read()
+        {
+            if(!valid)return -1;
+            try{long value=recorder.LastValue;if(value<=0)return -1;values.Add(value);return value;}
+            catch(Exception e){status="unavailable: "+e.GetType().Name+": "+e.Message;return -1;}
+        }
+        public Summary Summarize(){var summary=Summary.Of(values,"ProfilerRecorder Internal/"+name,"nanoseconds");summary.status=values.Count>0?status:"unavailable: no positive thread timing samples";return summary;}
+        public void Dispose(){if(valid){recorder.Dispose();valid=false;}}
+    }
+    static bool Finite(double value)=>!double.IsNaN(value)&&!double.IsInfinity(value);
+    [Serializable] public sealed class Summary
+    {
+        public string name,unit,status;
+        public bool available;
+        public int samples;
+        public double mean,p50,p95,p99,min,max;
+        public static Summary Of(List<double> input,string name,string unit)
+        {
+            var values=input.Where(Finite).OrderBy(x=>x).ToArray();
+            var result=new Summary{name=name,unit=unit,available=values.Length>0,samples=values.Length,status=values.Length>0?"available":"unavailable: no samples"};
+            if(values.Length==0)return result;
+            result.mean=values.Average();result.min=values[0];result.max=values[values.Length-1];
+            result.p50=values[(int)Math.Ceiling(values.Length*.50)-1];result.p95=values[(int)Math.Ceiling(values.Length*.95)-1];result.p99=values[(int)Math.Ceiling(values.Length*.99)-1];return result;
+        }
+    }
+    [Serializable] public sealed class FrameSample
+    {
+        public int frame;
+        public double secondsSinceStart,frameMs,mainThreadNanoseconds,renderThreadNanoseconds,gpuFrameMs;
+        public double[] unityStats;
+    }
+    [Serializable] public sealed class Report
+    {
+        public int changedCameraFrames,changedResolutionFrames;
+        public bool measuredConditionsStable;
+        public int schemaVersion=2,warmupTarget=WarmupFrames,warmedActualFrames,sampledActualFrames,cameraInstanceId,overBudgetActualFrames;
+        public int screenWidthStart,screenHeightStart,screenWidthEnd,screenHeightEnd,sampleGameFrameFirst=-1,sampleGameFrameLast=-1;
+        public string scene,cameraName,graphicsDevice,startedUtc,finishedUtc,stopReason,error,gpuStatus,redReason;
+        public string cameraViewStart,cameraViewEnd,mapViewStart,mapViewEnd,environmentClockStart,environmentClockEnd;
+        public string scope="Editor actual main-camera baseline; not Player/device performance. No forced redraw or parameter changes.";
+        public bool completed,red,sustainedRed;
+        public double elapsedSeconds,measuredSeconds,requestedSampleSeconds=SampleSeconds,timeoutSeconds=TimeoutSeconds,redThresholdMilliseconds=ThresholdMilliseconds,overBudgetFraction;
+        public Summary frameMilliseconds,mainThread,renderThread,gpuFrameMilliseconds,frameTimingCpuMilliseconds,callbackMicroseconds;
+        public string[] unityStatNames;
+        public Summary[] unityStats;
+        public FrameSample[] samples;
+    }
+}

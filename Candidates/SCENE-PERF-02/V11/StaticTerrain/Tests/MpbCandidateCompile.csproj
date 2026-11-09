@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+ <PropertyGroup><TargetFramework>netstandard2.1</TargetFramework><EnableDefaultCompileItems>false</EnableDefaultCompileItems><ImplicitUsings>disable</ImplicitUsings><DefineConstants>UNITY_EDITOR</DefineConstants><NoWarn>MSB3277;CS0436</NoWarn></PropertyGroup>
+ <ItemGroup>
+  <Compile Include="MpbScopeContracts.cs.txt" />
+  <Compile Include="../Overlay/RoomPositivePropertyScope.cs.txt" />
+  <Compile Include="../Overlay/RoomStaticTerrainPreparation.cs.txt" />
+  <Compile Include="../Overlay/RoomPositiveRenderingLayers.cs.txt" />
+  <Reference Include="E:/unity/Tuanjie Hub/2022.3.62t16/Editor/Data/Managed/UnityEngine/*.dll" />
+  <Reference Include="E:/WORLDCREATOR/new/Project_ANKALUTE/Library/ScriptAssemblies/*.dll" />
+ </ItemGroup>
+</Project>

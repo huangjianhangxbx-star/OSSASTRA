@@ -1,0 +1,12 @@
+// Import only the explicit CPU-only post-window census. Root executes in stable intended Edit.
+using System;using System.IO;using UnityEngine;using UnityEditor;using Funplay.Editor.Tools.Scripting;
+public sealed class ImportScenePerf02Census:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  if(Application.dataPath.Replace('\\','/')!="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets"||EditorApplication.isPlayingOrWillChangePlaymode||EditorApplication.isCompiling||EditorApplication.isUpdating)throw new InvalidOperationException("Stable intended Edit required");
+  const string source="Candidates/SCENE-PERF-02/Player/ScenePerformanceBlockCensus.cs.txt",target="Assets/OSSASTRA/Scripts/Development/ScenePerformanceBlockCensus.cs";
+  if(!File.Exists(source)||File.Exists(target)||AssetDatabase.LoadAssetAtPath<MonoScript>(target)!=null)throw new IOException("Exact new census source/target required; inspect existing target rather than replay");
+  File.Copy(source,target,false);AssetDatabase.ImportAsset(target);ctx.ReturnValue=new{target,sceneSaved=false};
+ }
+}

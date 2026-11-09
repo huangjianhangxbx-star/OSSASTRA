@@ -1,0 +1,207 @@
+/* 功能：Root Native独占构建当前主场完整内容的唯一临时副本，不保存或覆盖用户dirty原场景。
+ * 保护：Edit稳定、唯一主场、完整作者槽/角色声明/原体素与房屋、独立测试源及临时探针先核验。
+ * 生命周期：saveAsCopy=true生成唯一自有ScenePerfBuild场景，只构建该副本；保留临时资产供Root精确清理，未知构建只读receipt不重放。
+ * 边界：StandaloneWindows64 Mono，显式Development/Release同一冻结场；各自固定exe与回执，不force clean或改质量。
+ */
+using System;
+using System.IO;
+using System.Linq;
+using System.Security.Cryptography;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+using UnityEditor.Build.Reporting;
+using Ossastra.VoxelTerrain;
+using Ossastra.WorldRendering.VoxelSurface;
+using Funplay.Editor.Tools.Scripting;
+
+public sealed class BuildScenePerformance02MainCopy
+{
+    const string Main="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity";
+    const string BuildFolder="Assets/OSSASTRA/Development/ScenePerformance02Build";
+    const string SourceArchive="E:/WORLDCREATOR/XingHaiHuiLang/研究/SCENE-PERF-02/test-commerce-v2";
+    // 后续AB固定复用已由本工具Native保存且完成构建的完整现场；不再为每个代码候选产生新Scene。
+    const string ApprovedCopy="Assets/OSSASTRA/Development/ScenePerformance02Build/ScenePerfBuild_20261108_143830_5286804.unity";
+    const string ApprovedCopySha="C26E9C071F4E45B166B21C6666426FCDF97F495119E0BE48B39E72B9C3CC1DA6";
+    const string SessionKey="SCENE-PERF-02.PlayerBuild.Active";
+    public void Run(string requestId,string requestedUtc,string configuration)
+    {
+        if(string.IsNullOrWhiteSpace(requestId))throw new InvalidOperationException("Explicit queued request identity required");
+        ScenePerformanceBuildModes.Validate(configuration);
+        if(PlayerSettings.GetScriptingBackend(UnityEditor.Build.NamedBuildTarget.Standalone)!=ScriptingImplementation.Mono2x)throw new InvalidOperationException("M7 comparison requires unchanged Mono2x backend");
+        var scene=SceneManager.GetActiveScene();
+        if(Application.dataPath.Replace('\\','/')!="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets"||EditorApplication.isPlayingOrWillChangePlaymode||EditorApplication.isCompiling||EditorApplication.isUpdating||BuildPipeline.isBuildingPlayer||SceneManager.sceneCount!=1||scene.path!=Main||SessionState.GetBool(SessionKey,false))throw new InvalidOperationException("Requires unique stable Edit main with no active owned build");
+        var roots=scene.GetRootGameObjects();
+        var comparison=roots.SelectMany(g=>g.GetComponentsInChildren<VoxelSurfaceComparison>(true)).Single();
+        var install=roots.SelectMany(g=>g.GetComponentsInChildren<VoxelTerrainInstallation>(true)).Single();
+        var commerce=roots.SelectMany(g=>g.GetComponentsInChildren<Ossastra.Commerce.Runtime.CommerceService>(true)).Single();
+        string authorRoute=commerce.saveDirectory; if(commerce.SavePath!=null||!Directory.Exists(SourceArchive))throw new InvalidOperationException("Root must explicitly configure exact approved SCENE-PERF-02/test-commerce-v2 before copying the scene");
+        var candidates=AssetDatabase.FindAssets("ScenePerformanceContinuationProbe t:MonoScript",new[]{"Assets/OSSASTRA/Scripts/Development"}).Select(AssetDatabase.GUIDToAssetPath).Where(p=>Path.GetFileName(p)=="ScenePerformanceContinuationProbe.cs").ToArray();
+        if(candidates.Length!=1)throw new InvalidOperationException("Exactly one imported temporary ScenePerformanceContinuationProbe.cs is required under own Development scripts");
+        if(comparison.bindings==null||comparison.bindings.Any(b=>b==null||b.renderer==null||b.original==null||b.original.Any(m=>m==null)||!b.renderer.sharedMaterials.SequenceEqual(b.original))||comparison.bindings.Select(b=>b.renderer).Distinct().Count()!=comparison.bindings.Length)throw new InvalidOperationException("Original complete unique author source slots must be restored before build copy");
+        if(comparison.materialRoles==null||!EditorUtility.IsPersistent(comparison.materialRoles)||!comparison.materialRoles.Validate(out _))throw new InvalidOperationException("Persistent explicit house material roles missing");
+        if(install.editableSource==null||install.frozenSurfaces==null||install.chunks.Length!=224||install.collision.Length!=224||install.timberHouse==null||install.timberHouse.GetComponentsInChildren<MeshRenderer>(true).Length!=8)throw new InvalidOperationException("Original native source/224 chunks/eight house parts missing");
+        var source=VoxelTerrainSource.Parse(install.editableSource.text,install.frozenSurfaces.text);
+        if(source.AssetId!="voxel-map-01-terrain"||source.SourceSha256!=install.sourceSha256)throw new InvalidOperationException("Original terrain frozen/editable SHA mismatch");
+        foreach(var renderer in install.GetComponentsInChildren<MeshRenderer>(true))
+        {
+            var matches=comparison.bindings.Where(b=>b.renderer==renderer).ToArray();if(matches.Length!=1)throw new InvalidOperationException("Installation source lacks unique response registration");
+            var binding=matches[0];bool house=renderer.transform.IsChildOf(install.timberHouse);
+            if(house){if(binding.lightingOnly||!comparison.materialRoles.ContainsAll(binding.original,out _))throw new InvalidOperationException("House role policy missing");}
+            else if(!binding.lightingOnly)throw new InvalidOperationException("Unrelated installed source palette policy lost");
+        }
+        var map=roots.SelectMany(g=>g.GetComponentsInChildren<Ossastra.MapResearch.MapResearchRoot>(true)).Single();
+        var coordinator=roots.SelectMany(g=>g.GetComponentsInChildren<Ossastra.Characters.CharacterControlCoordinator>(true)).Single();
+        if(map.gameplayCamera==null||Mathf.Abs(map.pitch-45)>.001f||coordinator.Characters.Count!=2)throw new InvalidOperationException("Actual 45-degree camera/two-character root missing");
+        bool originalDirty=scene.isDirty;string originalFile=Path.GetFullPath(Main);string originalHash=Hash(originalFile);
+        Folder(BuildFolder);
+        string unique=DateTime.UtcNow.ToString("yyyyMMdd_HHmmss_fffffff");
+        string copy=ApprovedCopy;
+        if(AssetDatabase.LoadAssetAtPath<SceneAsset>(copy)==null||!File.Exists(copy)||Hash(copy)!=ApprovedCopySha)throw new IOException("Exact approved immutable owned scene required; do not replace it silently");
+        string folder=Path.Combine(ScenePerformanceBuildModes.Folder(configuration),"Build_"+unique);Directory.CreateDirectory(folder);
+        string status=Path.Combine(folder,"build-result.json"),latest=Path.GetFullPath("artifacts/SCENE-PERF-02/player-build-latest.json");
+        var options=configuration=="Development"?BuildOptions.Development:BuildOptions.None;
+        var receipt=new Result{configuration=configuration,developmentBuild=configuration=="Development",buildOptions=options.ToString(),buildOptionsValue=(int)options,scriptingBackend="Mono2x",sourceStampBefore=SourceStamp(),probeSourceSha256=Hash(candidates[0]),requestId=requestId,requestedUtc=requestedUtc,result="preparing-frozen-copy",sourceMainPath=Main,actualBuildScenePath=copy,frozenCopySha=ApprovedCopySha,reusedApprovedCopy=true,probeAsset=candidates[0],executable=ScenePerformanceBuildModes.Executable(configuration),authorCommerce=commerce.saveDirectory,sourceSha256=source.SourceSha256,originalDirty=originalDirty,originalSceneFileShaBefore=originalHash};
+        Directory.CreateDirectory(Path.GetDirectoryName(receipt.executable));
+        Write(status,latest,receipt);SessionState.SetBool(SessionKey,true);
+        try
+        {
+            // 只构建已批准的同一完整副本；当前主场和Commerce路由不写入。
+            if(SceneManager.GetActiveScene()!=scene||scene.path!=Main||scene.isDirty!=originalDirty||Hash(originalFile)!=originalHash||commerce.saveDirectory!=authorRoute)throw new InvalidOperationException("Author scene/route changed before frozen-copy build");
+            receipt.result="running";Write(status,latest,receipt);
+            // 副本已包含完整内存内容；仅构建期间借出dirty标记，绕过原场保存提示，原文件从不保存。
+            // 非公开入口已在当前团结分支读回签名；finally无论成功/取消均恢复原标记。
+            if(originalDirty)
+            {
+                var clear=typeof(EditorSceneManager).GetMethod("ClearSceneDirtiness",System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Static,null,new[]{typeof(Scene)},null);
+                if(clear==null)throw new MissingMethodException("Verified ClearSceneDirtiness API missing");
+                clear.Invoke(null,new object[]{scene});
+                if(scene.isDirty)throw new InvalidOperationException("ClearSceneDirtiness did not clear the borrowed flag; build was not started");
+            }
+            EditorUtility.ClearProgressBar();
+            // 同一Native操作只发起这一遍同步构建；调用超时也仅观察receipt，禁止自动重放。
+            var report=BuildPipeline.BuildPlayer(new BuildPlayerOptions{scenes=new[]{copy},locationPathName=receipt.executable,target=BuildTarget.StandaloneWindows64,options=options});
+            var summary=report.summary;receipt.success=summary.result==BuildResult.Succeeded;receipt.result=summary.result.ToString();receipt.errors=(int)summary.totalErrors;receipt.warnings=(int)summary.totalWarnings;receipt.bytes=(long)summary.totalSize;receipt.seconds=summary.totalTime.TotalSeconds;
+            receipt.actualBuildOptions=summary.options.ToString();receipt.success&=summary.options==options;
+            if(receipt.success){receipt.executableSha256=Hash(receipt.executable);receipt.playerAssemblyPath=Path.Combine(Path.GetDirectoryName(receipt.executable),Path.GetFileNameWithoutExtension(receipt.executable)+"_Data/Managed/Assembly-CSharp.dll");receipt.playerAssemblySha256=Hash(receipt.playerAssemblyPath);}
+        }
+        catch(Exception failure){receipt.result="failed: "+failure;receipt.success=false;}
+        finally
+        {
+            // 恢复、读回与报告各自可失败；任何一项失败都不能绕过最内层Active释放。
+            try
+            {
+                try
+                {if(originalDirty&&scene.IsValid()&&scene.isLoaded&&scene.path==Main)EditorSceneManager.MarkSceneDirty(scene);}
+                catch(Exception failure){receipt.finalizationError+="dirty restore: "+failure.Message+"; ";}
+                try{receipt.originalSceneFileShaAfter=Hash(originalFile);}
+                catch(Exception failure){receipt.finalizationError+="source file readback: "+failure.Message+"; ";}
+                try
+                {
+                    var active=SceneManager.GetActiveScene();
+                    receipt.activeScenePathAfter=active.path;receipt.sceneCountAfter=SceneManager.sceneCount;
+                    receipt.originalDirtyAfter=scene.IsValid()&&scene.isLoaded&&scene.isDirty;
+                    receipt.originalSourcePreserved=scene.IsValid()&&scene.isLoaded&&active==scene&&scene.path==Main&&SceneManager.sceneCount==1&&
+                        receipt.originalSceneFileShaAfter==originalHash&&receipt.originalDirtyAfter==originalDirty&&string.IsNullOrEmpty(receipt.finalizationError);
+                }
+                catch(Exception failure){receipt.originalSourcePreserved=false;receipt.finalizationError+="scene readback: "+failure.Message+"; ";}
+                if(!File.Exists(copy)||Hash(copy)!=ApprovedCopySha){receipt.finalizationError+="approved frozen scene changed; ";receipt.success=false;}
+                receipt.sourceStampAfter=SourceStamp();receipt.sourceCodeUnchanged=receipt.sourceStampBefore==receipt.sourceStampAfter;
+                receipt.success &= receipt.originalSourcePreserved&&receipt.sourceCodeUnchanged;
+                Write(status,latest,receipt);
+            }
+            finally{SessionState.SetBool(SessionKey,false);}
+        }
+
+    }
+    static bool SamePath(string a,string b)=>!string.IsNullOrWhiteSpace(a)&&string.Equals(Path.GetFullPath(a).TrimEnd(Path.DirectorySeparatorChar,Path.AltDirectorySeparatorChar),Path.GetFullPath(b).TrimEnd(Path.DirectorySeparatorChar,Path.AltDirectorySeparatorChar),StringComparison.OrdinalIgnoreCase);
+    static string Hash(string path){using(var sha=SHA256.Create())using(var stream=File.OpenRead(path))return BitConverter.ToString(sha.ComputeHash(stream)).Replace("-","");}
+    static void Folder(string path){if(AssetDatabase.IsValidFolder(path))return;int split=path.LastIndexOf('/');Folder(path.Substring(0,split));AssetDatabase.CreateFolder(path.Substring(0,split),path.Substring(split+1));}
+    static string SourceStamp(){var files=Directory.GetFiles("Assets/OSSASTRA/Scripts/SceneVisibility","*.cs",SearchOption.AllDirectories).Concat(Directory.GetFiles("Assets/OSSASTRA/Scripts/Development","ScenePerformance*.cs",SearchOption.TopDirectoryOnly)).OrderBy(p=>p,StringComparer.Ordinal);string text=string.Join("\n",files.Select(p=>p.Replace('\\','/')+":"+Hash(p)));using(var sha=SHA256.Create())return BitConverter.ToString(sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes(text))).Replace("-","");}
+    static void Write(string status,string latest,Result value){string json=JsonUtility.ToJson(value,true);File.WriteAllText(status,json);ScenePerformanceBuildModes.WriteLatest(latest,json,value.configuration,false);}
+    [Serializable]public sealed class Result{public bool success,originalDirty,originalDirtyAfter,originalSourcePreserved,reusedApprovedCopy,developmentBuild,sourceCodeUnchanged;public string requestId,requestedUtc,result,sourceMainPath,actualBuildScenePath,frozenCopySha,probeAsset,executable,authorCommerce,sourceSha256,originalSceneFileShaBefore,originalSceneFileShaAfter,activeScenePathAfter,finalizationError,configuration,buildOptions,actualBuildOptions,scriptingBackend,sourceStampBefore,sourceStampAfter,probeSourceSha256,executableSha256,playerAssemblyPath,playerAssemblySha256;public int errors,warnings,sceneCountAfter,buildOptionsValue;public long bytes;public double seconds;}
+}
+
+// 功能：唯一构建在EditorApplication.update达到0.5秒门槛后执行；请求先返回，避免HTTP超时拥有同步构建。
+// 此文件只作为显式Native候选执行，不是自动启动脚本；实际Build仍沿上面同一份保护与回执。
+public sealed class QueueScenePerformance02PlayerBuild : IFunplayCommand
+{
+ const string queueKey="SCENE-PERF-02.PlayerBuild.Queued";
+ const string requestKey="SCENE-PERF-02.PlayerBuild.QueueRequestId";
+ const string queuePath="artifacts/SCENE-PERF-02/player-build-queued.json";
+ const string latestPath="artifacts/SCENE-PERF-02/player-build-latest.json";
+ static string pendingRequestId,pendingRequestedUtc,pendingConfiguration;
+ static double pendingNotBefore;
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext context)
+ {
+  if(EditorApplication.isPlayingOrWillChangePlaymode||EditorApplication.isCompiling||EditorApplication.isUpdating||BuildPipeline.isBuildingPlayer||SessionState.GetBool(queueKey,false)||SessionState.GetBool("SCENE-PERF-02.PlayerBuild.Active",false)||!string.IsNullOrEmpty(SessionState.GetString(requestKey,"")))throw new InvalidOperationException("Stable Edit and no queued/active owned build required");
+  if(Application.dataPath.Replace('\\','/')!="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets")throw new InvalidOperationException("Actual project required");
+  if(SceneManager.GetActiveScene().path!="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity")throw new InvalidOperationException("Actual main required");
+  pendingConfiguration=ScenePerformanceBuildModes.Requested();
+  Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(queuePath)));
+  pendingRequestId=Guid.NewGuid().ToString("N");pendingRequestedUtc=DateTime.UtcNow.ToString("O");
+  // 先以本次身份覆盖latest的旧成功状态；preflight失败也不会被误认成上轮可执行Player。
+  ScenePerformanceBuildModes.WriteLatest(latestPath,Newtonsoft.Json.JsonConvert.SerializeObject(new{requestId=pendingRequestId,configuration=pendingConfiguration,requestedUtc=pendingRequestedUtc,result="queued",success=false,callbackRan=false},Newtonsoft.Json.Formatting.Indented),pendingConfiguration,false);
+  ScenePerformanceBuildModes.WriteLatest(queuePath,Newtonsoft.Json.JsonConvert.SerializeObject(new{requestId=pendingRequestId,configuration=pendingConfiguration,status="queued",callbackRan=false,requestedUtc=pendingRequestedUtc,note="No build has started until callbackRan; match configuration/requestId; do not replay lost response"},Newtonsoft.Json.Formatting.Indented),pendingConfiguration,true);
+  pendingNotBefore=EditorApplication.timeSinceStartup+.5;
+  SessionState.SetString(requestKey,pendingRequestId);SessionState.SetBool(queueKey,true);AssemblyReloadEvents.beforeAssemblyReload+=Aborted;EditorApplication.quitting+=Aborted;EditorApplication.update+=RunQueuedUpdate;
+  EditorApplication.QueuePlayerLoopUpdate();
+  context.ReturnValue=new{requestId=pendingRequestId,configuration=pendingConfiguration,status="queued",notBeforeEditorSeconds=pendingNotBefore,queueReceipt=ScenePerformanceBuildModes.Queue(pendingConfiguration),buildReceipt=ScenePerformanceBuildModes.Manifest(pendingConfiguration),note="Same queued build, fixed per-configuration executable and exact receipt identity."};
+ }
+ static void RunQueuedUpdate()
+ {
+  if(EditorApplication.timeSinceStartup<pendingNotBefore)return;
+  // 到达门槛先撤回本回调，后续无论构建成功/取消/失败都不会在下一次update重放。
+  EditorApplication.update-=RunQueuedUpdate;AssemblyReloadEvents.beforeAssemblyReload-=Aborted;EditorApplication.quitting-=Aborted;
+  string id=pendingRequestId,requested=pendingRequestedUtc,configuration=pendingConfiguration;
+  if(string.IsNullOrEmpty(id)||SessionState.GetString(requestKey,"")!=id)return; // 旧动态程序集的回调无权覆盖新请求。
+  SessionState.SetBool(queueKey,false);
+  try
+  {
+   new BuildScenePerformance02MainCopy().Run(id,requested,configuration);
+   ScenePerformanceBuildModes.WriteLatest(queuePath,Newtonsoft.Json.JsonConvert.SerializeObject(new{requestId=id,configuration,status="finished-see-build-receipt",callbackRan=true,finishedUtc=DateTime.UtcNow.ToString("O")},Newtonsoft.Json.Formatting.Indented),configuration,true);
+  }
+  catch(Exception failure)
+  {
+   try
+   {
+    // 尽量保留已生成副本/输出路径供Root精确清理；任何异常都显式撤销本请求成功状态。
+    Newtonsoft.Json.Linq.JObject state;
+    try{state=Newtonsoft.Json.Linq.JObject.Parse(File.ReadAllText(latestPath));}catch{state=new Newtonsoft.Json.Linq.JObject();}
+    if((string)state["requestId"]!=id)state=new Newtonsoft.Json.Linq.JObject();
+    state["requestId"]=id;state["configuration"]=configuration;state["requestedUtc"]=requested;state["success"]=false;state["result"]="failed-before-or-during-build";state["error"]=failure.ToString();
+    ScenePerformanceBuildModes.WriteLatest(latestPath,state.ToString(Newtonsoft.Json.Formatting.Indented),configuration,false);
+   }
+   finally{ScenePerformanceBuildModes.WriteLatest(queuePath,Newtonsoft.Json.JsonConvert.SerializeObject(new{requestId=id,configuration,status="failed-before-or-during-build",callbackRan=true,error=failure.ToString()},Newtonsoft.Json.Formatting.Indented),configuration,true);}
+  }
+  finally{ReleaseQueue(id);}
+ }
+ static void Aborted()
+ {
+  EditorApplication.update-=RunQueuedUpdate;AssemblyReloadEvents.beforeAssemblyReload-=Aborted;EditorApplication.quitting-=Aborted;
+  string id=pendingRequestId;if(string.IsNullOrEmpty(id)||SessionState.GetString(requestKey,"")!=id)return;
+  try
+  {
+   string json=Newtonsoft.Json.JsonConvert.SerializeObject(new{requestId=id,configuration=pendingConfiguration,status="interrupted-before-native-callback",result="interrupted-before-native-callback",success=false,callbackRan=false},Newtonsoft.Json.Formatting.Indented);
+   ScenePerformanceBuildModes.WriteLatest(queuePath,json,pendingConfiguration,true);ScenePerformanceBuildModes.WriteLatest(latestPath,json,pendingConfiguration,false);
+  }
+  finally{ReleaseQueue(id);}
+ }
+ static void ReleaseQueue(string id)
+ {
+  try{if(SessionState.GetString(requestKey,"")==id){SessionState.SetBool(queueKey,false);SessionState.EraseString(requestKey);}}
+  finally{pendingRequestId=null;pendingRequestedUtc=null;pendingConfiguration=null;pendingNotBefore=0;}
+ }
+}
+
+public static class ScenePerformanceBuildModes
+{
+ public static void Validate(string mode){if(mode!="Development"&&mode!="Release")throw new ArgumentException("Explicit Development or Release configuration required");}
+ public static string Requested(){const string path="artifacts/SCENE-PERF-02/player-build-request.json";string mode=File.Exists(path)?(string)Newtonsoft.Json.Linq.JObject.Parse(File.ReadAllText(path))["configuration"]:"Development";Validate(mode);return mode;}
+ public static string Folder(string mode){Validate(mode);return Path.GetFullPath("artifacts/SCENE-PERF-02/BuildManifests/"+mode);}
+ public static string Manifest(string mode)=>Path.Combine(Folder(mode),"build-latest.json");
+ public static string Queue(string mode)=>Path.Combine(Folder(mode),"queue-latest.json");
+ public static string Executable(string mode){Validate(mode);return Path.GetFullPath(mode=="Development"?"artifacts/SCENE-PERF-02/Player_20261108_094432_2772224/ScenePerformance02Main.exe":"artifacts/SCENE-PERF-02/Release/ScenePerformance02Main.exe");}
+ public static void WriteLatest(string global,string json,string mode,bool queue){Directory.CreateDirectory(Folder(mode));File.WriteAllText(global,json);File.WriteAllText(queue?Queue(mode):Manifest(mode),json);}
+}

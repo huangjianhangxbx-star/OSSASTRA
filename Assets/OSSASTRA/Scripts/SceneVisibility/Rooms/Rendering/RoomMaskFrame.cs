@@ -183,6 +183,14 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
             frame = entry.Frame; return frame != null;
         }
 
+        // Internal metadata owner only; public frame DTO remains a published snapshot.
+        internal static bool TryGetOwner(Camera camera, out object owner)
+        {
+            owner=null;
+            if(camera==null||!entries.TryGetValue(camera.GetInstanceID(),out var entry)||entry.Camera!=camera)return false;
+            owner=entry.Owner;return owner!=null;
+        }
+
         public static bool TryGetStatistics(Camera camera, out RoomMaskStatistics result)
         {
             result = null;

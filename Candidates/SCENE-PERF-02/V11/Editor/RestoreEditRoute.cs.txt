@@ -1,0 +1,37 @@
+/* In Play this command ONLY verifies the exact private route; it NEVER writes the running service.
+ * In stable Edit it restores only the saved author identity when its current route still equals our write.
+ * Source hashes are checked and reported, never restored/overwritten. No scene Save/SetDirty/cleaning. */
+using System;using System.IO;using System.Linq;using System.Security.Cryptography;
+using UnityEngine;using UnityEditor;using UnityEngine.SceneManagement;using Newtonsoft.Json.Linq;
+using Funplay.Editor.Tools.Scripting;using Ossastra.Commerce.Runtime;
+public sealed class Perf02V11RestoreEditRoute:IFunplayCommand
+{
+ const string Pointer="artifacts/SCENE-PERF-02/V11/Editor/route-active.json";
+ const string Main="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity";
+ const string Source="E:/WORLDCREATOR/XingHaiHuiLang/研究/可见性修复/KT-VIS-06/profiles";
+ public void Execute(ExecutionContext ctx)
+ {
+  if(Application.dataPath.Replace('\\','/')!="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets"||EditorApplication.isCompiling||EditorApplication.isUpdating||BuildPipeline.isBuildingPlayer)throw new InvalidOperationException("Stable intended Editor required");
+  var saved=JObject.Parse(File.ReadAllText(Pointer));if((string)saved["status"]!="active"||(bool?)saved["preStartVerified"]!=true||(string)saved["scene"]!=Main||(string)saved["source"]!=Source)throw new InvalidOperationException("Exact verified active route receipt required");
+  var scene=SceneManager.GetActiveScene();if(scene.path!=Main||AssetDatabase.AssetPathToGUID(Main)!=(string)saved["sceneGuid"]||Hash(Main)!=(string)saved["sceneDiskSha"])throw new InvalidOperationException("Author scene identity/disk changed; no automatic route restoration");
+  if(!GlobalObjectId.TryParse((string)saved["commerceGlobalObjectId"],out var identity))throw new InvalidOperationException("Saved author identity invalid");
+  var commerce=GlobalObjectId.GlobalObjectIdentifierToObjectSlow(identity) as CommerceService;
+  if(commerce==null||commerce.gameObject.scene!=scene||GlobalObjectId.GetGlobalObjectIdSlow(commerce).ToString()!=(string)saved["commerceGlobalObjectId"]||commerce.profileId!=(string)saved["profileId"])throw new InvalidOperationException("Exact author Commerce identity/profile required; no rebinding by name or first result");
+  string isolated=(string)saved["isolatedRoute"],original=(string)saved["originalRoute"];
+  if(!Within(isolated,Path.Combine("E:/WORLDCREATOR/XingHaiHuiLang/研究/SCENE-PERF-02/v11-editor",(string)saved["token"]))||!Same(original,Source)||!Same(commerce.saveDirectory,isolated))throw new InvalidOperationException("Current route differs from exact owned private write; yielded without changes");
+  var expected=(JArray)saved["businessFiles"];bool sourceSame=Directory.GetFiles(Source).Length==4&&expected.Count==4&&expected.All(f=>Hash(Path.Combine(Source,(string)f["name"]))==(string)f["sha"]);
+  if(Application.isPlaying)
+  {
+   if(string.IsNullOrEmpty(commerce.SavePath)||!Within(commerce.SavePath,isolated))throw new InvalidOperationException("Running Commerce did not open the exact private profile");
+   ctx.ReturnValue=new{status="verified-play-private-route-no-write",route=commerce.saveDirectory,commerce.SavePath,sourceUnchanged=sourceSame,source=Source,sceneDirty=scene.isDirty,sceneSaved=false};return;
+  }
+  if(EditorApplication.isPlayingOrWillChangePlaymode||commerce.SavePath!=null)throw new InvalidOperationException("Stable returned Edit / pre-Start author component required before restoration");
+  bool dirty=scene.isDirty;commerce.saveDirectory=original;
+  if(commerce.saveDirectory!=original)throw new InvalidOperationException("Original route restoration readback differs");
+  saved["status"]="restored";saved["restoredRoute"]=commerce.saveDirectory;saved["sourceUnchanged"]=sourceSame;saved["dirtyAtRestoreEntry"]=dirty;saved["dirtyAfter"]=scene.isDirty;saved["dirtyWritePreserved"]=dirty==scene.isDirty;saved["dirtyMatchesOriginal"]=(bool)saved["dirtyBefore"]==scene.isDirty;saved["restoredUtc"]=DateTime.UtcNow.ToString("O");
+  string path=Path.GetFullPath("artifacts/SCENE-PERF-02/V11/Editor/route-restore-"+(string)saved["token"]+".json");File.WriteAllText(path,saved.ToString());File.WriteAllText(Pointer,saved.ToString());ctx.ReturnValue=new{path,receipt=saved};
+ }
+ static bool Same(string a,string b)=>!string.IsNullOrEmpty(a)&&!string.IsNullOrEmpty(b)&&string.Equals(Path.GetFullPath(a).TrimEnd('\\','/'),Path.GetFullPath(b).TrimEnd('\\','/'),StringComparison.OrdinalIgnoreCase);
+ static bool Within(string path,string directory)=>!string.IsNullOrEmpty(path)&&Path.GetFullPath(path).StartsWith(Path.GetFullPath(directory).TrimEnd('\\','/')+Path.DirectorySeparatorChar,StringComparison.OrdinalIgnoreCase);
+ static string Hash(string path){using(var sha=SHA256.Create())using(var stream=File.OpenRead(path))return BitConverter.ToString(sha.ComputeHash(stream)).Replace("-","");}
+}

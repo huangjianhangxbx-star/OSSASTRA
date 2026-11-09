@@ -1,0 +1,73 @@
+/* Root-only Play fixture, reusing the actual lab placement and MapResearchRoot fixed-target route.
+ * One original motor Teleport through PlaceCurrent; no per-frame pose writes or world/clock pause.
+ * Exact dynamic-owner release restores only its map fields / input token, not gameplay history. */
+using System;using System.IO;using System.Linq;using UnityEngine;using UnityEditor;
+using UnityEngine.SceneManagement;using Newtonsoft.Json.Linq;using Funplay.Editor.Tools.Scripting;
+using Ossastra.MapResearch;using Ossastra.Development.SceneVisibility;
+namespace Ossastra.Diagnostics.ScenePerf02.V11
+{
+ public sealed class BorrowEditorFixedView:IFunplayCommand
+ {
+  public void Execute(ExecutionContext ctx)
+  {
+   if(Application.dataPath.Replace('\\','/')!="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets"||!Application.isPlaying||EditorApplication.isCompiling||EditorApplication.isUpdating)throw new InvalidOperationException("Stable intended Play required");
+   var scene=SceneManager.GetActiveScene();if(scene.path!="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity")throw new InvalidOperationException("Actual author main required");
+   var route=JObject.Parse(File.ReadAllText("artifacts/SCENE-PERF-02/V11/Editor/route-active.json"));if((string)route["status"]!="active"||(bool?)route["preStartVerified"]!=true)throw new InvalidOperationException("Verified private pre-Start route required");
+   var services=scene.GetRootGameObjects().SelectMany(r=>r.GetComponentsInChildren<Ossastra.Commerce.Runtime.CommerceService>(true)).ToArray();
+   if(services.Length!=1||services[0].saveDirectory!=(string)route["isolatedRoute"]||string.IsNullOrEmpty(services[0].SavePath)||!Path.GetFullPath(services[0].SavePath).StartsWith(Path.GetFullPath((string)route["isolatedRoute"]).TrimEnd('\\','/')+Path.DirectorySeparatorChar,StringComparison.OrdinalIgnoreCase))throw new InvalidOperationException("Running service did not open the exact private route; no fixture placement");
+   foreach(var a in AppDomain.CurrentDomain.GetAssemblies()){var t=a.GetType(EditorFixedViewLease.OwnerType,false);if(t!=null&&(bool)t.GetProperty("IsActive").GetValue(null))throw new InvalidOperationException("Restore the exact existing fixed-view lease first");}
+   var maps=scene.GetRootGameObjects().SelectMany(r=>r.GetComponentsInChildren<MapResearchRoot>(true)).ToArray();var labs=scene.GetRootGameObjects().SelectMany(r=>r.GetComponentsInChildren<RoomVisibilityLabPanel>(true)).ToArray();
+   if(maps.Length!=1||labs.Length!=1||!maps[0].IsValid||maps[0].IsStructureMode||labs[0].map!=maps[0]||labs[0].visibility==null||labs[0].visibility.gameplayCamera!=maps[0].gameplayCamera)throw new InvalidOperationException("Actual normal map / original route lab binding required");
+   ctx.ReturnValue=EditorFixedViewLease.Borrow(maps[0],labs[0],(string)route["token"]);
+  }
+ }
+ public static class EditorFixedViewLease
+ {
+  public const string OwnerType="Ossastra.Diagnostics.ScenePerf02.V11.EditorFixedViewLease";
+  const string Folder="artifacts/SCENE-PERF-02/V11/Editor",Pointer=Folder+"/fixed-view-active.json";
+  static MapResearchRoot map;static readonly object inputOwner=new object();static int id;static bool beforeFollow;static Vector3 beforeTarget,writtenTarget;static string token;static double deadline;static JObject receipt;
+  public static bool IsActive=>token!=null;
+  static object V(Vector3 v)=>new{x=v.x,y=v.y,z=v.z};
+  public static object Borrow(MapResearchRoot target,RoomVisibilityLabPanel lab,string routeToken)
+  {
+   map=target;id=map.GetInstanceID();beforeFollow=map.followParticipant;beforeTarget=map.fixedTarget;writtenTarget=lab.exteriorPosition;
+   var actor=lab.visibility.coordinator==null?null:lab.visibility.coordinator.Current;if(actor==null||!actor.IsAlive)throw new InvalidOperationException("Original live Current required for one-time existing route placement");
+   var environments=map.gameObject.scene.GetRootGameObjects().SelectMany(r=>r.GetComponentsInChildren<Ossastra.EnvironmentSimulation.EnvironmentRoot>(true)).ToArray();
+   token=Guid.NewGuid().ToString("N");deadline=EditorApplication.timeSinceStartup+600;var assembly=typeof(EditorFixedViewLease).Assembly;
+   receipt=JObject.FromObject(new{status="active",token,routeToken,ownerAssembly=assembly.FullName,ownerModuleVersion=assembly.ManifestModule.ModuleVersionId.ToString("D"),ownerType=OwnerType,mapId=id,beforeFollowParticipant=beforeFollow,beforeFixedTarget=V(beforeTarget),writtenFixedTarget=V(writtenTarget),actorId=actor.GetInstanceID(),actorPositionBefore=V(actor.transform.position),placement="existing lab.exteriorPosition / PlaceCurrent once",dirtyBefore=map.gameObject.scene.isDirty,utc=DateTime.UtcNow.ToString("O"),environment=environments.Select(e=>new{id=e.GetInstanceID(),e.timeHours,e.clockRunning,timeMode=e.timeMode.ToString()}).ToArray(),scope="Only map target/input borrowed; world, clock, lighting, weather and formal HUD continue unchanged. Actor placement is a Play fixture, reset by stopping Play."});
+   Directory.CreateDirectory(Folder);File.WriteAllText(Pointer,receipt.ToString());File.WriteAllText(Folder+"/fixed-view-borrow-"+token+".json",receipt.ToString());
+   EditorApplication.update+=Tick;EditorApplication.quitting+=Quit;AssemblyReloadEvents.beforeAssemblyReload+=Reload;EditorApplication.playModeStateChanged+=Mode;
+   try
+   {
+    map.SetUiCameraCapture(inputOwner,true);
+    if(!lab.PlaceCurrent(writtenTarget))throw new InvalidOperationException("Original one-time lab placement refused");
+    map.fixedTarget=writtenTarget;map.followParticipant=false;
+    if(map.followParticipant||!map.fixedTarget.Equals(writtenTarget))throw new InvalidOperationException("Original fixed target readback failed");
+    receipt["actorPositionAfter"]=JObject.FromObject(V(actor.transform.position));receipt["dirtyAfter"]=map.gameObject.scene.isDirty;receipt["warmupRequired"]="At least 5 seconds plus 60 consecutive stable actual camera frames; no per-frame camera correction";
+    File.WriteAllText(Pointer,receipt.ToString());return receipt;
+   }
+   catch{Restore(token,"borrow-failure");throw;}
+  }
+  public static object Restore(string expected,string reason)
+  {
+   if(!IsActive||token!=expected)throw new InvalidOperationException("Exact live fixed-view owner token required");
+   try
+   {
+    if(map!=null&&map.GetInstanceID()==id)
+    {
+     map.SetUiCameraCapture(inputOwner,false);
+     bool targetOwned=map.fixedTarget.Equals(writtenTarget),followOwned=!map.followParticipant;
+     if(targetOwned)map.fixedTarget=beforeTarget;if(followOwned)map.followParticipant=beforeFollow;
+     receipt["targetRestored"]=targetOwned;receipt["followRestored"]=followOwned;receipt["dirtyAfter"]=map.gameObject.scene.isDirty;
+    }
+    else receipt["yieldedReason"]="Original map reference destroyed or identity changed";
+   }
+   finally{EditorApplication.update-=Tick;EditorApplication.quitting-=Quit;AssemblyReloadEvents.beforeAssemblyReload-=Reload;EditorApplication.playModeStateChanged-=Mode;}
+   receipt["status"]="restored-or-yielded";receipt["reason"]=reason;receipt["restoredUtc"]=DateTime.UtcNow.ToString("O");string output=Folder+"/fixed-view-restore-"+token+".json";var result=receipt;map=null;token=null;File.WriteAllText(output,result.ToString());
+   if(File.Exists(Pointer)&&(string)JObject.Parse(File.ReadAllText(Pointer))["token"]==expected)File.WriteAllText(Pointer,result.ToString());return new{path=Path.GetFullPath(output),result};
+  }
+  static void Tick(){if(IsActive&&EditorApplication.timeSinceStartup>=deadline)Restore(token,"600-second safety timeout");}
+  static void Quit(){if(IsActive)Restore(token,"quitting");}static void Reload(){if(IsActive)Restore(token,"before assembly reload");}
+  static void Mode(PlayModeStateChange state){if(IsActive&&(state==PlayModeStateChange.ExitingPlayMode||state==PlayModeStateChange.EnteredEditMode))Restore(token,"leaving Play");}
+ }
+}

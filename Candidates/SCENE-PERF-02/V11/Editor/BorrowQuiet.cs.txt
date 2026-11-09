@@ -1,0 +1,95 @@
+/* Root-only temporary Editor Play condition. Reuses the existing exact dynamic-owner lease pattern.
+ * Only six named development panel components and three diagnostic-display booleans are borrowed.
+ * Camera controller, visibility, lighting, formal HUD, plugins, world updates and quality keep running. */
+using System;using System.IO;using System.Linq;using System.Reflection;using System.Collections.Generic;
+using UnityEngine;using UnityEditor;using UnityEditorInternal;using UnityEngine.SceneManagement;
+using Funplay.Editor.Tools.Scripting;
+namespace Ossastra.Diagnostics.ScenePerf02.V11
+{
+ public sealed class BorrowEditorPlayQuiet:IFunplayCommand
+ {
+  public void Execute(ExecutionContext ctx)
+  {
+   if(Application.dataPath.Replace('\\','/')!="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets"||!Application.isPlaying||EditorApplication.isCompiling||EditorApplication.isUpdating||BuildPipeline.isBuildingPlayer)throw new InvalidOperationException("Stable intended Play required");
+   if(ProfilerDriver.enabled||ProfilerDriver.profileGPU||ProfilerDriver.deepProfiling)throw new InvalidOperationException("Preserve the existing profiler diagnosis; normal-condition borrowing requires recording stopped");
+   var scene=SceneManager.GetActiveScene();if(scene.path!="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity")throw new InvalidOperationException("Actual main required");
+   if(Screen.width!=1600||Screen.height!=900)throw new InvalidOperationException("Actual GameView must already be 1600x900; no size/quality changes");
+   foreach(var a in AppDomain.CurrentDomain.GetAssemblies()){var t=a.GetType(EditorPlayQuietLease.OwnerType,false);if(t!=null&&(bool)t.GetProperty("IsActive").GetValue(null))throw new InvalidOperationException("Restore the exact existing Editor Play lease first");}
+   ctx.ReturnValue=EditorPlayQuietLease.Borrow(scene);
+  }
+ }
+ public static class EditorPlayQuietLease
+ {
+  public const string OwnerType="Ossastra.Diagnostics.ScenePerf02.V11.EditorPlayQuietLease";
+  const string Folder="artifacts/SCENE-PERF-02/V11/Editor",Pointer=Folder+"/quiet-active.json";
+  const BindingFlags Fields=BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Instance;
+  static readonly string[] Panels={"Ossastra.Development.Environment.EnvironmentSimulationPanel","Ossastra.Development.CharacterLighting.CharacterLightingPanel","Ossastra.Development.SceneVisibility.RoomVisibilityLabPanel","Ossastra.Development.VoxelSurface.VoxelSurfacePanel","Ossastra.Development.VoxelTerrain.VoxelTerrainLabPanel","Ossastra.MapResearchIntegration.Diagnostics.MapFlickerTracePanel"};
+  sealed class Entry{public MonoBehaviour Target;public int Id;public FieldInfo Field;public bool Original,Written;public string Name;public bool Read()=>Field==null?Target.enabled:(bool)Field.GetValue(Target);public void Write(bool value){if(Field==null)Target.enabled=value;else Field.SetValue(Target,value);}}
+  static readonly List<Entry> entries=new List<Entry>();
+  static EditorWindow game,previousFocus;static int gameId;static bool previousMax,maxWritten;static string token;static double deadline;
+  static Receipt receipt;
+  public static bool IsActive=>token!=null;
+  static bool Flag(MonoBehaviour b,string name)
+  {var p=b.GetType().GetProperty(name,Fields);if(p!=null&&p.PropertyType==typeof(bool))return (bool)p.GetValue(b,null);var f=b.GetType().GetField(name,Fields);if(f!=null&&f.FieldType==typeof(bool))return (bool)f.GetValue(b);throw new MissingMemberException(b.GetType().FullName,name);}
+  public static object Borrow(Scene scene)
+  {
+   var windows=Resources.FindObjectsOfTypeAll<EditorWindow>().Where(w=>w!=null&&w.GetType().FullName=="UnityEditor.GameView").ToArray();if(windows.Length!=1)throw new InvalidOperationException("Exactly one EXISTING GameView required; no window creation");
+   var behaviours=scene.GetRootGameObjects().SelectMany(r=>r.GetComponentsInChildren<MonoBehaviour>(true)).Where(b=>b!=null).ToArray();
+   var selected=UnityEngine.EventSystems.EventSystem.current==null?null:UnityEngine.EventSystems.EventSystem.current.currentSelectedGameObject;
+   foreach(var b in behaviours)
+   {
+    string type=b.GetType().FullName;
+    if(type=="Ossastra.MapResearchIntegration.Diagnostics.MapFlickerTraceRecorder"&&Flag(b,"IsTracing"))throw new InvalidOperationException("An actual flicker recording is active; it cannot be stopped/restarted without losing its current ring-buffer session");
+    if(!Panels.Contains(type)||!b.isActiveAndEnabled)continue;
+    if(type=="Ossastra.Development.CharacterLighting.CharacterLightingPanel"&&Flag(b,"hasClockLease"))throw new InvalidOperationException("CharacterLighting panel holds a world-clock lease; disabling it would change time. No automatic borrow");
+    if(type=="Ossastra.Development.VoxelTerrain.VoxelTerrainLabPanel"&&Flag(b,"IsOverview"))throw new InvalidOperationException("Terrain panel owns a camera overview; no automatic borrow");
+    var captured=b.GetType().GetProperty("IsCapturingInput",Fields);var capturedField=b.GetType().GetField("captured",Fields);
+    if(captured!=null&&(bool)captured.GetValue(b,null)||capturedField!=null&&(bool)capturedField.GetValue(b))throw new InvalidOperationException("A development panel owns current input; move focus away before diagnosis");
+    var surface=b.GetType().GetProperty("Surface",Fields);var root=surface==null?null:surface.GetValue(b,null) as Transform;
+    if(selected!=null&&root!=null&&selected.transform.IsChildOf(root))throw new InvalidOperationException("Development uGUI selection is active; preserve it instead of clearing it");
+   }
+   entries.Clear();
+   // Disable environment first: its OnDisable releases only its preview / legacy-panel display lease.
+   foreach(string type in Panels)foreach(var b in behaviours.Where(b=>b.GetType().FullName==type))entries.Add(new Entry{Target=b,Id=b.GetInstanceID(),Original=b.enabled,Name=type+".enabled"});
+   foreach(var b in behaviours)
+   {
+    string field=b is Ossastra.MapResearch.MapResearchRoot?"showOverlay":b is Ossastra.SceneVisibility.SceneVisibilityRoot?"showDiagnostics":b.GetType().FullName=="Ossastra.SceneVisibility.SceneVisibilityLabRoutes"?"showPanel":null;
+    if(field==null)continue;var f=b.GetType().GetField(field,Fields);if(f==null||f.FieldType!=typeof(bool))throw new MissingMemberException(b.GetType().FullName,field);
+    entries.Add(new Entry{Target=b,Id=b.GetInstanceID(),Field=f,Original=(bool)f.GetValue(b),Name=b.GetType().FullName+"."+field});
+   }
+   game=windows[0];gameId=game.GetInstanceID();previousFocus=EditorWindow.focusedWindow;previousMax=game.maximized;maxWritten=false;token=Guid.NewGuid().ToString("N");deadline=EditorApplication.timeSinceStartup+240;
+   var assembly=typeof(EditorPlayQuietLease).Assembly;
+   receipt=new Receipt{token=token,ownerAssembly=assembly.FullName,ownerModuleVersion=assembly.ManifestModule.ModuleVersionId.ToString("D"),ownerType=OwnerType,status="active",scene=scene.path,dirtyBefore=scene.isDirty,gameId=gameId,gameMaxBefore=previousMax,gameRectBefore=game.position,focusBefore=previousFocus==null?0:previousFocus.GetInstanceID(),selectionBefore=Selection.instanceIDs,utc=DateTime.UtcNow.ToString("O"),rows=Rows()};
+   Directory.CreateDirectory(Folder);Write(Pointer);Write(Folder+"/quiet-borrow-"+token+".json");
+   EditorApplication.update+=Tick;EditorApplication.quitting+=Quit;AssemblyReloadEvents.beforeAssemblyReload+=Reload;EditorApplication.playModeStateChanged+=Mode;
+   try
+   {
+    foreach(var e in entries)if(e.Original){e.Written=true;e.Write(false);if(e.Read())throw new InvalidOperationException("Diagnostic bool readback failed: "+e.Name);}
+    if(!previousMax){maxWritten=true;game.maximized=true;}game.Focus();receipt.rows=Rows();receipt.gameMaxAfter=game.maximized;receipt.dirtyAfter=scene.isDirty;
+    Write(Pointer);Write(Folder+"/quiet-borrow-"+token+".json");return receipt;
+   }
+   catch{Restore(token,"borrow-failure");throw;}
+  }
+  static Row[] Rows()=>entries.Select(e=>new Row{id=e.Id,name=e.Name,original=e.Original,written=e.Written,current=e.Target!=null&&e.Read(),outcome="borrowed-or-not-written"}).ToArray();
+  public static object Restore(string expected,string reason)
+  {
+   if(!IsActive||token!=expected)throw new InvalidOperationException("Exact live owner token required");var rows=new List<Row>();
+   foreach(var e in entries.AsEnumerable().Reverse())
+   {
+    var row=new Row{id=e.Id,name=e.Name,original=e.Original,written=e.Written,outcome="not-written"};
+    try{if(e.Target==null||e.Target.GetInstanceID()!=e.Id)row.outcome="destroyed-or-identity-changed-yielded";else{row.current=e.Read();if(e.Written){if(row.current)row.outcome="external-value-changed-yielded";else{e.Write(e.Original);row.current=e.Read();row.restored=row.current==e.Original;row.outcome=row.restored?"restored":"readback-differs";}}}}catch(Exception error){row.outcome="restore-error: "+error.Message;}rows.Add(row);
+   }
+   try{if(game!=null&&game.GetInstanceID()==gameId){if(maxWritten&&game.maximized)game.maximized=previousMax;receipt.gameMaxAfter=game.maximized;receipt.gameRectAfter=game.position;if(EditorWindow.focusedWindow==game&&previousFocus!=null)previousFocus.Focus();}}catch(Exception error){receipt.windowError=error.Message;}
+   EditorApplication.update-=Tick;EditorApplication.quitting-=Quit;AssemblyReloadEvents.beforeAssemblyReload-=Reload;EditorApplication.playModeStateChanged-=Mode;
+   receipt.status="restored-or-yielded";receipt.reason=reason;receipt.rows=rows.ToArray();receipt.dirtyAfter=SceneManager.GetActiveScene().isDirty;receipt.selectionAfter=Selection.instanceIDs;receipt.utc=DateTime.UtcNow.ToString("O");
+   string output=Folder+"/quiet-restore-"+token+".json";var result=receipt;entries.Clear();token=null;game=null;previousFocus=null;
+   File.WriteAllText(output,JsonUtility.ToJson(result,true));if(File.Exists(Pointer)&&JsonUtility.FromJson<Receipt>(File.ReadAllText(Pointer)).token==expected)File.WriteAllText(Pointer,JsonUtility.ToJson(result,true));return new{path=Path.GetFullPath(output),result};
+  }
+  static void Write(string path)=>File.WriteAllText(path,JsonUtility.ToJson(receipt,true));
+  static void Tick(){if(IsActive&&EditorApplication.timeSinceStartup>=deadline)Restore(token,"240-second safety timeout");}
+  static void Quit(){if(IsActive)Restore(token,"quitting");}static void Reload(){if(IsActive)Restore(token,"before assembly reload");}
+  static void Mode(PlayModeStateChange state){if(IsActive&&(state==PlayModeStateChange.ExitingPlayMode||state==PlayModeStateChange.EnteredEditMode))Restore(token,"leaving Play");}
+  [Serializable]public sealed class Receipt{public string token,ownerAssembly,ownerModuleVersion,ownerType,status,scene,reason,utc,windowError;public int gameId,focusBefore;public bool dirtyBefore,dirtyAfter,gameMaxBefore,gameMaxAfter;public Rect gameRectBefore,gameRectAfter;public int[] selectionBefore,selectionAfter;public Row[] rows;}
+  [Serializable]public sealed class Row{public int id;public string name,outcome;public bool original,written,current,restored;}
+ }
+}

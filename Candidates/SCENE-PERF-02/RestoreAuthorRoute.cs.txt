@@ -1,0 +1,13 @@
+using System;using System.IO;using System.Linq;using UnityEngine;using UnityEditor;using UnityEngine.SceneManagement;using Funplay.Editor.Tools.Scripting;
+public sealed class SetScenePerfPlayerBuildRoute:IFunplayCommand
+{
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext ctx)
+ {
+  const string target="E:/WORLDCREATOR/XingHaiHuiLang/研究/可见性修复/KT-VIS-06/profiles";
+  if(Application.dataPath.Replace('\\','/')!="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets"||EditorApplication.isPlayingOrWillChangePlaymode||EditorApplication.isCompiling||EditorApplication.isUpdating||SceneManager.GetActiveScene().path!="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity")throw new InvalidOperationException("Stable own Edit main required");
+  var commerce=SceneManager.GetActiveScene().GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<Ossastra.Commerce.Runtime.CommerceService>(true)).Single();
+  if(commerce.SavePath!=null||!Directory.Exists(target)||Directory.GetFiles(target).Length!=4)throw new InvalidOperationException("Pre-Start service and exact owned four-file route required");
+  string before=commerce.saveDirectory;ctx.RegisterObjectModification(commerce);commerce.saveDirectory=target;
+  ctx.ReturnValue=new{before,after=commerce.saveDirectory,sceneSaved=false,dirty=SceneManager.GetActiveScene().isDirty};
+ }
+}

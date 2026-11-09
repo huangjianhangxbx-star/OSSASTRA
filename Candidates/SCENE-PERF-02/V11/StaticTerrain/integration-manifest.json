@@ -1,0 +1,55 @@
+{
+  "status": "Frozen candidate only: Root must review/apply/Unity compile/Native/full Player",
+  "scope": "Explicit chunks only; caps fallback; public PositiveSurfaces stays independent snapshot",
+  "baselineRed": "artifacts/SCENE-PERF-02/v11-static-terrain-repeated-calls-20261109-012500-7910829.json",
+  "files": [
+    {
+      "source": "Assets/OSSASTRA/Scripts/SceneVisibility/Rooms/Runtime/RoomVisibilityModule.cs",
+      "candidate": "Candidates\\SCENE-PERF-02\\V11\\StaticTerrain\\Overlay\\RoomVisibilityModule.cs.txt",
+      "originalSHA256": "841CBF0D148D741E042BD4F3473B8B39C90027C578ECE524528325249E5BAE52",
+      "candidateSHA256": "13560AD4709359C1585BA9B5DF0CF556B895052C6E4044497EE9BBE4A8CD9B2D"
+    },
+    {
+      "source": "Assets/OSSASTRA/Scripts/SceneVisibility/Rooms/Runtime/RoomVisibilitySight.cs",
+      "candidate": "Candidates\\SCENE-PERF-02\\V11\\StaticTerrain\\Overlay\\RoomVisibilitySight.cs.txt",
+      "originalSHA256": "A94C919BE5A703513F0192156F06BA3084748E0A10501D19AF39071F0EAF7F43",
+      "candidateSHA256": "8BD49B9AC848015D9A893FC367868B391DDA3D3C0B3610C86FC59B2B11CC2E58"
+    },
+    {
+      "source": "Assets/OSSASTRA/Scripts/SceneVisibility/Rooms/Rendering/RoomPositiveMaterialBuckets.cs",
+      "candidate": "Candidates\\SCENE-PERF-02\\V11\\StaticTerrain\\Overlay\\RoomPositiveMaterialBuckets.cs.txt",
+      "originalSHA256": "B22FE53BA94F906C3580590CB3CC21C811B15AA6F705E9453792EBE712C69760",
+      "candidateSHA256": "40E6C64A465DAD8900A68264E63CFF7BB675BB637EC9FB5A15906982A96AEC00"
+    },
+    {
+      "source": "Assets/OSSASTRA/Scripts/SceneVisibility/Rooms/Rendering/RoomPositivePropertyScope.cs",
+      "candidate": "Candidates\\SCENE-PERF-02\\V11\\StaticTerrain\\Overlay\\RoomPositivePropertyScope.cs.txt",
+      "originalSHA256": "ED22A7CA39BF860AD9F72EC6D1AF84AE3D218F4263260C7477C2793EA864366C",
+      "candidateSHA256": "6FA5F23E1BAE793BD491500D40E1F1D5B963B48D2B591B71FCCAA856D996ACF9"
+    },
+    {
+      "source": "Assets/OSSASTRA/Scripts/SceneVisibility/Rooms/Rendering/RoomPositivePass.cs",
+      "candidate": "Candidates\\SCENE-PERF-02\\V11\\StaticTerrain\\Overlay\\RoomPositivePass.cs.txt",
+      "originalSHA256": "EB3AAB844D33DDA4CF7D0E9160BA7055CB317189F75BE6D55FAC7A09475350D0",
+      "candidateSHA256": "90E44BF1FD8A83F2CC400D6C5EEEBC186373F3F787CB96E3DA4BC22F82D8DE08"
+    },
+    {
+      "source": "Assets/OSSASTRA/Scripts/SceneVisibility/Rooms/Rendering/RoomMaskRendererFeature.cs",
+      "candidate": "Candidates\\SCENE-PERF-02\\V11\\StaticTerrain\\Overlay\\RoomMaskRendererFeature.cs.txt",
+      "originalSHA256": "1C6A99BA2D2F507FDD978FF402C1CFF0BC2A0DE93E958EF32D67C9CDCDC7E38B",
+      "candidateSHA256": "20CE4D70C3EEC9B66F60A2593C5D915DA359758F5760BC1740376E6B811D656F"
+    },
+    {
+      "source": "Assets/OSSASTRA/Scripts/SceneVisibility/Rooms/Rendering/RoomMaskFrame.cs",
+      "candidate": "Candidates\\SCENE-PERF-02\\V11\\StaticTerrain\\Overlay\\RoomMaskFrame.cs.txt",
+      "originalSHA256": "0F36B67AE379F647018399B5BE7554A1058907AB7056EAF9C1F25B2C7D1D3211",
+      "candidateSHA256": "7E4D0F85488FCE9561C00ED33E5460462C778B2E4EC38A39706DD868991A7F11"
+    },
+    {
+      "source": "Assets/OSSASTRA/Scripts/SceneVisibility/Rooms/Runtime/RoomStaticTerrainPreparation.cs",
+      "candidate": "Candidates/SCENE-PERF-02/V11/StaticTerrain/Overlay/RoomStaticTerrainPreparation.cs.txt",
+      "newFile": true,
+      "candidateSHA256": "6AD8D846205FA80D3460C5A9CECED56EDDF937F24B4D045D46A979C0CEE14B32"
+    }
+  ]
+}

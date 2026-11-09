@@ -1,0 +1,6 @@
+using System;using System.Linq;using UnityEngine;using UnityEngine.SceneManagement;using UnityEditor;using Funplay.Editor.Tools.Scripting;
+public sealed class Perf02ResumeInspect:IFunplayCommand{public void Execute(ExecutionContext ctx){
+ if(Application.dataPath.Replace('\\','/')!="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets")throw new Exception("Wrong project");
+ var s=SceneManager.GetActiveScene();var roots=s.GetRootGameObjects();var maps=roots.SelectMany(g=>g.GetComponentsInChildren<Ossastra.MapResearch.MapResearchRoot>(true)).ToArray();var cs=roots.SelectMany(g=>g.GetComponentsInChildren<Ossastra.Commerce.Runtime.CommerceService>(true)).ToArray();
+ ctx.ReturnValue=new{scene=s.path,s.isDirty,count=SceneManager.sceneCount,playing=Application.isPlaying,mapCount=maps.Length,pitch=maps.Length==1?maps[0].pitch:-1,commerce=cs.Length==1?cs[0].saveDirectory:null,savePath=cs.Length==1?cs[0].SavePath:null,profiler=UnityEditorInternal.ProfilerDriver.enabled};
+}}

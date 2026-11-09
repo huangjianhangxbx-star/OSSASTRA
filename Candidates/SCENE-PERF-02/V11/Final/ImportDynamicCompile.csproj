@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+ <PropertyGroup><AssemblyName>ScenePerf02FinalDynamicImportV1</AssemblyName><TargetFramework>netstandard2.1</TargetFramework><EnableDefaultCompileItems>false</EnableDefaultCompileItems><ImplicitUsings>disable</ImplicitUsings><DefineConstants>UNITY_EDITOR</DefineConstants><NoWarn>MSB3277</NoWarn></PropertyGroup>
+ <ItemGroup><Compile Include="ImportDynamicProbe.cs.txt" />
+  <Reference Include="E:/unity/Tuanjie Hub/2022.3.62t16/Editor/Data/Managed/UnityEngine/*.dll" />
+  <Reference Include="E:/unity/Tuanjie Hub/2022.3.62t16/Editor/Data/Managed/Newtonsoft.Json.dll" />
+  <Reference Include="E:/WORLDCREATOR/new/Project_ANKALUTE/Library/ScriptAssemblies/*.dll" />
+ </ItemGroup>
+</Project>

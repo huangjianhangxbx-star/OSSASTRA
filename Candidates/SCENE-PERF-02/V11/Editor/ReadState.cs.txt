@@ -1,0 +1,36 @@
+/* Read-only actual Editor Play census. No callback invocation, selection writes, window creation,
+ * scene saves, preview requests or changes to the world. Run before and after each condition. */
+using System;using System.Linq;using System.IO;using System.Reflection;using System.Collections;
+using UnityEngine;using UnityEditor;using UnityEditorInternal;using UnityEngine.SceneManagement;
+using Funplay.Editor.Tools.Scripting;
+public sealed class Perf02V11ReadEditorState:IFunplayCommand
+{
+ const BindingFlags Instance=BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Instance;
+ static object Read(object value,string name)
+ {if(value==null)return null;var type=value.GetType();var p=type.GetProperty(name,Instance);if(p!=null&&p.GetIndexParameters().Length==0)return p.GetValue(value,null);var f=type.GetField(name,Instance);return f==null?(object)"unavailable":f.GetValue(value);}
+ static object Summarize(object value)
+ {if(value==null||value is string||value is bool||value is int||value is float)return value;var count=value.GetType().GetProperty("Count",Instance);return count!=null?(object)new{type=value.GetType().FullName,count=count.GetValue(value,null)}:value.ToString();}
+ static object Panel(MonoBehaviour b)=>new{id=b.GetInstanceID(),type=b.GetType().FullName,b.name,b.enabled,b.isActiveAndEnabled,path=b.gameObject.scene.path,
+  state=new[]{"Expanded","showPanel","showOverlay","showDiagnostics","IsCapturingInput","IsOverview","hasClockLease","IsTracing","SampleCount","HookedBodyCount","PreviewReady","previewRequests","Surface"}.ToDictionary(n=>n,n=>Summarize(Read(b,n)))};
+ public void Execute(ExecutionContext ctx)
+ {
+  if(Application.dataPath.Replace('\\','/')!="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets")throw new InvalidOperationException("Intended project required");
+  var scene=SceneManager.GetActiveScene();if(scene.path!="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity")throw new InvalidOperationException("Actual author main required");
+  var windows=Resources.FindObjectsOfTypeAll<EditorWindow>().Where(w=>w!=null).ToArray();
+  var behaviours=scene.GetRootGameObjects().SelectMany(r=>r.GetComponentsInChildren<MonoBehaviour>(true)).Where(b=>b!=null).ToArray();
+  var panels=behaviours.Where(b=>b.GetType().Namespace!=null&&(b.GetType().Namespace.StartsWith("Ossastra.Development",StringComparison.Ordinal)||b.GetType().Namespace=="Ossastra.MapResearchIntegration.Diagnostics")||b is Ossastra.MapResearch.MapResearchRoot||b is Ossastra.SceneVisibility.SceneVisibilityRoot||b is Ossastra.EnvironmentSimulation.Rendering.EnvironmentSkyBinding).Select(Panel).ToArray();
+  var update=typeof(EditorApplication).GetField("update",BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Static);
+  var callbacks=update==null?null:update.GetValue(null) as Delegate;
+  var state=new{utc=DateTime.UtcNow.ToString("O"),Application.isPlaying,EditorApplication.isPlayingOrWillChangePlaymode,scene=scene.path,sceneDirty=scene.isDirty,
+   width=Screen.width,height=Screen.height,quality=QualitySettings.GetQualityLevel(),QualitySettings.vSyncCount,Application.targetFrameRate,
+   profiler=new{ProfilerDriver.enabled,ProfilerDriver.profileEditor,ProfilerDriver.profileGPU,ProfilerDriver.deepProfiling},
+   selection=Selection.objects.Where(o=>o!=null).Select(o=>new{id=o.GetInstanceID(),o.name,type=o.GetType().FullName}).ToArray(),focusedWindow=EditorWindow.focusedWindow==null?0:EditorWindow.focusedWindow.GetInstanceID(),
+   windows=windows.Select(w=>new{id=w.GetInstanceID(),type=w.GetType().FullName,title=w.titleContent.text,w.hasFocus,w.maximized,position=new{x=w.position.x,y=w.position.y,width=w.position.width,height=w.position.height},w.autoRepaintOnSceneChange,
+     inspectorLocked=Summarize(Read(w,"isLocked")),gameViewTargetSize=Summarize(Read(w,"targetSize"))}).ToArray(),
+   activeInspectors=ActiveEditorTracker.sharedTracker.activeEditors.Where(e=>e!=null).Select(e=>new{type=e.GetType().FullName,targets=e.targets.Where(t=>t!=null).Select(t=>t.GetInstanceID()).ToArray()}).ToArray(),
+   editorUpdateCallbacks=callbacks==null?null:callbacks.GetInvocationList().Take(256).Select(d=>new{type=d.Method.DeclaringType==null?"":d.Method.DeclaringType.FullName,method=d.Method.Name}).ToArray(),panels,
+   scope="Actual state, not measured cost. Selection/Inspector/layout unchanged. Callback names are not timings; unreported callbacks are not declared free."};
+  string folder=Path.GetFullPath("artifacts/SCENE-PERF-02/V11/Editor");Directory.CreateDirectory(folder);string path=Path.Combine(folder,"state-"+DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff")+".json");
+  File.WriteAllText(path,Newtonsoft.Json.JsonConvert.SerializeObject(state,Newtonsoft.Json.Formatting.Indented));ctx.ReturnValue=new{path,state};
+ }
+}

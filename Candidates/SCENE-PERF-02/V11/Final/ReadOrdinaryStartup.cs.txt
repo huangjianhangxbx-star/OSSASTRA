@@ -1,0 +1,13 @@
+using System;using System.Linq;using UnityEngine;using UnityEditor;using UnityEngine.SceneManagement;using Funplay.Editor.Tools.Scripting;
+public sealed class Perf02ReadOrdinaryStartup:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  if(Application.dataPath.Replace('\\','/')!="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets"||Application.isPlaying||EditorApplication.isCompiling||EditorApplication.isUpdating)throw new InvalidOperationException("Stable intended Edit required");
+  var scene=SceneManager.GetActiveScene();if(scene.path!="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity"||SceneManager.sceneCount!=1)throw new InvalidOperationException("Unique author main required");
+  var roots=scene.GetRootGameObjects();
+  var services=roots.SelectMany(r=>r.GetComponentsInChildren<Ossastra.Commerce.Runtime.CommerceService>(true)).ToArray();
+  var sessions=roots.SelectMany(r=>r.GetComponentsInChildren<Ossastra.Inventory.InventorySession>(true)).ToArray();
+  ctx.ReturnValue=new{scene=scene.path,sceneCount=SceneManager.sceneCount,scene.isDirty,services=services.Length,sessions=sessions.Length,commerce=services.Select(c=>new{c.name,c.profileId,c.saveDirectory,preStart=c.SavePath==null,hasInventory=c.inventory!=null}).ToArray(),sessionNames=sessions.Select(s=>s.name).ToArray(),scope="Read-only current main composition; initial Player LoadSceneMode is not inferred from Edit."};
+ }
+}

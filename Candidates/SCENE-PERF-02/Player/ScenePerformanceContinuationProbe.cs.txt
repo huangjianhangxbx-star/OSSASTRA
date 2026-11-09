@@ -1,0 +1,398 @@
+/* 功能：显式CLI限定的SCENE-PERF-02 Player探针；短CPU二进制诊断与正常未限帧测量分开。
+ * 保护：BeforeSceneLoad/sceneLoaded先禁库存、转独立Commerce目录，再复制批准测试源；失败不回退业务路由。
+ * 诊断：30帧及镜头稳定暖机后采64个真实主相机帧，唯一marker归属真实Player.raw；不作为正常性能结果。
+ * 正常：不启Profiler、不截图、不逐帧JSON；内存保留全部间隔/位姿/条件，停止后一次写结果及全部慢帧段。
+ * 生命周期：退出/异常均释放Profiler借用、原VSync/上限与镜头捕获；不恢复存档路由到来源。
+ */
+#if UNITY_STANDALONE_WIN && !UNITY_EDITOR
+using System;
+using System.IO;
+using System.Linq;
+using System.Collections;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Security.Cryptography;
+using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
+using UnityEngine.SceneManagement;
+using UnityEngine.Profiling;
+using Unity.Profiling;
+using Ossastra.Inventory;
+using Ossastra.Commerce.Runtime;
+using Ossastra.MapResearch;
+using Ossastra.SceneVisibility.Rooms.Rendering;
+using Ossastra.EnvironmentSimulation;
+using Debug=UnityEngine.Debug;
+
+namespace Ossastra.Development.WorldRendering
+{
+ public sealed class ScenePerformanceContinuationProbe:MonoBehaviour
+ {
+  const string CpuFlag="--scene-perf02-cpu",RunFlag="--scene-perf02-run",SourceFlag="--scene-perf02-source",SceneFlag="--scene-perf-build-scene";
+  const string SourceMain="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity";
+  const string CopyFolder="Assets/OSSASTRA/Development/ScenePerformanceBuild/";
+  const string CopyFolder02="Assets/OSSASTRA/Development/ScenePerformance02Build/";
+  const string DefaultSource="E:/WORLDCREATOR/XingHaiHuiLang/研究/SCENE-PERF-01/test-commerce";
+  const string NewSourceRoot="E:/WORLDCREATOR/XingHaiHuiLang/研究/SCENE-PERF-02";
+  const int MinimumWarm=30,StableWarm=15,CpuFrames=64;
+  const double NormalStaticMinimumWarmSeconds=5;
+  const int NormalStaticStableWarmFrames=60;
+  const double Budget=1000d/60,Headroom=12.5;
+  static bool booted;
+  bool authorized,cpuMode,finished,sceneHook,renderHook,logHook,isolated,settingsBorrowed,cameraCaptured,profilerBorrowed,sampling,stopPending;
+  int isolatedScene,warmed,stableFrames,sampled,rendered,lastFrame=-1,errorCount,stopWait;
+  int previousVsync,previousTarget;bool previousProfilerEnabled,previousBinaryLog;string previousLogFile;
+  bool cpuStartRequested,cpuRecordingStarted,startupProfilerMode;int cpuPrerollFrames,startupCaptureLimit;string startupRawPath;
+  Conditions normalStaticWarmAnchor;Matrix4x4 normalStaticWarmProjection;UnityEngine.ShadowQuality normalStaticWarmShadowQuality;
+  double normalStaticRenderedSeconds,normalStaticLastRenderSeconds=-1;int normalStaticLastRenderFrame=-1,normalStaticStableFrames,normalStaticWarmResets;
+  bool staticCameraTargetBorrowed,previousFollowParticipant;Vector3 previousFixedCameraTarget;
+  string directory,sourceDirectory,isolatedDirectory,profileId,beforeFingerprint,expectedScene,route,token,marker;
+  double seconds,lastSeconds,sampleStart;Stopwatch clock;
+  CommerceService commerce;MapResearchRoot map;Camera mainCamera;EnvironmentRoot environment;UniversalRenderPipelineAsset pipeline;
+  readonly object cameraOwner=new object(),logGate=new object();readonly List<string> errors=new List<string>();
+  List<Frame> frames;List<double> frameMs,cpuMs,gpuMs;HashSet<ulong> cpuStamps,gpuStamps;
+  readonly FrameTiming[] timing=new FrameTiming[1];readonly Report report=new Report();
+  Vector3 warmPosition,fixedPosition;Quaternion warmRotation,fixedRotation;Matrix4x4 fixedProjection;int fixedWidth,fixedHeight,fixedQuality;float fixedScale;
+  string timingError="";readonly Counter mainThread=new Counter(ProfilerCategory.Internal,"Main Thread",true),drawCalls=new Counter(ProfilerCategory.Render,"Draw Calls Count",false),batches=new Counter(ProfilerCategory.Render,"Batches Count",false),setPass=new Counter(ProfilerCategory.Render,"SetPass Calls Count",false);
+
+  [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+  static void Bootstrap()
+  {
+   var args=System.Environment.GetCommandLineArgs();int cpu=Array.IndexOf(args,CpuFlag),run=Array.IndexOf(args,RunFlag);
+   if(cpu<0&&run<0||booted)return;booted=true;
+   try
+   {
+    if(cpu>=0&&run>=0)throw new ArgumentException("CPU diagnosis and normal run must be separate launches");
+    int at=cpu>=0?cpu:run;if(at+1>=args.Length||!Path.IsPathFullyQualified(args[at+1]))throw new ArgumentException("Unique absolute RunDir required");
+    string folder=Path.GetFullPath(args[at+1]),source=Arg(args,SourceFlag)??DefaultSource;
+    bool startupCpu=Array.IndexOf(args,"--scene-perf02-startup-profiler")>=0;
+    string startupRaw=null;
+    if(startupCpu)
+    {
+     startupRaw=Arg(args,"-profiler-log-file");
+     if(cpu<0||Array.IndexOf(args,"-profiler-enable")<0||startupRaw==null||!Path.IsPathFullyQualified(startupRaw)||!Same(startupRaw,Path.Combine(folder,"startup-cpu.raw"))||Arg(args,"-profiler-capture-frame-count")!="256"||Arg(args,"-profiler-maxusedmemory")!="268435456")
+      throw new ArgumentException("Startup CPU requires explicit engine enable/log inside newRun/startup-cpu.raw,256frames,256MiBbuffer");
+     startupRaw=Path.GetFullPath(startupRaw);
+    }
+    source=Path.GetFullPath(source);
+    if(!Same(source,DefaultSource)&&!Within(source,NewSourceRoot))throw new ArgumentException("Only approved PERF-01 test source or explicit PERF-02 frozen test source allowed");
+    if(Within(folder,source)||Within(source,folder))throw new IOException("Run and source directories overlap");
+    if(Directory.Exists(folder)&&Directory.EnumerateFileSystemEntries(folder).Any(p=>!startupCpu||!Same(p,startupRaw)||Directory.Exists(p)))throw new IOException("RunDir must be new/empty or only its engine-created exact startup-cpu.raw");
+    Directory.CreateDirectory(folder);Guard(folder);
+    string requested=Arg(args,SceneFlag);if(requested!=null&&!SceneAllowed(requested.Replace('\\','/')))throw new ArgumentException("Explicit scene must be original main or owned main-content build copy");
+    string route=Arg(args,"--scene-perf02-route")??"exterior";if(route!="exterior"&&route!="interior"&&route!="dynamic")throw new ArgumentException("Route exterior/interior/dynamic required");
+    double duration=60;string durationArg=Arg(args,"--scene-perf02-seconds");if(durationArg!=null&&(!double.TryParse(durationArg,System.Globalization.NumberStyles.Float,System.Globalization.CultureInfo.InvariantCulture,out duration)||duration<1||duration>600))throw new ArgumentException("seconds must be 1..600");
+    var host=new GameObject("ScenePerformanceContinuationProbe_CLIOnly"){hideFlags=HideFlags.HideAndDontSave};host.SetActive(false);DontDestroyOnLoad(host);
+    var probe=host.AddComponent<ScenePerformanceContinuationProbe>();probe.authorized=true;probe.cpuMode=cpu>=0;probe.directory=folder;probe.sourceDirectory=source;
+    probe.expectedScene=requested?.Replace('\\','/');probe.route=route;probe.seconds=duration;probe.token=Guid.NewGuid().ToString("N");probe.marker="SCENE_PERF02_PLAYER_"+probe.token;probe.clock=Stopwatch.StartNew();
+    probe.startupProfilerMode=startupCpu;probe.startupRawPath=startupRaw;probe.startupCaptureLimit=startupCpu?256:0;
+    if(probe.cpuMode&&!startupCpu)host.AddComponent<ScenePerformanceCpuBoundary>().Owner=probe;
+    int capacity=Math.Min(300000,Math.Max(4096,(int)Math.Ceiling(duration*500)));
+    probe.frames=new List<Frame>(capacity);probe.frameMs=new List<double>(capacity);probe.cpuMs=new List<double>(capacity);probe.gpuMs=new List<double>(capacity);probe.cpuStamps=new HashSet<ulong>(capacity);probe.gpuStamps=new HashSet<ulong>(capacity);
+    SceneManager.sceneLoaded+=probe.SceneLoaded;probe.sceneHook=true;Application.logMessageReceivedThreaded+=probe.Log;probe.logHook=true;host.SetActive(true);
+   }
+   catch(Exception e){SceneManager.sceneLoaded+=AbortStartup;Debug.LogError("SCENE_PERF02_START_FAILED "+e.Message);Application.Quit(1);}
+  }
+  static string Arg(string[] args,string name){int i=Array.IndexOf(args,name);if(i<0)return null;if(i+1>=args.Length)throw new ArgumentException("Missing argument "+name);return args[i+1];}
+  static bool SceneAllowed(string path)=>path==SourceMain||((path.StartsWith(CopyFolder,StringComparison.Ordinal)||path.StartsWith(CopyFolder02,StringComparison.Ordinal))&&!path.Contains("..")&&!path.Contains("\\")&&Path.GetFileName(path).StartsWith("ScenePerfBuild_",StringComparison.Ordinal)&&path.EndsWith(".unity",StringComparison.Ordinal)&&path.Substring(path.LastIndexOf('/')+1).Length>"ScenePerfBuild_.unity".Length);
+  static List<(InventorySession session,bool enabled)> Block(Scene scene)
+  {var result=new List<(InventorySession,bool)>();foreach(var root in scene.GetRootGameObjects())foreach(var value in root.GetComponentsInChildren<InventorySession>(true)){result.Add((value,value.enabled));value.enabled=false;}return result;}
+  static void AbortStartup(Scene scene,LoadSceneMode mode){SceneManager.sceneLoaded-=AbortStartup;Block(scene);}
+  void SceneLoaded(Scene scene,LoadSceneMode mode)
+  {
+   try
+   {
+    if(isolated){if(scene.handle!=isolatedScene||commerce==null||commerce.saveDirectory!=isolatedDirectory)throw new InvalidOperationException("Unexpected second scene/route");return;}
+    var states=Block(scene);
+    commerce=One(scene.GetRootGameObjects().SelectMany(r=>r.GetComponentsInChildren<CommerceService>(true)),"CommerceService");
+    // 先转向独立路径；即使后续场景/来源检查失败，退出保存也不能写回来源。
+    string author=commerce.saveDirectory;isolatedDirectory=Path.Combine(directory,"isolated-commerce");commerce.saveDirectory=isolatedDirectory;profileId=commerce.profileId;isolatedScene=scene.handle;
+    if(!SceneAllowed(scene.path)||(expectedScene!=null&&scene.path!=expectedScene))throw new InvalidOperationException("Wrong actual main-content scene");
+    expectedScene=scene.path;
+    if(commerce.inventory==null||commerce.SavePath!=null||commerce.SaveStatus!=null)throw new InvalidOperationException("Commerce isolation too late or missing inventory");
+    if(string.IsNullOrWhiteSpace(author)||!Same(author,sourceDirectory))throw new InvalidOperationException("Author Commerce route differs from exact approved source");
+    Guard(sourceDirectory);if(!Directory.Exists(sourceDirectory))throw new DirectoryNotFoundException(sourceDirectory);
+    report.sourceFilesBefore=Files(sourceDirectory);beforeFingerprint=Fingerprint(report.sourceFilesBefore);Directory.CreateDirectory(isolatedDirectory);Guard(isolatedDirectory);
+    foreach(var f in report.sourceFilesBefore)File.Copy(Path.Combine(sourceDirectory,f.name),Path.Combine(isolatedDirectory,f.name),false);
+    if(beforeFingerprint!=Fingerprint(Files(sourceDirectory)))throw new IOException("Source changed during pre-Start copy");
+    if(commerce.saveDirectory!=isolatedDirectory||commerce.SavePath!=null||commerce.profileId!=profileId)throw new InvalidOperationException("Isolation readback failed");
+    isolated=report.preStartIsolation=true;foreach(var state in states)if(state.session!=null)state.session.enabled=state.enabled;
+   }
+   catch(Exception e){Block(scene);Finish(false,"pre-Start isolation failed: "+e);}
+  }
+  IEnumerator Start()
+  {
+   if(!authorized){enabled=false;yield break;}yield return null;
+   try
+   {
+    if(Application.isBatchMode||SystemInfo.graphicsDeviceType==GraphicsDeviceType.Null||!isolated)throw new InvalidOperationException("Actual graphical isolated Player required");
+    var scene=SceneManager.GetActiveScene();var roots=scene.GetRootGameObjects();
+    map=One(roots.SelectMany(r=>r.GetComponentsInChildren<MapResearchRoot>(true)),"MapResearchRoot");mainCamera=map.gameplayCamera;
+    environment=One(roots.SelectMany(r=>r.GetComponentsInChildren<EnvironmentRoot>(true)),"EnvironmentRoot");
+    var coordinator=One(roots.SelectMany(r=>r.GetComponentsInChildren<Ossastra.Characters.CharacterControlCoordinator>(true)),"coordinator");
+    if(mainCamera==null||!mainCamera.isActiveAndEnabled||Mathf.Abs(map.pitch-45)>.001f||coordinator.Characters.Count!=2)throw new InvalidOperationException("Original 45-degree mainCamera/two participants required");
+    pipeline=GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset;
+    report.entry=CaptureConditions();report.originalProfilerEnabled=Profiler.enabled;report.developmentBuild=Debug.isDebugBuild;
+    previousVsync=QualitySettings.vSyncCount;previousTarget=Application.targetFrameRate;settingsBorrowed=true;QualitySettings.vSyncCount=0;Application.targetFrameRate=-1;
+    if(route!="dynamic")
+    {
+     map.SetUiCameraCapture(cameraOwner,true);cameraCaptured=true;
+     var lab=One(roots.SelectMany(r=>r.GetComponentsInChildren<Ossastra.Development.SceneVisibility.RoomVisibilityLabPanel>(true)),"existing room route panel");
+     var routePoint=route=="interior"?lab.knownRoomPosition:lab.exteriorPosition;
+     if(!lab.PlaceCurrent(routePoint))throw new InvalidOperationException("Existing one-time route placement failed");
+     if(!cpuMode)
+     {
+      // Fixed observation target only; the existing map continues smoothing and rendering normally.
+      previousFollowParticipant=map.followParticipant;previousFixedCameraTarget=map.fixedTarget;staticCameraTargetBorrowed=true;
+      report.normalStaticFixedCameraApplied=true;report.previousFollowParticipant=previousFollowParticipant;report.previousFixedCameraTarget=previousFixedCameraTarget;report.requestedFixedCameraTarget=routePoint;
+      map.fixedTarget=routePoint;map.followParticipant=false;
+      if(map.followParticipant||!map.fixedTarget.Equals(routePoint))throw new InvalidOperationException("Declared fixed observation target readback failed");
+     }
+    }
+    mainThread.Start();drawCalls.Start();batches.Start();setPass.Start();
+    warmPosition=mainCamera.transform.position;warmRotation=mainCamera.transform.rotation;
+    RenderPipelineManager.endCameraRendering+=CameraEnded;renderHook=true;
+   }
+   catch(Exception e){Finish(false,"runtime setup: "+e);}
+  }
+  void CameraEnded(ScriptableRenderContext context,Camera renderedCamera)
+  {
+   if(finished||renderedCamera!=mainCamera||Time.frameCount==lastFrame||stopPending)return;
+   long begin=Stopwatch.GetTimestamp();
+   try
+   {
+    double now=clock.Elapsed.TotalSeconds;lastFrame=Time.frameCount;rendered++;
+    if(!RoomMaskCameraRegistry.TryGetStatistics(mainCamera,out var stats)||stats==null||!stats.Active||stats.UnsupportedMaterialCount!=0||!string.IsNullOrEmpty(stats.Error))throw new InvalidOperationException("Room backend invalid: "+(stats?.Error??"missing"));
+    if(!sampling)
+    {
+     warmed++;bool same=(mainCamera.transform.position-warmPosition).sqrMagnitude<1e-8f&&Quaternion.Angle(mainCamera.transform.rotation,warmRotation)<.001f;
+     stableFrames=same?stableFrames+1:0;warmPosition=mainCamera.transform.position;warmRotation=mainCamera.transform.rotation;lastSeconds=now;ReadTiming(false,out _,out _,out _);
+     if(!cpuMode&&route!="dynamic")
+     {
+      if(!NormalStaticWarmReady(now))return;
+     }
+     else if(warmed<MinimumWarm||(route!="dynamic"&&stableFrames<StableWarm))return;
+     sampling=true;sampleStart=now;fixedPosition=mainCamera.transform.position;fixedRotation=mainCamera.transform.rotation;fixedProjection=mainCamera.projectionMatrix;fixedWidth=Screen.width;fixedHeight=Screen.height;fixedQuality=QualitySettings.GetQualityLevel();fixedScale=pipeline==null?-1:pipeline.renderScale;
+     report.start=CaptureConditions();if(fixedWidth!=1600||fixedHeight!=900)throw new InvalidOperationException("Required 1600x900 window not active");
+     if(QualitySettings.names[fixedQuality]!="Ultra")throw new InvalidOperationException("Required author Ultra quality not active");
+     if(!RoomMaskCameraRegistry.TryGet(mainCamera,out var roomFrame)||roomFrame==null)throw new InvalidOperationException("Actual route frame unavailable");
+     report.startExteriorView=roomFrame.ExteriorView;
+     if(route!="dynamic"&&roomFrame.ExteriorView!=(route=="exterior"))throw new InvalidOperationException("One-time authored route placement did not enter requested exterior/interior scope");
+     if(cpuMode){if(startupProfilerMode)UseStartupCpu();else cpuStartRequested=true;}return;
+    }
+    // Request in render, begin/end in dedicated early Update; select only complete settled frames.
+    if(cpuMode&&(!cpuRecordingStarted||cpuPrerollFrames>0))
+    {
+     if(cpuRecordingStarted){cpuPrerollFrames--;report.cpuPrerollCameraFrames++;}
+     lastSeconds=now;sampleStart=now;return;
+    }
+    if(cpuMode)Profiler.BeginSample(marker);
+    try
+    {
+     double dt=(now-lastSeconds)*1000;lastSeconds=now;if(!Finite(dt)||dt<=0)throw new InvalidOperationException("Invalid real mainCamera interval");
+     ReadTiming(true,out double cpu,out double gpu,out ulong stamp);
+     bool pose=(mainCamera.transform.position-fixedPosition).sqrMagnitude<=1e-8f&&Quaternion.Angle(mainCamera.transform.rotation,fixedRotation)<=.001f;
+     bool settings=Screen.width==fixedWidth&&Screen.height==fixedHeight&&QualitySettings.GetQualityLevel()==fixedQuality&&(pipeline==null||Mathf.Abs(pipeline.renderScale-fixedScale)<1e-6f)&&QualitySettings.vSyncCount==0&&Application.targetFrameRate==-1;
+     var projection=mainCamera.projectionMatrix;for(int k=0;k<16;k++)if(Mathf.Abs(projection[k]-fixedProjection[k])>1e-6f)pose=false;
+     if(route!="dynamic"&&!pose)report.poseChanged=true;if(!settings)report.qualityChanged=true;
+     frameMs.Add(dt);sampled++;
+     frames.Add(new Frame{frame=Time.frameCount,seconds=now-sampleStart,frameMs=dt,cpuFrameMs=cpu,gpuFrameMs=gpu,frameTimingTimestamp=stamp,
+      mainThreadMs=mainThread.Read(),drawCalls=drawCalls.Read(),batches=batches.Read(),setPass=setPass.Read(),position=mainCamera.transform.position,rotation=mainCamera.transform.rotation,
+      width=Screen.width,height=Screen.height,quality=QualitySettings.GetQualityLevel(),renderScale=pipeline==null?-1:pipeline.renderScale,hours=environment.Current==null?-1:environment.Current.Hours,poseStable=pose,qualityStable=settings,
+      exteriorView=RoomMaskCameraRegistry.TryGet(mainCamera,out var actualRoom)&&actualRoom.ExteriorView,callbackUs=(Stopwatch.GetTimestamp()-begin)*1000000d/Stopwatch.Frequency});
+    }
+    finally{if(cpuMode)Profiler.EndSample();}
+    if(cpuMode?sampled>=CpuFrames:now-sampleStart>=seconds){report.end=CaptureConditions();if(cpuMode)report.cpuLastMarkedFrame=Time.frameCount;stopPending=true;stopWait=0;}
+   }
+   catch(Exception e){Finish(false,"mainCamera sampling: "+e);}
+  }
+  // Only normal exterior/interior timing uses this gate. Natural motor/follow-camera/physics continue.
+  bool NormalStaticWarmReady(double now)
+  {
+   bool consecutive=normalStaticLastRenderFrame<0||Time.frameCount==normalStaticLastRenderFrame+1;
+   if(normalStaticLastRenderSeconds>=0&&consecutive)normalStaticRenderedSeconds+=Math.Max(0,now-normalStaticLastRenderSeconds);
+   normalStaticLastRenderSeconds=now;normalStaticLastRenderFrame=Time.frameCount;
+   bool same=normalStaticWarmAnchor!=null&&consecutive;
+   if(same)
+   {
+    var a=normalStaticWarmAnchor;
+    same=(mainCamera.transform.position-a.position).sqrMagnitude<=1e-8f&&Quaternion.Angle(mainCamera.transform.rotation,a.rotation)<=.001f&&
+     Screen.width==a.width&&Screen.height==a.height&&QualitySettings.GetQualityLevel()==a.quality&&QualitySettings.vSyncCount==a.vsync&&Application.targetFrameRate==a.targetFrameRate&&
+     QualitySettings.antiAliasing==a.antiAliasing&&QualitySettings.shadows==normalStaticWarmShadowQuality&&Mathf.Abs(QualitySettings.shadowDistance-a.shadowDistance)<1e-6f&&
+     (pipeline==null?a.renderScale<0:Mathf.Abs(pipeline.renderScale-a.renderScale)<1e-6f&&pipeline.msaaSampleCount==a.msaa);
+    var projection=mainCamera.projectionMatrix;for(int n=0;n<16;n++)if(Mathf.Abs(projection[n]-normalStaticWarmProjection[n])>1e-6f)same=false;
+   }
+   if(same)normalStaticStableFrames++;
+   else
+   {
+    if(normalStaticWarmAnchor!=null)normalStaticWarmResets++;
+    normalStaticWarmAnchor=CaptureConditions();normalStaticWarmProjection=mainCamera.projectionMatrix;normalStaticWarmShadowQuality=QualitySettings.shadows;normalStaticStableFrames=1;
+   }
+   // Compare the whole tail against its anchor, so slow cumulative drift cannot pass pairwise checks.
+   return normalStaticRenderedSeconds>=NormalStaticMinimumWarmSeconds&&normalStaticStableFrames>=NormalStaticStableWarmFrames;
+  }
+  void StartCpu()
+  {
+   if(startupProfilerMode)throw new InvalidOperationException("Startup profiler must never be toggled by runtime");
+   previousProfilerEnabled=Profiler.enabled;previousBinaryLog=Profiler.enableBinaryLog;previousLogFile=Profiler.logFile;profilerBorrowed=true;
+   report.rawLogFile=Path.Combine(directory,"cpu-"+token+".raw");Profiler.enabled=false;Profiler.logFile=report.rawLogFile;Profiler.enableBinaryLog=true;Profiler.enabled=true;cpuRecordingStarted=true;cpuPrerollFrames=2;report.cpuCaptureStartFrame=Time.frameCount;
+  }
+  void UseStartupCpu()
+  {
+   report.startupObservedEnabled=Profiler.enabled;report.startupObservedBinaryLog=Profiler.enableBinaryLog;report.startupObservedLogFile=Profiler.logFile;
+   if(!Profiler.enabled||!Profiler.enableBinaryLog||string.IsNullOrEmpty(Profiler.logFile)||!Same(Profiler.logFile,startupRawPath)||Time.frameCount>=startupCaptureLimit-CpuFrames-4)
+    throw new InvalidOperationException("Actual engine startup profiler/log/frame budget does not match declared capture");
+   report.rawLogFile=startupRawPath;cpuRecordingStarted=true;cpuPrerollFrames=2;report.cpuCaptureStartFrame=Time.frameCount;
+  }
+  void StopCpu()
+  {
+   if(startupProfilerMode)return; // Engine-started stream is owned by its frame limit/process lifetime, never this component.
+   if(!profilerBorrowed)return;
+   // Successful capture stops in early Update after two whole unmarked drain frames; explicitly close before restoring binary mode.
+   try{Profiler.enabled=false;}catch(Exception e){errors.Add("Profiler stop: "+e.Message);}
+   try{Profiler.logFile=string.Empty;}catch(Exception e){errors.Add("binary log close: "+e.Message);}
+   try{Profiler.enableBinaryLog=previousBinaryLog;}catch(Exception e){errors.Add("binary restore: "+e.Message);}
+   try{Profiler.logFile=previousLogFile;}catch(Exception e){errors.Add("log path restore: "+e.Message);}
+   try{Profiler.enabled=previousProfilerEnabled;}catch(Exception e){errors.Add("Profiler enabled restore: "+e.Message);}
+   profilerBorrowed=false;cpuRecordingStarted=false;
+  }
+  void ReadTiming(bool keep,out double cpu,out double gpu,out ulong stamp)
+  {
+   cpu=gpu=-1;stamp=0;
+   try
+   {
+    FrameTimingManager.CaptureFrameTimings();uint count=FrameTimingManager.GetLatestTimings(1,timing);if(count==0)return;
+    var value=timing[0];stamp=value.frameStartTimestamp;if(stamp==0)return;
+    if(!keep){cpuStamps.Add(stamp);gpuStamps.Add(stamp);return;}
+    if(Finite(value.cpuFrameTime)&&value.cpuFrameTime>0&&cpuStamps.Add(stamp)){cpu=value.cpuFrameTime;cpuMs.Add(cpu);}
+    if(Finite(value.gpuFrameTime)&&value.gpuFrameTime>0&&gpuStamps.Add(stamp)){gpu=value.gpuFrameTime;gpuMs.Add(gpu);}
+   }
+   catch(Exception e){timingError=e.GetType().Name+": "+e.Message;}
+  }
+  void Update()
+  {
+   if(finished||clock==null)return;
+   if(stopPending){if(startupProfilerMode){if(Time.frameCount>=startupCaptureLimit+3)Finish(true,"requested measurement complete; engine startup capture process closing");}else if(!cpuMode&&++stopWait>=3)Finish(true,"requested measurement complete");return;}
+   if(clock.Elapsed.TotalSeconds>(cpuMode?60:seconds+60))Finish(false,"total timeout; warm="+warmed+" sampled="+sampled);
+  }
+  // CPU-only boundary component; normal timing retains its original Update path and execution order.
+  internal void ProcessCpuBoundaryUpdate()
+  {
+   if(!cpuMode||finished||clock==null)return;
+   try
+   {
+    if(cpuStartRequested){cpuStartRequested=false;StartCpu();return;}
+    if(!stopPending)return;
+    stopWait++;
+    if(stopWait==3){report.cpuCaptureStopFrame=Time.frameCount;report.cpuDrainFrameCount=Math.Max(0,Time.frameCount-report.cpuLastMarkedFrame-1);StopCpu();}
+    if(stopWait>=6)Finish(true,"requested measurement complete");
+   }
+   catch(Exception e){Finish(false,"CPU frame-boundary capture: "+e);}
+  }
+  void Finish(bool correct,string reason)
+  {
+   if(finished)return;finished=true;Detach();Restore();
+   try
+   {
+    report.sourceFilesAfter=beforeFingerprint==null?Array.Empty<ArchiveFile>():Files(sourceDirectory);report.sourceArchiveUnchanged=beforeFingerprint!=null&&beforeFingerprint==Fingerprint(report.sourceFilesAfter);
+    report.isolatedRouteValid=isolated&&commerce!=null&&commerce.saveDirectory==isolatedDirectory&&commerce.profileId==profileId&&Within(commerce.SavePath,isolatedDirectory);
+    correct&=report.preStartIsolation&&report.sourceArchiveUnchanged&&report.isolatedRouteValid&&sampled>0&&(!cpuMode||sampled==CpuFrames);
+    if(cpuMode&&startupProfilerMode){report.rawHashPending=true;report.rawBytes=-1;correct&=File.Exists(report.rawLogFile)&&Time.frameCount>=startupCaptureLimit+3;}
+    else if(cpuMode&&File.Exists(report.rawLogFile)){report.rawBytes=new FileInfo(report.rawLogFile).Length;report.rawSha256=Hash(report.rawLogFile);correct&=report.rawBytes>0;}else if(cpuMode)correct=false;
+   }
+   catch(Exception e){correct=false;reason+="; final verification: "+e.Message;}
+   lock(logGate){report.runtimeErrors=errors.ToArray();report.runtimeErrorCount=errorCount;}correct&=errorCount==0&&errors.Count==0;
+   report.schemaVersion=1;report.pass=correct;report.reason=reason;report.token=token;report.uniquePlayerMarker=marker;report.mode=cpuMode?"diagnostic-player-cpu":"normal-player";report.route=route;
+   report.applicationIsEditor=Application.isEditor;report.runtimePlatform=Application.platform.ToString();report.unityVersion=Application.unityVersion;report.machine=SystemInfo.deviceModel;report.os=SystemInfo.operatingSystem;report.cpu=SystemInfo.processorType;report.cpuCores=SystemInfo.processorCount;report.systemMemoryMiB=SystemInfo.systemMemorySize;report.gpu=SystemInfo.graphicsDeviceName;report.graphicsApi=SystemInfo.graphicsDeviceType.ToString();
+   report.sourceMainPath=SourceMain;report.actualBuildScenePath=expectedScene;report.sourceArchive=sourceDirectory;report.isolatedCommerce=isolatedDirectory;report.actualSavePath=commerce?.SavePath;
+   report.warmupFrames=warmed;report.sampledFrames=sampled;report.actualCameraFrames=rendered;report.requiredSeconds=seconds;report.sampledSeconds=sampled==0?0:frames[frames.Count-1].seconds;report.elapsedSeconds=clock?.Elapsed.TotalSeconds??0;
+   report.frameMilliseconds=Summary.Of(frameMs);report.cpuFrameMilliseconds=Summary.Of(cpuMs);report.gpuFrameMilliseconds=Summary.Of(gpuMs);report.mainThreadMilliseconds=Summary.Of(frames.Select(f=>f.mainThreadMs).ToList());report.samples=frames.ToArray();
+   report.frameTimingStatus=timingError.Length>0?"unavailable/error: "+timingError:"positive CPU/GPU observations only; nonzero frameStartTimestamp separately deduplicated; values may lag mainCamera callback";
+   report.segments=Segments(frames);report.overBudgetFrames=frameMs.Count(v=>v>Budget);report.overBudgetRatio=sampled==0?1:(double)report.overBudgetFrames/sampled;report.longestOverBudgetRun=report.segments.Length==0?0:report.segments.Max(v=>v.frames);
+   report.normalProfilerStateValid=cpuMode||!report.originalProfilerEnabled&&!Profiler.enabled;
+   bool window=!cpuMode&&report.normalProfilerStateValid&&report.sampledSeconds>=seconds&&!report.poseChanged&&!report.qualityChanged;
+   report.performance60Passed=correct&&window&&report.frameMilliseconds.p95<=Budget&&report.frameMilliseconds.p99<=Budget&&report.overBudgetRatio<=.01;report.headroomPassed=report.performance60Passed&&report.frameMilliseconds.p50<=Headroom;
+   report.performanceVerdict=cpuMode?"DIAGNOSTIC ONLY: profiler enabled, not normal performance acceptance":report.performance60Passed?"one finite route passes 60fps timing gate; final repeat/dynamic/expansion gates remain separate":"60fps NOT PASSED for this finite route";
+   report.budgetMs=Budget;report.headroomP50Ms=Headroom;report.settingsRestored=!settingsBorrowed;report.cameraCaptureReleased=!cameraCaptured;report.profilerRestored=!profilerBorrowed;
+   report.startupProfilerMode=startupProfilerMode;report.profilerFlagsUntouchedByRuntime=startupProfilerMode;report.engineCaptureFrameLimit=startupCaptureLimit;report.actualFinalFrame=Time.frameCount;report.finalObservedProfilerEnabled=Profiler.enabled;report.finalObservedBinaryLog=Profiler.enableBinaryLog;report.finalObservedLogFile=Profiler.logFile;
+   report.normalStaticWarmGate=!cpuMode&&route!="dynamic";report.normalStaticWarmRenderedSeconds=normalStaticRenderedSeconds;report.normalStaticStableWarmFrames=normalStaticStableFrames;report.normalStaticWarmResets=normalStaticWarmResets;report.normalStaticRequiredWarmSeconds=NormalStaticMinimumWarmSeconds;report.normalStaticRequiredStableFrames=NormalStaticStableWarmFrames;
+   mainThread.Dispose();drawCalls.Dispose();batches.Dispose();setPass.Dispose();
+   try{File.WriteAllText(Path.Combine(directory,"result.json"),JsonUtility.ToJson(report,true));}catch(Exception e){report.pass=false;Debug.LogError("SCENE_PERF02_RESULT_WRITE_FAILED "+e.Message);}
+   Debug.Log("SCENE_PERF02_PLAYER_RESULT mode="+report.mode+" pass="+report.pass+" dir="+directory+" frames="+sampled+" p50="+report.frameMilliseconds.p50+" p99="+report.frameMilliseconds.p99);Application.Quit(report.pass?0:1);
+  }
+  Conditions CaptureConditions()=>new Conditions{position=mainCamera==null?Vector3.zero:mainCamera.transform.position,rotation=mainCamera==null?Quaternion.identity:mainCamera.transform.rotation,width=Screen.width,height=Screen.height,quality=QualitySettings.GetQualityLevel(),qualityName=QualitySettings.names[QualitySettings.GetQualityLevel()],vsync=QualitySettings.vSyncCount,targetFrameRate=Application.targetFrameRate,antiAliasing=QualitySettings.antiAliasing,shadowDistance=QualitySettings.shadowDistance,renderScale=pipeline==null?-1:pipeline.renderScale,msaa=pipeline==null?-1:pipeline.msaaSampleCount,hours=environment?.Current==null?-1:environment.Current.Hours,clockRunning=environment!=null&&environment.clockRunning,manualSun=environment!=null&&environment.manualSun};
+  void Restore()
+  {
+   StopCpu();
+   if(staticCameraTargetBorrowed)
+   {
+    try
+    {
+     if(map==null)throw new InvalidOperationException("Borrowed map no longer available for target restoration");
+     map.fixedTarget=previousFixedCameraTarget;map.followParticipant=previousFollowParticipant;
+     report.fixedCameraRestoreReadbackAvailable=true;report.restoredFollowParticipant=map.followParticipant;report.restoredFixedCameraTarget=map.fixedTarget;
+     report.normalStaticFixedCameraRestored=map.followParticipant==previousFollowParticipant&&map.fixedTarget.Equals(previousFixedCameraTarget);
+     if(!report.normalStaticFixedCameraRestored)throw new InvalidOperationException("Fixed observation target restoration readback differs");
+     staticCameraTargetBorrowed=false;
+    }
+    catch(Exception e){errors.Add("restore fixed observation target: "+e.Message);}
+   }
+   if(settingsBorrowed){try{QualitySettings.vSyncCount=previousVsync;Application.targetFrameRate=previousTarget;settingsBorrowed=false;}catch(Exception e){errors.Add("restore frame controls: "+e.Message);}}
+   if(cameraCaptured){try{if(map!=null)map.SetUiCameraCapture(cameraOwner,false);cameraCaptured=false;}catch(Exception e){errors.Add("release mainCamera capture: "+e.Message);}}
+  }
+  void Detach(){if(sceneHook){SceneManager.sceneLoaded-=SceneLoaded;sceneHook=false;}if(renderHook){RenderPipelineManager.endCameraRendering-=CameraEnded;renderHook=false;}if(logHook){Application.logMessageReceivedThreaded-=Log;logHook=false;}}
+  void OnApplicationQuit(){Detach();Restore();}void OnDestroy(){Detach();Restore();mainThread.Dispose();drawCalls.Dispose();batches.Dispose();setPass.Dispose();}
+  void Log(string value,string stack,LogType type){if(type!=LogType.Error&&type!=LogType.Exception&&type!=LogType.Assert)return;lock(logGate){errorCount++;if(errors.Count<16)errors.Add(type+": "+value+"\n"+stack);}}
+  static Segment[] Segments(List<Frame> input)
+  {
+   var result=new List<Segment>();Segment current=null;
+   foreach(var frame in input){if(frame.frameMs>Budget){if(current==null){current=new Segment{startFrame=frame.frame,startSeconds=frame.seconds};result.Add(current);}current.frames++;current.endFrame=frame.frame;current.endSeconds=frame.seconds;current.maxMs=Math.Max(current.maxMs,frame.frameMs);}else current=null;}return result.ToArray();
+  }
+  static bool Finite(double n)=>!double.IsNaN(n)&&!double.IsInfinity(n);
+  static T One<T>(IEnumerable<T> source,string label){var values=source.ToArray();if(values.Length!=1)throw new InvalidOperationException(label+" count="+values.Length);return values[0];}
+  static bool Same(string a,string b)=>string.Equals(Path.GetFullPath(a).TrimEnd('\\','/'),Path.GetFullPath(b).TrimEnd('\\','/'),StringComparison.OrdinalIgnoreCase);
+  static bool Within(string path,string parent){if(string.IsNullOrEmpty(path)||string.IsNullOrEmpty(parent))return false;path=Path.GetFullPath(path).TrimEnd('\\','/');parent=Path.GetFullPath(parent).TrimEnd('\\','/');return path.Equals(parent,StringComparison.OrdinalIgnoreCase)||path.StartsWith(parent+Path.DirectorySeparatorChar,StringComparison.OrdinalIgnoreCase);}
+  static void Guard(string path){if(Directory.Exists(path)&&(File.GetAttributes(path)&FileAttributes.ReparsePoint)!=0)throw new IOException("Reparse directory rejected: "+path);}
+  static string Hash(string file){using(var sha=SHA256.Create())using(var stream=File.OpenRead(file))return BitConverter.ToString(sha.ComputeHash(stream)).Replace("-","");}
+  static ArchiveFile[] Files(string folder)=>Directory.GetFiles(folder,"*",SearchOption.TopDirectoryOnly).OrderBy(v=>v,StringComparer.Ordinal).Select(file=>{if((File.GetAttributes(file)&FileAttributes.ReparsePoint)!=0)throw new IOException("Reparse source file");return new ArchiveFile{name=Path.GetFileName(file),length=new FileInfo(file).Length,sha256=Hash(file)};}).ToArray();
+  static string Fingerprint(ArchiveFile[] files)=>string.Join("\n",files.Select(f=>f.name+"|"+f.length+"|"+f.sha256));
+  sealed class Counter:IDisposable
+  {
+   readonly ProfilerCategory category;readonly string name;readonly bool ns;ProfilerRecorder recorder;bool active;
+   public Counter(ProfilerCategory category,string name,bool ns){this.category=category;this.name=name;this.ns=ns;}
+   public void Start(){try{recorder=ProfilerRecorder.StartNew(category,name,1);active=recorder.Valid;}catch{active=false;}}
+   public double Read(){if(!active||recorder.Count==0)return -1;long n=recorder.LastValue;return n<0||ns&&n==0?-1:ns?n/1000000d:n;}
+   public void Dispose(){if(active){recorder.Dispose();active=false;}}
+  }
+  [Serializable]public struct Frame{public int frame,width,height,quality;public double seconds,frameMs,cpuFrameMs,gpuFrameMs,mainThreadMs,drawCalls,batches,setPass,callbackUs;public ulong frameTimingTimestamp;public float renderScale;public double hours;public Vector3 position;public Quaternion rotation;public bool poseStable,qualityStable,exteriorView;}
+  [Serializable]public sealed class Segment{public int startFrame,endFrame,frames;public double startSeconds,endSeconds,maxMs;}
+  [Serializable]public sealed class ArchiveFile{public string name,sha256;public long length;}
+  [Serializable]public sealed class Conditions{public Vector3 position;public Quaternion rotation;public int width,height,quality,vsync,targetFrameRate,antiAliasing,msaa;public string qualityName;public float shadowDistance,renderScale;public double hours;public bool clockRunning,manualSun;}
+  [Serializable]public sealed class Summary
+  {
+   public bool available;public string status;public int samples;public double p50,p95,p99,min,max,mean;
+   public static Summary Of(List<double> input){var sorted=input.Where(n=>Finite(n)&&n>0).OrderBy(n=>n).ToArray();var s=new Summary{samples=sorted.Length,available=sorted.Length>0,status=sorted.Length>0?"available":"unavailable: no positive unique observations"};if(sorted.Length>0){s.p50=sorted[(int)Math.Ceiling(sorted.Length*.5)-1];s.p95=sorted[(int)Math.Ceiling(sorted.Length*.95)-1];s.p99=sorted[(int)Math.Ceiling(sorted.Length*.99)-1];s.min=sorted[0];s.max=sorted[sorted.Length-1];s.mean=sorted.Average();}return s;}
+  }
+  [Serializable]public sealed class Report
+  {
+   public int schemaVersion,warmupFrames,sampledFrames,actualCameraFrames,runtimeErrorCount,overBudgetFrames,longestOverBudgetRun,cpuCores,systemMemoryMiB,cpuCaptureStartFrame,cpuLastMarkedFrame,cpuCaptureStopFrame,cpuPrerollCameraFrames,cpuDrainFrameCount;
+   public bool pass,preStartIsolation,sourceArchiveUnchanged,isolatedRouteValid,applicationIsEditor,developmentBuild,originalProfilerEnabled,normalProfilerStateValid,startExteriorView,poseChanged,qualityChanged,performance60Passed,headroomPassed,settingsRestored,cameraCaptureReleased,profilerRestored;
+   public bool startupProfilerMode,profilerFlagsUntouchedByRuntime,rawHashPending,startupObservedEnabled,startupObservedBinaryLog,finalObservedProfilerEnabled,finalObservedBinaryLog;
+   public int engineCaptureFrameLimit,actualFinalFrame;public string startupObservedLogFile,finalObservedLogFile;
+   public bool normalStaticWarmGate;public double normalStaticWarmRenderedSeconds,normalStaticRequiredWarmSeconds;public int normalStaticStableWarmFrames,normalStaticWarmResets,normalStaticRequiredStableFrames;
+   public bool normalStaticFixedCameraApplied,normalStaticFixedCameraRestored,fixedCameraRestoreReadbackAvailable,previousFollowParticipant,restoredFollowParticipant;
+   public Vector3 previousFixedCameraTarget,requestedFixedCameraTarget,restoredFixedCameraTarget;
+   public string reason,mode,route,token,uniquePlayerMarker,rawLogFile,rawSha256,runtimePlatform,unityVersion,machine,os,cpu,gpu,graphicsApi,sourceMainPath,actualBuildScenePath,sourceArchive,isolatedCommerce,actualSavePath,frameTimingStatus,performanceVerdict;
+   public long rawBytes;public double requiredSeconds,sampledSeconds,elapsedSeconds,budgetMs,headroomP50Ms,overBudgetRatio;
+   public Conditions entry,start,end;public Summary frameMilliseconds,cpuFrameMilliseconds,gpuFrameMilliseconds,mainThreadMilliseconds;public Frame[] samples;public Segment[] segments;public ArchiveFile[] sourceFilesBefore,sourceFilesAfter;public string[] runtimeErrors;
+  }
+ }
+ [DefaultExecutionOrder(-32000)]
+ sealed class ScenePerformanceCpuBoundary:MonoBehaviour
+ {
+  internal ScenePerformanceContinuationProbe Owner;
+  void Update(){if(Owner!=null)Owner.ProcessCpuBoundaryUpdate();}
+ }
+}
+#endif

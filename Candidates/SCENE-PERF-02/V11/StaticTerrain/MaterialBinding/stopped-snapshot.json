@@ -1,0 +1,41 @@
+{
+  "status": "stopped-negative-native-prerequisite",
+  "productionApplied": false,
+  "integratedCandidateReady": false,
+  "gate": "artifacts/SCENE-PERF-02/v11-lighting-deferred-restore-20261109-041929-4457063.json",
+  "nativeGpuNegativeShaders": [
+    "Hidden/Ossastra/Rooms/PositiveTruth",
+    "Ossastra/WorldRendering/SightVoxelLit",
+    "Hidden/Ossastra/Rooms/SightLit"
+  ],
+  "sourceVoxelTiming": "inconclusive-control",
+  "files": [
+    {
+      "source": "Assets/OSSASTRA/Scripts/SceneVisibility/Rooms/Rendering/RoomPositiveMaterialBuckets.cs",
+      "originalM9Sha256": "40E6C64A465DAD8900A68264E63CFF7BB675BB637EC9FB5A15906982A96AEC00",
+      "currentProductionSha256": "40E6C64A465DAD8900A68264E63CFF7BB675BB637EC9FB5A15906982A96AEC00",
+      "productionMatchesM9": true,
+      "candidate": "Candidates/SCENE-PERF-02/V11/StaticTerrain/MaterialBinding/Overlay/RoomPositiveMaterialBuckets.cs.txt",
+      "candidateSha256": "A4992E920C98D7F6E33FFFA7021AAB5567DE8943E3919C2E452BC7AB8F45872E",
+      "candidateMatchesM9": false
+    },
+    {
+      "source": "Assets/OSSASTRA/Scripts/SceneVisibility/Rooms/Rendering/RoomPositivePropertyScope.cs",
+      "originalM9Sha256": "6FA5F23E1BAE793BD491500D40E1F1D5B963B48D2B591B71FCCAA856D996ACF9",
+      "currentProductionSha256": "6FA5F23E1BAE793BD491500D40E1F1D5B963B48D2B591B71FCCAA856D996ACF9",
+      "productionMatchesM9": true,
+      "candidate": "Candidates/SCENE-PERF-02/V11/StaticTerrain/MaterialBinding/Overlay/RoomPositivePropertyScope.cs.txt",
+      "candidateSha256": "0A23F0ACB25B0C9594DCAFC771F50CEBD4878F5594F04E419BBCF35D67FF9512",
+      "candidateMatchesM9": false
+    },
+    {
+      "source": "Assets/OSSASTRA/Scripts/SceneVisibility/Rooms/Rendering/RoomPositivePass.cs",
+      "originalM9Sha256": "90E44BF1FD8A83F2CC400D6C5EEEBC186373F3F787CB96E3DA4BC22F82D8DE08",
+      "currentProductionSha256": "90E44BF1FD8A83F2CC400D6C5EEEBC186373F3F787CB96E3DA4BC22F82D8DE08",
+      "productionMatchesM9": true,
+      "candidate": "Candidates/SCENE-PERF-02/V11/StaticTerrain/MaterialBinding/Overlay/RoomPositivePass.cs.txt",
+      "candidateSha256": "90E44BF1FD8A83F2CC400D6C5EEEBC186373F3F787CB96E3DA4BC22F82D8DE08",
+      "candidateMatchesM9": true
+    }
+  ]
+}

@@ -1,0 +1,210 @@
+/* 功能：显式动态路线JSON驱动的真实InputSystem回放候选；移动、鼠标滚轮转镜头和切人都由QueueStateEvent进入原采样链。
+ * 边界：仅独立Player的--scene-perf02-run/route dynamic加--scene-perf02-input-route启用；测量中不传送、不写动画、不冻结世界、不直接SwitchNext；允许显式测量前单次室外定位。
+ * 门窗：仅单次调用已有RoomVisibilityLabPanel的SetDoorOpen/SetShutterOpen开发入口；不冒称物理F交互。
+ * 协作：等待同进程ContinuationProbe完成隔离并进入采样才开始；路线坐标必须Root按真实可通行位置提供，卡住则失败。
+ * 生命周期：只持有自有虚拟键鼠；异常/退出中立化并移除，恢复原门窗状态；计时期间不写JSON，证据仅结束后写盘。
+ */
+#if UNITY_STANDALONE_WIN && !UNITY_EDITOR
+using System;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEngine.Rendering;
+using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.Controls;
+using UnityEngine.InputSystem.LowLevel;
+using Ossastra.Characters;
+using Ossastra.MapResearch;
+using Ossastra.SceneVisibility.Rooms.Rendering;
+using Ossastra.Development.SceneVisibility;
+
+namespace Ossastra.Development.WorldRendering
+{
+ [DefaultExecutionOrder(10000)]
+ public sealed class ScenePerformanceDynamicRouteProbe:MonoBehaviour
+ {
+  const string RouteFlag="--scene-perf02-input-route";
+  const BindingFlags Private=BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Instance;
+  static bool booted;
+  string output,routePath,pendingFailure,lastActorId,stepActorId;RoutePlan plan;MonoBehaviour owner;FieldInfo samplingField,finishedField;
+  MapResearchRoot map;CharacterControlCoordinator coordinator;RoomVisibilityLabPanel lab;Keyboard keyboard;Mouse mouse;
+  KeyboardState[] movementStates;KeyboardState neutral,switchState;KeyboardState desired;
+  Step current;int stepIndex,cycles,completedSteps,inputUpdates,cameraFrames,enteredAtFrame,wheelSign,movementMask,switches,orbits,doorActions,shutterActions,entries,exits;
+  bool ready,started,finished,hooked,pulseSent,lastExterior,haveExterior,oldDoor,oldShutter,doorKnown,shutterKnown;
+  double began,stepBegan,initialYaw,targetYaw;Vector3 lastPosition;float movedMeters;
+  bool initialPlacementPerformed,warmNeverSampling;int initialPlacementFrame,ownerWarmFramesAtPlacement=-1,observedYawMask,doorStateMask,shutterStateMask;
+  Vector3 initialPositionBefore,initialPositionAfter;
+  readonly List<Evidence> evidence=new List<Evidence>(1024);readonly List<string> failures=new List<string>();
+
+  [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+  static void Bootstrap()
+  {
+   var args=System.Environment.GetCommandLineArgs();int at=Array.IndexOf(args,RouteFlag);if(at<0||booted)return;booted=true;
+   try
+   {
+    int run=Array.IndexOf(args,"--scene-perf02-run"),route=Array.IndexOf(args,"--scene-perf02-route");
+    if(run<0||run+1>=args.Length||route<0||route+1>=args.Length||args[route+1]!="dynamic"||at+1>=args.Length)throw new ArgumentException("Dynamic route requires explicit normal-run/route dynamic and plan path");
+    string file=Path.GetFullPath(args[at+1]);if(!Path.IsPathFullyQualified(args[at+1])||!File.Exists(file))throw new FileNotFoundException("Explicit existing route JSON required",file);
+    var plan=JsonUtility.FromJson<RoutePlan>(File.ReadAllText(file));
+    if(plan==null||plan.schemaVersion!=1||plan.steps==null||plan.steps.Length==0||plan.steps.Length>128)throw new ArgumentException("Route v1 must contain 1..128 bounded steps");
+    foreach(var step in plan.steps)if(step==null||!new[]{"move","orbit","switch","door","shutter","wait"}.Contains(step.kind)||step.maximumSeconds<.1f||step.maximumSeconds>60)throw new ArgumentException("Invalid action or unbounded step deadline");
+    var host=new GameObject("ScenePerformanceDynamicRoute_CLIOnly"){hideFlags=HideFlags.HideAndDontSave};DontDestroyOnLoad(host);
+    var value=host.AddComponent<ScenePerformanceDynamicRouteProbe>();value.plan=plan;value.routePath=file;value.output=Path.GetFullPath(args[run+1]);
+   }
+   catch(Exception e){Debug.LogError("SCENE_PERF02_DYNAMIC_SETUP_FAILED "+e.Message);Application.Quit(2);}
+  }
+  IEnumerator Start()
+  {
+   yield return null;
+   try
+   {
+    owner=Resources.FindObjectsOfTypeAll<MonoBehaviour>().Single(v=>v!=null&&v.GetType().FullName=="Ossastra.Development.WorldRendering.ScenePerformanceContinuationProbe");
+    samplingField=owner.GetType().GetField("sampling",Private);finishedField=owner.GetType().GetField("finished",Private);
+    if(samplingField==null||finishedField==null)throw new MissingMemberException("Explicit same-launch continuation probe state unavailable");
+    var roots=SceneManager.GetActiveScene().GetRootGameObjects();map=One(roots.SelectMany(r=>r.GetComponentsInChildren<MapResearchRoot>(true)),"map");
+    coordinator=One(roots.SelectMany(r=>r.GetComponentsInChildren<CharacterControlCoordinator>(true)),"coordinator");lab=One(roots.SelectMany(r=>r.GetComponentsInChildren<RoomVisibilityLabPanel>(true)),"room route panel");
+    if(map.gameplayCamera==null||!map.gameplayCamera.isActiveAndEnabled||coordinator.Current==null)throw new InvalidOperationException("Actual main camera/current absent");
+    if(lab.doorPortal!=null){doorKnown=true;oldDoor=lab.doorPortal.open;}if(lab.shutterPortal!=null){shutterKnown=true;oldShutter=lab.shutterPortal.open;}
+    File.Copy(routePath,Path.Combine(output,"route-plan.json"),false);
+    if(plan.initializeAtExterior)
+    {
+     // One declared startup fixture only; never performed during the timed or looping route.
+     if((bool)samplingField.GetValue(owner)||(bool)finishedField.GetValue(owner))throw new InvalidOperationException("Initial placement requires owner warmup before any sampling");
+     var warm=owner.GetType().GetField("warmed",Private);if(warm==null)throw new MissingMemberException("Owner warmup proof unavailable");
+     ownerWarmFramesAtPlacement=(int)warm.GetValue(owner);initialPlacementFrame=Time.frameCount;initialPositionBefore=coordinator.Current.transform.position;
+     if(!lab.PlaceCurrent(lab.exteriorPosition))throw new InvalidOperationException("One-time author exterior fixture rejected");
+     initialPositionAfter=coordinator.Current.transform.position;warmNeverSampling=!(bool)samplingField.GetValue(owner);initialPlacementPerformed=true;
+     if(!warmNeverSampling)throw new InvalidOperationException("Initial fixture overlapped measurement");
+    }
+    // 自有设备/绑定解析/状态数组在测量前准备；真正动作仍等owner sampling后才开始。
+    BeginInput();ready=true;RenderPipelineManager.endCameraRendering+=Ended;hooked=true;
+   }
+   catch(Exception e){Fail(e.ToString());}
+  }
+  void Update()
+  {
+   if(finished||!ready)return;
+   try
+   {
+    if(!string.IsNullOrEmpty(pendingFailure)){Fail(pendingFailure);return;}
+    if(owner==null||(bool)finishedField.GetValue(owner))return;
+    if(!started)
+    {
+     if(!(bool)samplingField.GetValue(owner))return;
+     if(!Application.isFocused)throw new InvalidOperationException("Actual Player must have focus; harness does not fake focus notifications");
+     started=true;began=Time.realtimeSinceStartupAsDouble;observedYawMask|=1<<(Mathf.RoundToInt(Mathf.Repeat(map.ActualYaw,360)/45)%8);stepIndex=0;Enter();return;
+    }
+    if(!Application.isFocused)throw new InvalidOperationException("Player focus lost during actual input route");
+    var actor=coordinator.Current;if(actor==null||!actor.IsAlive)throw new InvalidOperationException("Current actor unavailable; no forced respawn in performance route");
+    if(actor.ActorId==lastActorId)movedMeters+=Vector3.Distance(lastPosition,actor.transform.position);lastActorId=actor.ActorId;lastPosition=actor.transform.position;
+    double elapsed=Time.realtimeSinceStartupAsDouble-stepBegan;
+    if(elapsed>current.maximumSeconds)throw new TimeoutException("Route step "+stepIndex+" "+current.kind+" did not complete by "+current.maximumSeconds+" seconds");
+    desired=neutral;movementMask=0;bool done=false;
+    switch(current.kind)
+    {
+     case "move":
+      var delta=current.worldTarget-actor.transform.position;float vertical=Mathf.Abs(delta.y);delta.y=0;
+      float radius=current.radius>0?current.radius:.35f;
+      if(delta.sqrMagnitude<=radius*radius&&vertical<=Mathf.Max(.2f,current.verticalTolerance)){done=elapsed>=current.minimumSeconds;break;}
+      var input=actor.GetComponent<CharacterInputHandler>();if(input==null||!input.HasPlayerInput||!coordinator.IsIntentSamplingAllowed)break;
+      float x=Vector3.Dot(delta,map.ViewRight),y=Vector3.Dot(delta,map.ViewForward),max=Mathf.Max(Mathf.Abs(x),Mathf.Abs(y));
+      if(max>.001f){if(Mathf.Abs(x)>max*.38f)movementMask|=x>0?8:4;if(Mathf.Abs(y)>max*.38f)movementMask|=y>0?1:2;desired=movementStates[movementMask];}break;
+     case "orbit":done=pulseSent&&Mathf.Abs(Mathf.DeltaAngle((float)targetYaw,map.TargetYaw))<.01f&&Mathf.Abs(Mathf.DeltaAngle(map.ActualYaw,map.TargetYaw))<.1f&&elapsed>=current.minimumSeconds;break;
+     case "switch":done=pulseSent&&coordinator.Current.ActorId!=stepActorId&&coordinator.IsIntentSamplingAllowed&&elapsed>=current.minimumSeconds;break;
+     case "door":done=lab.doorPortal!=null&&lab.doorPortal.open==current.open&&cameraFrames-enteredAtFrame>=2&&elapsed>=current.minimumSeconds;break;
+     case "shutter":done=lab.shutterPortal!=null&&lab.shutterPortal.open==current.open&&cameraFrames-enteredAtFrame>=2&&elapsed>=current.minimumSeconds;break;
+     case "wait":done=elapsed>=current.minimumSeconds;break;
+    }
+    if(done)Advance();
+   }
+   catch(Exception e){Fail(e.ToString());}
+  }
+  void BeginInput()
+  {
+   if(InputSystem.devices.Any(d=>d.name.StartsWith("ScenePerf02Route",StringComparison.Ordinal)))throw new InvalidOperationException("Existing route device; refusing duplicate owner");
+   keyboard=InputSystem.AddDevice<Keyboard>("ScenePerf02RouteKeyboard");mouse=InputSystem.AddDevice<Mouse>("ScenePerf02RouteMouse");
+   var input=coordinator.Current.GetComponent<CharacterInputHandler>();if(input==null)throw new InvalidOperationException("Actual current CharacterInputHandler missing");
+   Key up=Part(input.movementAction,"up"),down=Part(input.movementAction,"down"),left=Part(input.movementAction,"left"),right=Part(input.movementAction,"right");
+   foreach(var actor in coordinator.Characters){var other=actor.GetComponent<CharacterInputHandler>();if(other==null||Part(other.movementAction,"up")!=up||Part(other.movementAction,"down")!=down||Part(other.movementAction,"left")!=left||Part(other.movementAction,"right")!=right)throw new InvalidOperationException("This route requires actual same keyboard movement layout on both participants");}
+   movementStates=new KeyboardState[16];for(int n=0;n<16;n++){var keys=new List<Key>(4);if((n&1)!=0)keys.Add(up);if((n&2)!=0)keys.Add(down);if((n&4)!=0)keys.Add(left);if((n&8)!=0)keys.Add(right);movementStates[n]=new KeyboardState(keys.ToArray());}
+   var control=coordinator.switchAction.controls.OfType<KeyControl>().FirstOrDefault(k=>k.device==keyboard);if(control==null)throw new InvalidOperationException("Actual switch action lacks a direct key on owned keyboard");switchState=new KeyboardState(control.keyCode);
+   if(!map.cameraInput.rotateWheel.controls.Any(c=>c.device==mouse))throw new InvalidOperationException("Actual map wheel action does not resolve owned mouse");
+   neutral=new KeyboardState();desired=neutral;InputSystem.onBeforeUpdate+=Before;
+  }
+  Key Part(InputAction action,string name)
+  {
+   foreach(var binding in action.bindings)
+   {if(!binding.isPartOfComposite||!string.Equals(binding.name,name,StringComparison.OrdinalIgnoreCase)||binding.effectivePath==null||!binding.effectivePath.StartsWith("<Keyboard>/",StringComparison.OrdinalIgnoreCase))continue;var path=binding.effectivePath;var key=keyboard[path.Substring(path.LastIndexOf('/')+1)] as KeyControl;if(key!=null)return key.keyCode;}
+   throw new InvalidOperationException("Actual configured keyboard movement composite lacks "+name);
+  }
+  void Before()
+  {
+   if(finished||!started||InputState.currentUpdateType!=InputUpdateType.Dynamic||keyboard==null||mouse==null)return;
+   try
+   {
+    var keys=desired;float wheel=0;
+    if(!pulseSent&&current.kind=="switch"){keys=switchState;pulseSent=true;}
+    else if(!pulseSent&&current.kind=="orbit"){wheel=wheelSign*120;pulseSent=true;}
+    InputSystem.QueueStateEvent(keyboard,keys);InputSystem.QueueStateEvent(mouse,new MouseState{position=new Vector2(Screen.width*.5f,Screen.height*.5f),scroll=new Vector2(0,wheel)});inputUpdates++;
+   }
+   catch(Exception e){pendingFailure="InputSystem queue: "+e;}
+  }
+  void Enter()
+  {
+   current=plan.steps[stepIndex];stepBegan=Time.realtimeSinceStartupAsDouble;enteredAtFrame=cameraFrames;pulseSent=false;desired=neutral;movementMask=0;
+   stepActorId=coordinator.Current.ActorId;initialYaw=map.TargetYaw;wheelSign=current.direction<0?-1:1;targetYaw=Mathf.Repeat((float)initialYaw+wheelSign*45,360);
+   if(current.kind=="door"){if(!doorKnown)throw new InvalidOperationException("Authored door missing");lab.SetDoorOpen(current.open);doorActions++;}
+   if(current.kind=="shutter"){if(!shutterKnown)throw new InvalidOperationException("Authored shutter missing");lab.SetShutterOpen(current.open);shutterActions++;}
+  }
+  void Advance()
+  {
+   if(current.kind=="switch")switches++;
+   if(current.kind=="orbit"){orbits++;observedYawMask|=1<<(Mathf.RoundToInt(Mathf.Repeat(map.ActualYaw,360)/45)%8);}
+   if(current.kind=="door")doorStateMask|=current.open?2:1;
+   if(current.kind=="shutter")shutterStateMask|=current.open?2:1;
+   if(evidence.Count<1024)evidence.Add(new Evidence{step=stepIndex,cycle=cycles,kind=current.kind,actorBefore=stepActorId,actorAfter=coordinator.Current.ActorId,elapsed=Time.realtimeSinceStartupAsDouble-stepBegan,position=coordinator.Current.transform.position,actualYaw=map.ActualYaw,targetYaw=map.TargetYaw,cameraFrames=cameraFrames});
+   completedSteps++;desired=neutral;stepIndex++;
+   if(stepIndex>=plan.steps.Length){cycles++;if(!plan.loop){current=new Step{kind="wait",minimumSeconds=600,maximumSeconds=600};stepBegan=Time.realtimeSinceStartupAsDouble;return;}stepIndex=0;}
+   Enter();
+  }
+  void Ended(ScriptableRenderContext context,Camera rendered)
+  {
+   if(finished||map==null||rendered!=map.gameplayCamera)return;cameraFrames++;
+   if(RoomMaskCameraRegistry.TryGet(rendered,out var frame)&&frame!=null){if(started&&haveExterior&&frame.ExteriorView!=lastExterior){if(frame.ExteriorView)exits++;else entries++;}lastExterior=frame.ExteriorView;haveExterior=true;}
+  }
+  void Fail(string reason)
+  {
+   if(finished)return;failures.Add(reason);Finish(false,"route failure");
+   try{var finish=owner?.GetType().GetMethod("Finish",Private,null,new[]{typeof(bool),typeof(string)},null);if(finish!=null){finish.Invoke(owner,new object[]{false,"dynamic input route failed: "+reason});return;}}catch(Exception e){Debug.LogError("SCENE_PERF02_DYNAMIC_OWNER_FINISH_FAILED "+e.Message);}
+   Application.Quit(2);
+  }
+  void Finish(bool normalExit,string reason)
+  {
+   if(finished)return;finished=true;Cleanup();
+   bool coverage=observedYawMask==255&&orbits>=8&&switches>=2&&entries>=1&&exits>=1&&movedMeters>=5&&doorStateMask==3&&shutterStateMask==3;
+   var report=new Result{pass=normalExit&&started&&failures.Count==0&&coverage,coveragePassed=coverage,reason=reason,plan=routePath,elapsed=started?Time.realtimeSinceStartupAsDouble-began:0,
+    initialPlacementRequested=plan.initializeAtExterior,initialPlacementPerformed=initialPlacementPerformed,warmNeverSampling=warmNeverSampling,initialPlacementFrame=initialPlacementFrame,ownerWarmFramesAtPlacement=ownerWarmFramesAtPlacement,initialPositionBefore=initialPositionBefore,initialPositionAfter=initialPositionAfter,observedYawMask=observedYawMask,doorStateMask=doorStateMask,shutterStateMask=shutterStateMask,
+    completedSteps=completedSteps,completedCycles=cycles,actualInputUpdates=inputUpdates,actualCameraFrames=cameraFrames,observedSwitches=switches,observedOrbitSteps=orbits,doorApiCalls=doorActions,shutterApiCalls=shutterActions,observedRoomEntries=entries,observedRoomExits=exits,observedCurrentTravelMeters=movedMeters,devicesReleased=keyboard==null&&mouse==null,evidence=evidence.ToArray(),errors=failures.ToArray(),
+    scope="Virtual Keyboard/Mouse QueueStateEvent consumed by natural InputSystem; one-time existing Lab door/window APIs; optional declared exterior placement only before measurement. Timed route never teleports or directly calls Move/SwitchNext/animation reset. Coverage is separate from120-second normal timing and60fps acceptance."};
+   try{Directory.CreateDirectory(output);File.WriteAllText(Path.Combine(output,"dynamic-route.json"),JsonUtility.ToJson(report,true));}catch(Exception e){Debug.LogError("SCENE_PERF02_DYNAMIC_RESULT_FAILED "+e.Message);}
+  }
+  void Cleanup()
+  {
+   InputSystem.onBeforeUpdate-=Before;if(hooked){RenderPipelineManager.endCameraRendering-=Ended;hooked=false;}
+   try{if(keyboard!=null&&keyboard.added){InputSystem.QueueStateEvent(keyboard,new KeyboardState());InputSystem.RemoveDevice(keyboard);}keyboard=null;}catch(Exception e){failures.Add("keyboard cleanup: "+e.Message);}
+   try{if(mouse!=null&&mouse.added){InputSystem.QueueStateEvent(mouse,new MouseState());InputSystem.RemoveDevice(mouse);}mouse=null;}catch(Exception e){failures.Add("mouse cleanup: "+e.Message);}
+   try{if(lab!=null&&doorKnown)lab.SetDoorOpen(oldDoor);if(lab!=null&&shutterKnown)lab.SetShutterOpen(oldShutter);}catch(Exception e){failures.Add("restore original door/window: "+e.Message);}
+  }
+  void OnApplicationQuit(){Finish(true,"measurement owner exited");}void OnDestroy(){if(!finished)Cleanup();}
+  static T One<T>(IEnumerable<T> source,string label){var values=source.ToArray();if(values.Length!=1)throw new InvalidOperationException(label+" count="+values.Length);return values[0];}
+  [Serializable]public sealed class RoutePlan{public int schemaVersion=1;public bool loop=true,initializeAtExterior;public Step[] steps;}
+  [Serializable]public sealed class Step{public string kind;public Vector3 worldTarget;public float radius=.35f,verticalTolerance=1,minimumSeconds=.2f,maximumSeconds=15;public int direction=1;public bool open;}
+  [Serializable]public struct Evidence{public int step,cycle,cameraFrames;public string kind,actorBefore,actorAfter;public double elapsed;public Vector3 position;public float actualYaw,targetYaw;}
+  [Serializable]public sealed class Result{public bool pass,devicesReleased,coveragePassed,initialPlacementRequested,initialPlacementPerformed,warmNeverSampling;public int initialPlacementFrame,ownerWarmFramesAtPlacement,observedYawMask,doorStateMask,shutterStateMask;public Vector3 initialPositionBefore,initialPositionAfter;public string reason,plan,scope;public double elapsed;public float observedCurrentTravelMeters;public int completedSteps,completedCycles,actualInputUpdates,actualCameraFrames,observedSwitches,observedOrbitSteps,doorApiCalls,shutterApiCalls,observedRoomEntries,observedRoomExits;public Evidence[] evidence;public string[] errors;}
+ }
+}
+#endif

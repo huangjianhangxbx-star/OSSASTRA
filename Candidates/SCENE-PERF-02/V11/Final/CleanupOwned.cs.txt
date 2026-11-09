@@ -1,0 +1,40 @@
+using System;using System.IO;using System.Linq;using System.Collections.Generic;using System.Security.Cryptography;
+using UnityEngine;using UnityEngine.SceneManagement;using UnityEditor;using Funplay.Editor.Tools.Scripting;
+public sealed class Perf02CleanupOwnedFinal:IFunplayCommand
+{
+ const string Main="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity";
+ const string Frozen="Assets/OSSASTRA/Development/ScenePerformance02Build/ScenePerfBuild_20261108_143830_5286804.unity";
+ const string Folder="Assets/OSSASTRA/Development/ScenePerformance02Build/";
+ public void Execute(ExecutionContext ctx)
+ {
+  if(Application.dataPath.Replace('\\','/')!="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets"||Application.isPlaying||EditorApplication.isPlayingOrWillChangePlaymode||EditorApplication.isCompiling||EditorApplication.isUpdating||BuildPipeline.isBuildingPlayer)throw new InvalidOperationException("Stable intended Edit required");
+  var scene=SceneManager.GetActiveScene();if(SceneManager.sceneCount!=1||scene.path!=Main)throw new InvalidOperationException("Unique author main required");
+  bool dirty=scene.isDirty;string mainSha=Hash(Main),frozenSha=Hash(Frozen);
+  if(frozenSha!="C26E9C071F4E45B166B21C6666426FCDF97F495119E0BE48B39E72B9C3CC1DA6")throw new IOException("Immutable frozen scene changed");
+  string[] names={"ScenePerformanceContinuationProbe","ScenePerformanceBlockCensus","ScenePerformanceDefaultPlaytestIsolation","ScenePerformanceDynamicRouteProbe"};
+  string[] hashes={"CEB23DA59DD65ED0D41CA7B2C2F762C3D7821EC515C33BFAFC6440DB8CA87AA9","3F377A44B6B4A4FA253505CB7D2C20F22462B994EF968A32594E07D7B8A0ECBA","5D30C7C0F238E55C3DFCC2837D8976BC3B4DA6536DF6EB6749F315EE6191983A","CFDAEB483F44A333889A7DA27E1252CDE4A1824492F83F9B990345BCBD14850D"};
+  string[] scenes={"042603_3801351","065403_8311625","073321_4599698","084313_2077821","091525_1859687","094432_2772224","100157_5313203","121245_2323247","134920_1656179","140437_1334163"};
+  var dependencies=new HashSet<string>(AssetDatabase.GetDependencies(new[]{Main,Frozen},true),StringComparer.Ordinal);
+  var targets=new List<string>();var skipped=new List<string>();
+  for(int n=0;n<names.Length;n++){
+   string path="Assets/OSSASTRA/Scripts/Development/"+names[n]+".cs";
+   if(!File.Exists(path)||Hash(path)!=hashes[n]||dependencies.Contains(path))throw new IOException("Owned probe SHA/reference gate failed: "+path);
+   targets.Add(path);
+  }
+  foreach(string suffix in scenes){
+   string path=Folder+"ScenePerfBuild_20261108_"+suffix+".unity";
+   if(!File.Exists(path))continue;
+   if(EditorBuildSettings.scenes.Any(s=>s.path==path)||dependencies.Contains(path)){skipped.Add(path);continue;}
+   targets.Add(path);
+  }
+  string receipt=Path.GetFullPath("artifacts/SCENE-PERF-02/Final/cleanup-"+DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff")+".json");
+  var before=targets.Select(p=>new{path=p,sha256=Hash(p),guid=AssetDatabase.AssetPathToGUID(p)}).ToArray();
+  var deleted=new List<string>();
+  Action<bool> write=complete=>File.WriteAllText(receipt,Newtonsoft.Json.JsonConvert.SerializeObject(new{complete,main=Main,mainSha,dirtyBefore=dirty,frozen=Frozen,frozenSha,before,deleted=deleted.ToArray(),skipped=skipped.ToArray(),sceneSaved=false},Newtonsoft.Json.Formatting.Indented));
+  write(false);
+  foreach(string path in targets){if(!AssetDatabase.DeleteAsset(path))throw new IOException("Native deletion failed: "+path);deleted.Add(path);write(false);}
+  if(SceneManager.GetActiveScene()!=scene||scene.isDirty!=dirty||Hash(Main)!=mainSha||Hash(Frozen)!=frozenSha||targets.Any(p=>File.Exists(p)||File.Exists(p+".meta")))throw new InvalidOperationException("Cleanup readback mismatch; inspect receipt, never replay");
+  write(true);ctx.ReturnValue=new{receipt,deleted=deleted.Count,skipped=skipped.ToArray(),sceneSaved=false,mainShaUnchanged=true,dirtyPreserved=true,frozenShaUnchanged=true};
+ }
+ static string Hash(string path){using(var s=SHA256.Create())using(var f=File.OpenRead(path))return BitConverter.ToString(s.ComputeHash(f)).Replace("-","");}
+}

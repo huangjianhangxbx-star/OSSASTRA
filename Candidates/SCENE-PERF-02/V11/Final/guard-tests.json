@@ -1,0 +1,127 @@
+{
+  "parserPassed": true,
+  "checks": 20,
+  "pass": true,
+  "rows": [
+    {
+      "label": "dynamic-missing-explicit-plan",
+      "pass": true,
+      "rejected": true,
+      "error": "Normal dynamic requires an explicit absolute InputRouteJson path"
+    },
+    {
+      "label": "dynamic-default60-rejected",
+      "pass": true,
+      "rejected": true,
+      "error": "Normal dynamic acceptance requires exactly Seconds=120"
+    },
+    {
+      "label": "dynamic-relative-path-rejected",
+      "pass": true,
+      "rejected": true,
+      "error": "Normal dynamic requires an explicit absolute InputRouteJson path"
+    },
+    {
+      "label": "dynamic-directory-rejected",
+      "pass": true,
+      "rejected": true,
+      "error": "InputRouteJson must be an existing regular JSON file, not a directory or reparse point"
+    },
+    {
+      "label": "dynamic-missing-file-rejected",
+      "pass": true,
+      "rejected": true,
+      "error": "Cannot find path 'E:\\WORLDCREATOR\\new\\Project_ANKALUTE\\Candidates\\SCENE-PERF-02\\V11\\Final\\guard-fixture-3cce74bd17c74561bd172080f308b7f3\\missing.json' because it does not exist."
+    },
+    {
+      "label": "dynamic-empty-steps-rejected",
+      "pass": true,
+      "rejected": true,
+      "error": "Explicit dynamic route v1 requires 1..128 nonempty steps; no empty dynamic timing"
+    },
+    {
+      "label": "dynamic-malformed-json-rejected",
+      "pass": true,
+      "rejected": true,
+      "error": "Conversion from JSON failed with error: Invalid character after parsing property name. Expected ':' but got: \u0000. Path '', line 3, position 0."
+    },
+    {
+      "label": "dynamic-non-json-file-rejected",
+      "pass": true,
+      "rejected": true,
+      "error": "InputRouteJson must be an existing regular JSON file, not a directory or reparse point"
+    },
+    {
+      "label": "actual27-step120-route-accepted",
+      "pass": true,
+      "rejected": false,
+      "error": null
+    },
+    {
+      "label": "ordinary-exterior60-unchanged",
+      "pass": true,
+      "rejected": false,
+      "error": null
+    },
+    {
+      "label": "ordinary-interior60-unchanged",
+      "pass": true,
+      "rejected": false,
+      "error": null
+    },
+    {
+      "label": "ordinary-CPU-unchanged",
+      "pass": true,
+      "rejected": false,
+      "error": null
+    },
+    {
+      "label": "route-flag-never-silently-ignored",
+      "pass": true,
+      "rejected": true,
+      "error": "InputRouteJson is only accepted for Mode=run Route=dynamic"
+    },
+    {
+      "label": "matching-source-runtime-copy-and120s-accepted",
+      "pass": true,
+      "rejected": false,
+      "error": null
+    },
+    {
+      "label": "postrun-source-SHA-change-rejected",
+      "pass": true,
+      "rejected": true,
+      "error": "Dynamic route failed input SHA, actual120-second timing, coverage, cleanup or exit checks; do not count this as a completed dynamic acceptance run"
+    },
+    {
+      "label": "runtime-plan-copy-SHA-change-rejected",
+      "pass": true,
+      "rejected": true,
+      "error": "Dynamic route failed input SHA, actual120-second timing, coverage, cleanup or exit checks; do not count this as a completed dynamic acceptance run"
+    },
+    {
+      "label": "missing-dynamic-driver-rejected",
+      "pass": true,
+      "rejected": true,
+      "error": "Dynamic route failed input SHA, actual120-second timing, coverage, cleanup or exit checks; do not count this as a completed dynamic acceptance run"
+    },
+    {
+      "label": "empty-dynamic-driver-rejected",
+      "pass": true,
+      "rejected": true,
+      "error": "Dynamic route failed input SHA, actual120-second timing, coverage, cleanup or exit checks; do not count this as a completed dynamic acceptance run"
+    },
+    {
+      "label": "short-actual-window-rejected",
+      "pass": true,
+      "rejected": true,
+      "error": "Dynamic route failed input SHA, actual120-second timing, coverage, cleanup or exit checks; do not count this as a completed dynamic acceptance run"
+    },
+    {
+      "label": "nonzero-exit-rejected",
+      "pass": true,
+      "rejected": true,
+      "error": "Dynamic route failed input SHA, actual120-second timing, coverage, cleanup or exit checks; do not count this as a completed dynamic acceptance run"
+    }
+  ]
+}

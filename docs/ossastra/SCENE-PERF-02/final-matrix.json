@@ -1,0 +1,487 @@
+{
+  "verdict": "阶段改善／稳定60未达",
+  "timingBuild": "1b94e817b5bf4977ab3c3728c6aadd9f",
+  "sourceStamp": "55BD2B1B01F746D907BCFEE2248BC2BFB0D2FEA4375ACDD76BDC54E12A0A3122",
+  "frozenSceneSha256": "C26E9C071F4E45B166B21C6666426FCDF97F495119E0BE48B39E72B9C3CC1DA6",
+  "normalProfilerEnabled": false,
+  "rows": [
+    {
+      "run": "Run_Release_run_exterior_20261109_053149_6040223",
+      "route": "exterior",
+      "resultSha256": "5005433C6B67CF2A46D4290BAFD5E7808C48B65C3ED274BC46D4EED653DCD9BC",
+      "seconds": 60.010733099999996,
+      "frames": 3529,
+      "measurementPass": true,
+      "p50Ms": 16.7704999999998,
+      "p95Ms": 18.72740000000306,
+      "p99Ms": 19.56000000000202,
+      "maxMs": 21.557299999999557,
+      "overBudgetRatio": 0.6064040804760555,
+      "longestOverBudgetRun": 17,
+      "performance60Passed": false,
+      "headroomPassed": false,
+      "gpuAvailable": false,
+      "gpuStatus": "unavailable: no positive unique observations",
+      "runtimeErrors": 0,
+      "sourceUnchanged": true,
+      "qualityChanged": false,
+      "start": {
+        "position": {
+          "x": -28.5,
+          "y": 18.57767105102539,
+          "z": -30.69999885559082
+        },
+        "rotation": {
+          "x": 0.3535534143447876,
+          "y": 0.3535534143447876,
+          "z": -0.14644663035869598,
+          "w": 0.8535533547401428
+        },
+        "width": 1600,
+        "height": 900,
+        "quality": 5,
+        "vsync": 0,
+        "targetFrameRate": -1,
+        "antiAliasing": 4,
+        "msaa": 4,
+        "qualityName": "Ultra",
+        "shadowDistance": 150.0,
+        "renderScale": 1.0,
+        "hours": 12.0,
+        "clockRunning": false,
+        "manualSun": false
+      },
+      "end": {
+        "position": {
+          "x": -28.5,
+          "y": 18.57767105102539,
+          "z": -30.69999885559082
+        },
+        "rotation": {
+          "x": 0.3535534143447876,
+          "y": 0.3535534143447876,
+          "z": -0.14644663035869598,
+          "w": 0.8535533547401428
+        },
+        "width": 1600,
+        "height": 900,
+        "quality": 5,
+        "vsync": 0,
+        "targetFrameRate": -1,
+        "antiAliasing": 4,
+        "msaa": 4,
+        "qualityName": "Ultra",
+        "shadowDistance": 150.0,
+        "renderScale": 1.0,
+        "hours": 12.0,
+        "clockRunning": false,
+        "manualSun": false
+      },
+      "coverage": null
+    },
+    {
+      "run": "Run_Release_run_exterior_20261109_053300_8855359",
+      "route": "exterior",
+      "resultSha256": "7403E94D3E5CD35EC3C6100FC8BE6625A214D1BEC2B9E194A525A193853FE0B1",
+      "seconds": 60.01213179999999,
+      "frames": 3534,
+      "measurementPass": true,
+      "p50Ms": 16.754999999999853,
+      "p95Ms": 18.62080000000077,
+      "p99Ms": 19.801999999998543,
+      "maxMs": 21.996100000009733,
+      "overBudgetRatio": 0.5919637804187889,
+      "longestOverBudgetRun": 17,
+      "performance60Passed": false,
+      "headroomPassed": false,
+      "gpuAvailable": false,
+      "gpuStatus": "unavailable: no positive unique observations",
+      "runtimeErrors": 0,
+      "sourceUnchanged": true,
+      "qualityChanged": false,
+      "start": {
+        "position": {
+          "x": -28.5,
+          "y": 18.57767105102539,
+          "z": -30.69999885559082
+        },
+        "rotation": {
+          "x": 0.3535534143447876,
+          "y": 0.3535534143447876,
+          "z": -0.14644663035869598,
+          "w": 0.8535533547401428
+        },
+        "width": 1600,
+        "height": 900,
+        "quality": 5,
+        "vsync": 0,
+        "targetFrameRate": -1,
+        "antiAliasing": 4,
+        "msaa": 4,
+        "qualityName": "Ultra",
+        "shadowDistance": 150.0,
+        "renderScale": 1.0,
+        "hours": 12.0,
+        "clockRunning": false,
+        "manualSun": false
+      },
+      "end": {
+        "position": {
+          "x": -28.5,
+          "y": 18.57767105102539,
+          "z": -30.69999885559082
+        },
+        "rotation": {
+          "x": 0.3535534143447876,
+          "y": 0.3535534143447876,
+          "z": -0.14644663035869598,
+          "w": 0.8535533547401428
+        },
+        "width": 1600,
+        "height": 900,
+        "quality": 5,
+        "vsync": 0,
+        "targetFrameRate": -1,
+        "antiAliasing": 4,
+        "msaa": 4,
+        "qualityName": "Ultra",
+        "shadowDistance": 150.0,
+        "renderScale": 1.0,
+        "hours": 12.0,
+        "clockRunning": false,
+        "manualSun": false
+      },
+      "coverage": null
+    },
+    {
+      "run": "Run_Release_run_interior_20261109_050951_3091729",
+      "route": "interior",
+      "resultSha256": "2007AA51BC8A376BD91471AB0ACFFCEDAA9D6AEF7AD0B380B16B7DA1BE3ABABC",
+      "seconds": 60.0052078,
+      "frames": 4053,
+      "measurementPass": true,
+      "p50Ms": 14.565899999993803,
+      "p95Ms": 16.432999999999254,
+      "p99Ms": 17.654899999996587,
+      "maxMs": 20.025600000003863,
+      "overBudgetRatio": 0.03281519861830743,
+      "longestOverBudgetRun": 1,
+      "performance60Passed": false,
+      "headroomPassed": false,
+      "gpuAvailable": false,
+      "gpuStatus": "unavailable: no positive unique observations",
+      "runtimeErrors": 0,
+      "sourceUnchanged": true,
+      "qualityChanged": false,
+      "start": {
+        "position": {
+          "x": -28.000001907348633,
+          "y": 18.57767105102539,
+          "z": -25.0
+        },
+        "rotation": {
+          "x": 0.3535534143447876,
+          "y": 0.3535534143447876,
+          "z": -0.14644663035869598,
+          "w": 0.8535533547401428
+        },
+        "width": 1600,
+        "height": 900,
+        "quality": 5,
+        "vsync": 0,
+        "targetFrameRate": -1,
+        "antiAliasing": 4,
+        "msaa": 4,
+        "qualityName": "Ultra",
+        "shadowDistance": 150.0,
+        "renderScale": 1.0,
+        "hours": 12.0,
+        "clockRunning": false,
+        "manualSun": false
+      },
+      "end": {
+        "position": {
+          "x": -28.000001907348633,
+          "y": 18.57767105102539,
+          "z": -25.0
+        },
+        "rotation": {
+          "x": 0.3535534143447876,
+          "y": 0.3535534143447876,
+          "z": -0.14644663035869598,
+          "w": 0.8535533547401428
+        },
+        "width": 1600,
+        "height": 900,
+        "quality": 5,
+        "vsync": 0,
+        "targetFrameRate": -1,
+        "antiAliasing": 4,
+        "msaa": 4,
+        "qualityName": "Ultra",
+        "shadowDistance": 150.0,
+        "renderScale": 1.0,
+        "hours": 12.0,
+        "clockRunning": false,
+        "manualSun": false
+      },
+      "coverage": null
+    },
+    {
+      "run": "Run_Release_run_interior_20261109_051133_3398242",
+      "route": "interior",
+      "resultSha256": "AF5F2FD588156650362FC4E74C338375E6B3195C9A00B81E07C47D31E4316645",
+      "seconds": 60.0035253,
+      "frames": 4072,
+      "measurementPass": true,
+      "p50Ms": 14.506400000001918,
+      "p95Ms": 16.335800000000233,
+      "p99Ms": 17.239100000001173,
+      "maxMs": 20.78370000000085,
+      "overBudgetRatio": 0.021611001964636542,
+      "longestOverBudgetRun": 2,
+      "performance60Passed": false,
+      "headroomPassed": false,
+      "gpuAvailable": false,
+      "gpuStatus": "unavailable: no positive unique observations",
+      "runtimeErrors": 0,
+      "sourceUnchanged": true,
+      "qualityChanged": false,
+      "start": {
+        "position": {
+          "x": -28.000003814697266,
+          "y": 18.57767105102539,
+          "z": -25.0
+        },
+        "rotation": {
+          "x": 0.3535534143447876,
+          "y": 0.3535534143447876,
+          "z": -0.14644663035869598,
+          "w": 0.8535533547401428
+        },
+        "width": 1600,
+        "height": 900,
+        "quality": 5,
+        "vsync": 0,
+        "targetFrameRate": -1,
+        "antiAliasing": 4,
+        "msaa": 4,
+        "qualityName": "Ultra",
+        "shadowDistance": 150.0,
+        "renderScale": 1.0,
+        "hours": 12.0,
+        "clockRunning": false,
+        "manualSun": false
+      },
+      "end": {
+        "position": {
+          "x": -28.000003814697266,
+          "y": 18.57767105102539,
+          "z": -25.0
+        },
+        "rotation": {
+          "x": 0.3535534143447876,
+          "y": 0.3535534143447876,
+          "z": -0.14644663035869598,
+          "w": 0.8535533547401428
+        },
+        "width": 1600,
+        "height": 900,
+        "quality": 5,
+        "vsync": 0,
+        "targetFrameRate": -1,
+        "antiAliasing": 4,
+        "msaa": 4,
+        "qualityName": "Ultra",
+        "shadowDistance": 150.0,
+        "renderScale": 1.0,
+        "hours": 12.0,
+        "clockRunning": false,
+        "manualSun": false
+      },
+      "coverage": null
+    },
+    {
+      "run": "Run_Release_run_dynamic_20261109_051740_8297436",
+      "route": "dynamic",
+      "resultSha256": "2E613CE3423C63DA7071B0BBCCFB57B2A447A01D436E722F30BC5E597075B205",
+      "seconds": 120.0132834,
+      "frames": 8343,
+      "measurementPass": true,
+      "p50Ms": 14.05750000000694,
+      "p95Ms": 16.389300000000162,
+      "p99Ms": 17.471900000000318,
+      "maxMs": 21.572400000000158,
+      "overBudgetRatio": 0.03332134723720484,
+      "longestOverBudgetRun": 3,
+      "performance60Passed": false,
+      "headroomPassed": false,
+      "gpuAvailable": false,
+      "gpuStatus": "unavailable: no positive unique observations",
+      "runtimeErrors": 0,
+      "sourceUnchanged": true,
+      "qualityChanged": false,
+      "start": {
+        "position": {
+          "x": -28.5,
+          "y": 18.499446868896484,
+          "z": -30.69999885559082
+        },
+        "rotation": {
+          "x": 0.3535534143447876,
+          "y": 0.3535534143447876,
+          "z": -0.14644663035869598,
+          "w": 0.8535533547401428
+        },
+        "width": 1600,
+        "height": 900,
+        "quality": 5,
+        "vsync": 0,
+        "targetFrameRate": -1,
+        "antiAliasing": 4,
+        "msaa": 4,
+        "qualityName": "Ultra",
+        "shadowDistance": 150.0,
+        "renderScale": 1.0,
+        "hours": 12.0,
+        "clockRunning": false,
+        "manualSun": false
+      },
+      "end": {
+        "position": {
+          "x": -28.396682739257812,
+          "y": 18.497671127319336,
+          "z": -30.419553756713867
+        },
+        "rotation": {
+          "x": 0.3535534143447876,
+          "y": 0.3535534143447876,
+          "z": -0.14644663035869598,
+          "w": 0.8535533547401428
+        },
+        "width": 1600,
+        "height": 900,
+        "quality": 5,
+        "vsync": 0,
+        "targetFrameRate": -1,
+        "antiAliasing": 4,
+        "msaa": 4,
+        "qualityName": "Ultra",
+        "shadowDistance": 150.0,
+        "renderScale": 1.0,
+        "hours": 12.0,
+        "clockRunning": false,
+        "manualSun": false
+      },
+      "coverage": {
+        "steps": 107,
+        "cycles": 3,
+        "yawMask": 255,
+        "switches": 8,
+        "orbits": 32,
+        "entries": 4,
+        "exits": 4,
+        "doorApiCalls": 8,
+        "shutterApiCalls": 8,
+        "devicesReleased": true
+      }
+    },
+    {
+      "run": "Run_Release_run_dynamic_20261109_052942_3473299",
+      "route": "dynamic",
+      "resultSha256": "F4FDEA43B32DDFA1376AAD7A6F4FB63471EADFBC2B81F1028B616CD19D035BB9",
+      "seconds": 120.00737579999999,
+      "frames": 8403,
+      "measurementPass": true,
+      "p50Ms": 13.925800000002653,
+      "p95Ms": 16.358299999993164,
+      "p99Ms": 17.757699999989995,
+      "maxMs": 27.84999999999993,
+      "overBudgetRatio": 0.03320242770439129,
+      "longestOverBudgetRun": 39,
+      "performance60Passed": false,
+      "headroomPassed": false,
+      "gpuAvailable": false,
+      "gpuStatus": "unavailable: no positive unique observations",
+      "runtimeErrors": 0,
+      "sourceUnchanged": true,
+      "qualityChanged": false,
+      "start": {
+        "position": {
+          "x": -28.5,
+          "y": 18.498971939086914,
+          "z": -30.69999885559082
+        },
+        "rotation": {
+          "x": 0.3535534143447876,
+          "y": 0.3535534143447876,
+          "z": -0.14644663035869598,
+          "w": 0.8535533547401428
+        },
+        "width": 1600,
+        "height": 900,
+        "quality": 5,
+        "vsync": 0,
+        "targetFrameRate": -1,
+        "antiAliasing": 4,
+        "msaa": 4,
+        "qualityName": "Ultra",
+        "shadowDistance": 150.0,
+        "renderScale": 1.0,
+        "hours": 12.0,
+        "clockRunning": false,
+        "manualSun": false
+      },
+      "end": {
+        "position": {
+          "x": -28.38533592224121,
+          "y": 18.497671127319336,
+          "z": -30.44757843017578
+        },
+        "rotation": {
+          "x": 0.3535534143447876,
+          "y": 0.3535534143447876,
+          "z": -0.14644663035869598,
+          "w": 0.8535533547401428
+        },
+        "width": 1600,
+        "height": 900,
+        "quality": 5,
+        "vsync": 0,
+        "targetFrameRate": -1,
+        "antiAliasing": 4,
+        "msaa": 4,
+        "qualityName": "Ultra",
+        "shadowDistance": 150.0,
+        "renderScale": 1.0,
+        "hours": 12.0,
+        "clockRunning": false,
+        "manualSun": false
+      },
+      "coverage": {
+        "steps": 107,
+        "cycles": 3,
+        "yawMask": 255,
+        "switches": 8,
+        "orbits": 32,
+        "entries": 4,
+        "exits": 4,
+        "doorApiCalls": 8,
+        "shutterApiCalls": 8,
+        "devicesReleased": true
+      }
+    }
+  ],
+  "excluded": [
+    "Run_Release_run_dynamic_20261109_051324_9919597: Runner sidecar rejected by empty startup directory",
+    "Run_Release_run_dynamic_20261109_052215_1227035: focus lost at46.65s",
+    "Run_Release_run_dynamic_20261109_052555_5029774 and Run_Release_run_exterior_20261109_052740_9694222: Root overlapping launch"
+  ],
+  "limits": [
+    "门窗动作使用既有Lab API，不是实体硬件操作认证",
+    "进出计数来自ExteriorView变化，切控可能贡献",
+    "Release GPU timing unavailable；不得将raw0当作0ms",
+    "offscreen登记1/2/4尚未执行；2倍可见和实际60Hz呈现未通过先决预算",
+    "普通试玩startup隔离后续修复单独构建，不把它记作算法性能收益"
+  ]
+}

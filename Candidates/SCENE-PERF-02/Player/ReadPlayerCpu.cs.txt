@@ -1,0 +1,123 @@
+/* 功能：在Editor中导入明确Player诊断raw，按唯一Player marker选帧，读取真实Main/RHI提交线程CPU样本树。
+ * 边界：不运行Player、不采Editor树、不改场景/画质/Profiler开关。LoadProfile(false)明确替换当前Profiler显示缓冲。
+ * 来源：先核result.json的WindowsPlayer/非Editor/diagnostic标记与raw SHA，再在导入raw实际Main Thread寻找唯一token marker。
+ * 归属：自身时间=包含时间-直接子节点包含时间；只按具名Wait/Idle/Sleep分类，其他仍叫未分类非等待，不冒称纯C#有效工作。
+ */
+using System;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Collections.Generic;
+using System.Security.Cryptography;
+using UnityEngine;
+using UnityEditor;
+using UnityEditorInternal;
+using UnityEditor.Profiling;
+using Newtonsoft.Json.Linq;
+using Funplay.Editor.Tools.Scripting;
+
+public sealed class ReadPlayerCpu : IFunplayCommand
+{
+ const string Project="E:/WORLDCREATOR/new/Project_ANKALUTE";
+ const int MaxThreads=128,MaxFrames=512,RequiredMarkedFrames=40,MaximumMarkedFrames=80;
+ public static string RunDirectory;
+ public void Execute(Funplay.Editor.Tools.Scripting.ExecutionContext context)
+ {
+  if(Application.dataPath.Replace('\\','/')!=Project+"/Assets")throw new InvalidOperationException("Wrong project");
+  if(Application.isPlaying||EditorApplication.isPlayingOrWillChangePlaymode||EditorApplication.isCompiling||EditorApplication.isUpdating)throw new InvalidOperationException("Ready Edit required before importing completed Player profile");
+  if(ProfilerDriver.enabled)throw new InvalidOperationException("An Editor Profiler capture is active; preserve it and stop explicitly before loading Player raw");
+  string directory=RunDirectory;
+  if(string.IsNullOrEmpty(directory))
+  {
+   string request=Path.Combine(Project,"artifacts","SCENE-PERF-02","player-cpu-read-request.json");
+   directory=(string)JObject.Parse(File.ReadAllText(request))["runDirectory"];
+  }
+  if(string.IsNullOrEmpty(directory)||!Path.IsPathFullyQualified(directory))throw new ArgumentException("Explicit absolute runDirectory required");
+  directory=Path.GetFullPath(directory);string resultPath=Path.Combine(directory,"result.json");var manifest=JObject.Parse(File.ReadAllText(resultPath));
+  if((string)manifest["mode"]!="diagnostic-player-cpu"||(bool?)manifest["applicationIsEditor"]!=false||(string)manifest["runtimePlatform"]!="WindowsPlayer"||(bool?)manifest["pass"]!=true)throw new InvalidOperationException("Manifest does not prove a completed isolated actual WindowsPlayer CPU diagnosis");
+  if((bool?)manifest["startupProfilerMode"]==true&&((bool?)manifest["rawHashPending"]!=false||(bool?)manifest["rawClosedAfterProcessExit"]!=true||(bool?)manifest["profilerFlagsUntouchedByRuntime"]!=true||(int?)manifest["engineCaptureFrameLimit"]!=256||(int?)manifest["actualFinalFrame"]<259))throw new InvalidOperationException("Engine-startup raw must be finalized only after successful actual process exit; runtime hashes of open streams are refused");
+  string marker=(string)manifest["uniquePlayerMarker"],token=(string)manifest["token"],raw=(string)manifest["rawLogFile"],sha=(string)manifest["rawSha256"];
+  if(string.IsNullOrEmpty(token)||marker!="SCENE_PERF02_PLAYER_"+token||string.IsNullOrEmpty(raw)||!Within(raw,directory)||!File.Exists(raw)||string.IsNullOrEmpty(sha)||Hash(raw)!=sha)throw new InvalidOperationException("Raw path/token/hash verification failed; refusing old Editor buffer");
+  var load=typeof(ProfilerDriver).GetMethods(BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Static)
+   .FirstOrDefault(m=>m.Name=="LoadProfile"&&m.GetParameters().Length==2&&m.GetParameters()[0].ParameterType==typeof(string)&&m.GetParameters()[1].ParameterType==typeof(bool));
+  if(load==null)throw new MissingMethodException("Actual ProfilerDriver.LoadProfile(string,bool) unavailable");
+  object loaded=load.Invoke(null,new object[]{raw,false});if(loaded is bool success&&!success)throw new IOException("ProfilerDriver.LoadProfile failed");
+  int first=ProfilerDriver.firstFrameIndex,last=ProfilerDriver.lastFrameIndex;
+  if(first<0||last<first||last-first+1>MaxFrames)throw new InvalidOperationException("Imported raw frame range invalid/outside bounded short capture: "+first+".."+last);
+  var marked=new List<int>();var inventories=new List<Inventory>();var trees=new List<ThreadFrame>();var errors=new List<string>();
+  var sessionMethod=typeof(ProfilerDriver).GetMethods(BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Static).SingleOrDefault(m=>m.Name=="FrameDataBelongsToCurrentEditorSession"&&m.ReturnType==typeof(bool)&&m.GetParameters().Length==1);
+  for(int frame=first;frame<=last;frame++)
+  {
+   bool matches=false;
+   for(int thread=0;thread<MaxThreads;thread++)
+   {
+    using(var view=ProfilerDriver.GetRawFrameDataView(frame,thread))
+    {
+     if(view==null||!view.valid||!Main(view.threadName))continue;
+     for(int n=0;n<view.sampleCount;n++)if(view.GetSampleName(n)==marker){matches=true;break;}
+     if(matches)break;
+    }
+   }
+   if(!matches)continue;marked.Add(frame);
+   if(marked.Count>MaximumMarkedFrames)throw new InvalidOperationException("Unique marker appeared in more than 80 frames; unexpected capture/reused source");
+   for(int thread=0;thread<MaxThreads;thread++)
+   {
+    using(var view=ProfilerDriver.GetRawFrameDataView(frame,thread))
+    {
+     if(view==null||!view.valid)continue;
+     bool? editorSession=null;try{if(sessionMethod!=null)editorSession=(bool)sessionMethod.Invoke(null,new object[]{view});}catch(Exception e){errors.Add("optional session identity: "+e.Message);}
+     inventories.Add(new Inventory{frame=frame,index=view.threadIndex,name=view.threadName,group=view.threadGroupName,id=view.threadId,samples=view.sampleCount,belongsToCurrentEditorSession=editorSession});
+     if(editorSession==true)throw new InvalidOperationException("Imported frame unexpectedly identifies current Editor session; refusing Player attribution");
+     string kind=Main(view.threadName)?"Main Thread":Submission(view.threadName)?"RHI/render submission":null;
+     if(kind!=null)trees.Add(Read(view,kind));
+    }
+   }
+  }
+  var main=Aggregate(trees.Where(t=>t.kind=="Main Thread").ToArray(),"Main Thread");
+  var submission=Aggregate(trees.Where(t=>t.kind=="RHI/render submission").ToArray(),"RHI/render submission");
+  bool pass=marked.Count>=RequiredMarkedFrames&&marked.Count<=MaximumMarkedFrames&&main.available&&errors.Count==0;
+  var report=new{schemaVersion=1,pass,source="actual imported WindowsPlayer CPU binary log; diagnostic instrumentation overhead, not normal performance timing",runDirectory=directory,resultManifest=resultPath,rawLogFile=raw,rawSha256=sha,uniquePlayerMarker=marker,
+   replacedProfilerDisplayBuffer=true,profilerFlagsChanged=false,actualImportedFirstFrame=first,actualImportedLastFrame=last,markedPlayerFrameCount=marked.Count,selectedProfilerFrames=marked.ToArray(),
+   minimumRequiredPlayerFrames=RequiredMarkedFrames,maximumPlayerFrames=MaximumMarkedFrames,
+   waitClassification="Explicit sample names containing Wait/Sleep or Idle. self=inclusive-direct-child-inclusive; no nested inclusive sum or Main+RHI addition. Remaining nonWaitOrUnclassifiedMs is not proof of pure useful CPU/C# work.",
+   rhiStatus=submission.available?"available: actual named imported submission thread(s)":"unavailable: imported raw has no matching RHI/Render Thread/GfxDeviceWorker thread; no inferred replacement",
+   mainThread=main,rhiThread=submission,threadFrames=trees.ToArray(),threadInventory=inventories.ToArray(),errors=errors.ToArray()};
+  string output=Path.Combine(directory,"player-cpu-tree.json");File.WriteAllText(output,Newtonsoft.Json.JsonConvert.SerializeObject(report,Newtonsoft.Json.Formatting.Indented));
+  context.ReturnValue=new{pass,path=output,raw,markedPlayerFrames=marked.Count,mainThread=main,rhiThread=submission,report.rhiStatus,errors=errors.ToArray()};
+ }
+ static bool Main(string name)=>!string.IsNullOrEmpty(name)&&(name=="Main Thread"||name.StartsWith("Main Thread ",StringComparison.Ordinal));
+ static bool Submission(string name)=>!string.IsNullOrEmpty(name)&&(name.IndexOf("RHI",StringComparison.OrdinalIgnoreCase)>=0||name.StartsWith("Render Thread",StringComparison.OrdinalIgnoreCase)||name.StartsWith("GfxDeviceWorker",StringComparison.OrdinalIgnoreCase));
+ static bool Wait(string name)=>name.IndexOf("Wait",StringComparison.OrdinalIgnoreCase)>=0||name.IndexOf("Sleep",StringComparison.OrdinalIgnoreCase)>=0||name=="Idle"||name.EndsWith(".Idle",StringComparison.OrdinalIgnoreCase);
+ static ThreadFrame Read(RawFrameDataView view,string kind)
+ {
+  var result=new ThreadFrame{kind=kind,name=view.threadName,group=view.threadGroupName,frame=view.frameIndex,index=view.threadIndex,id=view.threadId,frameTimeMs=view.frameTimeMs,sampleCount=view.sampleCount};var markers=new Dictionary<string,Marker>();
+  for(int n=0;n<view.sampleCount;n++)
+  {
+   string name=view.GetSampleName(n)??"<unnamed>";double inclusive=view.GetSampleTimeMs(n);if(!Finite(inclusive)||inclusive<0){result.invalidSamples++;continue;}
+   int subtreeEnd=Math.Min(view.sampleCount,n+1+Math.Max(0,view.GetSampleChildrenCountRecursive(n))),child=n+1,count=view.GetSampleChildrenCount(n);double children=0;
+   for(int c=0;c<count&&child<subtreeEnd;c++){double time=view.GetSampleTimeMs(child);if(Finite(time)&&time>=0)children+=time;int next=child+1+Math.Max(0,view.GetSampleChildrenCountRecursive(child));if(next<=child)break;child=next;}
+   double self=inclusive-children;if(self<-.0001)result.overlapOrCrossFrameSamples++;self=Math.Max(0,self);
+   if(!markers.TryGetValue(name,out var item)){item=new Marker{name=name,isNamedWait=Wait(name)};markers.Add(name,item);}item.calls++;item.inclusiveMs+=inclusive;item.selfMs+=self;
+   result.exclusiveMs+=self;if(item.isNamedWait)result.namedWaitMs+=self;
+  }
+  result.nonWaitOrUnclassifiedMs=Math.Max(0,result.exclusiveMs-result.namedWaitMs);result.allMarkers=markers.Values.ToArray();
+  result.topSelf=markers.Values.OrderByDescending(m=>m.selfMs).Take(60).ToArray();result.topInclusive=markers.Values.OrderByDescending(m=>m.inclusiveMs).Take(60).ToArray();result.waits=markers.Values.Where(m=>m.isNamedWait).OrderByDescending(m=>m.selfMs).ToArray();return result;
+ }
+ static AggregateReport Aggregate(ThreadFrame[] frames,string kind)
+ {
+  var grouped=new Dictionary<string,Marker>();
+  foreach(var frame in frames)foreach(var m in frame.allMarkers){if(!grouped.TryGetValue(m.name,out var target)){target=new Marker{name=m.name,isNamedWait=m.isNamedWait};grouped.Add(m.name,target);}target.calls+=m.calls;target.inclusiveMs+=m.inclusiveMs;target.selfMs+=m.selfMs;}
+  foreach(var item in grouped.Values){item.meanSelfMsPerThreadFrame=frames.Length==0?0:item.selfMs/frames.Length;item.meanInclusiveMsPerThreadFrame=frames.Length==0?0:item.inclusiveMs/frames.Length;}
+  return new AggregateReport{kind=kind,available=frames.Length>0,threadFrames=frames.Length,names=frames.Select(f=>f.name).Distinct().ToArray(),frameMs=Summary.Of(frames.Select(f=>f.frameTimeMs)),exclusiveMs=Summary.Of(frames.Select(f=>f.exclusiveMs)),namedWaitMs=Summary.Of(frames.Select(f=>f.namedWaitMs)),nonWaitOrUnclassifiedMs=Summary.Of(frames.Select(f=>f.nonWaitOrUnclassifiedMs)),topSelf=grouped.Values.OrderByDescending(m=>m.selfMs).Take(80).ToArray(),topInclusive=grouped.Values.OrderByDescending(m=>m.inclusiveMs).Take(80).ToArray(),waits=grouped.Values.Where(m=>m.isNamedWait).OrderByDescending(m=>m.selfMs).ToArray()};
+ }
+ static bool Finite(double n)=>!double.IsNaN(n)&&!double.IsInfinity(n);
+ static bool Within(string path,string folder){path=Path.GetFullPath(path).TrimEnd('\\','/');folder=Path.GetFullPath(folder).TrimEnd('\\','/');return path.StartsWith(folder+Path.DirectorySeparatorChar,StringComparison.OrdinalIgnoreCase);}
+ static string Hash(string path){using(var sha=SHA256.Create())using(var stream=File.OpenRead(path))return BitConverter.ToString(sha.ComputeHash(stream)).Replace("-","");}
+ public sealed class Inventory{public int frame,index,samples;public string name,group;public ulong id;public bool? belongsToCurrentEditorSession;}
+ public sealed class Marker{public string name;public bool isNamedWait;public int calls;public double inclusiveMs,selfMs,meanInclusiveMsPerThreadFrame,meanSelfMsPerThreadFrame;}
+ public sealed class ThreadFrame
+ {public string kind,name,group;public int frame,index,sampleCount,invalidSamples,overlapOrCrossFrameSamples;public ulong id;public double frameTimeMs,exclusiveMs,namedWaitMs,nonWaitOrUnclassifiedMs;public Marker[] topSelf,topInclusive,waits;[Newtonsoft.Json.JsonIgnore]public Marker[] allMarkers;}
+ public sealed class AggregateReport{public string kind;public string[] names;public bool available;public int threadFrames;public Summary frameMs,exclusiveMs,namedWaitMs,nonWaitOrUnclassifiedMs;public Marker[] topSelf,topInclusive,waits;}
+ public sealed class Summary
+ {public bool available;public int samples;public double p50,p95,p99,min,max,mean;public static Summary Of(IEnumerable<double> source){var v=source.Where(n=>Finite(n)&&n>=0).OrderBy(n=>n).ToArray();var s=new Summary{available=v.Length>0,samples=v.Length};if(v.Length>0){s.p50=v[(int)Math.Ceiling(v.Length*.5)-1];s.p95=v[(int)Math.Ceiling(v.Length*.95)-1];s.p99=v[(int)Math.Ceiling(v.Length*.99)-1];s.min=v[0];s.max=v[v.Length-1];s.mean=v.Average();}return s;}}
+}

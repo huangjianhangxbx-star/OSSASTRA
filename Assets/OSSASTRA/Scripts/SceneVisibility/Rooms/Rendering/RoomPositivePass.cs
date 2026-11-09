@@ -27,6 +27,7 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
         internal static readonly ProfilingSampler perfCharacterOuter = new ProfilingSampler("RoomPositive.Character.AppendOuter");
         internal static readonly ProfilingSampler perfTruthMaterialCopy = new ProfilingSampler("RoomPositive.DrawTruth.MaterialCopy");
         readonly Camera camera;
+        readonly Dictionary<Material,uint> validationFamilies=new Dictionary<Material,uint>();
         bool nativeTruthBucketsEnabled = true;
         int nativeTruthBucketCount, nativeTruthSlotCount;
         readonly Dictionary<Material, TruthNativeBucket> truthNativeByClone = new Dictionary<Material, TruthNativeBucket>();
@@ -83,6 +84,8 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
         { new ShaderTagId("UniversalForward"), new ShaderTagId("UniversalForwardOnly") };
         int preparedFrame = -1;
         bool preparedBeforeCulling;
+        RoomStaticTerrainPreparation terrainPreparation;
+        readonly HashSet<Material> validatedTerrainSources=new HashSet<Material>();
         string preparationError = "等待剔除前的登记帧。";
         bool previewEnabled;
         bool ready;
@@ -118,14 +121,17 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
             Statistics.Active = false;
         }
 
-        internal void PrepareBeforeCulling(RoomMaskFrame next, RoomMaskRendererFeature nextFeature)
+        internal void PrepareBeforeCulling(RoomMaskFrame next, RoomMaskRendererFeature nextFeature, RoomStaticTerrainPreparation terrain = null)
         {
             using (new ProfilingScope(null, perfPrepareBeforeCulling))
             {
             CancelPreparedState(); SetFrame(next, nextFeature);
             if (!next.Enabled || !next.PositiveRenderingEnabled) return;
+            terrainPreparation=terrain;
             try
             {
+                using(new ProfilingScope(null,RoomStaticTerrainPreparation.perfCapturePrepare))
+                    terrainPreparation?.CapturePrepare(camera,next);
                 if (!Validate(out string error)) { preparationError = error; return; }
                 // 环境工作集在接管前准备；环境能力不足只停环境受光，不撤销已验证的世界许可。
                 environmentStage.PrepareSurface();
@@ -135,11 +141,11 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
                 {
                     // 原Shader克隆只借用独立队列，不改变其Caster；真正颜色随后用独立Sight材质与URP PerObjectData绘制。
                     using (new ProfilingScope(null, perfBucketsPrepare))
-                        materialBuckets.Prepare(next, ShaderFor);
+                        materialBuckets.PrepareTerrain(next, ShaderFor,terrainPreparation,true);
                     if(!PrepareKnownMaterialPasses(out string passError))
                     {CancelPreparedState();preparationError=passError;return;}
                     using (new ProfilingScope(null, perfPropertyScopeApply))
-                        propertyScope.Apply(next);
+                        propertyScope.ApplyTerrain(next,terrainPreparation);
                 }
                 preparedFrame = Time.frameCount; preparedBeforeCulling = true; preparationError = "";
             }
@@ -147,11 +153,13 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
             {
                 CancelPreparedState(); preparationError = "剔除前源材质登记失败：" + error.Message;
             }
+            finally { terrainPreparation?.EndPrepare(); }
             }
         }
 
         void CancelPreparedState()
         {
+            terrainPreparation?.EndPrepare();terrainPreparation=null;
             propertyScope.Restore(); materialBuckets.Restore();
             preparedBeforeCulling = false; preparedFrame = -1;
         }
@@ -226,6 +234,9 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
 
         bool Validate(out string error)
         {
+            validationFamilies.Clear();
+            try
+            {
             error = "";
             if (frame == null || !frame.PositiveRenderingEnabled || !frame.Enabled)
             { error = "缺少正向许可帧。"; return false; }
@@ -299,16 +310,18 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
                 // 未知核心源不能等清除世界后才统计并连带撤销Look。不可绘制的空装备/失活面不影响本帧。
                 var sourceRenderer=surface.Renderer;
                 if(!HasDrawableSource(sourceRenderer))continue;
-                var sourceMaterials = sourceRenderer.sharedMaterials;
+                Material[] sourceMaterials=null;
+                bool retainedTerrain=terrainPreparation!=null&&terrainPreparation.TryPrepared(sourceRenderer,out sourceMaterials);
+                if(!retainedTerrain)sourceMaterials=sourceRenderer.sharedMaterials;
                 if (sourceMaterials.Length > 16)
                 { error = "单表面超过16材质槽预算；拒绝无界适配。"; return false; }
-                uint sourceFamily = RoomPositiveRenderingLayers.Classify(sourceRenderer);
+                uint sourceFamily = retainedTerrain?RoomPositiveRenderingLayers.PartialLitBit:RoomPositiveRenderingLayers.Classify(sourceRenderer,sourceMaterials,validationFamilies);
                 if(sourceFamily==0)
                 {error="核心表面含未支持或混合的源材质家族；接管前安全阻断："+sourceRenderer.name;return false;}
                 if (frame.TruthMode || surface.Kind == RoomPositiveSurfaceKind.Full) continue;
                 uint family = surface.Kind == RoomPositiveSurfaceKind.Roof ? RoomPositiveRenderingLayers.RoofBit : sourceFamily;
                 if (family == 0) {error="核心源家族在准备时失效。";return false;}
-                if (RoomPositiveRenderingLayers.RequiresIndependentDraw(surface) && RoomPositiveRenderingLayers.IsIndependentLitFamily(family) &&
+                if (!retainedTerrain&&RoomPositiveRenderingLayers.RequiresIndependentDraw(surface,sourceMaterials,validationFamilies) && RoomPositiveRenderingLayers.IsIndependentLitFamily(family) &&
                     (surface.DrawMaterial == null || surface.DrawMask == 0 || surface.DrawMask == RoomPositiveRenderingLayers.IndependentBit))
                 { error = "动态Lit缺少剔除前的独立材质筛选组；拒绝借用角色共享材质。"; return false; }
                 if (surface.Kind == RoomPositiveSurfaceKind.Roof && sourceFamily != RoomPositiveRenderingLayers.PartialLitBit)
@@ -316,12 +329,15 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
                 // 同一个Lit调度位可包含原Lit和显式Voxel槽；每槽验证其真正使用的适配器。
                 foreach (var source in sourceMaterials)
                 {
+                    if(retainedTerrain&&!validatedTerrainSources.Add(source))continue;
                     Shader shader = ShaderFor(source, family, out int unused);
                     if (shader == null || !shader.isSupported)
                     { error = "缺少可运行的正向源家族Shader引用：" + (source.shader == null ? "null" : source.shader.name); return false; }
                 }
             }
             return true;
+                    }
+            finally { validationFamilies.Clear();validatedTerrainSources.Clear(); }
         }
 
         static bool HasDrawableSource(Renderer renderer)

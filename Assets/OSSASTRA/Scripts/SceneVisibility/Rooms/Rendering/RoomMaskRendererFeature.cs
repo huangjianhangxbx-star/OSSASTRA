@@ -50,7 +50,10 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
             if (!RoomMaskCameraRegistry.TryGet(camera, out var frame)) return;
             if (!positiveCameras.TryGetValue(id, out var positive))
             { positive = new RoomPositivePass(camera); positiveCameras.Add(id, positive); }
-            positive.PrepareBeforeCulling(frame, this);
+            RoomStaticTerrainPreparation terrain=null;
+            if(RoomMaskCameraRegistry.TryGetOwner(camera,out var frameOwner)&&frameOwner is RoomVisibilityModule module)
+                terrain=module.StaticTerrainPreparation;
+            positive.PrepareBeforeCulling(frame, this, terrain);
         }
 
         public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
