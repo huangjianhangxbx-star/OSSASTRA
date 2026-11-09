@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+ <PropertyGroup><TargetFramework>netstandard2.1</TargetFramework><EnableDefaultCompileItems>false</EnableDefaultCompileItems><ImplicitUsings>disable</ImplicitUsings><RestoreIgnoreFailedSources>true</RestoreIgnoreFailedSources><DefineConstants>UNITY_EDITOR</DefineConstants><NoWarn>CS0436;MSB3277</NoWarn></PropertyGroup>
+ <ItemGroup>
+  <Compile Include="Probe.cs.txt"/><Compile Include="ImportProbe.cs.txt"/>
+  <Reference Include="E:/unity/Tuanjie Hub/2022.3.62t16/Editor/Data/Managed/UnityEngine/*.dll"><Private>false</Private></Reference>
+  <Reference Include="../../../../Library/ScriptAssemblies/*.dll"><Private>false</Private></Reference>
+  <Reference Include="E:/unity/Tuanjie Hub/2022.3.62t16/Editor/Data/Managed/Newtonsoft.Json.dll"><Private>false</Private></Reference>
+ </ItemGroup>
+</Project>

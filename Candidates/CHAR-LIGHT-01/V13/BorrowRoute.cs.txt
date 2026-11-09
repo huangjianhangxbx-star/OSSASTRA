@@ -1,0 +1,44 @@
+/* Root-only pre-Start Editor route isolation. Existing route/four-file-SHA pattern, fresh destination.
+ * Receipt survives Play domain/scene reload. No scene save, Undo/SetDirty, source write or frozen-v2 IO.
+ * Do not replay a lost response: inspect the durable active receipt first. */
+using System;using System.IO;using System.Linq;using System.Security.Cryptography;
+using UnityEngine;using UnityEditor;using UnityEngine.SceneManagement;using Newtonsoft.Json.Linq;
+using Funplay.Editor.Tools.Scripting;using Ossastra.Commerce.Runtime;
+public sealed class CharacterHighlightBorrowRoute:IFunplayCommand
+{
+ const string Main="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity";
+ const string Source="E:/WORLDCREATOR/XingHaiHuiLang/研究/可见性修复/KT-VIS-06/profiles";
+ const string SessionRoot="E:/WORLDCREATOR/XingHaiHuiLang/研究/角色光感/CHAR-LIGHT-01/v1.3/sessions";
+ const string Pointer="artifacts/CHAR-LIGHT-01/v1.3/route-active.json";
+ public void Execute(ExecutionContext ctx)
+ {
+  if(Application.dataPath.Replace('\\','/')!="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets"||EditorApplication.isPlayingOrWillChangePlaymode||EditorApplication.isCompiling||EditorApplication.isUpdating||BuildPipeline.isBuildingPlayer)throw new InvalidOperationException("Stable intended pre-Start Edit required");
+  var scene=SceneManager.GetActiveScene();if(SceneManager.sceneCount!=1||scene.path!=Main)throw new InvalidOperationException("Unique author main required");
+  if(File.Exists(Pointer)&&(string)JObject.Parse(File.ReadAllText(Pointer))["status"]=="active")throw new InvalidOperationException("Existing route receipt active; inspect or restore, do not copy again");
+  var services=scene.GetRootGameObjects().SelectMany(r=>r.GetComponentsInChildren<CommerceService>(true)).ToArray();if(services.Length!=1)throw new InvalidOperationException("Exactly one author CommerceService required");
+  var commerce=services[0];if(commerce.SavePath!=null||!Same(commerce.saveDirectory,Source)||string.IsNullOrEmpty(commerce.profileId))throw new InvalidOperationException("Expected exact normal business source and pre-Start Commerce; no fallback to a frozen source");
+  string global=GlobalObjectId.GetGlobalObjectIdSlow(commerce).ToString();if(!GlobalObjectId.TryParse(global,out var identity)||GlobalObjectId.GlobalObjectIdentifierToObjectSlow(identity)!=commerce)throw new InvalidOperationException("Stable author Commerce GlobalObjectId required");
+  string sceneGuid=AssetDatabase.AssetPathToGUID(Main);if(string.IsNullOrEmpty(sceneGuid))throw new InvalidOperationException("Author scene GUID unavailable");
+  Guard(Source);Guard(SessionRoot);var files=Files(Source);if(files.Length!=4)throw new InvalidOperationException("Exact four economy files required; no partial source copy");
+  string token=Guid.NewGuid().ToString("N"),folder=Path.Combine(SessionRoot,token),destination=Path.Combine(folder,"commerce");if(Directory.Exists(folder))throw new IOException("Fresh session destination required");
+  var before=files.Select(p=>new{name=Path.GetFileName(p),sha=Hash(p)}).ToArray();Directory.CreateDirectory(destination);Guard(destination);
+  foreach(var row in before)File.Copy(Path.Combine(Source,row.name),Path.Combine(destination,row.name),false);
+  if(Fingerprint(Source)!=string.Join("|",before.Select(r=>r.name+":"+r.sha))||Fingerprint(destination)!=Fingerprint(Source))throw new IOException("Source changed or isolated copy differs; author route remains untouched");
+  bool dirty=scene.isDirty;string original=commerce.saveDirectory;
+  var receipt=JObject.FromObject(new{status="active",token,scene=Main,sceneGuid,sceneHandleBefore=scene.handle,sceneDiskSha=Hash(Main),commerceGlobalObjectId=global,commerceInstanceIdBefore=commerce.GetInstanceID(),profileId=commerce.profileId,originalRoute=original,source=Source,isolatedRoute=destination,businessFiles=before,dirtyBefore=dirty,dirtyAfter=dirty,utc=DateTime.UtcNow.ToString("O"),sceneSaved=false});
+  string artifact=Path.GetFullPath("artifacts/CHAR-LIGHT-01/v1.3");Directory.CreateDirectory(artifact);string borrow=Path.Combine(artifact,"route-borrow-"+token+".json");File.WriteAllText(borrow,receipt.ToString());File.WriteAllText(Pointer,receipt.ToString());
+  try
+  {
+   // Temporary diagnostic field, deliberately no Undo/SetDirty and no scene save.
+   commerce.saveDirectory=destination;
+   if(commerce.SavePath!=null||commerce.saveDirectory!=destination||scene.isDirty!=dirty)throw new InvalidOperationException("Pre-Start route/dirty readback differs");
+   receipt["dirtyAfter"]=scene.isDirty;receipt["preStartVerified"]=true;File.WriteAllText(borrow,receipt.ToString());File.WriteAllText(Pointer,receipt.ToString());ctx.ReturnValue=new{borrow,receipt};
+  }
+  catch{if(commerce!=null&&commerce.saveDirectory==destination)commerce.saveDirectory=original;receipt["status"]="borrow-failed-restored";File.WriteAllText(Pointer,receipt.ToString());throw;}
+ }
+ static bool Same(string a,string b)=>!string.IsNullOrEmpty(a)&&string.Equals(Path.GetFullPath(a).TrimEnd('\\','/'),Path.GetFullPath(b).TrimEnd('\\','/'),StringComparison.OrdinalIgnoreCase);
+ static void Guard(string path){for(var d=new DirectoryInfo(Path.GetFullPath(path));d!=null;d=d.Parent)if(d.Exists&&(d.Attributes&FileAttributes.ReparsePoint)!=0)throw new IOException("No reparse-point directory: "+d.FullName);}
+ static string[] Files(string directory){Guard(directory);if(!Directory.Exists(directory))throw new DirectoryNotFoundException(directory);var files=Directory.GetFiles(directory).OrderBy(Path.GetFileName,StringComparer.Ordinal).ToArray();if(files.Length!=4||files.Any(f=>!Path.GetFileName(f).StartsWith("economy-",StringComparison.Ordinal)||(File.GetAttributes(f)&FileAttributes.ReparsePoint)!=0))throw new IOException("Exact four regular economy files required");return files;}
+ static string Fingerprint(string directory)=>string.Join("|",Files(directory).Select(p=>Path.GetFileName(p)+":"+Hash(p)));
+ static string Hash(string path){using(var sha=SHA256.Create())using(var stream=File.OpenRead(path))return BitConverter.ToString(sha.ComputeHash(stream)).Replace("-","");}
+}

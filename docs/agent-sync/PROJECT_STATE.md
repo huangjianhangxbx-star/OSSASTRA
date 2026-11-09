@@ -666,3 +666,8 @@ Core新20/Legacy20、离线时序13、Native历史8；实景门窗10/10，真实
 2026-11-04 ENV-01 technical-complete/docs-writer=root：当前35度主场增量接入单Frame环境根、真实投影/地表角色受光、合法天空昼夜、五天气三气候、云风雾雨湿润及uGUI。完整24小时/天气中断实录、Native/GPU定向合同、3轮资源身份恢复通过；Native保存重开单场Edit clean/35度/2角色1敌/缺失0，原KT-VIS-06存档路由已归还且未再Play。1432源与旧档SHA/42原dirty前缀保护通过；全部Unity/生产源码/子代理租约释放，Root只保留交付文档及R11白名单GitHub发布。见ossastra/ENV-01/实现与验证交付.md；Player/GPU耗时/全技能与正式美术未代签，无电源动作。
 
 2026-11-04 ENV-01 complete/read-only：功能提交 9fac1962383c7b4cf2075cb2b1f8160b73e255b0 已GitHub main独立核验，133自有源码/合同/文档；场景、配置、素材、媒体及原档仅本机。A/B/C/D完成，Main单场Edit clean/35度/2原角色1原敌/缺失0/原路由恢复；1432源与旧档、42原dirty和同步原前缀保护通过。所有Unity/源码/文档/发布及子代理租约释放，展示入口研究/环境模拟/ENV-01/展示/index.html，详细边界见交付记录；无电源动作。
+
+## CHAR-LIGHT-01 v1.3 / 强日光校准技术交付（2026-11-09）
+两当前角色完整作者/运行A均K16/C32，实际Bind回读保护1、无遮挡gain Y1.131873未触发。P1中档K0.7/C1分别保存，两角色其他参数/正常开关不动；GPU同样点Y0.928892，屏幕白发内部层次改善。暮色/夜间内部样点逐像素不变，暖室受灯浅肤约8%压缩但暖/冷照明保持，无Shader/绑定/曝光/底光/太阳/Alpha改动。
+原Main增加现有角色光感Panel的Editor完整A/B选择；四独立候选可重进后再次加载，**没有改变Main/Player启动默认**，原作者Profile不覆盖。A/B覆盖后保存默认方法/按钮保护，普通原调参保存保留。源图/配置身份及Shader诊断范围见docs/ossastra/CHAR-LIGHT-01/v1.3/交付.md。
+最终Main Edit/ready/原dirtytrue；4业务源SHA守恒，两次私有路由归还、摄影与UI输入归还、唯一临时Shader Native清理。发布只登记本轮Panel/源候选与参数清单和报告，原42dirty、无主meta与媒体保留。LOOKDEV另对话正在只读旧截图/概念图，不占本任务Unity租约；未把末段未知运行参数变化归因它。R11精确SHA见本轮发布回执。

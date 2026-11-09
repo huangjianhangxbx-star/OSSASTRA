@@ -1127,3 +1127,23 @@ Core新20/Legacy20、离线时序13、Native历史8；实景门窗10/10，真实
 2026-11-04 ENV-01 technical-complete/docs-writer=root：当前35度主场增量接入单Frame环境根、真实投影/地表角色受光、合法天空昼夜、五天气三气候、云风雾雨湿润及uGUI。完整24小时/天气中断实录、Native/GPU定向合同、3轮资源身份恢复通过；Native保存重开单场Edit clean/35度/2角色1敌/缺失0，原KT-VIS-06存档路由已归还且未再Play。1432源与旧档SHA/42原dirty前缀保护通过；全部Unity/生产源码/子代理租约释放，Root只保留交付文档及R11白名单GitHub发布。见ossastra/ENV-01/实现与验证交付.md；Player/GPU耗时/全技能与正式美术未代签，无电源动作。
 
 2026-11-04 ENV-01 complete/read-only：功能提交 9fac1962383c7b4cf2075cb2b1f8160b73e255b0 已GitHub main独立核验，133自有源码/合同/文档；场景、配置、素材、媒体及原档仅本机。A/B/C/D完成，Main单场Edit clean/35度/2原角色1原敌/缺失0/原路由恢复；1432源与旧档、42原dirty和同步原前缀保护通过。所有Unity/源码/文档/发布及子代理租约释放，展示入口研究/环境模拟/ENV-01/展示/index.html，详细边界见交付记录；无电源动作。
+
+## 2026-11-09 CHAR-LIGHT-01 v1.3 active / Root unity-writer
+- 用户执行9F75C9EF…498943B3批准包，仅强日光泛白定向保护，P1已有K/C校准优先，必要才P2。Root唯一Unity/Git；拥有Candidates/CHAR-LIGHT-01/V13、docs/ossastra/CHAR-LIGHT-01/v1.3、本任务记录及Native独立Profile候选（具体路径读取后登记），不改世界/原画/原Profile/未归属42dirty。char13_audit只读，无写租约。
+- 初始Native接手已经Edit/原Main dirtytrue，120组件现场保留至artifacts/CHAR-LIGHT-01/v1.3/initial-scene-state.json；不是把旧Play参数或源码默认当现场。先补完整Profile/材质/环境/GPU接手快照；不得停Play/Save整场/重置参数。
+
+
+CHAR-LIGHT-01v13 Root临时Shader租约：仅Assets/OSSASTRA/Scripts/Development/CharacterLighting/CharacterHighlightProbeV13.shader/.meta，由Native导入、有限floatRT诊断后精确删除；正常运行不依赖。Gpu子仅V13/Gpu冻结候选，Pixels子仅V13/Analysis，无生产/Unity权。
+
+
+CHARv13 Root候选资产写租约：仅Native新建 Profiles/BlueSunlightOriginalA.asset、BlueSunlightProtectedB.asset、FreyciaSunlightOriginalA.asset、FreyciaSunlightProtectedB.asset（完整前缀Assets/OSSASTRA/CharacterLighting/）；存在即拒绝覆盖。原2作者Profile/Main维持只读。Ui子只V13/Ui候选，Root稍后核对增量接入现有Panel，不新manager/cataloɡ/Shader算法。
+
+CHARv13 Root生产写租约补充：仅现有Assets/OSSASTRA/Scripts/Development/CharacterLighting/CharacterLightingPanel.cs，从已核SHA33EB…1ADB应用Ui候选C0D3…72B2。仅Editor完整配置A/B/来源与回写保护/阈值解释；不改Shared绑定或Shader。
+
+## CHAR-LIGHT-01 v1.3 verified / Unity released, Git publication finishing
+P1/K0.7-C1及每角色完整A/B、有限GPU/定向屏幕采样、正式编译/再次Play/克隆隔离与保存保护通过；无Shader算法。原Profile/Main磁盘/4业务源守恒，Main Edit ready/45/dirtytrue，临时Shader/摄影/输入/路由全部归还。Root及子候选路径、Unity写权释放，仅Root持有本轮精确Git发布权直到回执核验。旧42dirty和无主meta不夹带。四候选与影像留本机；参数JSON/源与说明定向发布。后续可复用面板A/B，不自动推广Main或Player默认。
+
+## 2026-11-09 LOOKDEV-01 parallel concept-only branch / file-writer
+- 用户明确本分支可与CHAR并行出概念图。所有权仅 E:/WORLDCREATOR/XingHaiHuiLang/研究/画面风格/LOOKDEV-01/ 下approved-plan、baselines、concepts、prompts及评审图文/HTML；唯一追加同步记录，不接管CHAR的Unity/Git/Panel/Profile/主场租约，不暂停其他线程，不更改PERF结论。
+- 已读批准包8D234FE0C438F76DC0BAED65E7D920DDCCBEF7A948F9ADE308DACD25D6262F31。复用CHAR已有noon-medium.png 45°透视/FOV45/1600×900原始HUD基准，不抢拍摄。首批6图+总览+取舍，停Gate V；无新增Shader/Unity小样/主场替换。概念生成与原实机证据分开保存。
+- 并行子B只B1/B2+对应prompt/notes，子C只C1/C2+对应prompt/notes，scope只P0_基准与并行保护.md；均无Unity/工程/Git写入。

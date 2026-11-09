@@ -1,0 +1,14 @@
+/* 功能：Root单次导入本轮临时诊断Shader；不写场景/原材质/作者Profile。
+ * 边界：已有目标拒绝重放；目标只供按需私有RT诊断，结束由Root Native删除。
+ */
+using System;using System.IO;using UnityEngine;using UnityEditor;using Funplay.Editor.Tools.Scripting;
+public sealed class ImportCharacterHighlightProbeV13:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  if(Application.dataPath.Replace('\\','/')!="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets"||EditorApplication.isCompiling||EditorApplication.isUpdating)throw new InvalidOperationException("Intended stable project required");
+  const string source="Candidates/CHAR-LIGHT-01/V13/Gpu/HighlightProbe.shader.txt",target="Assets/OSSASTRA/Scripts/Development/CharacterLighting/CharacterHighlightProbeV13.shader";
+  if(!File.Exists(source)||File.Exists(target)||File.Exists(target+".meta")||AssetDatabase.LoadAssetAtPath<Shader>(target)!=null)throw new IOException("New exact candidate/absent target required; inspect before any replay");
+  File.Copy(source,target,false);AssetDatabase.ImportAsset(target);ctx.ReturnValue=new{target,sceneSaved=false,scope="Temporary diagnostic shader only"};
+ }
+}

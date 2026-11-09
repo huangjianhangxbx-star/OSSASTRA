@@ -1,0 +1,13 @@
+/* 新建两角色各自完整原A/校准B；原作者资产只读。 */
+using System;using System.IO;using System.Linq;using UnityEngine;using UnityEditor;using Newtonsoft.Json.Linq;using Ossastra.CharacterLighting;using Funplay.Editor.Tools.Scripting;
+public sealed class SaveCharacterSunlightCandidates:IFunplayCommand{
+ public void Execute(ExecutionContext ctx){
+ const string dir="Assets/OSSASTRA/CharacterLighting/Profiles/";
+ var receipt=JObject.Parse(File.ReadAllText("artifacts/CHAR-LIGHT-01/v1.3/runtime-baseline-read-v2.json"));var baseline=JObject.Parse(File.ReadAllText((string)receipt["data"]["returnValue"]["output"]));
+ var entries=new[]{new{name="PlayerCharacter_BlueFiveFace_MapParty",prefix="Blue"},new{name="PlayerCharacter_B_MapParty",prefix="Freycia"}};
+ foreach(var e in entries)foreach(var suffix in new[]{"SunlightOriginalA","SunlightProtectedB"})if(AssetDatabase.LoadMainAssetAtPath(dir+e.prefix+suffix+".asset")!=null||File.Exists(dir+e.prefix+suffix+".asset"))throw new InvalidOperationException("Candidate already exists; inspect, do not overwrite");
+ var records=new JArray();foreach(var e in entries){var row=baseline["actors"].Single(v=>(string)v["name"]==e.name);foreach(bool b in new[]{false,true}){
+ string path=dir+e.prefix+(b?"SunlightProtectedB":"SunlightOriginalA")+".asset";
+ var asset=ScriptableObject.CreateInstance<CharacterLightingProfileSO>();asset.settings=JsonUtility.FromJson<CharacterLightingSettings>((string)row["runtimeJson"]);if(b){asset.settings.knee=.7f;asset.settings.ceiling=1;}asset.settings.Sanitize();string expected=JsonUtility.ToJson(asset.settings);
+ AssetDatabase.CreateAsset(asset,path);AssetDatabase.SaveAssetIfDirty(asset);var read=AssetDatabase.LoadAssetAtPath<CharacterLightingProfileSO>(path);if(read==null||JsonUtility.ToJson(read.settings)!=expected)throw new InvalidOperationException("Candidate readback mismatch");records.Add(JObject.FromObject(new{actor=e.name,mode=b?"B":"A",path,guid=AssetDatabase.AssetPathToGUID(path),settings=expected}));}}
+ string output=Path.GetFullPath("artifacts/CHAR-LIGHT-01/v1.3/saved-candidates.json");File.WriteAllText(output,records.ToString());ctx.ReturnValue=new{output,count=records.Count,originalProfilesModified=false,sceneSaved=false};}}

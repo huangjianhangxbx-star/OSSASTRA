@@ -1,0 +1,2220 @@
+{
+  "schemaVersion": 1,
+  "imageSize": {
+    "width": 1600,
+    "height": 900
+  },
+  "inputReadOnly": true,
+  "units": "8-bit display-encoded RGB and weighted encoded-luma, not HDR or scene-linear radiance",
+  "baseline": "noon-A1",
+  "repeatNoise": "noon-A2",
+  "limits": [
+    "ROI selected by original screenshot; authored source texture and slot identity not independently mapped here",
+    "Near-white and endpoint counts are display proxies, not proof of HDR clipping stage",
+    "Dark ROI may contain antialiased background; inspect original screenshot before semantic interpretation",
+    "Outside-box changes include scene animation/UI/particles and must be compared to A/A, not assumed to be a scene-color regression",
+    "No pass/fail or universal near-white percentage threshold is assigned"
+  ],
+  "rows": [
+    {
+      "name": "noon-A1",
+      "file": "E:\\WORLDCREATOR\\new\\Project_ANKALUTE\\artifacts\\CHAR-LIGHT-01\\v1.3\\noon-A1.png",
+      "sha256": "79C5F539A7D26E87986E02E31D5A253BF1CB334B3DE9AB21283854AC51ECFBDA",
+      "rois": [
+        {
+          "name": "Freycia-hair-crown",
+          "rectangle": {
+            "x": 812,
+            "y": 328,
+            "width": 31,
+            "height": 17
+          },
+          "pixels": 527,
+          "encodedLumaMean": 254.9623533206831,
+          "encodedLumaStdDev": 0.44563071308813357,
+          "encodedLumaP10": 254.99999999999997,
+          "encodedLumaP50": 254.99999999999997,
+          "encodedLumaP90": 254.99999999999997,
+          "encodedLumaP90MinusP10": 0.0,
+          "meanAdjacentEncodedLumaDifference": 0.043083697813121095,
+          "nearWhiteAllChannels250Ratio": 0.9962049335863378,
+          "anyChannel254Ratio": 0.9981024667931688,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 0.0,
+            "meanAbsoluteEncodedLumaDifference": 0.0,
+            "meanSignedEncodedLumaDifference": 0.0,
+            "maximumChannelByteDifference": 0.0,
+            "changedMoreThan1Ratio": 0.0,
+            "changedMoreThan3Ratio": 0.0
+          }
+        },
+        {
+          "name": "Freycia-hair-fringe",
+          "rectangle": {
+            "x": 810,
+            "y": 345,
+            "width": 30,
+            "height": 14
+          },
+          "pixels": 420,
+          "encodedLumaMean": 241.48948428571418,
+          "encodedLumaStdDev": 27.173244163949015,
+          "encodedLumaP10": 201.89,
+          "encodedLumaP50": 254.99999999999997,
+          "encodedLumaP90": 254.99999999999997,
+          "encodedLumaP90MinusP10": 53.109999999999985,
+          "meanAdjacentEncodedLumaDifference": 6.312986934673363,
+          "nearWhiteAllChannels250Ratio": 0.6595238095238095,
+          "anyChannel254Ratio": 0.6880952380952381,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 0.0,
+            "meanAbsoluteEncodedLumaDifference": 0.0,
+            "meanSignedEncodedLumaDifference": 0.0,
+            "maximumChannelByteDifference": 0.0,
+            "changedMoreThan1Ratio": 0.0,
+            "changedMoreThan3Ratio": 0.0
+          }
+        },
+        {
+          "name": "Freycia-skin-upper",
+          "rectangle": {
+            "x": 816,
+            "y": 386,
+            "width": 19,
+            "height": 13
+          },
+          "pixels": 247,
+          "encodedLumaMean": 252.68044858299595,
+          "encodedLumaStdDev": 10.288023546917652,
+          "encodedLumaP10": 254.06139999999996,
+          "encodedLumaP50": 254.99999999999997,
+          "encodedLumaP90": 254.99999999999997,
+          "encodedLumaP90MinusP10": 0.9386000000000081,
+          "meanAdjacentEncodedLumaDifference": 1.2938861471861467,
+          "nearWhiteAllChannels250Ratio": 0.8259109311740891,
+          "anyChannel254Ratio": 0.9392712550607287,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 0.0,
+            "meanAbsoluteEncodedLumaDifference": 0.0,
+            "meanSignedEncodedLumaDifference": 0.0,
+            "maximumChannelByteDifference": 0.0,
+            "changedMoreThan1Ratio": 0.0,
+            "changedMoreThan3Ratio": 0.0
+          }
+        },
+        {
+          "name": "Freycia-skin-lower",
+          "rectangle": {
+            "x": 814,
+            "y": 415,
+            "width": 18,
+            "height": 18
+          },
+          "pixels": 324,
+          "encodedLumaMean": 250.2334734567901,
+          "encodedLumaStdDev": 13.22848741706271,
+          "encodedLumaP10": 235.8304,
+          "encodedLumaP50": 254.99999999999997,
+          "encodedLumaP90": 254.99999999999997,
+          "encodedLumaP90MinusP10": 19.169599999999974,
+          "meanAdjacentEncodedLumaDifference": 2.9100702614379066,
+          "nearWhiteAllChannels250Ratio": 0.7777777777777778,
+          "anyChannel254Ratio": 0.8580246913580247,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 0.0,
+            "meanAbsoluteEncodedLumaDifference": 0.0,
+            "meanSignedEncodedLumaDifference": 0.0,
+            "maximumChannelByteDifference": 0.0,
+            "changedMoreThan1Ratio": 0.0,
+            "changedMoreThan3Ratio": 0.0
+          }
+        },
+        {
+          "name": "Freycia-eye-line-reference",
+          "rectangle": {
+            "x": 829,
+            "y": 363,
+            "width": 3,
+            "height": 2
+          },
+          "pixels": 6,
+          "encodedLumaMean": 100.5005,
+          "encodedLumaStdDev": 14.03376730116796,
+          "encodedLumaP10": 86.3992,
+          "encodedLumaP50": 92.26279999999998,
+          "encodedLumaP90": 108.43599999999999,
+          "encodedLumaP90MinusP10": 22.0368,
+          "meanAdjacentEncodedLumaDifference": 14.443942857142858,
+          "nearWhiteAllChannels250Ratio": 0.0,
+          "anyChannel254Ratio": 0.0,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 0.0,
+            "meanAbsoluteEncodedLumaDifference": 0.0,
+            "meanSignedEncodedLumaDifference": 0.0,
+            "maximumChannelByteDifference": 0.0,
+            "changedMoreThan1Ratio": 0.0,
+            "changedMoreThan3Ratio": 0.0
+          }
+        },
+        {
+          "name": "Blue-light-upper-hair",
+          "rectangle": {
+            "x": 758,
+            "y": 411,
+            "width": 24,
+            "height": 16
+          },
+          "pixels": 384,
+          "encodedLumaMean": 238.5445869791647,
+          "encodedLumaStdDev": 25.112175572124748,
+          "encodedLumaP10": 240.98399999999998,
+          "encodedLumaP50": 240.98399999999998,
+          "encodedLumaP90": 240.98399999999998,
+          "encodedLumaP90MinusP10": 0.0,
+          "meanAdjacentEncodedLumaDifference": 2.860140109890109,
+          "nearWhiteAllChannels250Ratio": 0.026041666666666668,
+          "anyChannel254Ratio": 0.036458333333333336,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 0.0,
+            "meanAbsoluteEncodedLumaDifference": 0.0,
+            "meanSignedEncodedLumaDifference": 0.0,
+            "maximumChannelByteDifference": 0.0,
+            "changedMoreThan1Ratio": 0.0,
+            "changedMoreThan3Ratio": 0.0
+          }
+        },
+        {
+          "name": "Blue-light-lower-hair",
+          "rectangle": {
+            "x": 757,
+            "y": 438,
+            "width": 24,
+            "height": 13
+          },
+          "pixels": 312,
+          "encodedLumaMean": 239.35286025640875,
+          "encodedLumaStdDev": 5.543568595224917,
+          "encodedLumaP10": 240.98399999999998,
+          "encodedLumaP50": 240.98399999999998,
+          "encodedLumaP90": 240.98399999999998,
+          "encodedLumaP90MinusP10": 0.0,
+          "meanAdjacentEncodedLumaDifference": 0.9248139693356044,
+          "nearWhiteAllChannels250Ratio": 0.0,
+          "anyChannel254Ratio": 0.0,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 0.0,
+            "meanAbsoluteEncodedLumaDifference": 0.0,
+            "meanSignedEncodedLumaDifference": 0.0,
+            "maximumChannelByteDifference": 0.0,
+            "changedMoreThan1Ratio": 0.0,
+            "changedMoreThan3Ratio": 0.0
+          }
+        },
+        {
+          "name": "Blue-light-lower-surface",
+          "rectangle": {
+            "x": 750,
+            "y": 474,
+            "width": 6,
+            "height": 3
+          },
+          "pixels": 18,
+          "encodedLumaMean": 254.99999999999994,
+          "encodedLumaStdDev": 3.814697265625E-06,
+          "encodedLumaP10": 254.99999999999997,
+          "encodedLumaP50": 254.99999999999997,
+          "encodedLumaP90": 254.99999999999997,
+          "encodedLumaP90MinusP10": 0.0,
+          "meanAdjacentEncodedLumaDifference": 0.0,
+          "nearWhiteAllChannels250Ratio": 1.0,
+          "anyChannel254Ratio": 1.0,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 0.0,
+            "meanAbsoluteEncodedLumaDifference": 0.0,
+            "meanSignedEncodedLumaDifference": 0.0,
+            "maximumChannelByteDifference": 0.0,
+            "changedMoreThan1Ratio": 0.0,
+            "changedMoreThan3Ratio": 0.0
+          }
+        },
+        {
+          "name": "Blue-dark-edge-reference",
+          "rectangle": {
+            "x": 748,
+            "y": 415,
+            "width": 2,
+            "height": 5
+          },
+          "pixels": 10,
+          "encodedLumaMean": 0.0,
+          "encodedLumaStdDev": 0.0,
+          "encodedLumaP10": 0.0,
+          "encodedLumaP50": 0.0,
+          "encodedLumaP90": 0.0,
+          "encodedLumaP90MinusP10": 0.0,
+          "meanAdjacentEncodedLumaDifference": 0.0,
+          "nearWhiteAllChannels250Ratio": 0.0,
+          "anyChannel254Ratio": 0.0,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 0.0,
+            "meanAbsoluteEncodedLumaDifference": 0.0,
+            "meanSignedEncodedLumaDifference": 0.0,
+            "maximumChannelByteDifference": 0.0,
+            "changedMoreThan1Ratio": 0.0,
+            "changedMoreThan3Ratio": 0.0
+          }
+        }
+      ],
+      "outsideCharacterBoxes": {
+        "pixels": 1415004,
+        "exclude": [
+          {
+            "x": 781,
+            "y": 302,
+            "width": 98,
+            "height": 159
+          },
+          {
+            "x": 724,
+            "y": 374,
+            "width": 99,
+            "height": 132
+          }
+        ],
+        "meanAbsoluteRgbByteDifference": 0.0,
+        "maxChannelByteDifference": 0.0,
+        "p95MaxChannelByteDifference": 0,
+        "p99MaxChannelByteDifference": 0,
+        "changedAny": 0,
+        "changedAnyRatio": 0.0,
+        "changedMoreThan1Ratio": 0.0,
+        "changedMoreThan3Ratio": 0.0
+      }
+    },
+    {
+      "name": "noon-A2",
+      "file": "E:\\WORLDCREATOR\\new\\Project_ANKALUTE\\artifacts\\CHAR-LIGHT-01\\v1.3\\noon-A2.png",
+      "sha256": "CF3B440002ADA7EFD8D1CBF8C2826853E7E7A3C4F5C9B31FF5F6E7D33F626878",
+      "rois": [
+        {
+          "name": "Freycia-hair-crown",
+          "rectangle": {
+            "x": 812,
+            "y": 328,
+            "width": 31,
+            "height": 17
+          },
+          "pixels": 527,
+          "encodedLumaMean": 254.9623533206831,
+          "encodedLumaStdDev": 0.44563071308813357,
+          "encodedLumaP10": 254.99999999999997,
+          "encodedLumaP50": 254.99999999999997,
+          "encodedLumaP90": 254.99999999999997,
+          "encodedLumaP90MinusP10": 0.0,
+          "meanAdjacentEncodedLumaDifference": 0.043083697813121095,
+          "nearWhiteAllChannels250Ratio": 0.9962049335863378,
+          "anyChannel254Ratio": 0.9981024667931688,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 0.0,
+            "meanAbsoluteEncodedLumaDifference": 0.0,
+            "meanSignedEncodedLumaDifference": 0.0,
+            "maximumChannelByteDifference": 0.0,
+            "changedMoreThan1Ratio": 0.0,
+            "changedMoreThan3Ratio": 0.0
+          }
+        },
+        {
+          "name": "Freycia-hair-fringe",
+          "rectangle": {
+            "x": 810,
+            "y": 345,
+            "width": 30,
+            "height": 14
+          },
+          "pixels": 420,
+          "encodedLumaMean": 241.48948428571418,
+          "encodedLumaStdDev": 27.173244163949015,
+          "encodedLumaP10": 201.89,
+          "encodedLumaP50": 254.99999999999997,
+          "encodedLumaP90": 254.99999999999997,
+          "encodedLumaP90MinusP10": 53.109999999999985,
+          "meanAdjacentEncodedLumaDifference": 6.312986934673363,
+          "nearWhiteAllChannels250Ratio": 0.6595238095238095,
+          "anyChannel254Ratio": 0.6880952380952381,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 0.0,
+            "meanAbsoluteEncodedLumaDifference": 0.0,
+            "meanSignedEncodedLumaDifference": 0.0,
+            "maximumChannelByteDifference": 0.0,
+            "changedMoreThan1Ratio": 0.0,
+            "changedMoreThan3Ratio": 0.0
+          }
+        },
+        {
+          "name": "Freycia-skin-upper",
+          "rectangle": {
+            "x": 816,
+            "y": 386,
+            "width": 19,
+            "height": 13
+          },
+          "pixels": 247,
+          "encodedLumaMean": 252.68044858299595,
+          "encodedLumaStdDev": 10.288023546917652,
+          "encodedLumaP10": 254.06139999999996,
+          "encodedLumaP50": 254.99999999999997,
+          "encodedLumaP90": 254.99999999999997,
+          "encodedLumaP90MinusP10": 0.9386000000000081,
+          "meanAdjacentEncodedLumaDifference": 1.2938861471861467,
+          "nearWhiteAllChannels250Ratio": 0.8259109311740891,
+          "anyChannel254Ratio": 0.9392712550607287,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 0.0,
+            "meanAbsoluteEncodedLumaDifference": 0.0,
+            "meanSignedEncodedLumaDifference": 0.0,
+            "maximumChannelByteDifference": 0.0,
+            "changedMoreThan1Ratio": 0.0,
+            "changedMoreThan3Ratio": 0.0
+          }
+        },
+        {
+          "name": "Freycia-skin-lower",
+          "rectangle": {
+            "x": 814,
+            "y": 415,
+            "width": 18,
+            "height": 18
+          },
+          "pixels": 324,
+          "encodedLumaMean": 250.2334734567901,
+          "encodedLumaStdDev": 13.22848741706271,
+          "encodedLumaP10": 235.8304,
+          "encodedLumaP50": 254.99999999999997,
+          "encodedLumaP90": 254.99999999999997,
+          "encodedLumaP90MinusP10": 19.169599999999974,
+          "meanAdjacentEncodedLumaDifference": 2.9100702614379066,
+          "nearWhiteAllChannels250Ratio": 0.7777777777777778,
+          "anyChannel254Ratio": 0.8580246913580247,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 0.0,
+            "meanAbsoluteEncodedLumaDifference": 0.0,
+            "meanSignedEncodedLumaDifference": 0.0,
+            "maximumChannelByteDifference": 0.0,
+            "changedMoreThan1Ratio": 0.0,
+            "changedMoreThan3Ratio": 0.0
+          }
+        },
+        {
+          "name": "Freycia-eye-line-reference",
+          "rectangle": {
+            "x": 829,
+            "y": 363,
+            "width": 3,
+            "height": 2
+          },
+          "pixels": 6,
+          "encodedLumaMean": 100.5005,
+          "encodedLumaStdDev": 14.03376730116796,
+          "encodedLumaP10": 86.3992,
+          "encodedLumaP50": 92.26279999999998,
+          "encodedLumaP90": 108.43599999999999,
+          "encodedLumaP90MinusP10": 22.0368,
+          "meanAdjacentEncodedLumaDifference": 14.443942857142858,
+          "nearWhiteAllChannels250Ratio": 0.0,
+          "anyChannel254Ratio": 0.0,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 0.0,
+            "meanAbsoluteEncodedLumaDifference": 0.0,
+            "meanSignedEncodedLumaDifference": 0.0,
+            "maximumChannelByteDifference": 0.0,
+            "changedMoreThan1Ratio": 0.0,
+            "changedMoreThan3Ratio": 0.0
+          }
+        },
+        {
+          "name": "Blue-light-upper-hair",
+          "rectangle": {
+            "x": 758,
+            "y": 411,
+            "width": 24,
+            "height": 16
+          },
+          "pixels": 384,
+          "encodedLumaMean": 238.5445869791647,
+          "encodedLumaStdDev": 25.112175572124748,
+          "encodedLumaP10": 240.98399999999998,
+          "encodedLumaP50": 240.98399999999998,
+          "encodedLumaP90": 240.98399999999998,
+          "encodedLumaP90MinusP10": 0.0,
+          "meanAdjacentEncodedLumaDifference": 2.860140109890109,
+          "nearWhiteAllChannels250Ratio": 0.026041666666666668,
+          "anyChannel254Ratio": 0.036458333333333336,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 0.0,
+            "meanAbsoluteEncodedLumaDifference": 0.0,
+            "meanSignedEncodedLumaDifference": 0.0,
+            "maximumChannelByteDifference": 0.0,
+            "changedMoreThan1Ratio": 0.0,
+            "changedMoreThan3Ratio": 0.0
+          }
+        },
+        {
+          "name": "Blue-light-lower-hair",
+          "rectangle": {
+            "x": 757,
+            "y": 438,
+            "width": 24,
+            "height": 13
+          },
+          "pixels": 312,
+          "encodedLumaMean": 239.35286025640875,
+          "encodedLumaStdDev": 5.543568595224917,
+          "encodedLumaP10": 240.98399999999998,
+          "encodedLumaP50": 240.98399999999998,
+          "encodedLumaP90": 240.98399999999998,
+          "encodedLumaP90MinusP10": 0.0,
+          "meanAdjacentEncodedLumaDifference": 0.9248139693356044,
+          "nearWhiteAllChannels250Ratio": 0.0,
+          "anyChannel254Ratio": 0.0,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 0.0,
+            "meanAbsoluteEncodedLumaDifference": 0.0,
+            "meanSignedEncodedLumaDifference": 0.0,
+            "maximumChannelByteDifference": 0.0,
+            "changedMoreThan1Ratio": 0.0,
+            "changedMoreThan3Ratio": 0.0
+          }
+        },
+        {
+          "name": "Blue-light-lower-surface",
+          "rectangle": {
+            "x": 750,
+            "y": 474,
+            "width": 6,
+            "height": 3
+          },
+          "pixels": 18,
+          "encodedLumaMean": 254.99999999999994,
+          "encodedLumaStdDev": 3.814697265625E-06,
+          "encodedLumaP10": 254.99999999999997,
+          "encodedLumaP50": 254.99999999999997,
+          "encodedLumaP90": 254.99999999999997,
+          "encodedLumaP90MinusP10": 0.0,
+          "meanAdjacentEncodedLumaDifference": 0.0,
+          "nearWhiteAllChannels250Ratio": 1.0,
+          "anyChannel254Ratio": 1.0,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 0.0,
+            "meanAbsoluteEncodedLumaDifference": 0.0,
+            "meanSignedEncodedLumaDifference": 0.0,
+            "maximumChannelByteDifference": 0.0,
+            "changedMoreThan1Ratio": 0.0,
+            "changedMoreThan3Ratio": 0.0
+          }
+        },
+        {
+          "name": "Blue-dark-edge-reference",
+          "rectangle": {
+            "x": 748,
+            "y": 415,
+            "width": 2,
+            "height": 5
+          },
+          "pixels": 10,
+          "encodedLumaMean": 0.0,
+          "encodedLumaStdDev": 0.0,
+          "encodedLumaP10": 0.0,
+          "encodedLumaP50": 0.0,
+          "encodedLumaP90": 0.0,
+          "encodedLumaP90MinusP10": 0.0,
+          "meanAdjacentEncodedLumaDifference": 0.0,
+          "nearWhiteAllChannels250Ratio": 0.0,
+          "anyChannel254Ratio": 0.0,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 0.0,
+            "meanAbsoluteEncodedLumaDifference": 0.0,
+            "meanSignedEncodedLumaDifference": 0.0,
+            "maximumChannelByteDifference": 0.0,
+            "changedMoreThan1Ratio": 0.0,
+            "changedMoreThan3Ratio": 0.0
+          }
+        }
+      ],
+      "outsideCharacterBoxes": {
+        "pixels": 1415004,
+        "exclude": [
+          {
+            "x": 781,
+            "y": 302,
+            "width": 98,
+            "height": 159
+          },
+          {
+            "x": 724,
+            "y": 374,
+            "width": 99,
+            "height": 132
+          }
+        ],
+        "meanAbsoluteRgbByteDifference": 0.0772344106447758,
+        "maxChannelByteDifference": 190.0,
+        "p95MaxChannelByteDifference": 0,
+        "p99MaxChannelByteDifference": 0,
+        "changedAny": 2289,
+        "changedAnyRatio": 0.0016176632716232604,
+        "changedMoreThan1Ratio": 0.0015795008353333276,
+        "changedMoreThan3Ratio": 0.0015597129054052143
+      }
+    },
+    {
+      "name": "noon-no-inner",
+      "file": "E:\\WORLDCREATOR\\new\\Project_ANKALUTE\\artifacts\\CHAR-LIGHT-01\\v1.3\\noon-no-inner.png",
+      "sha256": "5569370B4FBC97CC84725ED42FDE9773108843CB959DDEE3897DE2E98A605AC7",
+      "rois": [
+        {
+          "name": "Freycia-hair-crown",
+          "rectangle": {
+            "x": 812,
+            "y": 328,
+            "width": 31,
+            "height": 17
+          },
+          "pixels": 527,
+          "encodedLumaMean": 254.9623533206831,
+          "encodedLumaStdDev": 0.44563071308813357,
+          "encodedLumaP10": 254.99999999999997,
+          "encodedLumaP50": 254.99999999999997,
+          "encodedLumaP90": 254.99999999999997,
+          "encodedLumaP90MinusP10": 0.0,
+          "meanAdjacentEncodedLumaDifference": 0.043083697813121095,
+          "nearWhiteAllChannels250Ratio": 0.9962049335863378,
+          "anyChannel254Ratio": 0.9981024667931688,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 0.0,
+            "meanAbsoluteEncodedLumaDifference": 0.0,
+            "meanSignedEncodedLumaDifference": 0.0,
+            "maximumChannelByteDifference": 0.0,
+            "changedMoreThan1Ratio": 0.0,
+            "changedMoreThan3Ratio": 0.0
+          }
+        },
+        {
+          "name": "Freycia-hair-fringe",
+          "rectangle": {
+            "x": 810,
+            "y": 345,
+            "width": 30,
+            "height": 14
+          },
+          "pixels": 420,
+          "encodedLumaMean": 241.48948428571418,
+          "encodedLumaStdDev": 27.173244163949015,
+          "encodedLumaP10": 201.89,
+          "encodedLumaP50": 254.99999999999997,
+          "encodedLumaP90": 254.99999999999997,
+          "encodedLumaP90MinusP10": 53.109999999999985,
+          "meanAdjacentEncodedLumaDifference": 6.312986934673363,
+          "nearWhiteAllChannels250Ratio": 0.6595238095238095,
+          "anyChannel254Ratio": 0.6880952380952381,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 0.0,
+            "meanAbsoluteEncodedLumaDifference": 0.0,
+            "meanSignedEncodedLumaDifference": 0.0,
+            "maximumChannelByteDifference": 0.0,
+            "changedMoreThan1Ratio": 0.0,
+            "changedMoreThan3Ratio": 0.0
+          }
+        },
+        {
+          "name": "Freycia-skin-upper",
+          "rectangle": {
+            "x": 816,
+            "y": 386,
+            "width": 19,
+            "height": 13
+          },
+          "pixels": 247,
+          "encodedLumaMean": 252.68044858299595,
+          "encodedLumaStdDev": 10.288023546917652,
+          "encodedLumaP10": 254.06139999999996,
+          "encodedLumaP50": 254.99999999999997,
+          "encodedLumaP90": 254.99999999999997,
+          "encodedLumaP90MinusP10": 0.9386000000000081,
+          "meanAdjacentEncodedLumaDifference": 1.2938861471861467,
+          "nearWhiteAllChannels250Ratio": 0.8259109311740891,
+          "anyChannel254Ratio": 0.9392712550607287,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 0.0,
+            "meanAbsoluteEncodedLumaDifference": 0.0,
+            "meanSignedEncodedLumaDifference": 0.0,
+            "maximumChannelByteDifference": 0.0,
+            "changedMoreThan1Ratio": 0.0,
+            "changedMoreThan3Ratio": 0.0
+          }
+        },
+        {
+          "name": "Freycia-skin-lower",
+          "rectangle": {
+            "x": 814,
+            "y": 415,
+            "width": 18,
+            "height": 18
+          },
+          "pixels": 324,
+          "encodedLumaMean": 250.2334734567901,
+          "encodedLumaStdDev": 13.22848741706271,
+          "encodedLumaP10": 235.8304,
+          "encodedLumaP50": 254.99999999999997,
+          "encodedLumaP90": 254.99999999999997,
+          "encodedLumaP90MinusP10": 19.169599999999974,
+          "meanAdjacentEncodedLumaDifference": 2.9100702614379066,
+          "nearWhiteAllChannels250Ratio": 0.7777777777777778,
+          "anyChannel254Ratio": 0.8580246913580247,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 0.0,
+            "meanAbsoluteEncodedLumaDifference": 0.0,
+            "meanSignedEncodedLumaDifference": 0.0,
+            "maximumChannelByteDifference": 0.0,
+            "changedMoreThan1Ratio": 0.0,
+            "changedMoreThan3Ratio": 0.0
+          }
+        },
+        {
+          "name": "Freycia-eye-line-reference",
+          "rectangle": {
+            "x": 829,
+            "y": 363,
+            "width": 3,
+            "height": 2
+          },
+          "pixels": 6,
+          "encodedLumaMean": 100.5005,
+          "encodedLumaStdDev": 14.03376730116796,
+          "encodedLumaP10": 86.3992,
+          "encodedLumaP50": 92.26279999999998,
+          "encodedLumaP90": 108.43599999999999,
+          "encodedLumaP90MinusP10": 22.0368,
+          "meanAdjacentEncodedLumaDifference": 14.443942857142858,
+          "nearWhiteAllChannels250Ratio": 0.0,
+          "anyChannel254Ratio": 0.0,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 0.0,
+            "meanAbsoluteEncodedLumaDifference": 0.0,
+            "meanSignedEncodedLumaDifference": 0.0,
+            "maximumChannelByteDifference": 0.0,
+            "changedMoreThan1Ratio": 0.0,
+            "changedMoreThan3Ratio": 0.0
+          }
+        },
+        {
+          "name": "Blue-light-upper-hair",
+          "rectangle": {
+            "x": 758,
+            "y": 411,
+            "width": 24,
+            "height": 16
+          },
+          "pixels": 384,
+          "encodedLumaMean": 238.5445869791647,
+          "encodedLumaStdDev": 25.112175572124748,
+          "encodedLumaP10": 240.98399999999998,
+          "encodedLumaP50": 240.98399999999998,
+          "encodedLumaP90": 240.98399999999998,
+          "encodedLumaP90MinusP10": 0.0,
+          "meanAdjacentEncodedLumaDifference": 2.860140109890109,
+          "nearWhiteAllChannels250Ratio": 0.026041666666666668,
+          "anyChannel254Ratio": 0.036458333333333336,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 0.0,
+            "meanAbsoluteEncodedLumaDifference": 0.0,
+            "meanSignedEncodedLumaDifference": 0.0,
+            "maximumChannelByteDifference": 0.0,
+            "changedMoreThan1Ratio": 0.0,
+            "changedMoreThan3Ratio": 0.0
+          }
+        },
+        {
+          "name": "Blue-light-lower-hair",
+          "rectangle": {
+            "x": 757,
+            "y": 438,
+            "width": 24,
+            "height": 13
+          },
+          "pixels": 312,
+          "encodedLumaMean": 239.35286025640875,
+          "encodedLumaStdDev": 5.543568595224917,
+          "encodedLumaP10": 240.98399999999998,
+          "encodedLumaP50": 240.98399999999998,
+          "encodedLumaP90": 240.98399999999998,
+          "encodedLumaP90MinusP10": 0.0,
+          "meanAdjacentEncodedLumaDifference": 0.9248139693356044,
+          "nearWhiteAllChannels250Ratio": 0.0,
+          "anyChannel254Ratio": 0.0,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 0.0,
+            "meanAbsoluteEncodedLumaDifference": 0.0,
+            "meanSignedEncodedLumaDifference": 0.0,
+            "maximumChannelByteDifference": 0.0,
+            "changedMoreThan1Ratio": 0.0,
+            "changedMoreThan3Ratio": 0.0
+          }
+        },
+        {
+          "name": "Blue-light-lower-surface",
+          "rectangle": {
+            "x": 750,
+            "y": 474,
+            "width": 6,
+            "height": 3
+          },
+          "pixels": 18,
+          "encodedLumaMean": 254.99999999999994,
+          "encodedLumaStdDev": 3.814697265625E-06,
+          "encodedLumaP10": 254.99999999999997,
+          "encodedLumaP50": 254.99999999999997,
+          "encodedLumaP90": 254.99999999999997,
+          "encodedLumaP90MinusP10": 0.0,
+          "meanAdjacentEncodedLumaDifference": 0.0,
+          "nearWhiteAllChannels250Ratio": 1.0,
+          "anyChannel254Ratio": 1.0,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 0.0,
+            "meanAbsoluteEncodedLumaDifference": 0.0,
+            "meanSignedEncodedLumaDifference": 0.0,
+            "maximumChannelByteDifference": 0.0,
+            "changedMoreThan1Ratio": 0.0,
+            "changedMoreThan3Ratio": 0.0
+          }
+        },
+        {
+          "name": "Blue-dark-edge-reference",
+          "rectangle": {
+            "x": 748,
+            "y": 415,
+            "width": 2,
+            "height": 5
+          },
+          "pixels": 10,
+          "encodedLumaMean": 0.0,
+          "encodedLumaStdDev": 0.0,
+          "encodedLumaP10": 0.0,
+          "encodedLumaP50": 0.0,
+          "encodedLumaP90": 0.0,
+          "encodedLumaP90MinusP10": 0.0,
+          "meanAdjacentEncodedLumaDifference": 0.0,
+          "nearWhiteAllChannels250Ratio": 0.0,
+          "anyChannel254Ratio": 0.0,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 0.0,
+            "meanAbsoluteEncodedLumaDifference": 0.0,
+            "meanSignedEncodedLumaDifference": 0.0,
+            "maximumChannelByteDifference": 0.0,
+            "changedMoreThan1Ratio": 0.0,
+            "changedMoreThan3Ratio": 0.0
+          }
+        }
+      ],
+      "outsideCharacterBoxes": {
+        "pixels": 1415004,
+        "exclude": [
+          {
+            "x": 781,
+            "y": 302,
+            "width": 98,
+            "height": 159
+          },
+          {
+            "x": 724,
+            "y": 374,
+            "width": 99,
+            "height": 132
+          }
+        ],
+        "meanAbsoluteRgbByteDifference": 0.09423177131183615,
+        "maxChannelByteDifference": 211.0,
+        "p95MaxChannelByteDifference": 0,
+        "p99MaxChannelByteDifference": 0,
+        "changedAny": 2662,
+        "changedAnyRatio": 0.001881266766737055,
+        "changedMoreThan1Ratio": 0.0018487580247122976,
+        "changedMoreThan3Ratio": 0.001831796941916772
+      }
+    },
+    {
+      "name": "noon-no-outer",
+      "file": "E:\\WORLDCREATOR\\new\\Project_ANKALUTE\\artifacts\\CHAR-LIGHT-01\\v1.3\\noon-no-outer.png",
+      "sha256": "6064DB463B3EA639C913CA8E3EAB821E146956285901193CBD6CC2B2F6A3D934",
+      "rois": [
+        {
+          "name": "Freycia-hair-crown",
+          "rectangle": {
+            "x": 812,
+            "y": 328,
+            "width": 31,
+            "height": 17
+          },
+          "pixels": 527,
+          "encodedLumaMean": 254.9623533206831,
+          "encodedLumaStdDev": 0.44563071308813357,
+          "encodedLumaP10": 254.99999999999997,
+          "encodedLumaP50": 254.99999999999997,
+          "encodedLumaP90": 254.99999999999997,
+          "encodedLumaP90MinusP10": 0.0,
+          "meanAdjacentEncodedLumaDifference": 0.043083697813121095,
+          "nearWhiteAllChannels250Ratio": 0.9962049335863378,
+          "anyChannel254Ratio": 0.9981024667931688,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 0.0,
+            "meanAbsoluteEncodedLumaDifference": 0.0,
+            "meanSignedEncodedLumaDifference": 0.0,
+            "maximumChannelByteDifference": 0.0,
+            "changedMoreThan1Ratio": 0.0,
+            "changedMoreThan3Ratio": 0.0
+          }
+        },
+        {
+          "name": "Freycia-hair-fringe",
+          "rectangle": {
+            "x": 810,
+            "y": 345,
+            "width": 30,
+            "height": 14
+          },
+          "pixels": 420,
+          "encodedLumaMean": 241.48948428571418,
+          "encodedLumaStdDev": 27.173244163949015,
+          "encodedLumaP10": 201.89,
+          "encodedLumaP50": 254.99999999999997,
+          "encodedLumaP90": 254.99999999999997,
+          "encodedLumaP90MinusP10": 53.109999999999985,
+          "meanAdjacentEncodedLumaDifference": 6.312986934673363,
+          "nearWhiteAllChannels250Ratio": 0.6595238095238095,
+          "anyChannel254Ratio": 0.6880952380952381,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 0.0,
+            "meanAbsoluteEncodedLumaDifference": 0.0,
+            "meanSignedEncodedLumaDifference": 0.0,
+            "maximumChannelByteDifference": 0.0,
+            "changedMoreThan1Ratio": 0.0,
+            "changedMoreThan3Ratio": 0.0
+          }
+        },
+        {
+          "name": "Freycia-skin-upper",
+          "rectangle": {
+            "x": 816,
+            "y": 386,
+            "width": 19,
+            "height": 13
+          },
+          "pixels": 247,
+          "encodedLumaMean": 252.68044858299595,
+          "encodedLumaStdDev": 10.288023546917652,
+          "encodedLumaP10": 254.06139999999996,
+          "encodedLumaP50": 254.99999999999997,
+          "encodedLumaP90": 254.99999999999997,
+          "encodedLumaP90MinusP10": 0.9386000000000081,
+          "meanAdjacentEncodedLumaDifference": 1.2938861471861467,
+          "nearWhiteAllChannels250Ratio": 0.8259109311740891,
+          "anyChannel254Ratio": 0.9392712550607287,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 0.0,
+            "meanAbsoluteEncodedLumaDifference": 0.0,
+            "meanSignedEncodedLumaDifference": 0.0,
+            "maximumChannelByteDifference": 0.0,
+            "changedMoreThan1Ratio": 0.0,
+            "changedMoreThan3Ratio": 0.0
+          }
+        },
+        {
+          "name": "Freycia-skin-lower",
+          "rectangle": {
+            "x": 814,
+            "y": 415,
+            "width": 18,
+            "height": 18
+          },
+          "pixels": 324,
+          "encodedLumaMean": 250.2334734567901,
+          "encodedLumaStdDev": 13.22848741706271,
+          "encodedLumaP10": 235.8304,
+          "encodedLumaP50": 254.99999999999997,
+          "encodedLumaP90": 254.99999999999997,
+          "encodedLumaP90MinusP10": 19.169599999999974,
+          "meanAdjacentEncodedLumaDifference": 2.9100702614379066,
+          "nearWhiteAllChannels250Ratio": 0.7777777777777778,
+          "anyChannel254Ratio": 0.8580246913580247,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 0.0,
+            "meanAbsoluteEncodedLumaDifference": 0.0,
+            "meanSignedEncodedLumaDifference": 0.0,
+            "maximumChannelByteDifference": 0.0,
+            "changedMoreThan1Ratio": 0.0,
+            "changedMoreThan3Ratio": 0.0
+          }
+        },
+        {
+          "name": "Freycia-eye-line-reference",
+          "rectangle": {
+            "x": 829,
+            "y": 363,
+            "width": 3,
+            "height": 2
+          },
+          "pixels": 6,
+          "encodedLumaMean": 100.5005,
+          "encodedLumaStdDev": 14.03376730116796,
+          "encodedLumaP10": 86.3992,
+          "encodedLumaP50": 92.26279999999998,
+          "encodedLumaP90": 108.43599999999999,
+          "encodedLumaP90MinusP10": 22.0368,
+          "meanAdjacentEncodedLumaDifference": 14.443942857142858,
+          "nearWhiteAllChannels250Ratio": 0.0,
+          "anyChannel254Ratio": 0.0,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 0.0,
+            "meanAbsoluteEncodedLumaDifference": 0.0,
+            "meanSignedEncodedLumaDifference": 0.0,
+            "maximumChannelByteDifference": 0.0,
+            "changedMoreThan1Ratio": 0.0,
+            "changedMoreThan3Ratio": 0.0
+          }
+        },
+        {
+          "name": "Blue-light-upper-hair",
+          "rectangle": {
+            "x": 758,
+            "y": 411,
+            "width": 24,
+            "height": 16
+          },
+          "pixels": 384,
+          "encodedLumaMean": 238.5445869791647,
+          "encodedLumaStdDev": 25.112175572124748,
+          "encodedLumaP10": 240.98399999999998,
+          "encodedLumaP50": 240.98399999999998,
+          "encodedLumaP90": 240.98399999999998,
+          "encodedLumaP90MinusP10": 0.0,
+          "meanAdjacentEncodedLumaDifference": 2.860140109890109,
+          "nearWhiteAllChannels250Ratio": 0.026041666666666668,
+          "anyChannel254Ratio": 0.036458333333333336,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 0.0,
+            "meanAbsoluteEncodedLumaDifference": 0.0,
+            "meanSignedEncodedLumaDifference": 0.0,
+            "maximumChannelByteDifference": 0.0,
+            "changedMoreThan1Ratio": 0.0,
+            "changedMoreThan3Ratio": 0.0
+          }
+        },
+        {
+          "name": "Blue-light-lower-hair",
+          "rectangle": {
+            "x": 757,
+            "y": 438,
+            "width": 24,
+            "height": 13
+          },
+          "pixels": 312,
+          "encodedLumaMean": 239.35286025640875,
+          "encodedLumaStdDev": 5.543568595224917,
+          "encodedLumaP10": 240.98399999999998,
+          "encodedLumaP50": 240.98399999999998,
+          "encodedLumaP90": 240.98399999999998,
+          "encodedLumaP90MinusP10": 0.0,
+          "meanAdjacentEncodedLumaDifference": 0.9248139693356044,
+          "nearWhiteAllChannels250Ratio": 0.0,
+          "anyChannel254Ratio": 0.0,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 0.0,
+            "meanAbsoluteEncodedLumaDifference": 0.0,
+            "meanSignedEncodedLumaDifference": 0.0,
+            "maximumChannelByteDifference": 0.0,
+            "changedMoreThan1Ratio": 0.0,
+            "changedMoreThan3Ratio": 0.0
+          }
+        },
+        {
+          "name": "Blue-light-lower-surface",
+          "rectangle": {
+            "x": 750,
+            "y": 474,
+            "width": 6,
+            "height": 3
+          },
+          "pixels": 18,
+          "encodedLumaMean": 254.99999999999994,
+          "encodedLumaStdDev": 3.814697265625E-06,
+          "encodedLumaP10": 254.99999999999997,
+          "encodedLumaP50": 254.99999999999997,
+          "encodedLumaP90": 254.99999999999997,
+          "encodedLumaP90MinusP10": 0.0,
+          "meanAdjacentEncodedLumaDifference": 0.0,
+          "nearWhiteAllChannels250Ratio": 1.0,
+          "anyChannel254Ratio": 1.0,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 0.0,
+            "meanAbsoluteEncodedLumaDifference": 0.0,
+            "meanSignedEncodedLumaDifference": 0.0,
+            "maximumChannelByteDifference": 0.0,
+            "changedMoreThan1Ratio": 0.0,
+            "changedMoreThan3Ratio": 0.0
+          }
+        },
+        {
+          "name": "Blue-dark-edge-reference",
+          "rectangle": {
+            "x": 748,
+            "y": 415,
+            "width": 2,
+            "height": 5
+          },
+          "pixels": 10,
+          "encodedLumaMean": 0.0,
+          "encodedLumaStdDev": 0.0,
+          "encodedLumaP10": 0.0,
+          "encodedLumaP50": 0.0,
+          "encodedLumaP90": 0.0,
+          "encodedLumaP90MinusP10": 0.0,
+          "meanAdjacentEncodedLumaDifference": 0.0,
+          "nearWhiteAllChannels250Ratio": 0.0,
+          "anyChannel254Ratio": 0.0,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 0.0,
+            "meanAbsoluteEncodedLumaDifference": 0.0,
+            "meanSignedEncodedLumaDifference": 0.0,
+            "maximumChannelByteDifference": 0.0,
+            "changedMoreThan1Ratio": 0.0,
+            "changedMoreThan3Ratio": 0.0
+          }
+        }
+      ],
+      "outsideCharacterBoxes": {
+        "pixels": 1415004,
+        "exclude": [
+          {
+            "x": 781,
+            "y": 302,
+            "width": 98,
+            "height": 159
+          },
+          {
+            "x": 724,
+            "y": 374,
+            "width": 99,
+            "height": 132
+          }
+        ],
+        "meanAbsoluteRgbByteDifference": 0.0401791561484396,
+        "maxChannelByteDifference": 191.0,
+        "p95MaxChannelByteDifference": 0,
+        "p99MaxChannelByteDifference": 0,
+        "changedAny": 1447,
+        "changedAnyRatio": 0.0010226119502135683,
+        "changedMoreThan1Ratio": 0.0009759689725258727,
+        "changedMoreThan3Ratio": 0.0009469937894168497
+      }
+    },
+    {
+      "name": "noon-body-only",
+      "file": "E:\\WORLDCREATOR\\new\\Project_ANKALUTE\\artifacts\\CHAR-LIGHT-01\\v1.3\\noon-body-only.png",
+      "sha256": "50D2B2D128660AD3D0F69BB0099973237884354C1E80121B1E8DBBEA3DD012FF",
+      "rois": [
+        {
+          "name": "Freycia-hair-crown",
+          "rectangle": {
+            "x": 812,
+            "y": 328,
+            "width": 31,
+            "height": 17
+          },
+          "pixels": 527,
+          "encodedLumaMean": 254.9623533206831,
+          "encodedLumaStdDev": 0.44563071308813357,
+          "encodedLumaP10": 254.99999999999997,
+          "encodedLumaP50": 254.99999999999997,
+          "encodedLumaP90": 254.99999999999997,
+          "encodedLumaP90MinusP10": 0.0,
+          "meanAdjacentEncodedLumaDifference": 0.043083697813121095,
+          "nearWhiteAllChannels250Ratio": 0.9962049335863378,
+          "anyChannel254Ratio": 0.9981024667931688,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 0.0,
+            "meanAbsoluteEncodedLumaDifference": 0.0,
+            "meanSignedEncodedLumaDifference": 0.0,
+            "maximumChannelByteDifference": 0.0,
+            "changedMoreThan1Ratio": 0.0,
+            "changedMoreThan3Ratio": 0.0
+          }
+        },
+        {
+          "name": "Freycia-hair-fringe",
+          "rectangle": {
+            "x": 810,
+            "y": 345,
+            "width": 30,
+            "height": 14
+          },
+          "pixels": 420,
+          "encodedLumaMean": 241.48948428571418,
+          "encodedLumaStdDev": 27.173244163949015,
+          "encodedLumaP10": 201.89,
+          "encodedLumaP50": 254.99999999999997,
+          "encodedLumaP90": 254.99999999999997,
+          "encodedLumaP90MinusP10": 53.109999999999985,
+          "meanAdjacentEncodedLumaDifference": 6.312986934673363,
+          "nearWhiteAllChannels250Ratio": 0.6595238095238095,
+          "anyChannel254Ratio": 0.6880952380952381,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 0.0,
+            "meanAbsoluteEncodedLumaDifference": 0.0,
+            "meanSignedEncodedLumaDifference": 0.0,
+            "maximumChannelByteDifference": 0.0,
+            "changedMoreThan1Ratio": 0.0,
+            "changedMoreThan3Ratio": 0.0
+          }
+        },
+        {
+          "name": "Freycia-skin-upper",
+          "rectangle": {
+            "x": 816,
+            "y": 386,
+            "width": 19,
+            "height": 13
+          },
+          "pixels": 247,
+          "encodedLumaMean": 252.68044858299595,
+          "encodedLumaStdDev": 10.288023546917652,
+          "encodedLumaP10": 254.06139999999996,
+          "encodedLumaP50": 254.99999999999997,
+          "encodedLumaP90": 254.99999999999997,
+          "encodedLumaP90MinusP10": 0.9386000000000081,
+          "meanAdjacentEncodedLumaDifference": 1.2938861471861467,
+          "nearWhiteAllChannels250Ratio": 0.8259109311740891,
+          "anyChannel254Ratio": 0.9392712550607287,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 0.0,
+            "meanAbsoluteEncodedLumaDifference": 0.0,
+            "meanSignedEncodedLumaDifference": 0.0,
+            "maximumChannelByteDifference": 0.0,
+            "changedMoreThan1Ratio": 0.0,
+            "changedMoreThan3Ratio": 0.0
+          }
+        },
+        {
+          "name": "Freycia-skin-lower",
+          "rectangle": {
+            "x": 814,
+            "y": 415,
+            "width": 18,
+            "height": 18
+          },
+          "pixels": 324,
+          "encodedLumaMean": 250.2334734567901,
+          "encodedLumaStdDev": 13.22848741706271,
+          "encodedLumaP10": 235.8304,
+          "encodedLumaP50": 254.99999999999997,
+          "encodedLumaP90": 254.99999999999997,
+          "encodedLumaP90MinusP10": 19.169599999999974,
+          "meanAdjacentEncodedLumaDifference": 2.9100702614379066,
+          "nearWhiteAllChannels250Ratio": 0.7777777777777778,
+          "anyChannel254Ratio": 0.8580246913580247,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 0.0,
+            "meanAbsoluteEncodedLumaDifference": 0.0,
+            "meanSignedEncodedLumaDifference": 0.0,
+            "maximumChannelByteDifference": 0.0,
+            "changedMoreThan1Ratio": 0.0,
+            "changedMoreThan3Ratio": 0.0
+          }
+        },
+        {
+          "name": "Freycia-eye-line-reference",
+          "rectangle": {
+            "x": 829,
+            "y": 363,
+            "width": 3,
+            "height": 2
+          },
+          "pixels": 6,
+          "encodedLumaMean": 100.5005,
+          "encodedLumaStdDev": 14.03376730116796,
+          "encodedLumaP10": 86.3992,
+          "encodedLumaP50": 92.26279999999998,
+          "encodedLumaP90": 108.43599999999999,
+          "encodedLumaP90MinusP10": 22.0368,
+          "meanAdjacentEncodedLumaDifference": 14.443942857142858,
+          "nearWhiteAllChannels250Ratio": 0.0,
+          "anyChannel254Ratio": 0.0,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 0.0,
+            "meanAbsoluteEncodedLumaDifference": 0.0,
+            "meanSignedEncodedLumaDifference": 0.0,
+            "maximumChannelByteDifference": 0.0,
+            "changedMoreThan1Ratio": 0.0,
+            "changedMoreThan3Ratio": 0.0
+          }
+        },
+        {
+          "name": "Blue-light-upper-hair",
+          "rectangle": {
+            "x": 758,
+            "y": 411,
+            "width": 24,
+            "height": 16
+          },
+          "pixels": 384,
+          "encodedLumaMean": 238.5445869791647,
+          "encodedLumaStdDev": 25.112175572124748,
+          "encodedLumaP10": 240.98399999999998,
+          "encodedLumaP50": 240.98399999999998,
+          "encodedLumaP90": 240.98399999999998,
+          "encodedLumaP90MinusP10": 0.0,
+          "meanAdjacentEncodedLumaDifference": 2.860140109890109,
+          "nearWhiteAllChannels250Ratio": 0.026041666666666668,
+          "anyChannel254Ratio": 0.036458333333333336,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 0.0,
+            "meanAbsoluteEncodedLumaDifference": 0.0,
+            "meanSignedEncodedLumaDifference": 0.0,
+            "maximumChannelByteDifference": 0.0,
+            "changedMoreThan1Ratio": 0.0,
+            "changedMoreThan3Ratio": 0.0
+          }
+        },
+        {
+          "name": "Blue-light-lower-hair",
+          "rectangle": {
+            "x": 757,
+            "y": 438,
+            "width": 24,
+            "height": 13
+          },
+          "pixels": 312,
+          "encodedLumaMean": 239.35286025640875,
+          "encodedLumaStdDev": 5.543568595224917,
+          "encodedLumaP10": 240.98399999999998,
+          "encodedLumaP50": 240.98399999999998,
+          "encodedLumaP90": 240.98399999999998,
+          "encodedLumaP90MinusP10": 0.0,
+          "meanAdjacentEncodedLumaDifference": 0.9248139693356044,
+          "nearWhiteAllChannels250Ratio": 0.0,
+          "anyChannel254Ratio": 0.0,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 0.0,
+            "meanAbsoluteEncodedLumaDifference": 0.0,
+            "meanSignedEncodedLumaDifference": 0.0,
+            "maximumChannelByteDifference": 0.0,
+            "changedMoreThan1Ratio": 0.0,
+            "changedMoreThan3Ratio": 0.0
+          }
+        },
+        {
+          "name": "Blue-light-lower-surface",
+          "rectangle": {
+            "x": 750,
+            "y": 474,
+            "width": 6,
+            "height": 3
+          },
+          "pixels": 18,
+          "encodedLumaMean": 254.99999999999994,
+          "encodedLumaStdDev": 3.814697265625E-06,
+          "encodedLumaP10": 254.99999999999997,
+          "encodedLumaP50": 254.99999999999997,
+          "encodedLumaP90": 254.99999999999997,
+          "encodedLumaP90MinusP10": 0.0,
+          "meanAdjacentEncodedLumaDifference": 0.0,
+          "nearWhiteAllChannels250Ratio": 1.0,
+          "anyChannel254Ratio": 1.0,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 0.0,
+            "meanAbsoluteEncodedLumaDifference": 0.0,
+            "meanSignedEncodedLumaDifference": 0.0,
+            "maximumChannelByteDifference": 0.0,
+            "changedMoreThan1Ratio": 0.0,
+            "changedMoreThan3Ratio": 0.0
+          }
+        },
+        {
+          "name": "Blue-dark-edge-reference",
+          "rectangle": {
+            "x": 748,
+            "y": 415,
+            "width": 2,
+            "height": 5
+          },
+          "pixels": 10,
+          "encodedLumaMean": 0.0,
+          "encodedLumaStdDev": 0.0,
+          "encodedLumaP10": 0.0,
+          "encodedLumaP50": 0.0,
+          "encodedLumaP90": 0.0,
+          "encodedLumaP90MinusP10": 0.0,
+          "meanAdjacentEncodedLumaDifference": 0.0,
+          "nearWhiteAllChannels250Ratio": 0.0,
+          "anyChannel254Ratio": 0.0,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 0.0,
+            "meanAbsoluteEncodedLumaDifference": 0.0,
+            "meanSignedEncodedLumaDifference": 0.0,
+            "maximumChannelByteDifference": 0.0,
+            "changedMoreThan1Ratio": 0.0,
+            "changedMoreThan3Ratio": 0.0
+          }
+        }
+      ],
+      "outsideCharacterBoxes": {
+        "pixels": 1415004,
+        "exclude": [
+          {
+            "x": 781,
+            "y": 302,
+            "width": 98,
+            "height": 159
+          },
+          {
+            "x": 724,
+            "y": 374,
+            "width": 99,
+            "height": 132
+          }
+        ],
+        "meanAbsoluteRgbByteDifference": 0.021859773305705637,
+        "maxChannelByteDifference": 174.0,
+        "p95MaxChannelByteDifference": 0,
+        "p99MaxChannelByteDifference": 0,
+        "changedAny": 1012,
+        "changedAnyRatio": 0.0007151923245446656,
+        "changedMoreThan1Ratio": 0.0006544151111940319,
+        "changedMoreThan3Ratio": 0.000617666098470393
+      }
+    },
+    {
+      "name": "noon-light",
+      "file": "E:\\WORLDCREATOR\\new\\Project_ANKALUTE\\artifacts\\CHAR-LIGHT-01\\v1.3\\noon-light.png",
+      "sha256": "39B230A14C94931DB0B1A5BC91D2A3FF85B166283F03F5F58553478970A597E1",
+      "rois": [
+        {
+          "name": "Freycia-hair-crown",
+          "rectangle": {
+            "x": 812,
+            "y": 328,
+            "width": 31,
+            "height": 17
+          },
+          "pixels": 527,
+          "encodedLumaMean": 254.7069229601519,
+          "encodedLumaStdDev": 1.5422526895934046,
+          "encodedLumaP10": 254.7874,
+          "encodedLumaP50": 254.99999999999997,
+          "encodedLumaP90": 254.99999999999997,
+          "encodedLumaP90MinusP10": 0.21259999999998058,
+          "meanAdjacentEncodedLumaDifference": 0.2074715705765399,
+          "nearWhiteAllChannels250Ratio": 0.9658444022770398,
+          "anyChannel254Ratio": 0.969639468690702,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 0.29728020240354214,
+            "meanAbsoluteEncodedLumaDifference": 0.2554303605313076,
+            "meanSignedEncodedLumaDifference": -0.2554303605313076,
+            "maximumChannelByteDifference": 11.0,
+            "changedMoreThan1Ratio": 0.09867172675521822,
+            "changedMoreThan3Ratio": 0.04174573055028463
+          }
+        },
+        {
+          "name": "Freycia-hair-fringe",
+          "rectangle": {
+            "x": 810,
+            "y": 345,
+            "width": 30,
+            "height": 14
+          },
+          "pixels": 420,
+          "encodedLumaMean": 237.70740285714288,
+          "encodedLumaStdDev": 29.466921516978246,
+          "encodedLumaP10": 193.1026,
+          "encodedLumaP50": 254.57479999999998,
+          "encodedLumaP90": 254.99999999999997,
+          "encodedLumaP90MinusP10": 61.897399999999976,
+          "meanAdjacentEncodedLumaDifference": 7.163365829145723,
+          "nearWhiteAllChannels250Ratio": 0.5523809523809524,
+          "anyChannel254Ratio": 0.5595238095238095,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 3.9047619047619038,
+            "meanAbsoluteEncodedLumaDifference": 3.782081428571427,
+            "meanSignedEncodedLumaDifference": -3.782081428571427,
+            "maximumChannelByteDifference": 12.0,
+            "changedMoreThan1Ratio": 0.5238095238095238,
+            "changedMoreThan3Ratio": 0.48095238095238096
+          }
+        },
+        {
+          "name": "Freycia-skin-upper",
+          "rectangle": {
+            "x": 816,
+            "y": 386,
+            "width": 19,
+            "height": 13
+          },
+          "pixels": 247,
+          "encodedLumaMean": 250.98491093117468,
+          "encodedLumaStdDev": 11.897530982236342,
+          "encodedLumaP10": 246.7622,
+          "encodedLumaP50": 254.63899999999998,
+          "encodedLumaP90": 254.78339999999997,
+          "encodedLumaP90MinusP10": 8.021199999999965,
+          "meanAdjacentEncodedLumaDifference": 1.936690043290043,
+          "nearWhiteAllChannels250Ratio": 0.5141700404858299,
+          "anyChannel254Ratio": 0.9068825910931174,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 2.9703103913630184,
+            "meanAbsoluteEncodedLumaDifference": 1.695537651821858,
+            "meanSignedEncodedLumaDifference": -1.695537651821858,
+            "maximumChannelByteDifference": 11.0,
+            "changedMoreThan1Ratio": 1.0,
+            "changedMoreThan3Ratio": 0.8178137651821862
+          }
+        },
+        {
+          "name": "Freycia-skin-lower",
+          "rectangle": {
+            "x": 814,
+            "y": 415,
+            "width": 18,
+            "height": 18
+          },
+          "pixels": 324,
+          "encodedLumaMean": 247.99898456790137,
+          "encodedLumaStdDev": 15.83069292215375,
+          "encodedLumaP10": 225.76219999999998,
+          "encodedLumaP50": 254.63899999999998,
+          "encodedLumaP90": 254.63899999999998,
+          "encodedLumaP90MinusP10": 28.876800000000003,
+          "meanAdjacentEncodedLumaDifference": 3.4855601307189508,
+          "nearWhiteAllChannels250Ratio": 0.7067901234567902,
+          "anyChannel254Ratio": 0.8209876543209876,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 3.303497942386827,
+            "meanAbsoluteEncodedLumaDifference": 2.234488888888882,
+            "meanSignedEncodedLumaDifference": -2.234488888888882,
+            "maximumChannelByteDifference": 11.0,
+            "changedMoreThan1Ratio": 1.0,
+            "changedMoreThan3Ratio": 0.9753086419753086
+          }
+        },
+        {
+          "name": "Freycia-eye-line-reference",
+          "rectangle": {
+            "x": 829,
+            "y": 363,
+            "width": 3,
+            "height": 2
+          },
+          "pixels": 6,
+          "encodedLumaMean": 96.02476666666666,
+          "encodedLumaStdDev": 13.17948835902042,
+          "encodedLumaP10": 83.1144,
+          "encodedLumaP50": 88.05019999999999,
+          "encodedLumaP90": 103.36379999999998,
+          "encodedLumaP90MinusP10": 20.24939999999998,
+          "meanAdjacentEncodedLumaDifference": 13.503942857142851,
+          "nearWhiteAllChannels250Ratio": 0.0,
+          "anyChannel254Ratio": 0.0,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 4.666666666666667,
+            "meanAbsoluteEncodedLumaDifference": 4.475733333333333,
+            "meanSignedEncodedLumaDifference": -4.475733333333333,
+            "maximumChannelByteDifference": 6.0,
+            "changedMoreThan1Ratio": 1.0,
+            "changedMoreThan3Ratio": 1.0
+          }
+        },
+        {
+          "name": "Blue-light-upper-hair",
+          "rectangle": {
+            "x": 758,
+            "y": 411,
+            "width": 24,
+            "height": 16
+          },
+          "pixels": 384,
+          "encodedLumaMean": 228.8083177083346,
+          "encodedLumaStdDev": 24.351867610960277,
+          "encodedLumaP10": 230.9118,
+          "encodedLumaP50": 230.9118,
+          "encodedLumaP90": 230.9118,
+          "encodedLumaP90MinusP10": 0.0,
+          "meanAdjacentEncodedLumaDifference": 3.0361989010989014,
+          "nearWhiteAllChannels250Ratio": 0.0,
+          "anyChannel254Ratio": 0.026041666666666668,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 10.03385416666672,
+            "meanAbsoluteEncodedLumaDifference": 9.73626927083337,
+            "meanSignedEncodedLumaDifference": -9.73626927083337,
+            "maximumChannelByteDifference": 11.0,
+            "changedMoreThan1Ratio": 0.9895833333333334,
+            "changedMoreThan3Ratio": 0.9895833333333334
+          }
+        },
+        {
+          "name": "Blue-light-lower-hair",
+          "rectangle": {
+            "x": 757,
+            "y": 438,
+            "width": 24,
+            "height": 13
+          },
+          "pixels": 312,
+          "encodedLumaMean": 229.3496474358986,
+          "encodedLumaStdDev": 5.2907463944030075,
+          "encodedLumaP10": 230.9118,
+          "encodedLumaP50": 230.9118,
+          "encodedLumaP90": 230.9118,
+          "encodedLumaP90MinusP10": 0.0,
+          "meanAdjacentEncodedLumaDifference": 0.888239182282795,
+          "nearWhiteAllChannels250Ratio": 0.0,
+          "anyChannel254Ratio": 0.0,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 10.205128205128243,
+            "meanAbsoluteEncodedLumaDifference": 10.003212820512845,
+            "meanSignedEncodedLumaDifference": -10.003212820512845,
+            "maximumChannelByteDifference": 11.0,
+            "changedMoreThan1Ratio": 1.0,
+            "changedMoreThan3Ratio": 1.0
+          }
+        },
+        {
+          "name": "Blue-light-lower-surface",
+          "rectangle": {
+            "x": 750,
+            "y": 474,
+            "width": 6,
+            "height": 3
+          },
+          "pixels": 18,
+          "encodedLumaMean": 254.99999999999994,
+          "encodedLumaStdDev": 3.814697265625E-06,
+          "encodedLumaP10": 254.99999999999997,
+          "encodedLumaP50": 254.99999999999997,
+          "encodedLumaP90": 254.99999999999997,
+          "encodedLumaP90MinusP10": 0.0,
+          "meanAdjacentEncodedLumaDifference": 0.0,
+          "nearWhiteAllChannels250Ratio": 1.0,
+          "anyChannel254Ratio": 1.0,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 0.0,
+            "meanAbsoluteEncodedLumaDifference": 0.0,
+            "meanSignedEncodedLumaDifference": 0.0,
+            "maximumChannelByteDifference": 0.0,
+            "changedMoreThan1Ratio": 0.0,
+            "changedMoreThan3Ratio": 0.0
+          }
+        },
+        {
+          "name": "Blue-dark-edge-reference",
+          "rectangle": {
+            "x": 748,
+            "y": 415,
+            "width": 2,
+            "height": 5
+          },
+          "pixels": 10,
+          "encodedLumaMean": 0.0,
+          "encodedLumaStdDev": 0.0,
+          "encodedLumaP10": 0.0,
+          "encodedLumaP50": 0.0,
+          "encodedLumaP90": 0.0,
+          "encodedLumaP90MinusP10": 0.0,
+          "meanAdjacentEncodedLumaDifference": 0.0,
+          "nearWhiteAllChannels250Ratio": 0.0,
+          "anyChannel254Ratio": 0.0,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 0.0,
+            "meanAbsoluteEncodedLumaDifference": 0.0,
+            "meanSignedEncodedLumaDifference": 0.0,
+            "maximumChannelByteDifference": 0.0,
+            "changedMoreThan1Ratio": 0.0,
+            "changedMoreThan3Ratio": 0.0
+          }
+        }
+      ],
+      "outsideCharacterBoxes": {
+        "pixels": 1415004,
+        "exclude": [
+          {
+            "x": 781,
+            "y": 302,
+            "width": 98,
+            "height": 159
+          },
+          {
+            "x": 724,
+            "y": 374,
+            "width": 99,
+            "height": 132
+          }
+        ],
+        "meanAbsoluteRgbByteDifference": 0.09240633477596753,
+        "maxChannelByteDifference": 188.0,
+        "p95MaxChannelByteDifference": 0,
+        "p99MaxChannelByteDifference": 0,
+        "changedAny": 2636,
+        "changedAnyRatio": 0.0018628922603752356,
+        "changedMoreThan1Ratio": 0.0018268499594347436,
+        "changedMoreThan3Ratio": 0.0018070620295066303
+      }
+    },
+    {
+      "name": "noon-medium",
+      "file": "E:\\WORLDCREATOR\\new\\Project_ANKALUTE\\artifacts\\CHAR-LIGHT-01\\v1.3\\noon-medium.png",
+      "sha256": "ADA4B75A32963D95D6CEFC5585BBFF4C94376CA1D022EC3FEA65E6A669F406A5",
+      "rois": [
+        {
+          "name": "Freycia-hair-crown",
+          "rectangle": {
+            "x": 812,
+            "y": 328,
+            "width": 31,
+            "height": 17
+          },
+          "pixels": 527,
+          "encodedLumaMean": 234.78842580645207,
+          "encodedLumaStdDev": 2.1285709446651264,
+          "encodedLumaP10": 234.00519999999997,
+          "encodedLumaP50": 234.93299999999996,
+          "encodedLumaP90": 236.0052,
+          "encodedLumaP90MinusP10": 2.0000000000000284,
+          "meanAdjacentEncodedLumaDifference": 0.45002127236580886,
+          "nearWhiteAllChannels250Ratio": 0.0,
+          "anyChannel254Ratio": 0.0,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 21.420619860847594,
+            "meanAbsoluteEncodedLumaDifference": 20.173927514231462,
+            "meanSignedEncodedLumaDifference": -20.173927514231462,
+            "maximumChannelByteDifference": 34.0,
+            "changedMoreThan1Ratio": 1.0,
+            "changedMoreThan3Ratio": 1.0
+          }
+        },
+        {
+          "name": "Freycia-hair-fringe",
+          "rectangle": {
+            "x": 810,
+            "y": 345,
+            "width": 30,
+            "height": 14
+          },
+          "pixels": 420,
+          "encodedLumaMean": 217.77585285714278,
+          "encodedLumaStdDev": 28.145580300285133,
+          "encodedLumaP10": 175.243,
+          "encodedLumaP50": 233.64819999999997,
+          "encodedLumaP90": 236.0052,
+          "encodedLumaP90MinusP10": 60.76220000000001,
+          "meanAdjacentEncodedLumaDifference": 7.063574120603019,
+          "nearWhiteAllChannels250Ratio": 0.0,
+          "anyChannel254Ratio": 0.0,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 24.495238095238086,
+            "meanAbsoluteEncodedLumaDifference": 23.713631428571414,
+            "meanSignedEncodedLumaDifference": -23.713631428571414,
+            "maximumChannelByteDifference": 35.0,
+            "changedMoreThan1Ratio": 1.0,
+            "changedMoreThan3Ratio": 1.0
+          }
+        },
+        {
+          "name": "Freycia-skin-upper",
+          "rectangle": {
+            "x": 816,
+            "y": 386,
+            "width": 19,
+            "height": 13
+          },
+          "pixels": 247,
+          "encodedLumaMean": 235.28754331983868,
+          "encodedLumaStdDev": 13.125529565362983,
+          "encodedLumaP10": 224.4774,
+          "encodedLumaP50": 241.26479999999998,
+          "encodedLumaP90": 241.83439999999996,
+          "encodedLumaP90MinusP10": 17.35699999999997,
+          "meanAdjacentEncodedLumaDifference": 2.8882956709956713,
+          "nearWhiteAllChannels250Ratio": 0.0,
+          "anyChannel254Ratio": 0.0,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 19.504723346828612,
+            "meanAbsoluteEncodedLumaDifference": 17.392905263157925,
+            "meanSignedEncodedLumaDifference": -17.392905263157925,
+            "maximumChannelByteDifference": 35.0,
+            "changedMoreThan1Ratio": 1.0,
+            "changedMoreThan3Ratio": 1.0
+          }
+        },
+        {
+          "name": "Freycia-skin-lower",
+          "rectangle": {
+            "x": 814,
+            "y": 415,
+            "width": 18,
+            "height": 18
+          },
+          "pixels": 324,
+          "encodedLumaMean": 232.7396098765444,
+          "encodedLumaStdDev": 17.870709091468758,
+          "encodedLumaP10": 204.90659999999997,
+          "encodedLumaP50": 241.47739999999996,
+          "encodedLumaP90": 241.47739999999996,
+          "encodedLumaP90MinusP10": 36.57079999999999,
+          "meanAdjacentEncodedLumaDifference": 3.8826160130718916,
+          "nearWhiteAllChannels250Ratio": 0.0,
+          "anyChannel254Ratio": 0.0,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 19.560699588477345,
+            "meanAbsoluteEncodedLumaDifference": 17.493863580246998,
+            "meanSignedEncodedLumaDifference": -17.493863580246998,
+            "maximumChannelByteDifference": 35.0,
+            "changedMoreThan1Ratio": 1.0,
+            "changedMoreThan3Ratio": 1.0
+          }
+        },
+        {
+          "name": "Freycia-eye-line-reference",
+          "rectangle": {
+            "x": 829,
+            "y": 363,
+            "width": 3,
+            "height": 2
+          },
+          "pixels": 6,
+          "encodedLumaMean": 86.5499,
+          "encodedLumaStdDev": 12.153285510648336,
+          "encodedLumaP10": 74.617,
+          "encodedLumaP50": 79.4806,
+          "encodedLumaP90": 93.36380000000001,
+          "encodedLumaP90MinusP10": 18.746800000000007,
+          "meanAdjacentEncodedLumaDifference": 12.492885714285716,
+          "nearWhiteAllChannels250Ratio": 0.0,
+          "anyChannel254Ratio": 0.0,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 14.500000000000002,
+            "meanAbsoluteEncodedLumaDifference": 13.950599999999994,
+            "meanSignedEncodedLumaDifference": -13.950599999999994,
+            "maximumChannelByteDifference": 18.0,
+            "changedMoreThan1Ratio": 1.0,
+            "changedMoreThan3Ratio": 1.0
+          }
+        },
+        {
+          "name": "Blue-light-upper-hair",
+          "rectangle": {
+            "x": 758,
+            "y": 411,
+            "width": 24,
+            "height": 16
+          },
+          "pixels": 384,
+          "encodedLumaMean": 207.86711249999897,
+          "encodedLumaStdDev": 22.140621840857314,
+          "encodedLumaP10": 209.7714,
+          "encodedLumaP50": 209.7714,
+          "encodedLumaP90": 209.7714,
+          "encodedLumaP90MinusP10": 0.0,
+          "meanAdjacentEncodedLumaDifference": 2.792958791208792,
+          "nearWhiteAllChannels250Ratio": 0.0,
+          "anyChannel254Ratio": 0.0,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 30.822916666666767,
+            "meanAbsoluteEncodedLumaDifference": 30.677474479166808,
+            "meanSignedEncodedLumaDifference": -30.677474479166808,
+            "maximumChannelByteDifference": 34.0,
+            "changedMoreThan1Ratio": 0.9895833333333334,
+            "changedMoreThan3Ratio": 0.9895833333333334
+          }
+        },
+        {
+          "name": "Blue-light-lower-hair",
+          "rectangle": {
+            "x": 757,
+            "y": 438,
+            "width": 24,
+            "height": 13
+          },
+          "pixels": 312,
+          "encodedLumaMean": 208.3120743589736,
+          "encodedLumaStdDev": 4.894296626113838,
+          "encodedLumaP10": 209.7714,
+          "encodedLumaP50": 209.7714,
+          "encodedLumaP90": 209.7714,
+          "encodedLumaP90MinusP10": 0.0,
+          "meanAdjacentEncodedLumaDifference": 0.8466340715502569,
+          "nearWhiteAllChannels250Ratio": 0.0,
+          "anyChannel254Ratio": 0.0,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 31.061965811965802,
+            "meanAbsoluteEncodedLumaDifference": 31.04078589743591,
+            "meanSignedEncodedLumaDifference": -31.04078589743591,
+            "maximumChannelByteDifference": 33.0,
+            "changedMoreThan1Ratio": 1.0,
+            "changedMoreThan3Ratio": 1.0
+          }
+        },
+        {
+          "name": "Blue-light-lower-surface",
+          "rectangle": {
+            "x": 750,
+            "y": 474,
+            "width": 6,
+            "height": 3
+          },
+          "pixels": 18,
+          "encodedLumaMean": 242.2121555555555,
+          "encodedLumaStdDev": 1.528391169482809,
+          "encodedLumaP10": 241.3502,
+          "encodedLumaP50": 241.3502,
+          "encodedLumaP90": 244.9078,
+          "encodedLumaP90MinusP10": 3.557600000000008,
+          "meanAdjacentEncodedLumaDifference": 0.9459185185185137,
+          "nearWhiteAllChannels250Ratio": 0.0,
+          "anyChannel254Ratio": 0.0,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 15.38888888888889,
+            "meanAbsoluteEncodedLumaDifference": 12.78784444444442,
+            "meanSignedEncodedLumaDifference": -12.78784444444442,
+            "maximumChannelByteDifference": 26.0,
+            "changedMoreThan1Ratio": 1.0,
+            "changedMoreThan3Ratio": 1.0
+          }
+        },
+        {
+          "name": "Blue-dark-edge-reference",
+          "rectangle": {
+            "x": 748,
+            "y": 415,
+            "width": 2,
+            "height": 5
+          },
+          "pixels": 10,
+          "encodedLumaMean": 0.0,
+          "encodedLumaStdDev": 0.0,
+          "encodedLumaP10": 0.0,
+          "encodedLumaP50": 0.0,
+          "encodedLumaP90": 0.0,
+          "encodedLumaP90MinusP10": 0.0,
+          "meanAdjacentEncodedLumaDifference": 0.0,
+          "nearWhiteAllChannels250Ratio": 0.0,
+          "anyChannel254Ratio": 0.0,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 0.0,
+            "meanAbsoluteEncodedLumaDifference": 0.0,
+            "meanSignedEncodedLumaDifference": 0.0,
+            "maximumChannelByteDifference": 0.0,
+            "changedMoreThan1Ratio": 0.0,
+            "changedMoreThan3Ratio": 0.0
+          }
+        }
+      ],
+      "outsideCharacterBoxes": {
+        "pixels": 1415004,
+        "exclude": [
+          {
+            "x": 781,
+            "y": 302,
+            "width": 98,
+            "height": 159
+          },
+          {
+            "x": 724,
+            "y": 374,
+            "width": 99,
+            "height": 132
+          }
+        ],
+        "meanAbsoluteRgbByteDifference": 0.08686971909620048,
+        "maxChannelByteDifference": 211.0,
+        "p95MaxChannelByteDifference": 0,
+        "p99MaxChannelByteDifference": 0,
+        "changedAny": 2496,
+        "changedAnyRatio": 0.0017639526107346693,
+        "changedMoreThan1Ratio": 0.0017314438687099118,
+        "changedMoreThan3Ratio": 0.0017116559387817985
+      }
+    },
+    {
+      "name": "noon-strong",
+      "file": "E:\\WORLDCREATOR\\new\\Project_ANKALUTE\\artifacts\\CHAR-LIGHT-01\\v1.3\\noon-strong.png",
+      "sha256": "2CAF8DE2A6FB4418C0060E1399757D5ED52F30C49EBFA81BD6C8691E494AE700",
+      "rois": [
+        {
+          "name": "Freycia-hair-crown",
+          "rectangle": {
+            "x": 812,
+            "y": 328,
+            "width": 31,
+            "height": 17
+          },
+          "pixels": 527,
+          "encodedLumaMean": 211.4144960151811,
+          "encodedLumaStdDev": 1.9009113400156787,
+          "encodedLumaP10": 210.79260000000002,
+          "encodedLumaP50": 211.72039999999998,
+          "encodedLumaP90": 212.28999999999996,
+          "encodedLumaP90MinusP10": 1.497399999999942,
+          "meanAdjacentEncodedLumaDifference": 0.3778204771371765,
+          "nearWhiteAllChannels250Ratio": 0.0,
+          "anyChannel254Ratio": 0.0,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 44.773561037318274,
+            "meanAbsoluteEncodedLumaDifference": 43.5478573055031,
+            "meanSignedEncodedLumaDifference": -43.5478573055031,
+            "maximumChannelByteDifference": 56.0,
+            "changedMoreThan1Ratio": 1.0,
+            "changedMoreThan3Ratio": 1.0
+          }
+        },
+        {
+          "name": "Freycia-hair-fringe",
+          "rectangle": {
+            "x": 810,
+            "y": 345,
+            "width": 30,
+            "height": 14
+          },
+          "pixels": 420,
+          "encodedLumaMean": 195.90873047619047,
+          "encodedLumaStdDev": 25.368372458010096,
+          "encodedLumaP10": 157.3112,
+          "encodedLumaP50": 209.8648,
+          "encodedLumaP90": 212.14559999999997,
+          "encodedLumaP90MinusP10": 54.83439999999996,
+          "meanAdjacentEncodedLumaDifference": 6.365203015075375,
+          "nearWhiteAllChannels250Ratio": 0.0,
+          "anyChannel254Ratio": 0.0,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 46.31904761904757,
+            "meanAbsoluteEncodedLumaDifference": 45.580753809523785,
+            "meanSignedEncodedLumaDifference": -45.580753809523785,
+            "maximumChannelByteDifference": 57.0,
+            "changedMoreThan1Ratio": 1.0,
+            "changedMoreThan3Ratio": 1.0
+          }
+        },
+        {
+          "name": "Freycia-skin-upper",
+          "rectangle": {
+            "x": 816,
+            "y": 386,
+            "width": 19,
+            "height": 13
+          },
+          "pixels": 247,
+          "encodedLumaMean": 211.87454736842133,
+          "encodedLumaStdDev": 11.534488540262533,
+          "encodedLumaP10": 201.48139999999998,
+          "encodedLumaP50": 216.54959999999997,
+          "encodedLumaP90": 218.337,
+          "encodedLumaP90MinusP10": 16.85560000000001,
+          "meanAdjacentEncodedLumaDifference": 2.5887675324675326,
+          "nearWhiteAllChannels250Ratio": 0.0,
+          "anyChannel254Ratio": 0.0,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 42.60998650472332,
+            "meanAbsoluteEncodedLumaDifference": 40.80590121457484,
+            "meanSignedEncodedLumaDifference": -40.80590121457484,
+            "maximumChannelByteDifference": 57.0,
+            "changedMoreThan1Ratio": 1.0,
+            "changedMoreThan3Ratio": 1.0
+          }
+        },
+        {
+          "name": "Freycia-skin-lower",
+          "rectangle": {
+            "x": 814,
+            "y": 415,
+            "width": 18,
+            "height": 18
+          },
+          "pixels": 324,
+          "encodedLumaMean": 209.64591666666698,
+          "encodedLumaStdDev": 16.133730898204078,
+          "encodedLumaP10": 184.55360000000002,
+          "encodedLumaP50": 217.62179999999998,
+          "encodedLumaP90": 217.62179999999998,
+          "encodedLumaP90MinusP10": 33.06819999999996,
+          "meanAdjacentEncodedLumaDifference": 3.50257058823529,
+          "nearWhiteAllChannels250Ratio": 0.0,
+          "anyChannel254Ratio": 0.0,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 42.22325102880651,
+            "meanAbsoluteEncodedLumaDifference": 40.58755679012332,
+            "meanSignedEncodedLumaDifference": -40.58755679012332,
+            "maximumChannelByteDifference": 56.0,
+            "changedMoreThan1Ratio": 1.0,
+            "changedMoreThan3Ratio": 1.0
+          }
+        },
+        {
+          "name": "Freycia-eye-line-reference",
+          "rectangle": {
+            "x": 829,
+            "y": 363,
+            "width": 3,
+            "height": 2
+          },
+          "pixels": 6,
+          "encodedLumaMean": 77.13386666666666,
+          "encodedLumaStdDev": 11.106088170408514,
+          "encodedLumaP10": 66.4044,
+          "encodedLumaP50": 70.19579999999999,
+          "encodedLumaP90": 83.29159999999999,
+          "encodedLumaP90MinusP10": 16.887199999999993,
+          "meanAdjacentEncodedLumaDifference": 11.339142857142857,
+          "nearWhiteAllChannels250Ratio": 0.0,
+          "anyChannel254Ratio": 0.0,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 24.277777777777782,
+            "meanAbsoluteEncodedLumaDifference": 23.36663333333333,
+            "meanSignedEncodedLumaDifference": -23.36663333333333,
+            "maximumChannelByteDifference": 31.0,
+            "changedMoreThan1Ratio": 1.0,
+            "changedMoreThan3Ratio": 1.0
+          }
+        },
+        {
+          "name": "Blue-light-upper-hair",
+          "rectangle": {
+            "x": 758,
+            "y": 411,
+            "width": 24,
+            "height": 16
+          },
+          "pixels": 384,
+          "encodedLumaMean": 186.27022552083443,
+          "encodedLumaStdDev": 19.86087742968191,
+          "encodedLumaP10": 187.91579999999996,
+          "encodedLumaP50": 187.91579999999996,
+          "encodedLumaP90": 187.91579999999996,
+          "encodedLumaP90MinusP10": 0.0,
+          "meanAdjacentEncodedLumaDifference": 2.5128967032967027,
+          "nearWhiteAllChannels250Ratio": 0.0,
+          "anyChannel254Ratio": 0.0,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 51.92013888888891,
+            "meanAbsoluteEncodedLumaDifference": 52.27436145833345,
+            "meanSignedEncodedLumaDifference": -52.27436145833345,
+            "maximumChannelByteDifference": 56.0,
+            "changedMoreThan1Ratio": 0.9895833333333334,
+            "changedMoreThan3Ratio": 0.9895833333333334
+          }
+        },
+        {
+          "name": "Blue-light-lower-hair",
+          "rectangle": {
+            "x": 757,
+            "y": 438,
+            "width": 24,
+            "height": 13
+          },
+          "pixels": 312,
+          "encodedLumaMean": 186.7155570512829,
+          "encodedLumaStdDev": 4.104685643137281,
+          "encodedLumaP10": 187.91579999999996,
+          "encodedLumaP50": 187.91579999999996,
+          "encodedLumaP90": 187.91579999999996,
+          "encodedLumaP90MinusP10": 0.0,
+          "meanAdjacentEncodedLumaDifference": 0.6697063032367954,
+          "nearWhiteAllChannels250Ratio": 0.0,
+          "anyChannel254Ratio": 0.0,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 52.24358974358952,
+            "meanAbsoluteEncodedLumaDifference": 52.63730320512803,
+            "meanSignedEncodedLumaDifference": -52.63730320512803,
+            "maximumChannelByteDifference": 54.0,
+            "changedMoreThan1Ratio": 1.0,
+            "changedMoreThan3Ratio": 1.0
+          }
+        },
+        {
+          "name": "Blue-light-lower-surface",
+          "rectangle": {
+            "x": 750,
+            "y": 474,
+            "width": 6,
+            "height": 3
+          },
+          "pixels": 18,
+          "encodedLumaMean": 218.3837222222222,
+          "encodedLumaStdDev": 1.7992883743210313,
+          "encodedLumaP10": 217.4224,
+          "encodedLumaP50": 217.4224,
+          "encodedLumaP90": 221.7674,
+          "encodedLumaP90MinusP10": 4.344999999999999,
+          "meanAdjacentEncodedLumaDifference": 1.1208370370370304,
+          "nearWhiteAllChannels250Ratio": 0.0,
+          "anyChannel254Ratio": 0.0,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 39.05555555555555,
+            "meanAbsoluteEncodedLumaDifference": 36.616277777777746,
+            "meanSignedEncodedLumaDifference": -36.616277777777746,
+            "maximumChannelByteDifference": 50.0,
+            "changedMoreThan1Ratio": 1.0,
+            "changedMoreThan3Ratio": 1.0
+          }
+        },
+        {
+          "name": "Blue-dark-edge-reference",
+          "rectangle": {
+            "x": 748,
+            "y": 415,
+            "width": 2,
+            "height": 5
+          },
+          "pixels": 10,
+          "encodedLumaMean": 0.0,
+          "encodedLumaStdDev": 0.0,
+          "encodedLumaP10": 0.0,
+          "encodedLumaP50": 0.0,
+          "encodedLumaP90": 0.0,
+          "encodedLumaP90MinusP10": 0.0,
+          "meanAdjacentEncodedLumaDifference": 0.0,
+          "nearWhiteAllChannels250Ratio": 0.0,
+          "anyChannel254Ratio": 0.0,
+          "relativeToA1": {
+            "meanAbsoluteRgbByteDifference": 0.0,
+            "meanAbsoluteEncodedLumaDifference": 0.0,
+            "meanSignedEncodedLumaDifference": 0.0,
+            "maximumChannelByteDifference": 0.0,
+            "changedMoreThan1Ratio": 0.0,
+            "changedMoreThan3Ratio": 0.0
+          }
+        }
+      ],
+      "outsideCharacterBoxes": {
+        "pixels": 1415004,
+        "exclude": [
+          {
+            "x": 781,
+            "y": 302,
+            "width": 98,
+            "height": 159
+          },
+          {
+            "x": 724,
+            "y": 374,
+            "width": 99,
+            "height": 132
+          }
+        ],
+        "meanAbsoluteRgbByteDifference": 0.0018332103654830705,
+        "maxChannelByteDifference": 126.0,
+        "p95MaxChannelByteDifference": 0,
+        "p99MaxChannelByteDifference": 0,
+        "changedAny": 445,
+        "changedAnyRatio": 0.0003144867435003717,
+        "changedMoreThan1Ratio": 0.00018939875788336993,
+        "changedMoreThan3Ratio": 8.833897289336284E-05
+      }
+    }
+  ]
+}

@@ -1,0 +1,65 @@
+/* 功能：在已隔离的当前主场执行有限摄影和高亮保护A/B；A来自真实接手运行副本。
+ * 边界：只改本次Play对象/副本，不改作者Profile、原图、世界灯光参数、曝光或显示许可；不暂停世界。
+ * 生命周期：完整摄影借用先落盘；restore归还动画、输入、环境和机位。退出Play也不保存这些摄影配置。
+ */
+using System;using System.IO;using System.Linq;using System.Collections.Generic;
+using UnityEngine;using UnityEditor;using UnityEngine.SceneManagement;using Newtonsoft.Json.Linq;
+using Ossastra.CharacterLighting;using Ossastra.Characters;using Ossastra.MapResearch;
+using Ossastra.Development.CharacterLighting;using Funplay.Editor.Tools.Scripting;
+public sealed class CharacterHighlightPhotoAction:IFunplayCommand
+{
+ const string Root="artifacts/CHAR-LIGHT-01/v1.3/";
+ const string Owner="Ossastra.CharacterLighting.HighlightPhotography";
+ public void Execute(ExecutionContext ctx)
+ {
+  var scene=SceneManager.GetActiveScene();if(!Application.isPlaying||scene.path!="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity")throw new InvalidOperationException("Actual isolated main Play required");
+  var roots=scene.GetRootGameObjects();var service=roots.SelectMany(g=>g.GetComponentsInChildren<Ossastra.Commerce.Runtime.CommerceService>(true)).Single();
+  var route=JObject.Parse(File.ReadAllText(Root+"route-active.json"));if((string)route["status"]!="active"||service.saveDirectory!=(string)route["isolatedRoute"])throw new InvalidOperationException("Exact owned isolated route required");
+  var system=roots.SelectMany(g=>g.GetComponentsInChildren<CharacterLightingSystem>(true)).Single();
+  var panel=roots.SelectMany(g=>g.GetComponentsInChildren<CharacterLightingPanel>(true)).Single();
+  var map=panel.map;var env=system.environment.environment;var sky=system.environment;
+  var request=JObject.Parse(File.ReadAllText(Root+"photo-request.json"));string action=(string)request["action"];
+  var baselineReceipt=JObject.Parse(File.ReadAllText(Root+"runtime-baseline-read-v2.json"));var baseline=JObject.Parse(File.ReadAllText((string)baselineReceipt["data"]["returnValue"]["output"]));
+  Action reset=()=>{foreach(var r in system.receivers){var row=baseline["actors"].Single(v=>(string)v["name"]==r.name);r.Settings=JsonUtility.FromJson<CharacterLightingSettings>((string)row["runtimeJson"]);}};
+  string snapshot=Root+"photo-borrow.json";
+  if(action=="setup")
+  {
+   if(File.Exists(snapshot)&&(string)JObject.Parse(File.ReadAllText(snapshot))["status"]=="active")throw new InvalidOperationException("Existing photo borrow; inspect/restore, do not replay");
+   var behaviours=system.receivers.SelectMany(r=>r.GetComponents<MonoBehaviour>()).Where(b=>b is CharacterFollow||b.GetType().Name=="CharacterCombatBrain").ToArray();
+   var rigs=system.receivers.SelectMany(r=>r.GetComponentsInChildren<Spine.Unity.SkeletonAnimation>(true)).Distinct().ToArray();
+   var state=JObject.FromObject(new{status="active",map=JsonUtility.ToJson(map),environment=JsonUtility.ToJson(env),sky=JsonUtility.ToJson(sky),panelExpanded=panel.Expanded,environmentExpanded=panel.environmentPanel.Expanded,labPanel=panel.environmentPanel.legacyDiagnostics.showPanel,actors=system.receivers.Select(r=>new{id=r.GetInstanceID(),position=new{x=r.transform.position.x,y=r.transform.position.y,z=r.transform.position.z}}).ToArray(),behaviours=behaviours.Select(b=>new{id=b.GetInstanceID(),b.enabled}).ToArray(),rigs=rigs.Select(r=>new{id=r.GetInstanceID(),scale=r.timeScale,stateScale=r.AnimationState==null?1:r.AnimationState.TimeScale}).ToArray()});
+   File.WriteAllText(snapshot,state.ToString());
+   panel.coordinator.SetInputCapture(string.Intern(Owner),true);foreach(var b in behaviours)b.enabled=false;
+   foreach(var r in rigs){r.timeScale=0;if(r.AnimationState!=null)r.AnimationState.TimeScale=0;}
+   map.followParticipant=false;map.followSmoothTime=0;map.fixedTarget=new Vector3(-8,.1f,-19);
+   foreach(var r in system.receivers){var movement=r.GetComponent<CharacterMovement>();if(movement==null)throw new InvalidOperationException("Actual movement missing");movement.Teleport(map.fixedTarget+(r==system.receivers[0]?new Vector3(-.7f,0,0):new Vector3(.7f,0,0)));}
+   panel.SetExpanded(false);panel.environmentPanel.SetExpanded(false);panel.environmentPanel.legacyDiagnostics.showPanel=false;
+   env.SetClockRunning(false);env.SetTimeHours(12);sky.overrideSkyColors=false;reset();env.RefreshNow();
+  }
+  else if(action=="restore")
+  {
+   var state=JObject.Parse(File.ReadAllText(snapshot));if((string)state["status"]!="active")throw new InvalidOperationException("No active photo borrow");
+   reset();JsonUtility.FromJsonOverwrite((string)state["map"],map);JsonUtility.FromJsonOverwrite((string)state["environment"],env);JsonUtility.FromJsonOverwrite((string)state["sky"],sky);
+   foreach(var row in state["actors"]){var receiver=EditorUtility.InstanceIDToObject((int)row["id"]) as CharacterLightingReceiver;if(receiver!=null)receiver.GetComponent<CharacterMovement>().Teleport(new Vector3((float)row["position"]["x"],(float)row["position"]["y"],(float)row["position"]["z"]));}
+   foreach(var row in state["behaviours"]){var b=EditorUtility.InstanceIDToObject((int)row["id"]) as MonoBehaviour;if(b!=null)b.enabled=(bool)row["enabled"];}
+   foreach(var row in state["rigs"]){var rig=EditorUtility.InstanceIDToObject((int)row["id"]) as Spine.Unity.SkeletonAnimation;if(rig!=null){rig.timeScale=(float)row["scale"];if(rig.AnimationState!=null)rig.AnimationState.TimeScale=(float)row["stateScale"];}}
+   panel.coordinator.SetInputCapture(string.Intern(Owner),false);panel.SetExpanded((bool)state["panelExpanded"]);panel.environmentPanel.SetExpanded((bool)state["environmentExpanded"]);panel.environmentPanel.legacyDiagnostics.showPanel=(bool)state["labPanel"];env.RefreshNow();state["status"]="restored";File.WriteAllText(snapshot,state.ToString());
+  }
+  else if(action=="A"||action=="candidate"||action=="rim-off"||action=="outer-off"||action=="both-off")
+  {
+   reset();foreach(var r in system.receivers){var s=r.Settings;if(action=="candidate"){s.knee=(float)request["knee"];s.ceiling=(float)request["ceiling"];s.Sanitize();}if(action=="rim-off"||action=="both-off")s.rim=false;if(action=="outer-off"||action=="both-off")s.outerGlow=false;}
+  }
+  else if(action=="condition")
+  {
+   env.SetTimeHours((float)request["hours"]);sky.overrideSkyColors=false;
+   var p=request["point"];map.fixedTarget=new Vector3((float)p["x"],(float)p["y"],(float)p["z"]);
+   foreach(var r in system.receivers)r.GetComponent<CharacterMovement>().Teleport(map.fixedTarget+(r==system.receivers[0]?new Vector3(-.7f,0,0):new Vector3(.7f,0,0)));
+   env.RefreshNow();
+  }
+  else if(action=="rotate"){if(!map.RequestRotationStep(1))throw new InvalidOperationException("Rotation rejected");}
+  else if(action!="status")throw new ArgumentException("Unknown bounded action");
+  string output=Path.GetFullPath(Root+"photo-state-"+DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff")+".json");
+  var result=new{action,env.timeHours,sky.overrideSkyColors,actors=system.receivers.Select(r=>new{r.name,settings=JsonUtility.ToJson(r.Settings),position=new{x=r.transform.position.x,y=r.transform.position.y,z=r.transform.position.z},description=system.Describe(r)}).ToArray(),map=JsonUtility.ToJson(map),system.CoverageBytes,system.OuterGlowBytes,system.OuterGlowDraws,system.OuterGlowStatus,camera=new{position=new{x=system.gameplayCamera.transform.position.x,y=system.gameplayCamera.transform.position.y,z=system.gameplayCamera.transform.position.z},system.gameplayCamera.allowHDR,system.gameplayCamera.pixelWidth,system.gameplayCamera.pixelHeight},sourceRoute=service.saveDirectory,sceneSaved=false};
+  File.WriteAllText(output,Newtonsoft.Json.JsonConvert.SerializeObject(result,Newtonsoft.Json.Formatting.Indented));ctx.ReturnValue=new{action,output,sceneSaved=false};
+ }
+}

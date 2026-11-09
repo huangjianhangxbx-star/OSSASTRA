@@ -1,0 +1,156 @@
+[
+  {
+    "receipt": "gpu-A-receipt.json",
+    "rows": [
+      {
+        "receiver": "PlayerCharacter_BlueFiveFace_MapParty",
+        "gpuControls": [
+          1.0,
+          2.0,
+          1.0,
+          2.0
+        ],
+        "gpuShoulder": [
+          16.0,
+          32.0,
+          0.0,
+          0.0
+        ],
+        "gainBeforeRgbY": [
+          1.10695648,
+          1.1432898,
+          1.09215164,
+          1.13187313
+        ],
+        "gainAfterRgbY": [
+          1.10695648,
+          1.1432898,
+          1.09215164,
+          1.13187313
+        ],
+        "protectionTriggered": false,
+        "atlasProtectedOutput": {
+          "opaqueSamples": 8772,
+          "peakRgb": 1.05810356,
+          "y95": 0.805242538,
+          "overOneSamples": 212,
+          "overOneRatio": 0.02416780665754674,
+          "finite": true
+        }
+      },
+      {
+        "receiver": "PlayerCharacter_B_MapParty",
+        "gpuControls": [
+          1.0,
+          2.0,
+          1.0,
+          2.0
+        ],
+        "gpuShoulder": [
+          16.0,
+          32.0,
+          0.0,
+          0.0
+        ],
+        "gainBeforeRgbY": [
+          1.10695648,
+          1.1432898,
+          1.09215164,
+          1.13187313
+        ],
+        "gainAfterRgbY": [
+          1.10695648,
+          1.1432898,
+          1.09215164,
+          1.13187313
+        ],
+        "protectionTriggered": false,
+        "atlasProtectedOutput": {
+          "opaqueSamples": 6567,
+          "peakRgb": 1.09393346,
+          "y95": 1.04650915,
+          "overOneSamples": 3371,
+          "overOneRatio": 0.5133241967412822,
+          "finite": true
+        }
+      }
+    ]
+  },
+  {
+    "receipt": "gpu-B-receipt.json",
+    "rows": [
+      {
+        "receiver": "PlayerCharacter_BlueFiveFace_MapParty",
+        "gpuControls": [
+          1.0,
+          2.0,
+          1.0,
+          2.0
+        ],
+        "gpuShoulder": [
+          0.7,
+          1.0,
+          0.0,
+          0.0
+        ],
+        "gainBeforeRgbY": [
+          1.10695648,
+          1.1432898,
+          1.09215164,
+          1.13187313
+        ],
+        "gainAfterRgbY": [
+          0.9084433,
+          0.938260853,
+          0.8962934,
+          0.9288916
+        ],
+        "protectionTriggered": true,
+        "atlasProtectedOutput": {
+          "opaqueSamples": 8772,
+          "peakRgb": 0.8683512,
+          "y95": 0.6608364,
+          "overOneSamples": 0,
+          "overOneRatio": 0.0,
+          "finite": true
+        }
+      },
+      {
+        "receiver": "PlayerCharacter_B_MapParty",
+        "gpuControls": [
+          1.0,
+          2.0,
+          1.0,
+          2.0
+        ],
+        "gpuShoulder": [
+          0.7,
+          1.0,
+          0.0,
+          0.0
+        ],
+        "gainBeforeRgbY": [
+          1.10695648,
+          1.1432898,
+          1.09215164,
+          1.13187313
+        ],
+        "gainAfterRgbY": [
+          0.9084433,
+          0.938260853,
+          0.8962934,
+          0.9288916
+        ],
+        "protectionTriggered": true,
+        "atlasProtectedOutput": {
+          "opaqueSamples": 6567,
+          "peakRgb": 0.8977557,
+          "y95": 0.858836055,
+          "overOneSamples": 0,
+          "overOneRatio": 0.0,
+          "finite": true
+        }
+      }
+    ]
+  }
+]

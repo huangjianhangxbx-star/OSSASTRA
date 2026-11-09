@@ -1,0 +1,118 @@
+/* 功能：按需读取真实角色Bind的GPU参数，使用正式主体HLSL测量当前环境的无遮挡样点。
+ * 边界：不新增常驻Pass/相机/RT；不重放主场阴影/许可/骨架像素；私有诊断不构成最终显示验收。
+ * 生命周期：全局与数组、活动RT精确归还；私有材质/RT/读回纹理和命令缓冲finally释放。
+ */
+using System;using System.IO;using System.Linq;using System.Collections.Generic;using System.Reflection;
+using UnityEngine;using UnityEditor;using UnityEngine.Rendering;using UnityEngine.Rendering.Universal;
+using Ossastra.CharacterLighting;using Ossastra.EnvironmentSimulation.Rendering;using Ossastra.SceneVisibility.Rooms.Rendering;
+using Ossastra.Commerce.Runtime;using Funplay.Editor.Tools.Scripting;
+public sealed class ProbeCharacterHighlightGpuV13:IFunplayCommand
+{
+ const int Size=128;
+ static readonly string[] FloatNames={"_EnvironmentRainDepthReady","_EnvironmentLightingEnabled","_EnvironmentWetness","_EnvironmentIndoorAmbientScale","_EnvironmentSurfaceRole","_EnvironmentResponseOverride","_EnvironmentReceiveShadow","_EnvironmentMinimumOverride","_EnvironmentFullSurface","_CharacterCoverageReady","_CharacterEnvironmentBlend"};
+ static readonly string[] IntNames={"_EnvironmentIndoorCount","_EnvironmentLocalLightCount","_EnvironmentShelterCount"};
+ static readonly string[] VectorNames={"_EnvironmentStylizedSkyTint","_EnvironmentSceneTint","_EnvironmentSceneChroma","_EnvironmentSkyAmbient","_EnvironmentHorizonAmbient","_EnvironmentGroundAmbient","_EnvironmentLightResponse","_EnvironmentCloudParameters","_EnvironmentCloudMotion","_CharacterLightControls","_CharacterLightShoulder","_CharacterRimShape","_CharacterRimLocalColor","_CharacterOuterControls","_CharacterEnvironmentTint","_MainLightPosition","_MainLightColor"};
+ static readonly string[] MatrixArrayNames={"_EnvironmentIndoorMatrices","_EnvironmentShelterMatrices"};
+ static readonly string[] VectorArrayNames={"_EnvironmentIndoorHalfExtents","_EnvironmentLocalLightPositions","_EnvironmentLocalLightColors","_EnvironmentShelterExtents"};
+ static float[] V(Vector4 v)=>new[]{v.x,v.y,v.z,v.w};
+ static float[] C(Color c)=>new[]{c.r,c.g,c.b,c.a};
+ static bool Same(Vector4 a,Vector4 b)=>Vector4.Distance(a,b)<.000001f;
+ static float Peak(Color c)=>Mathf.Max(c.r,Mathf.Max(c.g,c.b));
+ static object Stats(Color[] pixels)
+ {
+  var opaque=pixels.Where(c=>c.a>=.95f).ToArray();var y=opaque.Select(c=>.2126f*c.r+.7152f*c.g+.0722f*c.b).OrderBy(v=>v).ToArray();
+  return new{opaqueSamples=opaque.Length,peakRgb=opaque.Length==0?0:opaque.Max(Peak),y95=y.Length==0?0:y[(int)((y.Length-1)*.95f)],overOneSamples=opaque.Count(c=>Peak(c)>1),overOneRatio=opaque.Length==0?0:(double)opaque.Count(c=>Peak(c)>1)/opaque.Length,finite=pixels.All(c=>!float.IsNaN(c.r)&&!float.IsInfinity(c.r)&&!float.IsNaN(c.g)&&!float.IsInfinity(c.g)&&!float.IsNaN(c.b)&&!float.IsInfinity(c.b))};
+ }
+ static Color[] Draw(Material material,RenderTexture rt,Texture2D read,CharacterLightingSystem system,Renderer body,Camera camera,RoomMaskFrame frame,int mode,Vector4 mainPosition,Vector4 mainColor)
+ {
+  material.SetFloat("_ProbeMode",mode);
+  var cmd=new CommandBuffer{name="CHAR13 finite private GPU binding and gain sample"};
+  try
+  {
+   EnvironmentSkyBinding.UploadForCamera(cmd,camera,frame);
+   system.Bind(cmd,body,null,frame);
+   cmd.SetGlobalFloat("_EnvironmentSurfaceRole",2);cmd.SetGlobalFloat("_EnvironmentResponseOverride",1);cmd.SetGlobalFloat("_EnvironmentReceiveShadow",0);cmd.SetGlobalFloat("_EnvironmentMinimumOverride",0);cmd.SetGlobalFloat("_EnvironmentFullSurface",1);
+   cmd.SetGlobalVector("_MainLightPosition",mainPosition);cmd.SetGlobalVector("_MainLightColor",mainColor);
+   cmd.SetRenderTarget(rt);cmd.SetViewport(new Rect(0,0,Size,Size));cmd.ClearRenderTarget(false,true,Color.clear);
+   cmd.DrawProcedural(Matrix4x4.identity,material,0,MeshTopology.Triangles,3);
+   Graphics.ExecuteCommandBuffer(cmd);
+  }
+  finally{cmd.Release();}
+  RenderTexture.active=rt;read.ReadPixels(new Rect(0,0,Size,Size),0,0);read.Apply();return read.GetPixels();
+ }
+ static object Target(Camera camera)
+ {
+  var additional=camera.GetComponent<UniversalAdditionalCameraData>();var renderer=additional==null?null:additional.scriptableRenderer;
+  if(renderer==null)return new{available=false,reason="No existing UniversalAdditionalCameraData/renderer"};
+  var rows=new List<object>();for(Type t=renderer.GetType();t!=null;t=t.BaseType)foreach(var f in t.GetFields(BindingFlags.Instance|BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.DeclaredOnly))
+  {
+   if(f.Name.IndexOf("Color",StringComparison.OrdinalIgnoreCase)<0||!typeof(RTHandle).IsAssignableFrom(f.FieldType))continue;
+   var handle=f.GetValue(renderer) as RTHandle;var rt=handle==null?null:handle.rt;
+   rows.Add(new{field=f.Name,available=rt!=null,name=rt==null?null:rt.name,format=rt==null?null:rt.graphicsFormat.ToString(),width=rt==null?0:rt.width,height=rt==null?0:rt.height,msaa=rt==null?0:rt.antiAliasing});
+  }
+  return new{renderer=renderer.GetType().FullName,colorHandles=rows.ToArray(),camera.allowHDR,postProcessing=additional.renderPostProcessing,note="Actual allocated renderer handles; null is unavailable, not inferred from allowHDR"};
+ }
+ public void Execute(ExecutionContext ctx)
+ {
+  if(Application.dataPath.Replace('\\','/')!="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets"||!Application.isPlaying)throw new InvalidOperationException("Intended isolated Play required");
+  var scene=UnityEngine.SceneManagement.SceneManager.GetActiveScene();if(scene.path!="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity")throw new InvalidOperationException("Intended author main required");
+  var roots=scene.GetRootGameObjects();var services=roots.SelectMany(g=>g.GetComponentsInChildren<CommerceService>(true)).ToArray();
+  const string sessionRoot="E:/WORLDCREATOR/XingHaiHuiLang/研究/角色光感/CHAR-LIGHT-01/v1.3/sessions/";
+  if(services.Length!=1||!Path.GetFullPath(services[0].saveDirectory).Replace('\\','/').StartsWith(sessionRoot,StringComparison.OrdinalIgnoreCase))throw new InvalidOperationException("Exact v1.3 isolated route required");
+  var systems=roots.SelectMany(g=>g.GetComponentsInChildren<CharacterLightingSystem>(true)).ToArray();if(systems.Length!=1||systems[0].receivers.Length!=2)throw new InvalidOperationException("Unique current system/two receivers required");
+  var system=systems[0];var camera=system.gameplayCamera;
+  if(camera==null||!CharacterLightingSystem.TryGet(camera,out var bound)||bound!=system||!RoomMaskCameraRegistry.TryGet(camera,out var frame))throw new InvalidOperationException("Actual camera registry/frame not ready");
+  var sun=RenderSettings.sun;
+  if(sun==null||sun.type!=LightType.Directional||!sun.isActiveAndEnabled)throw new InvalidOperationException("Probe requires current active registered sun; night/main-light selection is not guessed");
+  var shader=Shader.Find("Hidden/Ossastra/Diagnostics/CharacterHighlightProbeV13");if(shader==null||!shader.isSupported)throw new InvalidOperationException("Root must import supported temporary probe shader");
+  if(ShaderUtil.GetShaderMessages(shader).Any(m=>m.severity.ToString()=="Error"))throw new InvalidOperationException("Diagnostic shader compile error");
+  var oldF=FloatNames.ToDictionary(n=>n,n=>Shader.GetGlobalFloat(n));var oldI=IntNames.ToDictionary(n=>n,n=>Shader.GetGlobalInteger(n));var oldV=VectorNames.ToDictionary(n=>n,n=>Shader.GetGlobalVector(n));
+  var oldM=MatrixArrayNames.ToDictionary(n=>n,n=>Shader.GetGlobalMatrixArray(n));var oldA=VectorArrayNames.ToDictionary(n=>n,n=>Shader.GetGlobalVectorArray(n));
+  if(oldM.Any(p=>p.Value==null||p.Value.Length==0)||oldA.Any(p=>p.Value==null||p.Value.Length==0))throw new InvalidOperationException("Environment arrays not previously initialized; refuse upload that cannot restore an empty prior array");
+  var active=RenderTexture.active;Material material=null;RenderTexture rt=null;Texture2D read=null;var rows=new List<object>();bool bindings=true,outputsFinite=true,restored=false;string failure=null,privateFormat=null;
+  string before=string.Join("|",system.receivers.Select(r=>JsonUtility.ToJson(r.Settings)));var cameraTarget=Target(camera);
+  try
+  {
+   material=new Material(shader){hideFlags=HideFlags.HideAndDontSave};rt=new RenderTexture(Size,Size,0,RenderTextureFormat.ARGBFloat,RenderTextureReadWrite.Linear){hideFlags=HideFlags.HideAndDontSave};if(!rt.Create())throw new InvalidOperationException("Private float RT allocation failed");
+   privateFormat=rt.graphicsFormat.ToString();read=new Texture2D(Size,Size,TextureFormat.RGBAFloat,false,true){hideFlags=HideFlags.HideAndDontSave};
+   Vector3 toward=-sun.transform.forward;Color energy=sun.color.linear*sun.intensity;
+   var mainPosition=new Vector4(toward.x,toward.y,toward.z,0);var mainColor=new Vector4(energy.r,energy.g,energy.b,1);
+   foreach(var receiver in system.receivers)
+   {
+    if(receiver==null||!receiver.SourceAvailable||receiver.bodyRenderers==null||receiver.bodyRenderers.Length==0)throw new InvalidOperationException("Actual receiver body source unavailable");
+    foreach(var body in receiver.bodyRenderers)
+    {
+     if(body==null||!body.enabled)continue;
+     var mats=body.sharedMaterials;
+     for(int slot=0;slot<mats.Length;slot++)
+     {
+      var source=mats[slot];var texture=source!=null&&source.HasProperty("_MainTex")?source.GetTexture("_MainTex"):null;if(source==null||texture==null)throw new InvalidOperationException("Actual source material/atlas absent");
+      var block=new MaterialPropertyBlock();body.GetPropertyBlock(block);Vector4 normal=block.GetVector("_VisualDepthNormal");string normalSource="renderer MPB";
+      if(new Vector3(normal.x,normal.y,normal.z).sqrMagnitude<.0001f){body.GetPropertyBlock(block,slot);normal=block.GetVector("_VisualDepthNormal");normalSource="slot MPB";}
+      if(new Vector3(normal.x,normal.y,normal.z).sqrMagnitude<.0001f&&source.HasProperty("_VisualDepthNormal")){normal=source.GetVector("_VisualDepthNormal");normalSource="source material";}
+      if(new Vector3(normal.x,normal.y,normal.z).sqrMagnitude<.0001f){var n=-camera.transform.forward;n.y=0;normal=new Vector4(n.x,n.y,n.z,0);normalSource="explicit camera-horizontal diagnostic fallback";}
+      Vector3 world=body.bounds.center;
+      material.SetVector("_ProbeWorld",new Vector4(world.x,world.y,world.z,1));material.SetVector("_ProbeNormal",normal);material.SetTexture("_MainTex",texture);
+      bool straight=source.HasProperty("_StraightAlphaInput")?source.GetFloat("_StraightAlphaInput")>.5f:source.HasProperty("_PmaInput")?source.GetFloat("_PmaInput")<.5f:source.IsKeywordEnabled("_STRAIGHT_ALPHA_INPUT");material.SetFloat("_ProbeStraight",straight?1:0);
+      var controls=Draw(material,rt,read,system,body,camera,frame,0,mainPosition,mainColor)[0];var shoulder=Draw(material,rt,read,system,body,camera,frame,1,mainPosition,mainColor)[0];
+      var gain=Draw(material,rt,read,system,body,camera,frame,2,mainPosition,mainColor)[0];var protectedGain=Draw(material,rt,read,system,body,camera,frame,3,mainPosition,mainColor)[0];
+      var atlasOutput=Draw(material,rt,read,system,body,camera,frame,4,mainPosition,mainColor);var atlas=Draw(material,rt,read,system,body,camera,frame,5,mainPosition,mainColor);var rawOutput=Draw(material,rt,read,system,body,camera,frame,6,mainPosition,mainColor);var environment=Draw(material,rt,read,system,body,camera,frame,7,mainPosition,mainColor)[0];
+      var settings=receiver.Settings;bool ok=Mathf.Abs(controls.r-1)<.0001f&&Mathf.Abs(controls.g-(settings.rim?settings.rimStrength:0))<.0001f&&Mathf.Abs(controls.b-(settings.highlightProtection?1:0))<.0001f&&Mathf.Abs(controls.a-settings.maxRimGain)<.0001f&&Mathf.Abs(shoulder.r-settings.knee)<.0001f&&Mathf.Abs(shoulder.g-settings.ceiling)<.0001f&&environment.r>.5f;bindings&=ok;
+      bool rowFinite=new[]{controls,shoulder,gain,protectedGain,environment}.Concat(atlasOutput).Concat(atlas).Concat(rawOutput).All(c=>C(c).All(v=>!float.IsNaN(v)&&!float.IsInfinity(v)));outputsFinite&=rowFinite;
+      rows.Add(new{receiver=receiver.name,entityId=receiver.EntityId,body=body.name,slot,sourceMaterial=source.name,sourceShader=source.shader.name,atlas=AssetDatabase.GetAssetPath(texture),straight,world=V(new Vector4(world.x,world.y,world.z,1)),normal=V(normal),normalSource,bindingPass=ok,rowFinite,gpuEnvironment=C(environment),gpuControls=C(controls),gpuShoulder=C(shoulder),gainBeforeRgbY=C(gain),gainAfterRgbY=C(protectedGain),peakBefore=Peak(gain),peakAfter=Peak(protectedGain),protectionTriggered=gain.a>settings.knee+.00001f,atlasSource=Stats(atlas),atlasUnprotectedOutput=Stats(rawOutput),atlasProtectedOutput=Stats(atlasOutput)});
+     }
+    }
+   }
+  }
+  catch(Exception error){failure=error.ToString();}
+  finally
+  {
+   foreach(var p in oldF)Shader.SetGlobalFloat(p.Key,p.Value);foreach(var p in oldI)Shader.SetGlobalInteger(p.Key,p.Value);foreach(var p in oldV)Shader.SetGlobalVector(p.Key,p.Value);foreach(var p in oldM)Shader.SetGlobalMatrixArray(p.Key,p.Value);foreach(var p in oldA)Shader.SetGlobalVectorArray(p.Key,p.Value);
+   RenderTexture.active=active;if(rt!=null)rt.Release();foreach(var value in new UnityEngine.Object[]{material,rt,read})if(value!=null)UnityEngine.Object.DestroyImmediate(value);
+   restored=oldF.All(p=>Mathf.Abs(Shader.GetGlobalFloat(p.Key)-p.Value)<.000001f)&&oldI.All(p=>Shader.GetGlobalInteger(p.Key)==p.Value)&&oldV.All(p=>Same(Shader.GetGlobalVector(p.Key),p.Value))&&oldM.All(p=>Shader.GetGlobalMatrixArray(p.Key).SequenceEqual(p.Value))&&oldA.All(p=>Shader.GetGlobalVectorArray(p.Key).SequenceEqual(p.Value))&&RenderTexture.active==active;
+  }
+  bool settingsPreserved=before==string.Join("|",system.receivers.Select(r=>JsonUtility.ToJson(r.Settings)));
+  var result=new{pass=failure==null&&bindings&&outputsFinite&&restored&&settingsPreserved&&rows.Count>0,failure,bindings,outputsFinite,restored,settingsPreserved,rows=rows.ToArray(),cameraTarget,hours=system.environment.environment.Current.Hours,rtFormat=privateFormat,scope="Actual receiver Bind GPU upload plus formal HLSL at current environment-data unoccluded body-center sample; registered sun reconstructed, no actual URP shadow-map replay; zero inner rim. Source atlas/white tint at one uniform world point is not current skeleton/slot pixels or final display."};
+  string folder=Path.GetFullPath("artifacts/CHAR-LIGHT-01/v1.3");Directory.CreateDirectory(folder);string path=Path.Combine(folder,"gpu-probe-"+DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff")+".json");File.WriteAllText(path,Newtonsoft.Json.JsonConvert.SerializeObject(result,Newtonsoft.Json.Formatting.Indented));ctx.ReturnValue=new{path,result.pass,result.failure,result.bindings,result.outputsFinite,result.restored,result.settingsPreserved,rowCount=rows.Count};
+ }
+}

@@ -1,4 +1,5 @@
 /* 功能：提供独立、可折叠的中文角色光感面板；按明确接收者调节运行副本、内侧效果和外缘独立A/B/C，并显式保存候选配置。
+ * 完整对照：Editor只读四个明确的强日光A/B配置，按当前主场/实体/原Profile身份准入；只Clone运行参数，不改主场引用或自动推广默认。
  * 边界：不切真正主控、不写共享Profile、不读取设备、不暂停世界；不新建Bloom后端，不改原环境/HUD。
  * 协作：复用原协调器和地图的owner输入租约；仅停止自有环境时钟。真实渲染诊断由显式服务委托提供。
  * 生命周期：打开时捕获当前运行参数；恢复按钮归还该副本与本owner时钟修改。禁用/销毁释放输入、时钟和自有Canvas，不覆盖外部后改时钟。
@@ -44,6 +45,20 @@ namespace Ossastra.Development.CharacterLighting
   readonly HashSet<int> hovering=new HashSet<int>(),pressed=new HashSet<int>(),selected=new HashSet<int>();
   readonly List<Action> refreshers=new List<Action>();readonly List<UnityEngine.UI.Selectable> parameterControls=new List<UnityEngine.UI.Selectable>();
   readonly Dictionary<CharacterLightingReceiver,CharacterLightingSettings> before=new Dictionary<CharacterLightingReceiver,CharacterLightingSettings>();
+#if UNITY_EDITOR
+  const string sunlightScene="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity";
+  const string profileFolder="Assets/OSSASTRA/CharacterLighting/Profiles/";
+  const string blueSunlightOriginal=profileFolder+"BlueSunlightOriginalA.asset",blueSunlightProtected=profileFolder+"BlueSunlightProtectedB.asset";
+  const string freyciaSunlightOriginal=profileFolder+"FreyciaSunlightOriginalA.asset",freyciaSunlightProtected=profileFolder+"FreyciaSunlightProtectedB.asset";
+  readonly struct SunlightPreviewSource
+  {
+   internal readonly string path;internal readonly bool saved;
+   internal SunlightPreviewSource(string path,bool saved){this.path=path;this.saved=saved;}
+  }
+  // 与before同步截取：重新打开面板后若进入状态已是B，恢复仍保留B的来源及禁止回写原Profile的保护。
+  readonly Dictionary<CharacterLightingReceiver,SunlightPreviewSource> sunlightSources=new Dictionary<CharacterLightingReceiver,SunlightPreviewSource>();
+  readonly Dictionary<CharacterLightingReceiver,SunlightPreviewSource> sunlightBefore=new Dictionary<CharacterLightingReceiver,SunlightPreviewSource>();
+#endif
   GameObject viewRoot,body,hintRoot;RectTransform surface;TextMeshProUGUI header,statusText,hintText,bloomReason;
   TMP_Dropdown observationDrop;UnityEngine.UI.Toggle freezeClock,bloomToggle;UnityEngine.UI.LayoutElement statusLayout;
   CharacterLightingPanelWidgets widgets;CharacterLightingReceiver observed;
@@ -88,6 +103,13 @@ namespace Ossastra.Development.CharacterLighting
   void BuildControls(RectTransform content)
   {
    observationDrop=widgets.Dropdown(content,"ObservedCharacter","观察 / 调节对象（不切主控）",SelectObserved,"选择被观察与调节的正式接收者，不改变CharacterControlCoordinator.Current，也不移动角色。");
+   widgets.Title(content,"强日光保护（完整效果对照）");
+#if UNITY_EDITOR
+   AddParameter(widgets.Button(content,"SunlightOriginalA","A · 接手完整原效果",()=>ApplySunlightPreset(0),"载入此角色已保存的完整接手A；保留正常染色、轮廓、柔光开关。只替换运行副本，不改作者Profile或主场默认引用。"));
+   AddParameter(widgets.Button(content,"SunlightProtectedB","B · 强日光保护推荐",()=>ApplySunlightPreset(1),"载入此角色独立保存的完整推荐B；两角色不会串用，不改太阳、环境或主控。重进Play后可再次一键载入，未自动设为主场默认。"));
+#else
+   var sunlightNote=widgets.Text("SunlightEditorOnly",widgets.Row(content,"SunlightEditorOnlyRow",54),"完整强日光A/B载入仅Editor可用；本Player未通过AssetDatabase读取候选，也未自动推广默认。",12);sunlightNote.enableWordWrapping=true;
+#endif
    widgets.Title(content,"独立效果与同对象对照");
    SettingToggle(content,"EnvironmentTintEnabled","环境染色",s=>s.environmentTint,(s,v)=>s.environmentTint=v,"只调环境贡献色度；直射与局部灯保留各自颜色。强度0回对应旧路径。");
    SettingToggle(content,"ContourEnabled","受光细轮廓",s=>s.rim,(s,v)=>s.rim=v,"对完整角色的内侧细带提亮；无有效灯不产生轮廓，不能获得墙后或黑幕可见权。");
@@ -116,15 +138,15 @@ namespace Ossastra.Development.CharacterLighting
    AddParameter(widgets.Button(content,"OuterDiagnosticC","C · 仅新增外缘能量",()=>ApplyOuterPreset(2),"诊断新增外部能量；不作为正常展示交付，不修改身体亮度、高亮保护或真实场景光照。"));
    SettingToggle(content,"OuterGlowDiagnostic","仅外缘能量诊断",s=>s.outerDiagnostic,(s,v)=>s.outerDiagnostic=v,"相同的C诊断开关；查看新增柔光，不以全场Bloom作为前置。关闭后恢复正常身体显示。");
    widgets.Title(content,"高亮软肩与环境时钟");
-   SettingSlider(content,"HighlightKnee","保护拐点（线性增益）",.05f,16,s=>s.knee,(s,v)=>s.knee=v,"低于拐点维持原响应；高于拐点逐渐压缩，保留原图深浅纹理。");
-   SettingSlider(content,"HighlightCeiling","保护渐近上限",.1f,32,s=>s.ceiling,(s,v)=>s.ceiling=v,"必须大于拐点；输入会由同一Settings.Sanitize校验，不逐通道硬剪RGB。");
+   SettingSlider(content,"HighlightKnee","开始保护的增益亮度",.05f,16,s=>s.knee,(s,v)=>s.knee=v,"数值越高，开始保护越晚；不是越高保护越强。低于此线性增益亮度保持原响应，不是屏幕亮度百分比。");
+   SettingSlider(content,"HighlightCeiling","压缩后增益亮度上限",.1f,32,s=>s.ceiling,(s,v)=>s.ceiling=v,"数值越高，允许人物继续变亮；不是越高保护越强。此为渐近亮度而非RGB各通道硬上限，必须大于开始保护值。");
    freezeClock=widgets.Toggle(content,"FreezeClock","固定环境时刻（世界不停）",SetClockFrozen,"只停止明确EnvironmentRoot的演示时钟；不暂停天气、角色或AI。外部时刻源模式不可用。");
    bloomToggle=widgets.Toggle(content,"BloomEnabled","Bloom（本轮不依赖）",v=>{},"本轮不创建或接管Bloom后端。当前未登记可安全控制的Bloom，故此开关不可用；基础受光与独立外缘柔光均不依赖它。");bloomToggle.interactable=false;bloomToggle.SetIsOnWithoutNotify(false);
    bloomReason=widgets.Text("BloomUnavailableReason",widgets.Row(content,"BloomReason",49),"Bloom未接管；基础效果不依赖Bloom。",12);bloomReason.enableWordWrapping=true;
    widgets.Title(content,"恢复、候选保存与真实诊断");
    widgets.Button(content,"RestorePreview","一键恢复进入面板前状态",RestorePreview,"恢复本轮打开窗口时捕获的角色运行副本；只归还本窗口拥有的时钟修改，不回写共享SO或存档。");
    var save=widgets.Button(content,"SaveCandidateProfile","显式保存此对象候选Profile",SaveCandidateProfile,"仅Editor：保存一个新的唯一候选资产，不覆盖原共享Profile，也不自动替换角色当前Profile引用。");AddParameter(save);if(!Application.isEditor)save.interactable=false;
-   var defaults=widgets.Button(content,"SaveCurrentDefault","保存此角色当前默认",SaveCurrentDefault,"仅写回此角色已绑定的独立Profile并读回；共享Profile拒绝保存，不保存运行场景，不改另一角色。");AddParameter(defaults);if(!Application.isEditor)defaults.interactable=false;
+   var defaults=widgets.Button(content,"SaveCurrentDefault","保存此角色当前默认",SaveCurrentDefault,"仅写回此角色已绑定的独立Profile并读回；共享Profile拒绝保存。完整强日光A/B及其后续编辑禁止回写作者Profile，可另存候选或恢复进入面板前状态；不保存运行场景，不改另一角色。");AddParameter(defaults);if(!Application.isEditor)defaults.interactable=false;
    var status=widgets.Row(content,"Status",210);statusLayout=status.GetComponent<UnityEngine.UI.LayoutElement>();statusText=widgets.Text("Text",status,"等待真实诊断",12);statusText.enableWordWrapping=true;statusText.overflowMode=TextOverflowModes.Overflow;statusText.alignment=TextAlignmentOptions.TopLeft;
   }
   void AddParameter(UnityEngine.UI.Selectable control){parameterControls.Add(control);}
@@ -135,31 +157,94 @@ namespace Ossastra.Development.CharacterLighting
   void Change(Action<CharacterLightingSettings> change)
   {
    if(refreshing||observed==null||!observed.isActiveAndEnabled)return;CapturePreviewIfNeeded();
-   change(observed.Settings);observed.Settings.Sanitize();Status="已调整 "+ActorLabel(observed)+" 的运行时副本；未写共享SO";RefreshWidgets();
+   change(observed.Settings);observed.Settings.Sanitize();MarkSunlightEdited(observed);Status="已调整 "+ActorLabel(observed)+" 的运行时副本；未写共享SO";RefreshWidgets();
   }
   public void ApplyPreset(int index)
   {
    if(observed==null)return;CapturePreviewIfNeeded();var state=before.TryGetValue(observed,out var saved)?saved.Clone():observed.Settings.Clone();
    state.environmentTint=index>0;state.rim=state.highlightProtection=index>1;
-   state.outerGlow=false;state.outerDiagnostic=false;observed.Settings=state;
+   state.outerGlow=false;state.outerDiagnostic=false;observed.Settings=state;MarkSunlightEdited(observed);
    Status="当前对象对照："+new[]{"旧效果","仅环境染色","染色 + 克制轮廓"}[Mathf.Clamp(index,0,2)]+"；原环境亮度未改";RefreshWidgets();
   }
   public void ApplyOuterPreset(int index)
   {
    if(observed==null)return;CapturePreviewIfNeeded();index=Mathf.Clamp(index,0,2);
    // 外缘对照使用当前运行副本，不借打开面板时的快照回滚用户刚调好的内部效果。
-   var state=observed.Settings.Clone();state.outerGlow=index>0;state.outerDiagnostic=index==2;observed.Settings=state;
+   var state=observed.Settings.Clone();state.outerGlow=index>0;state.outerDiagnostic=index==2;observed.Settings=state;MarkSunlightEdited(observed);
    Status="外缘对照："+new[]{"A 当前效果 / 无外缘","B 受光外缘柔光","C 仅新增外缘能量"}[index]+"；身体参数与原Profile保持";RefreshWidgets();
   }
   // 原版/增强只切换环境融合分支，不使用打开面板时的旧快照覆盖用户刚调的轮廓等参数。
   public void ApplyEnvironmentPreset(int index)
   {
    if(observed==null)return;CapturePreviewIfNeeded();var state=observed.Settings.Clone();
-   state.enhancedEnvironmentTint=index>0;observed.Settings=state;
+   state.enhancedEnvironmentTint=index>0;observed.Settings=state;MarkSunlightEdited(observed);
    Status=index>0?"B 增强主体环境融合；其他参数保持":"A 原版环境染色；其他参数保持";RefreshWidgets();
+  }
+  // 完整A/B只替换已登记对象的运行参数；不赋值receiver.profile，不写资产或场景。
+  public void ApplySunlightPreset(int index)
+  {
+#if UNITY_EDITOR
+   if(index!=0&&index!=1){Status="强日光A/B索引无效；运行参数保持";RefreshWidgets();return;}
+   string aPath,bPath,reason;
+   if(!TryResolveSunlightProfiles(observed,out aPath,out bPath,out reason)){Status="未载入强日光A/B："+reason;RefreshWidgets();return;}
+   string path=index==0?aPath:bPath;
+   var source=UnityEditor.AssetDatabase.LoadAssetAtPath<CharacterLightingProfileSO>(path);
+   if(source==null||source.settings==null){Status="未载入强日光A/B：缺少完整配置 "+path+"；运行参数保持";RefreshWidgets();return;}
+   CapturePreviewIfNeeded();observed.Settings=source.settings;
+   sunlightSources[observed]=new SunlightPreviewSource(path,true);
+   Status=(index==0?"A · 接手完整原效果":"B · 强日光保护推荐")+"已载入 "+ActorLabel(observed)+" 的运行副本；作者Profile与主场默认引用未改。重进Play后可再次一键载入。";
+#else
+   Status="完整强日光A/B载入仅Editor可用；Player未读取AssetDatabase，也未自动推广默认。";
+#endif
+   RefreshWidgets();
+  }
+#if UNITY_EDITOR
+  bool TryResolveSunlightProfiles(CharacterLightingReceiver receiver,out string aPath,out string bPath,out string reason)
+  {
+   aPath=bPath="";reason="";
+   if(!Application.isPlaying){reason="仅在Play中载入运行副本";return false;}
+   if(receiver==null||!receiver.isActiveAndEnabled){reason="未选择启用的正式接收者";return false;}
+   if(gameObject.scene!=receiver.gameObject.scene||gameObject.scene.name!="SC_RoomVisibilityLab"||gameObject.scene.path!=sunlightScene)
+   {reason="当前对象不属于指定主场";return false;}
+   string originalPath,originalGuid;
+   if(receiver.EntityId=="temporary-a")
+   {aPath=blueSunlightOriginal;bPath=blueSunlightProtected;originalPath=profileFolder+"BlueEnvironmentFusionB.asset";originalGuid="a5aaa073e6f03b845b93b0a0e5a85d9a";}
+   else if(receiver.EntityId=="temporary-b")
+   {aPath=freyciaSunlightOriginal;bPath=freyciaSunlightProtected;originalPath=profileFolder+"FreyciaEnvironmentFusionB.asset";originalGuid="76db3f3a8c6611145a24963a2bf3a9e1";}
+   else{reason="未登记此实体的独立完整A/B";return false;}
+   string currentPath=UnityEditor.AssetDatabase.GetAssetPath(receiver.profile);
+   if(string.Equals(currentPath,aPath,StringComparison.Ordinal)||string.Equals(currentPath,bPath,StringComparison.Ordinal))return true;
+   if(!string.Equals(currentPath,originalPath,StringComparison.Ordinal)||!string.Equals(UnityEditor.AssetDatabase.AssetPathToGUID(currentPath),originalGuid,StringComparison.OrdinalIgnoreCase))
+   {reason="实体与原作者Profile身份不匹配；拒绝跨角色套用";return false;}
+   return true;
+  }
+#endif
+  bool HasSunlightOverride(CharacterLightingReceiver receiver)
+  {
+#if UNITY_EDITOR
+   return receiver!=null&&sunlightSources.ContainsKey(receiver);
+#else
+   return false;
+#endif
+  }
+  void MarkSunlightEdited(CharacterLightingReceiver receiver)
+  {
+#if UNITY_EDITOR
+   if(receiver!=null&&sunlightSources.TryGetValue(receiver,out var source))sunlightSources[receiver]=new SunlightPreviewSource(source.path,false);
+#endif
+  }
+  string SunlightSourceDescription()
+  {
+#if UNITY_EDITOR
+   if(observed!=null&&sunlightSources.TryGetValue(observed,out var source))return "运行副本来源："+source.path+"\n"+(source.saved?"已保存的完整配置":"在完整配置上后续修改，尚未保存")+"；主场默认引用未改变。";
+   return "运行副本：当前角色参数；尚未载入本轮完整A/B。";
+#else
+   return "运行副本：当前角色参数；本Player没有Editor完整A/B载入入口。";
+#endif
   }
   public void SaveCurrentDefault()
   {
+   if(HasSunlightOverride(observed)){Status="已拒绝保存到原作者Profile：当前运行副本来自强日光A/B，主场引用保持。需要保留后续调参请另存候选。";RefreshWidgets();return;}
    try{string result;Status=CharacterLightingProfileSave.TrySaveDefault(observed,out result)?"已持久保存并读回："+result:result;}
    catch(Exception error){Status="保存默认失败："+error.Message;}
    RefreshWidgets();
@@ -176,10 +261,19 @@ namespace Ossastra.Development.CharacterLighting
    if(observationDrop==null)return;observationDrop.ClearOptions();observationDrop.AddOptions(displayed.Length==0?new List<string>{"未登记正式角色"}:displayed.Select(ActorLabel).ToList());observationDrop.SetValueWithoutNotify(Mathf.Max(0,Array.IndexOf(displayed,observed)));observationDrop.interactable=displayed.Length>0;
   }
   void CapturePreviewIfNeeded()
-  {if(previewCaptured)return;before.Clear();foreach(var receiver in receivers??Array.Empty<CharacterLightingReceiver>())if(receiver!=null&&!before.ContainsKey(receiver))before.Add(receiver,receiver.Settings.Clone());previewCaptured=true;}
+  {
+   if(previewCaptured)return;before.Clear();foreach(var receiver in receivers??Array.Empty<CharacterLightingReceiver>())if(receiver!=null&&!before.ContainsKey(receiver))before.Add(receiver,receiver.Settings.Clone());
+#if UNITY_EDITOR
+   sunlightBefore.Clear();foreach(var pair in sunlightSources)if(pair.Key!=null&&before.ContainsKey(pair.Key))sunlightBefore.Add(pair.Key,pair.Value);
+#endif
+   previewCaptured=true;
+  }
   public void RestorePreview()
   {
    foreach(var pair in before)if(pair.Key!=null)pair.Key.Settings=pair.Value;ReleaseClock();
+#if UNITY_EDITOR
+   if(previewCaptured){sunlightSources.Clear();foreach(var pair in sunlightBefore)if(pair.Key!=null)sunlightSources.Add(pair.Key,pair.Value);}
+#endif
    Status=previewCaptured?"已恢复本次进入前的角色运行参数；原Profile未改":"尚无预览改动可恢复";RefreshWidgets();
   }
   public void SetClockFrozen(bool value)
@@ -213,7 +307,7 @@ namespace Ossastra.Development.CharacterLighting
    if(viewRoot==null||refreshing)return;DiscardSupersededClockLease();refreshing=true;
    try
    {
-    RefreshReceiverList();foreach(var refresh in refreshers)refresh();bool valid=observed!=null&&observed.isActiveAndEnabled;foreach(var control in parameterControls)if(control!=null)control.interactable=valid&&(control.name!="SaveCandidateProfile"||Application.isEditor);
+    RefreshReceiverList();foreach(var refresh in refreshers)refresh();bool valid=observed!=null&&observed.isActiveAndEnabled;foreach(var control in parameterControls)if(control!=null)control.interactable=valid&&(control.name!="SaveCandidateProfile"||Application.isEditor)&&(control.name!="SaveCurrentDefault"||(Application.isEditor&&!HasSunlightOverride(observed)));
     if(header!=null)header.text=(expanded?"收起  ":"展开  ")+"角色光感";
     if(freezeClock!=null){freezeClock.interactable=environment!=null&&environment.timeMode!=EnvironmentTimeMode.External;freezeClock.SetIsOnWithoutNotify(hasClockLease&&leasedClock==environment&&environment!=null&&environment.timeMode!=EnvironmentTimeMode.External&&!environment.clockRunning);}
     if(bloomReason!=null)bloomReason.text="未登记可控制的Bloom后端；开关不可用。\n染色、内侧亮边与外缘柔光均不依赖Bloom。";
@@ -225,8 +319,8 @@ namespace Ossastra.Development.CharacterLighting
   {
    ReconcileDiagnostics();
    if(observed==null)return "未登记角色接收者；不会自动搜索全场。";
-   string profileName=observed.profile==null?"中性缺省 / 运行副本":observed.profile.name+" / 运行副本";
-   string value="对象："+ActorLabel(observed)+"\nProfile："+profileName+"\n"+observed.Status;
+   string profileName=observed.profile==null?"中性缺省":observed.profile.name;
+   string value="对象："+ActorLabel(observed)+"\n作者Profile："+profileName+"\n"+SunlightSourceDescription()+"\n保护触发请以定向采样为准，非逐像素实时监测。\n"+observed.Status;
    if(DiagnosticsReader!=null){try{return value+"\n"+DiagnosticsReader(observed);}catch(Exception e){return value+"\n服务诊断读取失败："+e.Message;}}
    return value+"\n渲染服务详细诊断尚未绑定，未推断room、灯或GPU亮度。";
   }
@@ -270,6 +364,10 @@ namespace Ossastra.Development.CharacterLighting
   void ClearOwnSelection(){if(EventSystem.current==null||surface==null)return;var current=EventSystem.current.currentSelectedGameObject;if(current!=null&&current.transform.IsChildOf(surface))EventSystem.current.SetSelectedGameObject(null);}
   void OnApplicationFocus(bool focus){if(!focus){ClearOwnSelection();hovering.Clear();pressed.Clear();selected.Clear();Capture(false);HideAllHints();}}
   void OnDisable(){ReleaseDiagnostics();ClearOwnSelection();hovering.Clear();pressed.Clear();selected.Clear();Capture(false);ReleaseClock();HideAllHints();if(viewRoot!=null)viewRoot.SetActive(false);}
-  void OnDestroy(){ReleaseDiagnostics();Capture(false);ReleaseClock();if(viewRoot!=null)Destroy(viewRoot);viewRoot=null;refreshers.Clear();parameterControls.Clear();before.Clear();DiagnosticsReader=null;}
+  void OnDestroy(){ReleaseDiagnostics();Capture(false);ReleaseClock();if(viewRoot!=null)Destroy(viewRoot);viewRoot=null;refreshers.Clear();parameterControls.Clear();before.Clear();
+#if UNITY_EDITOR
+   sunlightSources.Clear();sunlightBefore.Clear();
+#endif
+   DiagnosticsReader=null;}
  }
 }

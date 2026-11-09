@@ -1,0 +1,43 @@
+/* 功能：按需GPU诊断，读取真实绑定与正式主体增益函数；不用于主场颜色/许可绘制。
+ * 边界：单一世界样点、零R、white slot tint；主灯无阴影采样，不冒称当前骨架像素。
+ */
+Shader "Hidden/Ossastra/Diagnostics/CharacterHighlightProbeV13"
+{
+ Properties{_MainTex("Actual source atlas",2D)="white"{} _ProbeMode("Mode",Float)=0 _ProbeStraight("Straight input",Float)=1}
+ SubShader
+ {
+  Tags{"RenderPipeline"="UniversalPipeline"}
+  Pass
+  {
+   Cull Off ZWrite Off ZTest Always Blend One Zero
+   HLSLPROGRAM
+   #pragma target 4.5
+   #pragma vertex Vert
+   #pragma fragment Frag
+   #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+   #include "Assets/OSSASTRA/Scripts/EnvironmentSimulation/Rendering/EnvironmentLighting.hlsl"
+   TEXTURE2D(_MainTex);SAMPLER(sampler_MainTex);
+   float _ProbeMode,_ProbeStraight;float4 _ProbeWorld,_ProbeNormal;
+   struct V{float4 positionCS:SV_POSITION;float2 uv:TEXCOORD0;};
+   V Vert(uint vertexID:SV_VertexID){V o;o.positionCS=GetFullScreenTriangleVertexPosition(vertexID);o.uv=GetFullScreenTriangleTexCoord(vertexID);return o;}
+   float4 Frag(V input):SV_Target
+   {
+    if(_ProbeMode>6.5)return float4(_EnvironmentLightingEnabled,_EnvironmentIndoorCount,_EnvironmentLocalLightCount,_EnvironmentReceiveShadow);
+    if(_ProbeMode<.5)return _CharacterLightControls;
+    if(_ProbeMode<1.5)return _CharacterLightShoulder;
+    float3 normal=EnvironmentCharacterNormal(_ProbeNormal.xyz);
+    float3 ambient;
+    float3 gain=EnvironmentLightingGain(_ProbeWorld.xyz,normal,2,true,ambient);
+    float3 protectedGain=CharacterLightingProtectGain(gain,_CharacterLightShoulder.x,_CharacterLightShoulder.y,_CharacterLightControls.z);
+    if(_ProbeMode<2.5)return float4(gain,CharacterLightingLuminance(gain));
+    if(_ProbeMode<3.5)return float4(protectedGain,CharacterLightingLuminance(protectedGain));
+    float4 texel=SAMPLE_TEXTURE2D(_MainTex,sampler_MainTex,input.uv);
+    if(_ProbeStraight>.5)texel.rgb*=texel.a;
+    if(_ProbeMode<4.5)return float4(EnvironmentShadeWithRim(texel.rgb,_ProbeWorld.xyz,normal,2,float3(0,0,0)),texel.a);
+    if(_ProbeMode<5.5)return texel;
+    return float4(texel.rgb*gain,texel.a);
+   }
+   ENDHLSL
+  }
+ }
+}

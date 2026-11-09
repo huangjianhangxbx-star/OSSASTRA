@@ -1,0 +1,29 @@
+/* 功能：只读保存接手角色作者Profile、已存在的运行副本、材质来源与相机/环境现场。
+ * 边界：不访问会懒建副本的Settings getter，不停Play、不Save场景、不改原资产或Shader全局。
+ */
+using System;using System.IO;using System.Linq;using System.Reflection;using System.Security.Cryptography;
+using UnityEngine;using UnityEditor;using UnityEngine.SceneManagement;using UnityEngine.Rendering;
+using Ossastra.CharacterLighting;using Funplay.Editor.Tools.Scripting;
+public sealed class CaptureCharacterHighlightBaseline:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  if(Application.dataPath.Replace('\\','/')!="E:/WORLDCREATOR/new/Project_ANKALUTE/Assets")throw new InvalidOperationException("Wrong project");
+  var scene=SceneManager.GetActiveScene();if(scene.path!="Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity"||Enumerable.Range(0,SceneManager.sceneCount).Count(i=>SceneManager.GetSceneAt(i).path==scene.path)!=1)throw new InvalidOperationException("Unique intended main required");
+  var roots=scene.GetRootGameObjects();var systems=roots.SelectMany(g=>g.GetComponentsInChildren<CharacterLightingSystem>(true)).ToArray();
+  if(systems.Length!=1||systems[0].receivers==null||systems[0].receivers.Length!=2)throw new InvalidOperationException("One actual system with two receivers required");
+  var system=systems[0];var runtimeField=typeof(CharacterLightingReceiver).GetField("runtimeSettings",BindingFlags.Instance|BindingFlags.NonPublic);
+  if(runtimeField==null)throw new MissingMemberException("Runtime settings field absent");
+  var actors=system.receivers.Select(r=>{
+   if(r==null)throw new InvalidOperationException("Receiver absent");var profile=r.profile;var runtime=runtimeField.GetValue(r) as CharacterLightingSettings;
+   string path=AssetDatabase.GetAssetPath(profile);
+   return new{r.name,position=V(r.transform.position),rotation=V(r.transform.eulerAngles),id=r.GetInstanceID(),r.enabled,sourceAvailable=r.SourceAvailable,entityId=r.EntityId,profilePath=path,profileGuid=string.IsNullOrEmpty(path)?null:AssetDatabase.AssetPathToGUID(path),profileFileSha=File.Exists(path)?Hash(path):null,authorJson=profile==null?null:JsonUtility.ToJson(profile,true),runtimeExists=runtime!=null,runtimeJson=runtime==null?null:JsonUtility.ToJson(runtime,true),effectiveSource=runtime!=null?"existing runtime clone":"no live clone; author profile will initialize next Play",receiverJson=JsonUtility.ToJson(r,true),renderers=r.bodyRenderers.Select(b=>b==null?null:new{b.name,id=b.GetInstanceID(),b.enabled,materials=b.sharedMaterials.Select(m=>m==null?null:new{name=m.name,path=AssetDatabase.GetAssetPath(m),shader=m.shader==null?null:m.shader.name,m.renderQueue,keywords=m.shaderKeywords,materialJson=EditorJsonUtility.ToJson(m),texture=m.HasProperty("_MainTex")?AssetDatabase.GetAssetPath(m.GetTexture("_MainTex")):null,straight=m.HasProperty("_StraightAlphaInput")?m.GetFloat("_StraightAlphaInput"):-1}).ToArray()}).ToArray()};
+  }).ToArray();
+  var camera=system.gameplayCamera;
+  var baseline=new{utc=DateTime.UtcNow.ToString("O"),playing=Application.isPlaying,scene=scene.path,scene.isDirty,sceneSha=Hash(scene.path),loadedScenes=Enumerable.Range(0,SceneManager.sceneCount).Select(i=>new{name=SceneManager.GetSceneAt(i).name,path=SceneManager.GetSceneAt(i).path}).ToArray(),system=JsonUtility.ToJson(system,true),actors,camera=camera==null?null:new{camera.name,id=camera.GetInstanceID(),camera.allowHDR,camera.allowMSAA,camera.orthographic,camera.fieldOfView,camera.nearClipPlane,camera.farClipPlane,position=V(camera.transform.position),rotation=V(camera.transform.eulerAngles),pixelWidth=camera.pixelWidth,pixelHeight=camera.pixelHeight},renderPipeline=GraphicsSettings.currentRenderPipeline==null?null:AssetDatabase.GetAssetPath(GraphicsSettings.currentRenderPipeline),colorSpace=QualitySettings.activeColorSpace.ToString(),environment=system.environment==null?null:JsonUtility.ToJson(system.environment,true),environmentRoot=system.environment==null||system.environment.environment==null?null:JsonUtility.ToJson(system.environment.environment,true),lights=roots.SelectMany(g=>g.GetComponentsInChildren<Light>(true)).Select(l=>new{l.name,id=l.GetInstanceID(),l.enabled,type=l.type.ToString(),l.intensity,color=new{l.color.r,l.color.g,l.color.b,l.color.a},l.range,position=V(l.transform.position),rotation=V(l.transform.eulerAngles),l.shadows}).ToArray(),globalShoulderNow=V(Shader.GetGlobalVector("_CharacterLightShoulder")),globalControlsNow=V(Shader.GetGlobalVector("_CharacterLightControls")),gpuBindingNote="Ambient globals outside a draw are not proof of per-draw GPU binding; capture it separately",sceneSaved=false};
+  string output=Path.GetFullPath("artifacts/CHAR-LIGHT-01/v1.3/baseline-"+DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff")+".json");File.WriteAllText(output,Newtonsoft.Json.JsonConvert.SerializeObject(baseline,Newtonsoft.Json.Formatting.Indented));
+  ctx.ReturnValue=new{output,playing=Application.isPlaying,scene.isDirty,actors=actors.Select(a=>new{a.name,a.id,a.profilePath,a.profileGuid,a.runtimeExists,a.effectiveSource,a.authorJson,a.runtimeJson}).ToArray(),sceneSaved=false};
+ }
+ static object V(Vector3 v)=>new{v.x,v.y,v.z}; static object V(Vector4 v)=>new{v.x,v.y,v.z,v.w};
+ static string Hash(string path){using(var s=SHA256.Create())using(var f=File.OpenRead(path))return BitConverter.ToString(s.ComputeHash(f)).Replace("-","");}
+}
