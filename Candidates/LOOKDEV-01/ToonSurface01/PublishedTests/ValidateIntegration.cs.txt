@@ -1,0 +1,34 @@
+using System;
+using System.Collections.Generic;
+using System.Reflection;
+using UnityEngine;
+using Ossastra.WorldRendering.Stylization;
+using Ossastra.SceneVisibility.Rooms.Rendering;
+using Funplay.Editor.Tools.Scripting;
+public class ValidateToonSurfaceIntegration : IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  var checks=new List<object>();int failures=0;Action<string,bool> check=(n,p)=>{checks.Add(new{name=n,pass=p});if(!p)failures++;};
+  var bindingField=typeof(LookDevToonBinding).GetField("toonSurface01");var featureMethod=typeof(LookDevFiniteToon).GetMethod("TrySetToonSurfaceFeatures");
+  var comparison=typeof(SurfaceLightingRecipe).GetMethod("TrySetMaterialComparisonLighting");var featureShaderField=typeof(RoomMaskRendererFeature).GetField("positiveToonSurface01Shader");
+  check("enum appends value3 while legacy values remain",Enum.IsDefined(typeof(LookDevToonVariant),3)&&(int)LookDevToonVariant.RealToon==2&&(int)LookDevToonVariant.ThreeBand==1);
+  check("finite binding exposes candidate",bindingField!=null);check("owned runtime feature API",featureMethod!=null);check("existing recipe owns comparison lighting",comparison!=null);check("explicit build-retained Room shader reference",featureShaderField!=null);
+  var shader=Shader.Find("Ossastra/WorldRendering/ToonSurface01");var oldShader=Shader.Find("Universal Render Pipeline/Lit");var bandShader=Shader.Find("Ossastra/WorldRendering/VoxelLit");
+  if(bindingField==null||featureMethod==null||shader==null||oldShader==null||bandShader==null){ctx.ReturnValue=new{checks,failures,fixtureReady=shader!=null&&oldShader!=null&&bandShader!=null};return;}
+  var go=new GameObject("ToonSurface01 transient integration fixture");var a=new GameObject("slot a");a.transform.SetParent(go.transform);var b=new GameObject("slot b");b.transform.SetParent(go.transform);var c=new GameObject("slot c");c.transform.SetParent(go.transform);
+  var original=new Material(oldShader);original.SetColor("_BaseColor",new Color(.23f,.11f,.05f,.8f));original.SetTextureScale("_BaseMap",new Vector2(.25f,.5f));var alternate=new Material(oldShader);alternate.SetColor("_BaseColor",new Color(.05f,.17f,.31f,.6f));var band=new Material(bandShader);band.SetFloat("_LookDevToonMain",1);var candidate=new Material(shader);candidate.SetFloat("_ToonRampEnabled",1);candidate.SetFloat("_ToonSpecularEnabled",0);candidate.SetFloat("_ToonRimEnabled",1);var foreign=new Material(oldShader);
+  var ra=a.AddComponent<MeshRenderer>();a.AddComponent<MeshFilter>();var rb=b.AddComponent<MeshRenderer>();b.AddComponent<MeshFilter>();ra.sharedMaterial=original;rb.sharedMaterial=original;
+  var rc=c.AddComponent<MeshRenderer>();c.AddComponent<MeshFilter>();rc.sharedMaterial=alternate;
+  var controller=go.AddComponent<LookDevFiniteToon>();var ba=new LookDevToonBinding{renderer=ra,materialSlot=0,original=original,threeBand=band};var bb=new LookDevToonBinding{renderer=rb,materialSlot=0,original=original,threeBand=band};var bc=new LookDevToonBinding{renderer=rc,materialSlot=0,original=alternate,threeBand=band};bindingField.SetValue(ba,candidate);bindingField.SetValue(bb,candidate);bindingField.SetValue(bc,candidate);typeof(LookDevFiniteToon).GetField("bindings",BindingFlags.Instance|BindingFlags.NonPublic).SetValue(controller,new[]{ba,bb,bc});
+  try{
+   bool accepted=controller.TrySetVariant((LookDevToonVariant)3,out var error);check("candidate atomic switch accepted",accepted);check("runtime clone never aliases author",accepted&&ra.sharedMaterial!=candidate&&ra.sharedMaterial.shader==candidate.shader);check("same preset and original share owned clone",ra.sharedMaterial==rb.sharedMaterial);check("different original retains distinct source identity",ra.sharedMaterial!=rc.sharedMaterial&&ra.sharedMaterial.GetColor("_BaseColor")==original.GetColor("_BaseColor")&&rc.sharedMaterial.GetColor("_BaseColor")==alternate.GetColor("_BaseColor"));check("base UV and original non-vertex behavior retained",ra.sharedMaterial.GetTextureScale("_BaseMap")==original.GetTextureScale("_BaseMap")&&ra.sharedMaterial.GetFloat("_VoxelVertexColors")==0);
+   var args=new object[]{false,true,false,null};bool features=(bool)featureMethod.Invoke(controller,args);check("runtime feature gates apply",features&&ra.sharedMaterial.GetFloat("_ToonRampEnabled")==0&&ra.sharedMaterial.GetFloat("_ToonRimEnabled")==0);check("author defaults remain unchanged",candidate.GetFloat("_ToonRampEnabled")==1&&candidate.GetFloat("_ToonRimEnabled")==1);check("author spec-off stays off under global gate",ra.sharedMaterial.GetFloat("_ToonSpecularEnabled")==0);
+   rb.sharedMaterial=foreign;var before=ra.sharedMaterial;check("foreign slot rejects whole switch",!controller.TrySetVariant(LookDevToonVariant.Original,out _)&&ra.sharedMaterial==before&&rb.sharedMaterial==foreign);
+   controller.Restore();check("release returns owned slot only",ra.sharedMaterial==original&&rb.sharedMaterial==foreign&&rc.sharedMaterial==alternate);
+   int queue=candidate.renderQueue;candidate.renderQueue=3000;check("transparent candidate family rejected",RoomPositiveRenderingLayers.Classify(candidate)==0);candidate.renderQueue=queue;
+   check("registered candidate uses Lit scheduling",RoomPositiveRenderingLayers.Classify(candidate)==RoomPositiveRenderingLayers.PartialLitBit);
+  }finally{UnityEngine.Object.DestroyImmediate(go);UnityEngine.Object.DestroyImmediate(original);UnityEngine.Object.DestroyImmediate(alternate);UnityEngine.Object.DestroyImmediate(band);UnityEngine.Object.DestroyImmediate(candidate);UnityEngine.Object.DestroyImmediate(foreign);}
+  ctx.ReturnValue=new{checks,failures,fixtureReady=true};
+ }
+}

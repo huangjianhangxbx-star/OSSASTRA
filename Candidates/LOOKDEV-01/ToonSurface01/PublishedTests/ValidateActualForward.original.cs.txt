@@ -1,0 +1,167 @@
+/* Root-only transient validation. Uses the installed production ForwardLit pass,
+ * not a copy of its equations and not the MathProbe shader.
+ * Known main-light ABI is a controlled fixture, not evidence for scene shadows,
+ * camera culling, actual light selection, GI, Room or post-processing.
+ */
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEditor;
+using Funplay.Editor.Tools.Scripting;
+
+public sealed class ValidateActualForward : IFunplayCommand
+{
+    const int Width=192,Height=48;
+    static readonly float[] Angles={.12f,.22f,.4f,.6f,.8f,.95f};
+    Material material;
+    Mesh mesh;
+    Texture2D baseMap,read;
+    RenderTexture target;
+    CommandBuffer command;
+    MaterialPropertyBlock perDraw;
+    Matrix4x4 view,projection;
+
+    static float[] RGB(Color c)=>new[]{c.r,c.g,c.b};
+    static float Difference(Color a,Color b)=>Mathf.Max(Mathf.Abs(a.r-b.r),Mathf.Abs(a.g-b.g),Mathf.Abs(a.b-b.b));
+    static bool Finite(Color c)=>!float.IsNaN(c.r)&&!float.IsNaN(c.g)&&!float.IsNaN(c.b)&&!float.IsInfinity(c.r)&&!float.IsInfinity(c.g)&&!float.IsInfinity(c.b);
+
+    public void Execute(ExecutionContext ctx)
+    {
+        if(!Application.dataPath.Replace('\\','/').Equals("E:/WORLDCREATOR/new/Project_ANKALUTE/Assets",StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("wrong Unity project");
+        var shader=Shader.Find("Ossastra/WorldRendering/ToonSurface01");
+        if(shader==null||!shader.isSupported)throw new InvalidOperationException("installed ToonSurface01 shader unavailable/unsupported");
+        if(!SystemInfo.SupportsRenderTextureFormat(RenderTextureFormat.ARGBFloat))
+            throw new InvalidOperationException("float RT unavailable; no faithful linear RGB readback");
+        var priorKeywords=Shader.enabledGlobalKeywords.Select(k=>k.name).OrderBy(x=>x,StringComparer.Ordinal).ToArray();
+        string[] vectors={"_MainLightPosition","_MainLightColor","unity_LightData","_WorldSpaceCameraPos"};
+        var priorVectors=vectors.ToDictionary(x=>x,Shader.GetGlobalVector,StringComparer.Ordinal);
+        float priorEnvironment=Shader.GetGlobalFloat("_EnvironmentLightingEnabled");
+        var priorView=Shader.GetGlobalMatrix("unity_MatrixV");
+        var priorProjection=Shader.GetGlobalMatrix("unity_MatrixP");
+        var priorViewProjection=Shader.GetGlobalMatrix("unity_MatrixVP");
+        var priorGlProjection=Shader.GetGlobalMatrix("glstate_matrix_projection");
+        var priorActive=RenderTexture.active;
+        bool priorSrgb=GL.sRGBWrite,priorAsync=ShaderUtil.allowAsyncCompilation;
+        Color[] albedo=null,linear=null,ramp=null;
+        bool globalsRestored=false;
+        var rows=new List<object>();int failures=0;
+        try
+        {
+            ShaderUtil.allowAsyncCompilation=false;
+            foreach(var keyword in priorKeywords)Shader.DisableKeyword(keyword);
+            // This is an explicitly controlled white directional light. No shadow
+            // variants are enabled; actual shadow-map correctness is tested in Lab.
+            Shader.SetGlobalVector("_MainLightPosition",new Vector4(0,0,-1,0));
+            Shader.SetGlobalVector("_MainLightColor",Vector4.one);
+            Shader.SetGlobalVector("unity_LightData",new Vector4(0,0,1,0));
+            Shader.SetGlobalVector("_WorldSpaceCameraPos",new Vector4(0,0,-4,1));
+            Shader.SetGlobalFloat("_EnvironmentLightingEnabled",0);
+            GL.sRGBWrite=false;
+
+            material=new Material(shader){name="Owned ToonSurface01 actual Forward fixture",hideFlags=HideFlags.HideAndDontSave};
+            material.shaderKeywords=Array.Empty<string>();
+            material.EnableKeyword("_SPECULARHIGHLIGHTS_OFF");
+            material.EnableKeyword("_ENVIRONMENTREFLECTIONS_OFF");
+            material.SetFloat("_Surface",0);material.SetFloat("_AlphaClip",0);
+            material.SetFloat("_SrcBlend",1);material.SetFloat("_DstBlend",0);
+            material.SetFloat("_SrcBlendAlpha",1);material.SetFloat("_DstBlendAlpha",0);
+            material.SetFloat("_ZWrite",1);material.SetFloat("_Cull",2);material.SetFloat("_Metallic",0);
+            material.SetFloat("_Smoothness",0);material.SetFloat("_VoxelVertexColors",1);
+            material.SetFloat("_VoxelIndirectDiffuse",0);material.SetFloat("_VoxelEnvironmentSpecular",0);
+            material.SetFloat("_VoxelDirectSpecular",0);material.SetFloat("_VoxelHighlightStrength",0);
+            material.SetFloat("_VoxelBackFaceDarkening",0);material.SetFloat("_VoxelLitFaceBoost",0);
+            material.SetFloat("_ToonSpecularEnabled",0);material.SetFloat("_ToonRimEnabled",0);
+            material.SetVector("_BaseColor",new Vector4(.6f,.5f,.4f,1));
+            material.SetVector("_ToonThresholds",new Vector4(.32f,.70f,.05f,0));
+            material.SetVector("_ToonDarkColor",Vector4.one*.2f);
+            material.SetVector("_ToonMidColor",Vector4.one*.6f);
+            material.SetVector("_ToonLightColor",Vector4.one);
+            material.SetVector("_ToonShadowColor",Vector4.one);
+            baseMap=new Texture2D(2,2,TextureFormat.RGBAFloat,false,true){name="Owned linear BaseMap",hideFlags=HideFlags.HideAndDontSave,wrapMode=TextureWrapMode.Clamp,filterMode=FilterMode.Point};
+            baseMap.SetPixels(Enumerable.Repeat(new Color(.4f,.5f,.6f,1),4).ToArray());baseMap.Apply(false,false);material.SetTexture("_BaseMap",baseMap);
+            perDraw=new MaterialPropertyBlock();
+            // UnityPerDraw's explicit fixture value accompanies the global ABI.
+            // If the actual Forward backend ignores this it will fail nonempty
+            // main-light checks instead of reporting a synthetic Math result.
+            perDraw.SetVector("unity_LightData",new Vector4(0,0,1,0));
+            mesh=BuildMesh();
+            target=new RenderTexture(Width,Height,0,RenderTextureFormat.ARGBFloat,RenderTextureReadWrite.Linear){name="Owned actual Forward linear RT",hideFlags=HideFlags.HideAndDontSave};
+            if(!target.Create())throw new InvalidOperationException("float target failed");
+            read=new Texture2D(Width,Height,TextureFormat.RGBAFloat,false,true){hideFlags=HideFlags.HideAndDontSave};
+            command=new CommandBuffer{name="ToonSurface01 production ForwardLit controlled fixture"};
+            view=Matrix4x4.Scale(new Vector3(1,1,-1))*Matrix4x4.TRS(new Vector3(0,0,-4),Quaternion.identity,Vector3.one).inverse;
+            projection=GL.GetGPUProjectionMatrix(Matrix4x4.Ortho(-3,3,-.75f,.75f,.1f,10),true);
+            int pass=material.FindPass("ForwardLit");if(pass<0)throw new InvalidOperationException("actual ForwardLit pass missing");
+            albedo=Render(pass,1,0);linear=Render(pass,3,0);ramp=Render(pass,3,1);
+            var expectedAlbedo=new Color(.12f,.2f,.168f,1);
+            var expectedMainFactor=new[]{.2f,.2f,.6f,.6f,1f,1f};
+            for(int i=0;i<Angles.Length;i++)
+            {
+                bool rawPass=Finite(albedo[i])&&Difference(albedo[i],expectedAlbedo)<.003f;
+                // Metallic=0 URP BRDF diffuse retains its dielectric 0.96 factor;
+                // endpoints are hand-derived, not calls to the candidate equations.
+                var expectedLinear=expectedAlbedo*(.96f*Angles[i]);
+                var expectedRamp=expectedAlbedo*(.96f*expectedMainFactor[i]);
+                bool finite=Finite(linear[i])&&Finite(ramp[i]);
+                bool linearPass=finite&&Difference(linear[i],expectedLinear)<.004f;
+                bool rampPass=finite&&Difference(ramp[i],expectedRamp)<.004f;
+                if(!rawPass||!linearPass||!rampPass)failures++;
+                rows.Add(new{panel=i,normalDotLight=Angles[i],rawPass,linearPass,rampPass,raw=RGB(albedo[i]),rawExpected=RGB(expectedAlbedo),linear=RGB(linear[i]),linearExpected=RGB(expectedLinear),ramp=RGB(ramp[i]),rampExpected=RGB(expectedRamp)});
+            }
+            for(int i=0;i<6;i+=2)
+            {
+                bool sameBand=Difference(ramp[i],ramp[i+1])<.003f;
+                bool stillContinuous=Difference(linear[i],linear[i+1])>.005f;
+                if(!sameBand||!stillContinuous)failures++;
+                rows.Add(new{pair=i/2,sameBand,continuousOff=stillContinuous});
+            }
+            string[] shaderErrors=ShaderUtil.GetShaderMessages(shader).Where(m=>m.severity.ToString()=="Error").Select(m=>m.message).ToArray();
+            if(shaderErrors.Length>0)failures++;
+            // Return only after finally has restored shared state.
+        }
+        finally
+        {
+            foreach(var keyword in Shader.enabledGlobalKeywords)Shader.DisableKeyword(keyword);
+            foreach(var keyword in priorKeywords)Shader.EnableKeyword(keyword);
+            foreach(var p in priorVectors)Shader.SetGlobalVector(p.Key,p.Value);
+            Shader.SetGlobalFloat("_EnvironmentLightingEnabled",priorEnvironment);
+            var restore=new CommandBuffer{name="Restore actual Forward fixture GPU view state"};
+            try{restore.SetViewProjectionMatrices(priorView,priorProjection);restore.SetGlobalMatrix("unity_MatrixV",priorView);restore.SetGlobalMatrix("unity_MatrixP",priorProjection);restore.SetGlobalMatrix("unity_MatrixVP",priorViewProjection);restore.SetGlobalMatrix("glstate_matrix_projection",priorGlProjection);Graphics.ExecuteCommandBuffer(restore);}finally{restore.Release();}
+            RenderTexture.active=priorActive;GL.sRGBWrite=priorSrgb;ShaderUtil.allowAsyncCompilation=priorAsync;
+            if(command!=null)command.Release();
+            if(target!=null){target.Release();UnityEngine.Object.DestroyImmediate(target);}
+            if(read!=null)UnityEngine.Object.DestroyImmediate(read);
+            if(mesh!=null)UnityEngine.Object.DestroyImmediate(mesh);
+            if(material!=null)UnityEngine.Object.DestroyImmediate(material);
+            if(baseMap!=null)UnityEngine.Object.DestroyImmediate(baseMap);
+            globalsRestored=Shader.enabledGlobalKeywords.Select(k=>k.name).OrderBy(x=>x,StringComparer.Ordinal).SequenceEqual(priorKeywords)
+                &&priorVectors.All(p=>Shader.GetGlobalVector(p.Key)==p.Value)
+                &&Shader.GetGlobalFloat("_EnvironmentLightingEnabled")==priorEnvironment
+                &&RenderTexture.active==priorActive&&GL.sRGBWrite==priorSrgb&&ShaderUtil.allowAsyncCompilation==priorAsync;
+        }
+        if(!globalsRestored)failures++;
+        ctx.ReturnValue=new{pass=failures==0,failures,checks=rows.Count,globalsRestored,actualShader="Ossastra/WorldRendering/ToonSurface01",passName="ForwardLit",path="CommandBuffer.DrawMesh actual production ForwardLit",linearTarget=true,ordinaryMeshColorEntry=failures==0,sceneCameraOrRoomCertified=false,rows};
+    }
+
+    Mesh BuildMesh()
+    {
+        var vertices=new List<Vector3>();var normals=new List<Vector3>();var uv=new List<Vector2>();var colors=new List<Color>();var triangles=new List<int>();
+        for(int i=0;i<Angles.Length;i++)
+        {
+            int k=vertices.Count;float x=-2.5f+i;
+            vertices.Add(new Vector3(x-.4f,-.55f,0));vertices.Add(new Vector3(x+.4f,-.55f,0));vertices.Add(new Vector3(x+.4f,.55f,0));vertices.Add(new Vector3(x-.4f,.55f,0));
+            for(int n=0;n<4;n++){normals.Add(new Vector3(Mathf.Sqrt(1-Angles[i]*Angles[i]),0,-Angles[i]));uv.Add(Vector2.one*.5f);colors.Add(new Color(.5f,.8f,.7f,1));}
+            triangles.AddRange(new[]{k,k+2,k+1,k,k+3,k+2});
+        }
+        var result=new Mesh{name="Owned six-normal actual Forward mesh",hideFlags=HideFlags.HideAndDontSave};result.SetVertices(vertices);result.SetNormals(normals);result.SetUVs(0,uv);result.SetColors(colors);result.SetTriangles(triangles,0);result.RecalculateBounds();return result;
+    }
+    Color[] Render(int pass,int diagnostic,int enabled)
+    {
+        material.SetFloat("_VoxelDiagnostic",diagnostic);material.SetFloat("_ToonRampEnabled",enabled);
+        command.Clear();command.SetRenderTarget(target);command.SetViewport(new Rect(0,0,Width,Height));command.ClearRenderTarget(false,true,Color.magenta);command.SetViewProjectionMatrices(view,projection);command.DrawMesh(mesh,Matrix4x4.identity,material,0,pass,perDraw);Graphics.ExecuteCommandBuffer(command);
+        RenderTexture.active=target;read.ReadPixels(new Rect(0,0,Width,Height),0,0,false);read.Apply(false,false);var result=new Color[Angles.Length];for(int i=0;i<result.Length;i++)result[i]=read.GetPixel(i*32+16,Height/2);return result;
+    }
+}

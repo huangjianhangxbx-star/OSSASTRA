@@ -32,6 +32,8 @@ namespace Ossastra.WorldRendering.Stylization
   public string Status{get;private set;}="尚未接管";
   public StylizedLookProfileSO RuntimeProfile=>runtime;
   public bool HasLease=>leased;
+  public bool MaterialComparisonActive{get;private set;}
+  public bool MaterialComparisonBlueNight{get;private set;}
   static readonly Dictionary<EnvironmentRoot,SurfaceLightingRecipe> owners=new Dictionary<EnvironmentRoot,SurfaceLightingRecipe>();
   EnvironmentRoot boundEnvironment;EnvironmentSkyBinding boundSky;WorldLookController boundLook;LookDevFiniteToon boundToon;
   EnvironmentMaterialResponse boundGroundRegistration;bool priorGroundEnabled,writtenGroundEnabled;
@@ -44,7 +46,7 @@ namespace Ossastra.WorldRendering.Stylization
   bool startupCameraHooked,startupCameraObserved;Camera startupRenderedCamera;
   CharacterControlCoordinator capturedCoordinator;MapResearchRoot capturedMap;bool pointerCaptured;
   Font font;GUISkin skin;int boundObjectCount,boundSlotCount;
-  Rect Panel=>new Rect(Mathf.Max(8,Screen.width*.34f),110,440,expanded?(advanced?430:190):32);
+  Rect Panel=>new Rect(Mathf.Max(8,Screen.width*.34f),110,440,expanded?(advanced?(finiteToon!=null&&finiteToon.ToonSurface01Available?540:430):190):32);
   [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]static void ResetOwners(){owners.Clear();}
   void OnEnable()
   {
@@ -131,11 +133,26 @@ namespace Ossastra.WorldRendering.Stylization
    foreach(var o in objects)o.Write(state==SurfaceLightingState.Previous?o.before:o.value==windowGroup||o.value==windowEmission);
    if(windowLight!=null)windowLight.enabled=state==SurfaceLightingState.Previous?priorLight:true;
    writtenGroundEnabled=groundRegistration!=null&&groundRegistration.enabled;writtenLight=windowLight!=null&&windowLight.enabled;writtenEnvironment=EnvironmentState.Capture(environment);writtenSkyOverride=skyBinding.overrideSkyColors;writtenSceneProfile=skyBinding.sceneEnvironmentProfile;writtenSceneEnabled=skyBinding.sceneEnvironmentEnabled;writtenToon=finiteToon.Variant;writtenOutline=finiteToon.OutlineEnabled;writtenWidth=finiteToon.OutlineOutputPixels;writtenDark=finiteToon.OutlineDarkLinear.gamma;
-   State=state;Status="完整状态已切换；不改作者参数";return true;
+   State=state;MaterialComparisonActive=false;Status="完整状态已切换；不改作者参数";return true;
   }
   static void ApplyEnvironment(EnvironmentRoot e,DayCycleProfileSO day,SurfaceLightingEnvironmentSettings p)
   {
    e.dayCycle=day;e.effectsEnabled=true;e.contribution=EnvironmentContribution.Combined;e.timeMode=EnvironmentTimeMode.Manual;e.clockRunning=false;e.timeHours=12;e.manualSun=true;e.sunAzimuthDegrees=p.azimuth;e.sunElevationDegrees=p.elevation;e.sunIntensityMultiplier=p.sunMultiplier;e.sunTemperatureOffset=0;e.ambientMultiplier=p.ambientMultiplier;e.skyMultiplier=p.skyMultiplier;e.shadowStrength=p.shadowStrength;e.automaticWeather=false;e.cloudCoverageOverride=0;e.cloudDensityOverride=0;e.cloudShadowStrengthOverride=0;e.fogMultiplier=0;
+  }
+  // Same registered objects and normal windows; lighting belongs to this existing
+  // recipe owner. Disable strong screen styling only on its newly-cloned runtime.
+  public bool TrySetMaterialComparisonLighting(bool blueNight,out string error)
+  {
+   if(!TrySetState(blueNight?SurfaceLightingState.BlueComplete:SurfaceLightingState.MaterialLighting,out error))return false;
+   runtime.themeEnabled=false;runtime.airEnabled=false;runtime.bloomEnabled=false;runtime.bandsEnabled=false;runtime.pixelSize=1;
+   if(blueNight){environment.timeHours=22;environment.sunElevationDegrees=35;writtenEnvironment=EnvironmentState.Capture(environment);environment.RefreshNow();}
+   MaterialComparisonActive=true;MaterialComparisonBlueNight=blueNight;Status=blueNight?"同光材质比较：蓝夜与真实暖窗（无强主题/空气/Bloom/像素）":"同光材质比较：中性日光（无强主题/空气/Bloom/像素）";return true;
+  }
+  public bool TrySetToonSurfaceFeatureDiagnostic(bool ramp,bool specular,bool rim,out string error)
+  {
+   error="";if(State==SurfaceLightingState.Previous||!OwnsWritten()){error=Status="材质分项需要本配方仍占有当前现场";return false;}
+   if(!finiteToon.TrySetToonSurfaceFeatures(ramp,specular,rim,out error)){Status=error;return false;}
+   Status="ToonSurface01运行分项；作者材质不变";return true;
   }
   public bool TrySetMaterialDiagnostic(LookDevToonVariant variant,out string error)
   {
@@ -158,7 +175,7 @@ namespace Ossastra.WorldRendering.Stylization
   public void SetBloom(bool enabled){if(State==SurfaceLightingState.BlueComplete&&runtime!=null&&look!=null&&look.stylizedLook==runtime)runtime.bloomEnabled=enabled;}
   public void Release()
   {
-   CapturePointer(false);pendingInitial=false;startupCameraObserved=false;startupRenderedCamera=null;CancelStartupCameraWait();if(!leased)return;
+   CapturePointer(false);MaterialComparisonActive=false;pendingInitial=false;startupCameraObserved=false;startupRenderedCamera=null;CancelStartupCameraWait();if(!leased)return;
    if(boundGroundRegistration!=null&&boundGroundRegistration.enabled==writtenGroundEnabled)boundGroundRegistration.enabled=priorGroundEnabled;
    if(boundSky!=null){if(boundSky.overrideSkyColors==writtenSkyOverride)boundSky.overrideSkyColors=priorSkyOverride;if(boundSky.sceneEnvironmentProfile==writtenSceneProfile)boundSky.sceneEnvironmentProfile=priorSceneProfile;if(boundSky.sceneEnvironmentEnabled==writtenSceneEnabled)boundSky.sceneEnvironmentEnabled=priorSceneEnabled;}
    if(boundEnvironment!=null){EnvironmentState.RestoreOwned(boundEnvironment,beforeEnvironment,writtenEnvironment);boundEnvironment.RefreshNow();}
@@ -187,7 +204,9 @@ namespace Ossastra.WorldRendering.Stylization
     GUILayout.BeginHorizontal();if(GUILayout.Button("A 上轮原样"))TrySetState(SurfaceLightingState.Previous,out _);if(GUILayout.Button("B 材质与布光"))TrySetState(SurfaceLightingState.MaterialLighting,out _);if(GUILayout.Button("C 强蓝完整"))TrySetState(SurfaceLightingState.BlueComplete,out _);GUILayout.EndHorizontal();
     GUILayout.Label("实际后端 "+(finiteToon!=null?finiteToon.Variant.ToString():"缺失")+" / "+boundObjectCount+"物体 "+boundSlotCount+"槽 / "+(Application.isEditor?"Editor":"Player"));
     if(State==SurfaceLightingState.BlueComplete&&runtime!=null){bool pixel=GUILayout.Toggle(runtime.pixelSize==2,"2像素（默认关闭；HUD原分辨率）");SetPixel(pixel);}
-    GUILayout.Label(Status);advanced=GUILayout.Toggle(advanced,"开发分项对照");if(advanced){GUILayout.BeginHorizontal();if(GUILayout.Button("原材质"))TrySetMaterialDiagnostic(LookDevToonVariant.Original,out _);if(GUILayout.Button("自主基准"))TrySetMaterialDiagnostic(LookDevToonVariant.ThreeBand,out _);if(finiteToon!=null&&finiteToon.RealToonAvailable&&GUILayout.Button("RealToon"))TrySetMaterialDiagnostic(LookDevToonVariant.RealToon,out _);GUILayout.EndHorizontal();GUILayout.BeginHorizontal();if(GUILayout.Button("主光"))SetLightContributions(true,false);if(GUILayout.Button("填充"))SetLightContributions(false,true);if(GUILayout.Button("组合"))SetLightContributions(true,true);GUILayout.EndHorizontal();GUILayout.BeginHorizontal();if(GUILayout.Button("窗灯全开"))SetWindow(true,true);if(GUILayout.Button("只灯芯"))SetWindow(false,true);if(GUILayout.Button("只实光"))SetWindow(true,false);GUILayout.EndHorizontal();if(State==SurfaceLightingState.BlueComplete&&runtime!=null)SetBloom(GUILayout.Toggle(runtime.bloomEnabled,"宽Bloom单项对照"));GUILayout.Label("完整状态比较含布光变化；同灯材质对照另由测试记录提供。参数只改运行副本。");}
+    GUILayout.Label(Status);advanced=GUILayout.Toggle(advanced,"开发分项对照");if(advanced){GUILayout.BeginHorizontal();if(GUILayout.Button("原材质"))TrySetMaterialDiagnostic(LookDevToonVariant.Original,out _);if(GUILayout.Button("自主基准"))TrySetMaterialDiagnostic(LookDevToonVariant.ThreeBand,out _);if(finiteToon!=null&&finiteToon.RealToonAvailable&&GUILayout.Button("RealToon"))TrySetMaterialDiagnostic(LookDevToonVariant.RealToon,out _);if(finiteToon!=null&&finiteToon.ToonSurface01Available&&GUILayout.Button("ToonSurface01"))TrySetMaterialDiagnostic(LookDevToonVariant.ToonSurface01,out _);GUILayout.EndHorizontal();
+    if(finiteToon!=null&&finiteToon.ToonSurface01Available){GUILayout.BeginHorizontal();if(GUILayout.Button("材质比较：中性日光"))TrySetMaterialComparisonLighting(false,out _);if(GUILayout.Button("材质比较：蓝夜暖窗"))TrySetMaterialComparisonLighting(true,out _);GUILayout.EndHorizontal();if(!finiteToon.RealToonAvailable)GUILayout.Label("RealToon当前不可对照：缺少已验证后端或Player保留变体");if(finiteToon.Variant==LookDevToonVariant.ToonSurface01){bool ramp=finiteToon.ToonSurfaceRampEnabled,spec=finiteToon.ToonSurfaceSpecularEnabled,rim=finiteToon.ToonSurfaceRimEnabled;GUILayout.BeginHorizontal();bool nr=GUILayout.Toggle(ramp,"Ramp"),ns=GUILayout.Toggle(spec,"允许Specular"),ni=GUILayout.Toggle(rim,"允许Rim");GUILayout.EndHorizontal();if(nr!=ramp||ns!=spec||ni!=rim)TrySetToonSurfaceFeatureDiagnostic(nr,ns,ni,out _);GUILayout.Label("三个独立许可×各材质作者开关；灰泥/木材不强制产生高光。");}}
+    GUILayout.BeginHorizontal();if(GUILayout.Button("主光"))SetLightContributions(true,false);if(GUILayout.Button("填充"))SetLightContributions(false,true);if(GUILayout.Button("组合"))SetLightContributions(true,true);GUILayout.EndHorizontal();GUILayout.BeginHorizontal();if(GUILayout.Button("窗灯全开"))SetWindow(true,true);if(GUILayout.Button("只灯芯"))SetWindow(false,true);if(GUILayout.Button("只实光"))SetWindow(true,false);GUILayout.EndHorizontal();if(State==SurfaceLightingState.BlueComplete&&runtime!=null)SetBloom(GUILayout.Toggle(runtime.bloomEnabled,"宽Bloom单项对照"));GUILayout.Label("完整状态比较含布光变化；同灯材质对照另由测试记录提供。参数只改运行副本。");}
    }finally{GUILayout.EndArea();GUI.skin=previous;}
   }
   static string StateLabel(SurfaceLightingState s)=>s==SurfaceLightingState.Previous?"A 上轮原样":s==SurfaceLightingState.MaterialLighting?"B 材质与布光":"C 强蓝完整";

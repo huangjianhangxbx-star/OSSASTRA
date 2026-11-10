@@ -1,0 +1,8 @@
+{
+  "note":"Starting coefficients only; preserve each slot BaseMap, BaseColor, vertex-color switch and geometry, then tune in the two real lighting conditions. Colors are not sampled from a reference work.",
+  "shared":{"_ToonRampEnabled":1,"_ToonThresholds":[0.32,0.70,0.05,0],"_ToonSpecularThreshold":0.9,"_ToonSpecularSoftness":0.025,"_ToonSpecularColor":[1,0.97,0.9,1],"_ToonRimEnabled":0,"_ToonRimExponent":4,"_ToonRimColor":[1,0.97,0.9,1]},
+  "plaster":{"_ToonDarkColor":[0.37,0.44,0.55,1],"_ToonMidColor":[0.72,0.75,0.75,1],"_ToonLightColor":[1,0.98,0.9,1],"_ToonShadowColor":[0.78,0.87,1,1],"_ToonSpecularEnabled":0,"_ToonSpecularStrength":0,"_ToonRimStrength":0.035},
+  "timber":{"_ToonDarkColor":[0.22,0.26,0.34,1],"_ToonMidColor":[0.7,0.63,0.54,1],"_ToonLightColor":[1.03,0.96,0.84,1],"_ToonShadowColor":[0.65,0.75,1,1],"_ToonSpecularEnabled":0,"_ToonSpecularStrength":0,"_ToonRimStrength":0.05},
+  "roof":{"_ToonDarkColor":[0.3,0.38,0.49,1],"_ToonMidColor":[0.7,0.73,0.77,1],"_ToonLightColor":[1.02,1,0.95,1],"_ToonShadowColor":[0.78,0.87,1,1],"_ToonSpecularEnabled":0,"_ToonSpecularStrength":0.005,"_ToonRimStrength":0.04},
+  "stone":{"_ToonDarkColor":[0.24,0.36,0.39,1],"_ToonMidColor":[0.64,0.71,0.72,1],"_ToonLightColor":[0.97,1,0.98,1],"_ToonShadowColor":[0.68,0.85,1,1],"_ToonSpecularEnabled":1,"_ToonSpecularStrength":0.035,"_ToonRimStrength":0.07}
+}

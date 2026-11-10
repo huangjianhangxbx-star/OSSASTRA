@@ -389,6 +389,9 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
             if (family == RoomPositiveRenderingLayers.PartialDecorationBit && IsGrassSource(source))
             { pass = source.FindPass("RoomSight"); return pass < 0 ? null : source.shader; }
             if ((family == RoomPositiveRenderingLayers.PartialLitBit || family == RoomPositiveRenderingLayers.RoofBit) &&
+                RoomPositiveRenderingLayers.IsToonSurface01(source))
+                return feature.positiveToonSurface01Shader;
+            if ((family == RoomPositiveRenderingLayers.PartialLitBit || family == RoomPositiveRenderingLayers.RoofBit) &&
                 RoomPositiveRenderingLayers.IsFiniteRealToon(source))
                 return feature.positiveRealToonLocalShader;
             if ((family == RoomPositiveRenderingLayers.PartialLitBit || family == RoomPositiveRenderingLayers.RoofBit) &&

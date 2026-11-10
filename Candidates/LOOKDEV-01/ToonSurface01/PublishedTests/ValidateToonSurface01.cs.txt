@@ -1,0 +1,20 @@
+using System;
+using UnityEngine;
+using Funplay.Editor.Tools.Scripting;
+public class ValidateToonSurface01 : IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  const string normal="Ossastra/WorldRendering/ToonSurface01";
+  const string sight="Ossastra/WorldRendering/SightToonSurface01";
+  var a=Shader.Find(normal);var b=Shader.Find(sight);
+  if(a==null||b==null)throw new InvalidOperationException("ToonSurface01 implementation missing: "+(a==null?normal:sight));
+  var material=new Material(a);
+  try{
+   foreach(var property in new[]{"_ToonRampEnabled","_ToonSpecularEnabled","_ToonRimEnabled","_ToonThresholds","_ToonDarkColor","_ToonMidColor","_ToonLightColor","_ToonShadowColor","_RoomSightRoofMode","_RoomSightCutRoof"})
+    if(!material.HasProperty(property))throw new InvalidOperationException("Missing material input: "+property);
+   foreach(var name in new[]{"ForwardLit","ShadowCaster","DepthOnly","DepthNormals"})if(material.FindPass(name)<0)throw new InvalidOperationException("Missing pass "+name);
+   ctx.ReturnValue=new{pass=true,normal=a.name,sight=b.name,forward=material.FindPass("ForwardLit")};
+  }finally{UnityEngine.Object.DestroyImmediate(material);}
+ }
+}

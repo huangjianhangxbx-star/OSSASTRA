@@ -693,3 +693,6 @@ Root/子源码与Unity租约释放；Git仅定向发布源/meta/合同/文档，
 Final Release实际自动启动/同版A/B/C/A4x300有效；C整帧p50/p9529.529/32.768ms，GPU28.540/29.298ms，对重复A中位+1.094ms，GPU .5预算NotMet、纯有效CPU .3 Unknown、稳定60NotMet；跟踪资源/控制归还。14真正Room颜色draw适配F0/O4/关键词匹配，17缓存不冒充17绘制；SS阈值分支未确证。Stage15、Ground6/8/8、Recipe10、retention12/12、startup生命周期8及旧GPU11/资源13通过；攻击仍原missing-frozen-animation-plan未通过。
 初包/P1实际预检失败已留档：材料CopyProperties属性缓存与URP首相机前Pass=-1，分别修Shader声明检查和首次明确相机渲染后一次initial尝试；保留gate，不固定sleep/不循环retry。Final0error/21既有警告，缓存构建17秒。临时两probe组件/源码/metaNative清除，候选冷读0missing/17槽/C1px/保留有效/正常窗尺寸读回。独立视觉自评9/10，远景接缝/空气纵深/角色既有偏淡保留，视觉待用户；不自动Main回接。
 Root及子Unity/源码writer释放，Git仅定向自有源/meta/合同/文档，原43dirty排除；发布以publication.json实证。完成定向发布后执行最新用户关机授权；无下一阶段自动任务。
+
+## LOOKDEV-01 v1.3 ToonSurface01 verified candidate（2026-11-11）
+独立6Shader/HLSL+4模板/7物体17槽，source+original有限13克隆，Room精确新家族/Renderer18。Math19、Integration17、生产Forward独立输入12与实际Room17槽匹配通过；同版Release两灯八相位/16图/30秒八步旋转完成。ToonGPU整帧新增p50/p95日.362/.163ms、夜.295/.424ms在.5ms门内；总24–25ms仍非60，CPU有效Unknown。Main38根归还/单场Edit45/dirtytrue未保存，前后安全副本完整序列化相同，32保护/2源档SHA保持，临时探针清除，Lab冷读通过。候选非Main默认，素材/场景仅本机；定向Git待publication核验后连续草v1.3，关机延后两轮完成。

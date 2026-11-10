@@ -1,0 +1,23 @@
+'use strict';
+function number(v){return typeof v==='number'&&Number.isFinite(v)?v:null;}
+function metric(raw,gpu=false){const samples=number(raw?.samples);let available=raw?.available===true&&samples>0;const result={available:false,samples:samples??0,p50:null,p95:null,rejected:number(raw?.rejected)??0,missing:number(raw?.missing)??0};for(const q of ['p50','p95']){let v=number(raw?.[q]);if(v===null||v<0||(gpu&&(v<=0||v>1000)))available=false;result[q]=v;}if(available)result.available=true;else result.p50=result.p95=null;return result;}
+function drift(first,last){const out={flagged:null,p50:null,p95:null};for(const q of ['p50','p95'])if(first[q]!==null&&last[q]!==null){const delta=last[q]-first[q],limit=Math.max(.5,Math.abs(first[q])*.05);out[q]={delta,tolerance:limit,flagged:Math.abs(delta)>limit};}if(out.p50&&out.p95)out.flagged=out.p50.flagged||out.p95.flagged;return out;}
+function increment(current,first,last,weight,reliable,status='Unknown'){const out={status,p50:null,p95:null,targetMs:.5,baseline:{p50:null,p95:null},weight};for(const q of ['p50','p95'])if(current[q]!==null&&first[q]!==null&&last[q]!==null){out.baseline[q]=first[q]+(last[q]-first[q])*weight;out[q]=current[q]-out.baseline[q];}if(reliable&&out.p50!==null&&out.p95!==null)out.status=Math.max(out.p50,out.p95)>.5?'NotMet':'Met';return out;}
+function styleBypassed(p){let r;try{r=JSON.parse(p.profileJson);}catch{return false;}return p.pixelSize===1&&p.bands===0&&r.pixelSize===1&&r.themeEnabled===false&&r.airEnabled===false&&r.bloomEnabled===false&&r.bandsEnabled===false;}
+function summarize(raw){
+ const phases=Array.isArray(raw?.phases)?raw.phases:[];
+ const phaseComplete=p=>Boolean(p)&&p.cameraFrames>=300&&p.uniqueFrameTiming===p.cameraFrames&&p.missingFrameTiming===0&&p.duplicateFrameTiming===0&&p.backgroundFrames===0&&p.focusedFrames===p.cameraFrames&&p.environmentClockRunning===false&&styleBypassed(p);
+ let formal=raw?.completed===true&&raw.controlsRestored===true&&raw.editor===false&&raw.developmentBuild===false&&raw.width===1600&&raw.height===900&&raw.warmFrames>=60&&raw.sampleFrames>=300&&raw.quality?.certified===true&&Array.isArray(raw.errors)&&raw.errors.length===0&&phases.length===8;
+ for(let i=0;i<8;i++){const p=phases[i],expected=['Original','RealToon','ToonSurface01','Original'][i%4];if(!p||p.toon!==expected||p.lighting!==(i<4?'NeutralDay':'BlueNight'))formal=false;if(p?.unavailableReason){if(expected!=='RealToon')formal=false;}else if(!phaseComplete(p))formal=false;}
+ const lightingGroups=[];
+ for(let group=0;group<2;group++){
+  const a=phases[group*4]??{},z=phases[group*4+3]??{},ag=metric(a.gpuFrame,true),zg=metric(z.gpuFrame,true),aw=metric(a.wall),zw=metric(z.wall);
+  const baselineDrift={gpu:drift(ag,zg),frame:drift(aw,zw)};
+  const stable=baselineDrift.gpu.flagged===false&&baselineDrift.frame.flagged===false;
+  function row(offset){const p=phases[group*4+offset]??{},gpu=metric(p.gpuFrame,true),frame=metric(p.wall),unavailable=Boolean(p.unavailableReason);const gpuReliable=formal&&stable&&!unavailable&&gpu.available&&ag.available&&zg.available&&gpu.samples>=30&&ag.samples>=30&&zg.samples>=30&&gpu.rejected===0&&ag.rejected===0&&zg.rejected===0;return{name:p.name??null,available:!unavailable,unavailableReason:p.unavailableReason??null,frame,gpu,cpuMainInclusive:metric(p.cpuMainInclusive),cpuRenderInclusive:metric(p.cpuRenderInclusive),gpuIncrement:increment(gpu,ag,zg,offset/3,gpuReliable,unavailable?'Unavailable':'Unknown'),cpuEffectiveIncrement:{status:'Unknown',p50:null,p95:null,reason:'Inclusive CPU and residual do not establish complete exclusive effective work'},cameraFrames:p.cameraFrames??0,focusedFrames:p.focusedFrames??0};}
+  lightingGroups.push({lighting:group?'BlueNight':'NeutralDay',originalBefore:row(0),realToon:row(1),toonSurface01:row(2),originalAfter:row(3),baselineDrift});
+ }
+ const allFrames=phases.map(p=>metric(p.wall).p95).filter(v=>v!==null);
+ return{schema:'ToonSurfaceMaterialCost/v1',formalConditions:formal,completed:raw?.completed??false,controlsRestored:raw?.controlsRestored??false,device:raw?.device??null,resolution:[raw?.width??null,raw?.height??null],quality:raw?.quality??null,grass:raw?.grass??null,lightingGroups,stable60:{status:allFrames.some(v=>v>1000/60)?'NotMet':'Unknown',targetFrameMs:1000/60},errors:raw?.errors??[],interpretation:'Descriptive whole-frame quantile differences within each fixed lighting group; Original endpoints interpolated by phase order. No exclusive shader-stage cost, no CPU work inferred from waits. Missing GPU remains null. A skipped RealToon is unavailable, never a substituted equivalent. Short comparison cannot certify sustained 60 FPS.'};
+}
+module.exports={summarize};

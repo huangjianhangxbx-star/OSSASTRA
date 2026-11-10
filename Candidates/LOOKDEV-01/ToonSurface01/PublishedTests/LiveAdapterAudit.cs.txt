@@ -1,0 +1,99 @@
+using System;
+using System.IO;
+using System.Linq;
+using System.Collections;
+using System.Collections.Generic;
+using System.Reflection;
+using System.Security.Cryptography;
+using UnityEngine;
+using UnityEditor;
+using UnityEngine.SceneManagement;
+using UnityEngine.Rendering.Universal;
+using Newtonsoft.Json.Linq;
+using Ossastra.WorldRendering.Stylization;
+using Ossastra.SceneVisibility.Rooms.Rendering;
+using Funplay.Editor.Tools.Scripting;
+
+// Unity observation only. File writes are bounded audit evidence; no rendering,
+// material mutation, feature switch, refresh, component addition or focus action.
+public class LiveToonSurface01AdapterAudit : IFunplayCommand
+{
+ const string Root="Assets/OSSASTRA/WorldRendering/Stylization/SurfaceLighting/ToonSurface01";
+ const string Evidence="artifacts/LOOKDEV-01/ToonSurface01";
+ const string SourceName="Ossastra/WorldRendering/ToonSurface01";
+ const string AdapterName="Ossastra/WorldRendering/SightToonSurface01";
+ static object Member(object value,string name){if(value==null)return null;var t=value.GetType();var field=t.GetField(name,BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Instance);if(field!=null)return field.GetValue(value);return t.GetProperty(name,BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Instance)?.GetValue(value);}
+ static string PathOf(Transform t)=>t.parent==null?t.name:PathOf(t.parent)+"/"+t.name;
+ static object V(Vector2 v)=>new{x=v.x,y=v.y};
+ static object C(Color c)=>new{r=c.r,g=c.g,b=c.b,a=c.a};
+ static string Sha(string path){using(var hash=SHA256.Create())using(var input=File.OpenRead(path))return BitConverter.ToString(hash.ComputeHash(input)).Replace("-","");}
+ static string TexturePath(Material m,string name)=>m!=null&&m.HasProperty(name)?AssetDatabase.GetAssetPath(m.GetTexture(name)):null;
+ static object Describe(Material m)
+ {
+  if(m==null)return null;
+  return new{name=m.name,instance=m.GetInstanceID(),asset=AssetDatabase.GetAssetPath(m),shader=m.shader==null?null:m.shader.name,supported=m.shader!=null&&m.shader.isSupported,
+   forward=m.FindPass("ForwardLit"),shadowCaster=m.FindPass("ShadowCaster"),depthOnly=m.FindPass("DepthOnly"),depthNormals=m.FindPass("DepthNormals"),
+   keywords=m.shaderKeywords.OrderBy(x=>x,StringComparer.Ordinal).ToArray(),crc=m.ComputeCRC(),hideFlags=m.hideFlags.ToString(),
+   baseColor=m.HasProperty("_BaseColor")?C(m.GetColor("_BaseColor")):null,baseMap=TexturePath(m,"_BaseMap"),baseMapInstance=m.HasProperty("_BaseMap")&&m.GetTexture("_BaseMap")!=null?m.GetTexture("_BaseMap").GetInstanceID():0,
+   scale=m.HasProperty("_BaseMap")?V(m.GetTextureScale("_BaseMap")):null,offset=m.HasProperty("_BaseMap")?V(m.GetTextureOffset("_BaseMap")):null,
+   vertexColors=m.HasProperty("_VoxelVertexColors")?(float?)m.GetFloat("_VoxelVertexColors"):null,
+   ramp=m.HasProperty("_ToonRampEnabled")?(float?)m.GetFloat("_ToonRampEnabled"):null,specular=m.HasProperty("_ToonSpecularEnabled")?(float?)m.GetFloat("_ToonSpecularEnabled"):null,rim=m.HasProperty("_ToonRimEnabled")?(float?)m.GetFloat("_ToonRimEnabled"):null};
+ }
+ sealed class AdapterRow{public Material Source,Adapter,Clone;public int Pass;public string Kind;}
+ static List<AdapterRow> Adapters(object pass)
+ {
+  var rows=new List<AdapterRow>();var active=Member(Member(pass,"materialBuckets"),"Active") as IEnumerable;
+  if(active!=null)foreach(var bucket in active){var source=Member(bucket,"Original") as Material;var adapter=Member(bucket,"Adapter") as Material;var clone=Member(bucket,"Clone") as Material;if(source!=null&&adapter!=null)rows.Add(new AdapterRow{Source=source,Adapter=adapter,Clone=clone,Pass=Convert.ToInt32(Member(bucket,"Pass")),Kind="color-bucket"});}
+  var others=Member(pass,"materials") as IDictionary;if(others!=null)foreach(DictionaryEntry entry in others){var adapter=entry.Value as Material;var source=Member(entry.Key,"Material") as Material;if(source==null)source=Member(entry.Key,"Source") as Material;if(source!=null&&adapter!=null)rows.Add(new AdapterRow{Source=source,Adapter=adapter,Pass=adapter.FindPass("ForwardLit"),Kind=adapter.shader!=null&&adapter.shader.name==AdapterName?"color-independent":"auxiliary-truth-or-other"});}
+  return rows;
+ }
+ static bool SameBaseInputs(Material source,Material actual)
+ {
+  if(source==null||actual==null)return false;
+  if(source.HasProperty("_BaseColor")&&(!actual.HasProperty("_BaseColor")||source.GetColor("_BaseColor")!=actual.GetColor("_BaseColor")))return false;
+  if(source.HasProperty("_BaseMap")&&(!actual.HasProperty("_BaseMap")||source.GetTexture("_BaseMap")!=actual.GetTexture("_BaseMap")||source.GetTextureScale("_BaseMap")!=actual.GetTextureScale("_BaseMap")||source.GetTextureOffset("_BaseMap")!=actual.GetTextureOffset("_BaseMap")))return false;
+  float vertex=source.HasProperty("_VoxelVertexColors")?source.GetFloat("_VoxelVertexColors"):0;
+  return actual.HasProperty("_VoxelVertexColors")&&Mathf.Abs(actual.GetFloat("_VoxelVertexColors")-vertex)<.000001f;
+ }
+ static List<string> ManifestDifferences(Material material,string category,JObject spec)
+ {
+  var differences=new List<string>();var fields=(JObject)spec["shared"];var categoryFields=(JObject)spec[category];var merged=(JObject)fields.DeepClone();merged.Merge(categoryFields,new Newtonsoft.Json.Linq.JsonMergeSettings{MergeArrayHandling=MergeArrayHandling.Replace});if(category=="stone")merged["_ToonRimEnabled"]=1;
+  foreach(var p in merged.Properties())
+  {
+   if(!material.HasProperty(p.Name)){differences.Add(p.Name+": missing");continue;}
+   if(p.Value is JArray a){var expected=new Vector4((float)a[0],(float)a[1],(float)a[2],(float)a[3]);Vector4 actual;if(p.Name.EndsWith("Color",StringComparison.Ordinal)){var c=material.GetColor(p.Name);actual=new Vector4(c.r,c.g,c.b,c.a);}else actual=material.GetVector(p.Name);if((actual-expected).sqrMagnitude>1e-10f)differences.Add(p.Name+": differs from setup initial coefficient");}
+   else if(Mathf.Abs(material.GetFloat(p.Name)-(float)p.Value)>1e-6f)differences.Add(p.Name+": differs from setup initial coefficient");
+  }
+  return differences;
+ }
+ public void Execute(ExecutionContext ctx)
+ {
+  if(!Application.isPlaying)throw new Exception("Play-only readonly audit");var scene=SceneManager.GetActiveScene();if(scene.path!=Root+"/SC_ToonSurface01Lab.unity")throw new Exception("Exact active ToonSurface01 Lab required");
+  var recipe=scene.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<SurfaceLightingRecipe>(true)).Single();var finite=recipe.finiteToon;
+  if(finite==null||!recipe.HasLease||finite.Variant!=LookDevToonVariant.ToonSurface01||finite.Bindings.Count!=17)throw new Exception("Expected active owned 17-slot ToonSurface01 state; no state changed");
+  var camera=recipe.environment.gameplayCamera;if(camera==null||camera.gameObject.scene!=scene)throw new Exception("Explicit Lab camera missing");var data=AssetDatabase.LoadAssetAtPath<ScriptableRendererData>(Root+"/ToonSurface01_Renderer.asset");if(data==null)throw new Exception("Explicit Lab renderer missing");var feature=data.rendererFeatures.OfType<RoomMaskRendererFeature>().Single();
+  var cameras=Member(feature,"positiveCameras") as IDictionary;var pass=cameras!=null&&cameras.Contains(camera.GetInstanceID())?cameras[camera.GetInstanceID()]:null;var adapters=Adapters(pass);var originals=Member(Member(pass,"materialBuckets"),"originalsByClone") as IDictionary;
+  var rows=new List<object>();int inputMismatch=0,currentMismatch=0,colorMismatch=0,noColorCache=0,matchedSlots=0;var observedColor=new HashSet<int>();
+  foreach(var b in finite.Bindings)
+  {
+   var slots=b.renderer.sharedMaterials;var shared=b.materialSlot>=0&&b.materialSlot<slots.Length?slots[b.materialSlot]:null;var resolved=shared;if(shared!=null&&originals!=null&&originals.Contains(shared))resolved=originals[shared] as Material;
+   var selected=finite.SelectedMaterial(b);bool currentMatches=resolved==selected&&selected!=null&&selected.shader!=null&&selected.shader.name==SourceName;if(!currentMatches)currentMismatch++;
+   bool inputs=SameBaseInputs(b.original,selected);if(!inputs)inputMismatch++;
+   var associated=adapters.Where(a=>a.Source==selected).ToArray();var colors=associated.Where(a=>a.Adapter.shader!=null&&a.Adapter.shader.name==AdapterName).ToArray();if(colors.Length==0)noColorCache++;else matchedSlots++;
+   foreach(var a in colors){observedColor.Add(a.Adapter.GetInstanceID());bool passMatches=a.Pass>=0&&a.Pass==a.Adapter.FindPass("ForwardLit");bool properties=SameBaseInputs(selected,a.Adapter)&&new[]{"_ToonRampEnabled","_ToonSpecularEnabled","_ToonRimEnabled"}.All(n=>selected.HasProperty(n)&&a.Adapter.HasProperty(n)&&Mathf.Abs(selected.GetFloat(n)-a.Adapter.GetFloat(n))<1e-6f);if(!passMatches||!properties)colorMismatch++;}
+   rows.Add(new{renderer=PathOf(b.renderer.transform),slot=b.materialSlot,visibleHint=b.renderer.isVisible,original=Describe(b.original),template=Describe(b.toonSurface01),selected=Describe(selected),currentSlot=Describe(shared),resolvedCurrent=Describe(resolved),currentMatches,inputMatches=inputs,
+    cachedColor=colors.Select(a=>new{kind=a.Kind,scheduledPass=a.Pass,adapter=Describe(a.Adapter),casterClone=Describe(a.Clone)}).ToArray(),auxiliary=associated.Where(a=>a.Adapter.shader==null||a.Adapter.shader.name!=AdapterName).Select(a=>new{kind=a.Kind,material=Describe(a.Adapter)}).ToArray()});
+  }
+  var spec=JObject.Parse(File.ReadAllText("Candidates/LOOKDEV-01/ToonSurface01/Shader/material-initial-values.json"));var templates=finite.Bindings.Select(b=>b.toonSurface01).Distinct().ToArray();var authorRows=templates.Select(m=>{string category=m.name.Substring("ToonSurface01_".Length);string asset=AssetDatabase.GetAssetPath(m);return new{category,path=asset,sha256=Sha(asset),crc=m.ComputeCRC(),dirty=EditorUtility.IsDirty(m),notRuntimeAliased=finite.Bindings.All(b=>finite.SelectedMaterial(b)!=m),initialManifestDifferences=ManifestDifferences(m,category,spec)};}).ToArray();
+  string authorBaselinePath=Evidence+"/author-template-first-audit.json";bool authorBaselineAlreadyExists=File.Exists(authorBaselinePath);if(!authorBaselineAlreadyExists)File.WriteAllText(authorBaselinePath,Newtonsoft.Json.JsonConvert.SerializeObject(new{origin="First readonly live audit, not pre-setup or pre-initial-Play",rows=authorRows},Newtonsoft.Json.Formatting.Indented));var authorBaseline=JObject.Parse(File.ReadAllText(authorBaselinePath));var authorChanges=authorRows.Where(row=>!authorBaseline["rows"].Any(old=>(string)old["path"]==row.path&&(string)old["sha256"]==row.sha256)).Select(row=>row.path).ToArray();
+  var main=SceneManager.GetSceneByPath("Assets/OSSASTRA/GroundWorkshop/Samples/KT-VIS-04/SC_RoomVisibilityLab.unity");var mainCandidates=main.IsValid()&&main.isLoaded?main.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<Renderer>(true)).SelectMany(r=>r.sharedMaterials.Where(m=>m!=null&&m.shader!=null&&(m.shader.name==SourceName||m.shader.name==AdapterName)).Select(m=>new{renderer=PathOf(r.transform),material=m.name,shader=m.shader.name})).ToArray():null;
+  var protectedChanges=new List<string>();int protectedCount=0;var protectedFile=Evidence+"/protected-sha.json";if(File.Exists(protectedFile))foreach(var entry in JArray.Parse(File.ReadAllText(protectedFile))){string path=(string)entry["path"],expected=(string)entry["sha256"];protectedCount++;if(!File.Exists(path)||!string.Equals(Sha(path),expected,StringComparison.OrdinalIgnoreCase))protectedChanges.Add(path);}
+  var panel=(Rect)typeof(SurfaceLightingRecipe).GetProperty("Panel",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(recipe);var skin=Member(recipe,"skin") as GUISkin;float? statusHeight=skin==null?null:(float?)skin.label.CalcHeight(new GUIContent(recipe.Status),panel.width-18);
+  var result=new{frame=Time.frameCount,utc=DateTime.UtcNow.ToString("O"),scene=scene.path,variant=finite.Variant.ToString(),bindings=finite.Bindings.Count,ownedRuntimeMaterials=finite.OwnedToonSurfaceMaterialCount,passAvailable=pass!=null,slotCurrentMismatch=currentMismatch,inputMismatch,colorPropertyOrPassMismatch=colorMismatch,slotsWithColorCache=matchedSlots,slotsWithoutColorCache=noColorCache,distinctColorAdapters=observedColor.Count,rows,
+   authorTemplates=new{count=authorRows.Length,rows=authorRows,baselineAlreadyExisted=authorBaselineAlreadyExists,changedSinceFirstAudit=authorChanges,baselineOrigin="first readonly live audit; initial-manifest comparison is separate"},
+   foreignMain=new{loaded=main.IsValid()&&main.isLoaded,dirty=main.IsValid()?main.isDirty:false,rootCount=main.IsValid()&&main.isLoaded?main.rootCount:0,activeRoots=main.IsValid()&&main.isLoaded?main.GetRootGameObjects().Count(g=>g.activeSelf):0,newCandidateReferences=mainCandidates},protectedFiles=new{count=protectedCount,changed=protectedChanges},
+   panel=new{x=panel.x,y=panel.y,width=panel.width,height=panel.height,screenHeight=Screen.height,fitsViewport=panel.yMax<=Screen.height,currentStatusHeight=statusHeight,note="Existing advanced height is540 when new candidate is configured,430 for legacy. This is a layout budget observation, not an actual IMGUI clipping measurement."},
+   note="Reads retained current-camera CPU material adapter caches. A matched color adapter/pass is scheduling evidence, not a GPU instruction capture or proof that every registered slot produced visible pixels. Source/caster/auxiliary truth are separate. Foreign Main check proves no new-shader references and protected disk hashes, not an unsampled complete in-memory diff."};
+  string output=Evidence+"/live-adapter-audit-"+DateTime.UtcNow.ToString("yyyyMMdd-HHmmssfff")+".json";File.WriteAllText(output,Newtonsoft.Json.JsonConvert.SerializeObject(result,Newtonsoft.Json.Formatting.Indented));ctx.ReturnValue=new{output,currentMismatch,inputMismatch,colorMismatch,matchedSlots,noColorCache,distinctColorAdapters=observedColor.Count,authorTemplates=templates.Length,authorChanges,mainCandidateReferences=mainCandidates==null?-1:mainCandidates.Length,protectedChanges,panelHeight=panel.height,panelFits=panel.yMax<=Screen.height,limitations="Retained color-cache observation; pair with real rendered/GPU evidence."};
+ }
+}

@@ -1183,3 +1183,15 @@ LOOKDEV M0 Root Native租约：Assets/OSSASTRA/WorldRendering/Stylization/SC_Sty
 2026-11-10 v1.2范围实现调整：基础染色helper独立为EnvironmentSimulation/Rendering/SurfaceLightingGroundChroma.hlsl（默认0），不改EnvironmentLighting.hlsl以免无关角色/插件重编。其余已登记入口与生命周期不变。
 
 2026-11-10 v1.2 candidate-delivered / Unity+source writers released：候选和Main冷读恢复、保护SHA通过，Final4x300/实际图完整；预算NotMet/CPU有效Unknown、视觉待用户、SS分支未确证、攻击旧阻断不代签。两个诊断组件/源码/meta清除。Root/子writer释放，仅Git定向发布与已授权正常关机收尾，不回接Main、不再迭代。详细证据见专属交付；具体SHA以publication.json核验。
+
+
+## 2026-11-10 LOOKDEV-01 v1.3 ToonSurface01 active / Root unity-writer
+用户明确执行独立Toon材质计划并完成后关机。Root唯一Unity/生产/Git，独占Candidates/artifacts/docs的LOOKDEV-01/ToonSurface01，新Assets/OSSASTRA/WorldRendering/Stylization/SurfaceLighting/ToonSurface01及Scripts同名子目录；共享仅有限档与现有Room最小精确适配，读取后逐文件登记。不改原VoxelLit/CHAR/草Shader/天气/后处理/A-B-C默认，不修改design/开发细则或用户维护。shader/integration/validation三子各自仅候选目录，无Unity/生产权。Main未保存dirtytrue必须保留；实际草已是2022簇，不引用旧38106成本。原43dirty不夹带。源/原场快照后隔离Lab，M1→M3实际Draw/同条件Player/成本/恢复，再交付与电源动作。
+
+ToonSurface01 Root共享精确租约细化：LookDevFiniteToon.cs、SurfaceLightingRecipe.cs、Rooms/Rendering/RoomPositiveRenderingLayers.cs、RoomPositivePass.cs、RoomMaskRendererFeature.cs；五文件以Integration manifest逐SHA核对接入。新增精确源家族与Sight引用，不改RoomSight/许可规则/桶算法；四作者模板按(template, original)创建有限运行克隆保BaseMap/BaseColor/UV/vertex行为。Math GPU19已实机通过，接口旧版RED5已留。Native独立Renderer克隆追加索引并只赋本Lab；旧Renderer/默认不改。
+
+## 2026-11-11 用户追加顺序授权：ToonSurface01 → GitHub → VEGETATION-01A v1.3
+当前ToonSurface01继续完整M1–M3，不中断或并行抢Unity。完成上一轮后先定向上传GitHub保存，再直接开始用户粘贴的草表示法纠偏计划：近/中/远分级、非十字几何、根少顶多、顶向上/全向上法线、Y轴billboard、无投影/可控接收、全局/阵风/接触压草回弹、地表融合、独立Lab后主场局部验证。禁止把新计划误作继续调旧卡片。用户要求连续完成；关机授权延后到两轮都完成，不能在Toon交付时先关机。草计划原文须单独落盘后开始，不擅自省掉接触扰动或三档表示。新草作者/Shader变更需顺序重新登记，当前Toon仍不得改草Shader。
+
+## 2026-11-11 LOOKDEV-01 v1.3 candidate complete / writers released
+本轮实现/同版Player/恢复完成，Root与shader/integration/validation源码和Unity writer全部释放。GPU新增门通过但总帧60未过；原43dirty不夹带，Main未保存dirtytrue恢复，32保护/2原档SHA相同。只剩精确GitHub发布核验；成功后依用户顺序进入VEGETATION-01A v1.3新计划，当前不关机。详专属交付与publication回执。

@@ -25,6 +25,8 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
         public Shader positiveLitShader, positiveUnlitShader, positiveSimpleLitShader;
         [Tooltip("显式VoxelLit源的许可绘制Shader；与原Lit共用调度位，不依赖Shader.Find保留构建变体。")]
         public Shader positiveVoxelLitShader;
+        [Tooltip("Optional isolated ToonSurface01 Room implementation; null rejects that exact family before takeover.")]
+        public Shader positiveToonSurface01Shader;
         [Tooltip("可选、明确登记3D物体的Room裁切反壳；未登记时不分配或绘制。")]
         public Shader finiteToonOutlineShader;
         [Tooltip("Optional workstation-local wrapper of the licensed RealToon Forward/Outline; null rejects the finite plugin family.")]

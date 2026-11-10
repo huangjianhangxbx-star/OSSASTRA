@@ -1,0 +1,14 @@
+using System;using System.Collections.Generic;using UnityEngine;using Funplay.Editor.Tools.Scripting;
+public class ValidateToonSurface01Gpu:IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx){
+  var shader=Shader.Find("Hidden/Ossastra/Tests/ToonSurface01MathProbe");if(shader==null)throw new InvalidOperationException("GPU probe not imported");
+  if(!SystemInfo.SupportsRenderTextureFormat(RenderTextureFormat.ARGBFloat))throw new InvalidOperationException("No float RT; cannot certify known RGB response");
+  var expected=new[]{new Vector3(1,0,0),new Vector3(0,1,0),new Vector3(0,0,1),new Vector3(.5f,.5f,0),new Vector3(0,.5f,.5f),Vector3.zero,new Vector3(.2f,.15f,.1f),new Vector3(.14f,.12f,.1f),new Vector3(.2f,.15f,.1f),Vector3.zero,Vector3.one*.1f,Vector3.zero,Vector3.zero,Vector3.zero,Vector3.one*.1f,Vector3.zero,Vector3.zero,Vector3.zero,Vector3.zero};
+  var names=new[]{"dark band","middle band","bright band","lower transition center","upper transition center","actual shadow kills main","one half-shadow factor","independent penumbra color","ramp disabled Lambert","spec switch off","shaped spec highlight","shadow blocks spec","unlit side blocks spec","unlit side blocks rim","lit grazing rim","front face no halo","rim switch off","shadow blocks rim","spec half-vector spatial shape"};
+  var material=new Material(shader){hideFlags=HideFlags.DontSave};var rt=new RenderTexture(1,1,0,RenderTextureFormat.ARGBFloat,RenderTextureReadWrite.Linear){hideFlags=HideFlags.DontSave};var pixel=new Texture2D(1,1,TextureFormat.RGBAFloat,false,true){hideFlags=HideFlags.DontSave};var old=RenderTexture.active;bool oldSrgb=GL.sRGBWrite;var rows=new List<object>();int failures=0;
+  try{rt.Create();GL.sRGBWrite=false;for(int i=0;i<expected.Length;i++){material.SetFloat("_Case",i);Graphics.Blit(Texture2D.blackTexture,rt,material,0);RenderTexture.active=rt;pixel.ReadPixels(new Rect(0,0,1,1),0,0);pixel.Apply();var got=pixel.GetPixel(0,0);var a=new Vector3(got.r,got.g,got.b);var e=expected[i];var diff=a-e;float error=Mathf.Max(Mathf.Abs(diff.x),Mathf.Abs(diff.y),Mathf.Abs(diff.z));bool pass=!float.IsNaN(error)&&!float.IsInfinity(error)&&error<.003f;if(!pass)failures++;rows.Add(new{index=i,name=names[i],pass,actual=new[]{a.x,a.y,a.z},expected=new[]{e.x,e.y,e.z},error});}
+   ctx.ReturnValue=new{pass=failures==0,checks=rows.Count,failures,rows};if(failures>0)ctx.LogError("ToonSurface01 exact-equation GPU cases failed: "+failures);
+  }finally{GL.sRGBWrite=oldSrgb;RenderTexture.active=old;rt.Release();UnityEngine.Object.DestroyImmediate(rt);UnityEngine.Object.DestroyImmediate(pixel);UnityEngine.Object.DestroyImmediate(material);}
+ }
+}

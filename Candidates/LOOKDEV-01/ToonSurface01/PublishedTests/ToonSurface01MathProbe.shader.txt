@@ -1,0 +1,43 @@
+Shader "Hidden/Ossastra/Tests/ToonSurface01MathProbe"
+{
+ Properties { _Case("Known equation case",Float)=0 }
+ SubShader { Tags { "RenderPipeline"="UniversalPipeline" } Pass {
+  Name "Probe" ZWrite Off ZTest Always Cull Off
+  HLSLPROGRAM
+  #pragma target 4.5
+  #pragma vertex Vert
+  #pragma fragment Frag
+  #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+  #include "Assets/OSSASTRA/Scripts/WorldRendering/Stylization/SurfaceLighting/ToonSurface01/Rendering/ToonSurface01Math.hlsl"
+  float _Case;
+  struct Attributes {float4 positionOS:POSITION;float2 uv:TEXCOORD0;};
+  struct Varyings {float4 positionCS:SV_POSITION;};
+  Varyings Vert(Attributes a){Varyings o;o.positionCS=TransformObjectToHClip(a.positionOS.xyz);return o;}
+  float4 Frag(Varyings i):SV_Target {
+   int c=(int)round(_Case);float3 value=0;float2 thresholds=float2(.32,.70);
+   float3 n=float3(0,1,0),up=float3(0,1,0),side=float3(1,0,0);
+   if(c==0)value=ToonSurface01BandWeights(0,thresholds,.05);
+   if(c==1)value=ToonSurface01BandWeights(.5,thresholds,.05);
+   if(c==2)value=ToonSurface01BandWeights(1,thresholds,.05);
+   if(c==3)value=ToonSurface01BandWeights(.32,thresholds,.05);
+   if(c==4)value=ToonSurface01BandWeights(.70,thresholds,.05);
+   if(c==5)value=ToonSurface01MainDiffuse(float3(.2,.3,.4),float3(2,1,.5),1,0,1,1,thresholds,.05,1,1,1,1);
+   if(c==6)value=ToonSurface01MainDiffuse(float3(.2,.3,.4),float3(2,1,.5),1,.5,1,1,thresholds,.05,1,1,1,1);
+   if(c==7)value=ToonSurface01MainDiffuse(float3(.2,.3,.4),float3(2,1,.5),1,.5,1,1,thresholds,.05,1,1,1,float3(.4,.6,1));
+   if(c==8)value=ToonSurface01MainDiffuse(float3(.2,.3,.4),float3(2,1,.5),1,1,.5,0,thresholds,.05,.1,.2,.3,.4);
+   if(c==9)value=ToonSurface01MainSpecular(n,up,up,1,1,1,0,.85,.03,.1,1);
+   if(c==10)value=ToonSurface01MainSpecular(n,up,up,1,1,1,1,.85,.03,.1,1);
+   if(c==11)value=ToonSurface01MainSpecular(n,up,up,1,1,0,1,.85,.03,.1,1);
+   if(c==12)value=ToonSurface01MainSpecular(n,side,side,1,1,1,1,.85,.03,.1,1);
+   if(c==13)value=ToonSurface01MainRim(n,side,side,1,1,1,1,4,.1,1);
+   if(c==14)value=ToonSurface01MainRim(n,up,side,1,1,1,1,4,.1,1);
+   if(c==15)value=ToonSurface01MainRim(n,up,up,1,1,1,1,4,.1,1);
+   if(c==16)value=ToonSurface01MainRim(n,up,side,1,1,1,0,4,.1,1);
+   if(c==17)value=ToonSurface01MainRim(n,up,side,1,1,0,1,4,.1,1);
+   if(c==18)value=ToonSurface01MainSpecular(n,up,side,1,1,1,1,.85,.03,.1,1);
+   return float4(value,1);
+  }
+  ENDHLSL
+ } }
+ Fallback Off
+}

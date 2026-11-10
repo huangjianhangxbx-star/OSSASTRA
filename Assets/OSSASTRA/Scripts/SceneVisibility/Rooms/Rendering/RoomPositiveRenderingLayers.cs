@@ -20,6 +20,15 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
     {
         // 调度位不等同着色实现；显式Voxel源与Lit共用筛选位，由源感知resolver选各自适配器。
         public const string VoxelLitShaderName = "Ossastra/WorldRendering/VoxelLit";
+        public const string ToonSurface01ShaderName = "Ossastra/WorldRendering/ToonSurface01";
+        public static bool IsToonSurface01(Material material)
+        {
+            return material != null && material.shader != null && material.shader.name == ToonSurface01ShaderName &&
+                material.renderQueue < 2500 && material.HasProperty("_Surface") && material.GetFloat("_Surface") == 0 &&
+                material.HasProperty("_ZWrite") && material.GetFloat("_ZWrite") == 1 &&
+                (!material.HasProperty("_AlphaClip") || material.GetFloat("_AlphaClip") < .5f) &&
+                !material.IsKeywordEnabled("_ALPHATEST_ON");
+        }
         public const string FiniteRealToonShaderName = "Universal Render Pipeline/RealToon/Version 5/Default/Default";
         static readonly string[] finiteRealToonForbiddenKeywords = { "N_F_TRANS_ON", "N_F_CO_ON", "N_F_PA_ON", "N_F_SE_ON", "N_F_NFD_ON", "N_F_SL_ON" };
         public static bool IsFiniteRealToon(Material material)
@@ -180,6 +189,7 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
             if (material == null || material.shader == null) return 0;
             string name = material.shader.name;
             if (name == FiniteRealToonShaderName) return IsFiniteRealToon(material) ? PartialLitBit : 0;
+            if (name == ToonSurface01ShaderName) return IsToonSurface01(material) ? PartialLitBit : 0;
             if (name == "Universal Render Pipeline/Lit" || name == "Universal Render Pipeline/Simple Lit" ||
                 name == "Universal Render Pipeline/Unlit" || name == VoxelLitShaderName)
             {
