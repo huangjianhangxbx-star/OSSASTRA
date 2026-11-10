@@ -7,6 +7,7 @@ using Ossastra.SceneVisibility;
 using Ossastra.SceneVisibility.Rooms;
 using Ossastra.SceneVisibility.Rooms.Rendering;
 using Ossastra.EnvironmentSimulation;
+using Ossastra.WorldRendering.Stylization;
 using UnityEngine;
 
 namespace Ossastra.WorldRendering
@@ -31,6 +32,8 @@ namespace Ossastra.WorldRendering
         public WorldLookEffectOptions effects = new WorldLookEffectOptions();
         [Header("同相机昼夜适应；天气空气仅室外，室内保留原空气")]
         public bool useEnvironmentWeather = true;
+        [Header("可选实机风格；空引用完全保留既有显示链")]
+        public StylizedLookProfileSO stylizedLook;
 
         public WorldLookSettings Current { get; private set; }
         public bool Exterior { get; private set; }
@@ -83,7 +86,7 @@ namespace Ossastra.WorldRendering
             try{values=adapter.Capture(Exterior?outdoorPresentation:interiorPresentation,Exterior?outdoorAtmosphere:interiorAtmosphere,Exterior?outdoorPalette:interiorPalette);}
             catch(System.ArgumentException error){ReleaseBoundCamera();Status="Look配置被拒绝："+error.Message;return;}
             if(values==null){ReleaseBoundCamera();Status="Look适配器无有效数据";return;}
-            var settings=WorldLookSettings.Build(camera,frame.ObserverPosition,values.Presentation,values.Atmosphere,values.Palette,effects,environment,Exterior&&useEnvironmentWeather);
+            var settings=WorldLookSettings.Build(camera,frame.ObserverPosition,values.Presentation,values.Atmosphere,values.Palette,effects,environment,Exterior&&useEnvironmentWeather,stylizedLook);
             if (!settings.Enabled)
             { ReleaseBoundCamera(); Status = "环境 Look 已关闭"; return; }
             WorldLookCameraRegistry.Publish(this, camera, settings);

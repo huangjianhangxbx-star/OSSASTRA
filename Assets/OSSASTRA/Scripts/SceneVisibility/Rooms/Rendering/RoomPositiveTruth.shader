@@ -41,6 +41,7 @@ Shader "Hidden/Ossastra/Rooms/PositiveTruth"
    #pragma target 4.5
    #pragma vertex Vert
    #pragma fragment Frag
+   #pragma multi_compile_local _ _ROOM_STYLE_COVERAGE _ROOM_STYLE_WINDOW_ONLY
    #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
    TEXTURE2D(_BaseMap);SAMPLER(sampler_BaseMap);TEXTURE2D(_MainTex);SAMPLER(sampler_MainTex);
    CBUFFER_START(UnityPerMaterial)
@@ -49,11 +50,16 @@ Shader "Hidden/Ossastra/Rooms/PositiveTruth"
     float _RoomSurfaceMode,_RoomClipToVolumes,_RoomClipUseKnown,_RoomSourceAlphaClip,_Cutoff,_BaseCoverage,_VisualDepthEnabled;
    CBUFFER_END
    #include "RoomSightClip.hlsl"
+   #include "RoomStyleCoverage.hlsl"
    float _RoomPositivePartial,_RoomPositiveCutRoof;float4 _RoomPositiveColor;
    #include "Assets/OSSASTRA/Scripts/Characters/Rendering/Shaders/CharacterUprightDepthCommon.hlsl"
    struct A{float4 positionOS:POSITION;float2 uv:TEXCOORD0;float4 color:COLOR;};
    struct V{float4 positionCS:SV_POSITION;float2 uv:TEXCOORD0;float3 world:TEXCOORD1;float4 color:COLOR;float eyeOffset:TEXCOORD2;nointerpolation float planeY:TEXCOORD3;};
-   struct O{half4 color:SV_Target;float depth:SV_Depth;};
+   struct O{half4 color:SV_Target0;float depth:SV_Depth;
+   #if defined(_ROOM_STYLE_COVERAGE)
+    float4 style:SV_Target1;
+   #endif
+   };
    V Vert(A input)
    {
     V output;output.world=TransformObjectToWorld(input.positionOS.xyz);output.positionCS=TransformWorldToHClip(output.world);
@@ -104,7 +110,14 @@ Shader "Hidden/Ossastra/Rooms/PositiveTruth"
     float3 logicalWorld=RoomSightWorldFromDeviceDepth(input.positionCS.xy,depth);
     if(_RoomPositivePartial>.5)clip(RoomSightPartialContains(logicalWorld)?1:-1);
     RoomSightPreviewRoofClip(input.positionCS.xy,_RoomPositiveCutRoof);
-    O output;output.color=RoomSightTruthColor(logicalWorld,_RoomPositiveColor,_RoomPositivePartial);output.depth=depth;return output;
+    O output;output.color=RoomSightTruthColor(logicalWorld,_RoomPositiveColor,_RoomPositivePartial);output.depth=depth;
+    #if defined(_ROOM_STYLE_WINDOW_ONLY)
+     output.color=RoomStyleCoverage(logicalWorld);
+    #endif
+    #if defined(_ROOM_STYLE_COVERAGE)
+     output.style=RoomStyleCoverage(logicalWorld);
+    #endif
+    return output;
    }
    ENDHLSL
   }
@@ -116,15 +129,21 @@ Shader "Hidden/Ossastra/Rooms/PositiveTruth"
    #pragma target 4.5
    #pragma vertex Vert
    #pragma fragment Frag
+   #pragma multi_compile_local _ _ROOM_STYLE_COVERAGE _ROOM_STYLE_WINDOW_ONLY
    #pragma multi_compile_instancing
    #pragma multi_compile _ PIXELSNAP_ON
    #pragma multi_compile _ ETC1_EXTERNAL_ALPHA
    #include "UnitySprites.cginc"
    #include "RoomSightClip.hlsl"
+   #include "RoomStyleCoverage.hlsl"
    float _RoomPositivePartial,_RoomPositiveCutRoof;float4 _RoomPositiveColor;
    float4 _VisualDepthFoot,_VisualDepthNormal;float _VisualDepthEnabled,_RoomClipToVolumes,_RoomClipUseKnown;
    struct V{float4 vertex:SV_POSITION;fixed4 color:COLOR;float2 uv:TEXCOORD0;float3 world:TEXCOORD1;float eyeOffset:TEXCOORD2;UNITY_VERTEX_OUTPUT_STEREO};
-   struct O{float4 color:SV_Target;float depth:SV_Depth;};
+   struct O{float4 color:SV_Target0;float depth:SV_Depth;
+   #if defined(_ROOM_STYLE_COVERAGE)
+    float4 style:SV_Target1;
+   #endif
+   };
    V Vert(appdata_t input)
    {
     UNITY_SETUP_INSTANCE_ID(input);v2f original=SpriteVert(input);V output;UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
@@ -161,7 +180,14 @@ Shader "Hidden/Ossastra/Rooms/PositiveTruth"
     float depth=SpriteDepth(input);float3 logicalWorld=RoomSightWorldFromDeviceDepth(input.vertex.xy,depth);
     if(_RoomPositivePartial>.5)clip(RoomSightPartialContains(logicalWorld)?1:-1);
     RoomSightPreviewRoofClip(input.vertex.xy,_RoomPositiveCutRoof);
-    O output;output.color=RoomSightTruthColor(logicalWorld,_RoomPositiveColor,_RoomPositivePartial);output.depth=depth;return output;
+    O output;output.color=RoomSightTruthColor(logicalWorld,_RoomPositiveColor,_RoomPositivePartial);output.depth=depth;
+    #if defined(_ROOM_STYLE_WINDOW_ONLY)
+     output.color=RoomStyleCoverage(logicalWorld);
+    #endif
+    #if defined(_ROOM_STYLE_COVERAGE)
+     output.style=RoomStyleCoverage(logicalWorld);
+    #endif
+    return output;
    }
    ENDCG
   }
@@ -201,8 +227,10 @@ Shader "Hidden/Ossastra/Rooms/PositiveTruth"
    #pragma target 4.5
    #pragma vertex Vert
    #pragma fragment Frag
+   #pragma multi_compile_local _ _ROOM_STYLE_COVERAGE _ROOM_STYLE_WINDOW_ONLY
    #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
    #include "RoomSightClip.hlsl"
+   #include "RoomStyleCoverage.hlsl"
    float _RoomPositivePartial,_RoomPositiveCutRoof;float4 _RoomPositiveColor;
    TEXTURE2D(_BaseMap);SAMPLER(sampler_BaseMap);TEXTURE2D(_MainTex);SAMPLER(sampler_MainTex);
    CBUFFER_START(UnityPerMaterial)
@@ -217,7 +245,7 @@ Shader "Hidden/Ossastra/Rooms/PositiveTruth"
     output.uv=input.uv;output.color=input.color*_Color;return output;
    }
    // 不输出SV_Depth，保留原普通表面在MSAA各采样位置的硬件深度插值。
-   half4 Frag(V input):SV_Target
+   RoomStyleOutput Frag(V input)
    {
     float3 logicalWorld=input.world;
     if(_RoomPositivePartial>.5)clip(RoomSightPartialContains(logicalWorld)?1:-1);
@@ -237,7 +265,7 @@ Shader "Hidden/Ossastra/Rooms/PositiveTruth"
      float2 uv=_RoomSurfaceMode>2.5?input.uv*_MainTex_ST.xy+_MainTex_ST.zw:input.uv;
      half4 color=SAMPLE_TEXTURE2D(_MainTex,sampler_MainTex,uv)*input.color;clip(color.a-_Cutoff);
     }
-    return RoomSightTruthColor(logicalWorld,_RoomPositiveColor,_RoomPositivePartial);
+    return RoomStylePack(RoomSightTruthColor(logicalWorld,_RoomPositiveColor,_RoomPositivePartial),logicalWorld);
    }
    ENDHLSL
   }

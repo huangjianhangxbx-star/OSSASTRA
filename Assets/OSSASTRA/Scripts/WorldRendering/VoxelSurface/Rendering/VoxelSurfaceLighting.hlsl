@@ -107,6 +107,35 @@ float VoxelShapeNdotL(float normalLight, float strength)
     return lerp(x, x * x * (3 - 2 * x), s);
 }
 
+// LOOKDEV-01 M3: finite 3D opt-in; legacy isolated probes need no new field.
+float LookDevToonMainEnabled()
+{
+#ifdef OSSASTRA_LOOKDEV_TOON_PARAMETERS
+    return _LookDevToonMain > .5 && _VoxelKeyLightValid > .5 ? 1 : 0;
+#else
+    return 0;
+#endif
+}
+
+// LOOKDEV_TOON_RAMP_BEGIN -- GPU contract compiles this exact production function.
+float LookDevThreeBandRamp(float x, float derivativeWidth)
+{
+    x = saturate(x);
+    float w = max(.025, derivativeWidth);
+    float s1 = smoothstep(.32 - w, .32 + w, x);
+    float s2 = smoothstep(.70 - w, .70 + w, x);
+    return .20 + .40 * s1 + .40 * s2;
+}
+// LOOKDEV_TOON_RAMP_END
+
+float LookDevToonDiffuseAngle(float normalLight, float shape, float enabled)
+{
+    // Uniform opt-in avoids derivative work for unchanged materials.
+    [branch] if (enabled > .5)
+        return LookDevThreeBandRamp(normalLight, fwidth(normalLight));
+    return VoxelShapeNdotL(normalLight, shape);
+}
+
 // 对线性光贡献使用同一RGB倍率；knee/ceiling约束peak-RGB，不逐通道截断。
 // diffuse与specular独立累计预算，镜面观察方向不驱动漫反射压缩；Emission不进入本函数。
 float VoxelHighlightScale(float3 lightContribution)
@@ -131,12 +160,12 @@ float3 VoxelProtectLight(float3 lightContribution)
 VoxelLightingContributions VoxelEvaluateDirectLighting(
     BRDFData brdfData, BRDFData brdfDataClearCoat, Light light,
     half3 normalWS, half3 viewDirectionWS, half clearCoatMask,
-    bool specularHighlightsOff, half shape)
+    bool specularHighlightsOff, half shape, half finiteToon = 0)
 {
     VoxelLightingContributions terms = (VoxelLightingContributions)0;
     half normalLight = saturate(dot(normalWS, light.direction));
     float3 attenuation = light.color * (light.distanceAttenuation * light.shadowAttenuation);
-    terms.diffuse = brdfData.diffuse * (attenuation * VoxelShapeNdotL(normalLight, shape));
+    terms.diffuse = brdfData.diffuse * (attenuation * LookDevToonDiffuseAngle(normalLight, shape, finiteToon));
 
 #ifndef _SPECULARHIGHLIGHTS_OFF
     [branch] if (!specularHighlightsOff)
@@ -251,7 +280,7 @@ half4 VoxelUniversalFragmentPBR(InputData inputData, SurfaceData surfaceData)
     {
         main = VoxelEvaluateDirectLighting(brdfData, brdfDataClearCoat, mainLight,
             inputData.normalWS, inputData.viewDirectionWS, surfaceData.clearCoatMask,
-            specularHighlightsOff, _VoxelMainShape);
+            specularHighlightsOff, _VoxelMainShape, LookDevToonMainEnabled());
         main.diffuse *= VoxelLitFaceGain(dot(inputData.normalWS, mainLight.direction));
     }
 

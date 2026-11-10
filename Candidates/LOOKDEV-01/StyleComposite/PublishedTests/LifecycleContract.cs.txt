@@ -1,0 +1,59 @@
+// Private Stage instance: real tiny GPU RT allocations, no active-camera mutation.
+// Execute rejection checks stop before camera projection / command recording.
+using System;using System.Collections.Generic;using System.Reflection;using UnityEngine;
+using UnityEngine.Rendering;using UnityEngine.Rendering.Universal;using UnityEngine.Experimental.Rendering;
+using Ossastra.WorldRendering.Stylization;using Funplay.Editor.Tools.Scripting;
+public sealed class StylizedLifecycleContract:IFunplayCommand
+{
+ public void Execute(ExecutionContext context)
+ {
+  var rows=new List<object>();int failed=0;Action<string,bool,string> check=(name,pass,detail)=>{rows.Add(new{name,pass,detail});if(!pass)failed++;};
+  StylizedLookStage stage=null;StylizedLookProfileSO profile=null;GameObject cameraObject=null;CommandBuffer cmd=null;
+  var privateHandles=new List<RTHandle>();
+  try
+  {
+   var composite=Shader.Find("Hidden/Ossastra/WorldRendering/StylizedLook");var bloom=Shader.Find("Hidden/Ossastra/WorldRendering/StylizedBloom");
+   if(composite==null||bloom==null){context.ReturnValue=new{success=false,reason="Production style shaders absent"};return;}
+   profile=ScriptableObject.CreateInstance<StylizedLookProfileSO>();profile.themeEnabled=true;profile.airEnabled=false;profile.bloomEnabled=false;profile.bandsEnabled=false;profile.pixelSize=1;
+   stage=new StylizedLookStage(composite,bloom);
+   var descriptor=new RenderTextureDescriptor(64,32){graphicsFormat=GraphicsFormat.R16G16B16A16_SFloat,depthBufferBits=0,msaaSamples=1};
+   check("theme-only prepares without redundant P1 texture",stage.Prepare(descriptor,StylizedLookSettings.Capture(profile))&&stage.TextureCount==0&&stage.EstimatedBytes==0,stage.Status);
+   profile.pixelSize=2;check("pixel-only owns one grid",stage.Prepare(descriptor,StylizedLookSettings.Capture(profile))&&stage.TextureCount==1&&stage.EstimatedBytes==32L*16*8,stage.TextureCount+" / "+stage.EstimatedBytes);
+   profile.bloomEnabled=true;check("full chain owns nine textures",stage.Prepare(descriptor,StylizedLookSettings.Capture(profile))&&stage.TextureCount==9&&stage.MaterialCount==10,stage.TextureCount+" / "+stage.MaterialCount);
+   var before=ResourceIds(stage);stage.Prepare(descriptor,StylizedLookSettings.Capture(profile));var after=ResourceIds(stage);
+   check("same-size Prepare reuses exact RT and material identities",before==after,before+" -> "+after);
+   descriptor.width=65;descriptor.height=37;profile.pixelSize=4;
+   bool resized=stage.Prepare(descriptor,StylizedLookSettings.Capture(profile));var grid=(RTHandle)typeof(StylizedLookStage).GetField("grid",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(stage);
+   long expected=ExpectedBytes(65,37,4,true);
+   check("odd resize uses ceil grid and exact owned byte accounting",resized&&grid.rt.width==17&&grid.rt.height==10&&stage.TextureCount==9&&stage.EstimatedBytes==expected,grid.rt.width+"x"+grid.rt.height+" / "+stage.EstimatedBytes+" expected "+expected);
+   profile.bloomEnabled=false;check("Bloom disable releases P1 and all seven pyramid targets",stage.Prepare(descriptor,StylizedLookSettings.Capture(profile))&&stage.TextureCount==1&&stage.EstimatedBytes==17L*10*8,stage.TextureCount+" / "+stage.EstimatedBytes);
+   profile.pixelSize=1;check("pixel disable releases grid",stage.Prepare(descriptor,StylizedLookSettings.Capture(profile))&&stage.TextureCount==0&&stage.EstimatedBytes==0,stage.TextureCount+" / "+stage.EstimatedBytes);
+   // Invalid samples and LDR source must never record even a partial destination write.
+   cameraObject=new GameObject("LOOKDEV lifecycle private camera");cameraObject.hideFlags=HideFlags.HideAndDontSave;var camera=cameraObject.AddComponent<Camera>();camera.enabled=false;
+   var cameraData=new CameraData{camera=camera,postProcessEnabled=false,renderScale=1};cmd=new CommandBuffer{name="LOOKDEV rejected input contract"};
+   bool rejected=!stage.Execute(cmd,null,null,null,null,null,null,cameraData,10);
+   check("invalid input returns false without recording",rejected&&cmd.sizeInBytes==0,cmd.sizeInBytes+" / "+stage.Status);
+   var ldr=Make(privateHandles,65,37,GraphicsFormat.R8G8B8A8_UNorm);var copy=Make(privateHandles,65,37,GraphicsFormat.R16G16B16A16_SFloat);var depth=Make(privateHandles,65,37,GraphicsFormat.R32_SFloat);var coverage=Make(privateHandles,65,37,GraphicsFormat.R16G16B16A16_SFloat);
+   rejected=!stage.Execute(cmd,ldr,ldr,copy,depth,coverage,null,cameraData,10);
+   check("HDR copy cannot disguise original LDR source",rejected&&cmd.sizeInBytes==0&&stage.Status.Contains("not a linear HDR"),cmd.sizeInBytes+" / "+stage.Status);
+   cameraData.renderScale=.5f;rejected=!stage.Execute(cmd,copy,copy,copy,depth,coverage,null,cameraData,10);
+   check("uncertified renderScale refuses zero-write physical pixel claim",rejected&&cmd.sizeInBytes==0&&stage.Status.Contains("renderScale 1"),stage.Status);
+   profile.enabled=false;check("master off releases optional textures and refuses Prepare",!stage.Prepare(descriptor,StylizedLookSettings.Capture(profile))&&stage.TextureCount==0,stage.Status);
+   stage.Dispose();check("Dispose releases all stage ownership",stage.TextureCount==0&&stage.MaterialCount==0&&stage.EstimatedBytes==0,stage.TextureCount+" / "+stage.MaterialCount+" / "+stage.EstimatedBytes);
+   stage.Dispose();check("Dispose is idempotent",stage.TextureCount==0&&stage.MaterialCount==0,stage.Status);
+   context.ReturnValue=new{success=failed==0,failed,checks=rows,note="Own tiny RT allocations and ownership tested; actual Object.Destroy retirement may complete next frame in Play. No scene / feature resources were changed."};
+  }
+  catch(Exception ex){context.ReturnValue=new{success=false,error=ex.ToString(),checks=rows};}
+  finally{cmd?.Release();stage?.Dispose();foreach(var handle in privateHandles)handle.Release();if(cameraObject!=null)UnityEngine.Object.DestroyImmediate(cameraObject);if(profile!=null)UnityEngine.Object.DestroyImmediate(profile);}
+ }
+ static RTHandle Make(List<RTHandle> handles,int w,int h,GraphicsFormat format){var t=RTHandles.Alloc(w,h,colorFormat:format,filterMode:FilterMode.Point,name:"LOOKDEV lifecycle private input");handles.Add(t);return t;}
+ static long ExpectedBytes(int w,int h,int n,bool bloom){long pixels=n>1?(long)((w+n-1)/n)*((h+n-1)/n):0;if(bloom){pixels+=(long)w*h;for(int i=0;i<4;i++)pixels+=(long)Mathf.Max(2,w>>(i+1))*Mathf.Max(2,h>>(i+1))*(i<3?2:1);}return pixels*8;}
+ static string ResourceIds(StylizedLookStage stage)
+ {
+  var ids=new List<int>();var flags=BindingFlags.Instance|BindingFlags.NonPublic;
+  foreach(string name in new[]{"styleHDR","grid"}){var t=(RTHandle)typeof(StylizedLookStage).GetField(name,flags).GetValue(stage);ids.Add(t?.rt!=null?t.rt.GetInstanceID():0);}
+  foreach(string name in new[]{"down","up"})foreach(var t in (RTHandle[])typeof(StylizedLookStage).GetField(name,flags).GetValue(stage))ids.Add(t?.rt!=null?t.rt.GetInstanceID():0);
+  foreach(string name in new[]{"composite","downMaterials","upMaterials"})foreach(var m in (Material[])typeof(StylizedLookStage).GetField(name,flags).GetValue(stage))ids.Add(m!=null?m.GetInstanceID():0);
+  return string.Join(",",ids);
+ }
+}

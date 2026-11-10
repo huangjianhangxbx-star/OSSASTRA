@@ -90,6 +90,8 @@ Shader "Ossastra/WorldRendering/SightVoxelLit"
         [Enum(Final,0,Albedo,1,WorldNormal,2,MainDiffuse,3,IndirectDiffuse,4,DirectSpecular,5,Reflection,6,Shadow,7)]
         _VoxelDiagnostic("Diagnostic",Float)=0
         [ToggleUI] _VoxelVertexColors("Multiply vertex RGB",Float)=0
+        [Header(Finite LookDev Candidate)]
+        [ToggleUI] _LookDevToonMain("Three-band main diffuse (registered 3D only)",Float)=0
 }
 
 SubShader {

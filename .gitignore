@@ -289,3 +289,14 @@
 /Candidates/DS-MAP-01/Tools/__pycache__/
 /Candidates/DS-MAP-01/**/*.png
 /Candidates/DS-MAP-01/**/*.mp4
+
+# LOOKDEV-01 v1.1: own source/configuration text only; private scenes/media/plugin stay local.
+!/docs/ossastra/LOOKDEV-01/
+/docs/ossastra/LOOKDEV-01/*
+!/docs/ossastra/LOOKDEV-01/StyleComposite/
+!/docs/agent-sync/tasks/2026-11-10-lookdev-01-style-composite.md
+!/Candidates/LOOKDEV-01/
+/Candidates/LOOKDEV-01/*
+!/Candidates/LOOKDEV-01/StyleComposite/
+/Candidates/LOOKDEV-01/StyleComposite/*
+!/Candidates/LOOKDEV-01/StyleComposite/PublishedTests/

@@ -186,16 +186,18 @@ Shader "Ossastra/Vegetation/GrassLayer"
   #pragma target 4.5
   #pragma vertex GrassVertex
   #pragma fragment RoomGrassTruth
+  #pragma multi_compile_local _ _ROOM_STYLE_COVERAGE _ROOM_STYLE_WINDOW_ONLY
   #pragma shader_feature_local _GRASS_WIND
   #include "Assets/OSSASTRA/Scripts/SceneVisibility/Rooms/Rendering/RoomSightClip.hlsl"
   float _RoomPositivePartial,_RoomPositiveCutRoof;float4 _RoomPositiveColor;
-  half4 RoomGrassTruth(GrassVarying i):SV_Target
+  #include "Assets/OSSASTRA/Scripts/SceneVisibility/Rooms/Rendering/RoomStyleCoverage.hlsl"
+  RoomStyleOutput RoomGrassTruth(GrassVarying i)
   {
    GrassColor(i);
    float3 world=RoomSightWorldFromDeviceDepth(i.positionCS.xy,i.positionCS.z);
    if(_RoomPositivePartial>.5)clip(RoomSightPartialContains(world)?1:-1);
    RoomSightPreviewRoofClip(i.positionCS.xy,_RoomPositiveCutRoof);
-   return RoomSightTruthColor(world,_RoomPositiveColor,_RoomPositivePartial);
+   return RoomStylePack(RoomSightTruthColor(world,_RoomPositiveColor,_RoomPositivePartial),world);
   }
   ENDHLSL
  }

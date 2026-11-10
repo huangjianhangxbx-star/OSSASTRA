@@ -1158,3 +1158,18 @@ VEGETATION-01A v1.2 publication verified：产品4c54eae38587eecedd0ce6bdbd5f032
 
 ## 2026-11-10 VEGETATION-01A 主场半幅功能交付 / writers released
 用户明确认可v1.2并授权Main半幅。原Native草顶3067.75m²精确选正X1533.875m²，排除建筑/道路/高处/实体后38106簇184块；MainGrass独立6资产、原环境/45度/37根/CHAR与草原图保留，单survey禁用碰撞，无新天气/物理管理器。原Room叶登记＋草自身Sight/Truth保留风/Alpha/标签/黑幕；44接口/20GPU/11视锥及生命周期、冷重开通过，真实木屋内外检查。Main已Native保存并重开，最终Edit/1场/dirtytrue，不额外Save运行期旧缓存。功能交付但组合性能预算未通过：Editor固定off/on/off整帧27.34/41.02/27.18ms，GPU11.62/35.45/11.49ms；两定向修正未获整帧净收益，不冒称60或旧Lab成本。详ossastra/VEGETATION-01A/主场半幅接入.md；全部Root/子writer/Unity/源码租约释放，Git仅定向发布收尾，无电源动作。
+
+## 2026-11-10 LOOKDEV-01 v1.1 StyleComposite / Root unity-writer
+用户明确执行技术包E490194F38DC52757385097014F81B8B402C8EE708632A677CC8340DFA3CE436，已通过ChatGPT read_thread核对最新内容；覆盖旧概念Gate限制，接续LOOKDEV01实机阶段。Root唯一Unity/Git，独占Candidates/LOOKDEV-01/StyleComposite、docs/ossastra/LOOKDEV-01/StyleComposite、Assets/OSSASTRA/Scripts/WorldRendering/Stylization与WorldLookController/Settings/RendererFeature/LegalFrameRegistry共享接线；Room与有限Toon精确路径读取后登记。只用受控副本/候选，不改变Main默认、CHAR/草作者配置或观察规则，保留43既有tracked dirty。子writer限独立候选，不导入/Unity/生产/Git。基准8975230含半幅草38106/184，Editor约41ms组合预算未过；本轮分报底座+增量，M0–M4连续执行，不以旧Lab小成本或生成图验收。
+LOOKDEV M0 Root Native租约：Assets/OSSASTRA/WorldRendering/Stylization/SC_StyleCompositeLab.unity、StyleComposite_Renderer.asset及其克隆Feature；仅当前URP pipeline的renderer列表追加该候选索引，默认renderer与原索引不变。先保存Main当前dirty状态，再SaveAsCopy并只在副本挂候选；复制当前4业务文件到本轮独立会话route。源Main默认外观/CHAR/草参数不覆写。
+
+2026-11-10 LOOKDEV-01 M1 apply / Root unity-writer: exact Coverage manifest 8 files (RoomMaskFrame, RoomVisibilitySight, RoomPositivePass, RoomStyleCoverage.hlsl, RoomPositiveTruth.shader, RoomPositiveSpriteLitTruth.shader, GrassLayer.shader, WorldLookLegalFrameRegistry) plus WorldLook 3 root files and Stylization Runtime/Rendering new sources. Child candidates only; manifests SHA checked before source install. Main/CHAR/grass author values protected.
+
+
+2026-11-10 LOOKDEV-01 M3 Root: VoxelLit/SightVoxelLit/VoxelSurfaceInput/VoxelSurfaceLighting exact Toon manifest; RoomMaskRendererFeature optional outline shader field; RoomPositivePass finite-outline insertion only; new Stylization finite runtime + Room finite stage/shader. No original author material edited. Coverage worker prepares separate camera-window supplement; Root will merge shared hook sequentially.
+
+
+2026-11-10 LOOKDEV-01 M3 Root adds finite licensed-plugin local wrapper route in RoomPositiveRenderingLayers/Feature/Pass/OutlineStage. Generated commercial expansion stays ignored LocalMedia; source plugin read-only. WindowFix applied six exactmanifest files preserving previousToonhook. Root remains soleUnityWriter.
+
+
+2026-11-10 LOOKDEV-01 StyleComposite technical-complete / writers released：M0–M4独立候选交付；Source/MRT/GPU/保存冷读通过，成本/限制详专属交付。Main原默认与四作者/四业务源守恒；候选Probe清除，Main Edit45°/Renderer15/style=null，Root及子Unity/源码writer释放，后续不用前台。视觉待用户、CPU组合与60预算未过，RealToon仅Editor。Git最后精确发布，不纳入原43dirty；SHA以publication回执为准。旧构建目录删除被自动审批拦截，保留、不重试。

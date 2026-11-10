@@ -1,0 +1,52 @@
+using System;
+using System.Collections.Generic;
+using System.Reflection;
+using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEditor;
+using Ossastra.WorldRendering.Rendering;
+using Ossastra.SceneVisibility.Rooms.Rendering;
+using Funplay.Editor.Tools.Scripting;
+
+// RED before candidate application; uses only private cameras/attachments.
+public sealed class StyleCoverageApiContract : IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  if(Application.isPlaying||EditorApplication.isCompiling||EditorApplication.isUpdating)throw new InvalidOperationException("Stable Edit Mode required");
+  var rows=new List<object>();var failures=new List<string>();
+  Action<string,bool> check=(name,pass)=>{rows.Add(new{name,pass});if(!pass)failures.Add(name);};
+  var registry=typeof(WorldLookLegalFrameRegistry);
+  var method=registry.GetMethod("TryGetStyleCoverage",BindingFlags.Public|BindingFlags.Static);
+  var publish=registry.GetMethod("Publish",BindingFlags.Public|BindingFlags.Static);
+  check("source actor fact is explicit",typeof(RoomPositiveSurface).GetField("StyleCharacter")!=null);
+  check("optional style borrow API exists",method!=null);
+  check("Publish retains old inputs and adds optional style",publish!=null&&publish.GetParameters().Length==6&&publish.GetParameters()[5].IsOptional);
+  GameObject go=null,other=null;var textures=new List<RenderTexture>();var handles=new List<RTHandle>();
+  try
+  {
+   if(method!=null&&publish!=null&&publish.GetParameters().Length==6)
+   {
+    go=new GameObject("StyleCoverage API private camera"){hideFlags=HideFlags.HideAndDontSave};var camera=go.AddComponent<Camera>();camera.enabled=false;
+    other=new GameObject("StyleCoverage API different camera"){hideFlags=HideFlags.HideAndDontSave};var second=other.AddComponent<Camera>();second.enabled=false;
+    Func<int,RTHandle> alloc=size=>{var rt=new RenderTexture(size,size,0,RenderTextureFormat.ARGB32,RenderTextureReadWrite.Linear){hideFlags=HideFlags.HideAndDontSave};rt.Create();textures.Add(rt);var handle=RTHandles.Alloc(rt);handles.Add(handle);return handle;};
+    var permission=alloc(4);var depth=alloc(4);var valid=alloc(4);var wrong=alloc(8);int frame=Time.frameCount;
+    Func<Camera,int,bool> borrow=(cam,t)=>{var args=new object[]{cam,t,null};return (bool)method.Invoke(null,args);};
+    publish.Invoke(null,new object[]{camera,permission,depth,frame,null,null});
+    check("legacy frame valid without style",WorldLookLegalFrameRegistry.TryGet(camera,frame,out _,out _));check("absent style rejected",!borrow(camera,frame));
+    publish.Invoke(null,new object[]{camera,permission,depth,frame,null,valid});check("same camera frame and dimensions accepted",borrow(camera,frame));
+    check("cross camera rejected",!borrow(second,frame));check("cross frame rejected",!borrow(camera,frame-1));
+    publish.Invoke(null,new object[]{camera,permission,depth,frame,null,wrong});check("wrong size rejected without revoking world",!borrow(camera,frame)&&WorldLookLegalFrameRegistry.TryGet(camera,frame,out _,out _));
+    publish.Invoke(null,new object[]{camera,permission,depth,frame,null,valid});WorldLookLegalFrameRegistry.Invalidate(camera);check("invalidated borrow rejected",!borrow(camera,frame));
+    WorldLookLegalFrameRegistry.Revoke(camera);
+   }
+  }
+  finally
+  {
+   if(go!=null)WorldLookLegalFrameRegistry.Revoke(go.GetComponent<Camera>());
+   foreach(var handle in handles)handle.Release();foreach(var rt in textures)if(rt!=null)UnityEngine.Object.DestroyImmediate(rt);
+   if(go!=null)UnityEngine.Object.DestroyImmediate(go);if(other!=null)UnityEngine.Object.DestroyImmediate(other);
+  }
+  ctx.ReturnValue=new{success=failures.Count==0,checks=rows,failures,scope="Private frame borrow API only; no Main publication, scene save or production parameter changes."};
+ }
+}

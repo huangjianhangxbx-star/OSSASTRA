@@ -121,7 +121,8 @@ Shader "Hidden/Ossastra/Rooms/PositiveSpriteLitTruth"
 			// Farward+ renderer keywords
 			#pragma multi_compile_fragment _ _LIGHT_LAYERS
 			#pragma multi_compile _ _FORWARD_PLUS
-			// Truth target has only one color attachment.
+			// Original target0 is unchanged; optional StyleCoverage uses target1 in the permission batch.
+			#pragma multi_compile_local _ _ROOM_STYLE_COVERAGE _ROOM_STYLE_WINDOW_ONLY
 
 			// -------------------------------------
 			// Unity defined keywords
@@ -148,15 +149,16 @@ Shader "Hidden/Ossastra/Rooms/PositiveSpriteLitTruth"
 			#include "Packages/com.esotericsoftware.spine.urp-shaders/Shaders/Include/Spine-Input-Sprite-URP.hlsl"
 			#include "Packages/com.esotericsoftware.spine.urp-shaders/Shaders/Include/Spine-Sprite-ForwardPass-URP.hlsl"
 			#include "RoomSightClip.hlsl"
+            #include "RoomStyleCoverage.hlsl"
             float _RoomPositivePartial,_RoomPositiveCutRoof;float4 _RoomPositiveColor;
-            half4 RoomSpineTruthFrag(VertexOutputLWRP input):SV_Target0
+            RoomStyleOutput RoomSpineTruthFrag(VertexOutputLWRP input)
             {
                 float3 logicalWorld=input.positionWS.xyz;
                 if(_RoomPositivePartial>.5)clip(RoomSightPartialContains(logicalWorld)?1:-1);
                 RoomSightPreviewRoofClip(input.pos.xy,_RoomPositiveCutRoof);
                 half4 original=ForwardPassFragmentSprite(input);
                 clip(original.a-.000001);
-                return RoomSightTruthColor(logicalWorld,_RoomPositiveColor,_RoomPositivePartial);
+                return RoomStylePack(RoomSightTruthColor(logicalWorld,_RoomPositiveColor,_RoomPositivePartial),logicalWorld);
             }
             ENDHLSL
 		}

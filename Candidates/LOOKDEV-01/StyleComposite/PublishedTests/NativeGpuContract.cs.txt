@@ -1,0 +1,59 @@
+// Executes the real production Shader passes on tiny private HDR targets.
+// It does not touch the active scene, author profiles, cameras, or imported assets.
+using System;using System.Collections.Generic;using UnityEngine;using UnityEngine.Rendering;using Funplay.Editor.Tools.Scripting;
+public sealed class StylizedNativeGpuContract:IFunplayCommand
+{
+ readonly List<UnityEngine.Object> objects=new List<UnityEngine.Object>();readonly List<RTHandle> handles=new List<RTHandle>();
+ public void Execute(ExecutionContext context)
+ {
+  var rows=new List<object>();int failed=0;Action<string,bool,string> check=(name,pass,detail)=>{rows.Add(new{name,pass,detail});if(!pass)failed++;};
+  var previous=RenderTexture.active;
+  try
+  {
+   var shader=Shader.Find("Hidden/Ossastra/WorldRendering/StylizedLook");var bloomShader=Shader.Find("Hidden/Ossastra/WorldRendering/StylizedBloom");
+   if(shader==null||bloomShader==null){context.ReturnValue=new{success=false,reason="Production style shaders absent"};return;}
+   var m=MakeMaterial(shader);var b=MakeMaterial(bloomShader);
+   int w=4,h=4;var zero=new Color[w*h];var valid=Filled(w*h,new Color(1,0,1,1));
+   var source=MakeInput(w,h,Filled(w*h,new Color(4,2,1,1)));var destination=MakeTarget(w,h);
+   m.SetVector("_LD_Size",new Vector4(w,h,1f/w,1f/h));m.SetVector("_LD_Features",Vector4.zero);m.SetVector("_LD_PixelDebug",Vector4.zero);
+   m.SetTexture("_LD_Coverage",MakeTexture(w,h,valid));
+   Draw(source,destination,m,0);var hdr=Read(destination);check("P1 keeps linear HDR above one",Near(hdr[0].r,4)&&Near(hdr[0].g,2),hdr[0].ToString("F4"));
+   var ramp=new Color[w*h];for(int y=0;y<h;y++)for(int x=0;x<w;x++)ramp[y*w+x]=new Color(.1f+x*.13f,.07f+y*.19f,(x+y)*.11f,1);
+   var rampSource=MakeInput(w,h,ramp);m.SetVector("_LD_PixelDebug",new Vector4(1,0,0,0));Draw(rampSource,destination,m,2);var identity=Read(destination);var baseline=Read(rampSource);float identityError=0;for(int p=0;p<identity.Length;p++)identityError=Mathf.Max(identityError,Mathf.Abs(identity[p].r-baseline[p].r),Mathf.Abs(identity[p].g-baseline[p].g),Mathf.Abs(identity[p].b-baseline[p].b));
+   check("point identity preserves orientation and all pixel RGB",identityError<.002f,identityError.ToString("F6"));
+   m.SetTexture("_LD_Coverage",MakeTexture(w,h,zero));Draw(source,destination,m,0);var hidden=Read(destination);check("hidden bright source absent from StyleHDR",hidden[0].maxColorComponent<.001&&hidden[0].a<.001,hidden[0].ToString("F4"));
+   m.SetTexture("_LD_Coverage",MakeTexture(w,h,valid));m.SetVector("_LD_Features",new Vector4(1,0,0,0));m.SetVector("_LD_Theme",new Vector4(1,1,.18f,1));m.SetVector("_LD_Warm",new Vector4(0,1.5f,3,0));
+   m.SetColor("_LD_Shadow",Color.blue);m.SetColor("_LD_Mid",Color.blue);m.SetColor("_LD_Light",Color.blue);
+   Draw(MakeInput(w,h,Filled(w*h,new Color(.18f,.18f,.18f,1))),destination,m,0);var themed=Read(destination)[0];check("theme preserves luminance in linear HDR",themed.r<.001&&themed.g<.001&&Near(themed.b,.18f/.0722f),themed.ToString("F4"));
+   Draw(MakeInput(w,h,Filled(w*h,Color.black)),destination,m,0);var black=Read(destination)[0];check("theme preserves black and finite output",black.maxColorComponent<.001&&!float.IsNaN(black.r),black.ToString("F4"));
+   m.SetVector("_LD_Warm",new Vector4(1,1.5f,3,0));Draw(MakeInput(w,h,Filled(w*h,new Color(8,4,.2f,1))),destination,m,0);var warm=Read(destination)[0];check("warm HDR source is protected before tint",Near(warm.r,8)&&Near(warm.g,4)&&Near(warm.b,.2f),warm.ToString("F4"));
+   m.SetVector("_LD_Features",Vector4.zero);
+   var small=new[]{new Color(0,0,0,1),new Color(2,2,2,1),new Color(4,4,4,1),new Color(6,6,6,1)};
+   var smallSource=MakeInput(2,2,small);var one=MakeTarget(1,1);m.SetVector("_LD_Size",new Vector4(2,2,.5f,.5f));m.SetVector("_LD_PixelDebug",new Vector4(2,0,0,0));
+   var smallValid=Filled(4,new Color(1,0,1,1));m.SetTexture("_LD_Coverage",MakeTexture(2,2,smallValid));Draw(smallSource,one,m,1);var mean=Read(one)[0];
+   check("2x2 block computes area mean, not centre",Near(mean.r,3)&&Near(mean.a,1),mean.ToString("F4"));
+   smallValid[3]=Color.clear;m.SetTexture("_LD_Coverage",MakeTexture(2,2,smallValid));Draw(smallSource,one,m,1);var mixed=Read(one)[0];check("one forbidden sample rejects whole logical block",mixed.a<0,mixed.ToString("F4"));
+   // Alpha stores conservative validity, not renormalized visible-sample weight.
+   var bloomInput=Filled(4,new Color(4,2,1,1));bloomInput[3]=new Color(100,100,100,0);
+   b.SetVector("_LD_SourceSize",new Vector4(2,2,1,1));b.SetVector("_LD_Bloom",new Vector4(1,.5f,8,.2f));b.SetTexture("_LD_Coverage",MakeTexture(2,2,Filled(4,new Color(1,0,1,1))));
+   Draw(MakeInput(2,2,bloomInput),one,b,0);var rejected=Read(one)[0];check("Bloom min mask blocks hidden high energy",rejected.maxColorComponent<.001&&rejected.a<.001,rejected.ToString("F4"));
+   var baseInput=MakeInput(2,2,Filled(4,new Color(2,1,.5f,1)));var two=MakeTarget(2,2);
+   b.SetVector("_LD_SourceSize",new Vector4(2,2,2,2));b.SetVector("_LD_LowSize",new Vector4(2,2,.5f,.5f));b.SetTexture("_LD_LowTexture",baseInput.rt);b.SetFloat("_LD_Scatter",.65f);
+   Draw(baseInput,two,b,2);var tent=Read(two)[0];check("normalized tent preserves constant HDR energy",Near(tent.r,2)&&Near(tent.g,1)&&Near(tent.b,.5f),tent.ToString("F4"));
+   // Final fallback leaves source information intact and adds independent glow once.
+   m.SetVector("_LD_PixelDebug",new Vector4(1,0,0,1));m.SetTexture("_LD_Coverage",MakeTexture(2,2,Filled(4,Color.clear)));m.SetTexture("_LD_CharacterGlow",MakeTexture(2,2,Filled(4,new Color(.25f,.125f,0,1))));
+   Draw(baseInput,two,m,2);var fallback=Read(two)[0];check("information fallback preserves color and single glow",Near(fallback.r,2.25f)&&Near(fallback.g,1.125f),fallback.ToString("F4"));
+   context.ReturnValue=new{success=failed==0,failed,device=SystemInfo.graphicsDeviceName,graphics=SystemInfo.graphicsDeviceType.ToString(),checks=rows};
+  }
+  catch(Exception ex){context.ReturnValue=new{success=false,error=ex.ToString(),checks=rows};}
+  finally{RenderTexture.active=previous;foreach(var handle in handles)handle.Release();foreach(var o in objects)UnityEngine.Object.DestroyImmediate(o);}
+ }
+ static bool Near(float a,float b)=>Mathf.Abs(a-b)<.015f;
+ static Color[] Filled(int n,Color c){var v=new Color[n];for(int i=0;i<n;i++)v[i]=c;return v;}
+ Material MakeMaterial(Shader s){var m=new Material(s);objects.Add(m);return m;}
+ Texture2D MakeTexture(int w,int h,Color[] colors){var t=new Texture2D(w,h,TextureFormat.RGBAFloat,false,true);t.filterMode=FilterMode.Point;t.wrapMode=TextureWrapMode.Clamp;t.SetPixels(colors);t.Apply(false,false);objects.Add(t);return t;}
+ RTHandle MakeTarget(int w,int h){var r=RTHandles.Alloc(w,h,colorFormat:UnityEngine.Experimental.Rendering.GraphicsFormat.R16G16B16A16_SFloat,filterMode:FilterMode.Point,name:"LOOKDEV private GPU contract");handles.Add(r);return r;}
+ RTHandle MakeInput(int w,int h,Color[] c){var t=MakeTarget(w,h);Graphics.Blit(MakeTexture(w,h,c),t.rt);return t;}
+ static void Draw(RTHandle source,RTHandle target,Material material,int pass){var cmd=new CommandBuffer{name="LOOKDEV private mathematical contract"};try{using(new Ossastra.Rendering.RenderCommandScope(cmd)){Blitter.BlitCameraTexture(cmd,source,target,material,pass);}Graphics.ExecuteCommandBuffer(cmd);}finally{cmd.Release();}}
+ Color[] Read(RTHandle handle){RenderTexture.active=handle.rt;var t=new Texture2D(handle.rt.width,handle.rt.height,TextureFormat.RGBAFloat,false,true);objects.Add(t);t.ReadPixels(new Rect(0,0,t.width,t.height),0,0);t.Apply(false,false);return t.GetPixels();}
+}

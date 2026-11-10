@@ -192,6 +192,7 @@ namespace Ossastra.SceneVisibility.Rooms
       !movingAnchors.ContainsKey(r)&&IsSharedOwnerSurface(r)&&IsStaticEnvironment(r)&&
       staticTerrainPreparation.TryBuild(r,out var retainedSurface,out var retainedFacts))
    {
+    retainedSurface.StyleEnvironment=true;
     positiveSurfaces.Add(retainedSurface);positiveSourceFacts.Add(retainedFacts);positiveSurfaceMembers.Add(r);return;
    }
    if(IsOwnedVisualCoverage(r))return;
@@ -218,6 +219,7 @@ namespace Ossastra.SceneVisibility.Rooms
    if(environmentFull)kind=RoomPositiveSurfaceKind.Partial;
    bool information=presentationMembers.Contains(r);var sourceFacts=InspectPositiveSource(r,information,presentationOwner,out bool worldLook,out float environmentRole);
    var surface=new RoomPositiveSurface{Renderer=r,Kind=kind,OwnerVolumes=ownerVolumes.ToArray(),OwnerExterior=ownerExterior,IndependentDraw=information,StaticEnvironment=staticEnvironment,WorldLookEnvironment=worldLook,
+    StyleEnvironment=worldLook||(!(r is ParticleSystemRenderer)&&environmentRole>=0&&environmentRole<1.5f),StyleCharacter=IsStyleCharacter(r,presentationOwner),
     EnvironmentFullSurface=environmentFull,EnvironmentSurfaceRole=environmentRole,EnvironmentResponseOverride=1,EnvironmentReceiveShadow=1,EnvironmentMinimumOverride=0};
    ApplyEnvironmentTag(r,ref surface);positiveSurfaces.Add(surface);positiveSourceFacts.Add(sourceFacts);positiveSurfaceMembers.Add(r);
   }
@@ -237,6 +239,18 @@ namespace Ossastra.SceneVisibility.Rooms
   {
    if(sharedSurfaceMembershipSnapshot==null||renderer==null)return Array.Exists(sharedSurfaceMembershipSnapshot,item=>item==renderer);
    return sharedSurfaceMembers.Contains(renderer);
+  }
+  // 只沿已登记 Renderer 的祖先和显式携带装备 owner 判定，不扫描场景，也不把非环境补集当人物。
+  static bool IsStyleCharacter(Renderer renderer,object presentationOwner)
+  {
+   if(renderer==null||renderer is ParticleSystemRenderer)return false;
+   if(presentationOwner is RoomPresentationBinding binding)
+   { if(binding.EnvironmentRole!=2)return false; }
+   else if(presentationOwner is Ossastra.Characters.CharacterEquipmentView||presentationOwner is Ossastra.Characters.CharacterEquipmentSpineView||
+      presentationOwner is Ossastra.Characters.CharacterEquipment||presentationOwner is Ossastra.Characters.CharacterOffhand)return true;
+   else if(presentationOwner!=null)return false;
+   return renderer.GetComponentInParent<Ossastra.Characters.CharacterRoot>(true)!=null||
+    renderer.GetComponentInParent<Ossastra.Enemies.EnemyRoot>(true)!=null||renderer.GetComponentInParent<Ossastra.Npcs.NpcRoot>(true)!=null;
   }
   static RoomPositiveSourceFacts InspectPositiveSource(Renderer renderer,bool information,object presentationOwner,out bool worldLook,out float environmentRole)
   {

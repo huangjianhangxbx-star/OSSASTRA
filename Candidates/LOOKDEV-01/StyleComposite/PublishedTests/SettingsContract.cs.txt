@@ -1,0 +1,38 @@
+using System;using System.Linq;using System.Reflection;using UnityEngine;using Funplay.Editor.Tools.Scripting;
+public sealed class StylizedSettingsContract : IFunplayCommand
+{
+ public void Execute(ExecutionContext ctx)
+ {
+  var profileType=AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType("Ossastra.WorldRendering.Stylization.StylizedLookProfileSO")).FirstOrDefault(t=>t!=null);
+  var settingsType=AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType("Ossastra.WorldRendering.Stylization.StylizedLookSettings")).FirstOrDefault(t=>t!=null);
+  if(profileType==null||settingsType==null){ctx.ReturnValue=new{success=false,reason="New style profile/settings not installed"};return;}
+  var profile=(ScriptableObject)ScriptableObject.CreateInstance(profileType);var capture=settingsType.GetMethod("Capture",BindingFlags.Public|BindingFlags.Static);
+  GameObject cameraObject=null;
+  var rows=new System.Collections.Generic.List<object>();int failed=0;Action<string,bool> check=(n,p)=>{rows.Add(new{name=n,pass=p});if(!p)failed++;};
+  Func<object,string,object> get=(o,n)=>settingsType.GetProperty(n).GetValue(o);
+  try{
+   check("null capture is old pipeline",capture.Invoke(null,new object[]{null})==null);
+   foreach(var n in new[]{"themeEnabled","airEnabled","bloomEnabled","bandsEnabled"})profileType.GetField(n).SetValue(profile,false);
+   profileType.GetField("pixelSize").SetValue(profile,2);var pixel=capture.Invoke(null,new object[]{profile});check("pixel-only enables style",(bool)get(pixel,"Enabled")&&(int)get(pixel,"PixelSize")==2);
+   profileType.GetField("pixelSize").SetValue(profile,4);check("snapshot is immutable after profile edit",(int)get(pixel,"PixelSize")==2);
+   profileType.GetField("environmentStrength").SetValue(profile,float.NaN);profileType.GetField("distanceDensity").SetValue(profile,float.PositiveInfinity);var safe=capture.Invoke(null,new object[]{profile});check("nonfinite author input is sanitized",!float.IsNaN((float)get(safe,"EnvironmentStrength"))&&!float.IsInfinity((float)get(safe,"DistanceDensity")));
+   profileType.GetField("enabled").SetValue(profile,false);check("master off disables style",!(bool)get(capture.Invoke(null,new object[]{profile}),"Enabled"));
+   check("composite shader exists",Shader.Find("Hidden/Ossastra/WorldRendering/StylizedLook")!=null);check("bloom shader exists",Shader.Find("Hidden/Ossastra/WorldRendering/StylizedBloom")!=null);
+   var worldType=AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType("Ossastra.WorldRendering.WorldLookSettings")).FirstOrDefault(t=>t!=null);
+   var build=worldType?.GetMethod("Build",BindingFlags.Public|BindingFlags.Static);var parameters=build?.GetParameters();
+   check("WorldLook Build accepts appended stylized",parameters!=null&&parameters.Last().Name=="stylized"&&parameters.Last().ParameterType==profileType);
+   if(parameters!=null&&parameters.Last().ParameterType==profileType){
+    cameraObject=new GameObject("LOOKDEV settings integration contract");cameraObject.hideFlags=HideFlags.HideAndDontSave;var camera=cameraObject.AddComponent<Camera>();
+    var optionsType=parameters[5].ParameterType;var options=Activator.CreateInstance(optionsType);
+    foreach(var field in optionsType.GetFields(BindingFlags.Public|BindingFlags.Instance))if(field.FieldType==typeof(bool))field.SetValue(options,field.Name=="enabled");
+    object[] args=new object[parameters.Length];args[0]=camera;args[1]=Vector3.forward*10;args[5]=options;for(int j=6;j<parameters.Length;j++)args[j]=parameters[j].HasDefaultValue?parameters[j].DefaultValue:null;
+    profileType.GetField("enabled").SetValue(profile,true);profileType.GetField("pixelSize").SetValue(profile,2);args[args.Length-1]=profile;
+    Func<object,bool> worldEnabled=o=>(bool)worldType.GetProperty("Enabled").GetValue(o);
+    check("pixel-only keeps root feature active",worldEnabled(build.Invoke(null,args)));
+    optionsType.GetField("enabled").SetValue(options,false);check("root master disables style",!worldEnabled(build.Invoke(null,args)));
+    optionsType.GetField("enabled").SetValue(options,true);args[args.Length-1]=null;check("null style retains legacy disabled result",!worldEnabled(build.Invoke(null,args)));
+   }
+  }finally{if(cameraObject!=null)UnityEngine.Object.DestroyImmediate(cameraObject);UnityEngine.Object.DestroyImmediate(profile);}
+  ctx.ReturnValue=new{success=failed==0,failed,checks=rows};
+ }
+}

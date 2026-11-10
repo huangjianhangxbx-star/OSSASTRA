@@ -44,7 +44,9 @@ UNITY_DEFINE_PROP(float, _VoxelDiagnostic, UNITY_GDRP_NEXT_INDEX(_VoxelHighlight
 UNITY_DEFINE_PROP(float, _VoxelVertexColors, UNITY_GDRP_NEXT_INDEX(_VoxelDiagnostic))
 UNITY_DEFINE_PROP(float, _RoomSightRoofMode, UNITY_GDRP_NEXT_INDEX(_VoxelVertexColors))
 UNITY_DEFINE_PROP(float, _RoomSightCutRoof, UNITY_GDRP_NEXT_INDEX(_RoomSightRoofMode))
+UNITY_DEFINE_PROP(float, _LookDevToonMain, UNITY_GDRP_NEXT_INDEX(_RoomSightCutRoof))
 CBUFFER_END
+#define OSSASTRA_LOOKDEV_TOON_PARAMETERS 1
 
 // NOTE: Do not ifdef the properties for dots instancing, but ifdef the actual usage.
 // Otherwise you might break CPU-side as property constant-buffer offsets change per variant.

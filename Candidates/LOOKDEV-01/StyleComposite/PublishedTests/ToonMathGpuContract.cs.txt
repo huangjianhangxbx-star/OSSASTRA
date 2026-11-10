@@ -1,0 +1,71 @@
+/* 功能：直接编译当前生产Lighting中同一段三档函数，在线性浮点GPU上核对平台输出。
+ * 边界：Root独占Native；不写场景/资产/作者材质，临时资源finally精确释放；不把该数学测试冒充整场验收。
+ */
+using System;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using UnityEditor;
+using UnityEngine;
+using UnityEngine.Rendering;
+using Funplay.Editor.Tools.Scripting;
+
+public sealed class ToonMathGpuContract : IFunplayCommand
+{
+    public void Execute(ExecutionContext ctx)
+    {
+        const string path="Assets/OSSASTRA/Scripts/WorldRendering/VoxelSurface/Rendering/VoxelSurfaceLighting.hlsl";
+        string source=File.ReadAllText(path);
+        int begin=source.IndexOf("// LOOKDEV_TOON_RAMP_BEGIN",StringComparison.Ordinal);
+        int end=source.IndexOf("// LOOKDEV_TOON_RAMP_END",StringComparison.Ordinal);
+        if(begin<0||end<=begin) {ctx.ReturnValue=new {pass=false,stage="RED",reason="Production shared Ramp is absent"};return;}
+        string function=source.Substring(begin,end-begin);
+        bool previousAsync=ShaderUtil.allowAsyncCompilation;
+        var previousRt=RenderTexture.active;
+        Shader shader=null;Material material=null;RenderTexture target=null;Texture2D read=null;CommandBuffer cmd=null;
+        var results=new System.Collections.Generic.List<object>();
+        try
+        {
+            ShaderUtil.allowAsyncCompilation=false;
+            var factory=typeof(ShaderUtil).GetMethods(BindingFlags.Static|BindingFlags.Public|BindingFlags.NonPublic)
+                .First(m=>m.Name=="CreateShaderAsset"&&m.GetParameters().Length==1&&m.GetParameters()[0].ParameterType==typeof(string));
+            shader=(Shader)factory.Invoke(null,new object[]{ShaderText.Replace("// PRODUCTION_FUNCTION",function)});
+            material=new Material(shader){hideFlags=HideFlags.HideAndDontSave};
+            target=new RenderTexture(1,1,0,RenderTextureFormat.ARGBFloat,RenderTextureReadWrite.Linear){hideFlags=HideFlags.HideAndDontSave};
+            read=new Texture2D(1,1,TextureFormat.RGBAFloat,false,true){hideFlags=HideFlags.HideAndDontSave};target.Create();
+            cmd=new CommandBuffer{name="LOOKDEV-01 real three-band GPU contract"};
+            float[] angles={.1f,.32f,.5f,.7f,.9f};float[] expected={.2f,.4f,.6f,.8f,1};
+            for(int i=0;i<angles.Length;++i)
+            {
+                material.SetFloat("_Angle",angles[i]);material.SetFloat("_Width",.025f);
+                cmd.Clear();cmd.SetRenderTarget(target);cmd.DrawProcedural(Matrix4x4.identity,material,0,MeshTopology.Triangles,3);
+                Graphics.ExecuteCommandBuffer(cmd);RenderTexture.active=target;
+                read.ReadPixels(new Rect(0,0,1,1),0,0);read.Apply(false,false);
+                Color color=read.GetPixel(0,0);
+                if(float.IsNaN(color.r)||Mathf.Abs(color.r-expected[i])>.002f)throw new InvalidOperationException("GPU Ramp mismatch at "+angles[i]+": "+color);
+                results.Add(new{angle=angles[i],ramp=color.r,expected=expected[i]});
+            }
+            var errors=ShaderUtil.GetShaderMessages(shader).Where(m=>m.severity.ToString()=="Error").Select(m=>m.message).ToArray();
+            if(errors.Length!=0)throw new InvalidOperationException(string.Join(" | ",errors));
+            ctx.ReturnValue=new {pass=true,stage="GREEN",actualProductionFunction=true,api=SystemInfo.graphicsDeviceType.ToString(),results,
+                boundary="Pure Ramp GPU math only; binding source contract and same-frame Room / night regression remain separate."};
+        }
+        finally
+        {
+            RenderTexture.active=previousRt;ShaderUtil.allowAsyncCompilation=previousAsync;
+            if(cmd!=null)cmd.Dispose();if(target!=null){target.Release();UnityEngine.Object.DestroyImmediate(target);}
+            if(read!=null)UnityEngine.Object.DestroyImmediate(read);if(material!=null)UnityEngine.Object.DestroyImmediate(material);if(shader!=null)UnityEngine.Object.DestroyImmediate(shader);
+        }
+    }
+    const string ShaderText=@"Shader ""Hidden/Ossastra/LookDev/ToonMathProbe"" {SubShader {Pass {ZTest Always ZWrite Off Cull Off HLSLPROGRAM
+    #pragma target 4.5
+    #pragma vertex Vert
+    #pragma fragment Frag
+    #include ""Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl""
+    float _Angle,_Width;
+    // PRODUCTION_FUNCTION
+    struct V {float4 positionCS:SV_POSITION;};
+    V Vert(uint id:SV_VertexID){V o;o.positionCS=GetFullScreenTriangleVertexPosition(id);return o;}
+    float4 Frag(V input):SV_Target {float v=LookDevThreeBandRamp(_Angle,_Width);return float4(v,v,v,1);}
+    ENDHLSL }}}";
+}

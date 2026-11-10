@@ -14,7 +14,7 @@ namespace Ossastra.WorldRendering.Rendering
         sealed class Entry
         {
             internal Camera camera;
-            internal RTHandle permission, depth, characterGlow;
+            internal RTHandle permission, depth, characterGlow, styleCoverage;
             internal int frame;
         }
         static readonly Dictionary<int, Entry> entries = new Dictionary<int, Entry>();
@@ -23,7 +23,7 @@ namespace Ossastra.WorldRendering.Rendering
         public static event Action<int> Released;
         public static int RegisteredCameraCount => entries.Count;
 
-        public static void Publish(Camera camera, RTHandle permission, RTHandle depth, int frame, RTHandle characterGlow = null)
+        public static void Publish(Camera camera, RTHandle permission, RTHandle depth, int frame, RTHandle characterGlow = null, RTHandle styleCoverage = null)
         {
             if (camera == null) return;
             if (!Valid(permission) || !Valid(depth) || frame != Time.frameCount) { Revoke(camera); return; }
@@ -31,6 +31,8 @@ namespace Ossastra.WorldRendering.Rendering
             invalidated.Remove(id);
             if (!entries.TryGetValue(id, out var entry)) { entry = new Entry(); entries.Add(id, entry); }
             entry.camera = camera; entry.permission = permission; entry.depth = depth; entry.frame = frame;
+            // Optional借用只接受本次许可同尺寸的可采样附件；MSAA生产者须先完成显式resolve。
+            entry.styleCoverage = SampleableStyle(styleCoverage, permission, depth) ? styleCoverage : null;
             entry.characterGlow = Valid(characterGlow) && characterGlow.rt.width == permission.rt.width && characterGlow.rt.height == permission.rt.height ? characterGlow : null;
         }
 
@@ -58,6 +60,19 @@ namespace Ossastra.WorldRendering.Rendering
             if (!TryGet(camera, frame, out _, out _) || !entries.TryGetValue(camera.GetInstanceID(), out var entry) || !Valid(entry.characterGlow)) return false;
             glow = entry.characterGlow; return true;
         }
+
+        public static bool TryGetStyleCoverage(Camera camera, int frame, out RTHandle coverage)
+        {
+            coverage = null;
+            if (!TryGet(camera, frame, out var permission, out var depth) || !entries.TryGetValue(camera.GetInstanceID(), out var entry) ||
+                !SampleableStyle(entry.styleCoverage, permission, depth)) return false;
+            coverage = entry.styleCoverage; return true;
+        }
+
+        static bool SampleableStyle(RTHandle style, RTHandle permission, RTHandle depth) => Valid(style) && Valid(permission) && Valid(depth) &&
+            style.rt.width == permission.rt.width && style.rt.height == permission.rt.height &&
+            style.rt.width == depth.rt.width && style.rt.height == depth.rt.height &&
+            style.rt.antiAliasing == permission.rt.antiAliasing && !style.rt.bindTextureMS;
 
         /// <summary>相机本次绘制开始或结束时使旧输出失效，保留消费者可复用缓冲；不发资源释放事件。</summary>
         public static void Invalidate(Camera camera)

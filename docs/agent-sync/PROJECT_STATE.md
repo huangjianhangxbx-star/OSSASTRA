@@ -682,3 +682,9 @@ VEGETATION-01A v1.2 publication verified：产品4c54eae38587eecedd0ce6bdbd5f032
 
 ## 2026-11-10 VEGETATION-01A 主场半幅功能交付 / writers released
 用户明确认可v1.2并授权Main半幅。原Native草顶3067.75m²精确选正X1533.875m²，排除建筑/道路/高处/实体后38106簇184块；MainGrass独立6资产、原环境/45度/37根/CHAR与草原图保留，单survey禁用碰撞，无新天气/物理管理器。原Room叶登记＋草自身Sight/Truth保留风/Alpha/标签/黑幕；44接口/20GPU/11视锥及生命周期、冷重开通过，真实木屋内外检查。Main已Native保存并重开，最终Edit/1场/dirtytrue，不额外Save运行期旧缓存。功能交付但组合性能预算未通过：Editor固定off/on/off整帧27.34/41.02/27.18ms，GPU11.62/35.45/11.49ms；两定向修正未获整帧净收益，不冒称60或旧Lab成本。详ossastra/VEGETATION-01A/主场半幅接入.md；全部Root/子writer/Unity/源码租约释放，Git仅定向发布收尾，无电源动作。
+
+## 2026-11-10 LOOKDEV-01 v1.1 StyleComposite / technical delivery
+当前完整Main副本SC_StyleCompositeLab，独立Renderer16和蓝/红/无像素Profile；旧Main默认Renderer15、45°、style=null不变。原WorldLook接可选immutable风格，当前合法HDR/深度/MRT覆盖、解析空气、四级Bloom、2/4输出像素、雾前亮度分档，角色旧外缘只合成一次；受限Window&&!Eye许可补足不改旧标签/深度/世界色。有限4物体14槽自主三档/反壳；RealToon只本机Editor，Player入口/API禁止，商业原件不改不传。
+Native合同11/10/62/11/13/70与主光5角度、实机窗景/门窗关闭、连续30秒移动和16秒API旋转保留。候选冷读45°/Renderer16/零missing；成本Probe组件/源码/meta精确删除。最终Main Edit/dirtyfalse，四作者资产和四业务源及Main保存后SHA守恒，FrameTiming还原false，无Player存留，无后续前台控制。
+Release v2 0错误；Player/Editor各6态180帧。Player GPU中位增量0.74–1.22ms；完整组合CPU主inclusive增量0.68–1.15ms，整帧25–26.5ms，CPU预算/稳定60未通过；Player逐阶段数据缺失，Editor红GPU有异常计时，原数据保留不用异常mean/max。新增跟踪RT51.2/53.9MiB，A/B归还。成本不扩充为RealToon或活跃窗景。视觉待用户，详docs/ossastra/LOOKDEV-01/StyleComposite/交付.md及性能采样.md。
+Root/子源码与Unity租约释放；Git仅定向发布源/meta/合同/文档，原43tracked dirty排除。旧构建删除被自动审批拦截，保留目录，不改安全设置、不重试。具体发布SHA由最后publication.json实证，不预写成功。

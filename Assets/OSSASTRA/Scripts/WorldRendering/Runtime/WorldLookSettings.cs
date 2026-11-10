@@ -5,12 +5,14 @@
  */
 using UnityEngine;
 using Ossastra.EnvironmentSimulation;
+using Ossastra.WorldRendering.Stylization;
 
 namespace Ossastra.WorldRendering
 {
     public sealed class WorldLookSettings
     {
         public bool Enabled { get; private set; }
+        public StylizedLookSettings Stylized { get; private set; }
         public bool AirEnabled { get; private set; }
         public bool FocusEnabled { get; private set; }
         public bool BloomEnabled { get; private set; }
@@ -48,7 +50,8 @@ namespace Ossastra.WorldRendering
         /// </summary>
         public static WorldLookSettings Build(Camera camera, Vector3 observerPosition,
             WorldLookPresentationValues presentation, WorldLookAtmosphereValues atmosphere,
-            WorldLookPaletteValues palette, WorldLookEffectOptions options, EnvironmentFrame environment = null, bool allowWeatherFog = true)
+            WorldLookPaletteValues palette, WorldLookEffectOptions options, EnvironmentFrame environment = null, bool allowWeatherFog = true,
+            StylizedLookProfileSO stylized = null)
         {
             bool valid = camera != null && Finite(observerPosition) && Finite(camera.transform.position) && Finite(camera.transform.forward);
             bool master = valid && (options == null || options.enabled);
@@ -59,12 +62,14 @@ namespace Ossastra.WorldRendering
             bool hasEnvironment = environment != null && environment.Enabled;
             float weatherFog = hasEnvironment && allowWeatherFog ? Safe(environment.FogDensity, 0f, 0f, .2f) : 0f;
             var result = new WorldLookSettings();
+            result.Stylized = master ? StylizedLookSettings.Capture(stylized) : null;
             result.AirEnabled = master && ((hasAtmosphere && atmosphere.airEnabled) || weatherFog > 0f) && (options == null || options.airEnabled);
             result.FocusEnabled = master && hasPresentation && (options == null || options.focusEnabled);
             result.BloomEnabled = master && hasPresentation && (options == null || options.bloomEnabled);
             result.GradeEnabled = master && (hasAtmosphere || hasPalette) && (options == null || options.gradeEnabled);
             result.VignetteEnabled = master && hasPresentation && (options == null || options.vignetteEnabled);
-            result.Enabled = result.AirEnabled || result.FocusEnabled || result.BloomEnabled || result.GradeEnabled || result.VignetteEnabled;
+            result.Enabled = result.AirEnabled || result.FocusEnabled || result.BloomEnabled || result.GradeEnabled || result.VignetteEnabled ||
+                (result.Stylized != null && result.Stylized.Enabled);
 
             // 焦点使用同一已获许可观察点的前向眼深；不引入旧预览平滑器的滞后或另一角色权威。
             float near = camera != null ? Safe(camera.nearClipPlane, .05f, .001f, 10000f) : .05f;

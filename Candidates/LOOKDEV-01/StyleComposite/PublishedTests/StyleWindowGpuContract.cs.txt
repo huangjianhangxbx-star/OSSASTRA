@@ -1,0 +1,85 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using UnityEditor;
+using UnityEngine;
+using UnityEngine.Rendering;
+using Funplay.Editor.Tools.Scripting;
+
+// Private real-shader window-minus-eye contract. Does not publish Main frames.
+public sealed class StyleWindowGpuContract : IFunplayCommand
+{
+ const int N=48;
+ sealed class Pair { public Color32[] label,style;public Pair(Color32[] a,Color32[] b){label=a;style=b;} }
+ static bool Eq(Color32 a,Color32 b)=>a.r==b.r&&a.g==b.g&&a.b==b.b&&a.a==b.a;
+ static bool Near(Color32 p,int r,int g,int b,int a)=>Math.Abs(p.r-r)<=1&&Math.Abs(p.g-g)<=1&&Math.Abs(p.b-b)<=1&&Math.Abs(p.a-a)<=1;
+ public void Execute(ExecutionContext ctx)
+ {
+  if(Application.isPlaying||EditorApplication.isCompiling||EditorApplication.isUpdating)throw new InvalidOperationException("Stable Edit Mode required");
+  var oldActive=RenderTexture.active;var oldV=Shader.GetGlobalMatrix("unity_MatrixV");var oldP=Shader.GetGlobalMatrix("unity_MatrixP");var oldVP=Shader.GetGlobalMatrix("unity_MatrixVP");
+  var rows=new List<object>();var failures=new List<string>();var owned=new List<UnityEngine.Object>();var rts=new List<RenderTexture>();string exception=null;
+  Action<string,bool,object> check=(name,pass,detail)=>{rows.Add(new{name,pass,detail});if(!pass)failures.Add(name);};
+  try
+  {
+   var mesh=new Mesh{name="Window private quad",hideFlags=HideFlags.HideAndDontSave};owned.Add(mesh);
+   mesh.vertices=new[]{new Vector3(-.7f,-.7f,0),new Vector3(.7f,-.7f,0),new Vector3(.7f,.7f,0),new Vector3(-.7f,.7f,0)};
+   mesh.uv=new[]{Vector2.zero,Vector2.right,Vector2.one,Vector2.up};mesh.SetUVs(1,new List<Vector4>{Vector4.zero,Vector4.zero,Vector4.zero,Vector4.zero});
+   mesh.colors=Enumerable.Repeat(Color.white,4).ToArray();mesh.normals=Enumerable.Repeat(Vector3.back,4).ToArray();mesh.tangents=Enumerable.Repeat(new Vector4(1,0,0,1),4).ToArray();mesh.triangles=new[]{0,2,1,0,3,2};mesh.RecalculateBounds();
+   var cameraPosition=new Vector3(0,0,-3);var view=Matrix4x4.Scale(new Vector3(1,1,-1))*Matrix4x4.TRS(cameraPosition,Quaternion.identity,Vector3.one).inverse;
+   var projection=GL.GetGPUProjectionMatrix(Matrix4x4.Ortho(-1,1,-1,1,.1f,10),true);var inverse=(projection*view).inverse;
+   var planes=new[]{new Vector4(1,0,0,.4f),new Vector4(-1,0,0,.4f),new Vector4(0,1,0,.4f),new Vector4(0,-1,0,.4f)};
+   foreach(int requested in new[]{1,4})
+   {
+    var label=new RenderTexture(N,N,24,RenderTextureFormat.ARGB32,RenderTextureReadWrite.Linear){antiAliasing=requested,bindTextureMS=false,hideFlags=HideFlags.HideAndDontSave};label.Create();rts.Add(label);
+    var style=new RenderTexture(N,N,0,RenderTextureFormat.ARGB32,RenderTextureReadWrite.Linear){antiAliasing=requested,bindTextureMS=false,hideFlags=HideFlags.HideAndDontSave};style.Create();rts.Add(style);
+    var read=new Texture2D(N,N,TextureFormat.RGBA32,false,true){hideFlags=HideFlags.HideAndDontSave};owned.Add(read);int samples=label.antiAliasing;
+    Func<RenderTexture,Color32[]> pixels=rt=>{RenderTexture.active=rt;read.ReadPixels(new Rect(0,0,N,N),0,0,false);read.Apply(false,false);return read.GetPixels32();};
+    foreach(string family in new[]{"hardware","customDepth","sprite","spineSpriteLit","grass"})
+    {
+     var shader=Shader.Find(family=="spineSpriteLit"?"Hidden/Ossastra/Rooms/PositiveSpriteLitTruth":family=="grass"?"Ossastra/Vegetation/GrassLayer":"Hidden/Ossastra/Rooms/PositiveTruth");
+     if(shader==null)throw new InvalidOperationException("Actual shader missing: "+family);var mat=new Material(shader){hideFlags=HideFlags.HideAndDontSave};owned.Add(mat);
+     mat.SetTexture("_MainTex",Texture2D.whiteTexture);if(mat.HasProperty("_BaseMap"))mat.SetTexture("_BaseMap",Texture2D.whiteTexture);mat.SetColor("_Color",Color.white);if(mat.HasProperty("_BaseColor"))mat.SetColor("_BaseColor",Color.white);
+     if(mat.HasProperty("_RendererColor"))mat.SetColor("_RendererColor",Color.white);if(mat.HasProperty("_Flip"))mat.SetVector("_Flip",Vector4.one);if(mat.HasProperty("_Cull"))mat.SetFloat("_Cull",0);if(mat.HasProperty("_Cutoff"))mat.SetFloat("_Cutoff",.05f);
+     if(mat.HasProperty("_RoomSurfaceMode"))mat.SetFloat("_RoomSurfaceMode",family=="customDepth"?4:0);if(mat.HasProperty("_VisualDepthEnabled"))mat.SetFloat("_VisualDepthEnabled",0);
+     mat.SetFloat("_RoomPositivePartial",1);mat.SetFloat("_RoomPositiveCutRoof",0);mat.SetFloat("_RoomPositiveDepthWrite",0);mat.SetColor("_RoomPositiveColor",Color.white);mat.DisableKeyword("_ROOM_STYLE_COVERAGE");mat.EnableKeyword("_ROOM_STYLE_WINDOW_ONLY");
+     if(family=="grass"){mat.DisableKeyword("_GRASS_WIND");mat.SetVector("_GrassCameraLod",new Vector4(0,0,1000,1001));}
+     int pass=family=="hardware"?3:family=="sprite"?1:family=="grass"?mat.FindPass("RoomTruth"):0;
+     if(!Ossastra.Rendering.RenderPassReadiness.Ensure(mat,pass))throw new InvalidOperationException("Window-only actual shader pass not ready: "+family);
+     Func<bool,bool,bool,bool,Pair> render=(environment,actor,eye,window)=>
+     {
+      var block=new MaterialPropertyBlock();block.SetInteger("_RoomSightSeedCount",0);block.SetInteger("_RoomSightBuildingCount",0);block.SetInteger("_RoomSightDomainCount",0);block.SetInteger("_RoomSightBlockerCount",0);
+      block.SetInteger("_RoomSightOwnerCount",0);block.SetInteger("_RoomSightOwnerExterior",0);block.SetInteger("_RoomSightExteriorView",eye?1:0);block.SetInteger("_RoomSightWindowCount",window?1:0);block.SetInteger("_RoomSightCameraBlockerCount",0);block.SetInteger("_RoomSightPassMode",1);block.SetInteger("_RoomFogHistoryCount",0);
+      block.SetFloat("_RoomPositiveCoverageMode",0);block.SetFloat("_RoomPositivePermissionMode",1);block.SetFloat("_RoomWorldLookEnvironment",environment?1:0);block.SetFloat("_RoomStyleEnvironment",environment?1:0);block.SetFloat("_RoomStyleCharacter",actor?1:0);
+      block.SetVector("_RoomSightTargetSize",new Vector4(N,N,1f/N,1f/N));block.SetMatrix("_RoomSightInverseViewProjection",inverse);block.SetVectorArray("_RoomSightWindowPlanes",planes);block.SetVectorArray("_RoomSightWindowMeta",new[]{new Vector4(0,4,0,0)});block.SetVector("_RoomSightCameraObserver",cameraPosition);
+      var cmd=new CommandBuffer{name="Window-only style private target"};
+      try
+      {
+       cmd.SetRenderTarget(label);cmd.ClearRenderTarget(true,true,new Color(.13f,.27f,.41f,.69f));if(samples>1)cmd.ResolveAntiAliasedSurface(label);
+       // Deliberately bind ONLY style colour + existing label depth. Label colour is not an output.
+       cmd.SetRenderTarget(style,label);cmd.ClearRenderTarget(false,true,Color.clear);cmd.SetViewport(new Rect(0,0,N,N));cmd.SetViewProjectionMatrices(view,projection);cmd.DrawMesh(mesh,Matrix4x4.identity,mat,0,pass,block);
+       if(samples>1)cmd.ResolveAntiAliasedSurface(style);Graphics.ExecuteCommandBuffer(cmd);
+      }
+      finally{cmd.Release();}
+      return new Pair(pixels(label),pixels(style));
+     };
+     var env=render(true,false,false,true);var actorResult=render(false,true,false,true);var info=render(false,false,false,true);var eyeResult=render(true,false,true,true);var closed=render(true,false,false,false);
+     int center=N/2*N+N/2;int outside=N/2*N+3;string key=family+" samples="+samples;
+     check(key+" camera-only exterior gets style",Near(env.style[center],255,0,255,255),env.style[center]);
+     check(key+" actor category survives",Near(actorResult.style[center],255,255,255,255),actorResult.style[center]);
+     check(key+" information writes zero",Near(info.style[center],0,0,0,0),info.style[center]);
+     check(key+" aperture clips outside edge",Near(env.style[outside],0,0,0,0),env.style[outside]);
+     check(key+" player-eye overlap not overwritten",Near(eyeResult.style[center],0,0,0,0),eyeResult.style[center]);
+     check(key+" closed/missing aperture remains zero",Near(closed.style[center],0,0,0,0),closed.style[center]);
+     check(key+" label target remains byte-identical",env.label.Zip(actorResult.label,(a,b)=>Eq(a,b)).All(v=>v)&&env.label.Zip(eyeResult.label,(a,b)=>Eq(a,b)).All(v=>v)&&env.label.All(p=>Eq(p,env.label[0])),env.label[center]);
+    }
+   }
+  }
+  catch(Exception e){exception=e.ToString();failures.Add(exception);}
+  finally
+  {
+   var restore=new CommandBuffer{name="Restore window fixture view"};try{restore.SetViewProjectionMatrices(oldV,oldP);restore.SetGlobalMatrix("unity_MatrixV",oldV);restore.SetGlobalMatrix("unity_MatrixP",oldP);restore.SetGlobalMatrix("unity_MatrixVP",oldVP);Graphics.ExecuteCommandBuffer(restore);}finally{restore.Release();RenderTexture.active=oldActive;}
+   foreach(var rt in rts)if(rt!=null){rt.Release();UnityEngine.Object.DestroyImmediate(rt);}foreach(var item in owned)if(item!=null)UnityEngine.Object.DestroyImmediate(item);
+  }
+  ctx.ReturnValue=new{success=failures.Count==0,checks=rows,failures,exception,scope="Bounded private 48x48 actual production shader window-only variants; MSAA1/requested4 explicit resolve. Label colour is never bound during supplement. Does not certify copied-scene candidate count, actual portals or performance."};
+ }
+}

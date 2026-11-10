@@ -20,6 +20,19 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
     {
         // 调度位不等同着色实现；显式Voxel源与Lit共用筛选位，由源感知resolver选各自适配器。
         public const string VoxelLitShaderName = "Ossastra/WorldRendering/VoxelLit";
+        public const string FiniteRealToonShaderName = "Universal Render Pipeline/RealToon/Version 5/Default/Default";
+        static readonly string[] finiteRealToonForbiddenKeywords = { "N_F_TRANS_ON", "N_F_CO_ON", "N_F_PA_ON", "N_F_SE_ON", "N_F_NFD_ON", "N_F_SL_ON" };
+        public static bool IsFiniteRealToon(Material material)
+        {
+            if (material == null || material.shader == null || material.shader.name != FiniteRealToonShaderName ||
+                material.GetTag("LookDevFiniteToon", false, "") != "LOOKDEV-01" || material.renderQueue >= 2500) return false;
+            if (!material.HasProperty("_TRANSMODE") || material.GetFloat("_TRANSMODE") != 0 ||
+                !material.HasProperty("_Culling") || material.GetFloat("_Culling") != 2 ||
+                !material.HasProperty("_ObjePosiZCS") || material.GetFloat("_ObjePosiZCS") != 0 ||
+                !material.HasProperty("_ZWrite") || material.GetFloat("_ZWrite") != 1) return false;
+            foreach (var keyword in finiteRealToonForbiddenKeywords) if (material.IsKeywordEnabled(keyword)) return false;
+            return true;
+        }
         public const string GrassShaderName = "Ossastra/Vegetation/GrassLayer";
         public const uint FullBit = 1u << 16, PartialLitBit = 1u << 17,
             PartialUnlitBit = 1u << 18, PartialThinTopBit = 1u << 19,
@@ -166,6 +179,7 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
         {
             if (material == null || material.shader == null) return 0;
             string name = material.shader.name;
+            if (name == FiniteRealToonShaderName) return IsFiniteRealToon(material) ? PartialLitBit : 0;
             if (name == "Universal Render Pipeline/Lit" || name == "Universal Render Pipeline/Simple Lit" ||
                 name == "Universal Render Pipeline/Unlit" || name == VoxelLitShaderName)
             {

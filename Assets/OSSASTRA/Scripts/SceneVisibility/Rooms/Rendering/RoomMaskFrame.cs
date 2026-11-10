@@ -101,6 +101,8 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
         public bool StaticEnvironment;
         // 仅环境后处理显示角色，与静态历史/当前许可独立；人物、敌人与信息叶为false。
         public bool WorldLookEnvironment;
+        // 本帧源登记事实；环境/角色互相独立，信息叶不因角色祖先获得风格许可。
+        public bool StyleEnvironment, StyleCharacter;
         // 仅把已证明的Full许可送入受光适配，不授予新的Partial/历史许可。
         public bool EnvironmentFullSurface;
         // 0地表、1场景装饰、2角色/装备、-1信息；与WorldLook后处理排除相互独立。
@@ -113,6 +115,9 @@ namespace Ossastra.SceneVisibility.Rooms.Rendering
     public sealed class RoomMaskStatistics
     {
         public int Width, Height, Msaa, SurfaceDraws, PortalDraws, UnexploredVolumeDraws;
+        // 仅相机窗景的许可补足；不重画最终世界颜色，不修改旧label附件。
+        public int StyleWindowCandidates, StyleWindowDraws;
+        public string StyleCoverageError = "";
         public int OwnedMeshCount;
         public int OwnedTextureCount, OwnedMaterialCount, UnsupportedMaterialCount, PmaApproximationCount;
         public int OwnedBufferCount;

@@ -8,6 +8,7 @@ using UnityEngine;
 using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
+using Ossastra.WorldRendering.Stylization;
 
 namespace Ossastra.WorldRendering.Rendering
 {
@@ -17,6 +18,9 @@ namespace Ossastra.WorldRendering.Rendering
         public Shader environmentLookShader;
         [Tooltip("从当前合法真实深度附件解析MSAA的显式构建引用。")]
         public Shader legalDepthCopyShader;
+        [Tooltip("可选风格阶段的显式构建引用；不使用内建后处理。")]
+        public Shader stylizedCompositeShader;
+        public Shader stylizedBloomShader;
         readonly Dictionary<int, LookPass> cameras = new Dictionary<int, LookPass>();
         bool subscribed;
         public int ActiveCameraCount => cameras.Count;
@@ -83,10 +87,11 @@ namespace Ossastra.WorldRendering.Rendering
             readonly Camera camera;
             Material look, depthCopy;
             RTHandle colorCopy, legalDepth;
+            StylizedLookStage stylized;
             bool ready;
             internal WorldLookSettings Settings { get; set; }
-            internal int TextureCount => (colorCopy != null ? 1 : 0) + (legalDepth != null ? 1 : 0);
-            internal int MaterialCount => (look != null ? 1 : 0) + (depthCopy != null ? 1 : 0);
+            internal int TextureCount => (colorCopy != null ? 1 : 0) + (legalDepth != null ? 1 : 0) + (stylized?.TextureCount ?? 0);
+            internal int MaterialCount => (look != null ? 1 : 0) + (depthCopy != null ? 1 : 0) + (stylized?.MaterialCount ?? 0);
 
             internal LookPass(WorldLookRendererFeature owner, Camera camera, Shader lookShader, Shader depthShader)
             {
@@ -106,10 +111,19 @@ namespace Ossastra.WorldRendering.Rendering
                 descriptor.msaaSamples = 1; descriptor.bindMS = false;
                 descriptor.useMipMap = descriptor.autoGenerateMips = descriptor.enableRandomWrite = false;
                 descriptor.memoryless = RenderTextureMemoryless.None;
+                bool useStyle = Settings.Stylized != null && Settings.Stylized.Enabled;
+                if (useStyle) descriptor.graphicsFormat = GraphicsFormat.R16G16B16A16_SFloat;
+                var colorDescriptor = descriptor;
                 RenderingUtils.ReAllocateIfNeeded(ref colorCopy, descriptor, FilterMode.Point, TextureWrapMode.Clamp, name: "WorldLook legal color copy");
                 descriptor.graphicsFormat = GraphicsFormat.R32_SFloat;
                 RenderingUtils.ReAllocateIfNeeded(ref legalDepth, descriptor, FilterMode.Point, TextureWrapMode.Clamp, name: "WorldLook fresh legal depth");
                 ready = colorCopy != null && legalDepth != null && colorCopy.rt != null && legalDepth.rt != null;
+                if (useStyle)
+                {
+                    if (stylized == null) stylized = new StylizedLookStage(owner.stylizedCompositeShader, owner.stylizedBloomShader);
+                    stylized.Prepare(colorDescriptor, Settings.Stylized);
+                }
+                else { stylized?.Dispose(); stylized = null; }
                 ConfigureTarget(data.cameraData.renderer.cameraColorTargetHandle);
             }
 
@@ -126,6 +140,7 @@ namespace Ossastra.WorldRendering.Rendering
                 if (source == null || source.rt == null || !source.rt.IsCreated())
                 { owner.ReleaseCamera(camera.GetInstanceID()); owner.Status = "需要可采样的合法世界颜色附件；环境效果已保守关闭。"; return; }
                 var cmd = CommandBufferPool.Get("WorldLook qualified environment");
+                bool styled = false;
                 try
                 {
                     using (new Ossastra.Rendering.RenderCommandScope(cmd))
@@ -146,10 +161,16 @@ namespace Ossastra.WorldRendering.Rendering
                     look.SetFloat("_WorldLookCharacterGlowReady", hasGlow ? 1 : 0);
                     look.SetTexture("_WorldLookCharacterGlow", hasGlow ? characterGlow.rt : Texture2D.blackTexture);
                     Blitter.BlitCameraTexture(cmd, source, colorCopy);
-                    Blitter.BlitCameraTexture(cmd, colorCopy, source, look, 0);
+                    if (Settings.Stylized != null && Settings.Stylized.Enabled && stylized != null &&
+                        WorldLookLegalFrameRegistry.TryGetStyleCoverage(camera, Time.frameCount, out var styleCoverage))
+                        styled = stylized.Execute(cmd, source, source, colorCopy, legalDepth, styleCoverage,
+                            hasGlow ? characterGlow : null, data.cameraData, Settings.FocusDepth);
+                    if (!styled) Blitter.BlitCameraTexture(cmd, colorCopy, source, look, 0);
                     }
                     context.ExecuteCommandBuffer(cmd);
-                    owner.Status = "已接入本帧合法环境：色调/空气/景深/Bloom按配置；角色与黑幕保留。";
+                    owner.Status = styled ? stylized.Status : Settings.Stylized != null && Settings.Stylized.Enabled
+                        ? "风格未取得本帧有效覆盖或资源，已回退既有合法显示链。" + (stylized?.Status ?? "")
+                        : "已接入本帧合法环境：色调/空气/景深/Bloom按配置；角色与黑幕保留。";
                 }
                 finally { CommandBufferPool.Release(cmd); }
             }
@@ -175,6 +196,7 @@ namespace Ossastra.WorldRendering.Rendering
             public void Dispose()
             {
                 ready = false; Settings = null;
+                stylized?.Dispose(); stylized = null;
                 colorCopy?.Release(); colorCopy = null; legalDepth?.Release(); legalDepth = null;
                 CoreUtils.Destroy(look); look = null; CoreUtils.Destroy(depthCopy); depthCopy = null;
             }
