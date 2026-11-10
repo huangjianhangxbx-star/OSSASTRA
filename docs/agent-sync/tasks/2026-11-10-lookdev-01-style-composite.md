@@ -32,3 +32,6 @@ Release v2构建0错误；Player和Editor六态各180帧完成，跟踪RT回归A
 临时Probe组件/源码/meta Native清除，13项生命周期GREEN，冷重开45°/Renderer16/零missing/三个独立Profile读回。最终Main Edit45°/Renderer15/新style=null/dirtyfalse/FrameTimingfalse；Main SHA、四作者资产和四业务源SHA守恒。30秒移动和16秒API旋转实录保留，无需前台继续操作。RealToon仅Editor，Player入口关闭；商业展开不发布。
 
 旧自有构建目录递归删除被自动审批拦截，未提供具体原因；保留旧目录，不再重试。截图入口和保留v2试玩在交付.md。定向发布仅自有源码/meta/合同/文档；原43tracked dirty排除，具体SHA以本机publication.json回执为准。
+
+## v1.2接续
+用户批准新包，任务见2026-11-10-lookdev-01-surface-lighting.md。旧成果/证据不覆盖。

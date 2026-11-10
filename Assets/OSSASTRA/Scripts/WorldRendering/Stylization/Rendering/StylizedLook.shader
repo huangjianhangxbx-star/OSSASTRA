@@ -24,6 +24,9 @@ Shader "Hidden/Ossastra/WorldRendering/StylizedLook"
    float4 _LD_Shadow, _LD_Mid, _LD_Light;
    float4 _LD_Theme; // env strength, actor strength, pivot, contrast
    float4 _LD_Warm; // strength, peak low, peak high
+   float4 _LD_Mode; // legacy/LightingLed, visible-source Bloom opt-in
+   float4 _LD_Grade; // environment strength, actor strength
+   float4 _LD_GradeShadow,_LD_GradeMid,_LD_GradeLight; // linear multipliers
    float4 _LD_AirNear, _LD_AirMid, _LD_AirFar;
    float4 _LD_Density; // distance, height, falloff, base world height
    float4 _LD_AirRange; // observer eye depth, start offset, far offset, max opacity
@@ -52,6 +55,15 @@ Shader "Hidden/Ossastra/WorldRendering/StylizedLook"
   float3 Theme(float3 rgb, float actor)
   {
    if (_LD_Features.x<0.5) return rgb;
+   if(_LD_Mode.x>.5)
+   {
+    if(!all(isfinite(rgb)))return 0;
+    float3 baseColor=max(rgb,0);
+    float guard=LD_WarmGuard(baseColor,_LD_Warm.y,_LD_Warm.z)*_LD_Warm.x;
+    float3 graded=LD_LightingLedGrade(baseColor,_LD_Theme.z,
+      lerp(_LD_Grade.x,_LD_Grade.y,saturate(actor)),_LD_GradeShadow.rgb,_LD_GradeMid.rgb,_LD_GradeLight.rgb);
+    return lerp(graded,baseColor,saturate(guard));
+   }
    float3 c=LD_Contrast(rgb,_LD_Theme.w,_LD_Theme.z);
    float guard=LD_WarmGuard(c,_LD_Warm.y,_LD_Warm.z)*_LD_Warm.x;
    return LD_Theme(c,_LD_Shadow.rgb,_LD_Mid.rgb,_LD_Light.rgb,
@@ -88,18 +100,26 @@ Shader "Hidden/Ossastra/WorldRendering/StylizedLook"
    tint=lerp(tint,_LD_AirFar.rgb,smoothstep(0.5,1,v));
    return lerp(rgb,tint,amount);
   }
-  // Bilinear colour with an explicit all-four validity guard. Hardware interpolation
-  // alone would mix hidden energy back into legal pixels at the mask boundary.
+  float4 BloomSample(int2 p,int2 hi)
+  {
+   if(_LD_Mode.y>.5&&(any(p<0)||any(p>hi)))return 0;
+   return LOAD_TEXTURE2D(_LD_BloomTexture,clamp(p,int2(0,0),hi));
+  }
+  // Legacy interpolation has an all-four validity guard. Visible-source mode
+  // already filtered sources and consumes current destination permission later.
   float3 Bloom(int2 p)
   {
    if (_LD_PixelDebug.z<0.5) return 0;
    float2 q=PixelUV(p)*_LD_BloomSize.xy-0.5;
    int2 a=int2(floor(q)); float2 t=frac(q); int2 hi=int2(_LD_BloomSize.xy)-1;
-   float4 x=LOAD_TEXTURE2D(_LD_BloomTexture,clamp(a,int2(0,0),hi));
-   float4 y=LOAD_TEXTURE2D(_LD_BloomTexture,clamp(a+int2(1,0),int2(0,0),hi));
-   float4 z=LOAD_TEXTURE2D(_LD_BloomTexture,clamp(a+int2(0,1),int2(0,0),hi));
-   float4 w=LOAD_TEXTURE2D(_LD_BloomTexture,clamp(a+int2(1,1),int2(0,0),hi));
-   if (min(min(x.a,y.a),min(z.a,w.a))<0.998) return 0;
+   float4 x=BloomSample(a,hi);
+   float4 y=BloomSample(a+int2(1,0),hi);
+   float4 z=BloomSample(a+int2(0,1),hi);
+   float4 w=BloomSample(a+int2(1,1),hi);
+   // Legacy profiles retain their conservative alpha chain. New Bloom energy
+   // already passed source permission; only current recipient Eligible(cov)
+   // controls its final write, not a propagated neighbour alpha minimum.
+   if (_LD_Mode.y<.5&&min(min(x.a,y.a),min(z.a,w.a))<0.998) return 0;
    return lerp(lerp(x.rgb,y.rgb,t.x),lerp(z.rgb,w.rgb,t.x),t.y)*_LD_Clip.y;
   }
   float4 StyleHDR(Varyings i):SV_Target

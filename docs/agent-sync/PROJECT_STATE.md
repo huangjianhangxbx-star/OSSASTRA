@@ -688,3 +688,8 @@ VEGETATION-01A v1.2 publication verified：产品4c54eae38587eecedd0ce6bdbd5f032
 Native合同11/10/62/11/13/70与主光5角度、实机窗景/门窗关闭、连续30秒移动和16秒API旋转保留。候选冷读45°/Renderer16/零missing；成本Probe组件/源码/meta精确删除。最终Main Edit/dirtyfalse，四作者资产和四业务源及Main保存后SHA守恒，FrameTiming还原false，无Player存留，无后续前台控制。
 Release v2 0错误；Player/Editor各6态180帧。Player GPU中位增量0.74–1.22ms；完整组合CPU主inclusive增量0.68–1.15ms，整帧25–26.5ms，CPU预算/稳定60未通过；Player逐阶段数据缺失，Editor红GPU有异常计时，原数据保留不用异常mean/max。新增跟踪RT51.2/53.9MiB，A/B归还。成本不扩充为RealToon或活跃窗景。视觉待用户，详docs/ossastra/LOOKDEV-01/StyleComposite/交付.md及性能采样.md。
 Root/子源码与Unity租约释放；Git仅定向发布源/meta/合同/文档，原43tracked dirty排除。旧构建删除被自动审批拦截，保留目录，不改安全设置、不重试。具体发布SHA由最后publication.json实证，不预写成功。
+## 2026-11-10 LOOKDEV-01 v1.2 SurfaceLighting / candidate delivery
+独立SC_SurfaceLightingLab/Renderer17/45°，真实A旧完整/B材质布光/C蓝光保色空气正常窗灯Bloom，C默认1px无分档。7对象17槽、精确5retention；224明确terrain块仅C登记Ground，.35保Y基础色与草共用，角色/木屋/水作者不改。源50保护与4业务源SHA守恒，Main最终Edit45°/Renderer15/style=null/dirtyfalse/FrameTimingfalse。
+Final Release实际自动启动/同版A/B/C/A4x300有效；C整帧p50/p9529.529/32.768ms，GPU28.540/29.298ms，对重复A中位+1.094ms，GPU .5预算NotMet、纯有效CPU .3 Unknown、稳定60NotMet；跟踪资源/控制归还。14真正Room颜色draw适配F0/O4/关键词匹配，17缓存不冒充17绘制；SS阈值分支未确证。Stage15、Ground6/8/8、Recipe10、retention12/12、startup生命周期8及旧GPU11/资源13通过；攻击仍原missing-frozen-animation-plan未通过。
+初包/P1实际预检失败已留档：材料CopyProperties属性缓存与URP首相机前Pass=-1，分别修Shader声明检查和首次明确相机渲染后一次initial尝试；保留gate，不固定sleep/不循环retry。Final0error/21既有警告，缓存构建17秒。临时两probe组件/源码/metaNative清除，候选冷读0missing/17槽/C1px/保留有效/正常窗尺寸读回。独立视觉自评9/10，远景接缝/空气纵深/角色既有偏淡保留，视觉待用户；不自动Main回接。
+Root及子Unity/源码writer释放，Git仅定向自有源/meta/合同/文档，原43dirty排除；发布以publication.json实证。完成定向发布后执行最新用户关机授权；无下一阶段自动任务。

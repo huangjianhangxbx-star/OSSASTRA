@@ -147,6 +147,11 @@ namespace Ossastra.EnvironmentSimulation.Rendering
     environment!=null&&environment.dayCycle!=null?environment.dayCycle.sunsetSunColor:Color.black,
     frame.Sun.ElevationDegrees,overrideSkyColors,zenithColor,horizonColor,sceneEnvironmentProfile.settings);
   }
+  // One camera's explicit Ground/Grass opt-in. No per-frame profile clone is needed.
+  public float GroundBaseRecolorStrength
+  {
+   get{if(!sceneEnvironmentEnabled||sceneEnvironmentProfile==null||sceneEnvironmentProfile.settings==null)return 0;float v=sceneEnvironmentProfile.settings.groundBaseRecolorStrength;return float.IsNaN(v)||float.IsInfinity(v)?0:Mathf.Clamp(v,0,.5f);}
+  }
   public Vector4 SceneEnvironmentControls
   {
    get
@@ -275,6 +280,7 @@ namespace Ossastra.EnvironmentSimulation.Rendering
    cmd.SetGlobalVector("_EnvironmentStylizedSkyTint",ResolveStylizedSkyTint(frame));
    cmd.SetGlobalVector("_EnvironmentSceneTint",ResolveSceneEnvironmentTint(frame));
    cmd.SetGlobalVector("_EnvironmentSceneChroma",SceneEnvironmentControls);
+   cmd.SetGlobalFloat("_EnvironmentGroundBaseStrength",GroundBaseRecolorStrength);
    surfaceData.Upload(cmd);
    cmd.SetGlobalFloat("_EnvironmentLightingEnabled",1);
    cmd.SetGlobalVector("_EnvironmentSkyAmbient",(Vector4)(frame.AmbientSky.linear*frame.AmbientIntensity));cmd.SetGlobalVector("_EnvironmentHorizonAmbient",(Vector4)(frame.AmbientEquator.linear*frame.AmbientIntensity));cmd.SetGlobalVector("_EnvironmentGroundAmbient",(Vector4)(frame.AmbientGround.linear*frame.AmbientIntensity));
@@ -282,7 +288,7 @@ namespace Ossastra.EnvironmentSimulation.Rendering
    cmd.SetGlobalVector("_EnvironmentCloudParameters",new Vector4(frame.CloudCoverage,frame.CloudDensity,frame.CloudShadowStrength,frame.CloudWorldScale));cmd.SetGlobalVector("_EnvironmentCloudMotion",new Vector4(frame.WindDirection.x*frame.WindSpeed*frame.CloudSpeed,frame.WindDirection.y*frame.WindSpeed*frame.CloudSpeed,(float)frame.Seconds,1));cmd.SetGlobalFloat("_EnvironmentWetness",frame.Wetness);
   }
   static void ClearSurface(CommandBuffer cmd)
-  {cmd.SetGlobalFloat("_EnvironmentLightingEnabled",0);cmd.SetGlobalVector("_EnvironmentSceneChroma",Vector4.zero);cmd.SetGlobalInteger("_EnvironmentIndoorCount",0);cmd.SetGlobalInteger("_EnvironmentLocalLightCount",0);cmd.SetGlobalInteger("_EnvironmentShelterCount",0);cmd.SetGlobalFloat("_EnvironmentRainDepthReady",0);}
+  {cmd.SetGlobalFloat("_EnvironmentLightingEnabled",0);cmd.SetGlobalVector("_EnvironmentSceneChroma",Vector4.zero);cmd.SetGlobalFloat("_EnvironmentGroundBaseStrength",0);cmd.SetGlobalInteger("_EnvironmentIndoorCount",0);cmd.SetGlobalInteger("_EnvironmentLocalLightCount",0);cmd.SetGlobalInteger("_EnvironmentShelterCount",0);cmd.SetGlobalFloat("_EnvironmentRainDepthReady",0);}
   public static void ClearSurfaceForCamera(CommandBuffer cmd)=>ClearSurface(cmd);
   public static void AppendSkyForCamera(CommandBuffer cmd,Camera camera,RoomMaskFrame visibility)
   {

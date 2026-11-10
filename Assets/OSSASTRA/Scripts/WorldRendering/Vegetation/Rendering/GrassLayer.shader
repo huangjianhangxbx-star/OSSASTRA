@@ -73,7 +73,7 @@ Shader "Ossastra/Vegetation/GrassLayer"
   #pragma shader_feature_local _GRASS_WIND
   #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
   #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
-  #include "Assets/OSSASTRA/Scripts/EnvironmentSimulation/Rendering/EnvironmentLighting.hlsl"
+  #include "Assets/OSSASTRA/Scripts/EnvironmentSimulation/Rendering/SurfaceLightingGroundChroma.hlsl"
   half4 GrassFragment(GrassVarying i,bool front:SV_IsFrontFace):SV_Target
   {
    half4 source=GrassColor(i);float3 normal=normalize(lerp((front?1:-1)*normalize(i.normal),float3(0,1,0),.72));
@@ -91,6 +91,7 @@ Shader "Ossastra/Vegetation/GrassLayer"
    }
    // Terrain texture is UNLIT albedo. Do not bake a manual shadow into it and then multiply main shadow again.
    float3 designed=GrassVideoArt(source.rgb,terrain.rgb,i.weight,viewDistance,1,i.coarse,_GrassWind);
+   designed=EnvironmentGroundBaseChroma(designed,i.world,0);
    return half4(EnvironmentShade(designed,i.world,normal,1),1);
   }
   ENDHLSL
@@ -149,7 +150,7 @@ Shader "Ossastra/Vegetation/GrassLayer"
   #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
   #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
   #include "Assets/OSSASTRA/Scripts/SceneVisibility/Rooms/Rendering/RoomSightClip.hlsl"
-  #include "Assets/OSSASTRA/Scripts/EnvironmentSimulation/Rendering/EnvironmentLighting.hlsl"
+  #include "Assets/OSSASTRA/Scripts/EnvironmentSimulation/Rendering/SurfaceLightingGroundChroma.hlsl"
   half4 RoomGrassSurface(GrassVarying i,bool front,half4 source)
   {
    float3 normal=normalize(lerp((front?1:-1)*normalize(i.normal),float3(0,1,0),.72));
@@ -167,6 +168,7 @@ Shader "Ossastra/Vegetation/GrassLayer"
     return half4(GrassVideoArt(source.rgb,terrain.rgb,i.weight,viewDistance,shadow,i.coarse,_GrassWind),1);
    }
    float3 designed=GrassVideoArt(source.rgb,terrain.rgb,i.weight,viewDistance,1,i.coarse,_GrassWind);
+   designed=EnvironmentGroundBaseChroma(designed,i.world,0);
    return half4(shade?EnvironmentShade(designed,i.world,normal,1):designed,1);
   }
   half4 RoomGrassFragment(GrassVarying i,bool front:SV_IsFrontFace):SV_Target

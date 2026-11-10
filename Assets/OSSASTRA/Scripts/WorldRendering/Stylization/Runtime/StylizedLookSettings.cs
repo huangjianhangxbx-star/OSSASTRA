@@ -12,9 +12,15 @@ namespace Ossastra.WorldRendering.Stylization
   public float DistanceDensity{get;} public float HeightDensity{get;} public float HeightFalloff{get;} public float BaseHeight{get;} public float StartOffset{get;} public float FarOffset{get;} public float MaxOpacity{get;}
   public float BloomThreshold{get;} public float BloomKnee{get;} public float BloomIntensity{get;} public float BloomScatter{get;} public float BloomMaxPeak{get;} public float ActorBloomWeight{get;}
   public float EnvironmentBandStrength{get;} public float ActorBandStrength{get;} public float ReferenceWhite{get;}
+  public StylizedThemeMode ThemeMode{get;} public bool VisibleSourceBloom{get;}
+  public float LedEnvironmentStrength{get;} public float LedActorStrength{get;}
+  public Color LedShadowGain{get;} public Color LedMidGain{get;} public Color LedLightGain{get;}
   StylizedLookSettings(StylizedLookProfileSO p)
   {
    ThemeEnabled=p.enabled&&p.themeEnabled;AirEnabled=p.enabled&&p.airEnabled;BloomEnabled=p.enabled&&p.bloomEnabled;BandsEnabled=p.enabled&&p.bandsEnabled;ToneMapping=p.toneMapping;
+   ThemeMode=p.themeMode==StylizedThemeMode.LightingLed?StylizedThemeMode.LightingLed:StylizedThemeMode.LegacyPalette;VisibleSourceBloom=p.visibleSourceBloom;
+   LedEnvironmentStrength=F(p.ledEnvironmentStrength,.35f,0,1);LedActorStrength=F(p.ledActorStrength,.15f,0,1);
+   LedShadowGain=C(p.ledShadowGain,new Color(.72f,.88f,1.22f,1));LedMidGain=C(p.ledMidGain,new Color(.85f,1,1.12f,1));LedLightGain=C(p.ledLightGain,new Color(1.05f,1.04f,.98f,1));
    PixelSize=p.pixelSize>=4?4:p.pixelSize>=2?2:1;DebugView=Mathf.Clamp(p.debugView,0,5);BandLevels=Mathf.Clamp(p.bandLevels,2,16);
    Enabled=p.enabled&&(ThemeEnabled||AirEnabled||BloomEnabled||BandsEnabled||PixelSize>1||DebugView>0);
    ShadowColor=C(p.shadowColor,Color.black);MidColor=C(p.midColor,Color.blue);LightColor=C(p.lightColor,Color.cyan);AirNear=C(p.airNear,Color.blue);AirMid=C(p.airMid,Color.blue);AirFar=C(p.airFar,Color.blue);

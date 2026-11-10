@@ -4,6 +4,7 @@
  */
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 namespace Ossastra.WorldRendering.Stylization
@@ -29,6 +30,10 @@ namespace Ossastra.WorldRendering.Stylization
         [SerializeField] LookDevToonVariant variant;
         [SerializeField, Tooltip("Only after the current Room resolver executes the actual plugin adapter.")]
         bool realToonRoomBackendValidated = false;
+        [SerializeField, Tooltip("Exact local Room wrapper keyword variants only; empty retains the v1.1 Player block.")]
+        Material[] realToonPlayerRetention = Array.Empty<Material>();
+        bool playerRetentionReady;
+        string playerRetentionError = "No exact Room wrapper retention configured.";
         [SerializeField] bool outlineEnabled;
         [SerializeField, Range(.5f, 1.5f)] float outlineOutputPixels = 1;
         [SerializeField] Color outlineDarkSrgb = new Color(8f/255,13f/255,45f/255,1);
@@ -36,7 +41,9 @@ namespace Ossastra.WorldRendering.Stylization
 
         public IReadOnlyList<LookDevToonBinding> Bindings => bindings;
         public LookDevToonVariant Variant => variant;
-        public bool RealToonAvailable => Application.isEditor && realToonRoomBackendValidated;
+        public bool RealToonAvailable => realToonRoomBackendValidated && (Application.isEditor || playerRetentionReady);
+        public bool PlayerRetentionReady => playerRetentionReady;
+        public string PlayerRetentionError => playerRetentionError;
         public bool OutlineEnabled => isActiveAndEnabled && outlineEnabled && variant != LookDevToonVariant.Original;
         public float OutlineOutputPixels => Mathf.Clamp(outlineOutputPixels, .5f, 1.5f);
         public Color OutlineDarkLinear => outlineDarkSrgb.linear;
@@ -90,8 +97,8 @@ namespace Ossastra.WorldRendering.Stylization
         public bool TrySetVariant(LookDevToonVariant next, out string error)
         {
             error = "";
-            if (next == LookDevToonVariant.RealToon && !Application.isEditor)
-            { error = "RealToon is an Editor-validated comparison; Player keyword retention is not certified."; return false; }
+            if (next == LookDevToonVariant.RealToon && !Application.isEditor && !RefreshPlayerRetention(out error))
+            { error = "Exact Room wrapper retention is not ready; kept the current variant. " + error; return false; }
             if (bindings == null || bindings.Length > 24) { error = "Finite Toon needs 0..24 explicit 3D slots."; return false; }
             if (next == LookDevToonVariant.RealToon && !realToonRoomBackendValidated)
             { error = "RealToon actual Room adapter has not been validated; kept the current variant."; return false; }
@@ -129,6 +136,83 @@ namespace Ossastra.WorldRendering.Stylization
             return true;
         }
 
+        const string VendorShader = "Universal Render Pipeline/RealToon/Version 5/Default/Default";
+        const string RoomShader = "Hidden/Ossastra/LookDev/RealToonRoomLocal";
+        static string KeywordSignature(Material source, Shader wrapper, bool? outline)
+        {
+            var names = new SortedSet<string>(StringComparer.Ordinal);
+            foreach (var name in source.shaderKeywords)
+                if (wrapper.keywordSpace.FindKeyword(name).isValid) names.Add(name);
+            if (outline.HasValue) { names.Remove("N_F_O_ON"); if (outline.Value) names.Add("N_F_O_ON"); }
+            return string.Join(";", names);
+        }
+        bool CheckPlayerRetention(Material[] retained, out string error)
+        {
+            error = "";
+            if (bindings == null || bindings.Length == 0 || bindings.Length > 24 || retained == null || retained.Length == 0 || retained.Length > 48)
+            { error = "Expected 1..24 explicit slots and 1..48 exact wrapper variants."; return false; }
+            Shader wrapper = retained[0] != null ? retained[0].shader : null;
+            if (wrapper == null || !wrapper.isSupported || wrapper.name != RoomShader)
+            { error = "Retention must reference the actual local Room shader, not the vendor source."; return false; }
+            var required = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var b in bindings)
+            {
+                if (b == null || b.renderer == null || b.realToon == null || b.realToon.shader == null ||
+                    b.realToon.shader.name != VendorShader || b.realToon.GetTag("LookDevFiniteToon",false,"") != "LOOKDEV-01")
+                { error = "Missing audited finite source binding."; return false; }
+                required.Add(KeywordSignature(b.realToon,wrapper,false));
+                if (b.outline) required.Add(KeywordSignature(b.realToon,wrapper,true));
+            }
+            var found = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var m in retained)
+            {
+                // This engine can retain the vendor property cache after CopyPropertiesFromMaterial.
+                // Check these project-only declarations on the exact shader; keep pass/keyword checks.
+                if (m == null || m.shader != wrapper || m.FindPass("ForwardLit") < 0 || m.FindPass("Outline") < 0 ||
+                    m.shader.FindPropertyIndex("_RoomSightRoofMode") < 0 || m.shader.FindPropertyIndex("_EnvironmentFullSurface") < 0)
+                {
+                    bool hasShader = m != null && m.shader != null;
+                    error = "Retention has a missing/mismatched Room shader or actual pass. material=" + (m != null ? m.name : "<null>") +
+                        "; shader=" + (hasShader ? m.shader.name : "<null>") +
+                        "; Forward=" + (hasShader ? m.FindPass("ForwardLit") : -1) + "; Outline=" + (hasShader ? m.FindPass("Outline") : -1) +
+                        "; roofDeclaration=" + (hasShader ? m.shader.FindPropertyIndex("_RoomSightRoofMode") : -1) +
+                        "; fullDeclaration=" + (hasShader ? m.shader.FindPropertyIndex("_EnvironmentFullSurface") : -1);
+                    return false;
+                }
+                string key = KeywordSignature(m,wrapper,null);
+                if (!required.Contains(key) || !found.Add(key))
+                { error = "Retention has an unrelated or duplicate local keyword signature."; return false; }
+                bool outline = m.IsKeywordEnabled("N_F_O_ON");
+                if (!m.HasProperty("_N_F_O") || (m.GetFloat("_N_F_O") > .5f) != outline ||
+                    (outline && !m.GetShaderPassEnabled("SRPDefaultUnlit")))
+                { error = "Outline retained property/keyword/pass state does not match."; return false; }
+            }
+            if (!required.SetEquals(found))
+            { error = "A finite Forward or Outline local keyword signature is not retained."; return false; }
+            return true;
+        }
+        // Configuration proof only. Actual Player rendering/costs remain a separate Root acceptance step.
+        public bool ConfigurePlayerRetention(Material[] retained, out string error)
+        {
+            if (!CheckPlayerRetention(retained,out error)) return false;
+            realToonPlayerRetention = (Material[])retained.Clone();
+            playerRetentionReady = true; playerRetentionError = ""; return true;
+        }
+        public bool RefreshPlayerRetention(out string error)
+        {
+            playerRetentionReady = CheckPlayerRetention(realToonPlayerRetention,out error);
+            playerRetentionError = error; return playerRetentionReady;
+        }
+        public string GetRealToonRuntimeIdentity()
+        {
+            var first = realToonPlayerRetention != null && realToonPlayerRetention.Length > 0 ? realToonPlayerRetention[0] : null;
+            var groups = bindings == null ? Array.Empty<string>() : bindings.Where(b=>b!=null && b.realToon!=null && b.realToon.shader!=null)
+                .Select(b=>b.realToon.shader.name+" ["+string.Join(";",b.realToon.shaderKeywords.OrderBy(k=>k,StringComparer.Ordinal))+"]").Distinct().ToArray();
+            return "variant="+variant+"; retentionPrepared="+playerRetentionReady+"; sourceGroups="+string.Join(" | ",groups)+
+                "; expectedRoom="+RoomShader+"; retained="+(realToonPlayerRetention==null?0:realToonPlayerRetention.Length)+
+                "; Forward="+(first!=null&&first.shader!=null?first.FindPass("ForwardLit"):-1)+"; Outline="+(first!=null&&first.shader!=null?first.FindPass("Outline"):-1)+
+                "; configuration identity only, actual draw/visual acceptance separate; error="+playerRetentionError;
+        }
         public void Restore()
         {
             if (bindings == null) return;
@@ -148,7 +232,7 @@ namespace Ossastra.WorldRendering.Stylization
         public void SetOutline(bool enabled, float outputPixels = 1)
         { outlineEnabled = enabled; outlineOutputPixels = Mathf.Clamp(outputPixels, .5f, 1.5f); }
         public void SetOutlineTheme(Color darkSrgb) => outlineDarkSrgb = darkSrgb;
-        void OnEnable() { if(targetCamera!=null)BindCamera(targetCamera); }
+        void OnEnable() { RefreshPlayerRetention(out _); if(targetCamera!=null)BindCamera(targetCamera); }
         void OnDisable() { Restore(); ReleaseCamera(); }
         void OnDestroy() { Restore(); ReleaseCamera(); }
     }

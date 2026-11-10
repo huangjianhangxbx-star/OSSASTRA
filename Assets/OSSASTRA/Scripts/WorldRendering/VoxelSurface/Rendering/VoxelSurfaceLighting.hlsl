@@ -8,7 +8,7 @@
 #define OSSASTRA_VOXEL_SURFACE_LIGHTING_INCLUDED
 #define OSSASTRA_VOXEL_DUAL_FACE_CONTROLS 1
 
-#include "Assets/OSSASTRA/Scripts/EnvironmentSimulation/Rendering/EnvironmentLighting.hlsl"
+#include "Assets/OSSASTRA/Scripts/EnvironmentSimulation/Rendering/SurfaceLightingGroundChroma.hlsl"
 
 // 相机上下文由已有渲染特性按本帧剔除结果显式上传；valid默认0使缺少适配时精确保留C。
 // 索引不是作者配置：Forward先解析per-object索引，Clustered使用URP直接索引。
@@ -241,6 +241,7 @@ VoxelLightingContributions VoxelEvaluateGlobalIllumination(
 // 唯一三维体素片元受光入口。前后许可/alpha clip/fog/depth继续由薄Shader入口处理。
 half4 VoxelUniversalFragmentPBR(InputData inputData, SurfaceData surfaceData)
 {
+    surfaceData.albedo = EnvironmentGroundBaseChroma(surfaceData.albedo,inputData.positionWS,_EnvironmentSurfaceRole);
     EnvironmentApplyNativeWetness(surfaceData, inputData.positionWS);
 #if defined(_SPECULARHIGHLIGHTS_OFF)
     bool specularHighlightsOff = true;

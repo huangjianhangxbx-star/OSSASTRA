@@ -170,6 +170,9 @@ namespace Ossastra.WorldRendering.Stylization
    m.SetColor("_LD_Shadow",s.ShadowColor);m.SetColor("_LD_Mid",s.MidColor);m.SetColor("_LD_Light",s.LightColor);
    m.SetVector("_LD_Theme",new Vector4(s.EnvironmentStrength,s.ActorStrength,s.Pivot,s.Contrast));
    m.SetVector("_LD_Warm",new Vector4(s.WarmGuardStrength,s.WarmGuardLow,s.WarmGuardHigh,0));
+   m.SetVector("_LD_Mode",new Vector4((float)s.ThemeMode,s.VisibleSourceBloom?1:0,0,0));
+   m.SetVector("_LD_Grade",new Vector4(s.LedEnvironmentStrength,s.LedActorStrength,0,0));
+   m.SetVector("_LD_GradeShadow",s.LedShadowGain);m.SetVector("_LD_GradeMid",s.LedMidGain);m.SetVector("_LD_GradeLight",s.LedLightGain);
    m.SetColor("_LD_AirNear",s.AirNear);m.SetColor("_LD_AirMid",s.AirMid);m.SetColor("_LD_AirFar",s.AirFar);
    m.SetVector("_LD_Density",new Vector4(s.DistanceDensity,s.HeightDensity,s.HeightFalloff,s.BaseHeight));
    m.SetVector("_LD_AirRange",new Vector4(observer,s.StartOffset,s.FarOffset,s.MaxOpacity));
@@ -180,6 +183,7 @@ namespace Ossastra.WorldRendering.Stylization
   }
   void BindBloom(Material m,RTHandle input,RTHandle output,RTHandle coverage)
   {
+   m.SetVector("_LD_Mode",new Vector4((float)current.ThemeMode,current.VisibleSourceBloom?1:0,0,0));
    var s=current;m.SetVector("_LD_SourceSize",new Vector4(input.rt.width,input.rt.height,output.rt.width,output.rt.height));
    m.SetTexture("_LD_Coverage",coverage.rt);m.SetVector("_LD_Bloom",new Vector4(s.BloomThreshold,s.BloomKnee,s.BloomMaxPeak,s.ActorBloomWeight));m.SetFloat("_LD_Scatter",s.BloomScatter);
   }

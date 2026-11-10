@@ -9,6 +9,22 @@
 
 float LD_Luma(float3 c) { return dot(c, float3(0.2126, 0.7152, 0.0722)); }
 
+// A finite positive multiplier changes channel relationships without replacing
+// the source by one luminance palette. This branch preserves original linear Y;
+// exposure and the existing light authority own brightness, not this grade.
+float3 LD_LightingLedGrade(float3 rgb,float pivot,float strength,
+    float3 shadowGain,float3 middleGain,float3 lightGain)
+{
+    if(!all(isfinite(rgb))) return 0;
+    float3 c=max(rgb,0);float y=LD_Luma(c);
+    if(y<=1e-7) return 0;
+    float u=y/(y+max(pivot,1e-5));
+    float3 gain=u<.5?lerp(shadowGain,middleGain,u*2):lerp(middleGain,lightGain,(u-.5)*2);
+    gain=lerp(float3(1,1,1),max(gain,.02),saturate(strength));
+    float3 q=c*gain;
+    return q*(y/max(LD_Luma(q),1e-7));
+}
+
 float3 LD_Contrast(float3 c, float contrast, float pivot)
 {
     c = max(c, 0.0);

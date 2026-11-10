@@ -10,6 +10,7 @@ namespace Ossastra.EnvironmentSimulation
   [Range(0,1)] public float groundStrength=.45f;
   [Range(0,1)] public float decorationStrength=.35f;
   [Range(0,1)] public float voxelStrength=.45f;
+  [Range(0,.5f)] public float groundBaseRecolorStrength; // opt-in before lighting; old authored profiles stay zero
   [Range(-30,0)] public float twilightStartElevation=-8;
   [Range(-20,10)] public float twilightFullElevation=-1;
   [Range(0,45)] public float sunsetFullElevation=10;
@@ -21,6 +22,7 @@ namespace Ossastra.EnvironmentSimulation
    result.groundStrength=Bound(groundStrength,0,1,.45f);
    result.decorationStrength=Bound(decorationStrength,0,1,.35f);
    result.voxelStrength=Bound(voxelStrength,0,1,.45f);
+   result.groundBaseRecolorStrength=Bound(groundBaseRecolorStrength,0,.5f,0);
    result.twilightStartElevation=Bound(twilightStartElevation,-30,0,-8);
    result.twilightFullElevation=Bound(twilightFullElevation,result.twilightStartElevation+.1f,10,-1);
    result.sunsetFullElevation=Bound(sunsetFullElevation,Math.Max(0,result.twilightFullElevation),45,10);

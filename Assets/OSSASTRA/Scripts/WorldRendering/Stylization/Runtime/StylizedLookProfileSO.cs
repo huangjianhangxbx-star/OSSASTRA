@@ -3,6 +3,7 @@
 using UnityEngine;
 namespace Ossastra.WorldRendering.Stylization
 {
+ public enum StylizedThemeMode { LegacyPalette=0, LightingLed=1 }
  [CreateAssetMenu(menuName="OSSASTRA/场景/实机风格候选",fileName="StylizedLookProfile")]
  public sealed class StylizedLookProfileSO : ScriptableObject
  {
@@ -10,6 +11,12 @@ namespace Ossastra.WorldRendering.Stylization
   [Range(1,4)] public int pixelSize=1;
   [Range(0,5)] public int debugView;
   public bool toneMapping=true;
+  [Header("可选保色收尾；0保留v1.1语义，不与旧色带叠加")]
+  public StylizedThemeMode themeMode=StylizedThemeMode.LegacyPalette;
+  [Range(0,1)] public float ledEnvironmentStrength=.35f,ledActorStrength=.15f;
+  public Color ledShadowGain=new Color(.72f,.88f,1.22f,1);
+  public Color ledMidGain=new Color(.85f,1,1.12f,1);
+  public Color ledLightGain=new Color(1.05f,1.04f,.98f,1);
   [Header("线性主题色；导入时sRGB只转换一次")]
   public Color shadowColor=new Color(.002428216f,.004024717f,.026241222f,1);
   public Color midColor=new Color(.010329823f,.049706566f,.456411023f,1);
@@ -28,6 +35,8 @@ namespace Ossastra.WorldRendering.Stylization
   [Range(0,1)] public float maxOpacity=.72f;
   [Header("宽Bloom；阈值为线性HDR")]
   public float bloomThreshold=1.1f,bloomKnee=.5f,bloomIntensity=.75f,bloomScatter=.65f,bloomMaxPeak=8,actorBloomWeight=.2f;
+  [Tooltip("只用合法可见源提亮后降采样，最终在当前合法世界接收；关闭保留v1.1最小许可保护。")]
+  public bool visibleSourceBloom;
   [Header("仅雾前主体亮度分档")]
   [Range(2,16)] public int bandLevels=6;
   [Range(0,1)] public float environmentBandStrength=.6f,actorBandStrength=.3f;

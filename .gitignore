@@ -300,3 +300,10 @@
 !/Candidates/LOOKDEV-01/StyleComposite/
 /Candidates/LOOKDEV-01/StyleComposite/*
 !/Candidates/LOOKDEV-01/StyleComposite/PublishedTests/
+
+# LOOKDEV-01 v1.2 own source tests/docs only; local scene/media/plugin remain private.
+!/docs/ossastra/LOOKDEV-01/SurfaceLighting/
+!/docs/agent-sync/tasks/2026-11-10-lookdev-01-surface-lighting.md
+!/Candidates/LOOKDEV-01/SurfaceLighting/
+/Candidates/LOOKDEV-01/SurfaceLighting/*
+!/Candidates/LOOKDEV-01/SurfaceLighting/PublishedTests/

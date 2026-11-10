@@ -1,0 +1,16 @@
+// Synchronous Play-only contract on the explicit candidate. Restores starting recipe state and runtime-style values.
+using System;using System.Linq;using System.Collections.Generic;using UnityEngine;using UnityEngine.SceneManagement;using Ossastra.WorldRendering.Stylization;using Funplay.Editor.Tools.Scripting;
+public sealed class SurfaceGroundRuntimeContract:IFunplayCommand{
+ public void Execute(ExecutionContext ctx){if(!Application.isPlaying)throw new Exception("Candidate Play required");var s=SceneManager.GetActiveScene();var rs=s.GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<SurfaceLightingRecipe>(true)).ToArray();if(rs.Length!=1||rs[0].groundRegistration==null)throw new Exception("One configured Recipe with explicit terrain tag required");var r=rs[0];var tag=r.groundRegistration;var starting=r.State;var runtimeJson=r.RuntimeProfile!=null?JsonUtility.ToJson(r.RuntimeProfile):null;var rows=new List<object>();int failed=0;Action<string,bool> check=(name,passed)=>{rows.Add(new{name,passed});if(!passed)failed++;};string error="";
+ try{
+ r.Release();check("author registration is disabled after release",!tag.enabled);
+ check("A keeps original terrain role and scene profile",r.TrySetState(SurfaceLightingState.Previous,out error)&&!tag.enabled&&r.skyBinding.sceneEnvironmentProfile!=r.recipe.blueSceneEnvironment);
+ check("B keeps original terrain role",r.TrySetState(SurfaceLightingState.MaterialLighting,out error)&&!tag.enabled);
+ check("C enables exact terrain registration and independent profile",r.TrySetState(SurfaceLightingState.BlueComplete,out error)&&tag.enabled&&r.skyBinding.sceneEnvironmentProfile==r.recipe.blueSceneEnvironment&&r.skyBinding.sceneEnvironmentEnabled);
+ check("C to A restores original terrain classification",r.TrySetState(SurfaceLightingState.Previous,out error)&&!tag.enabled);
+ var before=r.RuntimeProfile;var oldDay=r.environment.dayCycle;r.groundRegistration=null;bool rejected=!r.TrySetState(SurfaceLightingState.BlueComplete,out error);r.groundRegistration=tag;check("missing terrain registration rejects before any state write",rejected&&r.State==SurfaceLightingState.Previous&&r.RuntimeProfile==before&&r.environment.dayCycle==oldDay&&!tag.enabled);
+ if(!r.TrySetState(SurfaceLightingState.MaterialLighting,out error))throw new Exception(error);before=r.RuntimeProfile;tag.enabled=true;rejected=!r.TrySetState(SurfaceLightingState.BlueComplete,out error);check("external tag owner change refuses a complete-state switch",rejected&&r.RuntimeProfile==before&&tag.enabled&&r.State==SurfaceLightingState.MaterialLighting);r.Release();check("release preserves external true instead of overwriting author false",tag.enabled&&!r.HasLease);tag.enabled=false;
+ }catch(Exception e){check("native runtime contract exception",false);error=e.ToString();}
+ finally{r.groundRegistration=tag;r.Release();tag.enabled=false;if(!r.TrySetState(starting,out var restoreError)){failed++;rows.Add(new{name="restore starting complete recipe",passed=false,error=restoreError});}else if(runtimeJson!=null&&r.RuntimeProfile!=null)JsonUtility.FromJsonOverwrite(runtimeJson,r.RuntimeProfile);}
+ ctx.ReturnValue=new{passed=failed==0,checks=rows.Count,failed,rows,error,stateRestored=r.State.ToString()};}
+}

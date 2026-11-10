@@ -1173,3 +1173,13 @@ LOOKDEV M0 Root Native租约：Assets/OSSASTRA/WorldRendering/Stylization/SC_Sty
 
 
 2026-11-10 LOOKDEV-01 StyleComposite technical-complete / writers released：M0–M4独立候选交付；Source/MRT/GPU/保存冷读通过，成本/限制详专属交付。Main原默认与四作者/四业务源守恒；候选Probe清除，Main Edit45°/Renderer15/style=null，Root及子Unity/源码writer释放，后续不用前台。视觉待用户、CPU组合与60预算未过，RealToon仅Editor。Git最后精确发布，不纳入原43dirty；SHA以publication回执为准。旧构建目录删除被自动审批拦截，保留、不重试。
+
+
+## 2026-11-10 LOOKDEV-01 v1.2 SurfaceLighting / Root unity-writer
+用户批准执行卡通材质与光影层次包FC98AF642CDCCCD406C37B5F2D45D73FBCCF5CB2A65942F3959BA46A9A1A9013，并要求完成后关机。接续LOOKDEV-01，不另起任务权威。Root唯一Unity/Git；独占Candidates/LOOKDEV-01/SurfaceLighting、artifacts/LOOKDEV-01/SurfaceLighting、docs/ossastra/LOOKDEV-01/SurfaceLighting、新Assets/OSSASTRA/WorldRendering/Stylization/SurfaceLighting、Scripts/WorldRendering/Stylization/SurfaceLighting；共享改动限定原StylizedLookProfileSO/Settings/Stage/Look.shader/Math/Bloom与有限LookDevFiniteToon/Room入口，EnvironmentRoot仅必要override单owner适配。三子agent只写各自Candidates子目录，不触碰生产/Unity/Git。Main、v1.1场景/作者配置、CHAR/草作者、原43tracked dirty保护；默认不开像素，A/v1.1、B材质布光、C强蓝完整，RealToon优先但不静默Player回退。先可见结果，有限三轮修正，一次最终Release/同版A/B/C各300帧；若预算不过诚实候选交付。最后保存、核验、释放writer、定向发布后执行用户关机授权，若有新取消指令以最新为准。
+
+2026-11-10 LOOKDEV v1.2 Root精确追加opt-in共享租约：EnvironmentSimulation/Runtime/SceneEnvironmentSettings.cs、Rendering/EnvironmentSkyBinding.cs、Rendering/EnvironmentLighting.hlsl、WorldRendering/VoxelSurface/Rendering/VoxelSurfaceLighting.hlsl、WorldRendering/Vegetation/Rendering/GrassLayer.shader，限C独立SceneProfile groundBaseRecolorStrength默认0、现Binding单相机Upload/Clear、Ground/Grass基础色保Y重染，原角色木石/风/许可不改。Recipe切引用/归还适配。候选worker仅Recipe/Foliage，Root独占生产导入。C首图仍偏绿，有实际图证，不以强全屏palette掩盖。
+
+2026-11-10 v1.2范围实现调整：基础染色helper独立为EnvironmentSimulation/Rendering/SurfaceLightingGroundChroma.hlsl（默认0），不改EnvironmentLighting.hlsl以免无关角色/插件重编。其余已登记入口与生命周期不变。
+
+2026-11-10 v1.2 candidate-delivered / Unity+source writers released：候选和Main冷读恢复、保护SHA通过，Final4x300/实际图完整；预算NotMet/CPU有效Unknown、视觉待用户、SS分支未确证、攻击旧阻断不代签。两个诊断组件/源码/meta清除。Root/子writer释放，仅Git定向发布与已授权正常关机收尾，不回接Main、不再迭代。详细证据见专属交付；具体SHA以publication.json核验。
