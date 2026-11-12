@@ -8,11 +8,19 @@ namespace Ossastra.Characters
         public override string StateMachineName => "MovementStateMachine";
         public bool IsAirborne => owner.StateMovement != null && owner.StateMovement.IsSideView &&
             (jump.Phase == OrdinaryJumpPhase.Rising || jump.Phase == OrdinaryJumpPhase.Falling);
-        public override bool IsActive => IsAirborne || (owner.StateMovement != null && owner.StateMovement.IsMoving);
-        public override string CurrentStateName => IsAirborne ? "Airborne/" + jump.Phase : IsActive ? "Move" : "Idle";
+        public override bool IsActive => IsAirborne || traversal?.OwnsAirState == true || (owner.StateMovement != null && owner.StateMovement.IsMoving);
+        public override string CurrentStateName => traversal?.OwnsAirState == true ? TraversalMode.ToString() :
+            IsAirborne ? "Airborne/" + jump.Phase : IsActive ? "Move" : "Idle";
         public int AcceptedJumps { get; private set; }
+        public SideViewTraversalMode TraversalMode => traversal?.Mode ??
+            (IsAirborne ? SideViewTraversalMode.Airborne : SideViewTraversalMode.Grounded);
+        public int TraversalRevision => traversal?.Revision ?? 0;
+        public int TraversalWallSide => traversal?.WallSide ?? 0;
+        public string TraversalLastRejection => traversal?.LastRejection;
+        internal bool TraversalBlocksAttack => traversal?.BlocksAttack == true;
 
         private readonly OrdinaryJumpCycle jump = new OrdinaryJumpCycle();
+        private SideViewTraversal traversal;
         private CharacterInputButton pendingGesture, launchGesture;
         private CharacterActionRequest pendingRequest;
         private bool pendingTap, launchHeld, anyHeld;
@@ -21,11 +29,21 @@ namespace Ossastra.Characters
         private float accumulator;
 
         public override bool AllowsRequest(CharacterActionKind kind, out string reason)
+            => AllowsRequest(kind, kind == CharacterActionKind.Main || kind == CharacterActionKind.Offhand, out reason);
+
+        internal bool AllowsRequest(CharacterActionKind kind, bool isAttack, out string reason)
         {
             reason = null;
+            if (TraversalBlocksAttack && (isAttack || kind == CharacterActionKind.Jump || kind == CharacterActionKind.Dodge))
+            {
+                reason = "ledge-action-blocked";
+                return false;
+            }
             if (kind != CharacterActionKind.Jump) return true;
             var motor = owner.StateMovement;
-            if (motor == null || !motor.IsSideView || !jump.CanLaunch(motor.JumpProfile.ledgeGraceSteps))
+            var settings = motor?.JumpProfile?.traversal;
+            bool wall = settings?.enabled == true && traversal?.CanKick(settings) == true;
+            if (motor == null || !motor.IsSideView || (!wall && !jump.CanLaunch(motor.JumpProfile.ledgeGraceSteps)))
                 reason = "jump-no-support";
             else if (!owner.DataBus.AllowsMovement || !owner.DataBus.MoveReady ||
                 owner.DataBus.MotionOverride?.IsActive == true)
@@ -62,11 +80,14 @@ namespace Ossastra.Characters
                 accumulator = 0f;
                 motor.ResetSideViewPose();
                 InvalidateInput();
+                traversal?.SuspendInput();
                 return;
             }
 
             var profile = motor.JumpProfile;
-            SampleJump(owner.DataBus.Input, profile);
+            if (profile.traversal?.enabled == true && traversal == null) traversal = new SideViewTraversal(motor);
+            if (profile.traversal?.enabled != true) traversal = null;
+            SampleJump(owner.DataBus.Input);
             float step = Mathf.Clamp(profile.stepSeconds, .005f, .05f);
             accumulator = Mathf.Min(accumulator + elapsed, step * 8f);
             var before = motor.transform.position;
@@ -75,12 +96,29 @@ namespace Ossastra.Characters
             while (steps < 8 && accumulator + .000001f >= step)
             {
                 int acceptedBefore = AcceptedJumps;
-                TryLaunch();
+                bool canTraverse = canMove && owner.DataBus.MoveReady && !owner.DataBus.ActionActive &&
+                    owner.DataBus.MotionOverride?.IsActive != true && owner.StateStatusEffects?.BlocksIntent != true &&
+                    owner.StatePosture?.IsStaggered != true && owner.StateOffhand?.IsAccepting != true &&
+                    (owner.StateAbilities as CharacterAbilities)?.OccupiesTraversal != true;
+                int side = owner.DataBus.Input.move.x > .25f ? 1 : owner.DataBus.Input.move.x < -.25f ? -1 : 0;
+                traversal?.Sample(side, canTraverse && owner.HasPlayerInput, owner.ActionControlRevision, profile.traversal);
+                bool wallJump = TryLaunch(profile);
+                bool ordinaryJump = AcceptedJumps != acceptedBefore && !wallJump;
+                bool wasHanging = TraversalBlocksAttack;
+                var motion = ordinaryJump ? default : traversal?.Plan(canTraverse, step, profile) ?? default;
+                if (!wasHanging && TraversalBlocksAttack)
+                {
+                    ClearPending();
+                    jump.EnterLedge();
+                    owner.StateArbitrator.Combat.ClearBuffer();
+                    if (owner.DataBus.Input.attackHeld) owner.StateArbitrator.Combat.SuppressInput();
+                }
                 var command = jump.Step(profile.sustainSteps, profile.minimumSustainSteps);
                 bool wasRising = jump.Phase == OrdinaryJumpPhase.Rising;
                 bool held = launchGesture.HasIdentity ? launchHeld : anyHeld;
                 float gravity = jump.GravityScale(step, held, profile.hangInitialGravity, profile.hangGravityRamp);
-                motor.TickSideView(canMove, step, command, gravity, AcceptedJumps != acceptedBefore);
+                motor.TickSideView(canMove, step, command, gravity, ordinaryJump, motion);
+                traversal?.Observe(profile.traversal);
                 bool bumped = wasRising && (motor.LastCollision & CollisionFlags.Above) != 0;
                 jump.Observe(wasRising, motor.Grounded, bumped, motor.VerticalSpeed > 0f, profile.headLockSteps);
                 if (motor.Grounded) { launchGesture = default; launchHeld = false; }
@@ -92,7 +130,7 @@ namespace Ossastra.Characters
             motor.SetSideViewPresentationFraction(accumulator / step);
         }
 
-        private void SampleJump(CharacterInputFrame frame, CharacterJumpProfile profile)
+        private void SampleJump(CharacterInputFrame frame)
         {
             int revision = owner.ActionControlRevision;
             if (frame.jumpInputGeneration != inputGeneration)
@@ -113,7 +151,7 @@ namespace Ossastra.Characters
             {
                 if (!button.HasIdentity) continue;
                 anyHeld |= button.Held;
-                if (button.Pressed && !frame.jumpRequestsBlocked && (!button.Released || jump.CanLaunch(profile.ledgeGraceSteps)))
+                if (button.Pressed && !frame.jumpRequestsBlocked && !TraversalBlocksAttack)
                 {
                     pendingGesture = button;
                     pendingRequest = owner.Actions.CreateRequest(CharacterActionKind.Jump, CharacterActionSource.Player, "jump-input");
@@ -130,12 +168,18 @@ namespace Ossastra.Characters
             }
         }
 
-        private void TryLaunch()
+        private bool TryLaunch(CharacterJumpProfile profile)
         {
-            if (!pendingGesture.HasIdentity || !AllowsRequest(CharacterActionKind.Jump, out _)) return;
-            owner.Actions.TryCommit(pendingRequest, 0f, () =>
+            if (!pendingGesture.HasIdentity || !AllowsRequest(CharacterActionKind.Jump, out _)) return false;
+            bool wall = traversal?.CanKick(profile.traversal) == true;
+            bool accepted = owner.Actions.TryCommit(pendingRequest, 0f, () =>
             {
-                jump.Launch();
+                if (wall)
+                {
+                    jump.LaunchWall();
+                    traversal.Kick(profile.traversal);
+                }
+                else jump.Launch();
                 launchGesture = pendingGesture;
                 launchHeld = !pendingTap;
                 if (pendingTap) jump.Release();
@@ -144,6 +188,7 @@ namespace Ossastra.Characters
             }, out _);
             // 当前准备就绪时只向账本提交一次。延迟资格仍由前置 gate 和缓冲步数控制。
             ClearPending();
+            return accepted && wall;
         }
 
         private void ClearPending()
@@ -166,6 +211,7 @@ namespace Ossastra.Characters
         {
             InvalidateInput();
             jump.Reset();
+            traversal?.Reset();
             accumulator = 0f;
         }
     }

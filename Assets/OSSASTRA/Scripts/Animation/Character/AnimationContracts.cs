@@ -1,3 +1,8 @@
+/*
+ * 脚本：AnimationContracts
+ * 功能：定义动画意图、逻辑映射、轨道优先和过渡判据的公共标识。
+ * 边界：墙边标识描述表现状态，运动和碰撞仍由角色运动域管理。
+ */
 namespace Ossastra.CharacterAnimation
 {
 public enum AnimationLayer
@@ -64,7 +69,10 @@ public enum EAnimSemantic
     Stagger = 1005,
     Death = 1006,
     Ability = 1007,
-    ModelDirection = 1008
+    ModelDirection = 1008,
+    WallSlide = 1009,
+    LedgeHang = 1010,
+    LedgeClimb = 1011
 }
 public enum EAnimationLogicState
 {
@@ -145,7 +153,10 @@ public enum EAnimationLogicState
     DirectionFace2 = 1202,
     DirectionFace3 = 1203,
     DirectionFace4 = 1204,
-    DirectionFace5 = 1205
+    DirectionFace5 = 1205,
+    WallSlide = 1210,
+    LedgeHang = 1211,
+    LedgeClimb = 1212
 }
 public enum TransitionSuppressReason
 {

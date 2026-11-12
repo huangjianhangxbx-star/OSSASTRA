@@ -33,6 +33,7 @@ namespace Ossastra.Characters
             public Executor(float angle,float scale,float startup,float frostCost,float movement,Ossastra.CharacterCore.Abilities.EquipmentAbilityState mainState=null){this.angle=angle;this.scale=scale;this.startup=startup;this.frostCost=frostCost;this.movement=movement;this.mainState=mainState;}
             public override bool UsesBodyAction=>false;
             public override CharacterActionKind ActionKind=>CharacterActionKind.Guard;
+            public override bool IsAttack => false;
             public override CompiledAbilityExecutor Prepare(CharacterRoot owner)=>new Executor(angle,scale,startup,frostCost,movement,owner.GetComponent<CharacterEquipment>()?.State.RightRuntime);
             public override bool CanUseSource(IAbilitySource source)=>frostCost<=0||mainState!=null&&mainState.Frost.Current>=frostCost;
             public override AbilityRun CreateRun(AbilityRunContext context)=>new Run(context,angle,scale,startup,frostCost,movement);

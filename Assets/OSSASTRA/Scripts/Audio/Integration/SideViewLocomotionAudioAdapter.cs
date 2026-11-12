@@ -1,6 +1,6 @@
 /*
  * 脚本：SideViewLocomotionAudioAdapter
- * 功能：消费横版角色碰撞结算后的运动步，按真实路程提交脚步并独立提交起跳／落地短音。
+ * 功能：消费横版角色的实际运动步和墙边转换，提交脚步、起跳、落地及攀越短音。
  * 边界：不读按键或可见位置，不查询或推算支撑，不创建音源，不改音量或内容档案。
  * 协作：CharacterMovement → 运动步累计器 → 现有 SFX 来源租约；本场组件也声明冷启动音频入口。
  */
@@ -22,11 +22,13 @@ namespace Ossastra.Audio
             public ActorRoot actor;
             public CharacterMovement movement;
             public Action<SideMovementStep> callback;
+            public Action<SideTraversalEvent> traversalCallback;
             public SideViewAudioStepSampler sampler;
             public SfxSourceHandle source;
             public SideMovementStep? footstep, launch, land;
+            public readonly List<SideTraversalEvent> traversal = new List<SideTraversalEvent>(4);
             public SideViewAudioCue footstepKind;
-            public void ClearPending() { footstep = launch = land = null; }
+            public void ClearPending() { footstep = launch = land = null; traversal.Clear(); }
             public void Reset()
             {
                 ClearPending();
@@ -43,6 +45,11 @@ namespace Ossastra.Audio
         [Header("本场普通运动短音（不是投送 land）")]
         [SerializeField] private SfxEventDefinitionSO jumpCue;
         [SerializeField] private SfxEventDefinitionSO landingCue;
+        [Header("墙边动作短音")]
+        [SerializeField] private SfxEventDefinitionSO grabCue;
+        [SerializeField] private SfxEventDefinitionSO wallJumpCue;
+        [SerializeField] private SfxEventDefinitionSO climbCue;
+        [SerializeField] private SfxEventDefinitionSO dropCue;
 
         private readonly List<Observation> observations = new List<Observation>();
         private CharacterControlCoordinator coordinator;
@@ -54,6 +61,7 @@ namespace Ossastra.Audio
         public int SubmittedFootsteps { get; private set; }
         public int SubmittedJumps { get; private set; }
         public int SubmittedLandings { get; private set; }
+        public int SubmittedTraversals { get; private set; }
         public int CoalescedFootsteps { get; private set; }
         public string LastDecision { get; private set; } = "等待权威运动步";
 
@@ -76,7 +84,12 @@ namespace Ossastra.Audio
                 if (movement == null) continue;
                 var item = new Observation { actor = actor, movement = movement, sampler = new SideViewAudioStepSampler(walkStride, runStride, runSpeed) };
                 item.callback = step => Observe(item, step);
+                item.traversalCallback = fact =>
+                {
+                    if (ConnectWorld() && Eligible(item)) item.traversal.Add(fact);
+                };
                 movement.SideStepCompleted += item.callback;
+                movement.SideTraversalOccurred += item.traversalCallback;
                 observations.Add(item);
             }
         }
@@ -109,8 +122,12 @@ namespace Ossastra.Audio
                 var item = observations[i];
                 if (item.actor == null || item.movement == null) { Detach(item); observations.RemoveAt(i); continue; }
                 if (!Eligible(item)) { item.Reset(); continue; }
-                if (item.launch.HasValue) SubmitEdge(item, item.launch.Value, jumpCue, true);
-                if (item.land.HasValue) SubmitEdge(item, item.land.Value, landingCue, false);
+                foreach (var fact in item.traversal) SubmitTraversal(item, fact);
+                // 同一模拟步已经使用墙跳或攀越收尾配方时，不再发一份普通起落声。
+                if (item.launch.HasValue && !item.traversal.Exists(f => f.StepId == item.launch.Value.StepId && f.Kind == SideTraversalEventKind.WallJump))
+                    SubmitEdge(item, item.launch.Value, jumpCue, true);
+                if (item.land.HasValue && !item.traversal.Exists(f => f.StepId == item.land.Value.StepId && f.Kind == SideTraversalEventKind.ClimbComplete))
+                    SubmitEdge(item, item.land.Value, landingCue, false);
                 if (item.footstep.HasValue) SubmitFootstep(item, item.footstep.Value);
                 item.ClearPending();
             }
@@ -170,9 +187,32 @@ namespace Ossastra.Audio
             LastDecision = source.Submit(cue, "step:" + step.StepId, step.WorldPosition).Reason;
         }
 
+        private void SubmitTraversal(Observation item, SideTraversalEvent fact)
+        {
+            if (fact.ContactEpoch != item.movement.ContactRevision) return;
+            SfxEventDefinitionSO definition;
+            switch (fact.Kind)
+            {
+                case SideTraversalEventKind.Grab: definition = grabCue; break;
+                case SideTraversalEventKind.WallJump: definition = wallJumpCue; break;
+                case SideTraversalEventKind.ClimbComplete: definition = climbCue; break;
+                case SideTraversalEventKind.Drop: definition = dropCue; break;
+                default: return;
+            }
+            if (definition == null) { LastDecision = "ASSET_BLOCKED_TRAVERSAL_" + fact.Kind; return; }
+            var source = Lease(item);
+            if (source == null) return;
+            SubmittedTraversals++;
+            LastDecision = source.SubmitDefinition(definition, "traversal:" + fact.Kind + ":" + fact.StepId, fact.Position).Reason;
+        }
+
         private static void Detach(Observation item)
         {
-            if (item.movement != null) item.movement.SideStepCompleted -= item.callback;
+            if (item.movement != null)
+            {
+                item.movement.SideStepCompleted -= item.callback;
+                item.movement.SideTraversalOccurred -= item.traversalCallback;
+            }
             item.Reset();
         }
 

@@ -50,10 +50,17 @@ namespace Ossastra.Characters
             if (!ordered.Contains(machine)) ordered.Add(machine);
         }
         public bool AllowsRequest(CharacterActionKind kind, out string reason)
+            => AllowsRequest(kind, kind == CharacterActionKind.Main || kind == CharacterActionKind.Offhand, out reason);
+
+        internal bool AllowsRequest(CharacterActionKind kind, bool isAttack, out string reason)
         {
             // 按集中注册顺序询问真实状态规则；只检查，不Enter、取消或扣费。
             foreach (var machine in ordered)
-                if (!machine.AllowsRequest(kind, out reason)) { lastRejection = reason; return false; }
+            {
+                bool allowed = machine == Movement
+                    ? Movement.AllowsRequest(kind, isAttack, out reason) : machine.AllowsRequest(kind, out reason);
+                if (!allowed) { lastRejection = reason; return false; }
+            }
             reason = null;
             return true;
         }

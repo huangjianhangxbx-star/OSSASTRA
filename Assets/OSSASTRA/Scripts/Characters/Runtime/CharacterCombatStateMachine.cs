@@ -57,6 +57,7 @@ namespace Ossastra.Characters
   public void RequestInput(CharacterInputFrame frame)
   {
             var pressed=frame.hasAttackEdges?intent.Observe(frame.attackHeld,frame.attackPressed):intent.Observe(frame.attackHeld);
+            if(owner.StateArbitrator.Movement.TraversalBlocksAttack){ClearBuffer();if(frame.attackHeld)SuppressInput();return;}
             if (pressed && !frame.attackRequestsBlocked && owner.StateFocused && !frame.attackPointerBlocked)
             {
                 var stage=chain==null?1:chain.Request(runtime.SimulationTime,runtime.AttackReady,
@@ -100,7 +101,8 @@ namespace Ossastra.Characters
   public void CompleteFrame(float deltaTime)
   {
             owner.StateMainAction?.TickEffects(owner.IsSimulationSuspended?0:deltaTime);
-            if(chain!=null && owner.StateInput.HasPlayerInput && !owner.IsPaused && owner.StateFocused && owner.StateAuthority.Allows(ControlChannel.Attack))
+            if(chain!=null && !owner.StateArbitrator.Movement.TraversalBlocksAttack &&
+                owner.StateInput.HasPlayerInput && !owner.IsPaused && owner.StateFocused && owner.StateAuthority.Allows(ControlChannel.Attack))
             {
                 var bufferedStage=chain.Poll(runtime.SimulationTime,runtime.AttackReady);
                 if(bufferedStage>0) RequestStage(bufferedStage);
@@ -135,14 +137,14 @@ namespace Ossastra.Characters
             if(reason!=null)return false;
             return !(owner.StatePresentation is ICharacterPreparedAnimation validator)||validator.CanCapturePhase(phase,out reason);
         }
-        internal bool TryAbilityBodyAction(ActionDefinitionSO config,CharacterActionSource source,string label,float cost,out Guid actionId,Func<bool> prepareSource=null,Action rollbackSource=null,ConfiguredActionSnapshot phase=null,CharacterAnimationPreparation? preparation=null)
+        internal bool TryAbilityBodyAction(ActionDefinitionSO config,CharacterActionSource source,string label,float cost,out Guid actionId,Func<bool> prepareSource=null,Action rollbackSource=null,ConfiguredActionSnapshot phase=null,CharacterAnimationPreparation? preparation=null,bool isAttack=true)
         {
             actionId=Guid.Empty;if(config==null||!owner.StateReady)return false;
             BasicAttackDefinition frozen;
             if(phase==null&&!TryResolveConfiguredAction(config,out phase,out var configurationError,preparation)){lastFact="Rejected: "+configurationError;return false;}
             if(!ValidatePrepared(phase,out var phaseError)){lastFact="Rejected: "+phaseError;return false;}
             frozen=phase.Timeline;
-            var signature=owner.Actions.CreateRequest(CharacterActionKind.Main,source,label);
+            var signature=owner.Actions.CreateRequest(CharacterActionKind.Main,source,label).WithAttackSemantics(isAttack);
             ActionRequestResult result=null;
             if(!owner.Actions.TryCommit(signature,cost,()=>
             {

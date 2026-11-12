@@ -40,6 +40,7 @@ namespace Ossastra.Characters
         private long sideStepId;
 
         public event Action<SideMovementStep> SideStepCompleted;
+        public event Action<SideTraversalEvent> SideTraversalOccurred;
         public Vector3 PresentedPosition => IsSideView && hasPose
             ? Vector3.Lerp(previousPose, latestPose, presentationFraction) : transform.position;
         public Vector3 PresentationOffset => PresentedPosition - transform.position;
@@ -87,18 +88,25 @@ namespace Ossastra.Characters
             Stop();
         }
 
-        internal void TickSideView(bool allowed, float delta, JumpVerticalCommand command, float gravityScale, bool jumpAccepted)
+        internal SideViewLedgeProbe CreateLedgeProbe() => new SideViewLedgeProbe(body, IsTraversalObstacle);
+
+        internal void EmitTraversal(SideTraversalEventKind kind, int side)
+            => SideTraversalOccurred?.Invoke(new SideTraversalEvent(kind, transform.position, side, sideStepId, ContactRevision));
+
+        internal void TickSideView(bool allowed, float delta, JumpVerticalCommand command, float gravityScale,
+            bool jumpAccepted, SideViewMotion traversalMotion = default)
         {
             if (!IsSideView || body == null || !body.enabled || delta <= 0f) return;
             var before = transform.position;
             if (!hasPose || latestPose != before) ResetSideViewPose();
             bool groundedBefore = Grounded;
-            bool footstepAllowed = allowed && dataBus.MotionOverride?.IsActive != true &&
+            bool footstepAllowed = allowed && !traversalMotion.ConstrainedPose && dataBus.MotionOverride?.IsActive != true &&
                 statusEffects?.HasForcedMotion != true && statusEffects?.BlocksIntent != true;
             partyContacts?.Prepare(body);
             LastAllowed = allowed;
             var horizontal = ResolveVelocity(allowed, jumpProfile.runSpeed);
             horizontal.y = horizontal.z = 0f;
+            if (traversalMotion.X.HasValue) horizontal.x = traversalMotion.X.Value;
             if (command == JumpVerticalCommand.Sustain) VerticalSpeed = jumpProfile.jumpSpeed;
             if (command == JumpVerticalCommand.Cut && VerticalSpeed > 0f)
                 VerticalSpeed *= jumpProfile.releaseSpeedScale;
@@ -106,16 +114,18 @@ namespace Ossastra.Characters
             float acceleration = jumpProfile.gravity * Mathf.Clamp01(gravityScale);
             VerticalSpeed = stayingGrounded ? -groundStick
                 : Mathf.Max(-jumpProfile.fallSpeed, VerticalSpeed - acceleration * delta);
+            if (traversalMotion.Y.HasValue) VerticalSpeed = traversalMotion.Y.Value;
             float downBeforeContact = Mathf.Max(0f, -VerticalSpeed);
             MoveOnce(horizontal, VerticalSpeed, delta, true);
-            Grounded = VerticalSpeed <= 0f && stepSupport != null && (LastCollision & CollisionFlags.Below) != 0;
+            Grounded = (!traversalMotion.ConstrainedPose || traversalMotion.CanLand) &&
+                VerticalSpeed <= 0f && stepSupport != null && (LastCollision & CollisionFlags.Below) != 0;
             bool hitHead = (LastCollision & CollisionFlags.Above) != 0;
             if (Grounded || hitHead && VerticalSpeed > 0f) VerticalSpeed = 0f;
 
             previousPose = before;
             latestPose = transform.position;
             bool launched = jumpAccepted && !hitHead && latestPose.y > before.y + .001f;
-            float landingSpeed = !groundedBefore && Grounded && hasEstablishedSupport ? downBeforeContact : 0f;
+            float landingSpeed = !traversalMotion.ConstrainedPose && !groundedBefore && Grounded && hasEstablishedSupport ? downBeforeContact : 0f;
             hasEstablishedSupport |= Grounded;
             SideStepCompleted?.Invoke(new SideMovementStep(++sideStepId, ContactRevision, groundedBefore,
                 Grounded, launched, footstepAllowed, Mathf.Abs(latestPose.x - before.x), delta,
@@ -194,6 +204,10 @@ namespace Ossastra.Characters
             => candidate != null && candidate != body && partyContacts?.IsPeer(body, candidate) != true &&
                 !Physics.GetIgnoreLayerCollision(gameObject.layer, candidate.gameObject.layer) &&
                 !Physics.GetIgnoreCollision(body, candidate);
+
+        private bool IsTraversalObstacle(Collider candidate)
+            => IsEnvironmentContact(candidate) && !(candidate is CharacterController) &&
+                candidate.GetComponentInParent<Ossastra.Combat.CombatVitals>() == null;
 
         private void ClearMovementFacts()
         { LastAllowed=false;RequestedVelocity=Vector3.zero;LastEnvironmentSideBlocked=false;IsMoving=false;Velocity=Vector3.zero; }

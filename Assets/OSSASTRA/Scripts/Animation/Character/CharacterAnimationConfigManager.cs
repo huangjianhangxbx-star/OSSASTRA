@@ -1,4 +1,5 @@
-/* 原算法适配只读角色事实；模型范围Override仍使用原SO，不修改装备能力或共享装备定义。 */
+/* 原动画配置读取基础、装备、模型和状态映射。横版攀越可配置独立片段，
+ * 不改共享基础动画或动作资格。 */
 namespace Ossastra.CharacterAnimation
 {
 using CharacterRoot = Ossastra.Characters.CharacterRoot;
@@ -10,6 +11,8 @@ public class CharacterAnimationConfigManager : MonoBehaviour
     private CharacterRoot characterRoot;
 
     public AnimationPlanMappingSO baseMap;
+    [Tooltip("横版墙滑、挂边、翻越的独立片段配置。")]
+    public AnimationPlanMappingSO sideViewTraversalMap;
     public List<AnimationPlanOverrideRuleSetSO> itemOverrides = new List<AnimationPlanOverrideRuleSetSO>();
     [Tooltip("当前模型专用的原式覆盖；位于装备覆盖之后、状态覆盖之前。空列表保持旧行为。")]
     public List<AnimationPlanOverrideRuleSetSO> modelOverrides = new List<AnimationPlanOverrideRuleSetSO>();
@@ -25,6 +28,7 @@ public class CharacterAnimationConfigManager : MonoBehaviour
             {
                 int v = configurationEpoch * 397;
                 v = v * 31 + (baseMap == null ? 0 : baseMap.GetInstanceID() ^ baseMap.Revision);
+                v = v * 31 + (sideViewTraversalMap == null ? 0 : sideViewTraversalMap.GetInstanceID() ^ sideViewTraversalMap.Revision);
                 v = v * 31 + (logicRouter == null ? 0 : logicRouter.GetInstanceID() ^ logicRouter.Revision);
                 v = v * 31 + (statusOverrides == null ? 0 : statusOverrides.GetInstanceID() ^ statusOverrides.Revision);
                 if (itemOverrides != null) foreach (var item in itemOverrides) v = v * 31 + (item == null ? 0 : item.GetInstanceID() ^ item.Revision);
@@ -74,6 +78,13 @@ public class CharacterAnimationConfigManager : MonoBehaviour
     /// </summary>
     public CharacterAnimationPlan ResolvePlan(EAnimationLogicState logicState, AnimationComposeContext context = null)
     {
+        if (sideViewTraversalMap != null && (logicState == EAnimationLogicState.WallSlide ||
+            logicState == EAnimationLogicState.LedgeHang || logicState == EAnimationLogicState.LedgeClimb))
+        {
+            var traversal = sideViewTraversalMap.GetDefault(logicState);
+            if (traversal != null) traversal.runtimeLogicId = logicState;
+            return traversal;
+        }
         var effective = new List<AnimationPlanOverrideRuleSetSO>(itemOverrides ?? new List<AnimationPlanOverrideRuleSetSO>());
         if (context?.sourceEquipment?.bodyAnimationOverride != null && context.target == "body")
             effective.Add(context.sourceEquipment.bodyAnimationOverride);

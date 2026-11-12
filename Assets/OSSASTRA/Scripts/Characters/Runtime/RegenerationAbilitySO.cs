@@ -24,6 +24,7 @@ namespace Ossastra.Characters
             public Executor(float rate,float duration,CombatRegeneration target=null){this.rate=rate;this.duration=duration;this.target=target;}
             public override bool UsesBodyAction=>false;
             public override CharacterActionKind ActionKind=>CharacterActionKind.Support;
+            public override bool IsAttack => false;
             public override bool AllowsCompanionUse=>true;
             public override CompiledAbilityExecutor Prepare(CharacterRoot owner,IAbilitySource source)
             {

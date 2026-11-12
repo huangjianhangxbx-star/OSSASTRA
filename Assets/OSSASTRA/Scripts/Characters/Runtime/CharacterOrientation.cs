@@ -58,6 +58,11 @@ namespace Ossastra.Characters
         public void ResolvePresentation(CharacterDataBus bus,ICharacterAbilityController abilities,bool playerControl)
         {
             if(bus==null)return;
+            if (bus.TraversalWallSide != 0)
+            {
+                SetPresentation(Vector3.right * bus.TraversalWallSide, "墙边接触方向");
+                return;
+            }
             var move=new Vector3(bus.Input.move.x,0,bus.Input.move.y);
             var motion=bus.MotionOverride;
             // 单次闪避是既有强制机动，不用当前摇杆把已接受的闪避反向。

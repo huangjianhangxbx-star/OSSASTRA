@@ -1,5 +1,5 @@
-/* 角色事实适配器：Root的既有表现端口→原式Intent/配置/Composer/Handle。
- * 不拥有玩法状态、动作钟或伤害。正式片段只在SO中配置；可选方向端口提交结构层，观察镜像只读Bus派生值，保持单一Composer/Handle。
+/* 角色事实适配器：Root的表现端口→Intent/配置/Composer/Handle。
+ * 不拥有玩法状态、动作钟或伤害。墙边语义和朝向只读运动事实，动画片段由SO配置。
  */
 using System;
 using System.Linq;
@@ -141,17 +141,40 @@ namespace Ossastra.CharacterAnimation
         public void CollectFacts(bool isAlive,bool isStaggered,bool reacting,int presentationGeneration,int attackStage=1)
         {alive=isAlive;staggered=isStaggered;hitReaction=reacting;stage=attackStage;if(generation!=presentationGeneration){generation=presentationGeneration;composer?.ClearAllIntents();}}
         public void SetPaused(bool paused){if(skeleton!=null)skeleton.timeScale=paused?0:timeScale;}
-        private void Submit(AnimationIntentSourceStateMachine source,EAnimSemantic semantic,int priority,Guid action,Guid phase=default,CharacterAnimationPlan plan=null,bool exclusive=false,bool oneShot=false)
+        private void Submit(AnimationIntentSourceStateMachine source,EAnimSemantic semantic,int priority,Guid action,Guid phase=default,CharacterAnimationPlan plan=null,bool exclusive=false,bool oneShot=false,
+            EAnimationLogicState logic=EAnimationLogicState.None,int replayId=0)
         {
             composer.SubmitIntent(new AnimationIntent{root=root,actorId=root.ActorId,target="body",intentSourceStateMatine=source,semantic=semantic,
                 priority=priority,layer=priority>=20?AnimationLayer.FullBodyAction:AnimationLayer.BaseFullBody,exclusiveFullBody=exclusive,oneShot=oneShot,
-                actionId=action,phaseId=phase,logicId=plan?.runtimeLogicId??EAnimationLogicState.None,lifeGeneration=root.LifeGeneration,presentationGeneration=generation,configurationVersion=config.ConfigurationVersion,frozenPlan=plan});
+                actionId=action,phaseId=phase,logicId=plan?.runtimeLogicId??logic,replayId=replayId,lifeGeneration=root.LifeGeneration,presentationGeneration=generation,configurationVersion=config.ConfigurationVersion,frozenPlan=plan});
+        }
+
+        private void SubmitMovement()
+        {
+            // 同一个片段可作临时回退，仍提交有身份的墙边语义，避免零速度被识别为站立。
+            var semantic = bus.IsMoving ? EAnimSemantic.Jog : EAnimSemantic.Idle;
+            var logic = EAnimationLogicState.None;
+            if (config.sideViewTraversalMap != null)
+            {
+                switch (bus.TraversalMode)
+                {
+                    case SideViewTraversalMode.WallSlide:
+                        semantic = EAnimSemantic.WallSlide; logic = EAnimationLogicState.WallSlide; break;
+                    case SideViewTraversalMode.LedgeHang:
+                        semantic = EAnimSemantic.LedgeHang; logic = EAnimationLogicState.LedgeHang; break;
+                    case SideViewTraversalMode.LedgeClimb:
+                        semantic = EAnimSemantic.LedgeClimb; logic = EAnimationLogicState.LedgeClimb; break;
+                }
+            }
+            bool traversing = logic != EAnimationLogicState.None;
+            Submit(AnimationIntentSourceStateMachine.Movement, semantic, traversing ? 12 : bus.IsMoving ? 10 : 0,
+                Guid.Empty, logic:logic, replayId:traversing ? bus.TraversalRevision : 0);
         }
         public void Present()
         {
             if(bus==null||skeleton?.Skeleton==null)return;
             if(!alive||!root.IsAlive){composer.ClearAllIntents();return;}
-            Submit(AnimationIntentSourceStateMachine.Movement,bus.IsMoving?EAnimSemantic.Jog:EAnimSemantic.Idle,bus.IsMoving?10:0,Guid.Empty);
+            SubmitMovement();
             var retain=(ActionPresentationPolicy.RetainMainPose(bus.ActionActive,bus.MoveReady,bus.IsMoving)||bus.AbilityMotionActive)&&capturedId==bus.ActionId&&captured!=null;
             var actionSource=CapturedSource==AnimationIntentSourceStateMachine.None?AnimationIntentSourceStateMachine.MainHand:CapturedSource;
             foreach(var source in new[]{AnimationIntentSourceStateMachine.MainHand,AnimationIntentSourceStateMachine.Skill,AnimationIntentSourceStateMachine.OffHand})
@@ -178,12 +201,13 @@ namespace Ossastra.CharacterAnimation
             else composer.RemoveIntent(AnimationIntentSourceStateMachine.Hurt);
             if(staggered)Submit(AnimationIntentSourceStateMachine.Status,EAnimSemantic.Stagger,50,Guid.Empty,exclusive:true);
             else composer.RemoveIntent(AnimationIntentSourceStateMachine.Status);
+            int wallSide = bus.TraversalWallSide;
             if(direction!=null&&direction.IsConfigured)
             {
-                direction.SubmitDirection(composer,direction.ReadGameplayDirection(),generation);
+                direction.SubmitDirection(composer,wallSide == 0 ? direction.ReadGameplayDirection() : Vector3.right * wallSide,generation);
                 skeleton.Skeleton.ScaleX=scaleX*(direction.Mirrored?-1:1);
             }
-            else skeleton.Skeleton.ScaleX=scaleX*bus.ViewFacingX;
+            else skeleton.Skeleton.ScaleX=scaleX*(wallSide == 0 ? bus.ViewFacingX : wallSide);
             composer.Commit(generation);
             var selected=composer.CurrentBodyIntent;
             if(selected!=null){CurrentSemantic=AnimationSemanticTranslation.ToShared(selected.semantic);CurrentSource=selected.oneShot&&selected.actionId==bus.ActionId&&selected.priority==20?"action":selected.intentSourceStateMatine.ToString();CurrentReplayId=selected.phaseId!=Guid.Empty?selected.phaseId:selected.actionId;}

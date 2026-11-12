@@ -1,3 +1,6 @@
+/* 脚本：AnimationSemanticTranslation
+ * 功能：将角色细粒度动画意图映射到共享观察语义，保留角色内部墙边意图身份。
+ */
 using Ossastra.AnimationCore;
 namespace Ossastra.CharacterAnimation
 {
@@ -24,7 +27,8 @@ namespace Ossastra.CharacterAnimation
             switch(value)
             {
                 case EAnimSemantic.Idle:return AnimationSemantic.Idle;
-                case EAnimSemantic.Jog:case EAnimSemantic.Walk:case EAnimSemantic.Dash:case EAnimSemantic.JogFast:return AnimationSemantic.Move;
+                case EAnimSemantic.Jog:case EAnimSemantic.Walk:case EAnimSemantic.Dash:case EAnimSemantic.JogFast:
+                case EAnimSemantic.WallSlide:case EAnimSemantic.LedgeHang:case EAnimSemantic.LedgeClimb:return AnimationSemantic.Move;
                 case EAnimSemantic.Attack_Normal_2:return AnimationSemantic.BasicAttackSecond;
                 case EAnimSemantic.Guard:return AnimationSemantic.Guard;
                 case EAnimSemantic.Dodge:return AnimationSemantic.Dodge;

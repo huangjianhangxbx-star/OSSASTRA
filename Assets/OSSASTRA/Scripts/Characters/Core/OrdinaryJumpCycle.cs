@@ -27,12 +27,25 @@ namespace Ossastra.CharacterCore
             Phase = OrdinaryJumpPhase.Rising;
         }
 
+        /// <summary>墙跳上行初速由墙边状态提供，不重新进入普通跳持续提速。</summary>
+        public void LaunchWall()
+        {
+            Launch();
+            CancelHold();
+        }
+
         public void Release() { if (used && hold) release = true; }
 
         public void CancelHold()
         {
             hold = false;
             release = false;
+        }
+
+        public void EnterLedge()
+        {
+            leftSupport = false;
+            CancelHold();
         }
 
         public JumpVerticalCommand Step(int sustainSteps, int minSteps)

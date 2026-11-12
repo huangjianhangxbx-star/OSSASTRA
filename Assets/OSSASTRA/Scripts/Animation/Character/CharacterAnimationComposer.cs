@@ -1,5 +1,5 @@
 /* 原Composer合成职责迁移：保留来源意图、路由、覆盖、逐轨Play/Clear及过渡。
- * Submit/Remove只修改候选；运动完成后Commit一次。只有角色Profile声明的零时长结构方向层可与全身动作共存。
+ * Submit/Remove只修改候选；运动完成后Commit一次。缓存包含墙边状态代际，结构层仍由角色Profile授权。
  */
 using System;
 using System.Collections.Generic;
@@ -78,7 +78,8 @@ namespace Ossastra.CharacterAnimation
             var bus=characterRoot.DataBus;
             return characterRoot.IsAlive+"|"+bus.IsMoving+"|"+bus.Velocity.magnitude.ToString("F2")+"|"+bus.ActionActive+"|"+bus.MoveReady+"|"+bus.AttackReady
                 +"|"+bus.AllowsAttack+"|"+bus.AllowsMovement+"|"+bus.VisualFacingX+"|"+characterRoot.HasPlayerInput+"|"+characterRoot.AttackStage
-                +"|"+characterRoot.Vitals?.Health.Current+"|"+bus.Stamina?.Current;
+                +"|"+characterRoot.Vitals?.Health.Current+"|"+bus.Stamina?.Current
+                +"|"+bus.TraversalMode+"|"+bus.TraversalRevision+"|"+bus.TraversalWallSide;
         }
         private static string PlanKey(CharacterAnimationPlan plan)
         {

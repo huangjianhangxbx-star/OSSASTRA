@@ -28,6 +28,7 @@ namespace Ossastra.Characters
             private readonly int rounds;
             public Executor(float duration,int rounds){this.duration=duration;this.rounds=rounds;}
             public override bool UsesBodyAction=>true;
+            public override bool IsAttack => false;
             public override bool CanUseSource(IAbilitySource source)=>source?.RuntimeState!=null&&!source.RuntimeState.Magazine.IsReloading;
             public override AbilityRun CreateRun(AbilityRunContext context)=>new Run(context,duration,rounds);
         }

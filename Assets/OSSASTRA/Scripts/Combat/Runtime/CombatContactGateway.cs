@@ -1,5 +1,5 @@
 /* 脚本：CombatContactGateway
- * 功能：把空间候选收敛为一个身份合法、防御已采样的Release批次，再分发同批回执。
+ * 功能：把空间候选收敛为一个身份合法、防御已采样的Release批次，再分发含空间事实的同批回执。
  * 边界：HP只经AttackRelease；多碰撞体合并、冒名整组拒绝；不拥有动作时钟。
  * 协作：适配器先查空间与LOS；网关复核来源和目标，HP实际结果交可选夺回模块，再处理存活者架势。
  */
@@ -18,18 +18,25 @@ namespace Ossastra.Combat
             =>Resolve(release,source,candidates,origin,cause,null);
         /// <summary>只读效果元数据重载；结算顺序和旧四/五参数调用保持原样。</summary>
         public static IReadOnlyList<HitOutcome> Resolve(AttackRelease release, CombatVitals source, IEnumerable<IHitTarget> candidates, Vector3 origin, CombatContactCause cause,string effectSemantic)
+            => Resolve(release,source,candidates,origin,cause,effectSemantic,null,null,null);
+
+        /// <summary>接收投递器已经取得的空间证据。命中点与环境接触只影响反馈，不参与HP结算。</summary>
+        internal static IReadOnlyList<HitOutcome> Resolve(AttackRelease release, CombatVitals source,
+            IEnumerable<IHitTarget> candidates, Vector3 origin, CombatContactCause cause, string effectSemantic,
+            CombatContactGeometry? geometry, Func<IHitTarget, CombatContactPoint?> contact,
+            CombatContactPoint? environmentContact)
         {
             if(release==null)throw new ArgumentNullException(nameof(release));
             if(source!=null && (!source.IsAvailable || source.Health.Id!=release.ActorId))return release.Resolve(Array.Empty<Health>());
             var targets=candidates.Where(CombatTargetValidity.IsAvailable)
                 .Where(t=>!(t is ICombatContactFilter filter)||filter.Accepts(release)).Distinct()
                 .GroupBy(t=>t.Health.Id,StringComparer.Ordinal).Where(g=>g.Count()==1).Select(g=>g.Single())
-                .Where(t=>CombatTargetPolicy.CanHit(release.ActorId,source==null?CombatFaction.Neutral:source.Faction,
-                    source==null||source.IsAlive,t.Health.Id,t is ICombatTarget combat?combat.Faction:CombatFaction.Neutral,true)).ToArray();
+                .Where(t => AllowsTargetFaction(release, source, t)).ToArray();
             var defenses=targets.ToDictionary(t=>t,t=>(t as MonoBehaviour)?.GetComponents<MonoBehaviour>().OfType<ICombatDefense>().FirstOrDefault(x=>(x as Behaviour).isActiveAndEnabled));
             var outcomes=release.ResolveContacts(targets.Select(t=>new AttackContact(t.Health,defenses[t]?.CaptureDefense(origin)??DefenseSnapshot.Normal)));
             // 只快照真实回执的位置；在死亡/破坏表现回调之前捕获，发布仍在原分发循环之后。
-            var batch=Resolved==null?null:CaptureBatch(release,source,origin,outcomes,targets,cause,effectSemantic);
+            var batch=Resolved==null?null:CaptureBatch(release,source,origin,outcomes,targets,cause,effectSemantic,
+                geometry,contact,environmentContact);
             foreach(var outcome in outcomes)
             {
                 var target=targets.First(t=>t.Health.Id==outcome.TargetId);
@@ -46,7 +53,17 @@ namespace Ossastra.Combat
             if(batch!=null)Publish(batch);
             return outcomes;
         }
-        private static CombatContactBatch CaptureBatch(AttackRelease release,CombatVitals source,Vector3 origin,IReadOnlyList<HitOutcome> outcomes,IHitTarget[] targets,CombatContactCause cause,string effectSemantic)
+
+        // 物理筛选器可用同一阵营规则判断是否考虑墙面表现，最终身份和过滤仍在上面的结算批次。
+        internal static bool AllowsTargetFaction(AttackRelease release, CombatVitals source, IHitTarget target)
+            => CombatTargetPolicy.CanHit(release.ActorId, source == null ? CombatFaction.Neutral : source.Faction,
+                source == null || source.IsAlive, target.Health.Id,
+                target is ICombatTarget combat ? combat.Faction : CombatFaction.Neutral, true);
+
+        private static CombatContactBatch CaptureBatch(AttackRelease release,CombatVitals source,Vector3 origin,
+            IReadOnlyList<HitOutcome> outcomes,IHitTarget[] targets,CombatContactCause cause,string effectSemantic,
+            CombatContactGeometry? geometry, Func<IHitTarget, CombatContactPoint?> contact,
+            CombatContactPoint? environmentContact)
         {
             try
             {
@@ -54,9 +71,10 @@ namespace Ossastra.Combat
                 {
                     var target=targets.First(t=>t.Health.Id==outcome.TargetId);
                     var position=target is ICombatTarget combat?combat.WorldPosition:target is Component component&&component!=null?component.transform.position:origin;
-                    return new CombatContactReceipt(outcome,target as CombatVitals,position);
+                    return new CombatContactReceipt(outcome,target as CombatVitals,position,contact?.Invoke(target));
                 });
-                return new CombatContactBatch(release.ParentExecutionId,release.ActionId,release.EmissionIndex,release.ActorId,source,origin,receipts,cause,effectSemantic);
+                return new CombatContactBatch(release.ParentExecutionId,release.ActionId,release.EmissionIndex,
+                    release.ActorId,source,origin,receipts,cause,effectSemantic,geometry,environmentContact);
             }
             catch(Exception error){Debug.LogWarning("CombatContactGateway事实快照异常："+error);return null;}
         }

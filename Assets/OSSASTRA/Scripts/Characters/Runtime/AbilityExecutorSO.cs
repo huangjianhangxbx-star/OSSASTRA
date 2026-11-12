@@ -11,6 +11,7 @@ namespace Ossastra.Characters
     {
         public abstract bool UsesBodyAction {get;}
         public virtual CharacterActionKind ActionKind=>UsesBodyAction?CharacterActionKind.Main:CharacterActionKind.Offhand;
+        public virtual bool IsAttack => true;
         public virtual CompiledAbilityExecutor Prepare(CharacterRoot owner)=>this;
         public virtual CompiledAbilityExecutor Prepare(CharacterRoot owner,IAbilitySource source)=>Prepare(owner);
         public virtual CompiledAbilityExecutor Prepare(CharacterRoot owner,IAbilitySource source,CharacterAnimationPreparation preparation)=>Prepare(owner,source);

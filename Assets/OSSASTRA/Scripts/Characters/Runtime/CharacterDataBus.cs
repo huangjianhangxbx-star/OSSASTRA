@@ -20,6 +20,7 @@ namespace Ossastra.Characters
         private readonly BasicActionRuntime actionRuntime;
         private readonly ControlAuthority controlAuthority;
         private readonly CharacterViewSpaceAdapter viewSpace;
+        private MovementStateMachine traversal;
 
         public string ActorId { get; }
         public CharacterInputFrame Input => input.CurrentFrame;
@@ -27,6 +28,9 @@ namespace Ossastra.Characters
         public Vector3 Velocity => movement.Velocity;
         public float VerticalSpeed => movement is CharacterMovement motor ? motor.VerticalSpeed : 0f;
         public bool IsGrounded => movement is CharacterMovement motor && motor.IsSideView && motor.Grounded;
+        public SideViewTraversalMode TraversalMode => traversal?.TraversalMode ?? SideViewTraversalMode.Grounded;
+        public int TraversalRevision => traversal?.TraversalRevision ?? 0;
+        public int TraversalWallSide => traversal?.TraversalWallSide ?? 0;
         public Vector3 AttackDirection => orientation.AttackDirection;
         public Vector3 PresentationDirection => orientation.PresentationDirection;
         public Vector3 ViewPresentationDirection => viewSpace != null ? viewSpace.ToPresentation(PresentationDirection) : PresentationDirection;
@@ -50,6 +54,7 @@ namespace Ossastra.Characters
         internal void BindResources(ICharacterStamina stamina,ICharacterMotionOverride motion){Stamina=stamina;primaryMotion=motion;}
         internal void BindAbilityMotion(ICharacterMotionOverride motion){abilityMotion=motion;}
         internal void BindMainMotion(ICharacterMotionOverride motion){mainMotion=motion;}
+        internal void BindTraversal(MovementStateMachine state) => traversal = state;
 
         public CharacterDataBus(string actorId, ICharacterInputSource input, ICharacterMovement movement,
             ICharacterOrientation orientation, BasicActionRuntime actionRuntime, ControlAuthority controlAuthority, CharacterViewSpaceAdapter viewSpace = null)

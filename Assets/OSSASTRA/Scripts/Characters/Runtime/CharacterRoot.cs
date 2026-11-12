@@ -300,6 +300,7 @@ namespace Ossastra.Characters
             catch (ArgumentException error) { Debug.LogError("Character configuration: " + error.Message, this); enabled = false; return; }
             // 每角色独立Bus只读取原所有者；只有确需Bus的运动和表现执行初始化。
             DataBus = new CharacterDataBus(actorId, inputSource, mover, orienter, runtime, authority, viewSpace);
+            DataBus.BindTraversal(stateArbitrator.Movement);
             statusEffects=GetComponent<CombatStatusEffects>();if(statusEffects!=null)statusEffects.ControlChanged+=OnStatusControlChanged;
             stamina=GetComponent<CharacterStamina>();if(stamina!=null)stamina.Initialize();
             dodge=GetComponent<CharacterDodge>();if(dodge!=null)dodge.Initialize(this,stamina);
@@ -363,7 +364,7 @@ namespace Ossastra.Characters
             if(!frame.hasPointer || viewCamera == null)return null;
             bool sideView = movement != null && movement.IsSideView;
             var plane = new Plane(sideView ? Vector3.forward : Vector3.up, transform.position);
-            var ray = viewCamera.ScreenPointToRay(frame.pointer);
+            var ray = SideViewCameraFollow.GameplayRay(viewCamera, frame.pointer);
             if (!plane.Raycast(ray, out var distance)) return null;
             var point = ray.GetPoint(distance);
             if (sideView) { point.y = transform.position.y; point.z = transform.position.z; }
@@ -391,8 +392,8 @@ namespace Ossastra.Characters
         public bool TryConfiguredAction(ActionDefinitionSO config,CharacterActionSource source,string label,out Guid actionId)
             =>TryAbilityBodyAction(config,source,label,config==null?0:config.staminaCost,out actionId);
         /// <summary>定义驱动身体能力复用原Runtime与接受账本；费用来自已冻结能力，不再由片段定义另付一次。</summary>
-        internal bool TryAbilityBodyAction(ActionDefinitionSO config,CharacterActionSource source,string label,float cost,out Guid actionId,Func<bool> prepareSource=null,Action rollbackSource=null,ConfiguredActionSnapshot phase=null,CharacterAnimationPreparation? preparation=null)
-            =>stateArbitrator.Combat.TryAbilityBodyAction(config,source,label,cost,out actionId,prepareSource,rollbackSource,phase,preparation);
+        internal bool TryAbilityBodyAction(ActionDefinitionSO config,CharacterActionSource source,string label,float cost,out Guid actionId,Func<bool> prepareSource=null,Action rollbackSource=null,ConfiguredActionSnapshot phase=null,CharacterAnimationPreparation? preparation=null,bool isAttack=true)
+            =>stateArbitrator.Combat.TryAbilityBodyAction(config,source,label,cost,out actionId,prepareSource,rollbackSource,phase,preparation,isAttack);
         /// <summary>能力按已接受身份只撤回自己的主通道；副手、盾和机动不借此被全局取消。</summary>
         internal bool CancelOwnedMainAction(Guid actionId,string reason)=>stateArbitrator.Combat.CancelOwnedMainAction(actionId,reason);
 

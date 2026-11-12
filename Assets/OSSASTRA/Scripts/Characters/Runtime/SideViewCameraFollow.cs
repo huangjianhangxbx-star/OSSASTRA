@@ -1,3 +1,9 @@
+/*
+ * 脚本：SideViewCameraFollow
+ * 功能：唯一写入横版游戏相机。跟随角色的显示位置，并合成独立的冲击偏移。
+ * 边界：基础镜头不回读上一帧冲击，玩法鼠标射线和边界查询使用稳定视图。
+ */
+using Ossastra.Combat;
 using UnityEngine;
 
 namespace Ossastra.Characters
@@ -5,7 +11,7 @@ namespace Ossastra.Characters
     /// <summary>唯一横版镜头写入者。消费主控的显示锚点和运动事实，投影由实际相机提供。</summary>
     [DisallowMultipleComponent]
     [RequireComponent(typeof(Camera))]
-    public sealed class SideViewCameraFollow : MonoBehaviour
+    public sealed class SideViewCameraFollow : MonoBehaviour, ICombatImpactShakeSink
     {
         [SerializeField] private CharacterControlCoordinator session;
         [SerializeField] private SideViewCameraProfile profile;
@@ -14,7 +20,10 @@ namespace Ossastra.Characters
         [SerializeField] private float verticalOffset = 5.4f;
         [SerializeField] private float depth = -38.1f;
         [SerializeField, Min(0f)] private float smoothTime = .12f;
+        [Header("命中震屏")]
+        [SerializeField] private SideViewCameraShakeSettings shake = new SideViewCameraShakeSettings();
 
+        private readonly SideViewCameraShake impactShake = new SideViewCameraShake();
         private Camera view;
         private CharacterRoot followed;
         private CharacterMovement motor;
@@ -23,18 +32,28 @@ namespace Ossastra.Characters
         private float lookX, lookY, switchRemaining;
 
         public Vector2 TargetCenter { get; private set; }
+        public Vector3 BasePosition { get; private set; }
+        public Vector2 AppliedShakeOffset { get; private set; }
+        public SideViewCameraShakeSettings ShakeSettings => shake;
 
         public void Configure(CharacterControlCoordinator coordinator) => session = coordinator;
 
         private void Awake()
         {
             view = GetComponent<Camera>();
-            // The authored backdrop layers lie on XY planes. Sort by their depth as the camera tracks in XY.
+            BasePosition = transform.position;
+            // 横版画片按固定世界深度排序，镜头横移或冲击不能交换同层画片。
             view.transparencySortMode = TransparencySortMode.CustomAxis;
             view.transparencySortAxis = Vector3.forward;
         }
 
         private void OnDisable()
+        {
+            ClearShake();
+            ResetFollow();
+        }
+
+        private void ResetFollow()
         {
             followed = null;
             motor = null;
@@ -42,12 +61,35 @@ namespace Ossastra.Characters
             lookX = lookY = switchRemaining = 0f;
         }
 
+        public void RequestImpact(CombatImpactShakeRequest request)
+        {
+            if (isActiveAndEnabled && session != null && session.Current != null)
+                impactShake.Request(request, shake);
+        }
+
+        /// <summary>用稳定相机读取玩法瞄准。原横版相机的震动只有平移，射线方向与投影保持一致。</summary>
+        public static Ray GameplayRay(Camera camera, Vector2 pixel)
+        {
+            var ray = camera.ScreenPointToRay(pixel);
+            if (camera.TryGetComponent<SideViewCameraFollow>(out var follow))
+                ray.origin -= (Vector3)follow.AppliedShakeOffset;
+            return ray;
+        }
+
+        private void ClearShake()
+        {
+            impactShake.Clear();
+            if (AppliedShakeOffset != Vector2.zero) transform.position = BasePosition;
+            AppliedShakeOffset = Vector2.zero;
+        }
+
         private void LateUpdate()
         {
             var current = session == null ? null : session.Current;
             if (current == null)
             {
-                if (followed != null) OnDisable();
+                ClearShake();
+                if (followed != null) ResetFollow();
                 return;
             }
 
@@ -66,7 +108,8 @@ namespace Ossastra.Characters
             contactRevision = revision;
             Vector3 anchor = motor == null ? current.transform.position : motor.PresentedPosition;
             float elapsed = Time.deltaTime;
-            var center = (Vector2)transform.position;
+            var center = (Vector2)BasePosition;
+            Vector2 minOffset = default, maxOffset = default;
             if (profile == null)
             {
                 TargetCenter = new Vector2(Mathf.Clamp(anchor.x, minimumCenter.x, maximumCenter.x),
@@ -87,7 +130,7 @@ namespace Ossastra.Characters
                     TargetCenter = new Vector2(Mathf.Min(TargetCenter.x, area.maximumCameraX), area.cameraY);
                     break;
                 }
-                ReadViewportOffsets(anchor.z, out Vector2 minOffset, out Vector2 maxOffset);
+                ReadViewportOffsets(anchor.z, out minOffset, out maxOffset);
                 TargetCenter = Confine(TargetCenter, minOffset, maxOffset);
                 bool snap = initial || relocated || switched && Vector2.Distance(center, TargetCenter) > profile.switchSnapDistance;
                 if (snap)
@@ -107,7 +150,14 @@ namespace Ossastra.Characters
                     switchRemaining = Mathf.Max(0f, switchRemaining - elapsed);
                 }
             }
-            transform.position = new Vector3(center.x, center.y, depth);
+            BasePosition = new Vector3(center.x, center.y, depth);
+            // 用角色平面的可见高度标定平移幅度，镜头缩放时仍保持相近的屏幕占比。
+            float viewportHeight = view.orthographic ? view.orthographicSize * 2f :
+                2f * Mathf.Abs(anchor.z - depth) * Mathf.Tan(view.fieldOfView * .5f * Mathf.Deg2Rad);
+            var finalCenter = center + impactShake.Tick(elapsed, viewportHeight, shake);
+            if (profile != null) finalCenter = Confine(finalCenter, minOffset, maxOffset);
+            AppliedShakeOffset = finalCenter - center;
+            transform.position = new Vector3(finalCenter.x, finalCenter.y, depth);
         }
 
         private Vector2 Confine(Vector2 center, Vector2 minOffset, Vector2 maxOffset)
@@ -124,8 +174,10 @@ namespace Ossastra.Characters
             for (int i = 0; i < 4; i++)
             {
                 var ray = view.ViewportPointToRay(new Vector3(i & 1, i >> 1, 0f));
+                // 投影只含平移震动。先将射线还原到稳定基准，再计算边界相对偏移。
+                ray.origin -= (Vector3)AppliedShakeOffset;
                 if (!plane.Raycast(ray, out float distance)) continue;
-                Vector2 offset = ray.GetPoint(distance) - transform.position;
+                Vector2 offset = ray.GetPoint(distance) - BasePosition;
                 minimum = Vector2.Min(minimum, offset);
                 maximum = Vector2.Max(maximum, offset);
             }

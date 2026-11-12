@@ -38,6 +38,7 @@ namespace Ossastra.Characters
             public bool main;
             public bool repeatWhileHeld;
             public CompiledAbilityExecutor executor;
+            public CompiledAbilityExecutor longPressExecutor;
             public IAbilitySource source;
             public readonly Dictionary<int,BoundInput> inputs=new Dictionary<int,BoundInput>();
         }
@@ -46,6 +47,7 @@ namespace Ossastra.Characters
             public GestureRecognizer recognizer;
             public CharacterInputButton previous;
             public bool repeatArmed;
+            public bool traversalBlocked;
         }
         // 凭据只关联已受理Run，不接管能力生命周期/费用。断开或松开发起者不能由另一设备代持。
         private readonly Dictionary<Guid,CharacterInputButton> runGestures=new Dictionary<Guid,CharacterInputButton>();
@@ -83,6 +85,9 @@ namespace Ossastra.Characters
         public int ResolvedCount=>deliveries.ResolvedCount;
         public int InFlightCount=>deliveries.InFlightCount;
         public bool IsBusy=>runs.Any(r=>!r.Ended);
+        internal bool OccupiesTraversal => runs.Any(r => !r.Ended &&
+            (r.Context.definition.executor.IsAttack ||
+            (r.Context.definition.plan.Occupancy & (AbilityOccupancy.Body | AbilityOccupancy.Motion)) != 0));
         /// <summary>装备表现只读本槽已接受Run；不借另一手或身体Replay伪造执行身份。</summary>
         public bool TryGetHandPresentation(bool main,out Guid execution,out bool guarding,out bool usesBody)
         {
@@ -196,7 +201,9 @@ namespace Ossastra.Characters
             var binding=bindings.FirstOrDefault(b=>b.main&&b.binding.operation==(AbilityOperation)((int)AbilityOperation.SkillOne+slot)&&b.binding.ability==definition);
             if(binding==null||!binding.source.IsAvailable)return "来源不可用";
             if(binding.executor==null||!binding.executor.CanUseSource(binding.source))return "资源未就绪";
-            var request=owner.Actions.CreateRequest(binding.executor.ActionKind,CharacterActionSource.UserInterface,"availability");
+            if (owner.StateArbitrator.Movement.TraversalBlocksAttack && ConflictsWithLedge(binding.executor)) return "挂边动作受限";
+            var request=owner.Actions.CreateRequest(binding.executor.ActionKind,CharacterActionSource.UserInterface,"availability")
+                .WithAttackSemantics(binding.executor.IsAttack);
             return owner.Actions.CanAccept(request,definition.acceptCost+definition.releaseCost,out var reason)?"可用":reason=="stamina"?"体力不足":"动作/控制未就绪";
         }
         public bool RequestSkill(int slot,CharacterActionSource source)
@@ -277,6 +284,7 @@ namespace Ossastra.Characters
                     var executor=frozen.ability.executor?.CompileExecutor();
                     var mainPayload=frozen.resourceOwner==AbilityResourceOwner.MainEquipment;
                     bindings.Add(new BoundGesture{binding=frozen,main=pair.main,repeatWhileHeld=executor!=null&&executor.RepeatWhileHeld,executor=executor,
+                        longPressExecutor=frozen.longPressAbility?.executor?.CompileExecutor(),
                         source=new EquipmentSource(equipment,pair.main||mainPayload,false,!pair.main&&mainPayload?equipment.State.LeftInstanceId:null)});
                 }
             }
@@ -300,6 +308,9 @@ namespace Ossastra.Characters
                     if(!binding.inputs.TryGetValue(device,out var state))
                     {state=new BoundInput{recognizer=new GestureRecognizer(binding.binding.gesture,binding.binding.longPressThreshold)};binding.inputs.Add(device,state);}
                     var sample=samples.FirstOrDefault(s=>s.DeviceId==device);
+                    if (sample.Pressed && !sample.SameGesture(state.previous)) state.traversalBlocked = false;
+                    if (owner.StateArbitrator.Movement.TraversalBlocksAttack && (sample.Held || sample.Pressed))
+                        state.traversalBlocked = true;
                     if(sample.Pressed&&state.previous.Held&&!sample.SameGesture(state.previous))
                     {
                         // 同次update里先松再按也是新手势；先结束旧凭据，再按原资格申请新操作。
@@ -316,6 +327,14 @@ namespace Ossastra.Characters
                             if(!runGestures.TryGetValue(run.Context.id,out var origin)||origin.SameGesture(state.previous))run.Cancel();
                     }
                     state.previous=sample;
+                    var selectedExecutor = signal == GestureSignal.LongPress ? binding.longPressExecutor : binding.executor;
+                    bool blocked = state.traversalBlocked && ConflictsWithLedge(selectedExecutor);
+                    if (!sample.Held) state.traversalBlocked = false;
+                    if (blocked)
+                    {
+                        state.repeatArmed = false;
+                        continue;
+                    }
                     if(signal==GestureSignal.Cancel||signal==GestureSignal.End)continue;
                     if(signal==GestureSignal.Trigger||signal==GestureSignal.Begin)state.repeatArmed=true;
                     if(signal==GestureSignal.None&&(!sample.Held||!owner.HasPlayerInput||input.attackHeld||!state.repeatArmed||!binding.repeatWhileHeld))continue;
@@ -333,6 +352,14 @@ namespace Ossastra.Characters
             operation==AbilityOperation.SkillOne?input.skillOneHeld:operation==AbilityOperation.SkillTwo?input.skillTwoHeld:input.skillThreeHeld;
         private bool Held(AbilityRun run)=>runGestures.TryGetValue(run.Context.id,out var origin)
             ? Buttons(run.Context.operation)?.Any(b=>b.Held&&b.SameGesture(origin))==true:Held(run.Context.operation);
+        private static bool ConflictsWithLedge(CompiledAbilityExecutor executor)
+            => executor != null && (executor.IsAttack || executor.UsesBodyAction);
+        private Vector3 DeliveryPlaneDelta(Vector3 delta)
+        {
+            if (owner.StateMovement?.IsSideView == true) delta.z = 0f;
+            else delta.y = 0f;
+            return delta;
+        }
 
         public bool TryRequest(AbilityDefinitionSO definition,bool main,AbilityOperation operation,CharacterActionSource source)
         {
@@ -377,24 +404,26 @@ namespace Ossastra.Characters
             CompiledAbilityExecutor executor;
             var animationPreparation=new CharacterAnimationPreparation(presentationMainHand);
             try{executor=compiled.executor.Prepare(owner,port,animationPreparation);}catch(ArgumentException error){return Reject(error.Message);}
+            if (owner.StateArbitrator.Movement.TraversalBlocksAttack && ConflictsWithLedge(executor))
+                return Reject("ledge-action-blocked");
             if(!executor.CanUseSource(port))return Reject("来源资源不允许当前能力");
             if(!CanAccept(executor.ActionKind,out var conflict))return Reject(conflict);
             var direction=owner.DataBus.AttackDirection;
             var explicitAim=(port as IAbilityTargetSource)?.AimPoint;
-            if(explicitAim.HasValue){direction=explicitAim.Value-owner.transform.position;direction.y=0;}
+            if(explicitAim.HasValue)direction=DeliveryPlaneDelta(explicitAim.Value-owner.transform.position);
             if(direction.sqrMagnitude<.0001f)return Reject("无效方向");
             var acceptanceDelivery=executor.AcceptanceDelivery??compiled.delivery;
             var landing=owner.transform.position+direction.normalized*acceptanceDelivery.range;
             if(executor.AimRange>0)
             {
                 var aim=explicitAim??owner.AbilityAimPoint(input,executor.AimRange);if(!aim.HasValue)return Reject("无合法瞄准落点");
-                var offset=aim.Value-owner.transform.position;offset.y=0;landing=owner.transform.position+Vector3.ClampMagnitude(offset,executor.AimRange);
+                var offset=DeliveryPlaneDelta(aim.Value-owner.transform.position);landing=owner.transform.position+Vector3.ClampMagnitude(offset,executor.AimRange);
             }
             if(acceptanceDelivery.mode==DeliveryMode.Parabolic||acceptanceDelivery.mode==DeliveryMode.RayLandingArc)
             {
                 var aim=explicitAim??owner.AbilityAimPoint(input,executor.AimRange>0?executor.AimRange:acceptanceDelivery.range);if(!aim.HasValue)return Reject("无合法瞄准落点");
                 var targetPoint=executor.AimRange>0?landing:aim.Value;
-                var delta=targetPoint-owner.transform.position;delta.y=0;
+                var delta=DeliveryPlaneDelta(targetPoint-owner.transform.position);
                 if(delta.magnitude>acceptanceDelivery.range+.0001f||!CombatDeliveryQueue.Clear(owner.transform.position,targetPoint))return Reject("落点超距或遮挡");
                 var floor=Physics.RaycastAll(targetPoint+Vector3.up*.4f,Vector3.down,.8f,acceptanceDelivery.collisionLayers,QueryTriggerInteraction.Ignore)
                     .Where(h=>h.normal.y>.7f&&h.collider.GetComponentInParent<CombatVitals>()==null).OrderBy(h=>h.distance).ToArray();
@@ -409,11 +438,11 @@ namespace Ossastra.Characters
             Guid id;
             if(compiled.executor.UsesBodyAction)
             {
-                if(!owner.TryAbilityBodyAction(compiled.animation,source,"ability:"+compiled.id,compiled.cost,out id,()=>port.TryReserve(reservation),port.CancelReservation,executor.InitialPhase,animationPreparation))return RejectReserved(owner.LastFact);
+                if(!owner.TryAbilityBodyAction(compiled.animation,source,"ability:"+compiled.id,compiled.cost,out id,()=>port.TryReserve(reservation),port.CancelReservation,executor.InitialPhase,animationPreparation,executor.IsAttack))return RejectReserved(owner.LastFact);
             }
             else
             {
-                var request=owner.Actions.CreateRequest(executor.ActionKind,source,"ability:"+compiled.id);id=request.RequestId;
+                var request=owner.Actions.CreateRequest(executor.ActionKind,source,"ability:"+compiled.id).WithAttackSemantics(executor.IsAttack);id=request.RequestId;
                 if(!owner.Actions.TryCommit(request,compiled.cost,()=>port.TryReserve(reservation)?request.RequestId:Guid.Empty,out var reason))return RejectReserved(reason);
             }
             var context=new AbilityRunContext(owner,compiled,port,id,direction.normalized,landing,Emit,operation,sprite,scale,frozenEffects,releasePayment,source,presentationMainHand);
@@ -505,19 +534,22 @@ namespace Ossastra.Characters
             var landing=context.landing;
             if(!frozen&&owner.DataBus.UsesMovementAim)
             {
-                var offset=context.landing-context.acceptedPosition;offset.y=0;
-                landing=owner.transform.position+direction*offset.magnitude;landing.y=context.landing.y;
+                var offset=DeliveryPlaneDelta(context.landing-context.acceptedPosition);
+                landing=owner.transform.position+direction*offset.magnitude;
+                if (owner.StateMovement?.IsSideView == true) landing.z=context.landing.z;
+                else landing.y=context.landing.y;
             }
             // 实际投递可覆写定义模式（例如同一弹仓的普通弹与迫击弹），回调只读这次投递的冻结身份。
             var definitionId=context.definition.id;var sourceInstanceId=context.source.InstanceId;
             var requestSource=context.requestSource.ToString();var operation=context.operation.ToString();var deliveryMode=delivery.mode.ToString();
+            var releaseOrigin = owner.transform.position;
             var emitted=deliveries.Emit(owner.Vitals,context.id,emission.Index,delivery,damage,posture,
-                owner.transform.position,direction,landing,()=>this!=null&&isActiveAndEnabled&&owner!=null&&owner.IsAlive&&owner.LifeGeneration==context.lifeGeneration,
+                releaseOrigin,direction,landing,()=>this!=null&&isActiveAndEnabled&&owner!=null&&owner.IsAlive&&owner.LifeGeneration==context.lifeGeneration,
                 receipts=>{LastResult="接触 "+receipts.Count+" #"+context.id.ToString("N");context.onResolved?.Invoke(emission.Index,channel,receipts);
                     PublishFeedback(new AbilityFeedbackFact(context.id,definitionId,sourceInstanceId,receipts.Any(r=>r.Reason==HitReason.Applied)?"hit":"miss",landing,
                         emission.Index,channel,deliveryMode,requestSource,operation));},context.projectileSprite,context.projectileScale,context.definition.reclaimBudget,context.definition.reclaimRate);
-            if(emitted){EmittedCount++;PublishFeedback(new AbilityFeedbackFact(context.id,definitionId,sourceInstanceId,"release",owner.transform.position,
-                emission.Index,channel,deliveryMode,requestSource,operation));}
+            if(emitted){EmittedCount++;PublishFeedback(new AbilityFeedbackFact(context.id,definitionId,sourceInstanceId,"release",releaseOrigin,
+                emission.Index,channel,deliveryMode,requestSource,operation,direction));}
         }
         private void PublishFeedback(AbilityFeedbackFact fact)
         {

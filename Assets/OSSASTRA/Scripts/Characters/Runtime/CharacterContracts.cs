@@ -117,9 +117,13 @@ namespace Ossastra.Characters
         public int ControlRevision {get;}
         public CharacterActionKind Kind {get;}
         public CharacterActionSource Source {get;}
+        public bool IsAttack {get;}
         public System.Guid RequestId {get;}
-        public CharacterActionRequest(string actorId,int lifeGeneration,int controlRevision,CharacterActionKind kind,CharacterActionSource source,System.Guid requestId,string sourceLabel=null)
-        {ActorId=actorId;LifeGeneration=lifeGeneration;ControlRevision=controlRevision;Kind=kind;Source=source;RequestId=requestId;SourceLabel=sourceLabel;}
+        public CharacterActionRequest(string actorId,int lifeGeneration,int controlRevision,CharacterActionKind kind,CharacterActionSource source,System.Guid requestId,string sourceLabel=null,bool? isAttack=null)
+        {ActorId=actorId;LifeGeneration=lifeGeneration;ControlRevision=controlRevision;Kind=kind;Source=source;RequestId=requestId;SourceLabel=sourceLabel;
+            IsAttack=isAttack??(kind==CharacterActionKind.Main||kind==CharacterActionKind.Offhand);}
+        internal CharacterActionRequest WithAttackSemantics(bool attack)
+            => new CharacterActionRequest(ActorId,LifeGeneration,ControlRevision,Kind,Source,RequestId,SourceLabel,attack);
     }
     /// <summary>本体统一接受入口：先完整校验，再调用执行端口并按真实动作身份付款。</summary>
     public interface ICharacterActionCoordinator
