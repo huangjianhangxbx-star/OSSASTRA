@@ -17,8 +17,10 @@ namespace Ossastra.Characters.Rendering
         public Shader outerShader;
         public Transform solidGeometry;
 
+        private static readonly int PresentationOffsetId = Shader.PropertyToID("_SideViewPresentationOffset");
         private MaterialPropertyBlock block;
         private readonly List<Material> slots = new List<Material>(8);
+        private readonly Dictionary<Renderer, Vector3> presentationOffsets = new Dictionary<Renderer, Vector3>(8);
         private readonly HashSet<Renderer> bound = new HashSet<Renderer>();
         private readonly List<Renderer> stale = new List<Renderer>(8);
         private readonly RaycastHit[] rayHits = new RaycastHit[16];
@@ -33,6 +35,39 @@ namespace Ossastra.Characters.Rendering
         {
             camera = GetComponent<Camera>();
             block = new MaterialPropertyBlock();
+        }
+
+        private void OnEnable() => RenderPipelineManager.beginCameraRendering += PublishPresentation;
+
+        private bool TryGetReceiver(CharacterRoot actor, out CharacterLightingReceiver receiver)
+        {
+            receiver = null;
+            return actor != null && actor.TryGetComponent(out receiver) &&
+                receiver.SourceAvailable && receiver.gameplayCamera == camera;
+        }
+
+        private void PublishPresentation(ScriptableRenderContext context, Camera renderingCamera)
+        {
+            if (renderingCamera != camera) return;
+            // URP snapshots renderer properties for drawing before the coverage pass runs.
+            stale.Clear();
+            stale.AddRange(presentationOffsets.Keys);
+            presentationOffsets.Clear();
+            foreach (var actor in actors)
+            {
+                if (!TryGetReceiver(actor, out var receiver)) continue;
+                var move = actor.GetComponent<CharacterMovement>();
+                Vector3 offset = move == null ? Vector3.zero : move.PresentationOffset;
+                foreach (var renderer in receiver.Members)
+                {
+                    if (renderer == null || !renderer.enabled || !renderer.gameObject.activeInHierarchy) continue;
+                    presentationOffsets[renderer] = offset;
+                    WritePresentationOffset(renderer, offset);
+                    stale.Remove(renderer);
+                }
+            }
+            foreach (var renderer in stale)
+                if (renderer != null) WritePresentationOffset(renderer, Vector3.zero);
         }
 
         private void LateUpdate()
@@ -66,14 +101,11 @@ namespace Ossastra.Characters.Rendering
             stale.AddRange(bound);
             foreach (var actor in actors)
             {
-                if (actor == null || !actor.TryGetComponent<CharacterLightingReceiver>(out var receiver) ||
-                    !receiver.SourceAvailable || receiver.gameplayCamera != camera)
+                if (!TryGetReceiver(actor, out var receiver))
                 {
                     if (actor != null && outer.TryGetValue(actor, out var hidden)) hidden.Hide();
                     continue;
                 }
-                var move = actor.GetComponent<CharacterMovement>();
-                Vector3 offset = move == null ? Vector3.zero : move.PresentationOffset;
                 var parameters = ReadLighting(receiver, lit);
                 CharacterCoverageBinding outerBinding = default;
                 foreach (var renderer in receiver.Members)
@@ -81,7 +113,7 @@ namespace Ossastra.Characters.Rendering
                     if (renderer == null || !renderer.enabled || !renderer.gameObject.activeInHierarchy) continue;
                     CharacterCoverageBinding silhouette = default;
                     if (coverage != null && coverage.TryGet(renderer, out silhouette)) outerBinding = silhouette;
-                    WriteBlocks(renderer, offset, parameters, silhouette);
+                    WriteBlocks(renderer, parameters, silhouette);
                     stale.Remove(renderer);
                     bound.Add(renderer);
                 }
@@ -89,17 +121,14 @@ namespace Ossastra.Characters.Rendering
             }
             foreach (var renderer in stale)
             {
-                if (renderer != null) WriteBlocks(renderer, Vector3.zero, default, default);
+                if (renderer != null) WriteBlocks(renderer, default, default);
                 bound.Remove(renderer);
             }
             LastBoundRenderers = bound.Count;
         }
 
-        private static Vector3 ReadOffset(Renderer renderer)
-        {
-            var move = renderer.GetComponentInParent<CharacterMovement>();
-            return move == null ? Vector3.zero : move.PresentationOffset;
-        }
+        private Vector3 ReadOffset(Renderer renderer) =>
+            presentationOffsets.TryGetValue(renderer, out var offset) ? offset : Vector3.zero;
 
         private SurfaceLighting ReadLighting(CharacterLightingReceiver receiver, bool lit)
         {
@@ -164,24 +193,38 @@ namespace Ossastra.Characters.Rendering
             return true;
         }
 
-        private void WriteBlocks(Renderer renderer, Vector3 offset, SurfaceLighting parameters, CharacterCoverageBinding silhouette)
+        private void WritePresentationOffset(Renderer renderer, Vector3 offset)
         {
             renderer.GetPropertyBlock(block);
-            WriteBlock(offset, parameters, silhouette);
+            block.SetVector(PresentationOffsetId, offset);
             renderer.SetPropertyBlock(block);
             renderer.GetSharedMaterials(slots);
             for (int index = 0; index < slots.Count; index++)
             {
                 renderer.GetPropertyBlock(block, index);
                 if (block.isEmpty) continue;
-                WriteBlock(offset, parameters, silhouette);
+                block.SetVector(PresentationOffsetId, offset);
                 renderer.SetPropertyBlock(block, index);
             }
         }
 
-        private void WriteBlock(Vector3 offset, SurfaceLighting light, CharacterCoverageBinding silhouette)
+        private void WriteBlocks(Renderer renderer, SurfaceLighting parameters, CharacterCoverageBinding silhouette)
         {
-            block.SetVector("_SideViewPresentationOffset", offset);
+            renderer.GetPropertyBlock(block);
+            WriteBlock(parameters, silhouette);
+            renderer.SetPropertyBlock(block);
+            renderer.GetSharedMaterials(slots);
+            for (int index = 0; index < slots.Count; index++)
+            {
+                renderer.GetPropertyBlock(block, index);
+                if (block.isEmpty) continue;
+                WriteBlock(parameters, silhouette);
+                renderer.SetPropertyBlock(block, index);
+            }
+        }
+
+        private void WriteBlock(SurfaceLighting light, CharacterCoverageBinding silhouette)
+        {
             // 由本场 EnvironmentRoot 的角色可读性保底；材质模板的默认 1 会抹平洞窟底光。
             block.SetFloat("_EnvironmentMinimumOverride", 0f);
             block.SetVector("_EnvironmentStylizedSkyTint", light.tintA);
@@ -216,7 +259,7 @@ namespace Ossastra.Characters.Rendering
                 outer.Add(actor, glow);
             }
             block.Clear();
-            WriteBlock(Vector3.zero, light, silhouette);
+            WriteBlock(light, silhouette);
             block.SetVector("_SideViewOuter", light.outer);
             glow.Present(camera, silhouette, block);
         }
@@ -232,8 +275,12 @@ namespace Ossastra.Characters.Rendering
 
         private void OnDisable()
         {
+            RenderPipelineManager.beginCameraRendering -= PublishPresentation;
+            foreach (var renderer in presentationOffsets.Keys)
+                if (renderer != null) WritePresentationOffset(renderer, Vector3.zero);
+            presentationOffsets.Clear();
             ReleaseCoverage();
-            foreach (var renderer in bound) if (renderer != null) WriteBlocks(renderer, Vector3.zero, default, default);
+            foreach (var renderer in bound) if (renderer != null) WriteBlocks(renderer, default, default);
             bound.Clear();
             foreach (var glow in outer.Values) glow.Dispose();
             outer.Clear();
