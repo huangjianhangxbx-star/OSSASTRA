@@ -26,7 +26,13 @@ namespace Ossastra.Characters
 
         public void Configure(CharacterControlCoordinator coordinator) => session = coordinator;
 
-        private void Awake() => view = GetComponent<Camera>();
+        private void Awake()
+        {
+            view = GetComponent<Camera>();
+            // The authored backdrop layers lie on XY planes. Sort by their depth as the camera tracks in XY.
+            view.transparencySortMode = TransparencySortMode.CustomAxis;
+            view.transparencySortAxis = Vector3.forward;
+        }
 
         private void OnDisable()
         {
