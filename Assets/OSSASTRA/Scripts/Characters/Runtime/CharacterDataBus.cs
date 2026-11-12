@@ -25,6 +25,8 @@ namespace Ossastra.Characters
         public CharacterInputFrame Input => input.CurrentFrame;
         public bool IsMoving => movement.IsMoving;
         public Vector3 Velocity => movement.Velocity;
+        public float VerticalSpeed => movement is CharacterMovement motor ? motor.VerticalSpeed : 0f;
+        public bool IsGrounded => movement is CharacterMovement motor && motor.IsSideView && motor.Grounded;
         public Vector3 AttackDirection => orientation.AttackDirection;
         public Vector3 PresentationDirection => orientation.PresentationDirection;
         public Vector3 ViewPresentationDirection => viewSpace != null ? viewSpace.ToPresentation(PresentationDirection) : PresentationDirection;

@@ -106,7 +106,7 @@ namespace Ossastra.Characters
         System.Guid ActionId {get;}
         float Duration {get;}
     }
-    public enum CharacterActionKind { Main, Dodge, Guard, Offhand, Support }
+    public enum CharacterActionKind { Main, Dodge, Guard, Offhand, Support, Jump }
     public enum CharacterActionSource { Player, Companion, UserInterface, Inventory }
     /// <summary>请求携带角色/生命/控制代际和请求身份；动作身份由原执行端接受时产生。</summary>
     public readonly struct CharacterActionRequest

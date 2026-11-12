@@ -34,7 +34,7 @@ namespace Ossastra.Characters
             else if(owner.StateArbitrator!=null&&!owner.StateArbitrator.AllowsRequest(request.Kind,out var stateReason))reason=stateReason;
             else if(request.Kind==CharacterActionKind.Offhand&&offhand!=null&&(offhand.IsAccepting||offhand.InFlight||offhand.CooldownRemaining>0))reason="offhand-not-ready";
             else if(float.IsNaN(cost)||float.IsInfinity(cost)||cost<0)reason="invalid-cost";
-            else if(stamina!=null&&!stamina.CanSpend(cost))reason="stamina";
+            else if(stamina!=null&&(request.Kind!=CharacterActionKind.Jump||cost>0)&&!stamina.CanSpend(cost))reason="stamina";
             return reason==null;
         }
         public bool TryCommit(CharacterActionRequest request,float cost,Func<Guid> accept,out string reason)
@@ -44,7 +44,7 @@ namespace Ossastra.Characters
             {
                 var actionId=accept();if(actionId==Guid.Empty)return false;
                 // 所有资格在同一同步事务内检查；无外部回调可插入另一笔费用。
-                if(stamina!=null&&!stamina.Spend(actionId,cost,owner.SimulationTime,request.SourceLabel??request.Source+":"+request.Kind))
+                if(stamina!=null&&(request.Kind!=CharacterActionKind.Jump||cost>0)&&!stamina.Spend(actionId,cost,owner.SimulationTime,request.SourceLabel??request.Source+":"+request.Kind))
                     throw new InvalidOperationException("Accepted action payment conflict");
                 return true;
             });

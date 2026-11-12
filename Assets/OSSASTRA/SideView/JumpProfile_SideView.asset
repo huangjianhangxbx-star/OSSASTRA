@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 63b1ddac0c41ac54cb722803fa93e5fe, type: 3}
+  m_Name: JumpProfile_SideView
+  m_EditorClassIdentifier: 
+  stepSeconds: 0.02
+  runSpeed: 8.25
+  jumpSpeed: 18.6
+  gravity: 60
+  fallSpeed: 30
+  sustainSteps: 9
+  minimumSustainSteps: 2
+  queueSteps: 2
+  ledgeGraceSteps: 4
+  headLockSteps: 3
+  releaseSpeedScale: 0.5
+  hangInitialGravity: 0.1
+  hangGravityRamp: 5

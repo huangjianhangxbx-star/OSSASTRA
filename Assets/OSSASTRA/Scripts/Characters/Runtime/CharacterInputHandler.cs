@@ -22,6 +22,9 @@ namespace Ossastra.Characters
         public bool skillOnePressed,skillTwoPressed,skillThreePressed,skillOneHeld,skillTwoHeld,skillThreeHeld;
         public bool hasAttackEdges,attackPressed,attackReleased,attackRequestsBlocked;
         public CharacterInputButton[] offhandButtons,skillOneButtons,skillTwoButtons,skillThreeButtons;
+        public bool jumpInputAvailable, jumpRequestsBlocked;
+        public int jumpInputGeneration;
+        public CharacterInputButton[] jumpButtons;
     }
 
     // Each character owns its serialized actions. Input does not accept attacks or write gameplay state.
@@ -39,6 +42,8 @@ namespace Ossastra.Characters
         public InputAction attackAction { get=>rightHandAction; set=>rightHandAction=value; }
         [Header("可选本体闪避 / 只在新验证场绑定")]
         public InputAction dodgeAction = new InputAction("Dodge", InputActionType.Button);
+        [Header("普通跳跃 / 由共享输入配置绑定")]
+        public InputAction jumpAction = new InputAction("Jump", InputActionType.Button);
         [Header("副手操作输入；具体按下/持续/长按行为由当前副手装备SO绑定决定，例如盾防、盾击、射击或投掷。")]
         [FormerlySerializedAs("offhandAction")] public InputAction leftHandAction = new InputAction("LeftHandAction", InputActionType.Button);
         public InputAction offhandAction { get=>leftHandAction; set=>leftHandAction=value; }
@@ -63,11 +68,11 @@ namespace Ossastra.Characters
             if(owner==null)return;
             var priorMovement=inventoryCaptures.Values.Any(value=>value);
             if(captured)inventoryCaptures[owner]=captureMovement;else inventoryCaptures.Remove(owner);
-            if(priorMovement!=inventoryCaptures.Values.Any(value=>value))ResetPlayerInput(true);
+            if(priorMovement!=inventoryCaptures.Values.Any(value=>value))ResetPlayerInput(true, preserveJump: true);
         }
         private ICharacterPlayerControlSource playerControl;
         private bool managedPlayerInput;
-        private readonly DeviceActionSampler sampler = new DeviceActionSampler();
+        private DeviceActionSampler sampler;
         private readonly PlayerInputSourceState localSources = new PlayerInputSourceState();
         [Header("混合输入 / 已处理Action轴后的意图门槛，不再次执行deadzone")]
         [SerializeField, Range(.01f, 1)] private float intentThreshold = .15f;
@@ -75,6 +80,7 @@ namespace Ossastra.Characters
         public PlayerInputSourceState InputSources => (playerControl as IPlayerInputSourceSession)?.InputSources ?? localSources;
         // 手势只在真实重置时换代。背包访问revision不等于松键/换控，不能借此终止既有长按。
         public int GestureGeneration { get; private set; }
+        public int JumpGestureGeneration { get; private set; }
         private bool movementArmed=true;
 
         // 控制身份与设备采样许可分开：UI捕获不能暂停本体已接受副手/CD。
@@ -98,7 +104,17 @@ namespace Ossastra.Characters
 
         /// <summary>移交时清掉旧快照；不假装一次松键，必须真正观察释放后才重武装攻击。</summary>
         public void ResetPlayerInput(bool requireMovementRelease=false)
-        { CurrentFrame=default; GestureGeneration++; sampler.Suppress(); if (requireMovementRelease) movementArmed=false; }
+            => ResetPlayerInput(requireMovementRelease, preserveJump: false);
+
+        private void ResetPlayerInput(bool requireMovementRelease, bool preserveJump)
+        {
+            CurrentFrame = default;
+            GestureGeneration++;
+            if (!preserveJump) JumpGestureGeneration++;
+            // 背包移动捕获可以清掉方向与战斗快照，仍继续观察已接受跳跃的真实松键。
+            sampler?.Suppress(preserveJump ? jumpAction : null);
+            if (requireMovementRelease) movementArmed = false;
+        }
         public void RegisterPointerRegion(object owner, Rect region) { pointerRegions[owner] = region; }
         public void RemovePointerRegion(object owner) { pointerRegions.Remove(owner); }
 
@@ -129,7 +145,7 @@ namespace Ossastra.Characters
             yield return mouseAction;
             yield return gamepadAimAction;
             yield return attackAction;
-            yield return dodgeAction; yield return weaponModeAction;
+            yield return dodgeAction; yield return jumpAction; yield return weaponModeAction;
             yield return offhandAction;
             yield return skillOneAction; yield return skillTwoAction; yield return skillThreeAction;
             yield return debugValidAction;
@@ -140,13 +156,18 @@ namespace Ossastra.Characters
         private IEnumerable<InputAction> SamplingActions()
             => inputLayout==null?Actions():Actions().Concat(inputLayout.ConfiguredActions().Where(a=>a!=inputLayout.move&&a!=inputLayout.pointer&&a!=inputLayout.aim));
 
-        private void OnEnable() { foreach (var action in Actions()) if (action != null) action.Enable(); sampler.Synchronize(SamplingActions(),mouseAction,IsPointerBlocked); }
-        private void OnDisable() { ResetPlayerInput(true); sampler.Dispose(); foreach (var action in Actions()) if (action != null) action.Disable(); }
-        private void OnDestroy() { sampler.Dispose(); foreach (var action in Actions()) if (action != null) action.Dispose(); }
+        private void OnEnable()
+        {
+            foreach (var action in Actions()) if (action != null) action.Enable();
+            sampler = new DeviceActionSampler(jumpAction, () => HasPlayerInput && !InventoryCaptured && isActiveAndEnabled);
+            sampler.Synchronize(SamplingActions(), mouseAction, IsPointerBlocked);
+        }
+        private void OnDisable() { ResetPlayerInput(true); sampler?.Dispose(); sampler = null; foreach (var action in Actions()) if (action != null) action.Disable(); }
+        private void OnDestroy() { sampler?.Dispose(); foreach (var action in Actions()) if (action != null) action.Dispose(); }
 
         public CharacterInputFrame Read()
         {
-            if (!HasPlayerInput || !isActiveAndEnabled || movementAction == null || !movementAction.enabled)
+            if (!HasPlayerInput || !isActiveAndEnabled || movementAction == null || !movementAction.enabled || sampler == null)
             { CurrentFrame = default; return CurrentFrame; }
             sampler.Synchronize(SamplingActions(), mouseAction, IsPointerBlocked);
             var candidates = new List<DeviceInputCandidate>();
@@ -155,6 +176,7 @@ namespace Ossastra.Characters
             bool attackPressed=false,attackReleased=false;
             var leftButtons=new List<CharacterInputButton>();var oneButtons=new List<CharacterInputButton>();
             var twoButtons=new List<CharacterInputButton>();var threeButtons=new List<CharacterInputButton>();
+            var jumpButtons = new List<CharacterInputButton>();
             int debug = 0;
             DeviceActionSampler.DeviceSample pointerDevice = null;
             foreach (var d in sampler.Devices)
@@ -174,6 +196,7 @@ namespace Ossastra.Characters
                 offhandPressed |= !weaponChord&&d.Pressed(leftHandAction);
                 leftButtons.Add(weaponChord?default:d.Button(leftHandAction));
                 oneButtons.Add(d.Button(skillOneAction));twoButtons.Add(d.Button(skillTwoAction));threeButtons.Add(d.Button(skillThreeAction));
+                d.ConsumeOrderedButton(jumpButtons);
                 var evasion = d.Pressed(dodgeAction) && !d.ConsumedByComposite(dodgeAction);
                 dodge |= evasion;
                 one |= d.Pressed(skillOneAction); two |= d.Pressed(skillTwoAction); three |= d.Pressed(skillThreeAction);
@@ -210,7 +233,11 @@ namespace Ossastra.Characters
                 offhandButtons=leftButtons.ToArray(),skillOneButtons=oneButtons.ToArray(),skillTwoButtons=twoButtons.ToArray(),skillThreeButtons=threeButtons.ToArray(),
                 skillOnePressed = one, skillTwoPressed = two, skillThreePressed = three,
                 skillOneHeld = oneHeld, skillTwoHeld = twoHeld, skillThreeHeld = threeHeld,
-                weaponModePressed = mode, debugCommand = debug };
+                weaponModePressed = mode, debugCommand = debug,
+                jumpInputAvailable = true, jumpInputGeneration = JumpGestureGeneration, jumpRequestsBlocked = InventoryCaptured,
+                // 手势序号来自设备事件顺序，每条记录可同时携带同一手势的按下和释放。
+                jumpButtons = jumpButtons.Where(button => !InventoryCaptured || !button.Pressed)
+                    .OrderBy(button => button.GestureId).ToArray() };
             if (pointerDevice != null)
             {
                 frame.pointer = pointerDevice.ReadPointer();

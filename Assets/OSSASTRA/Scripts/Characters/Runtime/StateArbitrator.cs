@@ -37,7 +37,7 @@ namespace Ossastra.Characters
             owner = root;
             // 多个请求名映射到同一实例；只按首次注册顺序初始化一次。
             Movement = new MovementStateMachine();
-            Register("Idle", Movement); Register("Move", Movement);
+            Register("Idle", Movement); Register("Move", Movement); Register("Jump", Movement);
             Combat = new CharacterCombatStateMachine(); Register("Combat", Combat);
             Dodge = new DodgeStateMachine(); Register("Dodge", Dodge);
             Ability = new AbilityStateMachine(); Register("Ability", Ability);
@@ -74,7 +74,7 @@ namespace Ossastra.Characters
         {
             if (owner == null) return;
             FrameCount++;
-            if (!owner.IsAlive) { owner.StateMovement?.Stop();WeaponPosture.MaintainDeath(); RefreshSnapshots(); return; }
+            if (!owner.IsAlive) { owner.StateMovement?.Stop();Movement.ResetJump();WeaponPosture.MaintainDeath(); RefreshSnapshots(); return; }
             Combat.RefreshMainProfile();
             owner.StateCombatBrain?.Sample(owner.SimulationTime, deltaTime);
             owner.StateInputSource.Read();
@@ -127,7 +127,7 @@ namespace Ossastra.Characters
         }
         /// <summary>Root死亡/停用时停止运动并立即配对注册机退出，不等待已停用的Update。</summary>
         public void StopMovement()
-        { if(owner==null)return;owner.StateMovement?.Stop();if(Movement!=null)ObserveEdge(Movement);RefreshSnapshots(); }
+        { if(owner==null)return;owner.StateMovement?.Stop();if(Movement!=null){Movement.ResetJump();ObserveEdge(Movement);}RefreshSnapshots(); }
         public void Dispose()
         {
             Combat?.Dispose();

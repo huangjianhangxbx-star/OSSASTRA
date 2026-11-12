@@ -24,6 +24,9 @@ namespace Ossastra.Characters
   [Header("本体闪避")]
   [Tooltip("当前约定：空格、手柄B（Button East）。")]
   public InputAction dodge=new InputAction("Dodge",InputActionType.Button);
+  [Header("普通跳跃")]
+  [Tooltip("横版场景配置键盘 J，手柄暂不绑定。")]
+  public InputAction jump=new InputAction("Jump",InputActionType.Button);
   [Header("技能1 / Q / LB + X")]
   public InputAction skillOne=new InputAction("SkillOne",InputActionType.Button);
   [Header("技能2 / 固定E槽 / LB + Y")]
@@ -57,13 +60,13 @@ namespace Ossastra.Characters
   public IEnumerable<InputAction> ConfiguredActions()
   {
    yield return move; yield return pointer; yield return aim; yield return rightHand; yield return leftHand;
-   yield return dodge; yield return skillOne; yield return skillTwo; yield return skillThree;
+   yield return dodge; yield return jump; yield return skillOne; yield return skillTwo; yield return skillThree;
    yield return interact; yield return heal; yield return switchCharacter; yield return inventory;
    yield return weaponMode; yield return menu; yield return quickSlotOne; yield return quickSlotTwo; yield return quickSlotThree; yield return quickSlotFour;
   }
   public static void Replace(ref InputAction target,InputAction source){target?.Disable();target?.Dispose();target=source.Clone();}
   public void Apply(CharacterInputHandler target)
-  {Replace(ref target.movementAction,move);Replace(ref target.mouseAction,pointer);Replace(ref target.gamepadAimAction,aim);Replace(ref target.rightHandAction,rightHand);Replace(ref target.leftHandAction,leftHand);Replace(ref target.dodgeAction,dodge);Replace(ref target.skillOneAction,skillOne);Replace(ref target.skillTwoAction,skillTwo);Replace(ref target.skillThreeAction,skillThree);Replace(ref target.weaponModeAction,weaponMode);}
+  {Replace(ref target.movementAction,move);Replace(ref target.mouseAction,pointer);Replace(ref target.gamepadAimAction,aim);Replace(ref target.rightHandAction,rightHand);Replace(ref target.leftHandAction,leftHand);Replace(ref target.dodgeAction,dodge);if(jump!=null)Replace(ref target.jumpAction,jump);Replace(ref target.skillOneAction,skillOne);Replace(ref target.skillTwoAction,skillTwo);Replace(ref target.skillThreeAction,skillThree);Replace(ref target.weaponModeAction,weaponMode);}
  }
 }
 

@@ -188,6 +188,13 @@ namespace Ossastra.Characters
         // 唯一转换点由选择器Player分支调用；AI/跟随的世界向量不会经过此处。
         internal CharacterInputFrame MapPlayerFrame(CharacterInputFrame frame)
         {
+            if (movement != null && movement.IsSideView)
+            {
+                float horizontal = frame.move.x;
+                frame.move = new Vector2(Mathf.Abs(horizontal) > .3f ? Mathf.Sign(horizontal) : 0f, 0f);
+                frame.aimDirection.y = 0f;
+                return frame;
+            }
             if (viewSpace == null || !viewSpace.IsEffective) return frame;
             frame.move = viewSpace.MapPlayerInput(frame.move);
             // 键鼠无合法指针时，InputHandler已从Bus取世界攻击方向，不得再次旋转。
@@ -353,8 +360,14 @@ namespace Ossastra.Characters
         }
         private Vector3? PointerGroundPoint(CharacterInputFrame frame)
         {
-            if(!frame.hasPointer || viewCamera == null)return null; var plane=new Plane(Vector3.up,transform.position);
-            var ray=viewCamera.ScreenPointToRay(frame.pointer); return plane.Raycast(ray,out var distance)?ray.GetPoint(distance):(Vector3?)null;
+            if(!frame.hasPointer || viewCamera == null)return null;
+            bool sideView = movement != null && movement.IsSideView;
+            var plane = new Plane(sideView ? Vector3.forward : Vector3.up, transform.position);
+            var ray = viewCamera.ScreenPointToRay(frame.pointer);
+            if (!plane.Raycast(ray, out var distance)) return null;
+            var point = ray.GetPoint(distance);
+            if (sideView) { point.y = transform.position.y; point.z = transform.position.z; }
+            return point;
         }
         /// <summary>鼠标必须有合法世界点；方向输入按当前执行器实际射程生成，绝不统一猜投掷距离。</summary>
         internal Vector3? AbilityAimPoint(CharacterInputFrame frame,float range)
@@ -366,11 +379,9 @@ namespace Ossastra.Characters
         internal bool ChangeAbilityPhase(Guid id,ConfiguredActionSnapshot phase)=>stateArbitrator.Combat.ChangeAbilityPhase(id,phase);
         private Vector3? PointerDirection(CharacterInputFrame frame)
         {
-            if (!frame.hasPointer || viewCamera == null) return null;
-            var plane = new Plane(Vector3.up, transform.position);
-            var ray = viewCamera.ScreenPointToRay(frame.pointer);
-            if (!plane.Raycast(ray, out var distance)) return null;
-            var direction = ray.GetPoint(distance) - transform.position;
+            var point = PointerGroundPoint(frame);
+            if (!point.HasValue) return null;
+            var direction = point.Value - transform.position;
             direction.y = 0;
             return direction.sqrMagnitude < .0001f ? (Vector3?)null : direction;
         }
