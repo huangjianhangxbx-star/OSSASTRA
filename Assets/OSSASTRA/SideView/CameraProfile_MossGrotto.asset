@@ -1,0 +1,57 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8d74102618c01b149a314b04d79f5b05, type: 3}
+  m_Name: CameraProfile_MossGrotto
+  m_EditorClassIdentifier: 
+  worldBounds:
+    serializedVersion: 2
+    x: 0
+    y: 0
+    width: 120
+    height: 32
+  verticalOffset: 5.4
+  horizontalLookAhead: 1
+  horizontalLookSpeed: 6
+  fallingSpeedThreshold: 22
+  fallingLookAhead: 1
+  fallingLookSpeed: 4
+  horizontalSmoothTime: 0.1
+  verticalSmoothTime: 0.1
+  fallingSmoothTime: 0.045
+  switchSmoothTime: 0.14
+  switchBlendSeconds: 0.28
+  switchSnapDistance: 12
+  roomFraming:
+  - actorArea:
+      serializedVersion: 2
+      x: 23.226
+      y: -0.205
+      width: 46.724
+      height: 15.479
+    cameraY: 8.3
+    maximumCameraX: 50.44
+  - actorArea:
+      serializedVersion: 2
+      x: 15
+      y: 0
+      width: 8.226
+      height: 16
+    cameraY: 10.2
+    maximumCameraX: 23.226
+  - actorArea:
+      serializedVersion: 2
+      x: 0
+      y: 0
+      width: 15
+      height: 20
+    cameraY: 11
+    maximumCameraX: 15

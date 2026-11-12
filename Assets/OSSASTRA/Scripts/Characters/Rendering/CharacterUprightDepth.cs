@@ -23,6 +23,7 @@ namespace Ossastra.Characters.Rendering
         public Shader spinePmaShader;
         public Shader spriteDepthShader;
         public Shader opaqueCoverageShader;
+        public bool sideViewTransparent;
 
         private readonly List<SourceBinding> sources = new List<SourceBinding>(3);
         private readonly List<Camera> renderingCameras = new List<Camera>(2);
@@ -248,7 +249,7 @@ namespace Ossastra.Characters.Rendering
             statusDirty = true;
         }
 
-        private static void SyncOriginalProperties(SourceBinding binding, bool force)
+        private void SyncOriginalProperties(SourceBinding binding, bool force)
         {
             float now = Time.realtimeSinceStartup;
             if (!force && now < binding.nextPropertySync) return;
@@ -258,7 +259,9 @@ namespace Ossastra.Characters.Rendering
                 var entry = binding.entries[i];
                 if (entry.effective == null || entry.variant == null) continue;
                 entry.variant.CopyPropertiesFromMaterial(entry.effective);
-                entry.variant.renderQueue = entry.effective.renderQueue;
+                entry.variant.renderQueue = sideViewTransparent ? (int)RenderQueue.Transparent : entry.effective.renderQueue;
+                if (sideViewTransparent && entry.variant.HasProperty("_SideViewCutout"))
+                    entry.variant.SetFloat("_SideViewCutout", entry.sourceShader.name == "Ossastra/MapResearch/DepthPlane" ? 1 : 0);
                 entry.variant.SetFloat(Enabled, 0);
             }
         }

@@ -1,7 +1,7 @@
 /* 脚本：InventoryView
  * 功能：冻结原型四个独立背包表面、详情/拆分、真实uGUI拖放与有限整理；所有落点用实际RectTransform。
  * 边界：不保存第二库存；不以UI创建装备/治疗。开包捕获战斗而世界继续，数字栏只引用。
- * 协作：InventorySession复核访问与本体，Ledger原子提交；贸易partial复用同一团队网格与选物事件，声音设置复用原菜单。
+ * 协作：InventorySession复核访问与本体，Ledger原子提交；贸易partial复用团队网格。声音设置可只接系统菜单，不初始化库存。
  */
 using System;
 using System.Linq;
@@ -17,28 +17,40 @@ namespace Ossastra.UserInterface
     {
         [SerializeField] private InventorySession session;
         [SerializeField] private InventorySkinSO skin;
+        [Header("本场只复用声音菜单（不建立库存）")]
+        [SerializeField] private bool audioSettingsOnly;
+        [SerializeField] private Ossastra.Characters.CharacterControlCoordinator settingsCoordinator;
+
+        private Ossastra.Characters.CharacterControlCoordinator MenuCoordinator =>
+            audioSettingsOnly ? settingsCoordinator : session != null ? session.Coordinator : null;
         public InputAction toggleAction=new InputAction("Inventory",InputActionType.Button,"<Keyboard>/tab");
         public InputAction cancelAction=new InputAction("InventoryCancel",InputActionType.Button,"<Keyboard>/escape");
         private RectTransform menuPanel;
         public void ToggleMenu()
         {
-            if(windows==null||session==null)return;
-            // Installer(-500)早于交易UI更新。Esc仍被贸易持有或刚用于关闭时，不再打开第二个系统菜单。
-            if(!commerceMenuGate.AllowsMenu(Time.frameCount))return;
+            if(windows==null||(audioSettingsOnly ? !isActiveAndEnabled||settingsCoordinator==null : session==null))return;
+            // Installer(-500)早于交易UI更新。只有启用了背包的原场需要通过贸易的Esc门禁。
+            if(!audioSettingsOnly&&!commerceMenuGate.AllowsMenu(Time.frameCount))return;
             if(menuPanel!=null&&menuPanel.gameObject.activeSelf){CloseSystemMenu();return;}
             if(menuPanel==null)
             {
-                menuPanel=Window("SystemMenu",new Rect(565,180,350,230));
+                menuPanel=Window("SystemMenu",new Rect(565,180,350,audioSettingsOnly?180:230));
                 Header(menuPanel,"菜单",350,()=>ToggleMenu());
                 Button(menuPanel,"Continue",new Rect(20,65,310,36),"继续游戏",()=>ToggleMenu());
-                Button(menuPanel,"Inventory",new Rect(20,115,310,36),"背包",()=>{ToggleMenu();SetOpen(true);});
-                Button(menuPanel,"AudioSettings",new Rect(20,165,310,36),"声音设置",OpenAudioSettings);
+                if(!audioSettingsOnly)Button(menuPanel,"Inventory",new Rect(20,115,310,36),"背包",()=>{ToggleMenu();SetOpen(true);});
+                Button(menuPanel,"AudioSettings",new Rect(20,audioSettingsOnly?115:165,310,36),"声音设置",OpenAudioSettings);
                 menuPanel.gameObject.SetActive(false);
             }
-            SetOpen(false);windows.gameObject.SetActive(true);player.gameObject.SetActive(false);safe.gameObject.SetActive(false);detail.gameObject.SetActive(false);external.gameObject.SetActive(false);
+            if(!audioSettingsOnly)
+            {
+                SetOpen(false);player.gameObject.SetActive(false);safe.gameObject.SetActive(false);
+                detail.gameObject.SetActive(false);external.gameObject.SetActive(false);
+            }
+            windows.gameObject.SetActive(true);
             menuPanel.gameObject.SetActive(true);
             SetCharacterCapture(menuPanel,true,true);
-            if(session.Coordinator!=null)session.Coordinator.SetInputCapture(menuPanel,true);
+            var coordinator=MenuCoordinator;
+            if(coordinator!=null)coordinator.SetInputCapture(menuPanel,true);
             if(EventSystem.current!=null)EventSystem.current.SetSelectedGameObject(menuPanel.Find("Continue").gameObject);
         }
         /// <summary>生命周期清理不走Toggle门禁。即使父Windows被隐藏，也精确释放自己SystemMenu的owner。</summary>
@@ -48,7 +60,8 @@ namespace Ossastra.UserInterface
             CloseAudioSettings(false);
             if(menuPanel!=null)menuPanel.gameObject.SetActive(false);
             SetCharacterCapture(menuPanel,false,true);
-            if(session!=null&&session.Coordinator!=null)session.Coordinator.SetInputCapture(menuPanel,false);
+            var coordinator=MenuCoordinator;
+            if(coordinator!=null)coordinator.SetInputCapture(menuPanel,false);
             if(player!=null)player.gameObject.SetActive(true);if(safe!=null)safe.gameObject.SetActive(true);
             if(windows!=null)windows.gameObject.SetActive(IsOpen);
         }
@@ -74,15 +87,23 @@ namespace Ossastra.UserInterface
         public RectTransform TeamGrid=>teamGrid;
         public string Notice=>feedback?.text;
         private static readonly Color ink=new Color32(8,3,5,255),edge=new Color32(157,32,69,255),gold=new Color32(210,190,128,255);
-        private void OnEnable(){toggleAction.Enable();cancelAction.Enable();}
+        private void OnEnable()
+        {
+            // 系统菜单动作仍由场景 Installer 持有；声音独立模式不启用背包动作。
+            if(!audioSettingsOnly){toggleAction.Enable();cancelAction.Enable();}
+        }
         private void Start()
         {
-            if(session==null||skin==null||skin.frame==null||skin.slotFill==null||skin.slotEdge==null){Debug.LogError("InventoryView session/skin missing",this);enabled=false;return;}
+            if(skin==null||skin.frame==null||skin.slotFill==null||
+                (audioSettingsOnly?settingsCoordinator==null:session==null||skin.slotEdge==null))
+            {Debug.LogError("InventoryView scene coordinator/session or skin missing",this);enabled=false;return;}
             font=Font.CreateDynamicFontFromOSFont(skin.fontName,16);
             serif=Font.CreateDynamicFontFromOSFont("SimSun",26);
             var go=new GameObject("InventoryCanvas",typeof(RectTransform),typeof(Canvas),typeof(GraphicRaycaster));go.transform.SetParent(transform,false);
             canvas=go.GetComponent<Canvas>();canvas.renderMode=RenderMode.ScreenSpaceOverlay;canvas.sortingOrder=150;surface=(RectTransform)go.transform;
-            windows=Node(surface,"Windows",new Rect(0,0,1434,804));player=Window("Backpack",new Rect(12,20,440,505));
+            windows=Node(surface,"Windows",new Rect(0,0,1434,804));
+            if(audioSettingsOnly){windows.gameObject.SetActive(false);return;}
+            player=Window("Backpack",new Rect(12,20,440,505));
             Header(player,"背包",440,()=>SetOpen(false));
             for(var n=0;n<2;n++)
             {
@@ -168,6 +189,7 @@ namespace Ossastra.UserInterface
         }
         public void SetOpen(bool value)
         {
+            if(audioSettingsOnly)return;
             if(value&&(windows==null||session==null||session.Coordinator==null||!session.Ready||session.Coordinator.Current==null||!session.Coordinator.Current.CanSimulateIntent))return;
             if(!value)NotifyCommerceInventoryClosing();
             CancelDrag();IsOpen=value;if(windows!=null)windows.gameObject.SetActive(value);
@@ -178,8 +200,9 @@ namespace Ossastra.UserInterface
         private void SetCharacterCapture(object captureOwner,bool captured,bool movement=false)
         {
             // 场景卸载时角色、会话和UI的销毁顺序不固定；只释放仍存活的输入端口。
-            if(session==null||session.Coordinator==null)return;
-            foreach(var root in session.Coordinator.Characters)
+            var coordinator=MenuCoordinator;
+            if(coordinator==null)return;
+            foreach(var root in coordinator.Characters)
             {
                 if(root==null)continue;
                 var input=root.GetComponent<Ossastra.Characters.CharacterInputHandler>();
@@ -188,6 +211,7 @@ namespace Ossastra.UserInterface
         }
         public void OpenExternal(string id)
         {
+            if(audioSettingsOnly)return;
             if(id!=null&&!session.CanAccessContainer(id)){Feedback("靠近同层容器后打开");return;}
             if(id!=null&&!IsOpen)SetOpen(true);
             if(id!=null&&!IsOpen||!session.SetActiveExternal(id)){Feedback("容器当前不可打开");return;}
@@ -264,8 +288,9 @@ namespace Ossastra.UserInterface
         public void CancelDrag(){drag=null;if(ghost!=null)ghost.gameObject.SetActive(false);if(preview!=null)preview.gameObject.SetActive(false);}
         private void Update()
         {
-            if(canvas==null||!session.Ready)return;
+            if(canvas==null||(!audioSettingsOnly&&!session.Ready))return;
             var scale=Mathf.Min(Screen.width/1434f,Screen.height/804f);if(!Mathf.Approximately(scale,canvas.scaleFactor)){CancelDrag();canvas.scaleFactor=scale;dirty=true;}
+            if(audioSettingsOnly)return;
             if(!IsCommerceOpen)external.anchoredPosition=new Vector2(Screen.width/scale-391,-92);
             // 角色菜单和对话尚未进入贸易布局，但已持有输入；普通背包不能在其下层响应Tab/Esc。
             if(!HasCommerceCapture&&toggleAction.WasPressedThisFrame()&&!(EventSystem.current?.currentSelectedGameObject?.GetComponent<InputField>()?.isFocused??false))SetOpen(!IsOpen);

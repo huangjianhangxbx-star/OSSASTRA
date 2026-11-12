@@ -1,0 +1,85 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ffa4b0a6eb9b3104087e5edae319e3d2, type: 3}
+  m_Name: CaveEnvironment
+  m_EditorClassIdentifier: 
+  maximumSunElevation: 60
+  sunAzimuthOffset: -45
+  daySunIntensity: 0
+  nightSunIntensity: 0
+  dayFillIntensity: 0
+  nightFillIntensity: 0
+  daySunColor: {r: 1, g: 0.94, b: 0.82, a: 1}
+  nightSunColor: {r: 0.42, g: 0.55, b: 0.82, a: 1}
+  sunsetSunColor: {r: 1, g: 0.52, b: 0.25, a: 1}
+  dayAmbientSky: {r: 0.56, g: 0.63, b: 0.65, a: 1}
+  nightAmbientSky: {r: 0.56, g: 0.63, b: 0.65, a: 1}
+  dayAmbientEquator: {r: 0.51, g: 0.58, b: 0.6, a: 1}
+  nightAmbientEquator: {r: 0.51, g: 0.58, b: 0.6, a: 1}
+  dayAmbientGround: {r: 0.37, g: 0.44, b: 0.45, a: 1}
+  nightAmbientGround: {r: 0.37, g: 0.44, b: 0.45, a: 1}
+  dayAmbientIntensity: 1
+  nightAmbientIntensity: 1
+  daySkyZenith: {r: 0.13, g: 0.36, b: 0.65, a: 1}
+  nightSkyZenith: {r: 0.008, g: 0.014, b: 0.04, a: 1}
+  daySkyHorizon: {r: 0.67, g: 0.78, b: 0.82, a: 1}
+  nightSkyHorizon: {r: 0.035, g: 0.055, b: 0.09, a: 1}
+  daySkyIntensity: 1
+  nightSkyIntensity: 0.6
+  sunlightResponse:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  ambientResponse:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4

@@ -41,9 +41,9 @@ namespace Ossastra.CharacterLighting.Rendering
   public int OwnedMaterialCount=>material==null?0:1;
   public string Status{get;private set;}="尚未生成完整角色轮廓";
   public CharacterCoverageCache(Shader shader){this.shader=shader;}
-  public void Append(CommandBuffer cmd,Camera camera,Matrix4x4 gpuViewProjection,int width,int height)
-  {CharacterLightingReceiver.Collect(camera,actors);Prepare(cmd,gpuViewProjection,width,height,actors);}
-  public void Prepare(CommandBuffer cmd,Matrix4x4 gpuViewProjection,int width,int height,IReadOnlyList<CharacterCoverageActor> sources)
+  public void Append(CommandBuffer cmd,Camera camera,Matrix4x4 gpuViewProjection,int width,int height,Func<Renderer,Vector3> presentationOffset=null)
+  {CharacterLightingReceiver.Collect(camera,actors);Prepare(cmd,gpuViewProjection,width,height,actors,presentationOffset);}
+  public void Prepare(CommandBuffer cmd,Matrix4x4 gpuViewProjection,int width,int height,IReadOnlyList<CharacterCoverageActor> sources,Func<Renderer,Vector3> presentationOffset=null)
   {
    if(cmd==null)throw new ArgumentNullException(nameof(cmd));
    bindings.Clear();acceptedRenderers.Clear();ActiveActorCount=DrawCount=0;
@@ -63,7 +63,9 @@ namespace Ossastra.CharacterLighting.Rendering
      if(!CanDraw(renderer))continue;
      if(actor.Owner is CharacterLightingReceiver receiver&&(receiver.Owner==null||!renderer.transform.IsChildOf(receiver.Owner.transform)))continue;
      if(!acceptedRenderers.Add(renderer)){bindings.Clear();ActiveActorCount=0;Status="同一Renderer被多个角色登记；本帧关闭轮廓";return;}
-     if(!TryProjectBounds(renderer.bounds,gpuViewProjection,ref min,ref max)){currentRenderers.Clear();anyBounds=false;break;}
+     var bounds=renderer.bounds;
+     if(presentationOffset!=null)bounds.center+=presentationOffset(renderer);
+     if(!TryProjectBounds(bounds,gpuViewProjection,ref min,ref max)){currentRenderers.Clear();anyBounds=false;break;}
      anyBounds=true;currentRenderers.Add(renderer);
     }
     if(!anyBounds||currentRenderers.Count==0)continue;
@@ -79,6 +81,7 @@ namespace Ossastra.CharacterLighting.Rendering
     foreach(var renderer in currentRenderers)
     {
      renderer.GetSharedMaterials(sourceSlots);renderer.GetPropertyBlock(rendererBlock);
+     cmd.SetGlobalVector("_CharacterCoverageSourceOffset",presentationOffset==null?Vector3.zero:presentationOffset(renderer));
      if(sourceSlots.Count>MaxSlotsPerRenderer){bindings.Clear();ActiveActorCount=0;Status="单成员超过16材质槽；本帧关闭轮廓";return;}
      int slotCount=renderer is SpriteRenderer?Math.Min(1,sourceSlots.Count):sourceSlots.Count;
      for(int part=0;part<slotCount;part++)
@@ -93,7 +96,8 @@ namespace Ossastra.CharacterLighting.Rendering
       if(block.HasProperty(mainTexId))texture=block.GetTexture(mainTexId);
       if(block.HasProperty(colorId))tint=block.GetColor(colorId);
       if(block.HasProperty(mainStId))st=block.GetVector(mainStId);
-      float cutoff=source.shader!=null&&source.shader.name.IndexOf("DepthPlane",StringComparison.Ordinal)>=0&&source.HasProperty(cutoffId)?source.GetFloat(cutoffId):0;
+      bool cutout=source.shader!=null&&(source.shader.name.IndexOf("DepthPlane",StringComparison.Ordinal)>=0||source.HasProperty("_SideViewCutout")&&source.GetFloat("_SideViewCutout")>.5f);
+      float cutoff=cutout&&source.HasProperty(cutoffId)?source.GetFloat(cutoffId):0;
       if(block.HasProperty(cutoffId))cutoff=block.GetFloat(cutoffId);
       var flip=Vector4.one;
       if(renderer is SpriteRenderer sprite){texture=sprite.sprite==null?null:sprite.sprite.texture;tint.a*=sprite.color.a;flip.x=sprite.flipX?-1:1;flip.y=sprite.flipY?-1:1;st=new Vector4(1,1,0,0);}

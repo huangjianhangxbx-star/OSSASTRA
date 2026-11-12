@@ -31,7 +31,29 @@ namespace Ossastra.Characters
         public CollisionFlags LastCollision { get; private set; }
         internal uint ContactRevision { get; private set; }
         private float sideDepth;
-        private bool foundSupport;
+        private Collider stepSupport;
+        private SideViewPartyContacts partyContacts;
+        private RaycastHit[] headHits = new RaycastHit[8];
+        private Vector3 previousPose, latestPose;
+        private float presentationFraction = 1f;
+        private bool hasPose, hasEstablishedSupport;
+        private long sideStepId;
+
+        public event Action<SideMovementStep> SideStepCompleted;
+        public Vector3 PresentedPosition => IsSideView && hasPose
+            ? Vector3.Lerp(previousPose, latestPose, presentationFraction) : transform.position;
+        public Vector3 PresentationOffset => PresentedPosition - transform.position;
+
+        internal void SetSideViewContacts(SideViewPartyContacts contacts) => partyContacts = contacts;
+
+        internal void SetSideViewPresentationFraction(float fraction) => presentationFraction = Mathf.Clamp01(fraction);
+
+        internal void ResetSideViewPose()
+        {
+            previousPose = latestPose = transform.position;
+            presentationFraction = 1f;
+            hasPose = IsSideView;
+        }
         private bool movingSideView;
         // 只读诊断：区分未获许可、未请求速度与真实碰撞截断，不参与运动决策。
         public bool LastAllowed {get;private set;}
@@ -45,6 +67,7 @@ namespace Ossastra.Characters
             this.dataBus = dataBus;
             body = GetComponent<CharacterController>();
             sideDepth = transform.position.z;
+            ResetSideViewPose();
             statusEffects=GetComponent<Ossastra.Combat.CombatStatusEffects>();
             locomotionScale=GetComponent<CharacterAbilities>();
             return body != null;
@@ -64,9 +87,15 @@ namespace Ossastra.Characters
             Stop();
         }
 
-        internal void TickSideView(bool allowed, float delta, JumpVerticalCommand command, float gravityScale)
+        internal void TickSideView(bool allowed, float delta, JumpVerticalCommand command, float gravityScale, bool jumpAccepted)
         {
             if (!IsSideView || body == null || !body.enabled || delta <= 0f) return;
+            var before = transform.position;
+            if (!hasPose || latestPose != before) ResetSideViewPose();
+            bool groundedBefore = Grounded;
+            bool footstepAllowed = allowed && dataBus.MotionOverride?.IsActive != true &&
+                statusEffects?.HasForcedMotion != true && statusEffects?.BlocksIntent != true;
+            partyContacts?.Prepare(body);
             LastAllowed = allowed;
             var horizontal = ResolveVelocity(allowed, jumpProfile.runSpeed);
             horizontal.y = horizontal.z = 0f;
@@ -77,10 +106,20 @@ namespace Ossastra.Characters
             float acceleration = jumpProfile.gravity * Mathf.Clamp01(gravityScale);
             VerticalSpeed = stayingGrounded ? -groundStick
                 : Mathf.Max(-jumpProfile.fallSpeed, VerticalSpeed - acceleration * delta);
+            float downBeforeContact = Mathf.Max(0f, -VerticalSpeed);
             MoveOnce(horizontal, VerticalSpeed, delta, true);
-            Grounded = VerticalSpeed <= 0f && foundSupport && (LastCollision & CollisionFlags.Below) != 0;
-            if (Grounded || ((LastCollision & CollisionFlags.Above) != 0 && VerticalSpeed > 0f))
-                VerticalSpeed = 0f;
+            Grounded = VerticalSpeed <= 0f && stepSupport != null && (LastCollision & CollisionFlags.Below) != 0;
+            bool hitHead = (LastCollision & CollisionFlags.Above) != 0;
+            if (Grounded || hitHead && VerticalSpeed > 0f) VerticalSpeed = 0f;
+
+            previousPose = before;
+            latestPose = transform.position;
+            bool launched = jumpAccepted && !hitHead && latestPose.y > before.y + .001f;
+            float landingSpeed = !groundedBefore && Grounded && hasEstablishedSupport ? downBeforeContact : 0f;
+            hasEstablishedSupport |= Grounded;
+            SideStepCompleted?.Invoke(new SideMovementStep(++sideStepId, ContactRevision, groundedBefore,
+                Grounded, launched, footstepAllowed, Mathf.Abs(latestPose.x - before.x), delta,
+                landingSpeed, latestPose, Grounded ? stepSupport : null));
         }
 
         internal void PublishSideViewVelocity(Vector3 before, float simulatedDelta)
@@ -111,7 +150,7 @@ namespace Ossastra.Characters
             var constrained=environmentClearance==null
                 ?new CharacterClearanceResult(requestedDisplacement,false):environmentClearance.Constrain(requestedDisplacement);
             LastEnvironmentSideBlocked=constrained.SideBlocked;
-            foundSupport = false;
+            stepSupport = null;
             movingSideView = sideView;
             var collision = CollisionFlags.None;
             try { collision = body.Move(constrained.Displacement); }
@@ -128,19 +167,33 @@ namespace Ossastra.Characters
 
         private void OnControllerColliderHit(ControllerColliderHit hit)
         {
-            if (movingSideView && hit.normal.y >= Mathf.Cos(body.slopeLimit * Mathf.Deg2Rad) &&
+            if (movingSideView && IsEnvironmentContact(hit.collider) &&
+                hit.normal.y >= Mathf.Cos(body.slopeLimit * Mathf.Deg2Rad) &&
                 hit.point.y < transform.TransformPoint(body.center).y)
-                foundSupport = true;
+                stepSupport = hit.collider;
         }
 
         internal bool HasJumpHeadroom()
         {
             var center = transform.TransformPoint(body.center);
             var top = center + Vector3.up * (body.height * .5f - body.radius);
-            // 复刻场的 3D 胶囊上扫适配原作的顶角射线，不把近头顶物体当作地面。
-            return !Physics.SphereCast(top, body.radius * .85f, Vector3.up, out var hit, .8f,
-                Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore) || hit.collider == body;
+            // 同伴可能比顶壁更近。遍历全部命中，不能因首个命中是己方就忽略后方顶壁。
+            int count;
+            do
+            {
+                count = Physics.SphereCastNonAlloc(top, body.radius * .85f, Vector3.up, headHits, .8f,
+                    Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
+                for (int i = 0; i < count; i++)
+                    if (IsEnvironmentContact(headHits[i].collider)) return false;
+                if (count < headHits.Length) return true;
+                Array.Resize(ref headHits, headHits.Length * 2);
+            } while (true);
         }
+
+        private bool IsEnvironmentContact(Collider candidate)
+            => candidate != null && candidate != body && partyContacts?.IsPeer(body, candidate) != true &&
+                !Physics.GetIgnoreLayerCollision(gameObject.layer, candidate.gameObject.layer) &&
+                !Physics.GetIgnoreCollision(body, candidate);
 
         private void ClearMovementFacts()
         { LastAllowed=false;RequestedVelocity=Vector3.zero;LastEnvironmentSideBlocked=false;IsMoving=false;Velocity=Vector3.zero; }
@@ -151,6 +204,9 @@ namespace Ossastra.Characters
             ClearMovementFacts();
             VerticalSpeed = 0;
             Grounded = false;
+            hasEstablishedSupport = false;
+            stepSupport = null;
+            ResetSideViewPose();
             LastCollision = CollisionFlags.None;
             ContactRevision++;
         }

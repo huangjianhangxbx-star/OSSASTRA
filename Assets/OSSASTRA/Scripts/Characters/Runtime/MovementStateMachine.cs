@@ -60,6 +60,7 @@ namespace Ossastra.Characters
             if (elapsed <= 0f)
             {
                 accumulator = 0f;
+                motor.ResetSideViewPose();
                 InvalidateInput();
                 return;
             }
@@ -73,12 +74,13 @@ namespace Ossastra.Characters
             // 仍在 Root 集中更新内步进，输入只采一次，每物理步只由原移动器提交一次。
             while (steps < 8 && accumulator + .000001f >= step)
             {
+                int acceptedBefore = AcceptedJumps;
                 TryLaunch();
                 var command = jump.Step(profile.sustainSteps, profile.minimumSustainSteps);
                 bool wasRising = jump.Phase == OrdinaryJumpPhase.Rising;
                 bool held = launchGesture.HasIdentity ? launchHeld : anyHeld;
                 float gravity = jump.GravityScale(step, held, profile.hangInitialGravity, profile.hangGravityRamp);
-                motor.TickSideView(canMove, step, command, gravity);
+                motor.TickSideView(canMove, step, command, gravity, AcceptedJumps != acceptedBefore);
                 bool bumped = wasRising && (motor.LastCollision & CollisionFlags.Above) != 0;
                 jump.Observe(wasRising, motor.Grounded, bumped, motor.VerticalSpeed > 0f, profile.headLockSteps);
                 if (motor.Grounded) { launchGesture = default; launchHeld = false; }
@@ -87,6 +89,7 @@ namespace Ossastra.Characters
                 steps++;
             }
             if (steps > 0) motor.PublishSideViewVelocity(before, step * steps);
+            motor.SetSideViewPresentationFraction(accumulator / step);
         }
 
         private void SampleJump(CharacterInputFrame frame, CharacterJumpProfile profile)

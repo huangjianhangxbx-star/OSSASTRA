@@ -237,11 +237,23 @@ namespace Ossastra.Audio
         {if(candidate==null)return;int scene=candidate.gameObject.scene.handle;if(factOwners.TryGetValue(scene,out var owner)&&owner==candidate)factOwners.Remove(scene);}
         internal void ReleaseSfxSource(SfxSourceHandle source)
         {if(!sources.Remove(source))return;SfxPlayer?.StopSource(source.SourceId,source.Generation);Sfx?.CloseSource(source.SourceId,source.Generation);}
-        public SfxDecision SubmitSfx(SfxRequest request)
+        public SfxDecision SubmitSfx(SfxRequest request) => SubmitSfxCore(request, null, false);
+
+        /// <summary>本场持久配置的一次声仍须经过同一来源代次、仲裁、混音和播放池。</summary>
+        internal SfxDecision SubmitSceneSfx(SfxSourceHandle source, SfxEventDefinitionSO definition, string factKey, Vector3 position)
+        {
+            if (source == null || !sources.Contains(source)) return new SfxDecision(false, "SCENE_SOURCE_LEASE_UNAVAILABLE");
+            if (definition == null || definition.loop) return new SfxDecision(false, "SCENE_ONE_SHOT_DEFINITION_REQUIRED");
+            var request = new SfxRequest(definition.eventId, source.SourceId, source.WorldScopeId, source.Generation,
+                factKey, position, Time.realtimeSinceStartupAsDouble);
+            return SubmitSfxCore(request, definition, true);
+        }
+
+        private SfxDecision SubmitSfxCore(SfxRequest request, SfxEventDefinitionSO definition, bool authoredSceneCue)
         {
             SfxDecision decision;bool issued=false;string reason="";
             if(!SfxAvailable)decision=new SfxDecision(false,"OWNER_UNAVAILABLE:"+SfxStatus);
-            else if(effectiveCatalog==null||!effectiveCatalog.TryResolve(request.EventId,out var definition,out reason))decision=new SfxDecision(false,string.IsNullOrEmpty(reason)?"SFX_CONTENT_MISSING":reason);
+            else if(!authoredSceneCue&&(effectiveCatalog==null||!effectiveCatalog.TryResolve(request.EventId,out definition,out reason)))decision=new SfxDecision(false,string.IsNullOrEmpty(reason)?"SFX_CONTENT_MISSING":reason);
             else
             {
                 decision=Sfx.Submit(request,definition,Time.realtimeSinceStartupAsDouble);

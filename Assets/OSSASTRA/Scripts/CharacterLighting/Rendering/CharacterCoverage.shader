@@ -17,11 +17,11 @@ Shader "Hidden/Ossastra/CharacterLighting/Coverage"
    #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
    TEXTURE2D(_CharacterCoverageSourceTexture);SAMPLER(sampler_CharacterCoverageSourceTexture);
    float4x4 _CharacterCoverageVP;
-   float4 _CharacterCoverageSourceST,_CharacterCoverageSourceFlip;
+   float4 _CharacterCoverageSourceST,_CharacterCoverageSourceFlip,_CharacterCoverageSourceOffset;
    float _CharacterCoverageSourceAlpha,_CharacterCoverageSourceCutoff;
    struct A{float4 positionOS:POSITION;float2 uv:TEXCOORD0;float4 color:COLOR;};
    struct V{float4 positionCS:SV_POSITION;float2 uv:TEXCOORD0;float alpha:TEXCOORD1;};
-   V Vert(A input){V output;input.positionOS.xy*=_CharacterCoverageSourceFlip.xy;output.positionCS=mul(_CharacterCoverageVP,mul(unity_ObjectToWorld,input.positionOS));output.uv=input.uv*_CharacterCoverageSourceST.xy+_CharacterCoverageSourceST.zw;output.alpha=input.color.a*_CharacterCoverageSourceAlpha;return output;}
+   V Vert(A input){V output;input.positionOS.xy*=_CharacterCoverageSourceFlip.xy;float4 world=mul(unity_ObjectToWorld,input.positionOS);world.xyz+=_CharacterCoverageSourceOffset.xyz;output.positionCS=mul(_CharacterCoverageVP,world);output.uv=input.uv*_CharacterCoverageSourceST.xy+_CharacterCoverageSourceST.zw;output.alpha=input.color.a*_CharacterCoverageSourceAlpha;return output;}
    float4 Frag(V input):SV_Target
    {
     float alpha=saturate(SAMPLE_TEXTURE2D(_CharacterCoverageSourceTexture,sampler_CharacterCoverageSourceTexture,input.uv).a*input.alpha);

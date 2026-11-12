@@ -1,44 +1,72 @@
 /* 脚本：GameAudioBootstrap
- * 功能：在确有战斗反馈消费者的场景补齐同一音频根，并安装只读事实适配器。
- * 边界：不修改场景磁盘/Prefab，不创建第二播放器；无消费者的编辑/其他场景不自动接管。
- * 协作：旧场无需保存迁移；配置来自唯一明确Resources入口，缺失则显式诊断。
+ * 功能：为有正式消费者的场景补齐唯一音频根和只读事实适配器。
+ * 边界：旧场以战斗视图触发；横版场以明确持久的运动音效适配器触发，不创建假视图。
+ * 协作：加载现有 Resources 配置；音频根晚于场景宿主时补绑 BGM 上下文。
  */
+using System;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using Object = UnityEngine.Object;
+
 namespace Ossastra.Audio
 {
     public static class GameAudioBootstrap
     {
-        public static GameAudioBootstrapSO LoadConfiguration()=>Resources.Load<GameAudioBootstrapSO>("OssastraAudioBootstrap");
+        public static GameAudioBootstrapSO LoadConfiguration() => Resources.Load<GameAudioBootstrapSO>("OssastraAudioBootstrap");
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-        private static void Register(){SceneManager.sceneLoaded-=OnSceneLoaded;SceneManager.sceneLoaded+=OnSceneLoaded;}
-        private static void OnSceneLoaded(Scene scene,LoadSceneMode mode)
+        private static void Register()
         {
-            var views=System.Array.FindAll(Object.FindObjectsOfType<Ossastra.UserInterface.CombatFeedbackView>(),v=>v.gameObject.scene==scene);
-            var root=GameAudioRoot.Instance;
-            if(views.Length==0)
-            {if(mode==LoadSceneMode.Single&&root!=null)root.BeginSfxWorld(scene.path+"#"+scene.handle);return;}
-            if(root==null)
+            SceneManager.sceneLoaded -= OnSceneLoaded;
+            SceneManager.sceneLoaded += OnSceneLoaded;
+        }
+
+        private static void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+        {
+            var views = Array.FindAll(Object.FindObjectsOfType<Ossastra.UserInterface.CombatFeedbackView>(), v => v.gameObject.scene == scene);
+            var sideMotion = Array.Find(Object.FindObjectsOfType<SideViewLocomotionAudioAdapter>(), a => a.isActiveAndEnabled && a.gameObject.scene == scene);
+            var root = GameAudioRoot.Instance;
+            if (views.Length == 0 && sideMotion == null)
             {
-                var config=LoadConfiguration();
-                if(config==null||!config.Validate(out _)){Debug.LogWarning("AUDIO_M02_BOOTSTRAP_UNAVAILABLE：战斗声音未接管，检查OssastraAudioBootstrap配置。");return;}
-                var go=new GameObject("GameAudioRoot [Unified Bootstrap]");
-                root=go.AddComponent<GameAudioRoot>();
+                if (mode == LoadSceneMode.Single && root != null) root.BeginSfxWorld(scene.path + "#" + scene.handle);
+                return;
             }
-            if(!root.IsOwner)return;
-            if(mode==LoadSceneMode.Single)root.BeginSfxWorld(scene.path+"#"+scene.handle);
-            // 适配器观察整个自有场景；多个HUD视图不应各订阅同一角色而重复发声。
-            bool hasAdapter=System.Array.Exists(Object.FindObjectsOfType<CombatSfxFactAdapter>(),a=>a.gameObject.scene==scene);
-            if(!hasAdapter)
+            if (root == null)
             {
-                var host=new GameObject("Combat SFX Facts [Audio Owned]");SceneManager.MoveGameObjectToScene(host,scene);
-                host.AddComponent<CombatSfxFactAdapter>();
+                var config = LoadConfiguration();
+                if (config == null || !config.Validate(out _))
+                {
+                    Debug.LogWarning("AUDIO_BOOTSTRAP_UNAVAILABLE：检查 OssastraAudioBootstrap 既有配置。");
+                    return;
+                }
+                root = new GameObject("GameAudioRoot [Unified Bootstrap]").AddComponent<GameAudioRoot>();
             }
-            // 世界声音仍由音频根管理；适配器只观察本场，旧场不保存任何新引用。
-            bool hasMovement=System.Array.Exists(Object.FindObjectsOfType<LocomotionAudioAdapter>(),a=>a.gameObject.scene==scene);
-            if(!hasMovement){var go=new GameObject("Locomotion Facts [Audio Owned]");SceneManager.MoveGameObjectToScene(go,scene);go.AddComponent<LocomotionAudioAdapter>();}
-            bool hasInterface=System.Array.Exists(Object.FindObjectsOfType<InterfaceAudioAdapter>(),a=>a.gameObject.scene==scene);
-            if(!hasInterface){var go=new GameObject("Interface Facts [Audio Owned]");SceneManager.MoveGameObjectToScene(go,scene);go.AddComponent<InterfaceAudioAdapter>();}
+            if (!root.IsOwner) return;
+            if (mode == LoadSceneMode.Single) root.BeginSfxWorld(scene.path + "#" + scene.handle);
+            if (sideMotion != null && scene == SceneManager.GetActiveScene())
+            {
+                var context = Array.Find(Object.FindObjectsOfType<BgmContextHost>(), value => value.isActiveAndEnabled && value.gameObject.scene == scene);
+                if (context != null) context.AttachAudioRoot(root);
+                else Debug.LogWarning("SIDE_AUDIO_CONTEXT_MISSING：横版场需要 BgmContextHost，不能仅凭音频根存在判定音乐就绪。");
+            }
+
+            EnsureAdapter<CombatSfxFactAdapter>(scene, "Combat SFX Facts [Audio Owned]");
+            EnsureAdapter<InterfaceAudioAdapter>(scene, "Interface Facts [Audio Owned]");
+            if (sideMotion == null) EnsureAdapter<LocomotionAudioAdapter>(scene, "Locomotion Facts [Audio Owned]");
+            else
+            {
+                foreach (var legacy in Object.FindObjectsOfType<LocomotionAudioAdapter>())
+                    if (legacy.gameObject.scene == scene) legacy.enabled = false;
+                sideMotion.Discover();
+            }
+        }
+
+        private static void EnsureAdapter<T>(Scene scene, string name) where T : MonoBehaviour
+        {
+            if (Array.Exists(Object.FindObjectsOfType<T>(), item => item.gameObject.scene == scene)) return;
+            var owned = new GameObject(name);
+            SceneManager.MoveGameObjectToScene(owned, scene);
+            owned.AddComponent<T>();
         }
     }
 }
