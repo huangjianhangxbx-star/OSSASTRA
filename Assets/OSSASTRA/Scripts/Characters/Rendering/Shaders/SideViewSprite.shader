@@ -10,6 +10,7 @@ Shader "Ossastra/Characters/SideViewSprite"
   [PerRendererData] _AlphaTex("External Alpha",2D)="white"{}
   [PerRendererData] _EnableExternalAlpha("Enable External Alpha",Float)=0
   [HideInInspector] _SideViewPresentationOffset("Presented world offset",Vector)=(0,0,0,0)
+  [HideInInspector] _SideViewOriginalHeroTint("Original region tint",Vector)=(1,1,1,1)
   [HideInInspector] _EnvironmentSurfaceRole("Character surface",Float)=2
   [HideInInspector] _EnvironmentResponseOverride("Response",Float)=1
   [HideInInspector] _EnvironmentReceiveShadow("Main light shadows",Float)=1
@@ -72,6 +73,41 @@ Shader "Ossastra/Characters/SideViewSprite"
        float4 color = SampleSpriteTexture(input.uv) * input.color;
        color.rgb = SideViewShade(color.rgb * color.a, color.a, input.position.xy, input.world);
        return color;
+   }
+   ENDCG
+  }
+  Pass
+  {
+   Name "SideViewVisibleSurface"
+   Tags {"LightMode"="SideViewVisibleSurface"}
+   ZWrite On ZTest Always Blend One Zero
+   CGPROGRAM
+   #pragma target 4.5
+   #pragma vertex VertSurface
+   #pragma fragment FragSurface
+   #pragma multi_compile_instancing
+   #pragma multi_compile _ PIXELSNAP_ON
+   #pragma multi_compile _ ETC1_EXTERNAL_ALPHA
+   #include "UnitySprites.cginc"
+   #include "Assets/OSSASTRA/Scripts/WorldRendering/SideView/Shaders/SideViewComparisonOpaqueDepth.hlsl"
+   float4 _SideViewPresentationOffset;
+   v2f VertSurface(appdata_t input)
+   {
+       UNITY_SETUP_INSTANCE_ID(input);
+       v2f output = SpriteVert(input);
+       float3 world = mul(unity_ObjectToWorld, UnityFlipSprite(input.vertex.xyz, _Flip)).xyz + _SideViewPresentationOffset.xyz;
+       output.vertex = UnityWorldToClipPos(world);
+       #ifdef PIXELSNAP_ON
+       output.vertex = UnityPixelSnap(output.vertex);
+       #endif
+       return output;
+   }
+   float4 FragSurface(v2f input) : SV_Target
+   {
+       SideViewRespectOpaqueDepth(input.vertex);
+       float alpha = SampleSpriteTexture(input.texcoord).a * input.color.a;
+       clip(alpha - 1.0 / 255.0);
+       return float4(0, 0, 0, 1);
    }
    ENDCG
   }

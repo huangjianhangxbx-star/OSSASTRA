@@ -18,6 +18,7 @@ Shader "Hidden/Ossastra/WorldRendering/EnvironmentLook"
             TEXTURE2D_X(_WorldLookPermission);
             TEXTURE2D_X_FLOAT(_WorldLookDepth);
             TEXTURE2D_X(_WorldLookCharacterGlow);
+            float _SideViewWorldLookCoverage;
             CBUFFER_START(UnityPerMaterial)
                 float4 _WorldLookTexelSize, _WorldLookUvTransform;
                 float4 _WorldLookFeatures, _WorldLookGrade, _WorldLookFilter, _WorldLookFocus, _WorldLookBloom;
@@ -27,11 +28,13 @@ Shader "Hidden/Ossastra/WorldRendering/EnvironmentLook"
                 float _WorldLookCharacterGlowReady;
             CBUFFER_END
 
-            bool EnvironmentAllows(float2 uv)
+            float EnvironmentCoverage(float2 uv)
             {
                 float4 permission = SAMPLE_TEXTURE2D_X(_WorldLookPermission, sampler_PointClamp, uv);
+                if (_SideViewWorldLookCoverage > .5)
+                    return permission.g > .998 && permission.a > .998 ? permission.r : 0;
                 // 保守排除MSAA混合边缘，不把屋顶/人物轮廓的部分覆盖扩成环境许可。
-                return min(permission.r, min(permission.g, permission.a)) > .998;
+                return min(permission.r, min(permission.g, permission.a)) > .998 ? 1 : 0;
             }
             float RawDepth(float2 uv) { return SAMPLE_TEXTURE2D_X(_WorldLookDepth, sampler_PointClamp, uv).r; }
             float EyeDepth(float raw)
@@ -55,7 +58,8 @@ Shader "Hidden/Ossastra/WorldRendering/EnvironmentLook"
                 inout float3 focusSum, inout float focusWeight, inout float3 bloomSum, inout float bloomWeight)
             {
                 float2 sampleUv = clamp(uv + direction * radius * _WorldLookTexelSize.xy, _WorldLookTexelSize.xy * .5, 1 - _WorldLookTexelSize.xy * .5);
-                if (!EnvironmentAllows(sampleUv)) return;
+                // 只从实心环境采集 Bloom 和景深，避免透明边缘带入后方已合成颜色。
+                if (EnvironmentCoverage(sampleUv) < .998) return;
                 // Point取色与Point许可对齐，不能在线性插值时偷取相邻角色或黑幕的颜色。
                 float3 color = SAMPLE_TEXTURE2D_X(_BlitTexture, sampler_PointClamp, sampleUv).rgb;
                 float difference = abs(EyeDepth(RawDepth(sampleUv)) - centerDepth);
@@ -98,7 +102,8 @@ Shader "Hidden/Ossastra/WorldRendering/EnvironmentLook"
                 float2 uv = input.texcoord * _WorldLookUvTransform.xy + _WorldLookUvTransform.zw;
                 half4 center = SAMPLE_TEXTURE2D_X(_BlitTexture, sampler_LinearClamp, uv);
                 float3 glow = CharacterGlow(uv);
-                if (!EnvironmentAllows(uv)) return half4(center.rgb + glow, center.a);
+                float coverage = EnvironmentCoverage(uv);
+                if (coverage <= 0) return half4(center.rgb + glow, center.a);
                 float raw = RawDepth(uv), depth = EyeDepth(raw);
                 float coc = _WorldLookFeatures.y > .5 ? smoothstep(0, max(.001, _WorldLookFocus.z), max(0, abs(depth - _WorldLookFocus.x) - _WorldLookFocus.y)) : 0;
                 float3 color = center.rgb;
@@ -129,7 +134,7 @@ Shader "Hidden/Ossastra/WorldRendering/EnvironmentLook"
                 }
                 // 不向原黑幕加性补光，防止许可柔边附近被环境色调重新抬亮。
                 if (max(center.r, max(center.g, center.b)) <= .000001 && max(glow.r,max(glow.g,glow.b)) <= .000001) return center;
-                return half4(max(0, color), center.a);
+                return half4(lerp(center.rgb + glow, max(0, color), coverage), center.a);
             }
             ENDHLSL
         }

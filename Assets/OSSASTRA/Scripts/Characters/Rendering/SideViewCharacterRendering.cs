@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Ossastra.CharacterLighting;
 using Ossastra.CharacterLighting.Rendering;
+using Ossastra.WorldRendering.SideView;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -18,6 +19,7 @@ namespace Ossastra.Characters.Rendering
         public Transform solidGeometry;
 
         private static readonly int PresentationOffsetId = Shader.PropertyToID("_SideViewPresentationOffset");
+        private static readonly int OriginalTintId = Shader.PropertyToID("_SideViewOriginalHeroTint");
         private MaterialPropertyBlock block;
         private readonly List<Material> slots = new List<Material>(8);
         private readonly Dictionary<Renderer, Vector3> presentationOffsets = new Dictionary<Renderer, Vector3>(8);
@@ -28,12 +30,14 @@ namespace Ossastra.Characters.Rendering
         private CharacterCoverageCache coverage;
         private Shader coverageShader;
         private Camera camera;
+        private SideViewRenderComparison comparison;
         public int LastCoverageActors => coverage == null ? 0 : coverage.ActiveActorCount;
         public int LastBoundRenderers { get; private set; }
 
         private void Awake()
         {
             camera = GetComponent<Camera>();
+            comparison = GetComponent<SideViewRenderComparison>();
             block = new MaterialPropertyBlock();
         }
 
@@ -58,16 +62,17 @@ namespace Ossastra.Characters.Rendering
                 if (!TryGetReceiver(actor, out var receiver)) continue;
                 var move = actor.GetComponent<CharacterMovement>();
                 Vector3 offset = move == null ? Vector3.zero : move.PresentationOffset;
+                Color originalTint = comparison != null && comparison.IsSilksong ? comparison.HeroTint(actor) : Color.white;
                 foreach (var renderer in receiver.Members)
                 {
                     if (renderer == null || !renderer.enabled || !renderer.gameObject.activeInHierarchy) continue;
                     presentationOffsets[renderer] = offset;
-                    WritePresentationOffset(renderer, offset);
+                    WritePresentationOffset(renderer, offset, originalTint);
                     stale.Remove(renderer);
                 }
             }
             foreach (var renderer in stale)
-                if (renderer != null) WritePresentationOffset(renderer, Vector3.zero);
+                if (renderer != null) WritePresentationOffset(renderer, Vector3.zero, Color.white);
         }
 
         private void LateUpdate()
@@ -83,7 +88,8 @@ namespace Ossastra.Characters.Rendering
         internal void Prepare(CommandBuffer cmd, Camera renderingCamera, Matrix4x4 gpuViewProjection, int width, int height)
         {
             if (renderingCamera != camera) return;
-            bool lit = CharacterLightingSystem.TryGet(camera, out var active) && active == lighting;
+            bool lit = (comparison == null || !comparison.IsSilksong) &&
+                CharacterLightingSystem.TryGet(camera, out var active) && active == lighting;
             if (lit && lighting.WantsCoverage && lighting.coverageShader != null)
             {
                 if (coverage == null || coverageShader != lighting.coverageShader)
@@ -193,10 +199,11 @@ namespace Ossastra.Characters.Rendering
             return true;
         }
 
-        private void WritePresentationOffset(Renderer renderer, Vector3 offset)
+        private void WritePresentationOffset(Renderer renderer, Vector3 offset, Color originalTint)
         {
             renderer.GetPropertyBlock(block);
             block.SetVector(PresentationOffsetId, offset);
+            block.SetVector(OriginalTintId, originalTint);
             renderer.SetPropertyBlock(block);
             renderer.GetSharedMaterials(slots);
             for (int index = 0; index < slots.Count; index++)
@@ -204,6 +211,7 @@ namespace Ossastra.Characters.Rendering
                 renderer.GetPropertyBlock(block, index);
                 if (block.isEmpty) continue;
                 block.SetVector(PresentationOffsetId, offset);
+                block.SetVector(OriginalTintId, originalTint);
                 renderer.SetPropertyBlock(block, index);
             }
         }
@@ -277,7 +285,7 @@ namespace Ossastra.Characters.Rendering
         {
             RenderPipelineManager.beginCameraRendering -= PublishPresentation;
             foreach (var renderer in presentationOffsets.Keys)
-                if (renderer != null) WritePresentationOffset(renderer, Vector3.zero);
+                if (renderer != null) WritePresentationOffset(renderer, Vector3.zero, Color.white);
             presentationOffsets.Clear();
             ReleaseCoverage();
             foreach (var renderer in bound) if (renderer != null) WriteBlocks(renderer, default, default);

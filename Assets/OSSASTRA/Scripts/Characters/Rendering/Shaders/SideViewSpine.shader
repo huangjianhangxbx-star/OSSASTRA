@@ -11,6 +11,7 @@ Shader "Ossastra/Characters/SideViewSpine"
   [HideInInspector] _StencilComp("Stencil Comparison",Float)=8
   [HideInInspector] _SideViewCutout("Cutout source",Float)=0
   [HideInInspector] _SideViewPresentationOffset("Presented world offset",Vector)=(0,0,0,0)
+  [HideInInspector] _SideViewOriginalHeroTint("Original region tint",Vector)=(1,1,1,1)
   [HideInInspector] _EnvironmentSurfaceRole("Character surface",Float)=2
   [HideInInspector] _EnvironmentResponseOverride("Response",Float)=1
   [HideInInspector] _EnvironmentReceiveShadow("Main light shadows",Float)=1
@@ -79,6 +80,39 @@ Shader "Ossastra/Characters/SideViewSpine"
        #endif
        color.rgb = SideViewShade(color.rgb, color.a, input.position.xy, input.world);
        return color;
+   }
+   ENDHLSL
+  }
+  Pass
+  {
+   Name "SideViewVisibleSurface"
+   Tags {"LightMode"="SideViewVisibleSurface"}
+   ZWrite On ZTest Always Blend One Zero
+   HLSLPROGRAM
+   #pragma target 4.5
+   #pragma vertex VertSurface
+   #pragma fragment FragSurface
+   #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+   #include "Assets/OSSASTRA/Scripts/WorldRendering/SideView/Shaders/SideViewComparisonOpaqueDepth.hlsl"
+   TEXTURE2D(_MainTex); SAMPLER(sampler_MainTex);
+   float4 _MainTex_ST, _Color, _SideViewPresentationOffset;
+   float _SideViewCutout, _Cutoff;
+   struct Attributes { float4 position : POSITION; float2 uv : TEXCOORD0; float4 color : COLOR; };
+   struct Varyings { float4 position : SV_POSITION; float2 uv : TEXCOORD0; float alpha : TEXCOORD1; };
+   Varyings VertSurface(Attributes input)
+   {
+       Varyings output;
+       output.position = TransformWorldToHClip(TransformObjectToWorld(input.position.xyz) + _SideViewPresentationOffset.xyz);
+       output.uv = _SideViewCutout > .5 ? TRANSFORM_TEX(input.uv, _MainTex) : input.uv;
+       output.alpha = input.color.a * (_SideViewCutout > .5 ? _Color.a : 1);
+       return output;
+   }
+   float4 FragSurface(Varyings input) : SV_Target
+   {
+       SideViewRespectOpaqueDepth(input.position);
+       float alpha = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, input.uv).a * input.alpha;
+       clip(alpha - (_SideViewCutout > .5 ? _Cutoff : 1.0 / 255.0));
+       return float4(0, 0, 0, 1);
    }
    ENDHLSL
   }

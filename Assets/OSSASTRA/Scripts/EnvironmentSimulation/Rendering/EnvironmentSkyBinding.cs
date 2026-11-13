@@ -290,6 +290,36 @@ namespace Ossastra.EnvironmentSimulation.Rendering
   static void ClearSurface(CommandBuffer cmd)
   {cmd.SetGlobalFloat("_EnvironmentLightingEnabled",0);cmd.SetGlobalVector("_EnvironmentSceneChroma",Vector4.zero);cmd.SetGlobalFloat("_EnvironmentGroundBaseStrength",0);cmd.SetGlobalInteger("_EnvironmentIndoorCount",0);cmd.SetGlobalInteger("_EnvironmentLocalLightCount",0);cmd.SetGlobalInteger("_EnvironmentShelterCount",0);cmd.SetGlobalFloat("_EnvironmentRainDepthReady",0);}
   public static void ClearSurfaceForCamera(CommandBuffer cmd)=>ClearSurface(cmd);
+  // Side-view draws only for an explicit exterior context. This borrows the existing author material.
+  internal static bool TryPrepareSideViewSky(Camera camera,out Material material,out int pass)
+  {
+   material=null;pass=-1;
+   if(!TryGet(camera,out var binding,out var frame))return false;
+   EnsureMaterial(ref binding.skyMaterial,binding.skyShader,"Environment legal sky");
+   if(binding.skyMaterial==null)return false;
+   pass=binding.skyMaterial.FindPass("SideViewSky");
+   if(pass<0)return false;
+   binding.ConfigureSky(binding.skyMaterial,frame);material=binding.skyMaterial;return true;
+  }
+  internal static bool TryPrepareSideViewRain(Camera camera,out Material material,out int pass,out int count)
+  {
+   material=null;pass=-1;count=0;
+   if(!TryGet(camera,out var binding,out var frame)||!binding.SurfaceReady||frame.Rain<=.001f)return false;
+   EnsureMaterial(ref binding.rainMaterial,binding.rainShader,"Environment legal rain");
+   if(binding.rainMaterial==null)return false;
+   pass=binding.rainMaterial.FindPass("SideViewRain");
+   if(pass<0)return false;
+   material=binding.rainMaterial;count=binding.ConfigureRain(frame);return true;
+  }
+  int ConfigureRain(EnvironmentFrame frame)
+  {
+   int count=Mathf.Clamp(rainParticleCount,32,1024);
+   rainMaterial.SetVector("_EnvironmentRain",new Vector4(frame.Rain,rainOpacity,(float)frame.Seconds,count));
+   rainMaterial.SetVector("_EnvironmentRainWind",new Vector4(frame.WindDirection.x*frame.WindSpeed,frame.WindDirection.y*frame.WindSpeed,0,0));
+   float rainLight=Mathf.Clamp(frame.SunIntensity*.6f+frame.AmbientSky.grayscale*frame.AmbientIntensity,.13f,1);
+   rainMaterial.SetColor("_EnvironmentRainColor",new Color(.67f,.77f,.84f)*rainLight);
+   return count;
+  }
   public static void AppendSkyForCamera(CommandBuffer cmd,Camera camera,RoomMaskFrame visibility)
   {
    if(!TryGet(camera,out var b,out var frame)||b.skyMaterial==null||visibility.TruthMode)return;
@@ -314,12 +344,9 @@ namespace Ossastra.EnvironmentSimulation.Rendering
    Blitter.BlitTexture(cmd,sourceDepth,flip?new Vector4(1,-1,0,1):new Vector4(1,1,0,0),b.depthCopyMaterial,0);
    CoreUtils.SetRenderTarget(cmd,renderer.cameraColorTargetHandle,sourceDepth);
    cmd.SetGlobalTexture("_EnvironmentRainLegalDepth",b.rainDepth.nameID);cmd.SetGlobalFloat("_EnvironmentRainDepthReady",1);
-   b.rainMaterial.SetVector("_EnvironmentRain",new Vector4(frame.Rain,b.rainOpacity,(float)frame.Seconds,Mathf.Clamp(b.rainParticleCount,32,1024)));
-   b.rainMaterial.SetVector("_EnvironmentRainWind",new Vector4(frame.WindDirection.x*frame.WindSpeed,frame.WindDirection.y*frame.WindSpeed,0,0));
-   float rainLight=Mathf.Clamp(frame.SunIntensity*.6f+frame.AmbientSky.grayscale*frame.AmbientIntensity,.13f,1);
-   b.rainMaterial.SetColor("_EnvironmentRainColor",new Color(.67f,.77f,.84f)*rainLight);
+   int count=b.ConfigureRain(frame);
    cmd.SetGlobalInteger("_RoomSightOwnerCount",0);cmd.SetGlobalInteger("_RoomSightOwnerExterior",0);cmd.SetGlobalInteger("_RoomSightPassMode",1);
-   cmd.DrawProcedural(Matrix4x4.identity,b.rainMaterial,0,MeshTopology.Triangles,6,Mathf.Clamp(b.rainParticleCount,32,1024));
+   cmd.DrawProcedural(Matrix4x4.identity,b.rainMaterial,0,MeshTopology.Triangles,6,count);
   }
   void ReleaseReflection()
   {

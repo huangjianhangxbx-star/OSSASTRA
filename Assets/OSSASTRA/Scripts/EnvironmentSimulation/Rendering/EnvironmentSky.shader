@@ -11,6 +11,7 @@ Shader "Hidden/Ossastra/Environment/Sky"
   #include "../../SceneVisibility/Rooms/Rendering/RoomSightClip.hlsl"
   #include "EnvironmentLighting.hlsl"
   float4 _EnvironmentSkyZenith,_EnvironmentSkyHorizon,_EnvironmentSkySun,_EnvironmentSkySunColor;
+  float4x4 _EnvironmentSideViewInverseViewProjection;
   struct Varyings{float4 position:SV_POSITION;float2 uv:TEXCOORD0;};
   Varyings Vert(uint id:SV_VertexID){Varyings o;o.position=GetFullScreenTriangleVertexPosition(id);
   #if UNITY_REVERSED_Z
@@ -72,6 +73,16 @@ Shader "Hidden/Ossastra/Environment/Sky"
    float3 direction=normalize(RoomSightWorldFromDeviceDepth(input.position.xy,depth)-_WorldSpaceCameraPos);
    clip(SkyAllowed(_WorldSpaceCameraPos,direction)?1:-1);return SkyColor(direction);
   }
+  half4 SideViewSky(Varyings input):SV_Target
+  {
+   #if UNITY_REVERSED_Z
+    const float farClip=0;
+   #else
+    const float farClip=1;
+   #endif
+   float3 farWorld=ComputeWorldSpacePosition(GetNormalizedScreenSpaceUV(input.position),farClip,_EnvironmentSideViewInverseViewProjection);
+   return SkyColor(normalize(farWorld-_WorldSpaceCameraPos));
+  }
   half4 Preview(Varyings input):SV_Target
   {float azimuth=(input.uv.x-.5)*6.2831853,elevation=(input.uv.y-.5)*3.1415927;return SkyColor(float3(sin(azimuth)*cos(elevation),sin(elevation),cos(azimuth)*cos(elevation)));}
   ENDHLSL
@@ -83,6 +94,11 @@ Shader "Hidden/Ossastra/Environment/Sky"
   Pass{ Name "Preview" HLSLPROGRAM
    #pragma vertex Vert
    #pragma fragment Preview
+   ENDHLSL
+  }
+  Pass{ Name "SideViewSky" HLSLPROGRAM
+   #pragma vertex Vert
+   #pragma fragment SideViewSky
    ENDHLSL
   }
  }
