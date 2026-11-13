@@ -194,7 +194,11 @@ namespace Ossastra.Characters
                     jump.LaunchWall();
                     traversal.Kick(profile.traversal);
                 }
-                else jump.Launch();
+                else
+                {
+                    jump.Launch();
+                    traversal?.ClearGrabTap();
+                }
                 launchGesture = pendingGesture;
                 launchHeld = !pendingTap;
                 if (pendingTap) jump.Release();

@@ -34,6 +34,9 @@ namespace Ossastra.Characters
     {
         private enum ClimbPhase { Lift, Cross, Land, ReturnAcross, ReturnDown }
 
+        private const float GrabTapMaxHold = .08f;
+        private const float GrabTapGrace = .10f;
+
         private readonly CharacterMovement motor;
         private readonly SideViewLedgeProbe probe;
         private readonly SideViewLedgeInput ledgeInput = new SideViewLedgeInput();
@@ -52,6 +55,8 @@ namespace Ossastra.Characters
         private int eventSide;
         private Vector3 plannedFrom, plannedTo;
         private int blockedSteps;
+        private int grabTapSide, grabTapDevice, grabTapControlRevision;
+        private float grabTapHeldSeconds, grabTapRemaining;
 
         public SideViewTraversal(CharacterMovement motor)
         { this.motor = motor; probe = motor.CreateLedgeProbe(); }
@@ -74,13 +79,44 @@ namespace Ossastra.Characters
             plannedFrom = plannedTo = default;
             pendingEvent = null;
             ledgeInput.Suspend();
+            ClearGrabTap();
             ClearClimbFailure();
             LastRejection = null;
             ChangeMode(SideViewTraversalMode.Grounded);
         }
 
         public void ObserveInput(int input, bool playerControl, int revision, int device)
-            => ledgeInput.Observe(input, revision, playerControl, device);
+        {
+            int previous = ledgeInput.Direction;
+            ledgeInput.Observe(input, revision, playerControl, device);
+            int current = ledgeInput.Direction;
+
+            if (!playerControl || motor.Grounded || BlocksAttack || lockSteps > 0 ||
+                (grabTapSide != 0 && (revision != grabTapControlRevision ||
+                    (device >= 0 && device != grabTapDevice) || (input != 0 && input != grabTapSide))))
+            {
+                ClearGrabTap();
+                return;
+            }
+
+            if (previous == 0 && current != 0)
+            {
+                grabTapSide = current;
+                grabTapDevice = device;
+                grabTapControlRevision = revision;
+                grabTapHeldSeconds = grabTapRemaining = 0f;
+            }
+            else if (input == 0 && previous != 0 && previous == grabTapSide)
+            {
+                grabTapRemaining = GrabTapGrace;
+            }
+        }
+
+        public void ClearGrabTap()
+        {
+            grabTapSide = 0;
+            grabTapHeldSeconds = grabTapRemaining = 0f;
+        }
 
         public void SampleContact(bool canTraverse, SideViewTraversalSettings settings)
         {
@@ -95,6 +131,7 @@ namespace Ossastra.Characters
         public void SuspendInput()
         {
             ledgeInput.Suspend();
+            ClearGrabTap();
             contact = default;
         }
 
@@ -104,6 +141,7 @@ namespace Ossastra.Characters
 
         public void Kick(SideViewTraversalSettings settings)
         {
+            ClearGrabTap();
             kickedWall = contact;
             lockSteps = Mathf.Max(1, settings.wallJumpLongLockSteps);
             sinceKick = 0;
@@ -117,6 +155,7 @@ namespace Ossastra.Characters
             plannedFrom = plannedTo = motor.transform.position;
             if (!canOwn)
             {
+                ClearGrabTap();
                 anchor = default;
                 ClearClimbFailure();
                 landedFromClimb = announcedHang = false;
@@ -153,22 +192,24 @@ namespace Ossastra.Characters
             }
             if (motor.Grounded)
             {
+                ClearGrabTap();
                 ChangeMode(SideViewTraversalMode.Grounded);
                 return default;
             }
-            int direction = ledgeInput.Direction;
-            if (contact.Exists && direction == contact.Side && motor.VerticalSpeed <= settings.gripMaxRisingSpeed)
+            var grabContact = GrabContact(step, settings);
+            if (grabContact.Exists && motor.VerticalSpeed <= settings.gripMaxRisingSpeed)
             {
-                if (probe.TryLedge(contact, Mathf.Max(0, -motor.VerticalSpeed * step), settings, out var ledge, out var reason))
+                if (probe.TryLedge(grabContact, Mathf.Max(0, -motor.VerticalSpeed * step), settings, out var ledge, out var reason))
                 {
                     if (!ledge.SameEdge(lastDropped) || ledgeInput.Revision != lastDropInput)
                     {
                         anchor = ledge;
+                        ClearGrabTap();
                         ClearClimbFailure();
                         announcedHang = false;
                         blockedSteps = 0;
                         LastRejection = null;
-                        ChangeMode(SideViewTraversalMode.LedgeHang, direction);
+                        ChangeMode(SideViewTraversalMode.LedgeHang, grabContact.Side);
                         return Hang(step, settings);
                     }
                     LastRejection = "ledge-input-already-consumed";
@@ -189,11 +230,34 @@ namespace Ossastra.Characters
             return default;
         }
 
+        private SideWallContact GrabContact(float step, SideViewTraversalSettings settings)
+        {
+            int direction = ledgeInput.Direction;
+            if (direction != 0)
+            {
+                if (grabTapSide != 0)
+                {
+                    grabTapHeldSeconds += step;
+                    if (grabTapHeldSeconds > GrabTapMaxHold + .00001f) ClearGrabTap();
+                }
+                return contact.Side == direction ? contact : default;
+            }
+
+            if (grabTapRemaining <= .00001f) return default;
+            // 只为抓边复查短按方向，墙滑、墙跳和翻越仍读取原接触及实时输入。
+            var sameSide = contact.Side == grabTapSide ? contact :
+                contact.Exists ? probe.Wall(grabTapSide, settings) : default;
+            grabTapRemaining -= step;
+            if (!sameSide.Exists || grabTapRemaining <= .00001f) ClearGrabTap();
+            return sameSide;
+        }
+
         public void Observe(SideViewTraversalSettings settings)
         {
             if (sinceKick < int.MaxValue) sinceKick++;
             if (motor.Grounded)
             {
+                ClearGrabTap();
                 kickedWall = default;
                 lockSteps = 0;
                 lastDropped = default;
