@@ -30,7 +30,9 @@ namespace Ossastra.Characters
     public sealed class SideViewTraversalSettings
     {
         public bool enabled = true;
-        [Tooltip("允许蹬墙起跳。关闭时仍可墙滑、挂边和翻越。")]
+        [Tooltip("允许持续朝墙输入时减缓下落。默认关闭，贴墙时使用普通下落速度。")]
+        public bool allowWallSlide;
+        [Tooltip("允许蹬墙起跳。")]
         public bool allowWallJump;
         public LayerMask surfaces = Physics.DefaultRaycastLayers;
         [Min(.01f)] public float wallReach = .12f;

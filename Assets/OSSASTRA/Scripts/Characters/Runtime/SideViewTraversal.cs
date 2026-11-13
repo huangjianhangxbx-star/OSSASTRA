@@ -175,7 +175,7 @@ namespace Ossastra.Characters
                 }
                 else LastRejection = reason;
             }
-            if (contact.Exists && ledgeInput.HeldDirection == contact.Side && motor.VerticalSpeed <= 0f)
+            if (settings.allowWallSlide && contact.Exists && ledgeInput.HeldDirection == contact.Side && motor.VerticalSpeed <= 0f)
             {
                 if (Mode != SideViewTraversalMode.WallSlide || WallSide != contact.Side)
                 { slideTime = 0f; slideSpeed = 0f; }
