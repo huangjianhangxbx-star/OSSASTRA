@@ -22,6 +22,8 @@ namespace Ossastra.Characters.Rendering
         [SerializeField] private Texture2D aceStraightAtlas;
         [SerializeField] private Shader aceCoverageShader;
         [SerializeField] private Vector4 aceRim = new Vector4(2.5f, .9f, .8f, .32f);
+        [SerializeField] private Vector4 aceCalibratedRim = new Vector4(4.5f, .9f, 2.4f, .55f);
+        [SerializeField] private bool startWithCalibratedAceRim;
         [SerializeField] private Vector4 aceOuter = new Vector4(3.8f, .48f, .26f, 1.25f);
         [SerializeField] private Vector4 aceShoulder = new Vector4(.85f, 1.2f, .016f, .14f);
 
@@ -42,7 +44,7 @@ namespace Ossastra.Characters.Rendering
         private readonly CharacterCoverageBinding[] fusionBindings = new CharacterCoverageBinding[2];
         private readonly Vector4[] fusionRects = new Vector4[2];
         private readonly Vector4[] fusionTiles = new Vector4[2];
-        private bool innerEnabled = true, outerEnabled = true, wasFusion;
+        private bool innerEnabled = true, outerEnabled = true, wasFusion, useCalibratedAceRim;
         private Vector4 aceColorDiagnostic;
         public int LastCoverageActors => coverage == null ? 0 : coverage.ActiveActorCount;
         public int LastCoverageDraws => coverage == null ? 0 : coverage.DrawCount;
@@ -52,12 +54,16 @@ namespace Ossastra.Characters.Rendering
             aceSpriteShader != null && aceSpriteShader.isSupported;
         public bool CanUseAceFusion => CanUseAceCharacterMaterial && aceCoverageShader != null && aceCoverageShader.isSupported &&
             outerShader != null && outerShader.isSupported;
+        public bool UsesCalibratedAceRim => useCalibratedAceRim;
+        public void SelectAceRimCalibrated() => useCalibratedAceRim = true;
+        public void SelectAceRimRestrained() => useCalibratedAceRim = false;
         public void EnableAceInner(bool enabled) => innerEnabled = enabled;
         public void EnableAceOuter(bool enabled) => outerEnabled = enabled;
         public void SetAceColorDiagnostic(Vector4 setting) => aceColorDiagnostic = setting;
 
         private void Awake()
         {
+            useCalibratedAceRim = startWithCalibratedAceRim;
             camera = GetComponent<Camera>();
             comparison = GetComponent<SideViewRenderComparison>();
             block = new MaterialPropertyBlock();
@@ -202,7 +208,7 @@ namespace Ossastra.Characters.Rendering
             cmd.SetGlobalVectorArray("_SideViewAceFusionTile", fusionTiles);
             cmd.SetGlobalVector("_SideViewAceFusionScreen", new Vector4(width, height, 1f / width, 1f / height));
             cmd.SetGlobalVector("_SideViewAceFusionTexel", atlas != null ? new Vector4(1f / atlas.width, 1f / atlas.height, 0, 0) : Vector4.zero);
-            Vector4 rim = aceRim;
+            Vector4 rim = useCalibratedAceRim ? aceCalibratedRim : aceRim;
             if (!innerEnabled) rim.z = 0;
             cmd.SetGlobalVector("_SideViewAceFusionRim", rim);
             cmd.SetGlobalVector("_SideViewAceFusionShoulder", aceShoulder);
