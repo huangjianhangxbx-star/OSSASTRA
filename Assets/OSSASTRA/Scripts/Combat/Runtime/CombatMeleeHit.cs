@@ -22,13 +22,16 @@ namespace Ossastra.Combat
         public float Radius => radius;
         public float Height => height;
         public void Resolve(AttackRelease release, Vector3 releaseDirection)
+            => Resolve(release, releaseDirection, 0);
+
+        internal void Resolve(AttackRelease release, Vector3 releaseDirection, int basicAttackStage)
         {
             if(release==null) throw new ArgumentNullException(nameof(release));
             var source=GetComponent<CombatVitals>();
             if(!isActiveAndEnabled || (source!=null && (!source.IsAvailable || source.Health.Id!=release.ActorId)))
             { release.Resolve(Array.Empty<Health>()); LastResult="来源失效或释放身份不符"; Resolved?.Invoke(release.ActionId,false); return; }
             var plane = CombatSpatialTarget.PlaneFor(source);
-            var geometry = new CombatContactGeometry(plane, transform.position, releaseDirection, releaseDirection);
+            var geometry = new CombatContactGeometry(plane, transform.position, releaseDirection, releaseDirection, basicAttackStage);
             CombatContactGateway.PublishSectorRelease(release, source, geometry, height);
             var reachDirection = plane == CombatPlane.SideXY ? geometry.ReleaseDirection : releaseDirection;
             var weaponOrigin = geometry.ReleaseOrigin + Vector3.up * height;

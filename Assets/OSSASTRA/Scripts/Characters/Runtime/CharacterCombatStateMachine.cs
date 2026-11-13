@@ -93,7 +93,10 @@ namespace Ossastra.Characters
                     owner.StateOrienter.FaceAttackDirection();
                     if(owner.StateAbilities!=null&&owner.StateAbilities.OwnsRelease(fact.ActionId))continue;
                     if(owner.StateMainAction!=null&&owner.StateMainAction.TryRelease(fact,releaseDirection))continue;
-                    if(owner.StateSkills==null||!owner.StateSkills.TryHandleRelease(fact.Release,releaseDirection))owner.StateHitResolver.Resolve(fact.Release, releaseDirection);
+                    if(owner.StateSkills!=null&&owner.StateSkills.TryHandleRelease(fact.Release,releaseDirection))continue;
+                    if(owner.StateHitResolver is CombatMeleeHit melee)
+                        melee.Resolve(fact.Release,releaseDirection,AttackStage);
+                    else owner.StateHitResolver.Resolve(fact.Release,releaseDirection);
                 }
             }
 

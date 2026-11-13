@@ -4,7 +4,12 @@
  */
 Shader "Ossastra/SideView/CombatEffect"
 {
-    Properties { _Color ("Layer tint", Color) = (1,1,1,1) }
+    Properties
+    {
+        _Color ("Layer tint", Color) = (1,1,1,1)
+        [NoScaleOffset] _MainTex ("Frame strip", 2D) = "white" {}
+        [HideInInspector] _FrameUv ("Frame UV", Vector) = (1,1,0,0)
+    }
     SubShader
     {
         Tags { "RenderPipeline"="UniversalPipeline" "Queue"="Transparent" "RenderType"="Transparent" }
@@ -13,18 +18,22 @@ Shader "Ossastra/SideView/CombatEffect"
         HLSLINCLUDE
         #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 
+        TEXTURE2D(_MainTex);
+        SAMPLER(sampler_MainTex);
         CBUFFER_START(UnityPerMaterial)
         float4 _Color;
+        float4 _FrameUv;
         CBUFFER_END
 
-        struct Attributes { float4 position : POSITION; float4 color : COLOR; };
-        struct Varyings { float4 position : SV_POSITION; float4 color : COLOR; };
+        struct Attributes { float4 position : POSITION; float4 color : COLOR; float2 uv : TEXCOORD0; };
+        struct Varyings { float4 position : SV_POSITION; float4 color : COLOR; float2 uv : TEXCOORD0; };
 
         Varyings Vert(Attributes input)
         {
             Varyings output;
             output.position = TransformObjectToHClip(input.position.xyz);
             output.color = input.color * _Color;
+            output.uv = input.uv * _FrameUv.xy + _FrameUv.zw;
             return output;
         }
         ENDHLSL
@@ -41,8 +50,9 @@ Shader "Ossastra/SideView/CombatEffect"
 
             half4 ColorFragment(Varyings input) : SV_Target
             {
-                half alpha = saturate(input.color.a);
-                return half4(input.color.rgb * alpha, alpha);
+                half4 color = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, input.uv) * input.color;
+                half alpha = saturate(color.a);
+                return half4(color.rgb * alpha, alpha);
             }
             ENDHLSL
         }
@@ -61,7 +71,7 @@ Shader "Ossastra/SideView/CombatEffect"
             float4 MetadataFragment(Varyings input) : SV_Target
             {
                 SideViewRespectOpaqueDepth(input.position);
-                clip(input.color.a - .10);
+                clip(SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, input.uv).a * input.color.a - .10);
                 return float4(0, 0, 0, 1);
             }
             ENDHLSL

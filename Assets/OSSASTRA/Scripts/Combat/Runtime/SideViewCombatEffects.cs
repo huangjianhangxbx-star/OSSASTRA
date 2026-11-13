@@ -36,6 +36,13 @@ namespace Ossastra.Combat
         [Tooltip("朝向空间中的平移。每层素材的原点及自然前向为 +X。")]
         public Vector2 offset;
         public Color tint = Color.white;
+        [Tooltip("本机原作帧图集。每帧大小一致，横向顺排。")]
+        public Texture2D frameStrip;
+        [Min(1)] public int frameCount = 1;
+        [Min(1)] public float framesPerSecond = 20f;
+        public Vector2 framePivot = new Vector2(.5f, .5f);
+        public Vector2 frameWorldSize = Vector2.one;
+        public float angleOffset;
         [Range(0f, .99f)] public float delay;
         [Range(.01f, 1f)] public float duration = 1f;
         [Min(.01f)] public float size = 1f;
@@ -46,6 +53,8 @@ namespace Ossastra.Combat
         public bool followsBody;
 
         internal bool IsValid => delay >= 0f && duration > 0f && size > 0f && endScale > 0f &&
+            (frameStrip == null || (frameCount > 0 && framesPerSecond > 0f &&
+                frameStrip.width % frameCount == 0 && frameWorldSize.x > 0f && frameWorldSize.y > 0f)) &&
             Enum.IsDefined(typeof(SideViewEffectLayerShape), shape);
     }
 
@@ -71,6 +80,8 @@ namespace Ossastra.Combat
         [Range(1, 64)] public int capacity = 24;
         [Tooltip("横版角色层为 1–2，前景为 3。保持效果位于前景后方。")]
         public int sortingOrder = 2;
+        [Tooltip("仅正式横版普通攻击。原作帧图集与绑定保存在本机。")]
+        public SideViewEffectRecipe originalRelease, originalAlternateRelease, originalHit;
         public SideViewEffectRecipe release = new SideViewEffectRecipe
         {
             tint = new Color(1f, .96f, .82f, .94f), size = 1.42f, lifetime = .16f, drift = .08f,
@@ -180,11 +191,14 @@ namespace Ossastra.Combat
         private const int MaxLayers = 8;
         internal const string ShaderName = "Ossastra/SideView/CombatEffect";
         private static readonly int Tint = Shader.PropertyToID("_Color");
+        private static readonly int MainTexture = Shader.PropertyToID("_MainTex");
+        private static readonly int FrameUv = Shader.PropertyToID("_FrameUv");
         private readonly SideViewCombatEffectSettings settings;
         private readonly Transform owner;
         private readonly Material material;
         private readonly MaterialPropertyBlock properties = new MaterialPropertyBlock();
         private readonly Dictionary<SideViewEffectLayerShape, Mesh> meshes = new Dictionary<SideViewEffectLayerShape, Mesh>();
+        private readonly Dictionary<SideViewEffectLayer, Mesh> stripMeshes = new Dictionary<SideViewEffectLayer, Mesh>();
         private readonly Dictionary<SideViewEffectShape, SideViewEffectLayer[]> defaults = new Dictionary<SideViewEffectShape, SideViewEffectLayer[]>();
         private readonly Stack<Instance> idle = new Stack<Instance>();
         private readonly List<Instance> active = new List<Instance>();
@@ -254,22 +268,51 @@ namespace Ossastra.Combat
             Vector3 direction)
         {
             layer.recipe = settings;
-            if (!meshes.TryGetValue(settings.shape, out var mesh))
-            {
-                mesh = SideViewEffectMesh.Build(settings.shape);
-                meshes.Add(settings.shape, mesh);
-            }
-            layer.mesh.sharedMesh = mesh;
+            layer.mesh.sharedMesh = GetMesh(settings);
             bool mirror = settings.orientation == SideViewEffectOrientation.MirrorHorizontal && direction.x < 0f;
             float angle = Mathf.Atan2(direction.y, mirror ? -direction.x : direction.x) * Mathf.Rad2Deg;
-            var rotate = Quaternion.AngleAxis(angle + parent.angleOffset, Vector3.forward);
+            angle += parent.angleOffset + settings.angleOffset;
+            var rotate = Quaternion.AngleAxis(angle, Vector3.forward);
             var flip = new Vector3(mirror ? -1 : 1, 1, 1);
             // 先做右向造型，再沿世界 X 镜像。斜向左上时，镜像仍朝左上。
             layer.localOffset = Vector3.Scale(rotate * (Vector3)(parent.localOffset + settings.offset), flip);
             layer.forward = Vector3.Scale(rotate * Vector3.right, flip);
             layer.scale = flip;
-            layer.transform.rotation = mirror
-                ? Quaternion.AngleAxis(-(angle + parent.angleOffset), Vector3.forward) : rotate;
+            layer.transform.rotation = mirror ? Quaternion.AngleAxis(-angle, Vector3.forward) : rotate;
+        }
+
+        private Mesh GetMesh(SideViewEffectLayer settings)
+        {
+            if (settings.frameStrip != null)
+            {
+                if (!stripMeshes.TryGetValue(settings, out var stripMesh))
+                {
+                    stripMesh = BuildFrameQuad(settings);
+                    stripMeshes.Add(settings, stripMesh);
+                }
+                return stripMesh;
+            }
+            if (!meshes.TryGetValue(settings.shape, out var mesh))
+            {
+                mesh = SideViewEffectMesh.Build(settings.shape);
+                meshes.Add(settings.shape, mesh);
+            }
+            return mesh;
+        }
+
+        private static Mesh BuildFrameQuad(SideViewEffectLayer layer)
+        {
+            var min = -Vector2.Scale(layer.framePivot, layer.frameWorldSize);
+            var max = min + layer.frameWorldSize;
+            var mesh = new Mesh { name = "SideViewCombat_" + layer.frameStrip.name, hideFlags = HideFlags.DontSave };
+            mesh.vertices = new Vector3[]
+            {
+                min, new Vector3(max.x, min.y, 0f), max, new Vector3(min.x, max.y, 0f)
+            };
+            mesh.uv = new[] { Vector2.zero, Vector2.right, Vector2.one, Vector2.up };
+            mesh.colors = new[] { Color.white, Color.white, Color.white, Color.white };
+            mesh.triangles = new[] { 0, 2, 1, 0, 3, 2 };
+            return mesh;
         }
 
         internal void Tick(float delta)
@@ -334,7 +377,10 @@ namespace Ossastra.Combat
             {
                 var layer = item.layers[i];
                 var recipe = layer.recipe;
+                bool animated = recipe.frameStrip != null;
+                float localAge = item.age - recipe.delay * item.lifetime;
                 float progress = (age - recipe.delay) / recipe.duration;
+                if (animated) progress = localAge * recipe.framesPerSecond / recipe.frameCount;
                 if (progress < 0f || progress >= 1f)
                 {
                     layer.renderer.enabled = false;
@@ -346,18 +392,25 @@ namespace Ossastra.Combat
                     recipe.shape == SideViewEffectLayerShape.DirectionalStrips)
                     color *= Color.Lerp(item.tint, Color.white, .82f);
                 else color *= item.tint;
-                float fade = 1f - Mathf.SmoothStep(0, 1, progress);
+                float fade = animated ? 1f : 1f - Mathf.SmoothStep(0, 1, progress);
                 color.a = recipe.tint.a * item.tint.a * fade;
                 var anchor = recipe.followsBody ? bodyPosition : item.origin;
                 layer.transform.position = anchor + item.anchorOffset + layer.localOffset + layer.forward *
                     ((item.drift + recipe.travel * item.size) * progress);
                 // 条带先快速打开，再由尖端向接触点收短，避免最大外廓一直持续到淡出。
-                float scale = recipe.shape == SideViewEffectLayerShape.DirectionalStrips
+                float scale = animated ? 1f : recipe.shape == SideViewEffectLayerShape.DirectionalStrips
                     ? StripScale(progress, recipe.endScale)
                     : Mathf.Lerp(1f, recipe.endScale, progress);
                 layer.transform.localScale = layer.scale * (item.size * recipe.size * scale);
                 properties.Clear();
                 properties.SetColor(Tint, color);
+                if (animated)
+                {
+                    int frame = Mathf.FloorToInt(localAge * recipe.framesPerSecond);
+                    float width = 1f / recipe.frameCount;
+                    properties.SetTexture(MainTexture, recipe.frameStrip);
+                    properties.SetVector(FrameUv, new Vector4(width, 1f, frame * width, 0f));
+                }
                 layer.renderer.SetPropertyBlock(properties);
                 layer.renderer.enabled = true;
             }
@@ -378,6 +431,8 @@ namespace Ossastra.Combat
             idle.Clear();
             foreach (var mesh in meshes.Values) Object.Destroy(mesh);
             meshes.Clear();
+            foreach (var mesh in stripMeshes.Values) Object.Destroy(mesh);
+            stripMeshes.Clear();
             if (material != null) Object.Destroy(material);
         }
 

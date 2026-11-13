@@ -19,11 +19,12 @@ namespace Ossastra.Characters
             public readonly MainActionStage Stage;
             public readonly ConfiguredActionSnapshot Phase;
             public readonly ActionDefinitionSO Definition;
+            public readonly int BasicAttackStage;
             public readonly float Cost,ContactDuration;
             public readonly bool Last;
             public readonly double FullRecovery;
-            internal PreparedStage(MainActionStage stage,ConfiguredActionSnapshot phase,ActionDefinitionSO definition,float contactDuration,bool last,double recovery)
-            {Stage=stage;Phase=phase;Definition=definition;Cost=definition.staminaCost;ContactDuration=contactDuration;Last=last;FullRecovery=recovery;}
+            internal PreparedStage(MainActionStage stage,ConfiguredActionSnapshot phase,ActionDefinitionSO definition,int basicAttackStage,float contactDuration,bool last,double recovery)
+            {Stage=stage;Phase=phase;Definition=definition;BasicAttackStage=basicAttackStage;Cost=definition.staminaCost;ContactDuration=contactDuration;Last=last;FullRecovery=recovery;}
         }
         private CharacterRoot owner;
         private CharacterEquipment equipment;
@@ -89,7 +90,7 @@ namespace Ossastra.Characters
                 var animation=owner.FreezeAbilityPhase(definition,new CharacterAnimationPreparation(true,index+1));var t=stage.Timeline;
                 var timeline=new BasicAttackDefinition(t.ReleaseAt,t.MoveReadyAt,t.AttackReadyAt,t.FinishAt,t.Damage,t.PostureImpact*profile.Sequence.PostureScale);
                 var phase=animation.WithTimeline(timeline);
-                prepared=new PreparedStage(stage,phase,definition,profileDefinition.contactDuration,index==profile.Sequence.Count-1,profile.Sequence.FullComboRecovery);return true;
+                prepared=new PreparedStage(stage,phase,definition,index+1,profileDefinition.contactDuration,index==profile.Sequence.Count-1,profile.Sequence.FullComboRecovery);return true;
             }
             catch(ArgumentException e){return Reject("动作映射无效："+e.Message);}
         }
@@ -115,7 +116,7 @@ namespace Ossastra.Characters
             deliveries.Emit(owner.Vitals,id,0,new DeliveryParameters{mode=DeliveryMode.Sector,range=(float)stage.Stage.Range,arc=(float)stage.Stage.ArcDegrees,
                 activeDuration=stage.ContactDuration,followSource=true},t.Damage,(float)t.PostureImpact,transform.position,direction,transform.position,
                 ()=>this!=null&&isActiveAndEnabled&&owner!=null&&owner.IsAlive&&owner.LifeGeneration==life&&equipment.State.RightInstanceId==instance,
-                receipts=>Resolved?.Invoke(id,receipts.Any(r=>r.Reason==HitReason.Applied)));
+                receipts=>Resolved?.Invoke(id,receipts.Any(r=>r.Reason==HitReason.Applied)),basicAttackStage:stage.BasicAttackStage);
             if(!string.IsNullOrEmpty(stage.Stage.SourceId))abilities?.ScheduleIceColumn(id,transform.position,transform.position+direction.normalized*1.5f,stage.Stage.SourceId);
             LastResult="已释放 "+stage.Stage.Id;return true;
         }

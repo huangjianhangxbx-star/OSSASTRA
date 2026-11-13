@@ -130,8 +130,15 @@ namespace Ossastra.UserInterface
         private void OnSideViewRelease(CombatReleaseVisualFact fact)
         {
             if (effects == null || fact.SourceSceneHandle != gameObject.scene.handle) return;
-            var recipe = sideViewEffects.release;
             var geometry = fact.Geometry;
+            var recipe = sideViewEffects.release;
+            if (geometry.BasicAttackStage > 0)
+            {
+                if (geometry.BasicAttackStage % 2 == 0 && HasAuthoredLayers(sideViewEffects.originalAlternateRelease))
+                    recipe = sideViewEffects.originalAlternateRelease;
+                else if (HasAuthoredLayers(sideViewEffects.originalRelease))
+                    recipe = sideViewEffects.originalRelease;
+            }
             var forward = EffectDirection(recipe, geometry, default, geometry.ReleaseDirection, false);
             var body = fact.Source == null ? null : fact.Source.GetComponent<CharacterMovement>();
             ReleaseCues++;
@@ -148,13 +155,17 @@ namespace Ossastra.UserInterface
         {
             if (effects == null || batch.SourceSceneHandle != gameObject.scene.handle) return;
             var geometry = batch.Geometry ?? new CombatContactGeometry(CombatPlane.SideXY, batch.Origin, Vector3.zero, Vector3.zero);
+            var hitRecipe = sideViewEffects.hit;
+            if (geometry.Plane == CombatPlane.SideXY && batch.Cause == CombatContactCause.Direct &&
+                geometry.BasicAttackStage > 0 && HasAuthoredLayers(sideViewEffects.originalHit))
+                hitRecipe = sideViewEffects.originalHit;
             float strength = 0;
             Vector3 impulse = Vector3.zero;
             foreach (var receipt in batch.Receipts)
             {
                 var reason = receipt.Outcome.Reason;
                 if (reason == HitReason.Applied && receipt.Outcome.HpAfter < receipt.Outcome.HpBefore)
-                    Impact(SideViewEffectShape.Hit, sideViewEffects.hit, receipt.Contact, reason);
+                    Impact(SideViewEffectShape.Hit, hitRecipe, receipt.Contact, reason);
                 else if (reason == HitReason.Guarded)
                     Impact(SideViewEffectShape.Guard, sideViewEffects.guard, receipt.Contact, reason);
                 else if (reason == HitReason.Evaded)
@@ -187,15 +198,21 @@ namespace Ossastra.UserInterface
                 LastContactDirection = direction;
                 LastContactQuality = contact.Quality;
                 LastContactReason = reason;
+                // 更换贴图或方向配方时，命中震屏仍沿原先的反馈配置。
+                var shakeRecipe = shape == SideViewEffectShape.Hit ? sideViewEffects.hit : recipe;
                 float weight = batch.Cause == CombatContactCause.Periodic ? .25f : 1f;
-                float value = recipe == null ? 0f : Mathf.Clamp01(recipe.shake) * weight;
+                float value = shakeRecipe == null ? 0f : Mathf.Clamp01(shakeRecipe.shake) * weight;
                 if (value > strength)
                 {
                     strength = value;
-                    impulse = direction;
+                    impulse = ReferenceEquals(shakeRecipe, recipe) ? direction :
+                        EffectDirection(shakeRecipe, geometry, contact, contact.Position - batch.Origin, true);
                 }
             }
         }
+
+        private static bool HasAuthoredLayers(SideViewEffectRecipe recipe)
+            => recipe != null && recipe.layers != null && recipe.layers.Length > 0;
 
         private static Vector3 EffectDirection(SideViewEffectRecipe recipe, CombatContactGeometry geometry,
             CombatContactPoint contact, Vector3 fallback, bool reverseSurfaceFallback)

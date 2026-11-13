@@ -56,13 +56,13 @@ namespace Ossastra.Combat
         {if(!activeParents.Contains(parent)&&!flights.Any(f=>f.parent==parent))emitted.RemoveWhere(key=>key.Item1==parent);}
         public int InFlightCount=>flights.Count;
         public int ResolvedCount {get;private set;}
-        public bool Emit(CombatVitals source,Guid parent,int index,DeliveryParameters config,int damage,float posture,Vector3 origin,Vector3 direction,Vector3 landing,Func<bool> valid,Action<IReadOnlyList<HitOutcome>> resolved,Sprite sprite=null,float scale=.25f,double reclaimBudget=.05,double reclaimRate=.5)
+        public bool Emit(CombatVitals source,Guid parent,int index,DeliveryParameters config,int damage,float posture,Vector3 origin,Vector3 direction,Vector3 landing,Func<bool> valid,Action<IReadOnlyList<HitOutcome>> resolved,Sprite sprite=null,float scale=.25f,double reclaimBudget=.05,double reclaimRate=.5,int basicAttackStage=0)
         {
             if(source==null||!source.IsAvailable||parent==Guid.Empty||!activeParents.Contains(parent)||index<0||damage<=0||config==null||valid==null||!valid()||!emitted.Add((parent,index)))return false;
             var plane = CombatSpatialTarget.PlaneFor(source);
             var travelDirection = plane == CombatPlane.SideXY ? CombatContactGeometry.Project(direction, plane) : direction;
             var flight=new Flight{source=source,parent=parent,config=config.Freeze(),
-                Geometry=new CombatContactGeometry(plane,origin,travelDirection,travelDirection),release=config.mode==DeliveryMode.Sector&&config.activeDuration>0?
+                Geometry=new CombatContactGeometry(plane,origin,travelDirection,travelDirection,basicAttackStage),release=config.mode==DeliveryMode.Sector&&config.activeDuration>0?
                 AttackRelease.ForContactWindow(parent,index,source.Health.Id,damage,posture,reclaimBudget,reclaimRate):AttackRelease.ForEmission(parent,index,source.Health.Id,damage,posture,reclaimBudget,reclaimRate),origin=origin,landing=landing,direction=travelDirection.normalized,position=origin+Vector3.up*.8f,valid=valid,resolved=resolved,emittedFrame=Time.frameCount};
             if(config.mode==DeliveryMode.Sector)
             {

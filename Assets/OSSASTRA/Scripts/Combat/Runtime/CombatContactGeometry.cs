@@ -40,18 +40,21 @@ namespace Ossastra.Combat
         public Vector3 ReleaseOrigin { get; }
         public Vector3 ReleaseDirection { get; }
         public Vector3 ArrivalDirection { get; }
+        /// <summary>主手普通攻击的释放段号，其他投递为 0。仅供表现选择。</summary>
+        public int BasicAttackStage { get; }
 
         public CombatContactGeometry(CombatPlane plane, Vector3 releaseOrigin, Vector3 releaseDirection,
-            Vector3 arrivalDirection)
+            Vector3 arrivalDirection, int basicAttackStage = 0)
         {
             Plane = plane;
             ReleaseOrigin = releaseOrigin;
             ReleaseDirection = Project(releaseDirection, plane).normalized;
             ArrivalDirection = Project(arrivalDirection, plane).normalized;
+            BasicAttackStage = basicAttackStage;
         }
 
         internal CombatContactGeometry WithArrival(Vector3 arrivalDirection)
-            => new CombatContactGeometry(Plane, ReleaseOrigin, ReleaseDirection, arrivalDirection);
+            => new CombatContactGeometry(Plane, ReleaseOrigin, ReleaseDirection, arrivalDirection, BasicAttackStage);
 
         public static Vector3 Project(Vector3 direction, CombatPlane plane)
         {
