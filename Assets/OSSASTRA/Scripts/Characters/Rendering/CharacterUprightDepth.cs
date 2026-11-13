@@ -32,6 +32,7 @@ namespace Ossastra.Characters.Rendering
         private CharacterEquipmentSpineView equipment;
         private CharacterEquipmentView spriteEquipment;
         private Camera gameplayCamera;
+        private Shader sideViewAceSpine, sideViewAceSprite;
         private bool prepared, callbacksBound, disposed, statusDirty;
         private float nextStatusTime;
         private static readonly int Foot = Shader.PropertyToID("_VisualDepthFoot");
@@ -63,6 +64,38 @@ namespace Ossastra.Characters.Rendering
             LastResult = "已初始化；等待根Prepare";
         }
 
+        // Only the existing owner changes its materials. The camera calls this before freezing the MPB offset.
+        internal void SetSideViewAceMaterial(bool useAce, Shader spine, Shader sprite)
+        {
+            if (!sideViewTransparent && sideViewAceSpine == null) return;
+            Shader selectedSpine = useAce && sideViewTransparent ? spine : null;
+            Shader selectedSprite = useAce && sideViewTransparent ? sprite : null;
+            if (sideViewAceSpine == selectedSpine && sideViewAceSprite == selectedSprite) return;
+            sideViewAceSpine = selectedSpine;
+            sideViewAceSprite = selectedSprite;
+
+            foreach (var binding in sources)
+            {
+                CheckOwnership(binding);
+                for (int index = binding.entries.Count - 1; index >= 0; --index)
+                {
+                    var entry = binding.entries[index];
+                    Shader target = SelectShader(entry.effective);
+                    if (target == null)
+                    {
+                        ReleaseEntry(binding, entry);
+                        binding.entries.RemoveAt(index);
+                    }
+                    else if (entry.variant.shader != target) entry.variant.shader = target;
+                }
+                Reconcile(binding);
+            }
+            spriteBinding.SetRequestedShader(SelectedSpriteShader);
+            SetCameraMode(renderingCameras.Count == 0 ? null : renderingCameras[renderingCameras.Count - 1]);
+        }
+
+        private Shader SelectedSpriteShader => sideViewAceSprite != null ? sideViewAceSprite : spriteDepthShader;
+
         public void Prepare(Camera camera)
         {
             if (disposed || actor == null || !isActiveAndEnabled || !actor.gameObject.activeInHierarchy)
@@ -85,7 +118,7 @@ namespace Ossastra.Characters.Rendering
             if (left != null && left != bodySkeleton) KeepSource(left);
             if (right != null && right != bodySkeleton && right != left) KeepSource(right);
             // 唯一正式只读端口；不反射旧私有字段，不搜索名字或其它Sprite。
-            spriteBinding.Bind(spriteEquipment == null ? null : spriteEquipment.PresentedRenderer, actor, spriteDepthShader);
+            spriteBinding.Bind(spriteEquipment == null ? null : spriteEquipment.PresentedRenderer, actor, SelectedSpriteShader);
             statusDirty |= gameplayCamera != camera || !prepared;
             gameplayCamera = camera;
             prepared = true;
@@ -211,11 +244,28 @@ namespace Ossastra.Characters.Rendering
         private Shader SelectShader(Material source)
         {
             if (source == null || source.shader == null) return null;
-            if (source.shader.name == "Ossastra/MapResearch/DepthPlane")
+            string name = source.shader.name;
+            if (sideViewAceSpine != null && (name == "Ossastra/MapResearch/DepthPlane" ||
+                name == "Spine/Skeleton" || TryPmaSlotBlend(name, out _, out _)))
+                return sideViewAceSpine;
+            if (name == "Ossastra/MapResearch/DepthPlane")
                 return depthPlaneShader != null && depthPlaneShader.isSupported ? depthPlaneShader : null;
             if (source.shader.name == "Spine/Skeleton")
                 return spinePmaShader != null && spinePmaShader.isSupported ? spinePmaShader : null;
             return null;
+        }
+
+        private static bool TryPmaSlotBlend(string shader, out BlendMode source, out BlendMode destination)
+        {
+            source = BlendMode.One;
+            destination = BlendMode.OneMinusSrcAlpha;
+            switch (shader)
+            {
+                case "Spine/Blend Modes/Skeleton PMA Additive": destination = BlendMode.One; return true;
+                case "Spine/Blend Modes/Skeleton PMA Multiply": source = BlendMode.DstColor; return true;
+                case "Spine/Blend Modes/Skeleton PMA Screen": destination = BlendMode.OneMinusSrcColor; return true;
+                default: return false;
+            }
         }
 
         private static Entry FindEntry(SourceBinding binding, Material original)
@@ -262,6 +312,15 @@ namespace Ossastra.Characters.Rendering
                 entry.variant.renderQueue = sideViewTransparent ? (int)RenderQueue.Transparent : entry.effective.renderQueue;
                 if (sideViewTransparent && entry.variant.HasProperty("_SideViewCutout"))
                     entry.variant.SetFloat("_SideViewCutout", entry.sourceShader.name == "Ossastra/MapResearch/DepthPlane" ? 1 : 0);
+                if (sideViewAceSpine != null && entry.variant.shader == sideViewAceSpine)
+                {
+                    bool hasSeparateSlotBlend = TryPmaSlotBlend(entry.sourceShader.name, out var src, out var dst);
+                    entry.variant.SetFloat("_AceSlotTint", hasSeparateSlotBlend ? 1f : 0f);
+                    entry.variant.SetFloat("_AceSourceBlend", (float)src);
+                    entry.variant.SetFloat("_AceDestinationBlend", (float)dst);
+                    if (entry.effective.IsKeywordEnabled("_STRAIGHT_ALPHA_INPUT")) entry.variant.EnableKeyword("_STRAIGHT_ALPHA_INPUT");
+                    else entry.variant.DisableKeyword("_STRAIGHT_ALPHA_INPUT");
+                }
                 entry.variant.SetFloat(Enabled, 0);
             }
         }
@@ -333,6 +392,7 @@ namespace Ossastra.Characters.Rendering
         public void Suspend()
         {
             prepared = false; gameplayCamera = null;
+            sideViewAceSpine = null; sideViewAceSprite = null;
             if (callbacksBound)
             {
                 RenderPipelineManager.beginCameraRendering -= BeginCamera;

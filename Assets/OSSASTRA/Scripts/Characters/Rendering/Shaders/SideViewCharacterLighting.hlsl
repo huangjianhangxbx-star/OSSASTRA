@@ -10,7 +10,7 @@ float _SideViewRenderMode;
 float3 SideViewShade(float3 source, float alpha, float2 pixel, float3 world)
 {
     // B 在反预乘后沿用原作 Gamma 受色，透明层仍交由现有角色混合约定。
-    if (_SideViewRenderMode >= 1.5 && alpha > .00001)
+    if (_SideViewRenderMode > 1.5 && _SideViewRenderMode < 2.5 && alpha > .00001)
         return SideViewOriginalHeroColor(source / alpha, _SideViewAmbientGamma.rgb, _SideViewOriginalHeroTint.rgb, -.75) * alpha;
     if (_CharacterLightControls.x < .5) return source;
     float3 normal = EnvironmentCharacterNormal(-UNITY_MATRIX_V[2].xyz);

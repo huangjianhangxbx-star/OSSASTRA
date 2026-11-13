@@ -22,6 +22,28 @@ namespace Ossastra.Characters.Rendering
         // Three target scene anchors corresponding to old warm A, cool B and warm room light.
         [SerializeField] private Light[] localLights = Array.Empty<Light>();
 
+        internal bool TryApplyCharacterProfiles(Camera camera, EnvironmentRoot root,
+            CharacterLightingReceiver blue, CharacterLightingReceiver freycia, out Action restore, out string reason)
+        {
+            restore = null;
+            if (!ValidateCharacterProfiles(camera, root, blue, freycia) || !HasCurrentFrame(camera, root))
+            {
+                reason = "缺少同相机的角色 Profile 或有效环境快照。";
+                return false;
+            }
+            var originalBlue = blue.Settings.Clone();
+            var originalFreycia = freycia.Settings.Clone();
+            blue.Settings = blueProfile.settings;
+            freycia.Settings = freyciaProfile.settings;
+            restore = () =>
+            {
+                if (blue != null) blue.Settings = originalBlue;
+                if (freycia != null) freycia.Settings = originalFreycia;
+            };
+            reason = string.Empty;
+            return true;
+        }
+
         internal bool TryApply(Camera camera, EnvironmentRoot root, EnvironmentSkyBinding sky,
             CharacterLightingReceiver blue, CharacterLightingReceiver freycia, out Action restore, out string reason)
         {
@@ -130,11 +152,8 @@ namespace Ossastra.Characters.Rendering
         private bool TryValidate(Camera camera, EnvironmentRoot root, EnvironmentSkyBinding sky,
             CharacterLightingReceiver blue, CharacterLightingReceiver freycia, out string reason)
         {
-            if (camera == null || root == null || !root.isActiveAndEnabled || root.gameplayCamera != camera ||
-                sky == null || !sky.isActiveAndEnabled || sky.environment != root || dayCycle == null ||
-                blue == null || freycia == null || blue == freycia || blue.gameplayCamera != camera ||
-                freycia.gameplayCamera != camera || blueProfile == null || freyciaProfile == null ||
-                blueProfile == freyciaProfile || blueProfile.settings == null || freyciaProfile.settings == null)
+            if (!ValidateCharacterProfiles(camera, root, blue, freycia) ||
+                sky == null || !sky.isActiveAndEnabled || sky.environment != root || dayCycle == null)
             {
                 reason = "缺少 A 方案的同相机环境、天空或两个独立角色 Profile。";
                 return false;
@@ -167,6 +186,13 @@ namespace Ossastra.Characters.Rendering
             reason = string.Empty;
             return true;
         }
+
+        private bool ValidateCharacterProfiles(Camera camera, EnvironmentRoot root,
+            CharacterLightingReceiver blue, CharacterLightingReceiver freycia) =>
+            camera != null && root != null && root.isActiveAndEnabled && root.gameplayCamera == camera &&
+            blue != null && freycia != null && blue != freycia && blue.gameplayCamera == camera && freycia.gameplayCamera == camera &&
+            blueProfile != null && freyciaProfile != null && blueProfile != freyciaProfile &&
+            blueProfile.settings != null && freyciaProfile.settings != null;
 
         private static bool HasCurrentFrame(Camera camera, EnvironmentRoot root) =>
             EnvironmentCameraRegistry.TryGet(camera, out var frame) && frame.Enabled && ReferenceEquals(frame, root.Current);

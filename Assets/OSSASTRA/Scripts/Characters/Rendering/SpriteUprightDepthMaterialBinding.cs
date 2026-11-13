@@ -23,8 +23,9 @@ namespace Ossastra.Characters.Rendering
 
         public void Bind(SpriteRenderer next, Transform owner, Shader shader)
         {
-            if(source!=next || actor!=owner || requestedShader!=shader)
-            { Suspend(); source=next; actor=owner; requestedShader=shader; blocked=false; }
+            if(source!=next || actor!=owner)
+            { Suspend(); source=next; actor=owner; }
+            SetRequestedShader(shader);
             if(source==null) return;
             if(actor==null || !source.transform.IsChildOf(actor) || source.gameObject.scene!=actor.gameObject.scene)
             { Suspend(); LastResult="Sprite来源不属于本actor"; return; }
@@ -46,6 +47,27 @@ namespace Ossastra.Characters.Rendering
                 LastResult="已绑定本actor Sprite实例材质";
             }
             else SyncProperties(false);
+        }
+
+        internal void SetRequestedShader(Shader shader)
+        {
+            if (requestedShader == shader) return;
+            requestedShader = shader;
+            if (variant == null || source == null) return;
+            if (source.sharedMaterial != variant)
+            {
+                ReleaseVariant(false);
+                blocked = true;
+                LastResult = "外部Sprite材质已接管；保留原写者";
+                return;
+            }
+            if (shader == null || !shader.isSupported)
+            {
+                ReleaseVariant(true);
+                return;
+            }
+            variant.shader = shader;
+            SyncProperties(true);
         }
 
         private void SyncProperties(bool force)

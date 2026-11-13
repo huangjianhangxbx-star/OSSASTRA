@@ -20,6 +20,7 @@ Shader "Ossastra/SideView/ComparisonCard"
         [HideInInspector] _SideViewFarBackground ("B far background", Float) = 0
         [HideInInspector] _SideViewBelowActors ("B draw before actors", Float) = 0
         [HideInInspector] _SideViewReplacementCoverage ("Source One Zero replacement", Float) = 0
+        [HideInInspector] _SideViewAceSurfaceResponse ("C surface response", Float) = 0
         [HideInInspector] _EnvironmentResponseOverride ("Surface response multiplier", Float) = 1
         [HideInInspector] _EnvironmentReceiveShadow ("Receive main shadow", Float) = 1
         [HideInInspector] _EnvironmentMinimumOverride ("Surface minimum", Float) = 0
@@ -32,10 +33,12 @@ Shader "Ossastra/SideView/ComparisonCard"
         #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
         #include "Assets/OSSASTRA/Scripts/EnvironmentSimulation/Rendering/EnvironmentLighting.hlsl"
         #include "SideViewComparisonColor.hlsl"
+        #include "SideViewAceLightMaps.hlsl"
         TEXTURE2D(_MainTex); SAMPLER(sampler_MainTex);
         float4 _Color, _SideViewOriginalColorScale;
         float _Premultiply, _BlurPixels, _SideViewEnvironmentRole, _SideViewMetadataRole, _SideViewOriginalAmbient;
         float _SideViewRenderMode, _SideViewSplitBackground, _SideViewFarBackground, _SideViewBelowActors, _SideViewReplacementCoverage;
+        float _SideViewAceSurfaceResponse;
         float4 _SideViewAmbientGamma;
         struct Attributes { float4 position : POSITION; float2 uv : TEXCOORD0; float4 color : COLOR; };
         struct Varyings { float4 position : SV_POSITION; float2 uv : TEXCOORD0; float4 color : COLOR; float3 world : TEXCOORD1; };
@@ -46,7 +49,7 @@ Shader "Ossastra/SideView/ComparisonCard"
             output.position = TransformWorldToHClip(output.world);
             output.uv = input.uv;
             output.color = input.color * _Color;
-            if (_SideViewRenderMode >= 1.5) output.color *= _SideViewOriginalColorScale;
+            if (_SideViewRenderMode > 1.5 && _SideViewRenderMode < 2.5) output.color *= _SideViewOriginalColorScale;
             return output;
         }
         float4 SampleCard(Varyings input, bool applyCardBlur)
@@ -90,13 +93,17 @@ Shader "Ossastra/SideView/ComparisonCard"
             #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
             float4 Frag(Varyings input) : SV_Target
             {
-                if (_SideViewRenderMode >= 1.5)
+                if (_SideViewRenderMode > 1.5 && _SideViewRenderMode < 2.5)
                 {
                     clip(.5 - _SideViewSplitBackground * _SideViewBelowActors);
                     return ShadeOriginal(input, true);
                 }
                 float4 sample = SampleCard(input, true) * input.color;
-                if (_SideViewRenderMode > .5 && _SideViewEnvironmentRole >= 0)
+                if (_SideViewRenderMode > 2.5 && _SideViewAceSurfaceResponse > 0)
+                {
+                    sample.rgb = SideViewAceWorldColor(sample.rgb, float3(1, 1, 1), sample.a, input.position, _SideViewAceSurfaceResponse);
+                }
+                else if (_SideViewRenderMode > .5 && _SideViewRenderMode < 1.5 && _SideViewEnvironmentRole >= 0)
                 {
                     float3 normal = TransformObjectToWorldNormal(float3(0,0,-1));
                     sample.rgb = EnvironmentShadeLegacy(sample.rgb, input.world, normal, _SideViewEnvironmentRole);

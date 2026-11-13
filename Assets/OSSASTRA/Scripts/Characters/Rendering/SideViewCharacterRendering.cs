@@ -17,6 +17,8 @@ namespace Ossastra.Characters.Rendering
         public CharacterLightingSystem lighting;
         public Shader outerShader;
         public Transform solidGeometry;
+        [SerializeField] private Shader aceSpineShader;
+        [SerializeField] private Shader aceSpriteShader;
 
         private static readonly int PresentationOffsetId = Shader.PropertyToID("_SideViewPresentationOffset");
         private static readonly int OriginalTintId = Shader.PropertyToID("_SideViewOriginalHeroTint");
@@ -33,6 +35,8 @@ namespace Ossastra.Characters.Rendering
         private SideViewRenderComparison comparison;
         public int LastCoverageActors => coverage == null ? 0 : coverage.ActiveActorCount;
         public int LastBoundRenderers { get; private set; }
+        public bool CanUseAceCharacterMaterial => aceSpineShader != null && aceSpineShader.isSupported &&
+            aceSpriteShader != null && aceSpriteShader.isSupported;
 
         private void Awake()
         {
@@ -53,6 +57,7 @@ namespace Ossastra.Characters.Rendering
         private void PublishPresentation(ScriptableRenderContext context, Camera renderingCamera)
         {
             if (renderingCamera != camera) return;
+            PublishMaterialStrategy(comparison != null && comparison.UsesAceCharacterMaterial);
             // URP snapshots renderer properties for drawing before the coverage pass runs.
             stale.Clear();
             stale.AddRange(presentationOffsets.Keys);
@@ -75,6 +80,14 @@ namespace Ossastra.Characters.Rendering
                 if (renderer != null) WritePresentationOffset(renderer, Vector3.zero, Color.white);
         }
 
+        internal void PublishMaterialStrategy(bool useAce)
+        {
+            useAce &= CanUseAceCharacterMaterial;
+            foreach (var actor in actors)
+                if (actor != null && actor.TryGetComponent<CharacterUprightDepth>(out var owner))
+                    owner.SetSideViewAceMaterial(useAce, aceSpineShader, aceSpriteShader);
+        }
+
         private void LateUpdate()
         {
             foreach (var actor in actors)
@@ -88,7 +101,7 @@ namespace Ossastra.Characters.Rendering
         internal void Prepare(CommandBuffer cmd, Camera renderingCamera, Matrix4x4 gpuViewProjection, int width, int height)
         {
             if (renderingCamera != camera) return;
-            bool lit = (comparison == null || !comparison.IsSilksong) &&
+            bool lit = (comparison == null || !comparison.IsSilksong && !comparison.UsesAceCharacterMaterial) &&
                 CharacterLightingSystem.TryGet(camera, out var active) && active == lighting;
             if (lit && lighting.WantsCoverage && lighting.coverageShader != null)
             {
@@ -284,6 +297,7 @@ namespace Ossastra.Characters.Rendering
         private void OnDisable()
         {
             RenderPipelineManager.beginCameraRendering -= PublishPresentation;
+            PublishMaterialStrategy(false);
             foreach (var renderer in presentationOffsets.Keys)
                 if (renderer != null) WritePresentationOffset(renderer, Vector3.zero, Color.white);
             presentationOffsets.Clear();
