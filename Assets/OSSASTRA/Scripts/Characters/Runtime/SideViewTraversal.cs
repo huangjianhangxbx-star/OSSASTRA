@@ -40,7 +40,7 @@ namespace Ossastra.Characters
         private SideLedge anchor, lastDropped;
         private SideWallContact contact, kickedWall;
         private ClimbPhase climbPhase;
-        private bool announcedHang, landedFromClimb;
+        private bool announcedHang, landedFromClimb, climbCommitted;
         private int lockSteps, sinceKick, lastDropInput, wallSide;
         private int failedClimbIntent;
         private bool climbFailed, climbPathWasBlocked;
@@ -249,6 +249,7 @@ namespace Ossastra.Characters
             {
                 ClearClimbFailure();
                 climbPhase = ClimbPhase.Lift;
+                climbCommitted = false;
                 LastRejection = null;
                 ChangeMode(SideViewTraversalMode.LedgeClimb, anchor.Wall.Side);
                 return Climb(step, settings);
@@ -280,6 +281,17 @@ namespace Ossastra.Characters
         private SideViewMotion Climb(float step, SideViewTraversalSettings settings)
         {
             if (IsReturning) return ReturnToHang(step, settings);
+            if (!climbCommitted)
+            {
+                // 胶囊中心越过台沿后完成落地，越过之前松键可沿原路径退回。
+                climbCommitted = climbPhase == ClimbPhase.Cross && probe.HasCrossedLedge(anchor);
+                if (!climbCommitted && ledgeInput.ForWall(anchor.Wall.Side) == LedgeInputCommand.None)
+                {
+                    blockedSteps = 0;
+                    StartReturnToHang();
+                    return ReturnToHang(step, settings);
+                }
+            }
             if (climbPhase == ClimbPhase.Lift && Reached(anchor.Above)) climbPhase = ClimbPhase.Cross;
             if (climbPhase == ClimbPhase.Cross && Reached(anchor.Over)) climbPhase = ClimbPhase.Land;
             if (climbPhase == ClimbPhase.Land && probe.SupportsLanding(anchor, settings))
@@ -312,6 +324,11 @@ namespace Ossastra.Characters
                 climbObstacleTransform = obstacle.transform.localToWorldMatrix;
             }
             climbPathWasBlocked = !probe.ClimbClear(anchor, anchor.Hang, settings);
+            StartReturnToHang();
+        }
+
+        private void StartReturnToHang()
+        {
             landedFromClimb = false;
             climbPhase = climbPhase == ClimbPhase.Lift ? ClimbPhase.ReturnDown : ClimbPhase.ReturnAcross;
         }

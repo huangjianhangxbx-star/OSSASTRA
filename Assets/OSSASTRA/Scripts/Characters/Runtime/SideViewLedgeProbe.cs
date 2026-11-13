@@ -117,6 +117,9 @@ namespace Ossastra.Characters
             return true;
         }
 
+        public bool HasCrossedLedge(SideLedge ledge)
+            => (Root.x + CenterOffset.x - ledge.Grip.x) * ledge.Wall.Side >= 0f;
+
         public bool ClimbClear(SideLedge ledge, Vector3 from, SideViewTraversalSettings settings)
         {
             if (!ledge.IsValid || !ClearPath(from, ledge.Above) ||
