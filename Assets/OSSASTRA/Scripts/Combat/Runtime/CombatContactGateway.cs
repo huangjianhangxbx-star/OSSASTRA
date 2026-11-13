@@ -14,6 +14,21 @@ namespace Ossastra.Combat
     public static class CombatContactGateway
     {
         public static event Action<CombatContactBatch> Resolved;
+        public static event Action<CombatReleaseVisualFact> SectorReleased;
+
+        // 只有已接受的扇区或瞬时近战投递在这里发布一次。活动命中窗口不重复发布挥击。
+        internal static void PublishSectorRelease(AttackRelease release, CombatVitals source,
+            CombatContactGeometry geometry, float weaponHeight)
+        {
+            var observed = SectorReleased;
+            if (observed == null || source == null || geometry.Plane != CombatPlane.SideXY) return;
+            var fact = new CombatReleaseVisualFact(release.ParentExecutionId, release.ActionId,
+                release.EmissionIndex, release.ActorId, source, geometry, weaponHeight);
+            foreach (Action<CombatReleaseVisualFact> observer in observed.GetInvocationList())
+                try { observer(fact); }
+                catch (Exception error) { Debug.LogWarning("CombatContactGateway挥击观察者异常：" + error); }
+        }
+
         public static IReadOnlyList<HitOutcome> Resolve(AttackRelease release, CombatVitals source, IEnumerable<IHitTarget> candidates, Vector3 origin, CombatContactCause cause=CombatContactCause.Direct)
             =>Resolve(release,source,candidates,origin,cause,null);
         /// <summary>只读效果元数据重载；结算顺序和旧四/五参数调用保持原样。</summary>

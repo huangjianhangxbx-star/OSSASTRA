@@ -16,6 +16,9 @@ namespace Ossastra.Combat
     {
         [SerializeField, Min(1)] private int maximumHp=100;
         [SerializeField] private CombatFaction faction=CombatFaction.Allied;
+        [SerializeField, Tooltip("横版不透明实体。仅在碰撞体贴合外观时开启，让接触特效落在朝相机的实体表面。")]
+        private bool sideViewOpaqueImpactSurface;
+        internal bool SideViewOpaqueImpactSurface => sideViewOpaqueImpactSurface;
         private Renderer[] renderers;
         private Collider[] colliders;
         private bool[] rendererEnabled, colliderEnabled;

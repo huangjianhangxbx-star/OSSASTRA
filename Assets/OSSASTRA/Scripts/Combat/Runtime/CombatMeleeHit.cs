@@ -29,12 +29,13 @@ namespace Ossastra.Combat
             { release.Resolve(Array.Empty<Health>()); LastResult="来源失效或释放身份不符"; Resolved?.Invoke(release.ActionId,false); return; }
             var plane = CombatSpatialTarget.PlaneFor(source);
             var geometry = new CombatContactGeometry(plane, transform.position, releaseDirection, releaseDirection);
+            CombatContactGateway.PublishSectorRelease(release, source, geometry, height);
             var reachDirection = plane == CombatPlane.SideXY ? geometry.ReleaseDirection : releaseDirection;
             var weaponOrigin = geometry.ReleaseOrigin + Vector3.up * height;
             var center = weaponOrigin + reachDirection * reach;
             var overlaps = Physics.OverlapSphere(center, radius, targetLayers, QueryTriggerInteraction.Collide);
             var candidates = CombatSpatialTarget.OverlapContacts(overlaps, center,
-                target => target is MonoBehaviour body && CombatSight.IsClear(transform, body.transform, height), out var points);
+                target => target is MonoBehaviour body && CombatSight.IsClear(transform, body.transform, height), out var points, plane);
             var environment = plane == CombatPlane.SideXY &&
                 !candidates.Any(target => CombatContactGateway.AllowsTargetFaction(release, source, target))
                 ? TraceEnvironment(weaponOrigin, reachDirection, overlaps)

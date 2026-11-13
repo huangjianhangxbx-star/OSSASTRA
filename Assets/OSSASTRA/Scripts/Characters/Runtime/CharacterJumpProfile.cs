@@ -1,5 +1,5 @@
 /*
- * 横版运动参数。普通跳基于本机丝之歌数据；墙滑/墙跳沿原作时序，挂边与速度为项目候选。
+ * 横版运动参数。普通跳基于本机丝之歌数据；墙滑及挂边速度为项目候选，蹬墙跳按能力单独控制。
  * 只有装配此资产的角色走横版运动入口。
  */
 using System;
@@ -30,6 +30,8 @@ namespace Ossastra.Characters
     public sealed class SideViewTraversalSettings
     {
         public bool enabled = true;
+        [Tooltip("允许蹬墙起跳。关闭时仍可墙滑、挂边和翻越。")]
+        public bool allowWallJump;
         public LayerMask surfaces = Physics.DefaultRaycastLayers;
         [Min(.01f)] public float wallReach = .12f;
         [Min(0f)] public float wallSlideStickSeconds = .15f;

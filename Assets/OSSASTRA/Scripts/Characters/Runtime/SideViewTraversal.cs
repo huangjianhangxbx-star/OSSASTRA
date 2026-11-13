@@ -1,5 +1,5 @@
 /*
- * 横版墙边运动子状态。拥有挂点、输入边沿、翻越阶段和墙跳锁步。
+ * 横版墙边运动子状态。拥有挂点、翻越阶段和可选墙跳锁步。
  * 环境由探测器提供证据，原 CharacterMovement 每步只执行一次碰撞位移。
  */
 using Ossastra.CharacterCore;
@@ -32,7 +32,7 @@ namespace Ossastra.Characters
 
     internal sealed class SideViewTraversal
     {
-        private enum ClimbPhase { Lift, Cross, Land, Return }
+        private enum ClimbPhase { Lift, Cross, Land, ReturnAcross, ReturnDown }
 
         private readonly CharacterMovement motor;
         private readonly SideViewLedgeProbe probe;
@@ -41,9 +41,12 @@ namespace Ossastra.Characters
         private SideWallContact contact, kickedWall;
         private ClimbPhase climbPhase;
         private bool announcedHang, landedFromClimb;
-        private int lockSteps, sinceKick, direction, directionRevision, lastDropInput, wallSide;
-        private int controlRevision;
-        private bool ownedControl;
+        private int lockSteps, sinceKick, lastDropInput, wallSide;
+        private int failedClimbIntent;
+        private bool climbFailed, climbPathWasBlocked;
+        private Collider climbObstacle;
+        private Bounds climbObstacleBounds;
+        private Matrix4x4 climbObstacleTransform;
         private float slideTime, slideSpeed;
         private SideTraversalEventKind? pendingEvent;
         private int eventSide;
@@ -65,24 +68,25 @@ namespace Ossastra.Characters
             anchor = lastDropped = default;
             contact = kickedWall = default;
             announcedHang = landedFromClimb = false;
-            lockSteps = sinceKick = direction = directionRevision = lastDropInput = 0;
+            lockSteps = sinceKick = lastDropInput = 0;
             slideTime = slideSpeed = 0f;
             blockedSteps = 0;
             plannedFrom = plannedTo = default;
             pendingEvent = null;
-            ownedControl = false;
+            ledgeInput.Suspend();
+            ClearClimbFailure();
             LastRejection = null;
             ChangeMode(SideViewTraversalMode.Grounded);
         }
 
-        public void Sample(int input, bool playerControl, int revision, SideViewTraversalSettings settings)
+        public void ObserveInput(int input, bool playerControl, int revision, int device)
+            => ledgeInput.Observe(input, revision, playerControl, device);
+
+        public void SampleContact(bool canTraverse, SideViewTraversalSettings settings)
         {
-            if (direction != input || controlRevision != revision || ownedControl != playerControl) directionRevision++;
-            direction = input;
-            controlRevision = revision;
-            ownedControl = playerControl;
             contact = default;
-            if (!playerControl || motor.Grounded || BlocksAttack || lockSteps > 0) return;
+            if (!canTraverse || !ledgeInput.HasControl || motor.Grounded || BlocksAttack || lockSteps > 0) return;
+            int direction = ledgeInput.HeldDirection;
             int preferred = direction != 0 ? direction : wallSide != 0 ? wallSide : 1;
             contact = probe.Wall(preferred, settings);
             if (!contact.Exists) contact = probe.Wall(-preferred, settings);
@@ -90,12 +94,11 @@ namespace Ossastra.Characters
 
         public void SuspendInput()
         {
-            ownedControl = false;
+            ledgeInput.Suspend();
             contact = default;
-            ledgeInput.Sample(0, controlRevision, false);
         }
 
-        public bool CanKick(SideViewTraversalSettings settings) => contact.Exists &&
+        public bool CanKick(SideViewTraversalSettings settings) => settings?.enabled == true && settings.allowWallJump && contact.Exists &&
             (!kickedWall.Exists || kickedWall.Hit.collider != contact.Hit.collider || kickedWall.Side != contact.Side ||
              sinceKick >= settings.wallJumpSameWallSteps);
 
@@ -115,6 +118,7 @@ namespace Ossastra.Characters
             if (!canOwn)
             {
                 anchor = default;
+                ClearClimbFailure();
                 landedFromClimb = announcedHang = false;
                 blockedSteps = 0;
                 lockSteps = 0;
@@ -122,11 +126,12 @@ namespace Ossastra.Characters
                 ChangeMode(motor.Grounded ? SideViewTraversalMode.Grounded : SideViewTraversalMode.Airborne);
                 return default;
             }
+            if (!settings.allowWallJump) lockSteps = 0;
             if (lockSteps > 0)
             {
                 int elapsed = settings.wallJumpLongLockSteps - lockSteps;
                 bool first = elapsed == 0;
-                bool shorten = direction == kickedWall.Side && elapsed >= settings.wallJumpShortLockSteps;
+                bool shorten = ledgeInput.HeldDirection == kickedWall.Side && elapsed >= settings.wallJumpShortLockSteps;
                 if (!shorten)
                 {
                     lockSteps--;
@@ -141,8 +146,7 @@ namespace Ossastra.Characters
                 if (!anchor.IsValid)
                 {
                     LastRejection = "ledge-anchor-lost";
-                    anchor = default;
-                    ChangeMode(SideViewTraversalMode.Airborne);
+                    AbandonAnchor();
                     return default;
                 }
                 return Mode == SideViewTraversalMode.LedgeHang ? Hang(step, settings) : Climb(step, settings);
@@ -152,14 +156,15 @@ namespace Ossastra.Characters
                 ChangeMode(SideViewTraversalMode.Grounded);
                 return default;
             }
-            if (contact.Exists && ownedControl && direction == contact.Side && motor.VerticalSpeed <= settings.gripMaxRisingSpeed)
+            int direction = ledgeInput.Direction;
+            if (contact.Exists && direction == contact.Side && motor.VerticalSpeed <= settings.gripMaxRisingSpeed)
             {
                 if (probe.TryLedge(contact, Mathf.Max(0, -motor.VerticalSpeed * step), settings, out var ledge, out var reason))
                 {
-                    if (!ledge.SameEdge(lastDropped) || directionRevision != lastDropInput)
+                    if (!ledge.SameEdge(lastDropped) || ledgeInput.Revision != lastDropInput)
                     {
                         anchor = ledge;
-                        ledgeInput.Enter(direction, controlRevision);
+                        ClearClimbFailure();
                         announcedHang = false;
                         blockedSteps = 0;
                         LastRejection = null;
@@ -170,7 +175,7 @@ namespace Ossastra.Characters
                 }
                 else LastRejection = reason;
             }
-            if (contact.Exists && direction == contact.Side && motor.VerticalSpeed <= 0f)
+            if (contact.Exists && ledgeInput.HeldDirection == contact.Side && motor.VerticalSpeed <= 0f)
             {
                 if (Mode != SideViewTraversalMode.WallSlide || WallSide != contact.Side)
                 { slideTime = 0f; slideSpeed = 0f; }
@@ -192,6 +197,7 @@ namespace Ossastra.Characters
                 kickedWall = default;
                 lockSteps = 0;
                 lastDropped = default;
+                ClearClimbFailure();
                 if (landedFromClimb) SetEvent(SideTraversalEventKind.ClimbComplete, anchor.Wall.Side);
                 landedFromClimb = false;
                 anchor = default;
@@ -206,23 +212,20 @@ namespace Ossastra.Characters
                 announcedHang = true;
                 SetEvent(SideTraversalEventKind.Grab, anchor.Wall.Side);
             }
-            // 环境净空与角色碰撞可截断合法的查询目标，禁止顶着障碍反复推进。
-            bool blocked = BlocksAttack && (plannedTo - plannedFrom).sqrMagnitude > .0004f &&
-                (motor.transform.position - plannedFrom).sqrMagnitude < .000025f;
+            // 实际胶囊可能截断查询许可。只比较请求轴的真实进度，不能把沿墙偏移当成上攀成功。
+            var requested = plannedTo - plannedFrom;
+            bool blocked = BlocksAttack && requested.sqrMagnitude > .000064f &&
+                Vector3.Dot(motor.transform.position - plannedFrom, requested) < requested.sqrMagnitude * .5f;
             blockedSteps = blocked ? blockedSteps + 1 : 0;
             if (blockedSteps >= 2)
             {
                 blockedSteps = 0;
-                landedFromClimb = false;
-                LastRejection = "ledge-movement-blocked";
-                if (Mode == SideViewTraversalMode.LedgeClimb && climbPhase != ClimbPhase.Return &&
-                    probe.ClearPath(motor.transform.position, anchor.Hang, settings)) climbPhase = ClimbPhase.Return;
+                if (Mode == SideViewTraversalMode.LedgeClimb && !IsReturning)
+                    BeginReturn(settings, motor.LastTraversalObstacle, "ledge-movement-blocked");
                 else
                 {
-                    lastDropped = anchor;
-                    lastDropInput = directionRevision;
-                    anchor = default;
-                    ChangeMode(SideViewTraversalMode.Airborne);
+                    LastRejection = "ledge-movement-blocked";
+                    AbandonAnchor();
                 }
             }
             if (pendingEvent.HasValue)
@@ -235,78 +238,144 @@ namespace Ossastra.Characters
 
         private SideViewMotion Hang(float step, SideViewTraversalSettings settings)
         {
-            var command = ledgeInput.Sample(direction, controlRevision, ownedControl);
+            var command = ledgeInput.ForWall(anchor.Wall.Side);
             if (command == LedgeInputCommand.Drop)
             {
-                lastDropped = anchor;
-                lastDropInput = directionRevision;
                 SetEvent(SideTraversalEventKind.Drop, anchor.Wall.Side);
-                anchor = default;
-                ChangeMode(SideViewTraversalMode.Airborne);
+                AbandonAnchor();
                 return default;
             }
-            if (command == LedgeInputCommand.Climb && announcedHang)
+            if (command == LedgeInputCommand.Climb && announcedHang && CanStartClimb(settings))
             {
-                if (probe.ClimbClear(anchor, settings))
-                {
-                    climbPhase = ClimbPhase.Lift;
-                    LastRejection = null;
-                    ChangeMode(SideViewTraversalMode.LedgeClimb, anchor.Wall.Side);
-                    return Climb(step, settings);
-                }
-                LastRejection = "climb-path-blocked";
+                ClearClimbFailure();
+                climbPhase = ClimbPhase.Lift;
+                LastRejection = null;
+                ChangeMode(SideViewTraversalMode.LedgeClimb, anchor.Wall.Side);
+                return Climb(step, settings);
             }
-            return Along(anchor.Hang, settings.grabSpeed, step, settings);
+            if (Reached(anchor.Hang)) return new SideViewMotion(0f, 0f, true);
+            if (TryAlong(anchor.Hang, settings.grabSpeed, step, out var motion)) return motion;
+            LastRejection = "ledge-capsule-obstructed";
+            AbandonAnchor();
+            return default;
+        }
+
+        private bool CanStartClimb(SideViewTraversalSettings settings)
+        {
+            if (!probe.ClimbClear(anchor, motor.transform.position, settings))
+            {
+                if (climbFailed) climbPathWasBlocked = true;
+                LastRejection = "climb-path-blocked";
+                return false;
+            }
+
+            // 真实 Move 曾失败但查询仍说畅通时，等待阻挡变化或玩家新意图，避免每步重启。
+            if (!climbFailed || failedClimbIntent != ledgeInput.Revision || climbPathWasBlocked) return true;
+            return !ReferenceEquals(climbObstacle, null) &&
+                (climbObstacle == null || !climbObstacle.enabled || !climbObstacle.gameObject.activeInHierarchy ||
+                 climbObstacle.bounds != climbObstacleBounds ||
+                 climbObstacle.transform.localToWorldMatrix != climbObstacleTransform);
         }
 
         private SideViewMotion Climb(float step, SideViewTraversalSettings settings)
         {
+            if (IsReturning) return ReturnToHang(step, settings);
             if (climbPhase == ClimbPhase.Lift && Reached(anchor.Above)) climbPhase = ClimbPhase.Cross;
             if (climbPhase == ClimbPhase.Cross && Reached(anchor.Over)) climbPhase = ClimbPhase.Land;
-            if (climbPhase == ClimbPhase.Return && Reached(anchor.Hang))
-            {
-                ledgeInput.Enter(anchor.Wall.Side, controlRevision);
-                ledgeInput.Sample(direction, controlRevision, ownedControl);
-                ChangeMode(SideViewTraversalMode.LedgeHang, anchor.Wall.Side);
-                return new SideViewMotion(0f, 0f, true);
-            }
             if (climbPhase == ClimbPhase.Land && probe.SupportsLanding(anchor, settings))
             {
                 landedFromClimb = true;
                 plannedTo = plannedFrom + Vector3.down * (3f * step);
                 return new SideViewMotion(0f, -3f, true, true);
             }
-            if (climbPhase == ClimbPhase.Lift && probe.ClearPath(motor.transform.position, anchor.Above, settings))
-                return Along(anchor.Above, settings.climbUpSpeed, step, settings);
-            if (climbPhase == ClimbPhase.Cross && probe.ClearPath(motor.transform.position, anchor.Over, settings))
-                return Along(anchor.Over, settings.climbAcrossSpeed, step, settings);
-            if (probe.ClearPath(motor.transform.position, anchor.Hang, settings))
+            Collider obstacle = null;
+            if (climbPhase == ClimbPhase.Lift && TryAlong(anchor.Above, settings.climbUpSpeed, step, out var lift, out obstacle))
+                return lift;
+            if (climbPhase == ClimbPhase.Cross && TryAlong(anchor.Over, settings.climbAcrossSpeed, step, out var across, out obstacle))
+                return across;
+
+            BeginReturn(settings, obstacle, "climb-interrupted");
+            return ReturnToHang(step, settings);
+        }
+
+        private bool IsReturning => climbPhase == ClimbPhase.ReturnAcross || climbPhase == ClimbPhase.ReturnDown;
+
+        private void BeginReturn(SideViewTraversalSettings settings, Collider obstacle, string reason)
+        {
+            LastRejection = reason;
+            climbFailed = true;
+            failedClimbIntent = ledgeInput.Revision;
+            climbObstacle = obstacle;
+            if (obstacle != null)
             {
-                climbPhase = ClimbPhase.Return;
-                landedFromClimb = false;
-                return Along(anchor.Hang, settings.climbUpSpeed, step, settings);
+                climbObstacleBounds = obstacle.bounds;
+                climbObstacleTransform = obstacle.transform.localToWorldMatrix;
             }
-            LastRejection = "climb-interrupted";
-            anchor = default;
+            climbPathWasBlocked = !probe.ClimbClear(anchor, anchor.Hang, settings);
             landedFromClimb = false;
-            ChangeMode(SideViewTraversalMode.Airborne);
+            climbPhase = climbPhase == ClimbPhase.Lift ? ClimbPhase.ReturnDown : ClimbPhase.ReturnAcross;
+        }
+
+        private SideViewMotion ReturnToHang(float step, SideViewTraversalSettings settings)
+        {
+            // 沿已走过的折线退回。横移时保持原高度，不能从台面斜穿回挂点。
+            if (climbPhase == ClimbPhase.ReturnAcross)
+            {
+                var current = motor.transform.position;
+                var level = new Vector3(current.x, anchor.Above.y, current.z);
+                if (!Reached(level))
+                {
+                    if (TryAlong(level, settings.climbUpSpeed, step, out var rise)) return rise;
+                    AbandonAnchor();
+                    return default;
+                }
+                if (!Reached(anchor.Above))
+                {
+                    if (TryAlong(anchor.Above, settings.climbAcrossSpeed, step, out var across)) return across;
+                    AbandonAnchor();
+                    return default;
+                }
+                climbPhase = ClimbPhase.ReturnDown;
+            }
+            if (Reached(anchor.Hang))
+            {
+                ChangeMode(SideViewTraversalMode.LedgeHang, anchor.Wall.Side);
+                return new SideViewMotion(0f, 0f, true);
+            }
+            if (TryAlong(anchor.Hang, settings.climbUpSpeed, step, out var down)) return down;
+            AbandonAnchor();
             return default;
         }
 
-        private SideViewMotion Along(Vector3 target, float speed, float step, SideViewTraversalSettings settings)
+        private void AbandonAnchor()
+        {
+            lastDropped = anchor;
+            lastDropInput = ledgeInput.Revision;
+            anchor = default;
+            announcedHang = landedFromClimb = false;
+            ClearClimbFailure();
+            ChangeMode(SideViewTraversalMode.Airborne);
+        }
+
+        private void ClearClimbFailure()
+        {
+            climbFailed = climbPathWasBlocked = false;
+            climbObstacle = null;
+        }
+
+        private bool TryAlong(Vector3 target, float speed, float step, out SideViewMotion motion)
+            => TryAlong(target, speed, step, out motion, out _);
+
+        private bool TryAlong(Vector3 target, float speed, float step, out SideViewMotion motion, out Collider obstacle)
         {
             var current = motor.transform.position;
             var next = Vector3.MoveTowards(current, target, speed * step);
-            if (!probe.ClearPath(current, next, settings))
-            {
-                LastRejection = "ledge-capsule-obstructed";
-                anchor = default;
-                ChangeMode(SideViewTraversalMode.Airborne);
-                return default;
-            }
+            motion = default;
+            if (!probe.ClearPath(current, next, out obstacle)) return false;
             plannedFrom = current;
             plannedTo = next;
-            return new SideViewMotion((next.x - current.x) / step, (next.y - current.y) / step, true);
+            motion = new SideViewMotion((next.x - current.x) / step, (next.y - current.y) / step, true);
+            return true;
         }
 
         private bool Reached(Vector3 point) => (motor.transform.position - point).sqrMagnitude <= .001225f;

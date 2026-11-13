@@ -1,6 +1,5 @@
 /*
- * 挂边输入边沿。挂边子状态保存入边方向，控制代际变化时重新消费现有输入。
- * 只解释方向意图，由运动状态机决定空间资格和最终命令。
+ * 横版攀越持续意图。只采样当前有效玩家方向与来源，挂边几何不能改变控制代际。
  */
 namespace Ossastra.CharacterCore
 {
@@ -8,26 +7,40 @@ namespace Ossastra.CharacterCore
 
     public sealed class SideViewLedgeInput
     {
-        private int side, heldDirection, controlRevision;
-        private bool playerControl;
+        private int controlRevision, deviceId, heldDirection;
+        private bool controlled, suppressed;
 
-        public void Enter(int side, int revision)
+        public bool HasControl => controlled;
+        public int HeldDirection => heldDirection;
+        public int Direction => controlled && !suppressed ? heldDirection : 0;
+        public int Revision { get; private set; }
+
+        public void Observe(int direction, int revision, bool playerControl, int movementDeviceId)
         {
-            this.side = side;
-            heldDirection = side;
+            if (!playerControl) direction = 0;
+            bool controlChanged = controlled != playerControl || controlRevision != revision;
+            bool deviceChangedWhileHeld = playerControl && heldDirection != 0 && direction != 0 &&
+                deviceId != movementDeviceId;
+            if (controlChanged || deviceChangedWhileHeld)
+                suppressed = direction != 0;
+            else if (heldDirection != direction)
+                suppressed = false;
+
+            if (controlChanged || deviceChangedWhileHeld || heldDirection != direction)
+                Revision++;
+            controlled = playerControl;
             controlRevision = revision;
-            playerControl = true;
+            deviceId = movementDeviceId;
+            heldDirection = direction;
         }
 
-        public LedgeInputCommand Sample(int direction, int revision, bool controlled)
+        public void Suspend() => Observe(0, controlRevision, false, -1);
+
+        public LedgeInputCommand ForWall(int side)
         {
-            bool inherited = revision != controlRevision || controlled != playerControl;
-            bool changed = direction != heldDirection;
-            heldDirection = direction;
-            controlRevision = revision;
-            playerControl = controlled;
-            if (inherited || !controlled || !changed || direction == 0) return LedgeInputCommand.None;
-            return direction == side ? LedgeInputCommand.Climb : LedgeInputCommand.Drop;
+            int current = Direction;
+            if (current == 0 || side == 0) return LedgeInputCommand.None;
+            return current == side ? LedgeInputCommand.Climb : LedgeInputCommand.Drop;
         }
     }
 }

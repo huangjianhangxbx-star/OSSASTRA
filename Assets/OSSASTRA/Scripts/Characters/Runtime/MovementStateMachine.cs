@@ -19,6 +19,8 @@ namespace Ossastra.Characters
         public string TraversalLastRejection => traversal?.LastRejection;
         internal bool TraversalBlocksAttack => traversal?.BlocksAttack == true;
 
+        private enum JumpLaunch { None, Ordinary, Wall }
+
         private readonly OrdinaryJumpCycle jump = new OrdinaryJumpCycle();
         private SideViewTraversal traversal;
         private CharacterInputButton pendingGesture, launchGesture;
@@ -40,10 +42,19 @@ namespace Ossastra.Characters
                 return false;
             }
             if (kind != CharacterActionKind.Jump) return true;
+            return AllowsJump(out _, out reason);
+        }
+
+        private bool AllowsJump(out JumpLaunch launch, out string reason)
+        {
             var motor = owner.StateMovement;
-            var settings = motor?.JumpProfile?.traversal;
-            bool wall = settings?.enabled == true && traversal?.CanKick(settings) == true;
-            if (motor == null || !motor.IsSideView || (!wall && !jump.CanLaunch(motor.JumpProfile.ledgeGraceSteps)))
+            var profile = motor?.JumpProfile;
+            // 普通地面和土狼跳优先。墙跳的能力和空间资格只从同一子状态取得。
+            launch = profile == null ? JumpLaunch.None :
+                jump.CanLaunch(profile.ledgeGraceSteps) ? JumpLaunch.Ordinary :
+                traversal?.CanKick(profile.traversal) == true ? JumpLaunch.Wall : JumpLaunch.None;
+            reason = null;
+            if (launch == JumpLaunch.None)
                 reason = "jump-no-support";
             else if (!owner.DataBus.AllowsMovement || !owner.DataBus.MoveReady ||
                 owner.DataBus.MotionOverride?.IsActive == true)
@@ -87,7 +98,14 @@ namespace Ossastra.Characters
             var profile = motor.JumpProfile;
             if (profile.traversal?.enabled == true && traversal == null) traversal = new SideViewTraversal(motor);
             if (profile.traversal?.enabled != true) traversal = null;
-            SampleJump(owner.DataBus.Input);
+            var frame = owner.DataBus.Input;
+            SampleJump(frame);
+            bool playerMovement = owner.HasPlayerInput && owner.EffectiveIntentKind == CharacterIntentKind.Player &&
+                frame.jumpInputAvailable && !frame.jumpRequestsBlocked;
+            int side = frame.move.x > .25f ? 1 : frame.move.x < -.25f ? -1 : 0;
+            int device = playerMovement ? owner.StateInput.InputSources.MoveDeviceId : -1;
+            // 即使本渲染帧没有执行运动步，也要观察松键与切控，不能把旧方向留给下一个抓边。
+            traversal?.ObserveInput(side, playerMovement, owner.ActionControlRevision, device);
             float step = Mathf.Clamp(profile.stepSeconds, .005f, .05f);
             accumulator = Mathf.Min(accumulator + elapsed, step * 8f);
             var before = motor.transform.position;
@@ -95,15 +113,12 @@ namespace Ossastra.Characters
             // 仍在 Root 集中更新内步进，输入只采一次，每物理步只由原移动器提交一次。
             while (steps < 8 && accumulator + .000001f >= step)
             {
-                int acceptedBefore = AcceptedJumps;
                 bool canTraverse = canMove && owner.DataBus.MoveReady && !owner.DataBus.ActionActive &&
                     owner.DataBus.MotionOverride?.IsActive != true && owner.StateStatusEffects?.BlocksIntent != true &&
                     owner.StatePosture?.IsStaggered != true && owner.StateOffhand?.IsAccepting != true &&
                     (owner.StateAbilities as CharacterAbilities)?.OccupiesTraversal != true;
-                int side = owner.DataBus.Input.move.x > .25f ? 1 : owner.DataBus.Input.move.x < -.25f ? -1 : 0;
-                traversal?.Sample(side, canTraverse && owner.HasPlayerInput, owner.ActionControlRevision, profile.traversal);
-                bool wallJump = TryLaunch(profile);
-                bool ordinaryJump = AcceptedJumps != acceptedBefore && !wallJump;
+                traversal?.SampleContact(canTraverse, profile.traversal);
+                bool ordinaryJump = TryLaunch(profile) == JumpLaunch.Ordinary;
                 bool wasHanging = TraversalBlocksAttack;
                 var motion = ordinaryJump ? default : traversal?.Plan(canTraverse, step, profile) ?? default;
                 if (!wasHanging && TraversalBlocksAttack)
@@ -168,13 +183,13 @@ namespace Ossastra.Characters
             }
         }
 
-        private bool TryLaunch(CharacterJumpProfile profile)
+        private JumpLaunch TryLaunch(CharacterJumpProfile profile)
         {
-            if (!pendingGesture.HasIdentity || !AllowsRequest(CharacterActionKind.Jump, out _)) return false;
-            bool wall = traversal?.CanKick(profile.traversal) == true;
+            if (!pendingGesture.HasIdentity || TraversalBlocksAttack || !AllowsJump(out var launch, out _))
+                return JumpLaunch.None;
             bool accepted = owner.Actions.TryCommit(pendingRequest, 0f, () =>
             {
-                if (wall)
+                if (launch == JumpLaunch.Wall)
                 {
                     jump.LaunchWall();
                     traversal.Kick(profile.traversal);
@@ -188,7 +203,7 @@ namespace Ossastra.Characters
             }, out _);
             // 当前准备就绪时只向账本提交一次。延迟资格仍由前置 gate 和缓冲步数控制。
             ClearPending();
-            return accepted && wall;
+            return accepted ? launch : JumpLaunch.None;
         }
 
         private void ClearPending()

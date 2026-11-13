@@ -25,3 +25,25 @@ MonoBehaviour:
   releaseSpeedScale: 0.5
   hangInitialGravity: 0.1
   hangGravityRamp: 5
+  traversal:
+    enabled: 1
+    allowWallJump: 0
+    surfaces:
+      serializedVersion: 2
+      m_Bits: 4294967291
+    wallReach: 0.12
+    wallSlideStickSeconds: 0.15
+    wallSlideAcceleration: 24
+    wallSlideMaxSpeed: 4.8
+    wallJumpKickSpeed: 13
+    wallJumpUpSpeed: 16
+    wallJumpShortLockSteps: 5
+    wallJumpLongLockSteps: 15
+    wallJumpSameWallSteps: 10
+    gripBelowHand: 0.15
+    gripAboveHand: 0.38
+    gripMaxRisingSpeed: 2
+    surfaceClearance: 0.065
+    grabSpeed: 12
+    climbUpSpeed: 5.8
+    climbAcrossSpeed: 4.8

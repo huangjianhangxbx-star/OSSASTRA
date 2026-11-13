@@ -38,7 +38,7 @@ namespace Ossastra.Combat
             public CombatVitals source;
             public DeliveryParameters config;
             public AttackRelease release;
-            public CombatPlane plane;
+            public CombatContactGeometry Geometry;
             public Vector3 origin,landing,position,direction;
             public float elapsed;
             public int emittedFrame;
@@ -61,10 +61,12 @@ namespace Ossastra.Combat
             if(source==null||!source.IsAvailable||parent==Guid.Empty||!activeParents.Contains(parent)||index<0||damage<=0||config==null||valid==null||!valid()||!emitted.Add((parent,index)))return false;
             var plane = CombatSpatialTarget.PlaneFor(source);
             var travelDirection = plane == CombatPlane.SideXY ? CombatContactGeometry.Project(direction, plane) : direction;
-            var flight=new Flight{source=source,parent=parent,config=config.Freeze(),plane=plane,release=config.mode==DeliveryMode.Sector&&config.activeDuration>0?
+            var flight=new Flight{source=source,parent=parent,config=config.Freeze(),
+                Geometry=new CombatContactGeometry(plane,origin,travelDirection,travelDirection),release=config.mode==DeliveryMode.Sector&&config.activeDuration>0?
                 AttackRelease.ForContactWindow(parent,index,source.Health.Id,damage,posture,reclaimBudget,reclaimRate):AttackRelease.ForEmission(parent,index,source.Health.Id,damage,posture,reclaimBudget,reclaimRate),origin=origin,landing=landing,direction=travelDirection.normalized,position=origin+Vector3.up*.8f,valid=valid,resolved=resolved,emittedFrame=Time.frameCount};
             if(config.mode==DeliveryMode.Sector)
             {
+                CombatContactGateway.PublishSectorRelease(flight.release, source, flight.Geometry, .8f);
                 var targets = Nearby(flight, origin, config.range, true, out var contacts);
                 // 墙面没有伤害身份；仅释放时对刀口前向的实物接触给一次墙面反馈。
                 var wallHit = plane == CombatPlane.SideXY &&
@@ -152,9 +154,9 @@ namespace Ossastra.Combat
             {
                 if (ReferenceEquals(target, f.source)) return false;
                 var position = CombatSpatialTarget.Position(target);
-                return (!sector || CombatContactGeometry.ContainsSector(position - point, f.direction, f.config.arc, f.plane)) &&
+                return (!sector || CombatContactGeometry.ContainsSector(position - point, f.direction, f.config.arc, f.Geometry.Plane)) &&
                     Clear(point, position);
-            }, out contacts);
+            }, out contacts, f.Geometry.Plane);
         }
         public static bool Clear(Vector3 a,Vector3 b)
         {
@@ -164,7 +166,7 @@ namespace Ossastra.Combat
         private void Resolve(Flight f, Vector3 point, IHitTarget[] targets, Vector3 arrival,
             Dictionary<IHitTarget, CombatContactPoint> contacts, RaycastHit? physicsHit)
         {
-            var geometry = new CombatContactGeometry(f.plane, f.origin, f.direction, arrival);
+            var geometry = f.Geometry.WithArrival(arrival);
             CombatContactPoint? cast = null;
             if (physicsHit.HasValue)
             {

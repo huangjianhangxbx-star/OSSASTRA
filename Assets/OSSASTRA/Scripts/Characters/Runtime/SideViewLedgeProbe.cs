@@ -55,11 +55,13 @@ namespace Ossastra.Characters
     {
         private readonly CharacterController body;
         private readonly Func<Collider, bool> environment;
+        private readonly Func<Collider, bool> blocksMovement;
         private RaycastHit[] hits = new RaycastHit[16];
         private Collider[] overlaps = new Collider[16];
 
-        public SideViewLedgeProbe(CharacterController body, Func<Collider, bool> environment)
-        { this.body = body; this.environment = environment; }
+        public SideViewLedgeProbe(CharacterController body, Func<Collider, bool> environment,
+            Func<Collider, bool> blocksMovement)
+        { this.body = body; this.environment = environment; this.blocksMovement = blocksMovement; }
 
         private PhysicsScene PhysicsWorld => body.gameObject.scene.GetPhysicsScene();
         private Vector3 Root => body.transform.position;
@@ -108,17 +110,17 @@ namespace Ossastra.Characters
             var hang = new Vector3(hangX, topY - handOffset, root.z);
             var above = new Vector3(hangX, standRootY, root.z);
             var over = new Vector3(standX, standRootY, root.z);
-            if (!ClearPath(root, hang, settings))
+            if (!ClearPath(root, hang))
             { reason = "hang-capsule-blocked"; return false; }
             ledge = new SideLedge(wall, top, grip, hang, above, over);
             reason = null;
             return true;
         }
 
-        public bool ClimbClear(SideLedge ledge, SideViewTraversalSettings settings)
+        public bool ClimbClear(SideLedge ledge, Vector3 from, SideViewTraversalSettings settings)
         {
-            if (!ledge.IsValid || !ClearPath(Root, ledge.Above, settings) ||
-                !ClearPath(ledge.Above, ledge.Over, settings)) return false;
+            if (!ledge.IsValid || !ClearPath(from, ledge.Above) ||
+                !ClearPath(ledge.Above, ledge.Over)) return false;
             return SupportsLanding(ledge, settings);
         }
 
@@ -135,14 +137,23 @@ namespace Ossastra.Characters
             return true;
         }
 
-        public bool ClearPath(Vector3 from, Vector3 to, SideViewTraversalSettings settings)
+        public bool ClearPath(Vector3 from, Vector3 to) => ClearPath(from, to, out _);
+
+        public bool ClearPath(Vector3 from, Vector3 to, out Collider obstruction)
         {
+            obstruction = null;
             Capsule(to, out var p, out var q);
             int count;
             do
             {
-                count = PhysicsWorld.OverlapCapsule(p, q, ClearanceRadius, overlaps, settings.surfaces, QueryTriggerInteraction.Ignore);
-                for (int i = 0; i < count; i++) if (environment(overlaps[i])) return false;
+                // 只有抓握与落脚受 surfaces 限定。净空应覆盖原胶囊实际会撞到的物件。
+                count = PhysicsWorld.OverlapCapsule(p, q, ClearanceRadius, overlaps, Physics.AllLayers, QueryTriggerInteraction.Ignore);
+                for (int i = 0; i < count; i++)
+                {
+                    if (!blocksMovement(overlaps[i])) continue;
+                    obstruction = overlaps[i];
+                    return false;
+                }
                 if (count < overlaps.Length) break;
                 Array.Resize(ref overlaps, overlaps.Length * 2);
             } while (true);
@@ -154,8 +165,13 @@ namespace Ossastra.Characters
             do
             {
                 count = PhysicsWorld.CapsuleCast(p, q, ClearanceRadius, displacement / distance, hits, distance,
-                    settings.surfaces, QueryTriggerInteraction.Ignore);
-                for (int i = 0; i < count; i++) if (environment(hits[i].collider)) return false;
+                    Physics.AllLayers, QueryTriggerInteraction.Ignore);
+                for (int i = 0; i < count; i++)
+                {
+                    if (!blocksMovement(hits[i].collider)) continue;
+                    obstruction = hits[i].collider;
+                    return false;
+                }
                 if (count < hits.Length) return true;
                 Array.Resize(ref hits, hits.Length * 2);
             } while (true);

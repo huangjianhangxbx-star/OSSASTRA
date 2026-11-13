@@ -41,8 +41,16 @@ namespace Ossastra.UserInterface
         public int MotionCues {get;private set;}
         public int HealingCues {get;private set;}
         public int ActiveSideViewEffects => effects?.ActiveCount ?? 0;
+        public int ReleaseEffectRequests { get; private set; }
+        public int ReleaseEffectsAccepted { get; private set; }
+        public int ContactEffectRequests { get; private set; }
+        public int ContactEffectsAccepted { get; private set; }
+        public SideViewEffectAdmission? LastSideViewEffectFailure { get; private set; }
+        public CombatContactGeometry LastReleaseGeometry { get; private set; }
+        public Guid LastReleaseActionId { get; private set; }
         public int ShakeRequests { get; private set; }
         public Vector3 LastContactPosition { get; private set; }
+        public Vector3 LastContactVisualPosition { get; private set; }
         public Vector3 LastContactDirection { get; private set; }
         public CombatContactPointQuality LastContactQuality { get; private set; }
         public HitReason? LastContactReason { get; private set; }
@@ -115,40 +123,25 @@ namespace Ossastra.UserInterface
             effects = new SideViewCombatEffects(transform, sideViewEffects);
             CombatContactGateway.Resolved += OnSideViewContact;
             unsubscribe.Add(() => CombatContactGateway.Resolved -= OnSideViewContact);
-            foreach (var root in FindObjectsOfType<Ossastra.Characters.CharacterRoot>())
-            {
-                if (root.gameObject.scene != gameObject.scene) continue;
-                var owner = root;
-                var abilities = owner.GetComponent<CharacterAbilities>();
-                Action<ActionFact> released = fact =>
-                {
-                    if (fact.Kind != ActionFactKind.Released || fact.Release == null ||
-                        abilities != null && abilities.OwnsRelease(fact.ActionId)) return;
-                    var direction = owner.DataBus.AttackDirection;
-                    PlayRelease(owner.transform.position, direction);
-                };
-                owner.ActionObserved += released;
-                unsubscribe.Add(() => { if (owner != null) owner.ActionObserved -= released; });
-                if (abilities == null) continue;
-                Action<AbilityFeedbackFact> sectorRelease = fact =>
-                {
-                    if (fact.Kind == "release" && fact.EmissionIndex >= 0 && fact.DeliveryMode == nameof(DeliveryMode.Sector) &&
-                        fact.ReleaseDirection.HasValue)
-                        PlayRelease(fact.Position, fact.ReleaseDirection.Value);
-                };
-                abilities.FeedbackObserved += sectorRelease;
-                unsubscribe.Add(() => { if (abilities != null) abilities.FeedbackObserved -= sectorRelease; });
-            }
+            CombatContactGateway.SectorReleased += OnSideViewRelease;
+            unsubscribe.Add(() => CombatContactGateway.SectorReleased -= OnSideViewRelease);
         }
 
-        private void PlayRelease(Vector3 position, Vector3 direction)
+        private void OnSideViewRelease(CombatReleaseVisualFact fact)
         {
-            if (effects == null) return;
+            if (effects == null || fact.SourceSceneHandle != gameObject.scene.handle) return;
             var recipe = sideViewEffects.release;
-            var geometry = new CombatContactGeometry(CombatPlane.SideXY, position, direction, direction);
-            var forward = EffectDirection(recipe, geometry, default, direction, false);
+            var geometry = fact.Geometry;
+            var forward = EffectDirection(recipe, geometry, default, geometry.ReleaseDirection, false);
+            var body = fact.Source == null ? null : fact.Source.GetComponent<CharacterMovement>();
             ReleaseCues++;
-            effects.Play(SideViewEffectShape.Swing, recipe, position + Vector3.up * .85f, forward);
+            ReleaseEffectRequests++;
+            LastReleaseGeometry = geometry;
+            LastReleaseActionId = fact.ActionId;
+            var result = effects.Play(SideViewEffectShape.Swing, recipe, geometry.ReleaseOrigin, forward,
+                body: body, anchorOffset: Vector3.up * fact.WeaponHeight);
+            if (result == SideViewEffectAdmission.Accepted) ReleaseEffectsAccepted++;
+            else LastSideViewEffectFailure = result;
         }
 
         private void OnSideViewContact(CombatContactBatch batch)
@@ -180,19 +173,22 @@ namespace Ossastra.UserInterface
 
             void Impact(SideViewEffectShape shape, SideViewEffectRecipe recipe, CombatContactPoint contact, HitReason? reason)
             {
-                if (recipe == null) return;
                 var direction = EffectDirection(recipe, geometry, contact, contact.Position - batch.Origin, true);
-                Color? tint = shape == SideViewEffectShape.Hit &&
+                Color? tint = shape == SideViewEffectShape.Hit && recipe != null &&
                     (batch.EffectSemantic == "ice.pulse" || batch.EffectSemantic == "ice.shatter")
                     ? new Color(.54f, .86f, 1f, recipe.tint.a) : (Color?)null;
-                effects.Play(shape, recipe, contact.Position, direction, tint);
                 HitCues++;
+                ContactEffectRequests++;
+                var result = effects.Play(shape, recipe, contact.VisualPosition, direction, tint: tint);
+                if (result == SideViewEffectAdmission.Accepted) ContactEffectsAccepted++;
+                else LastSideViewEffectFailure = result;
                 LastContactPosition = contact.Position;
+                LastContactVisualPosition = contact.VisualPosition;
                 LastContactDirection = direction;
                 LastContactQuality = contact.Quality;
                 LastContactReason = reason;
                 float weight = batch.Cause == CombatContactCause.Periodic ? .25f : 1f;
-                float value = Mathf.Clamp01(recipe.shake) * weight;
+                float value = recipe == null ? 0f : Mathf.Clamp01(recipe.shake) * weight;
                 if (value > strength)
                 {
                     strength = value;

@@ -14,15 +14,22 @@ namespace Ossastra.Combat
     public readonly struct CombatContactPoint
     {
         public Vector3 Position { get; }
+        private readonly Vector3? visualPosition;
+        public Vector3 VisualPosition => visualPosition ?? Position;
         public CombatContactPointQuality Quality { get; }
         public Vector3? Normal { get; }
         public bool HasNormal => Normal.HasValue;
 
         public CombatContactPoint(Vector3 position, CombatContactPointQuality quality, Vector3? normal = null)
+            : this(position, quality, normal, null) { }
+
+        internal CombatContactPoint(Vector3 position, CombatContactPointQuality quality, Vector3? normal,
+            Vector3? visualPosition)
         {
             Position = position;
             Quality = quality;
             Normal = normal;
+            this.visualPosition = visualPosition;
         }
     }
 
@@ -42,6 +49,9 @@ namespace Ossastra.Combat
             ReleaseDirection = Project(releaseDirection, plane).normalized;
             ArrivalDirection = Project(arrivalDirection, plane).normalized;
         }
+
+        internal CombatContactGeometry WithArrival(Vector3 arrivalDirection)
+            => new CombatContactGeometry(Plane, ReleaseOrigin, ReleaseDirection, arrivalDirection);
 
         public static Vector3 Project(Vector3 direction, CombatPlane plane)
         {

@@ -32,6 +32,8 @@ namespace Ossastra.Characters
         internal uint ContactRevision { get; private set; }
         private float sideDepth;
         private Collider stepSupport;
+        private Vector3 traversalMoveDirection;
+        internal Collider LastTraversalObstacle { get; private set; }
         private SideViewPartyContacts partyContacts;
         private RaycastHit[] headHits = new RaycastHit[8];
         private Vector3 previousPose, latestPose;
@@ -88,7 +90,7 @@ namespace Ossastra.Characters
             Stop();
         }
 
-        internal SideViewLedgeProbe CreateLedgeProbe() => new SideViewLedgeProbe(body, IsTraversalObstacle);
+        internal SideViewLedgeProbe CreateLedgeProbe() => new SideViewLedgeProbe(body, IsTraversalObstacle, IsEnvironmentContact);
 
         internal void EmitTraversal(SideTraversalEventKind kind, int side)
             => SideTraversalOccurred?.Invoke(new SideTraversalEvent(kind, transform.position, side, sideStepId, ContactRevision));
@@ -116,7 +118,7 @@ namespace Ossastra.Characters
                 : Mathf.Max(-jumpProfile.fallSpeed, VerticalSpeed - acceleration * delta);
             if (traversalMotion.Y.HasValue) VerticalSpeed = traversalMotion.Y.Value;
             float downBeforeContact = Mathf.Max(0f, -VerticalSpeed);
-            MoveOnce(horizontal, VerticalSpeed, delta, true);
+            MoveOnce(horizontal, VerticalSpeed, delta, true, traversalMotion.ConstrainedPose);
             Grounded = (!traversalMotion.ConstrainedPose || traversalMotion.CanLand) &&
                 VerticalSpeed <= 0f && stepSupport != null && (LastCollision & CollisionFlags.Below) != 0;
             bool hitHead = (LastCollision & CollisionFlags.Above) != 0;
@@ -151,12 +153,14 @@ namespace Ossastra.Characters
             return velocity;
         }
 
-        private void MoveOnce(Vector3 velocity, float vertical, float delta, bool sideView)
+        private void MoveOnce(Vector3 velocity, float vertical, float delta, bool sideView, bool captureTraversalObstacle = false)
         {
             RequestedVelocity=velocity;
             var before = transform.position;
             var requestedDisplacement=(velocity + Vector3.up * vertical) * delta;
             if (sideView) requestedDisplacement.z = sideDepth - before.z;
+            LastTraversalObstacle = null;
+            traversalMoveDirection = captureTraversalObstacle ? requestedDisplacement.normalized : Vector3.zero;
             var constrained=environmentClearance==null
                 ?new CharacterClearanceResult(requestedDisplacement,false):environmentClearance.Constrain(requestedDisplacement);
             LastEnvironmentSideBlocked=constrained.SideBlocked;
@@ -177,8 +181,11 @@ namespace Ossastra.Characters
 
         private void OnControllerColliderHit(ControllerColliderHit hit)
         {
-            if (movingSideView && IsEnvironmentContact(hit.collider) &&
-                hit.normal.y >= Mathf.Cos(body.slopeLimit * Mathf.Deg2Rad) &&
+            if (!movingSideView || !IsEnvironmentContact(hit.collider)) return;
+            // 只记录妨碍本次受约束位移的碰撞，沿墙滑行的侧触不算。
+            if (Vector3.Dot(traversalMoveDirection, hit.normal) < -.1f)
+                LastTraversalObstacle = hit.collider;
+            if (hit.normal.y >= Mathf.Cos(body.slopeLimit * Mathf.Deg2Rad) &&
                 hit.point.y < transform.TransformPoint(body.center).y)
                 stepSupport = hit.collider;
         }
