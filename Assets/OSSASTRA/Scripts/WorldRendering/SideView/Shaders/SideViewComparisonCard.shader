@@ -98,15 +98,22 @@ Shader "Ossastra/SideView/ComparisonCard"
                     clip(.5 - _SideViewSplitBackground * _SideViewBelowActors);
                     return ShadeOriginal(input, true);
                 }
-                float4 sample = SampleCard(input, true) * input.color;
+                float4 sample = SampleCard(input, true);
+                sample.a *= input.color.a;
                 if (_SideViewRenderMode > 2.5 && _SideViewAceSurfaceResponse > 0)
                 {
-                    sample.rgb = SideViewAceWorldColor(sample.rgb, float3(1, 1, 1), sample.a, input.position, _SideViewAceSurfaceResponse);
+                    // SourceSprite mesh colors retain the original authored Gamma tint. Keep them
+                    // apart from the sRGB texture sample, which is already linear at this point.
+                    sample.rgb = SideViewAceWorldColor(sample.rgb, input.color.rgb, sample.a, input.position, _SideViewAceSurfaceResponse);
                 }
-                else if (_SideViewRenderMode > .5 && _SideViewRenderMode < 1.5 && _SideViewEnvironmentRole >= 0)
+                else
                 {
-                    float3 normal = TransformObjectToWorldNormal(float3(0,0,-1));
-                    sample.rgb = EnvironmentShadeLegacy(sample.rgb, input.world, normal, _SideViewEnvironmentRole);
+                    sample.rgb *= input.color.rgb;
+                    if (_SideViewRenderMode > .5 && _SideViewRenderMode < 1.5 && _SideViewEnvironmentRole >= 0)
+                    {
+                        float3 normal = TransformObjectToWorldNormal(float3(0,0,-1));
+                        sample.rgb = EnvironmentShadeLegacy(sample.rgb, input.world, normal, _SideViewEnvironmentRole);
+                    }
                 }
                 sample.rgb *= lerp(1, sample.a, _Premultiply);
                 return sample;

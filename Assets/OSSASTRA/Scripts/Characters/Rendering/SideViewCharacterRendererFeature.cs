@@ -18,6 +18,8 @@ namespace Ossastra.Characters.Rendering
 
         private sealed class CoveragePass : ScriptableRenderPass
         {
+            private static readonly int FusionCoverage = Shader.PropertyToID("_SideViewAceFusionCoverage");
+
             public CoveragePass() => renderPassEvent = RenderPassEvent.BeforeRenderingTransparents - 1;
 
             public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
@@ -36,6 +38,12 @@ namespace Ossastra.Characters.Rendering
                     context.ExecuteCommandBuffer(cmd);
                 }
                 finally { CommandBufferPool.Release(cmd); }
+            }
+
+            public override void OnCameraCleanup(CommandBuffer cmd)
+            {
+                SideViewOuterLight.ResetFusion(cmd);
+                cmd.SetGlobalTexture(FusionCoverage, Texture2D.blackTexture);
             }
         }
     }

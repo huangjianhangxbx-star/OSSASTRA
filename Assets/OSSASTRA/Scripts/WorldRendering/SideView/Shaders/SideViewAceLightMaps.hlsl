@@ -6,8 +6,10 @@ TEXTURE2D(_SideViewAceWorldDirection); TEXTURE2D(_SideViewAceWorldHighlight);
 TEXTURE2D(_SideViewAceWorldBright); TEXTURE2D(_SideViewAceWorldAmbient);
 TEXTURE2D(_SideViewAceCharacterDirection); TEXTURE2D(_SideViewAceCharacterHighlight);
 TEXTURE2D(_SideViewAceCharacterBright); TEXTURE2D(_SideViewAceCharacterAmbient);
+TEXTURE2D(_SideViewAceEdgeVector); TEXTURE2D(_SideViewAceEdgeEnergy);
 #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/GlobalSamplers.hlsl"
 float _SideViewAceLightMapsReady;
+float _SideViewAceEdgeMapsReady;
 float4 _SideViewAceScreenToMap;
 
 struct SideViewAceMaps
@@ -60,11 +62,41 @@ SideViewAceMaps SideViewAceSampleUv(float2 uv, float group)
     return maps;
 }
 
+float2 SideViewAceRasterUv(float2 rasterXY)
+{
+    float2 uv = rasterXY * _SideViewAceScreenToMap.xy;
+    uv.y = uv.y * _SideViewAceScreenToMap.z + _SideViewAceScreenToMap.w;
+    return uv;
+}
+
 SideViewAceMaps SideViewAceSample(float4 positionCS, float group)
 {
-    float2 uv = positionCS.xy * _SideViewAceScreenToMap.xy;
-    uv.y = uv.y * _SideViewAceScreenToMap.z + _SideViewAceScreenToMap.w;
-    return SideViewAceSampleUv(uv, group);
+    return SideViewAceSampleUv(SideViewAceRasterUv(positionCS.xy), group);
+}
+
+struct SideViewAceEdgeLight
+{
+    float2 direction;
+    float3 energy;
+    float weight;
+};
+
+SideViewAceEdgeLight SideViewAceSampleEdge(float2 rasterXY)
+{
+    SideViewAceEdgeLight light = (SideViewAceEdgeLight)0;
+    if (_SideViewAceEdgeMapsReady < .5) return light;
+    float2 uv = SideViewAceRasterUv(rasterXY);
+    if (any(uv < 0) || any(uv > 1)) return light;
+    float3 vectorAndSum = SAMPLE_TEXTURE2D(_SideViewAceEdgeVector, sampler_LinearClamp, uv).rgb;
+    float magnitude = length(vectorAndSum.xy);
+    if (magnitude <= .00001 || vectorAndSum.z <= .00001) return light;
+
+    // Coherent local light survives the vector sum. Equal opposite lights cancel without brightening the full ring.
+    light.direction = vectorAndSum.xy / magnitude;
+    light.weight = saturate(magnitude);
+    float3 accumulated = SAMPLE_TEXTURE2D(_SideViewAceEdgeEnergy, sampler_LinearClamp, uv).rgb;
+    light.energy = max(0, accumulated) * (light.weight / vectorAndSum.z);
+    return light;
 }
 
 SideViewAceMaps SideViewAceSampleLinear(float4 positionCS, float group)

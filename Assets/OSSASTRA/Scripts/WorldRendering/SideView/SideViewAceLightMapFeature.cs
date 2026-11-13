@@ -68,6 +68,8 @@ namespace Ossastra.WorldRendering.SideView
         private sealed class LightMapPass : ScriptableRenderPass, IDisposable
         {
             private static readonly int Ready = Shader.PropertyToID("_SideViewAceLightMapsReady");
+            private static readonly int EdgeReady = Shader.PropertyToID("_SideViewAceEdgeMapsReady");
+            private static readonly int EdgeTarget = Shader.PropertyToID("_AceEdgeTarget");
             private static readonly int ScreenToMap = Shader.PropertyToID("_SideViewAceScreenToMap");
             private static readonly int ViewProjection = Shader.PropertyToID("_AceWriterViewProjection");
             private static readonly int Shape = Shader.PropertyToID("_AceWriterShape");
@@ -80,12 +82,14 @@ namespace Ossastra.WorldRendering.SideView
 
             private readonly SideViewAceLighting owner;
             private readonly Camera camera;
+            private readonly SideViewRenderComparison comparison;
             private readonly Material writer;
-            private readonly int writerPass, clearPass;
-            private readonly Group world = new Group("World");
-            private readonly Group character = new Group("Character");
+            private readonly int writerPass, clearPass, edgePass;
+            private readonly Group world = new Group("World", new[] { "Direction", "Highlight", "Bright", "Ambient" });
+            private readonly Group character = new Group("Character", new[] { "Direction", "Highlight", "Bright", "Ambient" });
+            private readonly Group edges = new Group("", new[] { "EdgeVector", "EdgeEnergy" }, "Character");
             private readonly MaterialPropertyBlock properties = new MaterialPropertyBlock();
-            private bool prepared;
+            private bool prepared, edgesPrepared;
             private RTHandle cameraColor, cameraDepth;
             private int width, height;
 
@@ -95,22 +99,29 @@ namespace Ossastra.WorldRendering.SideView
             {
                 this.owner = owner;
                 this.camera = camera;
+                comparison = camera.GetComponent<SideViewRenderComparison>();
                 writer = CoreUtils.CreateEngineMaterial(owner.Writer);
                 writerPass = writer.FindPass("AceLightMap");
                 clearPass = writer.FindPass("AceClearMaps");
+                edgePass = writer.FindPass("AceEdgeMaps");
                 renderPassEvent = RenderPassEvent.BeforeRenderingOpaques;
             }
 
             public override void OnCameraSetup(CommandBuffer cmd, ref RenderingData data)
             {
                 owner.ClearFrame();
+                edgesPrepared = false;
                 var cameraData = data.cameraData;
                 cameraColor = cameraData.renderer.cameraColorTargetHandle;
                 cameraDepth = cameraData.renderer.cameraDepthTargetHandle;
                 var descriptor = cameraData.cameraTargetDescriptor;
                 prepared = writerPass >= 0 && clearPass >= 0 && cameraColor?.rt != null && cameraDepth != null && cameraData.isDefaultViewport &&
                     descriptor.dimension == TextureDimension.Tex2D && descriptor.volumeDepth == 1 && !descriptor.useDynamicScale;
-                if (!prepared) return;
+                if (!prepared)
+                {
+                    edges.Dispose();
+                    return;
+                }
                 width = Mathf.Max(1, Mathf.RoundToInt(descriptor.width * owner.ResolutionScale));
                 height = Mathf.Max(1, Mathf.RoundToInt(descriptor.height * owner.ResolutionScale));
                 prepared = false;
@@ -124,9 +135,17 @@ namespace Ossastra.WorldRendering.SideView
                     {
                         world.Dispose();
                         character.Dispose();
+                        edges.Dispose();
                     }
                 }
                 if (!prepared) return;
+                if (edgePass >= 0 && comparison != null && comparison.UsesAceFusionMaterial)
+                {
+                    try { edgesPrepared = edges.Prepare(width, height); }
+                    catch (UnityException exception) { Debug.LogWarning("ACE 方向光图未能分配：" + exception.Message, owner); }
+                    finally { if (!edgesPrepared) edges.Dispose(); }
+                }
+                else edges.Dispose();
                 ConfigureTarget(cameraColor, cameraDepth);
             }
 
@@ -138,7 +157,8 @@ namespace Ossastra.WorldRendering.SideView
                 var cameraData = data.cameraData;
                 var descriptor = cameraData.cameraTargetDescriptor;
                 // Match the actual game camera GPU projection and raster orientation, including its final presentation pose.
-                var projection = cameraData.GetGPUProjectionMatrix() * cameraData.GetViewMatrix();
+                var gpuProjection = cameraData.GetGPUProjectionMatrix();
+                var projection = gpuProjection * cameraData.GetViewMatrix();
                 bool flip = cameraData.IsHandleYFlipped(cameraColor) != cameraData.IsHandleYFlipped(world.Maps[0]);
                 if (flip) projection = Matrix4x4.Scale(new Vector3(1f, -1f, 1f)) * projection;
                 var cmd = CommandBufferPool.Get("Side view C · projected light maps");
@@ -148,12 +168,22 @@ namespace Ossastra.WorldRendering.SideView
                                 DrawGroup(cmd, character, SideViewAceLightGroups.Character, owner.Ambient(true), projection);
                     world.Publish(cmd);
                     character.Publish(cmd);
+                    int edgeDraws = 0;
+                    if (edgesPrepared)
+                    {
+                        // The stored vector is in camera raster axes. Remove both projection flips from its clip delta.
+                        bool gpuProjectionFlipped = gpuProjection.m11 * cameraData.GetProjectionMatrix().m11 < 0f;
+                        float clipToCameraY = gpuProjectionFlipped != flip ? -1f : 1f;
+                        edgeDraws = DrawEdges(cmd, projection, descriptor.width, descriptor.height, clipToCameraY);
+                    }
                     cmd.SetGlobalVector(ScreenToMap, new Vector4(1f / descriptor.width, 1f / descriptor.height, flip ? -1f : 1f, flip ? 1f : 0f));
                     cmd.SetGlobalFloat(Ready, 1f);
+                    cmd.SetGlobalFloat(EdgeReady, edgesPrepared ? 1f : 0f);
                     CoreUtils.SetRenderTarget(cmd, cameraColor, cameraDepth);
                     cmd.SetViewport(new Rect(0f, 0f, descriptor.width, descriptor.height));
                     context.ExecuteCommandBuffer(cmd);
-                    owner.RecordFrame(draws, width, height, 8, world.Maps[3].rt);
+                    owner.RecordFrame(draws, edgeDraws, width, height, edgesPrepared ? 10 : 8, world.Maps[3].rt,
+                        edgesPrepared ? edges.Maps[1].rt : null, edgesPrepared ? edges.Maps[0].rt : null);
                 }
                 finally { CommandBufferPool.Release(cmd); }
             }
@@ -164,8 +194,24 @@ namespace Ossastra.WorldRendering.SideView
                 cmd.SetViewport(new Rect(0f, 0f, width, height));
                 properties.SetVector(AmbientClear, (Vector4)ambient);
                 cmd.DrawProcedural(Matrix4x4.identity, writer, clearPass, MeshTopology.Triangles, 3, 1, properties);
+                return DrawLights(cmd, groupFlag, projection, writerPass);
+            }
+
+            private int DrawEdges(CommandBuffer cmd, Matrix4x4 projection, int cameraWidth, int cameraHeight, float clipToCameraY)
+            {
+                // Explicit per-attachment clears preserve the additive zero regardless of MRT clear semantics.
+                foreach (var map in edges.Maps) CoreUtils.SetRenderTarget(cmd, map, ClearFlag.Color, Color.clear);
+                cmd.SetRenderTarget(edges.Targets, BuiltinRenderTextureType.None);
+                cmd.SetViewport(new Rect(0f, 0f, width, height));
+                properties.SetVector(EdgeTarget, new Vector4(cameraWidth, cameraHeight, clipToCameraY, 0));
+                int draws = DrawLights(cmd, SideViewAceLightGroups.Character, projection, edgePass);
+                edges.Publish(cmd);
+                return draws;
+            }
+
+            private int DrawLights(CommandBuffer cmd, SideViewAceLightGroups groupFlag, Matrix4x4 projection, int pass)
+            {
                 int draws = 0;
-                // Original blend is alpha over. The author array defines the order when lights overlap.
                 foreach (var light in owner.Lights)
                 {
                     if (light == null || !light.isActiveAndEnabled || light.Intensity <= 0f || !light.HasValidSettings ||
@@ -177,7 +223,7 @@ namespace Ossastra.WorldRendering.SideView
                     properties.SetVector(Ambient, (Vector4)light.Ambient);
                     properties.SetVector(Bright, (Vector4)light.Bright);
                     properties.SetVector(Highlight, (Vector4)light.Highlight);
-                    cmd.DrawProcedural(light.Matrix, writer, writerPass, MeshTopology.Triangles, 6, 1, properties);
+                    cmd.DrawProcedural(light.Matrix, writer, pass, MeshTopology.Triangles, 6, 1, properties);
                     draws++;
                 }
                 return draws;
@@ -186,30 +232,39 @@ namespace Ossastra.WorldRendering.SideView
             public override void OnCameraCleanup(CommandBuffer cmd)
             {
                 cmd.SetGlobalFloat(Ready, 0f);
+                cmd.SetGlobalFloat(EdgeReady, 0f);
                 world.Unpublish(cmd);
                 character.Unpublish(cmd);
+                edges.Unpublish(cmd);
             }
 
             public void Dispose()
             {
                 world.Dispose();
                 character.Dispose();
+                edges.Dispose();
                 CoreUtils.Destroy(writer);
                 if (owner != null) owner.ClearFrame();
             }
 
             private sealed class Group : IDisposable
             {
-                private static readonly string[] Channels = { "Direction", "Highlight", "Bright", "Ambient" };
-                private readonly string name;
-                private readonly int[] names = new int[4];
-                internal readonly RTHandle[] Maps = new RTHandle[4];
-                internal readonly RenderTargetIdentifier[] Targets = new RenderTargetIdentifier[4];
+                private readonly string[] textureNames;
+                private readonly int[] names;
+                internal readonly RTHandle[] Maps;
+                internal readonly RenderTargetIdentifier[] Targets;
 
-                internal Group(string name)
+                internal Group(string prefix, string[] channels, string displayPrefix = null)
                 {
-                    this.name = name;
-                    for (int i = 0; i < Maps.Length; i++) names[i] = Shader.PropertyToID("_SideViewAce" + name + Channels[i]);
+                    names = new int[channels.Length];
+                    textureNames = new string[channels.Length];
+                    Maps = new RTHandle[channels.Length];
+                    Targets = new RenderTargetIdentifier[channels.Length];
+                    for (int i = 0; i < channels.Length; i++)
+                    {
+                        names[i] = Shader.PropertyToID("_SideViewAce" + prefix + channels[i]);
+                        textureNames[i] = "ACE " + (displayPrefix ?? prefix) + " " + channels[i];
+                    }
                 }
 
                 internal bool Ready
@@ -230,7 +285,7 @@ namespace Ossastra.WorldRendering.SideView
                     {
                         Maps[i] = RTHandles.Alloc(width, height, colorFormat: Format, filterMode: FilterMode.Bilinear,
                             wrapMode: TextureWrapMode.Clamp, autoGenerateMips: false,
-                            name: "ACE " + name + " " + Channels[i]);
+                            name: textureNames[i]);
                         if (Maps[i]?.rt == null || !Maps[i].rt.IsCreated()) return false;
                         Targets[i] = Maps[i].nameID;
                     }

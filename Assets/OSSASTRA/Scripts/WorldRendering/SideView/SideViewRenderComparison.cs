@@ -22,7 +22,7 @@ namespace Ossastra.WorldRendering.SideView
     public sealed class SideViewRenderComparison : MonoBehaviour
     {
         public enum Recipe { Legacy = 1, Silksong = 2, Ace = 3 }
-        public enum AceCharacterMaterial { Original, Replica }
+        public enum AceCharacterMaterial { Original, Replica, Fusion }
 
         [Serializable]
         private struct TintRegion
@@ -59,6 +59,8 @@ namespace Ossastra.WorldRendering.SideView
         [SerializeField] private Text statusLabel;
         [SerializeField] private SideViewAceLighting aceLighting;
         [SerializeField] private GameObject aceCharacterControls;
+        [SerializeField] private Recipe startupRecipe = Recipe.Legacy;
+        [SerializeField] private AceCharacterMaterial startupAceMaterial = AceCharacterMaterial.Replica;
         [SerializeField] private Vector2 heroLightSize = new Vector2(18.52f, 17.53f);
         [SerializeField] private Vector2 heroLightOffset = new Vector2(0, -.60f);
         [SerializeField] private Color heroLightGamma = new Color(.850522f, .860294f, .816014f, .722f);
@@ -78,6 +80,7 @@ namespace Ossastra.WorldRendering.SideView
         private bool silksongMsaaLease;
         private bool savedCameraMsaa;
         private bool aceRenderFailed;
+        private bool aceEdgesFailed;
 
         internal static event Action<int> Released;
 
@@ -85,7 +88,8 @@ namespace Ossastra.WorldRendering.SideView
         public AceCharacterMaterial ActiveAceMaterial { get; private set; } = AceCharacterMaterial.Replica;
         public string Status { get; private set; }
         internal bool IsSilksong => Active == Recipe.Silksong;
-        internal bool UsesAceCharacterMaterial => Active == Recipe.Ace && ActiveAceMaterial == AceCharacterMaterial.Replica;
+        internal bool UsesAceCharacterMaterial => Active == Recipe.Ace && ActiveAceMaterial != AceCharacterMaterial.Original;
+        internal bool UsesAceFusionMaterial => Active == Recipe.Ace && ActiveAceMaterial == AceCharacterMaterial.Fusion;
         internal Material SilksongLayers => silksongLayers;
         internal Material SilksongGrade => silksongGrade;
         internal Texture2D HeroLight => heroLight;
@@ -102,6 +106,13 @@ namespace Ossastra.WorldRendering.SideView
         public void SelectAce() => requested = Recipe.Ace;
         public void SelectAceOriginal() => requestedAceMaterial = AceCharacterMaterial.Original;
         public void SelectAceReplica() => requestedAceMaterial = AceCharacterMaterial.Replica;
+        public void SelectAceFusion() => requestedAceMaterial = AceCharacterMaterial.Fusion;
+
+        private void Awake()
+        {
+            requested = startupRecipe;
+            requestedAceMaterial = startupAceMaterial;
+        }
 
         private void OnEnable()
         {
@@ -203,6 +214,13 @@ namespace Ossastra.WorldRendering.SideView
                 if (Active != Recipe.Ace) Status = "C 未生成当前相机的光图，已退出 C。";
             }
             aceRenderFailed = false;
+            if (aceEdgesFailed && UsesAceFusionMaterial && requested == Recipe.Ace && requestedAceMaterial == AceCharacterMaterial.Fusion)
+            {
+                requestedAceMaterial = AceCharacterMaterial.Replica;
+                ApplyAceMaterialRequest();
+                Status = "方向光图不可用，C 已恢复基础材质。";
+            }
+            aceEdgesFailed = false;
             if (requested != Active && TryPrepareCards()) TrySelect(requested);
             if (Active == null) ReleaseCards();
             else if (IsSilksong) UpdateHeroTints();
@@ -219,6 +237,7 @@ namespace Ossastra.WorldRendering.SideView
             {
                 Status = reason;
                 if (Active.HasValue) requested = Active.Value;
+                else if (recipe != Recipe.Legacy) requested = Recipe.Legacy;
                 return;
             }
 
@@ -228,7 +247,7 @@ namespace Ossastra.WorldRendering.SideView
             {
                 if (recipe == Recipe.Ace && previous.HasValue) aceReturnRecipe = previous.Value;
                 Active = recipe;
-                Status = DescribeActive();
+                Status = string.IsNullOrEmpty(reason) ? DescribeActive() : DescribeActive() + " · " + reason;
                 return;
             }
             // 提交失败后重新取得上一方案的实际输入，而不是只改回显示标签。
@@ -243,6 +262,7 @@ namespace Ossastra.WorldRendering.SideView
                 }
                 else reason += "；恢复失败：" + recovery;
             }
+            else if (recipe != Recipe.Legacy) requested = Recipe.Legacy;
             Status = reason;
         }
 
@@ -262,7 +282,7 @@ namespace Ossastra.WorldRendering.SideView
                     reason = "B 的合成资源未绑定。";
                     return false;
                 case Recipe.Ace:
-                    if (aceLighting == null || legacyEnvironment == null || !characters.CanUseAceCharacterMaterial)
+                    if (aceLighting == null || !characters.CanUseAceCharacterMaterial)
                     {
                         reason = "C 的光图或角色材质未绑定。";
                         return false;
@@ -287,9 +307,14 @@ namespace Ossastra.WorldRendering.SideView
                     return true;
                 case Recipe.Ace:
                     if (!aceLighting.TryActivate(ownedCamera, out reason)) return false;
-                    if (!legacyEnvironment.TryApplyCharacterProfiles(ownedCamera, environment, blue, freycia,
-                        out restoreAceProfiles, out reason)) return false;
-                    if (!recovering) ActiveAceMaterial = requestedAceMaterial;
+                    var next = recovering ? ActiveAceMaterial : requestedAceMaterial;
+                    if (!TryPrepareAceMaterial(next, out reason))
+                    {
+                        // The base receiver is available independently of optional edge and legacy inputs.
+                        next = AceCharacterMaterial.Replica;
+                        requestedAceMaterial = next;
+                    }
+                    ActiveAceMaterial = next;
                     return true;
                 default:
                     reason = "未知渲染方案。";
@@ -299,21 +324,52 @@ namespace Ossastra.WorldRendering.SideView
 
         private void ApplyAceMaterialRequest()
         {
-            if (requestedAceMaterial == AceCharacterMaterial.Replica && !characters.CanUseAceCharacterMaterial)
+            if (!TryPrepareAceMaterial(requestedAceMaterial, out var reason))
             {
                 requestedAceMaterial = ActiveAceMaterial;
-                Status = "苍翼角色材质未就绪。";
+                Status = reason;
                 return;
             }
+            if (requestedAceMaterial != AceCharacterMaterial.Original) ReleaseAceProfiles();
             ActiveAceMaterial = requestedAceMaterial;
             Status = DescribeActive();
+        }
+
+        private bool TryPrepareAceMaterial(AceCharacterMaterial material, out string reason)
+        {
+            reason = string.Empty;
+            switch (material)
+            {
+                case AceCharacterMaterial.Original:
+                    if (legacyEnvironment != null)
+                        return legacyEnvironment.TryApplyCharacterProfiles(ownedCamera, environment, blue, freycia,
+                            out restoreAceProfiles, out reason);
+                    reason = "旧材质参考缺少旧照明输入。";
+                    return false;
+                case AceCharacterMaterial.Replica:
+                    if (characters.CanUseAceCharacterMaterial) return true;
+                    reason = "ACE 基础材质未就绪。";
+                    return false;
+                case AceCharacterMaterial.Fusion:
+                    if (characters.CanUseAceFusion && aceLighting.CanUseEdgeMaps) return true;
+                    reason = "融合材质缺少联合轮廓或方向光图。";
+                    return false;
+                default:
+                    reason = "未知角色材质。";
+                    return false;
+            }
         }
 
         private string DescribeActive() => Active switch
         {
             Recipe.Legacy => "A 旧主场完整渲染",
             Recipe.Silksong => "B 丝之歌渲染",
-            Recipe.Ace => ActiveAceMaterial == AceCharacterMaterial.Original ? "C ACELight · 原有材质" : "C ACELight · 苍翼复刻材质",
+            Recipe.Ace => ActiveAceMaterial switch
+            {
+                AceCharacterMaterial.Original => "C ACELight · 旧材质参考",
+                AceCharacterMaterial.Fusion => "C ACELight · 融合材质",
+                _ => "C ACELight · ACE 基础材质"
+            },
             _ => string.Empty
         };
 
@@ -321,6 +377,11 @@ namespace Ossastra.WorldRendering.SideView
         {
             ReleaseLegacy();
             aceLighting?.Deactivate(ownedCamera);
+            ReleaseAceProfiles();
+        }
+
+        private void ReleaseAceProfiles()
+        {
             restoreAceProfiles?.Invoke();
             restoreAceProfiles = null;
         }
@@ -421,6 +482,7 @@ namespace Ossastra.WorldRendering.SideView
             context.ExecuteCommandBuffer(cmd);
             CommandBufferPool.Release(cmd);
             if (Active == Recipe.Ace && aceLighting.LastLightMapFrame != Time.frameCount) aceRenderFailed = true;
+            else if (UsesAceFusionMaterial && aceLighting.LastTextureCount != 10) aceEdgesFailed = true;
             RestoreCameraSampling();
             inRender = false;
         }
@@ -458,6 +520,7 @@ namespace Ossastra.WorldRendering.SideView
             heroTints.Clear();
             Active = null;
             aceRenderFailed = false;
+            aceEdgesFailed = false;
             characters?.PublishMaterialStrategy(false);
             RestoreCameraSampling();
             if (aceCharacterControls != null) aceCharacterControls.SetActive(false);

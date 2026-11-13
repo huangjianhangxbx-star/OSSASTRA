@@ -36,7 +36,7 @@ Shader "Ossastra/Characters/SideViewAceSpine"
    #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
    #define USE_URP
    #include "Assets/Spine/Runtime/spine-unity/Shaders/CGIncludes/Spine-Common.cginc"
-   #include "SideViewAceCharacter.hlsl"
+   #include "SideViewAceFusion.hlsl"
    TEXTURE2D(_MainTex); SAMPLER(sampler_MainTex);
    float4 _MainTex_ST, _Color;
    float _SideViewCutout, _PmaInput, _Cutoff, _AceSlotTint;
@@ -49,8 +49,8 @@ Shader "Ossastra/Characters/SideViewAceSpine"
        float3 world = TransformObjectToWorld(input.position.xyz) + _SideViewPresentationOffset.xyz;
        output.position = TransformWorldToHClip(world);
        output.uv = _SideViewCutout > .5 ? TRANSFORM_TEX(input.uv, _MainTex) : input.uv;
-       output.color = _SideViewCutout > .5 ? input.color * _Color : PMAGammaToTargetSpace(input.color);
-       if (_AceSlotTint > .5) output.color *= float4(_Color.rgb * _Color.a, _Color.a);
+       output.color = PMAGammaToTargetSpace(input.color);
+       if (_SideViewCutout > .5 || _AceSlotTint > .5) output.color *= float4(_Color.rgb * _Color.a, _Color.a);
        return output;
    }
    float4 Frag(Varyings input) : SV_Target
@@ -60,12 +60,14 @@ Shader "Ossastra/Characters/SideViewAceSpine"
        if (_SideViewCutout > .5)
        {
            clip(color.a - _Cutoff);
-           color.rgb *= _PmaInput > .5 ? color.a / max(texel.a, .001) : color.a;
+           // The Spine mesh already includes the vertex opacity in RGB.
+           if (_PmaInput < .5) color.rgb *= texel.a;
        }
        #if defined(_STRAIGHT_ALPHA_INPUT)
        else color.rgb *= texel.a;
        #endif
-       color.rgb = SideViewAceCharacterColor(color.rgb, color.a, input.position);
+       // Separate native blend slots keep their operator input and do not get surface gain twice.
+       if (_AceSlotTint < .5) color.rgb = SideViewAceFusionColor(color.rgb, color.a, input.position);
        return color;
    }
    ENDHLSL

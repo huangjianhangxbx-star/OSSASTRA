@@ -22,6 +22,75 @@ namespace Ossastra.WorldRendering.SideView
         private const string ScenePath = "Assets/OSSASTRA/SideView/SC_SideViewAdventure.unity";
         private const string RendererPath = "Assets/OSSASTRA/SideView/Rendering/SideViewCharacterRenderer.asset";
 
+        public static void InstallFusion()
+        {
+            var scene = SceneManager.GetActiveScene();
+            if (scene.path != ScenePath || scene.isDirty || EditorApplication.isPlayingOrWillChangePlaymode)
+                throw new InvalidOperationException("需要已保存的正式横版场，并处于编辑状态。");
+            var comparison = scene.GetRootGameObjects().SelectMany(root => root.GetComponentsInChildren<SideViewRenderComparison>(true)).Single();
+            var characters = comparison.GetComponent<SideViewCharacterRendering>();
+            var owner = new SerializedObject(comparison);
+            var host = Property(owner, "aceCharacterControls").objectReferenceValue as GameObject;
+            var rootLighting = Property(owner, "aceLighting").objectReferenceValue as SideViewAceLighting;
+            if (host == null || rootLighting == null || characters == null || !rootLighting.CanUseEdgeMaps)
+                throw new InvalidOperationException("需先登记 ACE 光图及现有对照按钮。");
+            var old = host.transform.Find("SelectOriginal");
+            var basic = host.transform.Find("SelectReplica");
+            var diagnosticsButton = host.transform.Find("LightDiagnostics");
+            var panel = host.transform.Find("LightDiagnosticsPanel");
+            if (old == null || basic == null || diagnosticsButton == null || panel == null || host.transform.Find("SelectFusion") != null)
+                throw new InvalidOperationException("现有 C 面板结构不匹配或已经接入融合材质。");
+            var atlas = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/OSSASTRA/LocalMedia/DIR02Blue/BlueFiveFace.png");
+            if (atlas == null) throw new InvalidOperationException("小蓝图集资源缺失。");
+            var coverage = FindShader("Hidden/Ossastra/CharacterLighting/Coverage");
+            var outer = FindShader("Ossastra/Characters/SideViewOuterLight");
+            var label = old.GetComponentInChildren<Text>(true);
+            Undo.IncrementCurrentGroup();
+            int group = Undo.GetCurrentGroup();
+            Undo.SetCurrentGroupName("Install ACE character fusion");
+            try
+            {
+                Undo.RecordObject(label, "Label legacy receiver");
+                label.text = "旧材质参考";
+                var basicLabel = basic.GetComponentInChildren<Text>(true);
+                Undo.RecordObject(basicLabel, "Label ACE base receiver");
+                basicLabel.text = "ACE 基础材质";
+                SetRect(old.GetComponent<RectTransform>(), -242, -73, 148, 32);
+                SetRect(basic.GetComponent<RectTransform>(), -81, -73, 148, 32);
+                CreateButton(host.transform, label.font, "SelectFusion", "融合材质", 80, -73, comparison.SelectAceFusion);
+                var options = host.GetComponent<SideViewAceDiagnostics>();
+                if (options == null) throw new InvalidOperationException("缺少已登记的 ACE 调试面板。");
+                SetRect(panel.GetComponent<RectTransform>(), 139, -184, 352, 184);
+                CreateButton(panel, label.font, "ToggleInner", "关闭内边光", -80, -124, options.ToggleInner);
+                CreateButton(panel, label.font, "ToggleOuter", "关闭外柔光", 80, -124, options.ToggleOuter);
+                CreateButton(panel, label.font, "ColorDiagnostic", "色彩诊断 · 场景原色", -80, -157, options.CycleColor);
+                var previewButton = CreateButton(panel, label.font, "CyclePreview", "查看轮廓 / 光向", 74, -23, options.CyclePreview);
+                SetRect(previewButton.GetComponent<RectTransform>(), -74, -93, 166, 25);
+
+                var serialized = new SerializedObject(characters);
+                Property(serialized, "aceStraightAtlas").objectReferenceValue = atlas;
+                Property(serialized, "aceCoverageShader").objectReferenceValue = coverage;
+                Property(serialized, "outerShader").objectReferenceValue = outer;
+                serialized.ApplyModifiedProperties();
+                var diagnostic = new SerializedObject(options);
+                Property(diagnostic, "characters").objectReferenceValue = characters;
+                Property(diagnostic, "innerLabel").objectReferenceValue = panel.Find("ToggleInner").GetComponentInChildren<Text>();
+                Property(diagnostic, "outerLabel").objectReferenceValue = panel.Find("ToggleOuter").GetComponentInChildren<Text>();
+                Property(diagnostic, "colorLabel").objectReferenceValue = panel.Find("ColorDiagnostic").GetComponentInChildren<Text>();
+                diagnostic.ApplyModifiedProperties();
+                Property(owner, "startupRecipe").intValue = (int)SideViewRenderComparison.Recipe.Ace;
+                Property(owner, "startupAceMaterial").enumValueIndex = (int)SideViewRenderComparison.AceCharacterMaterial.Fusion;
+                owner.ApplyModifiedProperties();
+                EditorSceneManager.MarkSceneDirty(scene);
+                Undo.CollapseUndoOperations(group);
+            }
+            catch
+            {
+                Undo.RevertAllDownToGroup(group);
+                throw;
+            }
+        }
+
         public static string Install()
         {
             Scene scene = SceneManager.GetActiveScene();

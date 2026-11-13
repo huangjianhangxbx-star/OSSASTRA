@@ -19,9 +19,15 @@ namespace Ossastra.Characters.Rendering
         public Transform solidGeometry;
         [SerializeField] private Shader aceSpineShader;
         [SerializeField] private Shader aceSpriteShader;
+        [SerializeField] private Texture2D aceStraightAtlas;
+        [SerializeField] private Shader aceCoverageShader;
+        [SerializeField] private Vector4 aceRim = new Vector4(2.5f, .9f, .8f, .32f);
+        [SerializeField] private Vector4 aceOuter = new Vector4(3.8f, .48f, .26f, 1.25f);
+        [SerializeField] private Vector4 aceShoulder = new Vector4(.85f, 1.2f, .016f, .14f);
 
         private static readonly int PresentationOffsetId = Shader.PropertyToID("_SideViewPresentationOffset");
         private static readonly int OriginalTintId = Shader.PropertyToID("_SideViewOriginalHeroTint");
+        private static readonly int FusionActorId = Shader.PropertyToID("_SideViewAceFusionActor");
         private MaterialPropertyBlock block;
         private readonly List<Material> slots = new List<Material>(8);
         private readonly Dictionary<Renderer, Vector3> presentationOffsets = new Dictionary<Renderer, Vector3>(8);
@@ -33,10 +39,22 @@ namespace Ossastra.Characters.Rendering
         private Shader coverageShader;
         private Camera camera;
         private SideViewRenderComparison comparison;
+        private readonly CharacterCoverageBinding[] fusionBindings = new CharacterCoverageBinding[2];
+        private readonly Vector4[] fusionRects = new Vector4[2];
+        private readonly Vector4[] fusionTiles = new Vector4[2];
+        private bool innerEnabled = true, outerEnabled = true, wasFusion;
+        private Vector4 aceColorDiagnostic;
         public int LastCoverageActors => coverage == null ? 0 : coverage.ActiveActorCount;
+        public int LastCoverageDraws => coverage == null ? 0 : coverage.DrawCount;
+        public Texture CoveragePreview => coverage?.Atlas;
         public int LastBoundRenderers { get; private set; }
         public bool CanUseAceCharacterMaterial => aceSpineShader != null && aceSpineShader.isSupported &&
             aceSpriteShader != null && aceSpriteShader.isSupported;
+        public bool CanUseAceFusion => CanUseAceCharacterMaterial && aceCoverageShader != null && aceCoverageShader.isSupported &&
+            outerShader != null && outerShader.isSupported;
+        public void EnableAceInner(bool enabled) => innerEnabled = enabled;
+        public void EnableAceOuter(bool enabled) => outerEnabled = enabled;
+        public void SetAceColorDiagnostic(Vector4 setting) => aceColorDiagnostic = setting;
 
         private void Awake()
         {
@@ -45,7 +63,11 @@ namespace Ossastra.Characters.Rendering
             block = new MaterialPropertyBlock();
         }
 
-        private void OnEnable() => RenderPipelineManager.beginCameraRendering += PublishPresentation;
+        private void OnEnable()
+        {
+            RenderPipelineManager.beginCameraRendering += PublishPresentation;
+            RenderPipelineManager.endCameraRendering += ClearAceCameraInputs;
+        }
 
         private bool TryGetReceiver(CharacterRoot actor, out CharacterLightingReceiver receiver)
         {
@@ -57,13 +79,23 @@ namespace Ossastra.Characters.Rendering
         private void PublishPresentation(ScriptableRenderContext context, Camera renderingCamera)
         {
             if (renderingCamera != camera) return;
+            Shader.SetGlobalVector("_SideViewAceColorDiagnostic", comparison != null && comparison.UsesAceCharacterMaterial
+                ? aceColorDiagnostic : Vector4.zero);
             PublishMaterialStrategy(comparison != null && comparison.UsesAceCharacterMaterial);
             // URP snapshots renderer properties for drawing before the coverage pass runs.
             stale.Clear();
             stale.AddRange(presentationOffsets.Keys);
             presentationOffsets.Clear();
-            foreach (var actor in actors)
+            bool fusion = comparison != null && comparison.UsesAceFusionMaterial;
+            if (!fusion && wasFusion)
             {
+                foreach (var glow in outer.Values) glow.Dispose();
+                outer.Clear();
+            }
+            wasFusion = fusion;
+            for (int i = 0; i < actors.Length; i++)
+            {
+                var actor = actors[i];
                 if (!TryGetReceiver(actor, out var receiver)) continue;
                 var move = actor.GetComponent<CharacterMovement>();
                 Vector3 offset = move == null ? Vector3.zero : move.PresentationOffset;
@@ -72,9 +104,11 @@ namespace Ossastra.Characters.Rendering
                 {
                     if (renderer == null || !renderer.enabled || !renderer.gameObject.activeInHierarchy) continue;
                     presentationOffsets[renderer] = offset;
-                    WritePresentationOffset(renderer, offset, originalTint);
+                    WritePresentationOffset(renderer, offset, originalTint, fusion && i < fusionBindings.Length ? i + 1 : 0);
                     stale.Remove(renderer);
                 }
+                if (fusion && i < fusionBindings.Length && outerEnabled && aceOuter.y > 0 && aceOuter.z > 0)
+                    GetOuter(actor).ArmFusion(camera, i);
             }
             foreach (var renderer in stale)
                 if (renderer != null) WritePresentationOffset(renderer, Vector3.zero, Color.white);
@@ -85,7 +119,7 @@ namespace Ossastra.Characters.Rendering
             useAce &= CanUseAceCharacterMaterial;
             foreach (var actor in actors)
                 if (actor != null && actor.TryGetComponent<CharacterUprightDepth>(out var owner))
-                    owner.SetSideViewAceMaterial(useAce, aceSpineShader, aceSpriteShader);
+                    owner.SetSideViewAceMaterial(useAce, aceSpineShader, aceSpriteShader, aceStraightAtlas);
         }
 
         private void LateUpdate()
@@ -103,18 +137,21 @@ namespace Ossastra.Characters.Rendering
             if (renderingCamera != camera) return;
             bool lit = (comparison == null || !comparison.IsSilksong && !comparison.UsesAceCharacterMaterial) &&
                 CharacterLightingSystem.TryGet(camera, out var active) && active == lighting;
-            if (lit && lighting.WantsCoverage && lighting.coverageShader != null)
+            bool fusion = comparison != null && comparison.UsesAceFusionMaterial;
+            var shader = fusion ? aceCoverageShader : lit && lighting.WantsCoverage ? lighting.coverageShader : null;
+            if (shader != null)
             {
-                if (coverage == null || coverageShader != lighting.coverageShader)
+                if (coverage == null || coverageShader != shader)
                 {
                     ReleaseCoverage();
-                    coverageShader = lighting.coverageShader;
+                    coverageShader = shader;
                     coverage = new CharacterCoverageCache(coverageShader);
                 }
                 coverage.Append(cmd, camera, gpuViewProjection, width, height, ReadOffset);
-                lighting.ReportCoverage(coverage);
+                if (lighting != null) lighting.ReportCoverage(coverage);
             }
             else ReleaseCoverage();
+            if (fusion) PublishFusionCoverage(cmd, width, height);
 
             stale.Clear();
             stale.AddRange(bound);
@@ -131,12 +168,12 @@ namespace Ossastra.Characters.Rendering
                 {
                     if (renderer == null || !renderer.enabled || !renderer.gameObject.activeInHierarchy) continue;
                     CharacterCoverageBinding silhouette = default;
-                    if (coverage != null && coverage.TryGet(renderer, out silhouette)) outerBinding = silhouette;
+                    if (!fusion && coverage != null && coverage.TryGet(renderer, out silhouette)) outerBinding = silhouette;
                     WriteBlocks(renderer, parameters, silhouette);
                     stale.Remove(renderer);
                     bound.Add(renderer);
                 }
-                SetOuter(actor, parameters, outerBinding);
+                if (!fusion) SetOuter(actor, parameters, outerBinding);
             }
             foreach (var renderer in stale)
             {
@@ -144,6 +181,39 @@ namespace Ossastra.Characters.Rendering
                 bound.Remove(renderer);
             }
             LastBoundRenderers = bound.Count;
+        }
+
+        private void PublishFusionCoverage(CommandBuffer cmd, int width, int height)
+        {
+            SideViewOuterLight.ResetFusion(cmd);
+            var atlas = coverage?.Atlas;
+            for (int i = 0; i < fusionBindings.Length; i++)
+            {
+                CharacterCoverageBinding binding = default;
+                if (atlas != null && i < actors.Length && TryGetReceiver(actors[i], out var receiver))
+                    foreach (var member in receiver.Members)
+                        if (coverage.TryGet(member, out binding)) break;
+                fusionBindings[i] = binding;
+                fusionRects[i] = binding.ScreenRect;
+                fusionTiles[i] = binding.AtlasRect;
+            }
+            cmd.SetGlobalTexture("_SideViewAceFusionCoverage", atlas != null ? (Texture)atlas : Texture2D.blackTexture);
+            cmd.SetGlobalVectorArray("_SideViewAceFusionRect", fusionRects);
+            cmd.SetGlobalVectorArray("_SideViewAceFusionTile", fusionTiles);
+            cmd.SetGlobalVector("_SideViewAceFusionScreen", new Vector4(width, height, 1f / width, 1f / height));
+            cmd.SetGlobalVector("_SideViewAceFusionTexel", atlas != null ? new Vector4(1f / atlas.width, 1f / atlas.height, 0, 0) : Vector4.zero);
+            Vector4 rim = aceRim;
+            if (!innerEnabled) rim.z = 0;
+            cmd.SetGlobalVector("_SideViewAceFusionRim", rim);
+            cmd.SetGlobalVector("_SideViewAceFusionShoulder", aceShoulder);
+            for (int i = 0; i < Mathf.Min(actors.Length, fusionBindings.Length); i++)
+                if (actors[i] != null && outer.TryGetValue(actors[i], out var glow))
+                {
+                    var binding = fusionBindings[i];
+                    if (outerEnabled && aceColorDiagnostic.x < .5f && atlas != null && binding.Owner != null)
+                        glow.PresentFusion(cmd, binding, atlas, aceOuter, fusionBindings[1 - i]);
+                    else glow.Hide();
+                }
         }
 
         private Vector3 ReadOffset(Renderer renderer) =>
@@ -212,11 +282,12 @@ namespace Ossastra.Characters.Rendering
             return true;
         }
 
-        private void WritePresentationOffset(Renderer renderer, Vector3 offset, Color originalTint)
+        private void WritePresentationOffset(Renderer renderer, Vector3 offset, Color originalTint, int fusionActor = 0)
         {
             renderer.GetPropertyBlock(block);
             block.SetVector(PresentationOffsetId, offset);
             block.SetVector(OriginalTintId, originalTint);
+            block.SetFloat(FusionActorId, fusionActor);
             renderer.SetPropertyBlock(block);
             renderer.GetSharedMaterials(slots);
             for (int index = 0; index < slots.Count; index++)
@@ -225,6 +296,7 @@ namespace Ossastra.Characters.Rendering
                 if (block.isEmpty) continue;
                 block.SetVector(PresentationOffsetId, offset);
                 block.SetVector(OriginalTintId, originalTint);
+                block.SetFloat(FusionActorId, fusionActor);
                 renderer.SetPropertyBlock(block, index);
             }
         }
@@ -274,15 +346,20 @@ namespace Ossastra.Characters.Rendering
                 if (outer.TryGetValue(actor, out var existing)) existing.Hide();
                 return;
             }
+            block.Clear();
+            WriteBlock(light, silhouette);
+            block.SetVector("_SideViewOuter", light.outer);
+            GetOuter(actor).Present(camera, silhouette, block);
+        }
+
+        private SideViewOuterLight GetOuter(CharacterRoot actor)
+        {
             if (!outer.TryGetValue(actor, out var glow))
             {
                 glow = new SideViewOuterLight(actor.transform, outerShader);
                 outer.Add(actor, glow);
             }
-            block.Clear();
-            WriteBlock(light, silhouette);
-            block.SetVector("_SideViewOuter", light.outer);
-            glow.Present(camera, silhouette, block);
+            return glow;
         }
 
         private void ReleaseCoverage()
@@ -297,6 +374,8 @@ namespace Ossastra.Characters.Rendering
         private void OnDisable()
         {
             RenderPipelineManager.beginCameraRendering -= PublishPresentation;
+            RenderPipelineManager.endCameraRendering -= ClearAceCameraInputs;
+            ClearAceCameraInputs(default, camera);
             PublishMaterialStrategy(false);
             foreach (var renderer in presentationOffsets.Keys)
                 if (renderer != null) WritePresentationOffset(renderer, Vector3.zero, Color.white);
@@ -307,6 +386,13 @@ namespace Ossastra.Characters.Rendering
             foreach (var glow in outer.Values) glow.Dispose();
             outer.Clear();
             LastBoundRenderers = 0;
+        }
+
+        private void ClearAceCameraInputs(ScriptableRenderContext context, Camera renderingCamera)
+        {
+            if (renderingCamera != camera) return;
+            Shader.SetGlobalVector("_SideViewAceColorDiagnostic", Vector4.zero);
+            Shader.SetGlobalTexture("_SideViewAceFusionCoverage", Texture2D.blackTexture);
         }
 
         private struct SurfaceLighting

@@ -33,6 +33,7 @@ namespace Ossastra.Characters.Rendering
         private CharacterEquipmentView spriteEquipment;
         private Camera gameplayCamera;
         private Shader sideViewAceSpine, sideViewAceSprite;
+        private Texture2D sideViewAceStraightAtlas;
         private bool prepared, callbacksBound, disposed, statusDirty;
         private float nextStatusTime;
         private static readonly int Foot = Shader.PropertyToID("_VisualDepthFoot");
@@ -65,14 +66,17 @@ namespace Ossastra.Characters.Rendering
         }
 
         // Only the existing owner changes its materials. The camera calls this before freezing the MPB offset.
-        internal void SetSideViewAceMaterial(bool useAce, Shader spine, Shader sprite)
+        internal void SetSideViewAceMaterial(bool useAce, Shader spine, Shader sprite, Texture2D verifiedStraightAtlas = null)
         {
             if (!sideViewTransparent && sideViewAceSpine == null) return;
             Shader selectedSpine = useAce && sideViewTransparent ? spine : null;
             Shader selectedSprite = useAce && sideViewTransparent ? sprite : null;
-            if (sideViewAceSpine == selectedSpine && sideViewAceSprite == selectedSprite) return;
+            Texture2D selectedAtlas = selectedSpine != null ? verifiedStraightAtlas : null;
+            if (sideViewAceSpine == selectedSpine && sideViewAceSprite == selectedSprite &&
+                sideViewAceStraightAtlas == selectedAtlas) return;
             sideViewAceSpine = selectedSpine;
             sideViewAceSprite = selectedSprite;
+            sideViewAceStraightAtlas = selectedAtlas;
 
             foreach (var binding in sources)
             {
@@ -318,7 +322,11 @@ namespace Ossastra.Characters.Rendering
                     entry.variant.SetFloat("_AceSlotTint", hasSeparateSlotBlend ? 1f : 0f);
                     entry.variant.SetFloat("_AceSourceBlend", (float)src);
                     entry.variant.SetFloat("_AceDestinationBlend", (float)dst);
-                    if (entry.effective.IsKeywordEnabled("_STRAIGHT_ALPHA_INPUT")) entry.variant.EnableKeyword("_STRAIGHT_ALPHA_INPUT");
+                    // Match an author-verified atlas by identity, even if its old source metadata reports PMA.
+                    bool verifiedStraight = sideViewAceStraightAtlas != null &&
+                        entry.effective.GetTexture("_MainTex") == sideViewAceStraightAtlas;
+                    if (verifiedStraight) entry.variant.SetFloat("_PmaInput", 0f);
+                    if (verifiedStraight || entry.effective.IsKeywordEnabled("_STRAIGHT_ALPHA_INPUT")) entry.variant.EnableKeyword("_STRAIGHT_ALPHA_INPUT");
                     else entry.variant.DisableKeyword("_STRAIGHT_ALPHA_INPUT");
                 }
                 entry.variant.SetFloat(Enabled, 0);
@@ -393,6 +401,7 @@ namespace Ossastra.Characters.Rendering
         {
             prepared = false; gameplayCamera = null;
             sideViewAceSpine = null; sideViewAceSprite = null;
+            sideViewAceStraightAtlas = null;
             if (callbacksBound)
             {
                 RenderPipelineManager.beginCameraRendering -= BeginCamera;

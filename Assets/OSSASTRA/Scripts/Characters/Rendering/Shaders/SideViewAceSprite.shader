@@ -35,7 +35,7 @@ Shader "Ossastra/Characters/SideViewAceSprite"
    #define SAMPLER(name) SamplerState name
    #define SAMPLE_TEXTURE2D(tex, samplerState, uv) tex.Sample(samplerState, uv)
    #endif
-   #include "SideViewAceCharacter.hlsl"
+   #include "SideViewAceFusion.hlsl"
    struct Varyings { float4 position:SV_POSITION; float2 uv:TEXCOORD0; float4 color:COLOR; UNITY_VERTEX_OUTPUT_STEREO };
    Varyings Vert(appdata_t input)
    {
@@ -55,7 +55,7 @@ Shader "Ossastra/Characters/SideViewAceSprite"
    float4 Frag(Varyings input):SV_Target
    {
        float4 color = SampleSpriteTexture(input.uv) * input.color;
-       color.rgb = SideViewAceCharacterColor(color.rgb * color.a, color.a, input.position);
+       color.rgb = SideViewAceFusionColor(color.rgb * color.a, color.a, input.position);
        return color;
    }
    ENDCG

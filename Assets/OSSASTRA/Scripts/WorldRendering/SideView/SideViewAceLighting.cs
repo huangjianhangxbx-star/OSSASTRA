@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace Ossastra.WorldRendering.SideView
 {
@@ -23,9 +24,25 @@ namespace Ossastra.WorldRendering.SideView
 
         public int LastLightMapFrame { get; private set; } = -1;
         public int LastDrawCount { get; private set; }
+        public int LastEdgeDrawCount { get; private set; }
         public int LastTextureCount { get; private set; }
         public Vector2Int LastTextureSize { get; private set; }
         public Texture AmbientPreview { get; private set; }
+        public Texture EdgePreview { get; private set; }
+        public Texture EdgeDirectionPreview { get; private set; }
+        public bool EdgeMapsReady => EdgePreview != null && EdgeDirectionPreview != null;
+        public bool CanUseEdgeMaps
+        {
+            get
+            {
+                if (writer == null || !writer.isSupported || !SideViewAceLightMapFeature.SupportsLightMaps) return false;
+                var lightMode = new ShaderTagId("LightMode");
+                var edgePass = new ShaderTagId("SideViewAceEdgeMaps");
+                for (int index = 0; index < writer.passCount; index++)
+                    if (writer.FindPassTagValue(index, lightMode) == edgePass) return true;
+                return false;
+            }
+        }
         internal Shader Writer => writer;
         internal float ResolutionScale => resolutionScale;
         internal IReadOnlyList<SideViewAceLight> Lights => lights;
@@ -100,21 +117,26 @@ namespace Ossastra.WorldRendering.SideView
             return camera != null && Owners.TryGetValue(camera, out owner) && owner != null && owner.isActiveAndEnabled;
         }
 
-        internal void RecordFrame(int draws, int width, int height, int textures, Texture ambientPreview)
+        internal void RecordFrame(int draws, int edgeDraws, int width, int height, int textures, Texture ambientPreview,
+            Texture edgePreview, Texture edgeDirectionPreview)
         {
             LastLightMapFrame = Time.frameCount;
             LastDrawCount = draws;
+            LastEdgeDrawCount = edgeDraws;
             LastTextureCount = textures;
             LastTextureSize = new Vector2Int(width, height);
             AmbientPreview = ambientPreview;
+            EdgePreview = edgePreview;
+            EdgeDirectionPreview = edgeDirectionPreview;
         }
 
         internal void ClearFrame()
         {
             LastLightMapFrame = -1;
-            LastDrawCount = LastTextureCount = 0;
+            LastDrawCount = LastEdgeDrawCount = LastTextureCount = 0;
             LastTextureSize = default;
             AmbientPreview = null;
+            EdgePreview = EdgeDirectionPreview = null;
         }
 
         private void OnDisable() => Deactivate(activeCamera);
