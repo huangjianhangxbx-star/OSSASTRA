@@ -36,6 +36,10 @@ namespace Ossastra.Characters
         public bool allowWallJump;
         public LayerMask surfaces = Physics.DefaultRaycastLayers;
         [Min(.01f)] public float wallReach = .12f;
+        [Tooltip("空中短按松开后，抓边可探至碰撞胶囊外的横向距离。")]
+        [Min(0f)] public float tapGrabWallReach = .32f;
+        [Tooltip("空中短按松开后，从碰撞胶囊顶部向下覆盖的身高比例。")]
+        [Range(0f, 1f)] public float tapGrabBodyFraction = 2f / 3f;
         [Min(0f)] public float wallSlideStickSeconds = .15f;
         [Min(.01f)] public float wallSlideAcceleration = 24f;
         [Min(.01f)] public float wallSlideMaxSpeed = 4.8f;

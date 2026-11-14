@@ -72,12 +72,24 @@ namespace Ossastra.Characters
         private float ClearanceRadius => Mathf.Max(.01f, Radius - Skin * .55f);
 
         public SideWallContact Wall(int side, SideViewTraversalSettings settings)
+            => WallAt(side, Root + CenterOffset, settings.wallReach, settings);
+
+        public SideWallContact TapWall(int side, SideViewTraversalSettings settings)
+        {
+            var center = Root + CenterOffset;
+            float reach = Mathf.Max(settings.wallReach, settings.tapGrabWallReach);
+            var wall = WallAt(side, center, reach, settings);
+            if (wall.Exists) return wall;
+            // 台面低于胶囊中心时，从容许的最低台面稍下方查找侧壁。
+            center.y = TapLowest(settings) - Mathf.Max(Skin, .025f);
+            return WallAt(side, center, reach, settings);
+        }
+
+        private SideWallContact WallAt(int side, Vector3 origin, float reach, SideViewTraversalSettings settings)
         {
             if (side == 0) return default;
-            var center = Root + CenterOffset;
-            var direction = Vector3.right * side;
-            float distance = Radius + Mathf.Max(settings.wallReach, Skin * 2f);
-            if (!Ray(center, direction, distance, settings, out var hit) ||
+            float distance = Radius + Mathf.Max(reach, Skin * 2f);
+            if (!Ray(origin, Vector3.right * side, distance, settings, out var hit) ||
                 hit.normal.x * side > -.78f || Mathf.Abs(hit.normal.y) > .5f || Mathf.Abs(hit.normal.z) > .5f)
                 return default;
             return new SideWallContact(hit, side);
@@ -85,6 +97,17 @@ namespace Ossastra.Characters
 
         public bool TryLedge(SideWallContact wall, float verticalSweep, SideViewTraversalSettings settings,
             out SideLedge ledge, out string reason)
+            => TryLedgeAtHeight(wall, verticalSweep, settings, false, out ledge, out reason);
+
+        public bool TryTapLedge(SideWallContact wall, float verticalSweep, SideViewTraversalSettings settings,
+            out SideLedge ledge, out string reason)
+            => TryLedgeAtHeight(wall, verticalSweep, settings, true, out ledge, out reason);
+
+        private float TapLowest(SideViewTraversalSettings settings)
+            => Root.y + CenterOffset.y + HalfHeight * (1f - 2f * Mathf.Clamp01(settings.tapGrabBodyFraction));
+
+        private bool TryLedgeAtHeight(SideWallContact wall, float verticalSweep, SideViewTraversalSettings settings,
+            bool tap, out SideLedge ledge, out string reason)
         {
             ledge = default;
             reason = "no-side-wall";
@@ -95,12 +118,16 @@ namespace Ossastra.Characters
             float handY = root.y + handOffset;
             float highest = handY + settings.gripAboveHand + Mathf.Clamp(verticalSweep, 0f, .30f);
             float lowest = handY - settings.gripBelowHand;
+            if (tap) lowest = Mathf.Min(lowest, TapLowest(settings));
             float clearance = Mathf.Max(settings.surfaceClearance, Skin * 2f);
             float wallX = wall.Hit.point.x;
             var origin = new Vector3(wallX + wall.Side * clearance, highest + .025f, root.z);
             if (!Ray(origin, Vector3.down, highest - lowest + .025f, settings, out var top) ||
                 top.collider.attachedRigidbody != null || top.normal.y < Mathf.Max(.8f, Mathf.Cos(body.slopeLimit * Mathf.Deg2Rad)))
             { reason = "top-outside-grip-window"; return false; }
+            // 扩展抓边只接受这面墙自己的台面，避免借相邻或悬空碰撞体抓边。
+            if (tap && top.collider != wall.Hit.collider)
+            { reason = "tap-top-not-on-side-wall"; return false; }
 
             float topY = top.point.y;
             float standRootY = topY + HalfHeight - centerOffset.y + clearance;

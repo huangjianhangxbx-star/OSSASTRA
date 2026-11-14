@@ -196,26 +196,22 @@ namespace Ossastra.Characters
                 ChangeMode(SideViewTraversalMode.Grounded);
                 return default;
             }
-            var grabContact = GrabContact(step, settings);
-            if (grabContact.Exists && motor.VerticalSpeed <= settings.gripMaxRisingSpeed)
+            if (TryFindGrabLedge(step, settings, out var ledge, out var reason))
             {
-                if (probe.TryLedge(grabContact, Mathf.Max(0, -motor.VerticalSpeed * step), settings, out var ledge, out var reason))
+                if (!ledge.SameEdge(lastDropped) || ledgeInput.Revision != lastDropInput)
                 {
-                    if (!ledge.SameEdge(lastDropped) || ledgeInput.Revision != lastDropInput)
-                    {
-                        anchor = ledge;
-                        ClearGrabTap();
-                        ClearClimbFailure();
-                        announcedHang = false;
-                        blockedSteps = 0;
-                        LastRejection = null;
-                        ChangeMode(SideViewTraversalMode.LedgeHang, grabContact.Side);
-                        return Hang(step, settings);
-                    }
-                    LastRejection = "ledge-input-already-consumed";
+                    anchor = ledge;
+                    ClearGrabTap();
+                    ClearClimbFailure();
+                    announcedHang = false;
+                    blockedSteps = 0;
+                    LastRejection = null;
+                    ChangeMode(SideViewTraversalMode.LedgeHang, ledge.Wall.Side);
+                    return Hang(step, settings);
                 }
-                else LastRejection = reason;
+                LastRejection = "ledge-input-already-consumed";
             }
+            else if (reason != null) LastRejection = reason;
             if (settings.allowWallSlide && contact.Exists && ledgeInput.HeldDirection == contact.Side && motor.VerticalSpeed <= 0f)
             {
                 if (Mode != SideViewTraversalMode.WallSlide || WallSide != contact.Side)
@@ -230,8 +226,13 @@ namespace Ossastra.Characters
             return default;
         }
 
-        private SideWallContact GrabContact(float step, SideViewTraversalSettings settings)
+        private bool TryFindGrabLedge(float step, SideViewTraversalSettings settings,
+            out SideLedge ledge, out string reason)
         {
+            ledge = default;
+            reason = null;
+            bool canGrip = motor.VerticalSpeed <= settings.gripMaxRisingSpeed;
+            float sweep = Mathf.Max(0f, -motor.VerticalSpeed * step);
             int direction = ledgeInput.Direction;
             if (direction != 0)
             {
@@ -240,16 +241,20 @@ namespace Ossastra.Characters
                     grabTapHeldSeconds += step;
                     if (grabTapHeldSeconds > GrabTapMaxHold + .00001f) ClearGrabTap();
                 }
-                return contact.Side == direction ? contact : default;
+                return canGrip && contact.Side == direction && contact.Exists &&
+                    probe.TryLedge(contact, sweep, settings, out ledge, out reason);
             }
 
-            if (grabTapRemaining <= .00001f) return default;
-            // 只为抓边复查短按方向，墙滑、墙跳和翻越仍读取原接触及实时输入。
-            var sameSide = contact.Side == grabTapSide ? contact :
+            if (grabTapRemaining <= .00001f) return false;
+            // 松开的短按优先使用原抓边资格，扩展检查不改变墙滑、墙跳或长按翻越。
+            var wall = contact.Side == grabTapSide ? contact :
                 contact.Exists ? probe.Wall(grabTapSide, settings) : default;
+            var tapWall = wall.Exists ? wall : probe.TapWall(grabTapSide, settings);
             grabTapRemaining -= step;
-            if (!sameSide.Exists || grabTapRemaining <= .00001f) ClearGrabTap();
-            return sameSide;
+            if (!tapWall.Exists || grabTapRemaining <= .00001f) ClearGrabTap();
+            if (!canGrip || !tapWall.Exists) return false;
+            return (wall.Exists && probe.TryLedge(wall, sweep, settings, out ledge, out reason)) ||
+                probe.TryTapLedge(tapWall, sweep, settings, out ledge, out reason);
         }
 
         public void Observe(SideViewTraversalSettings settings)
