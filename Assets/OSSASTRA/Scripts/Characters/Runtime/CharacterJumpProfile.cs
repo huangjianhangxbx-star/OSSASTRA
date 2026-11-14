@@ -55,6 +55,8 @@ namespace Ossastra.Characters
         [Min(.02f)] public float surfaceClearance = .065f;
         [Min(.1f)] public float grabSpeed = 12f;
         [Min(.1f)] public float climbUpSpeed = 5.8f;
+        [Tooltip("主动翻越时向上提身的速度倍率。返回挂点时使用原上提基速。")]
+        [Min(.1f)] public float climbLiftSpeedScale = 1.42f;
         [Min(.1f)] public float climbAcrossSpeed = 4.8f;
     }
 }

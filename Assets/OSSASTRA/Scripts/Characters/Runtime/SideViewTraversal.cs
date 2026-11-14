@@ -370,7 +370,8 @@ namespace Ossastra.Characters
                 return new SideViewMotion(0f, -3f, true, true);
             }
             Collider obstacle = null;
-            if (climbPhase == ClimbPhase.Lift && TryAlong(anchor.Above, settings.climbUpSpeed, step, out var lift, out obstacle))
+            if (climbPhase == ClimbPhase.Lift &&
+                TryAlong(anchor.Above, settings.climbUpSpeed * settings.climbLiftSpeedScale, step, out var lift, out obstacle))
                 return lift;
             if (climbPhase == ClimbPhase.Cross && TryAlong(anchor.Over, settings.climbAcrossSpeed, step, out var across, out obstacle))
                 return across;
