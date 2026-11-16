@@ -2,7 +2,7 @@
  * 脚本：CharacterOrientation
  * 功能：统一解析攻击候选、最近移动意图和最终显示朝向；键鼠普通移动/攻击与手柄移动定向明确分开。
  * 边界：只读会话有效帧与原动作事实；不采设备、不计时/受理/改写已经发出的攻击快照。
- * 协作：请求前解析玩法方向，动作/运动后决议显示；两个模型经Bus读取同一政策结果。
+ * 协作：请求前解析玩法方向，动作/运动后决议显示；地图入口可初始化方向，两个模型经Bus读取结果。
  */
 using UnityEngine;
 using System;
@@ -106,6 +106,14 @@ namespace Ossastra.Characters
         }
 
         public void OrientTowards(Vector3 worldPosition) { TrySetAttackDirection(worldPosition - transform.position); }
+
+        /// <summary>角色在地图入口重建时同步攻击候选、显示方向和手柄的最近移动方向。</summary>
+        public void InitializeArrivalFacing(Vector3 direction)
+        {
+            if (!TrySetAttackDirection(direction)) return;
+            LastMoveDirection = AttackDirection;
+            SetPresentation(AttackDirection, "地图入口朝向");
+        }
 
         /// <summary>本体生命循环清除死亡前的朝向残留，后续正常输入重新采样。</summary>
         public void ResetOrientation()

@@ -26,20 +26,31 @@ namespace Ossastra.Enemies
         public Guid ActionId => runtime == null ? Guid.Empty : runtime.ActionId;
         public bool WarningVisible => isActiveAndEnabled && focused && !applicationPaused && !paused && warning.Tracking && vitals!=null && vitals.IsAvailable && target!=null && target.IsAvailable;
         public bool AttackReleased => warning.Released;
-        public Vector3 AttackDirection { get { var d=target==null?Vector3.forward:target.WorldPosition-transform.position; d.y=0; return d.normalized; } }
+        public Vector3 AttackDirection
+        {
+            get
+            {
+                if (sideView != null) return sideView.Direction;
+                var direction = target == null ? Vector3.forward : target.WorldPosition - transform.position;
+                direction.y = 0;
+                return direction.normalized;
+            }
+        }
         public Vector3 WarningCenter => transform.position+AttackDirection*(hitShape==null?0:hitShape.Reach);
         public float WarningRadius => hitShape==null?0:hitShape.Radius;
         private IEnemyBrain brain;
         private IEnemyMovement movement;
         private CombatStatusEffects statusEffects;
         private BasicActionRuntime runtime;
-        private BasicAttackDefinition attack;
+        private BasicAttackDefinition attack, activeAttack;
+        private SideViewEnemyBrain sideView;
+        private AttackRelease pendingRelease;
         private readonly ControlAuthority authority=new ControlAuthority();
         private ICombatTarget target;
         private Health targetHealth;
         private bool focused=true, applicationPaused, paused;
         public event Action<ActionFact> ActionObserved;
-        public bool HasCombatTarget => brain is ChaseEnemyBrain chase && chase.TargetId!="none";
+        public bool HasCombatTarget => sideView != null ? sideView.HasTarget : brain is ChaseEnemyBrain chase && chase.TargetId!="none";
         public string ActorId => actorId;
         public CombatVitals Vitals => vitals;
         public string LastFact { get; private set; }="Idle";
@@ -65,7 +76,13 @@ namespace Ossastra.Enemies
             {Debug.LogError("敌人观察适配缺少合法视觉子层。",this);viewSpace.enabled=false;}
             vitals=GetComponent<CombatVitals>(); melee=GetComponent<CombatMeleeHit>(); hitShape=GetComponent<CombatMeleeHit>();
             var chase=GetComponent<ChaseEnemyBrain>();
-            brain=chase!=null&&chase.enabled?(IEnemyBrain)chase:GetComponent<StationaryEnemyBrain>();
+            sideView=GetComponent<SideViewEnemyBrain>();
+            if (sideView != null)
+            {
+                brain = sideView;
+                vitals.SpatialPlane = CombatPlane.SideXY;
+            }
+            else brain=chase!=null&&chase.enabled?(IEnemyBrain)chase:GetComponent<StationaryEnemyBrain>();
             movement=GetComponent<EnemyMovement>();
             viewMovement=movement as EnemyMovement;
             statusEffects=GetComponent<CombatStatusEffects>();if(statusEffects!=null)statusEffects.ControlChanged+=OnStatusControlChanged;
@@ -94,14 +111,18 @@ namespace Ossastra.Enemies
             // 2. 决策资格先于动作请求；Brain不掌握架势数值或第二时钟。
             if(brain==null || !brain.IsAvailable) { Cancel("brain-disabled"); return; }
             brain.Tick(Time.time,Time.deltaTime);
-            if(runtime.IsActive && (!brain.IsEligible(target) || !ReferenceEquals(target.Health,targetHealth)))
+            var targetStillValid = brain.IsEligible(target) && ReferenceEquals(target.Health, targetHealth);
+            if (runtime.IsActive &&
+                !(sideView == null ? targetStillValid : Ossastra.EnemyCore.SideViewEnemyRules.HoldsCommit(targetStillValid, warning.Released)))
                 Cancel("target-dead-out-of-range-or-occluded-or-stale");
             if(!runtime.IsActive && brain.TrySelect(Time.time,out var selected))
             {
-                var request=runtime.Request(attack,"enemy-brain",authority);
+                activeAttack = sideView == null ? attack : sideView.ChooseAttack(attack);
+                var request=runtime.Request(activeAttack,"enemy-brain",authority);
                 if(request.Accepted)
                 {
                     target=selected; targetHealth=selected.Health; brain.OnAccepted(Time.time);
+                    sideView?.Commit(selected);
                     LastFact="Accepted #"+request.Fact.ActionId.ToString("N");
                     warning.Accept(request.Fact.ActionId);
                     ActionObserved?.Invoke(request.Fact);
@@ -113,15 +134,30 @@ namespace Ossastra.Enemies
                 LastFact=fact.Kind+" #"+fact.ActionId.ToString("N");
                 if(fact.Kind==ActionFactKind.Released)warning.Release(fact.ActionId);
                 if(fact.Kind==ActionFactKind.Finished || fact.Kind==ActionFactKind.Cancelled)warning.Clear(fact.ActionId);
+                sideView?.Observe(fact, Time.time, activeAttack.MoveReadyAt - activeAttack.ReleaseAt);
                 ActionObserved?.Invoke(fact);
                 if(fact.Release!=null)
                 {
-                    var direction=target.WorldPosition-transform.position; direction.y=0;
-                    melee.Resolve(fact.Release,direction.normalized);
+                    if (sideView != null) pendingRelease = fact.Release;
+                    else melee.Resolve(fact.Release, AttackDirection);
                 }
             }
-            // 根的最后物理阶段：只消费Brain方向；已接受攻击全段停步，避免贴人重叠攻击。
-            movement?.Tick(runtime.IsActive?Vector3.zero:brain.MoveDirection,Time.deltaTime);
+            if (sideView == null) movement?.Tick(runtime.IsActive?Vector3.zero:brain.MoveDirection,Time.deltaTime);
+            else
+            {
+                sideView.Move(Time.deltaTime);
+                if (pendingRelease != null)
+                {
+                    if (!sideView.DamageWindowOpen(Time.time))
+                    {
+                        var missed = pendingRelease;
+                        pendingRelease = null;
+                        hitShape.CompleteMiss(missed);
+                    }
+                    else if (hitShape.ResolveOverlap(pendingRelease, sideView.HitDirection, 0, true))
+                        pendingRelease = null;
+                }
+            }
         }
         public void Cancel(string reason)
         {
@@ -129,6 +165,8 @@ namespace Ossastra.Enemies
             if(fact!=null) { PresentationGeneration++; warning.Clear(fact.ActionId);
                 ActionObserved?.Invoke(fact); }
             if(fact!=null) LastFact="Cancelled "+reason+" #"+fact.ActionId.ToString("N");
+            pendingRelease?.Resolve(Array.Empty<Health>());
+            pendingRelease = null;
             target=null; targetHealth=null;
             movement?.Stop();
             brain?.ResetDecision(Time.time);
@@ -155,5 +193,12 @@ namespace Ossastra.Enemies
         }
         public void RestoreForDevelopment()
         { PresentationGeneration++; Cancel("development-reset"); vitals.RestoreForDevelopment(); if(posture!=null) posture.ResetState(); brain.ResetDecision(Time.time); }
+        public bool RespawnOnRest()
+        {
+            if (sideView == null || sideView.Kind == SideViewEnemyKind.Mother || vitals == null || vitals.IsAlive) return false;
+            Cancel("rest-respawn");
+            sideView.ReturnToSpawn();
+            return vitals.RestoreAfterDeath();
+        }
     }
 }

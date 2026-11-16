@@ -141,9 +141,22 @@ namespace Ossastra.Commerce.Persistence
         /// <summary>换档/退出必须等待此结果。失败不伪装关闭，宿主保留内存并显示重试/退出风险。</summary>
         public async Task<bool> CloseAsync()
         {
-            lock (gate) { if (closed) return true; closing = true; }
+            lock (gate)
+            {
+                if (closed) return !failed && !running && pending == null && persistedRevision >= stateRevision;
+                closing = true;
+            }
             bool success = await FlushAsync().ConfigureAwait(false);
-            lock (gate) { closing = false; if (success) closed = true; }
+            lock (gate)
+            {
+                // A domain callback may mark another revision after FlushAsync's last
+                // check. Commit closed under the same gate as MarkDirty, never with an
+                // unsaved revision. The caller can capture and retry a late revision.
+                success = success && !failed && !running && pending == null &&
+                    persistedRevision >= stateRevision;
+                closing = false;
+                if (success) closed = true;
+            }
             return success;
         }
     }

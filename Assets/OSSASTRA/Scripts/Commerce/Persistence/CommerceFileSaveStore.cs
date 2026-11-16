@@ -37,6 +37,66 @@ namespace Ossastra.Commerce.Persistence
         }
         public string BackupPathForProfile(string profileId) => PathForProfile(profileId) + ".bak";
 
+        public CommerceSaveSnapshot CopyProfile(string sourceProfileId, string destinationProfileId,
+            Func<CommerceSaveSnapshot, string> validator = null)
+        {
+            string source = PathForProfile(sourceProfileId), destination = PathForProfile(destinationProfileId);
+            if (source == destination) throw new InvalidOperationException("Cannot copy a profile onto itself");
+            Directory.CreateDirectory(directory);
+            // Order locks by path so two concurrent opposite copies cannot deadlock.
+            string first = string.CompareOrdinal(source, destination) < 0 ? source : destination;
+            string second = first == source ? destination : source;
+            using (var firstLock = new FileStream(first + ".write.lock", FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None))
+            using (var secondLock = new FileStream(second + ".write.lock", FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None))
+            {
+                var loaded = Load(sourceProfileId, validator);
+                if (loaded.Status != CommerceSaveLoadStatus.Loaded)
+                    throw new InvalidOperationException("Source profile is not a valid main save: " + loaded.Error);
+                if (File.Exists(destination) || File.Exists(BackupPathForProfile(destinationProfileId)))
+                    throw new InvalidOperationException("Destination profile is occupied");
+                string newSession = Guid.NewGuid().ToString("N");
+                var original = loaded.Snapshot;
+                var copy = new CommerceSaveSnapshot(destinationProfileId, newSession,
+                    original.StateRevision, 1, original.Payload, original.PayloadSchema,
+                    original.DefinitionFingerprint);
+                string temp = destination + "." + Guid.NewGuid().ToString("N") + ".tmp";
+                try
+                {
+                    var bytes = Encode(copy);
+                    using (var stream = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                    { stream.Write(bytes, 0, bytes.Length); stream.Flush(true); }
+                    Decode(ReadBounded(temp));
+                    // This also invalidates a stale writer from a previously deleted slot.
+                    WriteSessionMarker(destination + ".session", newSession);
+                    File.Move(temp, destination);
+                    return copy;
+                }
+                finally { if (File.Exists(temp)) File.Delete(temp); }
+            }
+        }
+
+        public bool DeleteProfile(string profileId)
+        {
+            string path = PathForProfile(profileId), backup = BackupPathForProfile(profileId);
+            if (!File.Exists(path) && !File.Exists(backup)) return false;
+            using (var lease = new FileStream(path + ".write.lock", FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None))
+            {
+                if (!File.Exists(path) && !File.Exists(backup)) return false;
+                // Keep the new marker: an old coordinator must not recreate this slot.
+                WriteSessionMarker(path + ".session", Guid.NewGuid().ToString("N"));
+                if (File.Exists(path)) File.Delete(path);
+                if (File.Exists(backup)) File.Delete(backup);
+                return true;
+            }
+        }
+
+        private static void WriteSessionMarker(string path, string sessionId)
+        {
+            var bytes = Encoding.UTF8.GetBytes(sessionId);
+            using (var stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None))
+            { stream.Write(bytes, 0, bytes.Length); stream.Flush(true); }
+        }
+
         public void ActivateSession(string profileId, string sessionId)
         {
             CommerceSaveSnapshot.ValidateIdentity(sessionId, nameof(sessionId));

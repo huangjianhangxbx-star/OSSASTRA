@@ -9,6 +9,7 @@ namespace Ossastra.WorldRendering.SideView
         [SerializeField] private SideViewAceOriginalReferenceData data;
         [SerializeField] private SideViewRenderComparison comparison;
         [SerializeField] private SideViewAceLight diagnosticLight;
+        [SerializeField] private bool showInAllRecipes;
 
         private MeshFilter shape;
         private MeshRenderer surface;
@@ -142,9 +143,10 @@ namespace Ossastra.WorldRendering.SideView
 
         private bool RefreshVisibility()
         {
+            bool ace = comparison != null && comparison.Active == SideViewRenderComparison.Recipe.Ace;
             bool show = visible && data != null && data.ClipCount > 0 && data.PaletteCount > 0 &&
-                comparison != null && comparison.Active == SideViewRenderComparison.Recipe.Ace && isActiveAndEnabled;
-            if (diagnosticLight != null) diagnosticLight.enabled = show && diagnostic;
+                comparison != null && comparison.Active.HasValue && (showInAllRecipes || ace) && isActiveAndEnabled;
+            if (diagnosticLight != null) diagnosticLight.enabled = show && ace && diagnostic;
             if (surface == null || show == surface.enabled) return show;
             if (show)
             {

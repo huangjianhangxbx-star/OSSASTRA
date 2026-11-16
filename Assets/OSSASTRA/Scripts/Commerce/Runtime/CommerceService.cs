@@ -18,6 +18,7 @@ using Ossastra.Commerce.Presentation;
 namespace Ossastra.Commerce.Runtime
 {
     using CharacterRoot=Ossastra.Characters.CharacterRoot;
+    public enum CommerceStartupIntent { Any, New, Continue }
     [DefaultExecutionOrder(-200)]
     [DisallowMultipleComponent]
     public sealed class CommerceService:MonoBehaviour,IInventoryStartupAdapter,ICommerceAccessPolicy,ICommercePresentationHost
@@ -38,6 +39,18 @@ namespace Ossastra.Commerce.Runtime
         public string Diagnostic {get;private set;}="尚未初始化";
         public string SavePath=>store?.PathForProfile(profileId);
         public long Revision=>revision;
+        public CommerceStartupIntent StartupIntent {get;private set;}=CommerceStartupIntent.Any;
+        public void ConfigureStartup(string selectedProfileId, string selectedSaveDirectory,
+            CommerceStartupIntent intent)
+        {
+            if(initialized||restoring||saves!=null)throw new InvalidOperationException("档案会话已开始，不能换槽");
+            if(string.IsNullOrWhiteSpace(selectedProfileId)||selectedProfileId.Length>256
+                ||string.IsNullOrWhiteSpace(selectedSaveDirectory)||!Enum.IsDefined(typeof(CommerceStartupIntent),intent))
+                throw new ArgumentException("档案 ID、目录或启动意图无效");
+            profileId=selectedProfileId;
+            saveDirectory=selectedSaveDirectory;
+            StartupIntent=intent;
+        }
         private readonly CommerceSnapshotParticipants snapshotParticipants=new CommerceSnapshotParticipants();
         private CommerceFileSaveStore store;
         private CommerceSaveCoordinator saves;
@@ -49,7 +62,7 @@ namespace Ossastra.Commerce.Runtime
         private long revision,sessionGeneration,loadedSequence;
         private double lastSavedSimulation;
         private float nextCheckpoint;
-        private bool initialized,uiReady,restoring,closing;
+        private bool initialized,uiReady,restoring,closing,flushInProgress;
         private string sessionId;
         private bool finalizingPersistence;
         private byte[] lifecyclePayload;
@@ -102,6 +115,11 @@ namespace Ossastra.Commerce.Runtime
                     }
                     catch(Exception ex){return "经济载荷损坏："+ex.Message;}
                 });
+                if(StartupIntent==CommerceStartupIntent.New
+                    && (loaded.Status!=CommerceSaveLoadStatus.Missing||loaded.BackupAvailable))
+                    throw new InvalidOperationException("新游戏槽已占用；不会覆盖已有主档或备份");
+                if(StartupIntent==CommerceStartupIntent.Continue&&loaded.Status==CommerceSaveLoadStatus.Missing)
+                    throw new InvalidOperationException("继续游戏槽不存在；不会按新档播种");
                 if(loaded.Status==CommerceSaveLoadStatus.Invalid)throw new InvalidOperationException("存档未启用，原文件已保留："+loaded.Error);
                 if(loaded.Status==CommerceSaveLoadStatus.Loaded)
                 {
@@ -173,12 +191,17 @@ namespace Ossastra.Commerce.Runtime
                 if(uiReady)userInterface.SetPersistenceStatus("经济模块未启用；没有重新授予物品。\n"+Diagnostic,false);
                 return;
             }
-            Economy.Advance(Time.deltaTime);
-            if(currentActor!=null&&inventory.Coordinator.Current?.ActorId!=currentActor){userInterface?.Close();CloseSession();}
-            if(Time.unscaledTime>=nextCheckpoint)
+            // Both save barriers freeze the periodic simulation/checkpoint source
+            // while their writer drains the captured aggregate.
+            if(!closing&&!flushInProgress)
             {
-                nextCheckpoint=Time.unscaledTime+checkpointSeconds;
-                if(Economy.SimulationTime>lastSavedSimulation){MarkDirty();RequestSave();}
+                Economy.Advance(Time.deltaTime);
+                if(currentActor!=null&&inventory.Coordinator.Current?.ActorId!=currentActor){userInterface?.Close();CloseSession();}
+                if(Time.unscaledTime>=nextCheckpoint)
+                {
+                    nextCheckpoint=Time.unscaledTime+checkpointSeconds;
+                    if(Economy.SimulationTime>lastSavedSimulation){MarkDirty();RequestSave();}
+                }
             }
             if(userInterface!=null)
             {
@@ -211,12 +234,88 @@ namespace Ossastra.Commerce.Runtime
         private bool HasCurrentFrozenCheckpoint(CommerceSaveStatus status)
             =>lifecyclePayload!=null&&status!=null&&lifecycleRevision==revision&&lifecycleRevision==status.StateRevision&&lifecycleSaveSequence==status.SaveSequence;
         /// <summary>正常地图加载器必须先等待此屏障；卸载仅清表现，当前经济档落盘成功才允许切图。</summary>
-        public System.Threading.Tasks.Task<bool> FlushBeforeSceneChangeAsync()
+        public async System.Threading.Tasks.Task<bool> FlushBeforeSceneChangeAsync()
         {
-            if(!Ready)return System.Threading.Tasks.Task.FromResult(false);
-            userInterface?.Close();CloseSession();RequestSave();return saves.FlushAsync();
+            if(!Ready||saves==null||closing||flushInProgress)
+            {
+                Diagnostic="换区保存未开始："+(!Ready?"会话未就绪":saves==null?"写盘协调器缺失":"已有保存屏障进行中");
+                return false;
+            }
+            flushInProgress=true;
+            try
+            {
+                userInterface?.Close();CloseSession();
+                for(int attempt=0;attempt<4;attempt++)
+                {
+                    RequestSave();
+                    bool flushed=await saves.FlushAsync();
+                    var status=saves.Status;
+                    if(flushed&&status.IsSaved)return true;
+                    if(status.HasFailure||status.IsClosing||status.IsClosed)
+                    {
+                        Diagnostic="换区保存失败："+(status.LastError??
+                            $"写盘状态不一致（closing={status.IsClosing}, closed={status.IsClosed}, revision={status.StateRevision}, persisted={status.PersistedRevision}）");
+                        return false;
+                    }
+                }
+                var latest=saves.Status;
+                Diagnostic=$"换区保存失败：保存期间状态持续变化（revision={latest.StateRevision}, persisted={latest.PersistedRevision}）";
+                return false;
+            }
+            catch(Exception ex)
+            {
+                Diagnostic="换区保存失败："+ex.Message;
+                return false;
+            }
+            finally{flushInProgress=false;}
         }
-        public void RetrySave(){if(!Ready)return;MarkDirty();RequestSave();_ = saves.RetryAsync();}
+        /// <summary>退出标题先冻结最新完整快照并关闭写者；失败时保持活会话供重试。</summary>
+        public async System.Threading.Tasks.Task<bool> CloseForTitleAsync()
+        {
+            if(!Ready||saves==null||closing||flushInProgress)
+            {
+                Diagnostic="返回标题保存未开始："+(!Ready?"会话未就绪":saves==null?"写盘协调器缺失":flushInProgress?"换区保存屏障进行中":"已有关闭请求进行中");
+                return false;
+            }
+            try
+            {
+                userInterface?.Close();CloseSession();
+                // A late world callback can dirty one more revision while the writer
+                // drains. Recapture the aggregate on the main thread before retrying;
+                // a real disk failure still requires the explicit RetrySave path.
+                for(int attempt=0;attempt<4;attempt++)
+                {
+                    RequestSave();
+                    closing=true;
+                    bool closed=await saves.CloseAsync();
+                    var status=saves.Status;
+                    if(closed&&status.IsClosed&&status.IsSaved)return true;
+                    closing=false;
+                    if(status.HasFailure||status.IsClosed)
+                    {
+                        Diagnostic="返回标题保存失败："+(status.LastError??
+                            $"关闭状态不一致（closed={status.IsClosed}, saved={status.IsSaved}, revision={status.StateRevision}, persisted={status.PersistedRevision}）");
+                        return false;
+                    }
+                }
+                var latest=saves.Status;
+                Diagnostic=$"返回标题保存失败：关闭期间状态持续变化（revision={latest.StateRevision}, persisted={latest.PersistedRevision}）";
+                return false;
+            }
+            catch(Exception ex)
+            {
+                Diagnostic="返回标题保存失败："+ex.Message;
+                return false;
+            }
+            finally{if(saves==null||!saves.Status.IsClosed)closing=false;}
+        }
+        public async System.Threading.Tasks.Task<bool> RetrySaveAsync()
+        {
+            if(!Ready||saves==null||closing||saves.Status.IsClosed)return false;
+            try{MarkDirty();RequestSave();return await saves.RetryAsync();}
+            catch(Exception ex){Diagnostic="重试保存失败："+ex.Message;return false;}
+        }
+        public void RetrySave(){_ = RetrySaveAsync();}
         public CommerceAccess Check(string actorId,string merchantId,long generation)
         {
             var actor=inventory==null?null:inventory.Coordinator.Current;

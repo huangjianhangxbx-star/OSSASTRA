@@ -14,7 +14,8 @@ namespace Ossastra.Combat
   public static Vector3 Position(IHitTarget target)=>target is ICombatTarget combat?combat.WorldPosition:((MonoBehaviour)target).transform.position;
 
   internal static CombatPlane PlaneFor(CombatVitals source)
-      => source != null && source.TryGetComponent<Ossastra.Characters.CharacterMovement>(out var movement) && movement.IsSideView
+      => source != null && (source.SpatialPlane == CombatPlane.SideXY ||
+          source.TryGetComponent<Ossastra.Characters.CharacterMovement>(out var movement) && movement.IsSideView)
           ? CombatPlane.SideXY : CombatPlane.GroundXZ;
 
   internal static IHitTarget[] OverlapContacts(Collider[] overlaps, Vector3 sampleCenter, Predicate<IHitTarget> accepts,

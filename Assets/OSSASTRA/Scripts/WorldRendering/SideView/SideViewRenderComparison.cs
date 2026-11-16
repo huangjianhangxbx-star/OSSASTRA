@@ -56,6 +56,7 @@ namespace Ossastra.WorldRendering.SideView
         [SerializeField] private Texture2D ultrawideCutout;
         [SerializeField] private Texture2D whiteFader;
         [SerializeField] private Transform darknessSourceRoot;
+        [SerializeField] private bool useAuthoredSilksongMasks = true;
         [SerializeField] private Text statusLabel;
         [SerializeField] private SideViewAceLighting aceLighting;
         [SerializeField] private GameObject aceCharacterControls;
@@ -96,7 +97,7 @@ namespace Ossastra.WorldRendering.SideView
         internal Texture2D Vignette => vignette;
         internal Color HeroLightGamma => heroLightGamma;
         internal SideViewComparisonDarkness CreateDarkness() =>
-            new(darknessShader, ultrawideCutout, whiteFader, darknessSourceRoot);
+            new(darknessShader, ultrawideCutout, whiteFader, darknessSourceRoot, useAuthoredSilksongMasks);
         public int LastBackgroundFrame { get; internal set; } = -1;
         public int LastGradeFrame { get; internal set; } = -1;
         public int LastDarknessFrame { get; internal set; } = -1;

@@ -25,22 +25,27 @@ namespace Ossastra.Combat
             => Resolve(release, releaseDirection, 0);
 
         internal void Resolve(AttackRelease release, Vector3 releaseDirection, int basicAttackStage)
+            => ResolveOverlap(release, releaseDirection, basicAttackStage, false);
+
+        internal bool ResolveOverlap(AttackRelease release, Vector3 releaseDirection, int basicAttackStage, bool waitForContact)
         {
             if(release==null) throw new ArgumentNullException(nameof(release));
             var source=GetComponent<CombatVitals>();
             if(!isActiveAndEnabled || (source!=null && (!source.IsAvailable || source.Health.Id!=release.ActorId)))
-            { release.Resolve(Array.Empty<Health>()); LastResult="来源失效或释放身份不符"; Resolved?.Invoke(release.ActionId,false); return; }
+            { release.Resolve(Array.Empty<Health>()); LastResult="来源失效或释放身份不符"; Resolved?.Invoke(release.ActionId,false); return true; }
             var plane = CombatSpatialTarget.PlaneFor(source);
             var geometry = new CombatContactGeometry(plane, transform.position, releaseDirection, releaseDirection, basicAttackStage);
-            CombatContactGateway.PublishSectorRelease(release, source, geometry, height);
             var reachDirection = plane == CombatPlane.SideXY ? geometry.ReleaseDirection : releaseDirection;
             var weaponOrigin = geometry.ReleaseOrigin + Vector3.up * height;
             var center = weaponOrigin + reachDirection * reach;
             var overlaps = Physics.OverlapSphere(center, radius, targetLayers, QueryTriggerInteraction.Collide);
             var candidates = CombatSpatialTarget.OverlapContacts(overlaps, center,
                 target => target is MonoBehaviour body && CombatSight.IsClear(transform, body.transform, height), out var points, plane);
-            var environment = plane == CombatPlane.SideXY &&
-                !candidates.Any(target => CombatContactGateway.AllowsTargetFaction(release, source, target))
+            var opposingContact = plane == CombatPlane.SideXY &&
+                candidates.Any(target => CombatContactGateway.AllowsTargetFaction(release, source, target));
+            if (waitForContact && !opposingContact) return false;
+            CombatContactGateway.PublishSectorRelease(release, source, geometry, height);
+            var environment = plane == CombatPlane.SideXY && !opposingContact
                 ? TraceEnvironment(weaponOrigin, reachDirection, overlaps)
                 : null;
             var outcomes = CombatContactGateway.Resolve(release, source, candidates, geometry.ReleaseOrigin,
@@ -48,6 +53,7 @@ namespace Ossastra.Combat
             LastResult=outcomes.Count==0?(environment.HasValue?"接触环境／无伤害目标":"空挥／无合法敌对目标"):string.Join("; ",outcomes.Select(o=>
                 o.ActorId+" → "+o.TargetId+" "+o.HpBefore+"→"+o.HpAfter+" "+o.Reason+" #"+o.ActionId.ToString("N")));
             Resolved?.Invoke(release.ActionId,outcomes.Any(o=>o.Reason==HitReason.Applied));
+            return true;
         }
 
         private CombatContactPoint? TraceEnvironment(Vector3 origin, Vector3 direction, Collider[] overlaps)
@@ -65,6 +71,13 @@ namespace Ossastra.Combat
             var surface = nearest.Value;
             if (!overlaps.Contains(surface.collider) || CombatSpatialTarget.Find(surface.collider) != null) return null;
             return new CombatContactPoint(surface.point, CombatContactPointQuality.PhysicsCast, surface.normal);
+        }
+
+        internal void CompleteMiss(AttackRelease release)
+        {
+            release.Resolve(Array.Empty<Health>());
+            LastResult = "空挥／无合法敌对目标";
+            Resolved?.Invoke(release.ActionId, false);
         }
     }
 }

@@ -45,6 +45,8 @@ namespace Ossastra.Characters
         private Ossastra.Combat.CombatStatusEffects statusEffects;
         private ICharacterLocomotionScale locomotionScale;
         private ICharacterEnvironmentClearance environmentClearance;
+        private SideViewMovingSupport movingSupport;
+        private Vector3 lastMovingSupportPosition;
         public bool IsMoving { get; private set; }
         public Vector3 Velocity { get; private set; }
         public CharacterJumpProfile JumpProfile => jumpProfile;
@@ -263,6 +265,12 @@ namespace Ossastra.Characters
             float physicalVertical = VerticalSpeed;
             if (switchRetreat.HasValue && Mathf.Abs(switchRetreat.Value.x) > .0001f)
                 physicalVertical = (switchRetreat.Value.y - .003f) / delta;
+            var supportDisplacement = groundedBefore && movingSupport != null && movingSupport.isActiveAndEnabled &&
+                !traversalMotion.ConstrainedPose && !abilityDrive
+                ? movingSupport.transform.position - lastMovingSupportPosition
+                : Vector3.zero;
+            horizontal.x += supportDisplacement.x / delta;
+            physicalVertical += supportDisplacement.y / delta;
             var terrain = MoveOnce(horizontal, physicalVertical, delta, true, out var attempted,
                 traversalMotion.ConstrainedPose, abilityDrive);
             bool sweptGround = terrain.collider != null && terrain.normal.y >= Mathf.Cos(body.slopeLimit * Mathf.Deg2Rad);
@@ -287,9 +295,11 @@ namespace Ossastra.Characters
             bool hitHead = (LastCollision & CollisionFlags.Above) != 0 || sweptHead;
             if (Grounded || hitHead && VerticalSpeed > 0f) VerticalSpeed = 0f;
 
+            movingSupport = Grounded && stepSupport != null ? stepSupport.GetComponentInParent<SideViewMovingSupport>() : null;
+            if (movingSupport != null) lastMovingSupportPosition = movingSupport.transform.position;
             previousPose = before;
             latestPose = transform.position;
-            bool launched = jumpAccepted && !hitHead && latestPose.y > before.y + .001f;
+            bool launched = jumpAccepted && !hitHead && latestPose.y > before.y + supportDisplacement.y + .001f;
             float landingSpeed = !traversalMotion.ConstrainedPose && !groundedBefore && Grounded && hasEstablishedSupport ? downBeforeContact : 0f;
             hasEstablishedSupport |= Grounded;
             SideStepCompleted?.Invoke(new SideMovementStep(++sideStepId, ContactRevision, groundedBefore,
@@ -455,6 +465,7 @@ namespace Ossastra.Characters
             Grounded = false;
             hasEstablishedSupport = false;
             stepSupport = null;
+            movingSupport = null;
             ResetSideViewPose();
             LastCollision = CollisionFlags.None;
             ContactRevision++;

@@ -36,6 +36,7 @@ namespace Ossastra.Combat
         public Vector3 WorldPosition => transform.position;
         public Transform TargetTransform => transform;
         public CombatFaction Faction => faction;
+        internal CombatPlane SpatialPlane { get; set; }
         public int DeathCount { get; private set; }
         public string LastResult { get; private set; }="尚未受击";
         public event Action<HitOutcome> Died;

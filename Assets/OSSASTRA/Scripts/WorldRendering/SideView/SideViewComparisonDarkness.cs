@@ -29,6 +29,7 @@ namespace Ossastra.WorldRendering.SideView
         private static readonly int OverlaysId = Shader.PropertyToID("_SvDarknessOverlaysTexture");
 
         private readonly Transform sourceRoot;
+        private readonly bool useAuthoredSceneMasks;
         private readonly Texture ultrawideCutout;
         private readonly Texture whiteFader;
         private readonly Mesh quad;
@@ -47,13 +48,14 @@ namespace Ossastra.WorldRendering.SideView
 
         private Matrix4x4 SourceToWorld => sourceRoot ? sourceRoot.localToWorldMatrix : Matrix4x4.identity;
 
-        internal SideViewComparisonDarkness(Shader shader, Texture ultrawideCutout, Texture whiteFader, Transform sourceRoot = null)
+        internal SideViewComparisonDarkness(Shader shader, Texture ultrawideCutout, Texture whiteFader, Transform sourceRoot = null, bool useAuthoredSceneMasks = true)
         {
             if (!shader) throw new ArgumentNullException(nameof(shader));
             if (!ultrawideCutout) throw new ArgumentNullException(nameof(ultrawideCutout));
             if (!whiteFader) throw new ArgumentNullException(nameof(whiteFader));
 
             this.sourceRoot = sourceRoot;
+            this.useAuthoredSceneMasks = useAuthoredSceneMasks;
             this.ultrawideCutout = ultrawideCutout;
             this.whiteFader = whiteFader;
             Material = new Material(shader) { hideFlags = HideFlags.HideAndDontSave };
@@ -87,7 +89,7 @@ namespace Ossastra.WorldRendering.SideView
         internal float VignetteScale(Vector3 observerPosition)
         {
             Vector3 source = sourceRoot ? sourceRoot.InverseTransformPoint(observerPosition) : observerPosition;
-            float target = TargetScale(source);
+            float target = useAuthoredSceneMasks ? TargetScale(source) : NormalScale;
             if (!hasObserver)
             {
                 hasObserver = true;
@@ -127,6 +129,7 @@ namespace Ossastra.WorldRendering.SideView
             cmd.SetGlobalMatrix(GpuVpId, gpuViewProjection);
             cmd.SetGlobalVector(TexelSizeId, new Vector4(1f / cutout.width, 1f / cutout.height, cutout.width, cutout.height));
 
+            if (!useAuthoredSceneMasks) return;
             Matrix4x4 world = SourceToWorld;
             // 10253 同时翻转 X/Y，Awake 属性块 _JustAlphaLerp=1。
             DrawCutout(cmd, quad, world * QuadAt(0.13f, 12.44f, 0f, -6.6549f, -10.271472f),
@@ -148,6 +151,7 @@ namespace Ossastra.WorldRendering.SideView
         {
             ClearTarget(cmd, overlays);
             BindVignetteCutout(cmd);
+            if (!useAuthoredSceneMasks) return;
             Matrix4x4 world = SourceToWorld;
             DrawBorderPair(cmd, world, 36.72f);
             DrawBorderPair(cmd, world, 90.57f);

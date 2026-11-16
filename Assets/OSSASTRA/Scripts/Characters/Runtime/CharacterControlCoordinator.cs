@@ -164,6 +164,20 @@ namespace Ossastra.Characters
             Select(incoming, linkedSwitch: true);
         }
 
+        /// <summary>场景重建后按稳定身份恢复实控，不把焦点状态误当作角色选择。</summary>
+        public bool TryRestoreControl(string actorId)
+        {
+            if (!configured || !isActiveAndEnabled || string.IsNullOrWhiteSpace(actorId)) return false;
+            foreach (var candidate in characters)
+            {
+                if (candidate == null || candidate.ActorId != actorId || !candidate.IsAlive ||
+                    !candidate.isActiveAndEnabled || candidate.DataBus == null) continue;
+                if (Current != candidate) Select(candidate);
+                return true;
+            }
+            return false;
+        }
+
         private void Select(CharacterRoot next, bool requireMovementRelease=false, bool linkedSwitch=false)
         {
             // 先撤回旧权威并清所有快照，再授予新身份。整帧禁入避免外部晚调用导致同帧双控。

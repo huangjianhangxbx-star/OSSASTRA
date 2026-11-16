@@ -13,6 +13,7 @@ using Ossastra.UserInterface;
 using Ossastra.Commerce.Runtime;
 using Ossastra.Commerce.Presentation;
 using Ossastra.Crafting;
+using Ossastra.SideView.Slice;
 namespace Ossastra.Inventory
 {
     public sealed class InventoryInteraction:MonoBehaviour
@@ -25,6 +26,7 @@ namespace Ossastra.Inventory
         [SerializeField] private CommerceUIRoot commerceUi;
         [Header("可选合成根 / 同一交互Action，不新增F")]
         [SerializeField] private CraftingRoot crafting;
+        [SerializeField] private SVSliceWorldInteractable[] sliceTargets = System.Array.Empty<SVSliceWorldInteractable>();
         public InputAction interactAction=new InputAction("InventoryInteract",InputActionType.Button,"<Keyboard>/f");
         private bool focused=true;
         private readonly DeviceActionSampler sampler=new DeviceActionSampler();
@@ -67,7 +69,11 @@ namespace Ossastra.Inventory
             var useStation=station!=null&&stationDistance<=containerDistance&&stationDistance<=merchantDistance&&stationDistance<=fireDistance;
             var useFire=fireAvailable&&fireDistance<containerDistance&&fireDistance<merchantDistance&&fireDistance<stationDistance;
             var useMerchant=merchant!=null&&merchantDistance<=containerDistance&&merchantDistance<=fireDistance&&merchantDistance<stationDistance;
-            Prompt=manual!=null?"交互 拾取":useStation?"交互 "+station.definition.displayName:useFire?"交互 篝火补给":useMerchant?"交互 "+merchant.displayName:nearest.Length>0?"交互 打开容器":"";
+            var sliceTarget=sliceTargets.Where(target=>target!=null&&target.IsAccessible(actor))
+                .OrderBy(target=>(target.transform.position-actor.transform.position).sqrMagnitude).FirstOrDefault();
+            var sliceDistance=sliceTarget==null?float.PositiveInfinity:(sliceTarget.transform.position-actor.transform.position).sqrMagnitude;
+            var useSlice=sliceTarget!=null&&sliceDistance<stationDistance&&sliceDistance<merchantDistance&&sliceDistance<containerDistance&&sliceDistance<fireDistance;
+            Prompt=manual!=null?"交互 拾取":useSlice?"交互 "+sliceTarget.Prompt:useStation?"交互 "+station.definition.displayName:useFire?"交互 篝火补给":useMerchant?"交互 "+merchant.displayName:nearest.Length>0?"交互 打开容器":"";
             if (!string.IsNullOrEmpty(Prompt) && input.UsesPostureInputRouting) Prompt = "W / 左摇杆上 · " + Prompt;
             if(!pressed)return;
             // 优先散落条目；容器/篝火分支互斥，绝不对同一次F继续向后派发。
@@ -76,6 +82,7 @@ namespace Ossastra.Inventory
                 var item=session.Ledger.Items.FirstOrDefault(i=>i.Location.ContainerId==manual);if(item==null)return;
                 var result=session.Move(session.Ledger.Plan(item.Id,"team"));view.Feedback(result.Ok?"已拾取 "+session.Definition(item.DefinitionId).displayName:result.Reason);session.ReclaimEmptyGround();return;
             }
+            if(useSlice){sliceTarget.Use(actor);return;}
             if(useStation){crafting.Open(station);return;}
             if(useFire){healing.TryRefill(campfire);view.Feedback(healing.LastResult);return;}
             if(useMerchant){commerce.OpenRole(merchant);return;}
