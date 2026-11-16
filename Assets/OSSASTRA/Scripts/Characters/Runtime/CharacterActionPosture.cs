@@ -13,7 +13,7 @@ namespace Ossastra.Characters
         private readonly Dictionary<Guid, string> recoveryEvents = new Dictionary<Guid, string>();
         private CharacterRoot owner;
         private CombatPosture posture;
-        private Guid jump, traverse, locomotion;
+        private Guid jump, traverse;
         private SideViewTraversalMode traversalMode;
         private bool leftSupport;
         internal string LastSpineRecovery { get; private set; }
@@ -123,20 +123,6 @@ namespace Ossastra.Characters
                     jump = Guid.Empty;
                 }
             }
-            bool walking = movement.IsMoving && movement.Grounded && Mathf.Abs(owner.DataBus.Input.move.x) > .05f &&
-                owner.DataBus.AllowsMovement && owner.DataBus.MoveReady && owner.DataBus.MotionOverride?.IsActive != true &&
-                owner.StateStatusEffects?.HasForcedMotion != true && !owner.DataBus.AbilityMotionActive;
-            if (walking && locomotion == Guid.Empty)
-            {
-                locomotion = Guid.NewGuid();
-                posture.BeginActionExposure(locomotion, PostureActionGroup.Locomotion, 5, false);
-            }
-            else if (!walking)
-            {
-                End(locomotion);
-                locomotion = Guid.Empty;
-            }
-
             bool modernGuard = owner.StateAbilities is CharacterAbilities abilities && abilities.isActiveAndEnabled;
             posture.SetGuardHold(modernGuard ? ((CharacterAbilities)owner.StateAbilities).IsGuarding :
                 owner.StateGuard?.IsGuarding == true);
@@ -148,8 +134,7 @@ namespace Ossastra.Characters
             recoveryEvents.Clear();
             End(jump);
             End(traverse);
-            End(locomotion);
-            jump = traverse = locomotion = Guid.Empty;
+            jump = traverse = Guid.Empty;
             traversalMode = SideViewTraversalMode.Grounded;
             posture?.SetGuardHold(false);
         }

@@ -101,7 +101,7 @@ namespace Ossastra.Development
                 GUILayout.Label($"{actor.ActorId}　生命 {actor.LifeGeneration}／切控 {actor.ActionControlRevision}");
                 GUILayout.Label($"架势 {posture.Current:0.0}/{posture.Maximum:0}　恢复 {ledger.RecoveryPerSecond:0.##}/s"
                     + $"　等待 {ledger.WaitingSeconds:0.##}s　旧体力准入：停用");
-                GUILayout.Label($"移动 {ledger.GetDeficit(PostureActionGroup.Locomotion):0.0}　垂直 {ledger.GetDeficit(PostureActionGroup.VerticalTraversal):0.0}"
+                GUILayout.Label($"诊断预置 {ledger.GetDeficit(PostureActionGroup.Locomotion):0.0}　垂直 {ledger.GetDeficit(PostureActionGroup.VerticalTraversal):0.0}"
                     + $"　主手 {ledger.GetDeficit(PostureActionGroup.MainAttack):0.0}"
                     + $"　闪避 {ledger.GetDeficit(PostureActionGroup.Dodge):0.0}　副手 {ledger.GetDeficit(PostureActionGroup.OffhandAction):0.0}");
                 GUILayout.Label($"防御 {ledger.GuardDeficit:0.0}（{(ledger.GuardHeld ? "保持" : "松开")}）　受击 {ledger.HitDeficit:0.0}"
