@@ -34,7 +34,7 @@ namespace Ossastra.Characters
         public readonly string effectRoot,damageChannel;
         public readonly AbilityPlan plan;
         public readonly float cost,cooldown,holdCost,releaseCost;
-        public readonly bool wearOnRelease;
+        public readonly bool wearOnRelease, opensSwitchLinkOnRelease;
         public readonly float reclaimBudget,reclaimRate;
         public readonly AbilityCooldownPolicy cooldownPolicy;
         public readonly DeliveryParameters delivery;
@@ -45,6 +45,7 @@ namespace Ossastra.Characters
         {
             id=definition.definitionId;displayName=definition.displayName;cooldownIdentity=string.IsNullOrWhiteSpace(definition.cooldownIdentity)?id:definition.cooldownIdentity;cost=definition.acceptCost;cooldown=definition.cooldown;
             holdCost=definition.holdCostPerSecond;releaseCost=definition.releaseCost;wearOnRelease=definition.wearOnRelease;
+            opensSwitchLinkOnRelease=definition.opensSwitchLinkOnRelease;
             reclaimBudget=definition.reclaimBudget;reclaimRate=definition.reclaimRate;
             cooldownPolicy=definition.cooldownPolicy;
             effectRoot=definition.effectRoot;damageChannel=string.IsNullOrWhiteSpace(definition.damageChannel)?effectRoot:definition.damageChannel;
@@ -58,6 +59,8 @@ namespace Ossastra.Characters
     [CreateAssetMenu(menuName="OSSASTRA/Abilities/Ability Definition")]
     public sealed class AbilityDefinitionSO:ScriptableObject
     {
+        [Tooltip("勾选后，实控角色实际投递的攻击可以开启切换连携。")]
+        public bool opensSwitchLinkOnRelease;
         public const int CurrentSchema=1;
         public int schemaVersion=CurrentSchema;
         public AbilityCooldownPolicy cooldownPolicy;

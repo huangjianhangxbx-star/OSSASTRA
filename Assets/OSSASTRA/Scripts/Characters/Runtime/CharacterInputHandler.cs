@@ -85,6 +85,8 @@ namespace Ossastra.Characters
         private readonly Dictionary<object, Rect> pointerRegions = new Dictionary<object, Rect>();
         private readonly Dictionary<object,bool> inventoryCaptures=new Dictionary<object,bool>();
         public bool InventoryCaptured=>inventoryCaptures.Count>0;
+        internal bool BlocksSwitchLinkCompanion(CharacterRoot actor)
+            => playerControl is CharacterControlCoordinator coordinator && coordinator.BlocksSwitchLinkCompanion(actor);
         /// <summary>开包只捕获战斗；数值输入再捕获移动，不撤销Current或暂停已接受动作。</summary>
         public void SetInventoryCapture(object owner,bool captured,bool captureMovement=false)
         {

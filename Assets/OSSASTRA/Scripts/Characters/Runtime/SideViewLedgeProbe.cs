@@ -1,6 +1,6 @@
 /*
- * 横版侧墙、顶缘和攀越净空查询。查询使用角色所在的 3D 物理场景和实际胶囊。
- * 返回当前几何证据与稳定锚点，由运动状态机处理输入、资格和唯一位移。
+ * 横版侧墙、顶缘、攀越及交接地面查询。查询使用角色所在的 3D 物理场景和实际胶囊。
+ * 返回几何证据与稳定锚点；对应角色状态机和移动器负责资格、命令和唯一位移。
  */
 using System;
 using UnityEngine;
@@ -70,6 +70,71 @@ namespace Ossastra.Characters
         private float HalfHeight => Mathf.Max(Radius, body.height * Mathf.Abs(body.transform.lossyScale.y) * .5f);
         private float Skin => body.skinWidth * Mathf.Max(Mathf.Abs(body.transform.lossyScale.y), Mathf.Abs(body.transform.lossyScale.x));
         private float ClearanceRadius => Mathf.Max(.01f, Radius - Skin * .55f);
+
+        internal float BodyWidth => Radius * 2f;
+        internal float FootOffset => CenterOffset.y - HalfHeight;
+        internal float GroundContactTolerance => Mathf.Max(.012f, Skin + .006f);
+        internal float GroundSlope => Mathf.Tan(Mathf.Clamp(body.slopeLimit, 0f, 80f) * Mathf.Deg2Rad);
+
+        // 根部下方先有可走表面，然后用实际胶囊找到接触高度；侧边擦碰不算可靠支撑。
+        internal bool TrySwitchGround(Vector3 anchor, float reach, float leadingMargin,
+            out Vector3 position, out Collider support)
+        {
+            position = anchor;
+            support = null;
+            if (Radius <= .01f || reach <= 0f) return false;
+            var foot = anchor + CenterOffset - Vector3.up * HalfHeight;
+            var rayStart = foot + Vector3.up * reach;
+            if (!TrySwitchSupportRay(rayStart, reach * 2f, out var centered)) return false;
+            if (Mathf.Abs(leadingMargin) > .001f &&
+                (!TrySwitchSupportRay(rayStart + Vector3.right * leadingMargin, reach * 2f, out var leading) ||
+                 !SideViewSwitchPath.KeepsSupport(leadingMargin, leading.point.y - centered.point.y, GroundSlope, .014f)))
+                return false;
+
+            var elevated = anchor + Vector3.up * reach;
+            Capsule(elevated, out var bottom, out var top);
+            int count;
+            while (true)
+            {
+                count = PhysicsWorld.CapsuleCast(bottom, top, Radius, Vector3.down, hits, reach * 2f,
+                    Physics.AllLayers, QueryTriggerInteraction.Ignore);
+                if (count < hits.Length) break;
+                Array.Resize(ref hits, hits.Length * 2);
+            }
+            if (!TrySwitchSupport(count, out var contact)) return false;
+
+            position = elevated - Vector3.up * (contact.distance - .002f);
+            if (!ClearPath(position, position)) return false;
+            support = contact.collider;
+            return true;
+        }
+
+        private bool TrySwitchSupportRay(Vector3 origin, float distance, out RaycastHit support)
+        {
+            int count;
+            while (true)
+            {
+                count = PhysicsWorld.Raycast(origin, Vector3.down, hits, distance,
+                    Physics.AllLayers, QueryTriggerInteraction.Ignore);
+                if (count < hits.Length) break;
+                Array.Resize(ref hits, hits.Length * 2);
+            }
+            return TrySwitchSupport(count, out support);
+        }
+
+        private bool TrySwitchSupport(int count, out RaycastHit support)
+        {
+            support = default;
+            float nearest = float.PositiveInfinity;
+            for (int i = 0; i < count; i++)
+            {
+                if (hits[i].distance >= nearest || !blocksMovement(hits[i].collider)) continue;
+                support = hits[i];
+                nearest = support.distance;
+            }
+            return support.collider != null && environment(support.collider) && support.distance > .00001f &&
+                support.normal.y >= Mathf.Cos(body.slopeLimit * Mathf.Deg2Rad);
+        }
 
         public SideWallContact Wall(int side, SideViewTraversalSettings settings)
             => WallAt(side, Root + CenterOffset, settings.wallReach, settings);

@@ -1,7 +1,7 @@
 /* 脚本：CharacterCombatStateMachine
  * 功能：注册战斗状态机，唯一拥有并推进BasicActionRuntime、连段、受理快照与主动作取消。
  * 边界：不采设备、不写运动/HP；能力Run和费用账本仍由既有端口所有。
- * 协作：仲裁器按原阶段调用；Root公开方法仅转发，释放仍走同一战斗网关。
+ * 协作：仲裁器按原阶段调用；投递完成后向队伍登记切换连携机会；Root公开方法仅转发，释放仍走同一战斗网关。
  */
 using System;
 using Ossastra.CharacterCore;
@@ -9,7 +9,7 @@ using Ossastra.Combat;
 using UnityEngine;
 namespace Ossastra.Characters
 {
- public sealed class CharacterCombatStateMachine:CharacterStateMachine,IParallelCharacterStateMachine
+ public sealed partial class CharacterCombatStateMachine:CharacterStateMachine,IParallelCharacterStateMachine
  {
   private BasicActionRuntime runtime;
   private BasicAttackDefinition definition,secondDefinition;
@@ -68,8 +68,9 @@ namespace Ossastra.Characters
   }
   public void RequestCompanion()
   {
-            var inventoryAccepted=owner.StateInventoryConsumer!=null&&owner.StateInventoryConsumer.TickCandidate();
-            if(!inventoryAccepted&&!owner.StateInput.HasPlayerInput && owner.CanSimulateIntent && owner.StateCombatBrain!=null &&
+            bool blocksNewCompanion = owner.StateInput.BlocksSwitchLinkCompanion(owner);
+            var inventoryAccepted=!blocksNewCompanion&&owner.StateInventoryConsumer!=null&&owner.StateInventoryConsumer.TickCandidate();
+            if(!blocksNewCompanion&&!inventoryAccepted&&!owner.StateInput.HasPlayerInput && owner.CanSimulateIntent && owner.StateCombatBrain!=null &&
                 ((ICompanionActionCandidate)owner.StateCombatBrain).TryGetAttackTarget(out var aiTarget))
                 RequestStage(1,aiTarget);
             if(autonomousAction && runtime.IsActive)
@@ -84,19 +85,26 @@ namespace Ossastra.Characters
             owner.StateMainAction?.PrepareMotion(runtime.SimulationTime+(owner.IsSimulationSuspended?0:deltaTime),owner.IsSimulationSuspended?0:deltaTime);
             foreach (var fact in runtime.Advance(deltaTime, owner.IsPaused || !owner.StateFocused))
             {
+                bool switchAttack = fact.Release != null && fact.ActionId == switchAttackId;
+                if (switchAttack) owner.StateOrienter.OrientTowards(owner.transform.position + switchAttackDirection);
                 ObserveFact(fact);
                 if (fact.Release != null)
                 {
                     ReleaseCount++;
                     // 在释放当帧按值采样方向；不是接受动作时锁定，前摇中仍可重新瞄准。
-                    var releaseDirection = owner.StateOrienter.AttackDirection;
+                    var releaseDirection = switchAttack ? switchAttackDirection : owner.StateOrienter.AttackDirection;
                     owner.StateOrienter.FaceAttackDirection();
                     if(owner.StateAbilities!=null&&owner.StateAbilities.OwnsRelease(fact.ActionId))continue;
-                    if(owner.StateMainAction!=null&&owner.StateMainAction.TryRelease(fact,releaseDirection))continue;
+                    if(owner.StateMainAction!=null&&owner.StateMainAction.TryRelease(fact,releaseDirection,out bool delivered))
+                    {
+                        if (delivered) RecordBasicRelease(fact.ActionId);
+                        continue;
+                    }
                     if(owner.StateSkills!=null&&owner.StateSkills.TryHandleRelease(fact.Release,releaseDirection))continue;
                     if(owner.StateHitResolver is CombatMeleeHit melee)
                         melee.Resolve(fact.Release,releaseDirection,AttackStage);
                     else owner.StateHitResolver.Resolve(fact.Release,releaseDirection);
+                    RecordBasicRelease(fact.ActionId);
                 }
             }
 
@@ -124,6 +132,7 @@ namespace Ossastra.Characters
             owner.StateArbitrator.ObserveCombatEdge();
             owner.StateAbilities?.ObserveFact(fact);
             owner.StateMainAction?.ObserveFact(fact);
+            ObserveSwitchActionFact(fact);
             owner.PublishActionFact(fact);
             if (fact.Kind == ActionFactKind.Finished || fact.Kind == ActionFactKind.Cancelled)
             {
@@ -235,6 +244,7 @@ namespace Ossastra.Characters
                 AttackStage=stage; autonomousAction=aiTarget!=null; autonomousTarget=aiTarget;
                 if(autonomousAction) { chain?.Clear(); owner.StateCombatBrain.OnAccepted(); owner.StateOrienter.OrientTowards(aiTarget.transform.position); }
                 else chain?.Accepted(stage,request.Fact.ActionId,runtime.SimulationTime,selected.AttackReadyAt);
+                TrackBasicAttack(request.Fact.ActionId, aiTarget == null);
                 ObserveFact(request.Fact); owner.StateOrienter.FaceAttackDirection();
             }
             else lastFact="Rejected: "+request.Reason;

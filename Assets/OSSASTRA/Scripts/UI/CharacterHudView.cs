@@ -174,10 +174,10 @@ namespace Ossastra.UserInterface
             var g=Cluster("VitalityCluster",2,0,350,30,new Vector2(1,0));Picture(g,"Upgrade",new Rect(0,0,100,30),skin.square,Color.gray,true);Label(g,"UpgradeText",new Rect(0,0,100,30),"升级 · 未接入",11,edge);
             Picture(g,"CarriedVitality",new Rect(104,0,246,30),null,ink,true);Label(g,"Balance",new Rect(104,0,246,30),"携带活力 · 未接入",11,gold);
         }
-        private void Refresh(Card card,bool isCompanion)
+        private void Refresh(Card card,bool isCompanion,bool switchLinkReady)
         {
             var s=port.Read(isCompanion);card.snapshot=s;
-            card.name.text=s.name??"无角色";card.control.text=s.controlled?"◆ 主控":"◇ 同行";
+            card.name.text=s.name??"无角色";card.control.text=s.controlled?(switchLinkReady?"◆ 主控 · 连携可用":"◆ 主控"):"◇ 同行";
             card.control.rectTransform.anchoredPosition=new Vector2(22+card.name.preferredWidth,-3);card.control.color=s.controlled?new Color32(255,235,187,255):edge;
             card.values.text=$"生命 {Mathf.CeilToInt(s.hp)}/{s.maxHp:0} · 虚血 {Mathf.CeilToInt(s.grayHp)} · 架势 {s.posture:0}/{s.maxPosture:0}";
             // 原型fill_full含2.15%两端留白，按原CSS端点映射，避免低血量刻度偏短。
@@ -198,7 +198,8 @@ namespace Ossastra.UserInterface
             if(popup!=null&&closeAction.WasPressedThisFrame())CloseEquipment();
             canvas.scaleFactor=Mathf.Min(Screen.width/1920f,Screen.height/1080f);
             foreach(var metric in typography)if(metric.text!=null)metric.text.fontSize=Mathf.CeilToInt(Mathf.Max(metric.size,metric.minimum/canvas.scaleFactor));
-            Refresh(hero,false);Refresh(companion,true);var s=port.ReadCurrent();
+            bool switchLinkReady = adapter.SwitchLinkReady;
+            Refresh(hero,false,switchLinkReady);Refresh(companion,true,switchLinkReady);var s=port.ReadCurrent();
             skillOwner.text=(s.name??"无角色")+"  当前主控";
             for(int i=0;i<3;i++){skillLabels[i].text=s.skillNames!=null&&i<s.skillNames.Length?s.skillNames[i]:"未接入";var cd=s.skillCooldowns!=null&&i<s.skillCooldowns.Length?s.skillCooldowns[i]:0;skillStates[i].text=s.skillStates==null||i>=s.skillStates.Length?"未接入":s.skillStates[i];skillImages[i].color=cd>0?Color.gray:Color.white;}
             if(popup!=null)RefreshEquipmentWindow();

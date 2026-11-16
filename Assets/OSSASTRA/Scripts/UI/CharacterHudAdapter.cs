@@ -14,6 +14,7 @@ namespace Ossastra.UserInterface
         [SerializeField] private CharacterControlCoordinator coordinator;
         [SerializeField] private HealingBottleService bottle;
         public string Notice {get;private set;}="";
+        public bool SwitchLinkReady => coordinator != null && coordinator.SwitchLinkReady;
         private string previousAdmission,previousDodge,previousSkill,previousOffhand,previousAbility,previousMainAction;
         public void SetModalCapture(object owner,bool captured){coordinator?.SetInputCapture(owner,captured);}
         private void WatchRejection(string current,ref string previous){if(current!=previous&&(current?.StartsWith("Rejected")==true||current?.StartsWith("拒绝")==true))Notice=current.Replace("stamina","体力不足");previous=current;}

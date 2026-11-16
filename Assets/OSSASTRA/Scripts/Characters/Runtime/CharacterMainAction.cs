@@ -1,7 +1,7 @@
 /* 脚本：CharacterMainAction
  * 功能：独立主手动作组选择、接受快照、阶段突进及有效扇区投递。
  * 边界：不采设备、不拥有第二动作钟、不直接Move/写HP；选择保存在装备原实例。
- * 协作：Root显式刷新/接受/推进；DataBus运动端口与CombatDeliveryQueue复用原权威。
+ * 协作：Root显式刷新/接受/推进；实际投递结果用于连携出手判断；DataBus运动端口与CombatDeliveryQueue复用原权威。
  */
 using System;
 using System.Linq;
@@ -105,15 +105,16 @@ namespace Ossastra.Characters
             if(fact.Kind==ActionFactKind.Finished||fact.Kind==ActionFactKind.Cancelled)
             {deliveries.CompleteParent(actionId);accepted=null;actionId=Guid.Empty;if(fact.Kind==ActionFactKind.Cancelled)MotionVelocity=Vector3.zero;}
         }
-        public bool TryRelease(ActionFact fact,Vector3 direction)
+        public bool TryRelease(ActionFact fact,Vector3 direction,out bool delivered)
         {
+            delivered = false;
             if(accepted==null||fact.ActionId!=actionId)return false;
             var stage=accepted;var id=actionId;var state=equipment.State.RightRuntime;
             if(stage.Last)finalRecoveryUntil=acceptedAt+stage.Phase.Timeline.FinishAt+stage.FullRecovery;
             if(!string.IsNullOrEmpty(stage.Stage.SourceId)&&!state.Frost.Spend(1,state.EquippedTime))
             {LastResult="拒绝：凿冰释放需要 1 霜寒";return true;}
             var life=generation;var instance=weaponInstance;var t=stage.Phase.Timeline;
-            deliveries.Emit(owner.Vitals,id,0,new DeliveryParameters{mode=DeliveryMode.Sector,range=(float)stage.Stage.Range,arc=(float)stage.Stage.ArcDegrees,
+            delivered = deliveries.Emit(owner.Vitals,id,0,new DeliveryParameters{mode=DeliveryMode.Sector,range=(float)stage.Stage.Range,arc=(float)stage.Stage.ArcDegrees,
                 activeDuration=stage.ContactDuration,followSource=true},t.Damage,(float)t.PostureImpact,transform.position,direction,transform.position,
                 ()=>this!=null&&isActiveAndEnabled&&owner!=null&&owner.IsAlive&&owner.LifeGeneration==life&&equipment.State.RightInstanceId==instance,
                 receipts=>Resolved?.Invoke(id,receipts.Any(r=>r.Reason==HitReason.Applied)),basicAttackStage:stage.BasicAttackStage);
@@ -127,6 +128,7 @@ namespace Ossastra.Characters
             var distance=accepted.Stage.TravelBetween(previousMotionAt-acceptedAt,endTime-acceptedAt);previousMotionAt=endTime;
             if(distance>0)MotionVelocity=motionDirection*(float)(distance/delta);
         }
+        internal void CloseAttachedContacts(Guid id) => deliveries.CloseAttachedContacts(id);
         public void TickEffects(float delta){if(delta>0)deliveries.Tick(delta);}
         public void ResetState(){deliveries.Clear();accepted=null;actionId=Guid.Empty;MotionVelocity=Vector3.zero;finalRecoveryUntil=0;}
         private bool Reject(string reason){LastResult="拒绝："+reason;return false;}

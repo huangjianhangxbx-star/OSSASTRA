@@ -447,6 +447,9 @@ namespace Ossastra.Characters
                 if(!owner.Actions.TryCommit(request,compiled.cost,()=>port.TryReserve(reservation)?request.RequestId:Guid.Empty,out var reason))return RejectReserved(reason);
             }
             var context=new AbilityRunContext(owner,compiled,port,id,direction.normalized,landing,Emit,operation,sprite,scale,frozenEffects,releasePayment,source,presentationMainHand);
+            context.OpensSwitchLink = source == CharacterActionSource.Player &&
+                compiled.opensSwitchLinkOnRelease && executor.IsAttack;
+            if (context.OpensSwitchLink) context.SwitchLinkIdentity = owner.StateArbitrator.Combat.CaptureSwitchIdentity();
             context.commitSource=CommitSource;
             context.deliveryPort=EmitDelivery;
             // 回调在CreateRun之前捕获接受上下文；即时执行器可在构造Run时同步反馈。
@@ -551,8 +554,14 @@ namespace Ossastra.Characters
                 receipts=>{LastResult="接触 "+receipts.Count+" #"+context.id.ToString("N");context.onResolved?.Invoke(emission.Index,channel,receipts);
                     PublishFeedback(new AbilityFeedbackFact(context.id,definitionId,sourceInstanceId,receipts.Any(r=>r.Reason==HitReason.Applied)?"hit":"miss",landing,
                         emission.Index,channel,deliveryMode,requestSource,operation));},context.projectileSprite,context.projectileScale,context.definition.reclaimBudget,context.definition.reclaimRate);
-            if(emitted){EmittedCount++;PublishFeedback(new AbilityFeedbackFact(context.id,definitionId,sourceInstanceId,"release",releaseOrigin,
-                emission.Index,channel,deliveryMode,requestSource,operation,direction));}
+            if (emitted)
+            {
+                EmittedCount++;
+                if (context.OpensSwitchLink)
+                    owner.StateArbitrator.Combat.RecordOptInRelease(context.SwitchLinkIdentity, context.id);
+                PublishFeedback(new AbilityFeedbackFact(context.id,definitionId,sourceInstanceId,"release",releaseOrigin,
+                    emission.Index,channel,deliveryMode,requestSource,operation,direction));
+            }
         }
         private void PublishFeedback(AbilityFeedbackFact fact)
         {

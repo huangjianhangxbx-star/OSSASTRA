@@ -1,5 +1,5 @@
 /*
- * 运动状态：采样跳跃、挂边和已接受的横版能力运动；在每个固定步只调用一次原移动器。
+ * 运动状态：采样跳跃、挂边、退场和已接受的横版能力运动；每个固定步只调用一次原移动器。
  * 能力接管空中位移时清除旧跳跃输入，运动完成后将真实接触事实交回本次执行。
  */
 using Ossastra.CharacterCore;
@@ -11,8 +11,8 @@ namespace Ossastra.Characters
         public override string StateMachineName => "MovementStateMachine";
         public bool IsAirborne => owner.StateMovement != null && owner.StateMovement.IsSideView &&
             (jump.Phase == OrdinaryJumpPhase.Rising || jump.Phase == OrdinaryJumpPhase.Falling);
-        public override bool IsActive => IsAirborne || traversal?.OwnsAirState == true || (owner.StateMovement != null && owner.StateMovement.IsMoving);
-        public override string CurrentStateName => traversal?.OwnsAirState == true ? TraversalMode.ToString() :
+        public override bool IsActive => IsSwitchRetreatActive || IsAirborne || traversal?.OwnsAirState == true || (owner.StateMovement != null && owner.StateMovement.IsMoving);
+        public override string CurrentStateName => IsSwitchRetreatActive ? "SwitchRetreat" : traversal?.OwnsAirState == true ? TraversalMode.ToString() :
             IsAirborne ? "Airborne/" + jump.Phase : IsActive ? "Move" : "Idle";
         public int AcceptedJumps { get; private set; }
         public SideViewTraversalMode TraversalMode => traversal?.Mode ??
@@ -32,6 +32,28 @@ namespace Ossastra.Characters
         private int pendingAge, inputGeneration, controlRevision;
         private uint contactRevision;
         private float accumulator;
+        private float retreatVelocity, retreatRemaining;
+        private int retreatControlRevision;
+
+        internal bool IsSwitchRetreatActive => retreatRemaining > 0f;
+        internal float LastSwitchRetreatDistance { get; private set; }
+
+        internal void BeginSwitchRetreat(float signedDistance, float duration)
+        {
+            if (duration <= 0f || float.IsInfinity(duration) || float.IsNaN(duration)) return;
+            retreatControlRevision = owner.ActionControlRevision;
+            LastSwitchRetreatDistance = 0f;
+            retreatVelocity = signedDistance / duration;
+            retreatRemaining = duration;
+            InvalidateInput();
+            traversal?.SuspendInput();
+        }
+
+        internal void CancelSwitchRetreat()
+        {
+            retreatVelocity = 0f;
+            retreatRemaining = 0f;
+        }
 
         public override bool AllowsRequest(CharacterActionKind kind, out string reason)
             => AllowsRequest(kind, kind == CharacterActionKind.Main || kind == CharacterActionKind.Offhand, out reason);
@@ -90,6 +112,7 @@ namespace Ossastra.Characters
             }
             if (elapsed <= 0f)
             {
+                CancelSwitchRetreat();
                 accumulator = 0f;
                 motor.ResetSideViewPose();
                 InvalidateInput();
@@ -101,6 +124,10 @@ namespace Ossastra.Characters
             if (profile.traversal?.enabled == true && traversal == null) traversal = new SideViewTraversal(motor);
             if (profile.traversal?.enabled != true) traversal = null;
             var frame = owner.DataBus.Input;
+            if (IsSwitchRetreatActive && (!owner.CanSimulateIntent || !owner.DataBus.AllowsMovement ||
+                retreatControlRevision != owner.ActionControlRevision || owner.StateArbitrator.Reaction.IsActive ||
+                owner.StateStatusEffects?.HasForcedMotion == true || owner.StateArbitrator.Dodge?.IsActive == true))
+                CancelSwitchRetreat();
             SampleJump(frame);
             bool playerMovement = owner.HasPlayerInput && owner.EffectiveIntentKind == CharacterIntentKind.Player &&
                 frame.jumpInputAvailable && !frame.jumpRequestsBlocked;
@@ -118,7 +145,12 @@ namespace Ossastra.Characters
                 accumulator = Mathf.Max(0f, accumulator - step);
                 steps++;
                 if (owner.StateArbitrator.Reaction.TryStep(motor, step)) continue;
-                if (TryTickSideViewAbility(motor, profile, step)) continue;
+                if (TryTickSideViewAbility(motor, profile, step))
+                {
+                    CancelSwitchRetreat();
+                    continue;
+                }
+                if (TryTickSwitchRetreat(motor, profile, step)) continue;
 
                 bool canMove = CanMove();
                 bool canTraverse = canMove && owner.DataBus.MoveReady && !owner.DataBus.ActionActive &&
@@ -153,6 +185,21 @@ namespace Ossastra.Characters
 
         private bool CanMove() => owner.StateFocused && !owner.IsPaused && owner.DataBus.AllowsMovement &&
             (owner.DataBus.MoveReady || owner.DataBus.AbilityMotionActive);
+
+        private bool TryTickSwitchRetreat(CharacterMovement motor, CharacterJumpProfile profile, float step)
+        {
+            if (!IsSwitchRetreatActive) return false;
+            InvalidateInput();
+            traversal?.SuspendInput();
+            var motion = motor.PlanSwitchRetreatStep(retreatVelocity * Mathf.Min(retreatRemaining, step));
+            float before = motor.transform.position.x;
+            motor.TickSideView(false, step, JumpVerticalCommand.Gravity, 1f, false, switchRetreat: motion);
+            LastSwitchRetreatDistance += motor.transform.position.x - before;
+            traversal?.Observe(profile.traversal);
+            jump.Observe(false, motor.Grounded, false, motor.VerticalSpeed > 0f, profile.headLockSteps);
+            retreatRemaining = Mathf.Max(0f, retreatRemaining - step);
+            return true;
+        }
 
         private bool TryTickSideViewAbility(CharacterMovement motor, CharacterJumpProfile profile, float step)
         {
@@ -259,6 +306,7 @@ namespace Ossastra.Characters
 
         internal void ResetJump()
         {
+            CancelSwitchRetreat();
             InvalidateInput();
             jump.Reset();
             traversal?.Reset();

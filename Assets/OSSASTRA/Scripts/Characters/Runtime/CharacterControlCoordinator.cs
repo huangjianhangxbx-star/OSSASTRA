@@ -2,7 +2,7 @@
  * 脚本：CharacterControlCoordinator
  * 功能：保存同组角色唯一的玩家实控对象，并读取Inspector切换输入。
  * 边界：不接管各角色动作时钟、HP或AI；不使用全局单例。
- * 协作：在Root之前更新；订阅本体死亡立即交接，玩家/伙伴只读同一许可/代际，不复制Current。
+ * 协作：在Root之前读取手动切换，通过可选连携组件准备专项交接；订阅本体死亡立即交接，玩家/伙伴只读同一许可/代际，不复制Current。
  */
 using System;
 using System.Collections.Generic;
@@ -32,10 +32,17 @@ namespace Ossastra.Characters
             var changed = captured ? inventoryCaptures.Add(owner) : inventoryCaptures.Remove(owner);
             if (!changed) return;
             if (!preserveAcceptedMotion) ControlRevision++;
+            switchLink?.Interrupt();
             switchIntent.SuppressUntilRelease();
         }
         private readonly AttackIntent switchIntent = new AttackIntent();
         private CharacterInputHandler[] inputs;
+        private CharacterSwitchLink switchLink;
+        internal bool CanManuallySwitch => configured && isActiveAndEnabled && focused && !applicationPaused &&
+            inputCaptures.Count == 0 && inventoryCaptures.Count == 0;
+        public bool SwitchLinkReady => switchLink != null && switchLink.CanShowReady();
+        internal bool BlocksSwitchLinkCompanion(CharacterRoot actor)
+            => switchLink != null && switchLink.BlocksCompanion(actor);
         private bool configured, bindingsOwned, focused = true, applicationPaused;
         private int handoverFrame = -1;
         public CharacterRoot Current { get; private set; }
@@ -51,11 +58,12 @@ namespace Ossastra.Characters
         public void SetInputCapture(object owner,bool captured)
         {
             if(owner==null)return;var changed=captured?inputCaptures.Add(owner):inputCaptures.Remove(owner);if(!changed)return;
-            ControlRevision++;switchIntent.SuppressUntilRelease();
+            ControlRevision++;switchIntent.SuppressUntilRelease();switchLink?.Interrupt();
             if(bindingsOwned)foreach(var input in inputs)if(input!=null)input.ResetPlayerInput(true);
         }
         private void Awake()
         {
+            switchLink = GetComponent<CharacterSwitchLink>();
             if (characters == null) characters = Array.Empty<CharacterRoot>();
             inputs = new CharacterInputHandler[characters.Length];
             var identities = new HashSet<string>(StringComparer.Ordinal);
@@ -94,14 +102,15 @@ namespace Ossastra.Characters
         {
             if (Current != null && !Current.IsAlive) SelectSurvivor(true);
             else if (Current != null && (!Current.isActiveAndEnabled || Current.DataBus == null)) Revoke("当前角色不可用");
+            switchLink?.Advance(focused && !applicationPaused ? Time.deltaTime : 0);
             var input = Current != null ? Current.StateInput : null;
             if (input != null && input.UsesPostureInputRouting)
             {
-                if (input.TryConsumePostureInput(PostureInputCommand.SwitchCharacter)) SwitchNext();
+                if (input.TryConsumePostureInput(PostureInputCommand.SwitchCharacter)) SwitchManually();
                 return;
             }
             var held = switchAction != null && switchAction.enabled && switchAction.IsPressed();
-            if (switchIntent.Observe(held) && focused && !applicationPaused) SwitchNext();
+            if (switchIntent.Observe(held) && focused && !applicationPaused) SwitchManually();
         }
 
         /// <summary>只有Current对应的输入源可消费玩家输入；切换当帧新源禁止采样。</summary>
@@ -117,19 +126,45 @@ namespace Ossastra.Characters
         /// <summary>场景级切人入口；不会取消、复制或重建任一角色的已接受动作。</summary>
         public bool SwitchNext()
         {
-            if (!configured || !isActiveAndEnabled || !focused || applicationPaused || inputCaptures.Count>0||inventoryCaptures.Count>0) return false;
-            var index = Array.IndexOf(characters, Current);
-            for (var step = 1; step <= characters.Length; step++)
-            {
-                var candidate = characters[(index + step) % characters.Length];
-                if (candidate != null && candidate.IsAlive && candidate.isActiveAndEnabled && candidate.DataBus != null)
-                { Select(candidate); return true; }
-            }
+            if (!CanManuallySwitch) return false;
+            if (TryGetNext(out var next)) { Select(next); return true; }
             Revoke("没有可控制角色");
             return false;
         }
 
-        private void Select(CharacterRoot next, bool requireMovementRelease=false)
+        private void SwitchManually()
+        {
+            if (!CanManuallySwitch || !TryGetNext(out var next))
+            {
+                SwitchNext();
+                return;
+            }
+            if (switchLink == null || !switchLink.TrySwitch(next)) Select(next);
+        }
+
+        internal bool TryGetNext(out CharacterRoot next)
+        {
+            var index = Array.IndexOf(characters, Current);
+            for (int step = 1; step <= characters.Length; step++)
+            {
+                var candidate = characters[(index + step) % characters.Length];
+                if (candidate == null || !candidate.IsAlive || !candidate.isActiveAndEnabled || candidate.DataBus == null)
+                    continue;
+                next = candidate;
+                return true;
+            }
+            next = null;
+            return false;
+        }
+
+        internal void CommitLinkedSwitch(CharacterRoot outgoing, CharacterRoot incoming)
+        {
+            if (Current != outgoing || incoming == outgoing)
+                throw new InvalidOperationException("Control changed during a prepared switch link.");
+            Select(incoming, linkedSwitch: true);
+        }
+
+        private void Select(CharacterRoot next, bool requireMovementRelease=false, bool linkedSwitch=false)
         {
             // 先撤回旧权威并清所有快照，再授予新身份。整帧禁入避免外部晚调用导致同帧双控。
             Current = null;
@@ -137,6 +172,8 @@ namespace Ossastra.Characters
             foreach (var input in inputs) if (input != null) input.ResetPlayerInput(requireMovementRelease);
             handoverFrame = Time.frameCount;
             Current = next;
+            if (next != null) next.StateArbitrator?.Movement?.CancelSwitchRetreat();
+            if (!linkedSwitch) switchLink?.Interrupt();
             Status = next == null ? "无实控" : "玩家输入 → " + next.ActorId;
         }
 
@@ -188,6 +225,7 @@ namespace Ossastra.Characters
         private void OnApplicationFocus(bool value)
         {
             focused = value;
+            switchLink?.Interrupt();
             ControlRevision++;
             switchIntent.SuppressUntilRelease();
             if (bindingsOwned) foreach (var input in inputs) if (input != null) input.ResetPlayerInput(true);
@@ -195,6 +233,7 @@ namespace Ossastra.Characters
         private void OnApplicationPause(bool value)
         {
             applicationPaused = value;
+            switchLink?.Interrupt();
             ControlRevision++;
             switchIntent.SuppressUntilRelease();
             if (bindingsOwned) foreach (var input in inputs) if (input != null) input.ResetPlayerInput(true);

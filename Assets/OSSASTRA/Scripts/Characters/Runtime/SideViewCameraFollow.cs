@@ -1,7 +1,7 @@
 /*
  * 脚本：SideViewCameraFollow
- * 功能：唯一写入横版游戏相机。跟随角色的显示位置，并合成独立的冲击偏移。
- * 边界：基础镜头不回读上一帧冲击，玩法鼠标射线和边界查询使用稳定视图。
+ * 功能：唯一写入横版游戏相机。跟随角色的显示位置，合成交接推近和命中震动。
+ * 边界：基础镜头不回读上一帧演出。边界与玩法瞄准采用实际投影，移除平移震动。
  */
 using Ossastra.Combat;
 using UnityEngine;
@@ -30,6 +30,9 @@ namespace Ossastra.Characters
         private uint contactRevision;
         private Vector2 velocity;
         private float lookX, lookY, switchRemaining;
+        private float requestedSwitchZoom = 1f;
+        private float originalProjection, appliedProjection;
+        private bool ownsProjection, projectionWasOrthographic;
 
         public Vector2 TargetCenter { get; private set; }
         public Vector3 BasePosition { get; private set; }
@@ -49,8 +52,56 @@ namespace Ossastra.Characters
 
         private void OnDisable()
         {
+            ClearSwitchZoom();
             ClearShake();
             ResetFollow();
+        }
+
+        /// <summary>接收当前帧的交接画面倍率。投影仍在同一个镜头求解中写入。</summary>
+        internal void SetSwitchZoom(float multiplier) => requestedSwitchZoom = Mathf.Max(1f, multiplier);
+
+        internal void ClearSwitchZoom()
+        {
+            requestedSwitchZoom = 1f;
+            RestoreSwitchProjection();
+        }
+
+        private void ApplySwitchProjection()
+        {
+            if (requestedSwitchZoom <= 1f)
+            {
+                RestoreSwitchProjection();
+                return;
+            }
+
+            bool orthographic = view.orthographic;
+            if (ownsProjection && projectionWasOrthographic != orthographic) RestoreSwitchProjection();
+            float projection = ReadProjection(orthographic);
+            if (!ownsProjection || projection != appliedProjection) originalProjection = projection;
+
+            float target = orthographic
+                ? SwitchLinkPresentationClock.OrthographicSize(originalProjection, requestedSwitchZoom)
+                : SwitchLinkPresentationClock.PerspectiveFieldOfView(originalProjection, requestedSwitchZoom);
+            WriteProjection(orthographic, target);
+            appliedProjection = ReadProjection(orthographic);
+            projectionWasOrthographic = orthographic;
+            ownsProjection = true;
+        }
+
+        private void RestoreSwitchProjection()
+        {
+            if (!ownsProjection) return;
+            if (view != null && ReadProjection(projectionWasOrthographic) == appliedProjection)
+                WriteProjection(projectionWasOrthographic, originalProjection);
+            ownsProjection = false;
+        }
+
+        private float ReadProjection(bool orthographic) => orthographic ? view.orthographicSize : view.fieldOfView;
+
+        private void WriteProjection(bool orthographic, float value)
+        {
+            if (orthographic) view.orthographicSize = value;
+            else view.fieldOfView = value;
         }
 
         private void ResetFollow()
@@ -67,7 +118,7 @@ namespace Ossastra.Characters
                 impactShake.Request(request, shake);
         }
 
-        /// <summary>用稳定相机读取玩法瞄准。原横版相机的震动只有平移，射线方向与投影保持一致。</summary>
+        /// <summary>以当前实际缩放投影读取玩法瞄准，再从射线移除平移震动。</summary>
         public static Ray GameplayRay(Camera camera, Vector2 pixel)
         {
             var ray = camera.ScreenPointToRay(pixel);
@@ -88,6 +139,7 @@ namespace Ossastra.Characters
             var current = session == null ? null : session.Current;
             if (current == null)
             {
+                ClearSwitchZoom();
                 ClearShake();
                 if (followed != null) ResetFollow();
                 return;
@@ -108,6 +160,8 @@ namespace Ossastra.Characters
             contactRevision = revision;
             Vector3 anchor = motor == null ? current.transform.position : motor.PresentedPosition;
             float elapsed = Time.deltaTime;
+            // 先写本帧投影，再计算地图边界和震动屏占比。
+            ApplySwitchProjection();
             var center = (Vector2)BasePosition;
             Vector2 minOffset = default, maxOffset = default;
             if (profile == null)
@@ -174,7 +228,7 @@ namespace Ossastra.Characters
             for (int i = 0; i < 4; i++)
             {
                 var ray = view.ViewportPointToRay(new Vector3(i & 1, i >> 1, 0f));
-                // 投影只含平移震动。先将射线还原到稳定基准，再计算边界相对偏移。
+                // 射线带当前本帧投影。去掉上一帧平移震动，再计算稳定基准的边界偏移。
                 ray.origin -= (Vector3)AppliedShakeOffset;
                 if (!plane.Raycast(ray, out float distance)) continue;
                 Vector2 offset = ray.GetPoint(distance) - BasePosition;

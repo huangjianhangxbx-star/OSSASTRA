@@ -1,7 +1,7 @@
 /* 脚本：CharacterActionCoordinator
  * 功能：角色内统一动作资格与一次接受/费用事务，主副手按各自通道查询。
  * 边界：不持有第二套动作/生命/CD；不推进时间，不驱动骨骼或写HP。
- * 协作：Root创建；能力先查自身几何/配置，再提交请求；失败不调用取消/接受端口。
+ * 协作：Root创建；切换技需在队伍同步交接中持有单次请求；能力先查自身几何/配置，再提交请求；失败不调用取消/接受端口。
  */
 using System;
 using Ossastra.CharacterCore;
@@ -14,12 +14,34 @@ namespace Ossastra.Characters
         private readonly CharacterDodge dodge;
         private readonly CharacterOffhand offhand;
         private readonly ActionAdmissionLedger ledger=new ActionAdmissionLedger();
+        private Guid switchLinkRequest;
+
+        internal bool CanPrepareSwitchAttack(CharacterActionRequest request, float cost, out string reason)
+            => CanAccept(request, cost, request.Source == CharacterActionSource.SwitchLink &&
+                request.Kind == CharacterActionKind.Main && request.RequestId != Guid.Empty, out reason);
+
+        internal bool TryCommitSwitchAttack(CharacterActionRequest request, float cost, Func<Guid> accept, out string reason)
+        {
+            if (switchLinkRequest != Guid.Empty || request.Source != CharacterActionSource.SwitchLink ||
+                request.Kind != CharacterActionKind.Main || request.RequestId == Guid.Empty)
+            {
+                reason = "invalid-switch-link-request";
+                return false;
+            }
+            // 只授权这一个准备请求。设备采样和所有普通动作仍使用原控制代际。
+            switchLinkRequest = request.RequestId;
+            try { return TryCommit(request, cost, accept, out reason); }
+            finally { switchLinkRequest = Guid.Empty; }
+        }
         public string LastResult {get;private set;}="未请求";
         public CharacterActionCoordinator(CharacterRoot owner,CharacterStamina stamina,CharacterDodge dodge,CharacterOffhand offhand)
         {this.owner=owner;this.stamina=stamina;this.dodge=dodge;this.offhand=offhand;}
         public CharacterActionRequest CreateRequest(CharacterActionKind kind,CharacterActionSource source,string sourceLabel=null)
             =>new CharacterActionRequest(owner.ActorId,owner.LifeGeneration,owner.ActionControlRevision,kind,source,Guid.NewGuid(),sourceLabel);
         public bool CanAccept(CharacterActionRequest request,float cost,out string reason)
+            => CanAccept(request, cost, switchLinkRequest != Guid.Empty && switchLinkRequest == request.RequestId, out reason);
+
+        private bool CanAccept(CharacterActionRequest request, float cost, bool switchLinkAuthorized, out string reason)
         {
             reason=null;
             if(!Enum.IsDefined(typeof(CharacterActionKind),request.Kind)||!Enum.IsDefined(typeof(CharacterActionSource),request.Source))reason="invalid-kind/source";
@@ -27,7 +49,10 @@ namespace Ossastra.Characters
             else if(request.ControlRevision!=owner.ActionControlRevision)reason="stale-control";
             else if(!owner.CanSimulateIntent)reason="life/pause/focus/posture";
             else if(request.Kind==CharacterActionKind.Main&&owner.GetComponent<CharacterEquipment>() is CharacterEquipment gear&&gear.InventoryBound&&gear.RightDefinition==null)reason="main-equipment-missing";
-            else if(request.Source==CharacterActionSource.Companion?owner.HasPlayerInput:!owner.HasPlayerInput)reason="source-authority";
+            else if(request.Source == CharacterActionSource.SwitchLink ? !switchLinkAuthorized :
+                request.Source == CharacterActionSource.Companion ? owner.HasPlayerInput : !owner.HasPlayerInput)reason="source-authority";
+            else if(request.Source==CharacterActionSource.Companion&&owner.StateInput.BlocksSwitchLinkCompanion(owner))
+                reason="switch-link-companion-suspended";
             else if(request.Kind!=CharacterActionKind.Main&&request.Kind!=CharacterActionKind.Support&&request.Source==CharacterActionSource.Companion)reason="companion-capability";
             else if(request.Source!=CharacterActionSource.Companion&&request.Source!=CharacterActionSource.Inventory&&owner.GetComponent<CharacterInputHandler>()?.InventoryCaptured==true)reason="inventory-input-capture";
             else if(owner.Abilities!=null&&!owner.Abilities.CanAccept(request.Kind,out var abilityReason))reason=abilityReason;

@@ -52,6 +52,16 @@ namespace Ossastra.Combat
         private readonly HashSet<Guid> activeParents=new HashSet<Guid>();
         public void RegisterParent(Guid parent){if(parent!=Guid.Empty)activeParents.Add(parent);}
         public void CompleteParent(Guid parent){activeParents.Remove(parent);ForgetCompleted(parent);}
+        /// <summary>取消随身体移动的扇区窗口。已发出的独立投射物保留原生命周期。</summary>
+        public void CloseAttachedContacts(Guid parent)
+        {
+            for (int i = flights.Count - 1; i >= 0; i--)
+            {
+                var flight = flights[i];
+                if (flight.parent == parent && flight.config.mode == DeliveryMode.Sector && flight.config.followSource)
+                    Remove(i);
+            }
+        }
         private void ForgetCompleted(Guid parent)
         {if(!activeParents.Contains(parent)&&!flights.Any(f=>f.parent==parent))emitted.RemoveWhere(key=>key.Item1==parent);}
         public int InFlightCount=>flights.Count;

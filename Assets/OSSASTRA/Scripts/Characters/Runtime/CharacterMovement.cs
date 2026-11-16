@@ -1,8 +1,9 @@
 /*
  * 脚本：CharacterMovement
- * 功能：执行唯一碰撞位移。横版运动状态传入跳跃策略、攀越位移或能力 XY 命令。
+ * 功能：执行唯一碰撞位移，并为横版连携提供净空、落脚重建和受支撑的退场查询。
+ * 协作：横版运动状态传入跳跃、攀越、退场或能力运动；队伍交接仅使用受约束的地面落位。
  * 边界：只管理运动；不决定攻击方向、不结算伤害。
- * 协作：Root初始化Bus并调用Tick；CharacterController实际位移决定速度和Run资格。
+ * 运动事实：Root 初始化 Bus；CharacterController 实际位移决定速度和 Run 资格。
  */
 using System;
 using Ossastra.CharacterCore;
@@ -11,6 +12,27 @@ using UnityEngine.SceneManagement;
 
 namespace Ossastra.Characters
 {
+    internal readonly struct SideViewSwitchPlacement
+    {
+        internal readonly CharacterMovement Incoming, Outgoing;
+        internal readonly uint IncomingRevision, OutgoingRevision;
+        internal readonly Vector3 OutgoingPosition;
+        internal readonly Collider Support;
+        internal Vector3 Position { get; }
+
+        internal SideViewSwitchPlacement(CharacterMovement incoming, CharacterMovement outgoing,
+            Vector3 position, Collider support)
+        {
+            Incoming = incoming;
+            Outgoing = outgoing;
+            IncomingRevision = incoming.ContactRevision;
+            OutgoingRevision = outgoing.ContactRevision;
+            OutgoingPosition = outgoing.transform.position;
+            Position = position;
+            Support = support;
+        }
+    }
+
     [DisallowMultipleComponent]
     [RequireComponent(typeof(CharacterController))]
     public sealed class CharacterMovement : MonoBehaviour, ICharacterMovement
@@ -33,6 +55,7 @@ namespace Ossastra.Characters
         internal uint ContactRevision { get; private set; }
         private float sideDepth;
         private Collider stepSupport;
+        private SideViewLedgeProbe switchGroundProbe;
         private Vector3 traversalMoveDirection;
         internal Collider LastTraversalObstacle { get; private set; }
         private SideViewPartyContacts partyContacts;
@@ -94,18 +117,109 @@ namespace Ossastra.Characters
 
         internal SideViewLedgeProbe CreateLedgeProbe() => new SideViewLedgeProbe(body, IsTraversalObstacle, IsEnvironmentContact);
 
+        private SideViewLedgeProbe SwitchGroundProbe => switchGroundProbe ??
+            (switchGroundProbe = new SideViewLedgeProbe(body, IsSwitchSupport, IsSwitchObstacle));
+
+        internal bool HasStableSwitchGround => IsSideView && isActiveAndEnabled && body != null && body.enabled &&
+            Grounded && IsSwitchSupport(stepSupport);
+
+        // 查询阶段保留双方原位。只在交接点及小范围内找连续地面和可容纳入场者的净空。
+        internal bool TryPrepareSwitchPlacement(CharacterMovement outgoing, out SideViewSwitchPlacement placement)
+        {
+            placement = default;
+            if (outgoing == null || outgoing == this || !HasStableSwitchGround || !outgoing.HasStableSwitchGround ||
+                gameObject.scene != outgoing.gameObject.scene || Mathf.Abs(sideDepth - outgoing.sideDepth) > .005f ||
+                partyContacts?.IsPeer(body, outgoing.body) != true) return false;
+
+            var probe = SwitchGroundProbe;
+            var anchor = outgoing.transform.position;
+            // 原位也要有可靠中心支撑，阻止倚在台沿的胶囊把入场者投射到下面一层。
+            if (!outgoing.SwitchGroundProbe.TrySwitchGround(anchor, .07f, 0f, out var seat, out _) ||
+                Mathf.Abs(seat.y - anchor.y) > outgoing.SwitchGroundProbe.GroundContactTolerance) return false;
+            anchor.z = sideDepth;
+            anchor.y += outgoing.SwitchGroundProbe.FootOffset - probe.FootOffset;
+            Vector3 position = default;
+            Collider support = null;
+            bool found = SideViewSwitchPath.TryFindPlacementOffset(Mathf.Min(.08f, probe.BodyWidth * .2f), .02f,
+                offset =>
+                {
+                    if (offset != 0f && Mathf.Abs(outgoing.ResolveSwitchPath(offset, false, out _) - offset) > .001f)
+                        return false;
+                    return probe.TrySwitchGround(anchor + Vector3.right * offset, .11f, 0f, out position, out support);
+                }, out _);
+            if (!found) return false;
+            placement = new SideViewSwitchPlacement(this, outgoing, position, support);
+            return true;
+        }
+
+        // 执行取消本身不影响地面身份。传送前复核空间与支撑，传送后重建接触和插值历史。
+        internal bool TryCommitSwitchPlacement(in SideViewSwitchPlacement placement)
+        {
+            var outgoing = placement.Outgoing;
+            if (placement.Incoming != this || outgoing == null ||
+                ContactRevision != placement.IncomingRevision || outgoing.ContactRevision != placement.OutgoingRevision ||
+                (outgoing.transform.position - placement.OutgoingPosition).sqrMagnitude > .000001f ||
+                !TryPrepareSwitchPlacement(outgoing, out var current) || current.Support != placement.Support ||
+                (current.Position - placement.Position).sqrMagnitude > .000001f) return false;
+
+            Teleport(current.Position);
+            partyContacts?.Prepare(body);
+            Physics.SyncTransforms();
+            stepSupport = current.Support;
+            Grounded = hasEstablishedSupport = true;
+            return true;
+        }
+
+        internal float PrepareSwitchRetreat(int facing, float widthMultiplier)
+        {
+            if (!HasStableSwitchGround || facing == 0 || widthMultiplier <= 0f ||
+                float.IsNaN(widthMultiplier) || float.IsInfinity(widthMultiplier)) return 0f;
+            float distance = -Mathf.Sign(facing) * SwitchGroundProbe.BodyWidth * widthMultiplier;
+            return ResolveSwitchPath(distance, true, out _);
+        }
+
+        internal Vector3 PlanSwitchRetreatStep(float distance)
+        {
+            if (!HasStableSwitchGround || Mathf.Abs(distance) < .0001f) return Vector3.zero;
+            ResolveSwitchPath(distance, true, out var position);
+            return position - transform.position;
+        }
+
+        private float ResolveSwitchPath(float distance, bool ledgeMargin, out Vector3 position)
+        {
+            var probe = SwitchGroundProbe;
+            var origin = transform.position;
+            var previous = origin;
+            float margin = ledgeMargin ? Mathf.Sign(distance) * probe.BodyWidth * .15f : 0f;
+            float spacing = Mathf.Clamp(probe.BodyWidth * .1f, .02f, .045f);
+            float reached = SideViewSwitchPath.ReachableDistance(distance, spacing, offset =>
+            {
+                var next = previous;
+                next.x = origin.x + offset;
+                if (!probe.TrySwitchGround(next, .09f, margin, out var grounded, out _) ||
+                    !SideViewSwitchPath.KeepsSupport(grounded.x - previous.x, grounded.y - previous.y,
+                        probe.GroundSlope, probe.GroundContactTolerance) ||
+                    !probe.ClearPath(previous, grounded)) return false;
+                previous = grounded;
+                return true;
+            });
+            position = previous;
+            return reached;
+        }
+
         internal void EmitTraversal(SideTraversalEventKind kind, int side)
             => SideTraversalOccurred?.Invoke(new SideTraversalEvent(kind, transform.position, side, sideStepId, ContactRevision));
 
         internal SideViewAbilityMotionStep TickSideView(bool allowed, float delta, JumpVerticalCommand command,
             float gravityScale, bool jumpAccepted, SideViewMotion traversalMotion = default,
-            SideViewAbilityMotionCommand? abilityMotion = null, PostureReactionStep? reactionMotion = null)
+            SideViewAbilityMotionCommand? abilityMotion = null, PostureReactionStep? reactionMotion = null,
+            Vector3? switchRetreat = null)
         {
             if (!IsSideView || body == null || !body.enabled || delta <= 0f) return default;
             var before = transform.position;
             if (!hasPose || latestPose != before) ResetSideViewPose();
             bool groundedBefore = Grounded;
-            bool footstepAllowed = allowed && !abilityMotion.HasValue && !reactionMotion.HasValue && !traversalMotion.ConstrainedPose &&
+            bool footstepAllowed = allowed && !abilityMotion.HasValue && !reactionMotion.HasValue && !switchRetreat.HasValue && !traversalMotion.ConstrainedPose &&
                 dataBus.MotionOverride?.IsActive != true && statusEffects?.HasForcedMotion != true &&
                 statusEffects?.BlocksIntent != true;
             partyContacts?.Prepare(body);
@@ -125,6 +239,8 @@ namespace Ossastra.Characters
                 horizontal = Vector3.right * velocity.x;
                 if (abilityDrive) VerticalSpeed = velocity.y;
             }
+            else if (switchRetreat.HasValue)
+                horizontal = Vector3.right * (switchRetreat.Value.x / delta);
             else
             {
                 horizontal = ResolveVelocity(allowed, jumpProfile.runSpeed);
@@ -144,7 +260,10 @@ namespace Ossastra.Characters
                 if (traversalMotion.Y.HasValue) VerticalSpeed = traversalMotion.Y.Value;
             }
             float downBeforeContact = Mathf.Max(0f, -VerticalSpeed);
-            var terrain = MoveOnce(horizontal, VerticalSpeed, delta, true, out var attempted,
+            float physicalVertical = VerticalSpeed;
+            if (switchRetreat.HasValue && Mathf.Abs(switchRetreat.Value.x) > .0001f)
+                physicalVertical = (switchRetreat.Value.y - .003f) / delta;
+            var terrain = MoveOnce(horizontal, physicalVertical, delta, true, out var attempted,
                 traversalMotion.ConstrainedPose, abilityDrive);
             bool sweptGround = terrain.collider != null && terrain.normal.y >= Mathf.Cos(body.slopeLimit * Mathf.Deg2Rad);
             if (sweptGround && stepSupport == null &&
@@ -153,6 +272,17 @@ namespace Ossastra.Characters
             Grounded = (!traversalMotion.ConstrainedPose || traversalMotion.CanLand) &&
                 VerticalSpeed <= 0f && stepSupport != null &&
                 ((LastCollision & CollisionFlags.Below) != 0 || sweptGround);
+            if (!Grounded && switchRetreat.HasValue && VerticalSpeed <= 0f)
+            {
+                // 沿斜地退场时位移可能含正 Y；以实际步后胶囊接触补足原生 Below 未报告的支撑。
+                var probe = SwitchGroundProbe;
+                if (probe.TrySwitchGround(transform.position, .05f, 0f, out var seated, out var support) &&
+                    Mathf.Abs(seated.y - transform.position.y) <= probe.GroundContactTolerance)
+                {
+                    stepSupport = support;
+                    Grounded = true;
+                }
+            }
             bool sweptHead = terrain.collider != null && terrain.normal.y < -.5f;
             bool hitHead = (LastCollision & CollisionFlags.Above) != 0 || sweptHead;
             if (Grounded || hitHead && VerticalSpeed > 0f) VerticalSpeed = 0f;
@@ -305,6 +435,13 @@ namespace Ossastra.Characters
 
         private bool IsTraversalObstacle(Collider candidate)
             => IsEnvironmentContact(candidate) && !(candidate is CharacterController) &&
+                candidate.GetComponentInParent<Ossastra.Combat.CombatVitals>() == null;
+
+        private bool IsSwitchObstacle(Collider candidate)
+            => IsEnvironmentContact(candidate) && !candidate.transform.IsChildOf(transform);
+
+        private bool IsSwitchSupport(Collider candidate)
+            => IsSwitchObstacle(candidate) && !(candidate is CharacterController) &&
                 candidate.GetComponentInParent<Ossastra.Combat.CombatVitals>() == null;
 
         private void ClearMovementFacts()
