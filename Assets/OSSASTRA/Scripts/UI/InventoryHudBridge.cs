@@ -47,7 +47,7 @@ namespace Ossastra.UserInterface
             var actor = session.Coordinator?.Current;
             var input = actor != null ? actor.GetComponent<CharacterInputHandler>() : null;
             bool useCommands = input != null && input.UsesPostureInputRouting;
-            for(var i=0;i<10;i++)
+            for(var i=0;i<10&&!view.BlocksInventoryShortcuts;i++)
             {
                 if (useCommands && i < 4 && !view.IsOpen)
                 {

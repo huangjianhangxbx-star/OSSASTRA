@@ -76,6 +76,7 @@ namespace Ossastra.Development
 
         private void OnGUI()
         {
+            if (Ossastra.UI.GameMenu.GameMenuRoot.IsDisplaying) return;
             if (session == null || !Application.isPlaying) return;
             if (!expanded)
             {

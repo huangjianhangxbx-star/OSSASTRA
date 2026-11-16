@@ -189,7 +189,7 @@ namespace Ossastra.UserInterface
         }
         public void SetOpen(bool value)
         {
-            if(audioSettingsOnly)return;
+            if(audioSettingsOnly||(value&&BlocksInventoryShortcuts))return;
             if(value&&(windows==null||session==null||session.Coordinator==null||!session.Ready||session.Coordinator.Current==null||!session.Coordinator.Current.CanSimulateIntent))return;
             if(!value)NotifyCommerceInventoryClosing();
             CancelDrag();IsOpen=value;if(windows!=null)windows.gameObject.SetActive(value);
@@ -293,7 +293,7 @@ namespace Ossastra.UserInterface
             if(audioSettingsOnly)return;
             if(!IsCommerceOpen)external.anchoredPosition=new Vector2(Screen.width/scale-391,-92);
             // 角色菜单和对话尚未进入贸易布局，但已持有输入；普通背包不能在其下层响应Tab/Esc。
-            if(!HasCommerceCapture&&toggleAction.WasPressedThisFrame()&&!(EventSystem.current?.currentSelectedGameObject?.GetComponent<InputField>()?.isFocused??false))SetOpen(!IsOpen);
+            if(!BlocksInventoryShortcuts&&!HasCommerceCapture&&toggleAction.WasPressedThisFrame()&&!(EventSystem.current?.currentSelectedGameObject?.GetComponent<InputField>()?.isFocused??false))SetOpen(!IsOpen);
             if(!HasCommerceCapture&&IsOpen&&cancelAction.WasPressedThisFrame()){if(drag!=null)CancelDrag();else SetOpen(false);}
             if(IsOpen&&(session.Coordinator.Current==null||!session.Coordinator.Current.IsAlive)){SetOpen(false);return;}
             if(IsOpen)

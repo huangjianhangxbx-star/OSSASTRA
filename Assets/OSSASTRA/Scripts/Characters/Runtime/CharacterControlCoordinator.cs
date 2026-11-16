@@ -22,8 +22,18 @@ namespace Ossastra.Characters
         public InputAction switchAction = new InputAction("SwitchCharacter", InputActionType.Button);
         private readonly HashSet<object> inputCaptures=new HashSet<object>();
         private readonly HashSet<object> inventoryCaptures=new HashSet<object>();
-        public void SetInventoryCapture(object owner,bool captured)
-        {if(owner==null)return;var changed=captured?inventoryCaptures.Add(owner):inventoryCaptures.Remove(owner);if(changed){ControlRevision++;switchIntent.SuppressUntilRelease();}}
+        public void SetInventoryCapture(object owner, bool captured)
+            => SetInventoryCapture(owner, captured, preserveAcceptedMotion: false);
+
+        /// <summary>Owner capture can block switching while an already accepted motion keeps its control generation.</summary>
+        public void SetInventoryCapture(object owner, bool captured, bool preserveAcceptedMotion)
+        {
+            if (owner == null) return;
+            var changed = captured ? inventoryCaptures.Add(owner) : inventoryCaptures.Remove(owner);
+            if (!changed) return;
+            if (!preserveAcceptedMotion) ControlRevision++;
+            switchIntent.SuppressUntilRelease();
+        }
         private readonly AttackIntent switchIntent = new AttackIntent();
         private CharacterInputHandler[] inputs;
         private bool configured, bindingsOwned, focused = true, applicationPaused;

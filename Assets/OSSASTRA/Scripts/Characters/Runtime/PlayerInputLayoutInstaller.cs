@@ -3,6 +3,7 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using Ossastra.Inventory;
 using Ossastra.UserInterface;
+using Ossastra.UI.GameMenu;
 namespace Ossastra.Characters
 {
  [DefaultExecutionOrder(-500)]
@@ -13,6 +14,7 @@ namespace Ossastra.Characters
   public PartyConsumableInput consumables;
   public InventoryInteraction interaction;
   public InventoryView inventory;
+  public MenuInputAdapter gameMenu;
   public InputAction menuAction=new InputAction("Menu",InputActionType.Button);
   private void Awake()
   {
@@ -27,8 +29,20 @@ namespace Ossastra.Characters
    PlayerInputLayoutSO.Replace(ref menuAction,layout.menu);
   }
   private void OnEnable(){menuAction.Enable();}
-  private void Update(){if(menuAction.WasPressedThisFrame()&&inventory!=null)inventory.ToggleMenu();}
-  private void OnDisable(){menuAction.Disable();}
+  private void Update()
+  {
+   if(gameMenu!=null)
+   {
+    gameMenu.Poll(menuAction,control,inventory);
+    return;
+   }
+   if(menuAction.WasPressedThisFrame()&&inventory!=null)inventory.ToggleMenu();
+  }
+  private void OnDisable()
+  {
+   if(gameMenu!=null)gameMenu.EndSession();
+   menuAction.Disable();
+  }
   private void OnDestroy(){menuAction.Dispose();}
  }
 }
