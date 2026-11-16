@@ -18,6 +18,25 @@ namespace Ossastra.Development
         private const string ActionPath = AssetFolder + "Action_SideViewDive_Preview.asset";
         private const string FreyciaDefinition = "temporary-b.vc02";
 
+        [InitializeOnLoadMethod]
+        private static void RegisterPreviewStartup()
+        {
+            EditorApplication.playModeStateChanged += EnableMountedPreviews;
+        }
+
+        private static void EnableMountedPreviews(PlayModeStateChange state)
+        {
+            if (state != PlayModeStateChange.EnteredPlayMode) return;
+            var scene = SceneManager.GetActiveScene();
+            if (scene.path != ScenePath) return;
+
+            foreach (var root in scene.GetRootGameObjects())
+                foreach (var mount in root.GetComponentsInChildren<SideViewDiveMount>())
+                    if (mount.isActiveAndEnabled && mount.Definition != null &&
+                        mount.Definition.executor is SideViewDiveAbilitySO)
+                        mount.EnablePreview(true);
+        }
+
         [MenuItem("OSSASTRA/横版/俯冲候选/装配芙蕾茜娅预览")]
         public static void Install()
         {
@@ -67,7 +86,7 @@ namespace Ossastra.Development
             EditorSceneManager.MarkSceneDirty(scene);
             if (!EditorSceneManager.SaveScene(scene))
                 throw new InvalidOperationException("未保存俯冲预览装配");
-            Debug.Log("[SV-DIVE-01] 已登记芙蕾茜娅预览，默认关闭，Play 菜单可开关。");
+            Debug.Log("[SV-DIVE-01] 已登记芙蕾茜娅预览，进入正式横版场 Play 时自动开启，菜单可开关。");
         }
 
         [MenuItem("OSSASTRA/横版/俯冲候选/开关芙蕾茜娅预览", true)]
