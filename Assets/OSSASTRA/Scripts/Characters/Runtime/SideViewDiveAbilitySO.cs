@@ -13,11 +13,13 @@ namespace Ossastra.Characters
         [SerializeField, Range(.01f, 1f), Tooltip("归一化方向所需的最小向下分量。")]
         private float minimumDown = .15f;
         [SerializeField, Min(0), Tooltip("俯冲开始前固定角色的准备时间。")]
-        private float preparationSeconds = .08f;
+        private float preparationSeconds = .04f;
         [SerializeField, Min(.1f), Tooltip("俯冲的起始速度（米/秒）。")]
-        private float speed = 12f;
+        private float speed = 34f;
         [SerializeField, Min(0), Tooltip("沿冻结方向的加速度（米/秒²）。")]
-        private float acceleration = 14f;
+        private float acceleration = 40f;
+        [SerializeField, Min(.1f), Tooltip("俯冲沿瞄准方向的最高速度（米/秒），至少为起始速度。")]
+        private float maximumSpeed = 46f;
 
         [SerializeField, Min(.01f), Tooltip("沿实际路径扫掠的攻击球半径。")]
         private float attackRadius = .44f;
@@ -38,7 +40,7 @@ namespace Ossastra.Characters
 
         public override void Validate(AbilityDefinitionSO definition)
         {
-            var values = new[] { minimumDown, preparationSeconds, speed, acceleration,
+            var values = new[] { minimumDown, preparationSeconds, speed, acceleration, maximumSpeed,
                 attackRadius, attackHeight, retainedHorizontal, airRecoverySeconds, landRecoverySeconds };
             if (values.Any(v => float.IsNaN(v) || float.IsInfinity(v) || v < 0) ||
                 minimumDown <= 0 || minimumDown > 1 || retainedHorizontal > 1 ||
@@ -53,20 +55,20 @@ namespace Ossastra.Characters
         }
 
         public override CompiledAbilityExecutor CompileExecutor()
-            => new Executor(preparationSeconds, speed, acceleration, attackRadius, attackHeight,
+            => new Executor(preparationSeconds, speed, acceleration, Mathf.Max(speed, maximumSpeed), attackRadius, attackHeight,
                 retainedHorizontal, airRecoverySeconds, landRecoverySeconds, recoveryAction);
 
         private sealed class Executor : CompiledAbilityExecutor
         {
-            public readonly float Preparation, Speed, Acceleration, Radius, Height, RetainedX, AirRecovery, LandRecovery;
+            public readonly float Preparation, Speed, Acceleration, MaximumSpeed, Radius, Height, RetainedX, AirRecovery, LandRecovery;
             private readonly ActionDefinitionSO recovery;
             private readonly ConfiguredActionSnapshot initial, recover;
 
-            public Executor(float preparation, float speed, float acceleration, float radius, float height,
+            public Executor(float preparation, float speed, float acceleration, float maximumSpeed, float radius, float height,
                 float retainedX, float airRecovery, float landRecovery, ActionDefinitionSO recovery,
                 ConfiguredActionSnapshot initial = null, ConfiguredActionSnapshot recover = null)
             {
-                Preparation = preparation; Speed = speed; Acceleration = acceleration;
+                Preparation = preparation; Speed = speed; Acceleration = acceleration; MaximumSpeed = maximumSpeed;
                 Radius = radius; Height = height; RetainedX = retainedX;
                 AirRecovery = airRecovery; LandRecovery = landRecovery; this.recovery = recovery;
                 this.initial = initial; this.recover = recover;
@@ -81,7 +83,7 @@ namespace Ossastra.Characters
                 if (!owner.TryGetComponent<SideViewDiveMount>(out var mount) || !mount.Owns(source))
                     throw new ArgumentException("俯冲来源未登记或未启用预览");
                 var snapshot = owner.FreezeAbilityPhase(mount.Definition.action, preparation);
-                return new Executor(Preparation, Speed, Acceleration, Radius, Height,
+                return new Executor(Preparation, Speed, Acceleration, MaximumSpeed, Radius, Height,
                     RetainedX, AirRecovery, LandRecovery, recovery,
                     snapshot.WithTimeline(snapshot.Timeline.WithoutTimedNodes()),
                     recovery == null ? null : owner.FreezeAbilityPhase(recovery, preparation));
@@ -102,7 +104,6 @@ namespace Ossastra.Characters
             private Phase phase;
             private readonly Executor config;
             private readonly int controlRevision;
-            private readonly float maximumSpeed;
             private float remainingPreparation, diveSpeed, lastHorizontalSpeed;
             private Vector2 diveDirection;
             private AttackRelease release;
@@ -114,7 +115,6 @@ namespace Ossastra.Characters
                 remainingPreparation = config.Preparation;
                 diveDirection = (Vector2)context.direction;
                 diveSpeed = config.Speed;
-                maximumSpeed = Mathf.Max(config.Speed, context.owner.StateMovement.JumpProfile.fallSpeed);
             }
 
             public override void Tick(float delta, bool held)
@@ -168,7 +168,7 @@ namespace Ossastra.Characters
                 }
                 var velocity = diveDirection * diveSpeed;
                 lastHorizontalSpeed = velocity.x;
-                diveSpeed = Mathf.Min(maximumSpeed, diveSpeed + config.Acceleration * delta);
+                diveSpeed = Mathf.Min(config.MaximumSpeed, diveSpeed + config.Acceleration * delta);
                 command = SideViewAbilityMotionCommand.Drive(velocity);
                 return true;
             }
