@@ -112,7 +112,7 @@ namespace Ossastra.CharacterCore
             moveReady = false;
             attackReady = false;
             // 两种Ready可互换先后；同一时刻固定Release→Move→Attack→Finish。
-            nodes = new[] {
+            nodes = attack.WaitsForPhaseChange ? Array.Empty<(double, ActionFactKind)>() : new[] {
                 (attack.ReleaseAt, ActionFactKind.Released),
                 (attack.MoveReadyAt, ActionFactKind.MoveReady),
                 (attack.AttackReadyAt, ActionFactKind.AttackReady),
@@ -131,7 +131,7 @@ namespace Ossastra.CharacterCore
             var correctedDelta = delta - timeCorrection;
             var sum = elapsed + correctedDelta;
             timeCorrection = (sum - elapsed) - correctedDelta;
-            elapsed = Math.Min(definition.FinishAt, sum);
+            elapsed = definition.WaitsForPhaseChange ? sum : Math.Min(definition.FinishAt, sum);
             if (elapsed == definition.FinishAt) timeCorrection = 0;
             var facts = new List<ActionFact>();
             while (nextNode < nodes.Length && elapsed >= nodes[nextNode].At)

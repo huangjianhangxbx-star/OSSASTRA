@@ -163,10 +163,12 @@ namespace Ossastra.Characters
             if (motion == null || !motion.TryPlanStep(step, out var command)) return false;
 
             InvalidateInput();
-            jump.EnterExternalAirMotion();
+            if (command.IsBounce) jump.LaunchRebound();
+            else jump.EnterExternalAirMotion();
             traversal?.SuspendInput();
             traversal?.Plan(false, step, profile);
-            var result = motor.TickSideView(true, step, JumpVerticalCommand.Gravity, 1f, false, abilityMotion: command);
+            var vertical = jump.Step(profile.sustainSteps, profile.minimumSustainSteps);
+            var result = motor.TickSideView(true, step, vertical, 1f, false, abilityMotion: command);
             traversal?.Observe(profile.traversal);
             jump.Observe(command.IsBounce, result.Grounded, result.HitHead, motor.VerticalSpeed > 0f, profile.headLockSteps);
             motion.ObserveStep(result);

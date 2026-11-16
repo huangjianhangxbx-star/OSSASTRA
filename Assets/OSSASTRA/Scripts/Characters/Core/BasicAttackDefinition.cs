@@ -17,8 +17,15 @@ namespace Ossastra.CharacterCore
         public double FinishAt { get; }
         public int Damage { get; }
         public double PostureImpact { get; }
+        public bool WaitsForPhaseChange { get; }
 
         public BasicAttackDefinition(double release, double move, double ready, double finish, int damage, double postureImpact = 0)
+            : this(release, move, ready, finish, damage, postureImpact, false)
+        {
+        }
+
+        private BasicAttackDefinition(double release, double move, double ready, double finish, int damage,
+            double postureImpact, bool waitsForPhaseChange)
         {
             if (!Finite(release) || !Finite(move) || !Finite(ready) || !Finite(finish) ||
                 release < 0 || move < release || ready < release || finish < move || finish < ready)
@@ -32,7 +39,12 @@ namespace Ossastra.CharacterCore
             Damage = damage;
             // 与伤害一起冻结；默认零使未启用架势的旧场保持原行为。
             PostureImpact = postureImpact;
+            WaitsForPhaseChange = waitsForPhaseChange;
         }
+
+        /// <summary>保留表现时长，该阶段由所属动作显式切换或取消。</summary>
+        public BasicAttackDefinition WithoutTimedNodes()
+            => new BasicAttackDefinition(ReleaseAt, MoveReadyAt, AttackReadyAt, FinishAt, Damage, PostureImpact, true);
 
         internal static bool Finite(double value) => !double.IsNaN(value) && !double.IsInfinity(value);
     }

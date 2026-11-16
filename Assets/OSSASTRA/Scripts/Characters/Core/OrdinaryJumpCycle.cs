@@ -11,7 +11,7 @@ namespace Ossastra.CharacterCore
         public OrdinaryJumpPhase Phase { get; private set; }
         private int steps, naturalAirSteps, headLock;
         private bool used, leftSupport, hold, release;
-        private bool startedHang, externalFlight;
+        private bool startedHang, externalFlight, automaticAscent;
         private float hangGravity = 1f;
 
         public bool CanLaunch(int graceSteps)
@@ -21,6 +21,7 @@ namespace Ossastra.CharacterCore
         public void Launch()
         {
             used = true;
+            automaticAscent = false;
             hold = true;
             release = false;
             steps = 0;
@@ -34,7 +35,15 @@ namespace Ossastra.CharacterCore
             CancelHold();
         }
 
-        public void Release() { if (used && hold) release = true; }
+        /// <summary>命中腾起复用一次完整普通上升，且不接受跳跃键松开截速。</summary>
+        public void LaunchRebound()
+        {
+            EnterExternalAirMotion();
+            Launch();
+            automaticAscent = true;
+        }
+
+        public void Release() { if (used && hold && !automaticAscent) release = true; }
 
         public void CancelHold()
         {
@@ -44,7 +53,7 @@ namespace Ossastra.CharacterCore
 
         public void EnterLedge()
         {
-            leftSupport = false;
+            leftSupport = automaticAscent = false;
             CancelHold();
         }
 
@@ -52,6 +61,7 @@ namespace Ossastra.CharacterCore
         public void EnterExternalAirMotion()
         {
             used = externalFlight = true;
+            automaticAscent = false;
             leftSupport = false;
             Phase = OrdinaryJumpPhase.Falling;
             CancelHold();
@@ -59,7 +69,7 @@ namespace Ossastra.CharacterCore
 
         public JumpVerticalCommand Step(int sustainSteps, int minSteps)
         {
-            if (Phase != OrdinaryJumpPhase.Rising || !hold) return JumpVerticalCommand.Gravity;
+            if (Phase != OrdinaryJumpPhase.Rising || (!hold && !automaticAscent)) return JumpVerticalCommand.Gravity;
             if (release && steps >= minSteps)
             {
                 return JumpVerticalCommand.Cut;
@@ -84,6 +94,7 @@ namespace Ossastra.CharacterCore
             if (headLock > 0) headLock--;
             if (hitHead)
             {
+                automaticAscent = false;
                 CancelHold();
                 headLock = headLockSteps;
                 leftSupport = false;
@@ -91,7 +102,7 @@ namespace Ossastra.CharacterCore
             if (supported && !hitHead)
             {
                 Phase = OrdinaryJumpPhase.Grounded;
-                used = leftSupport = startedHang = externalFlight = false;
+                used = leftSupport = startedHang = externalFlight = automaticAscent = false;
                 naturalAirSteps = steps = 0;
                 hangGravity = 1f;
                 CancelHold();
@@ -104,14 +115,18 @@ namespace Ossastra.CharacterCore
             }
             if (leftSupport && naturalAirSteps < int.MaxValue) naturalAirSteps++;
             Phase = stillRising && !hitHead ? OrdinaryJumpPhase.Rising : OrdinaryJumpPhase.Falling;
-            if (Phase == OrdinaryJumpPhase.Falling) CancelHold();
+            if (Phase == OrdinaryJumpPhase.Falling)
+            {
+                automaticAscent = false;
+                CancelHold();
+            }
         }
 
         public void Reset()
         {
             Phase = OrdinaryJumpPhase.Uninitialized;
             steps = naturalAirSteps = headLock = 0;
-            used = leftSupport = startedHang = externalFlight = false;
+            used = leftSupport = startedHang = externalFlight = automaticAscent = false;
             hangGravity = 1f;
             CancelHold();
         }

@@ -26,8 +26,8 @@ namespace Ossastra.Characters
         public static SideViewAbilityMotionCommand Drive(Vector2 velocity)
             => new SideViewAbilityMotionCommand(velocity, false);
 
-        public static SideViewAbilityMotionCommand Bounce(Vector2 velocity)
-            => new SideViewAbilityMotionCommand(velocity, true);
+        public static SideViewAbilityMotionCommand Bounce(float horizontalSpeed)
+            => new SideViewAbilityMotionCommand(Vector2.right * horizontalSpeed, true);
     }
 
     internal readonly struct SideViewAbilityMotionStep

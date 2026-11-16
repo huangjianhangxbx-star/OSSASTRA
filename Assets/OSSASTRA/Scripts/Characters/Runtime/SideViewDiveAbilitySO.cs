@@ -18,17 +18,15 @@ namespace Ossastra.Characters
         private float speed = 12f;
         [SerializeField, Min(0), Tooltip("沿冻结方向的加速度（米/秒²）。")]
         private float acceleration = 14f;
-        [SerializeField, Min(.02f), Tooltip("最长有效下冲时间，超时后恢复自然落体。")]
-        private float maxDiveSeconds = .38f;
+
         [SerializeField, Min(.01f), Tooltip("沿实际路径扫掠的攻击球半径。")]
         private float attackRadius = .44f;
         [SerializeField, Tooltip("攻击球中心相对角色原点的高度。")]
         private float attackHeight = .42f;
-        [SerializeField, Min(.1f), Tooltip("命中后的独立上升速度（米/秒）。")]
-        private float reboundSpeed = 7.4f;
+
         [SerializeField, Range(0, 1), Tooltip("腾起首步保留的横向速度比例。")]
         private float retainedHorizontal = .20f;
-        [SerializeField, Min(.02f), Tooltip("腾起或撞墙后的动作交接时间。")]
+        [SerializeField, Min(.02f), Tooltip("命中腾起后的动作交接时间。")]
         private float airRecoverySeconds = .10f;
         [SerializeField, Min(.02f), Tooltip("落地收招时间。")]
         private float landRecoverySeconds = .15f;
@@ -40,11 +38,11 @@ namespace Ossastra.Characters
 
         public override void Validate(AbilityDefinitionSO definition)
         {
-            var values = new[] { minimumDown, preparationSeconds, speed, acceleration, maxDiveSeconds,
-                attackRadius, attackHeight, reboundSpeed, retainedHorizontal, airRecoverySeconds, landRecoverySeconds };
+            var values = new[] { minimumDown, preparationSeconds, speed, acceleration,
+                attackRadius, attackHeight, retainedHorizontal, airRecoverySeconds, landRecoverySeconds };
             if (values.Any(v => float.IsNaN(v) || float.IsInfinity(v) || v < 0) ||
                 minimumDown <= 0 || minimumDown > 1 || retainedHorizontal > 1 ||
-                speed <= 0 || maxDiveSeconds < .02f || attackRadius <= 0 || reboundSpeed <= 0 ||
+                speed <= 0 || attackRadius <= 0 ||
                 airRecoverySeconds < .02f || landRecoverySeconds < .02f ||
                 definition.action == null || definition.releases.Length != 1 || definition.releases[0].damage <= 0)
                 throw new ArgumentException("俯冲需要合法参数、身体动画和唯一伤害节点");
@@ -55,21 +53,21 @@ namespace Ossastra.Characters
         }
 
         public override CompiledAbilityExecutor CompileExecutor()
-            => new Executor(preparationSeconds, speed, acceleration, maxDiveSeconds, attackRadius, attackHeight,
-                reboundSpeed, retainedHorizontal, airRecoverySeconds, landRecoverySeconds, recoveryAction);
+            => new Executor(preparationSeconds, speed, acceleration, attackRadius, attackHeight,
+                retainedHorizontal, airRecoverySeconds, landRecoverySeconds, recoveryAction);
 
         private sealed class Executor : CompiledAbilityExecutor
         {
-            public readonly float Preparation, Speed, Acceleration, Duration, Radius, Height, Rebound, RetainedX, AirRecovery, LandRecovery;
+            public readonly float Preparation, Speed, Acceleration, Radius, Height, RetainedX, AirRecovery, LandRecovery;
             private readonly ActionDefinitionSO recovery;
             private readonly ConfiguredActionSnapshot initial, recover;
 
-            public Executor(float preparation, float speed, float acceleration, float duration, float radius, float height,
-                float rebound, float retainedX, float airRecovery, float landRecovery, ActionDefinitionSO recovery,
+            public Executor(float preparation, float speed, float acceleration, float radius, float height,
+                float retainedX, float airRecovery, float landRecovery, ActionDefinitionSO recovery,
                 ConfiguredActionSnapshot initial = null, ConfiguredActionSnapshot recover = null)
             {
-                Preparation = preparation; Speed = speed; Acceleration = acceleration; Duration = duration;
-                Radius = radius; Height = height; Rebound = rebound; RetainedX = retainedX;
+                Preparation = preparation; Speed = speed; Acceleration = acceleration;
+                Radius = radius; Height = height; RetainedX = retainedX;
                 AirRecovery = airRecovery; LandRecovery = landRecovery; this.recovery = recovery;
                 this.initial = initial; this.recover = recover;
             }
@@ -83,11 +81,10 @@ namespace Ossastra.Characters
                 if (!owner.TryGetComponent<SideViewDiveMount>(out var mount) || !mount.Owns(source))
                     throw new ArgumentException("俯冲来源未登记或未启用预览");
                 var snapshot = owner.FreezeAbilityPhase(mount.Definition.action, preparation);
-                var finish = Preparation + Duration + .20f;
-                return new Executor(Preparation, Speed, Acceleration, Duration, Radius, Height,
-                    Rebound, RetainedX, AirRecovery, LandRecovery, recovery,
-                    snapshot.WithTimeline(new BasicAttackDefinition(finish, finish, finish, finish, 1)),
-                    recovery == null ? null : owner.FreezeAbilityPhase(recovery, preparation) );
+                return new Executor(Preparation, Speed, Acceleration, Radius, Height,
+                    RetainedX, AirRecovery, LandRecovery, recovery,
+                    snapshot.WithTimeline(snapshot.Timeline.WithoutTimedNodes()),
+                    recovery == null ? null : owner.FreezeAbilityPhase(recovery, preparation));
             }
 
             public ConfiguredActionSnapshot Recovery(bool landed)
@@ -105,7 +102,9 @@ namespace Ossastra.Characters
             private Phase phase;
             private readonly Executor config;
             private readonly int controlRevision;
-            private float remainingPreparation, elapsedDive, lastSpeed;
+            private readonly float maximumSpeed;
+            private float remainingPreparation, diveSpeed, lastHorizontalSpeed;
+            private Vector2 diveDirection;
             private AttackRelease release;
 
             public Run(AbilityRunContext context, Executor config) : base(context)
@@ -113,6 +112,9 @@ namespace Ossastra.Characters
                 this.config = config;
                 controlRevision = context.owner.ActionControlRevision;
                 remainingPreparation = config.Preparation;
+                diveDirection = (Vector2)context.direction;
+                diveSpeed = config.Speed;
+                maximumSpeed = Mathf.Max(config.Speed, context.owner.StateMovement.JumpProfile.fallSpeed);
             }
 
             public override void Tick(float delta, bool held)
@@ -138,8 +140,7 @@ namespace Ossastra.Characters
 
                 if (phase == Phase.BouncePending)
                 {
-                    command = SideViewAbilityMotionCommand.Bounce(new Vector2(
-                        Context.direction.x * lastSpeed * config.RetainedX, config.Rebound));
+                    command = SideViewAbilityMotionCommand.Bounce(lastHorizontalSpeed * config.RetainedX);
                     return true;
                 }
                 if (remainingPreparation > .0001f)
@@ -165,15 +166,10 @@ namespace Ossastra.Characters
                         Geometry(Context.owner.transform.position), config.Height);
                     Context.NotifyFeedback("release");
                 }
-                if (elapsedDive + .0001f >= config.Duration)
-                {
-                    BeginRecovery(false, "dive-timeout");
-                    return false;
-                }
-
-                lastSpeed = config.Speed + config.Acceleration * elapsedDive;
-                elapsedDive += delta;
-                command = SideViewAbilityMotionCommand.Drive((Vector2)Context.direction * lastSpeed);
+                var velocity = diveDirection * diveSpeed;
+                lastHorizontalSpeed = velocity.x;
+                diveSpeed = Mathf.Min(maximumSpeed, diveSpeed + config.Acceleration * delta);
+                command = SideViewAbilityMotionCommand.Drive(velocity);
                 return true;
             }
 
@@ -192,7 +188,8 @@ namespace Ossastra.Characters
                 }
                 if (phase != Phase.Diving) return;
 
-                if (SideViewDiveSweep.Resolve(release, Context.owner.Vitals, Geometry(step.Before), step.AttackEnd,
+                var geometry = Geometry(step.Before).WithArrival(step.AttackEnd - step.Before);
+                if (SideViewDiveSweep.Resolve(release, Context.owner.Vitals, geometry, step.AttackEnd,
                     config.Height, config.Radius, Context.definition.delivery.collisionLayers, step.TerrainBlocked))
                 {
                     release = null;
@@ -200,8 +197,14 @@ namespace Ossastra.Characters
                     Context.NotifyFeedback("hit");
                     return;
                 }
-                if (step.HitGround || step.Grounded) BeginRecovery(true, "dive-land");
-                else if (step.TerrainBlocked) BeginRecovery(false, "dive-blocked");
+                if (step.Grounded) BeginRecovery(true, "dive-land");
+                else if (step.HitWall || step.HitHead)
+                {
+                    // 去掉朝障碍物的分量，沿墙或陡坡继续下冲。
+                    var normal = ((Vector2)step.TerrainNormal).normalized;
+                    var downhill = Vector2.down - normal * Mathf.Min(0f, Vector2.Dot(Vector2.down, normal));
+                    diveDirection = downhill * -Context.direction.y;
+                }
             }
 
             private CombatContactGeometry Geometry(Vector3 origin)

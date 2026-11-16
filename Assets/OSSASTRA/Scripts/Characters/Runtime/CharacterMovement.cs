@@ -111,18 +111,22 @@ namespace Ossastra.Characters
             partyContacts?.Prepare(body);
             LastAllowed = allowed;
 
+            bool abilityDrive = abilityMotion.HasValue && !abilityMotion.Value.IsBounce;
             Vector3 horizontal;
             if (abilityMotion.HasValue)
             {
                 var velocity = abilityMotion.Value.Velocity;
                 horizontal = Vector3.right * velocity.x;
-                VerticalSpeed = velocity.y;
+                if (abilityDrive) VerticalSpeed = velocity.y;
             }
             else
             {
                 horizontal = ResolveVelocity(allowed, jumpProfile.runSpeed);
                 horizontal.y = horizontal.z = 0f;
                 if (traversalMotion.X.HasValue) horizontal.x = traversalMotion.X.Value;
+            }
+            if (!abilityDrive)
+            {
                 if (command == JumpVerticalCommand.Sustain) VerticalSpeed = jumpProfile.jumpSpeed;
                 if (command == JumpVerticalCommand.Cut && VerticalSpeed > 0f)
                     VerticalSpeed *= jumpProfile.releaseSpeedScale;
@@ -133,7 +137,6 @@ namespace Ossastra.Characters
                 if (traversalMotion.Y.HasValue) VerticalSpeed = traversalMotion.Y.Value;
             }
             float downBeforeContact = Mathf.Max(0f, -VerticalSpeed);
-            bool abilityDrive = abilityMotion.HasValue && !abilityMotion.Value.IsBounce;
             var terrain = MoveOnce(horizontal, VerticalSpeed, delta, true, out var attempted,
                 traversalMotion.ConstrainedPose, abilityDrive);
             bool sweptGround = terrain.collider != null && terrain.normal.y >= Mathf.Cos(body.slopeLimit * Mathf.Deg2Rad);
