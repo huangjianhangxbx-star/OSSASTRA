@@ -13,6 +13,28 @@ using UnityEngine.InputSystem;
 
 namespace Ossastra.Characters
 {
+    /// <summary>A new main-hand gesture with down input from its own input context.</summary>
+    public readonly struct CharacterDiveInput
+    {
+        public bool Requested => GestureId != 0;
+        public readonly bool HasDirection, FromPointer;
+        public readonly Vector2 Direction, Pointer;
+        public readonly int DeviceId, Generation;
+        public readonly long GestureId;
+
+        internal CharacterDiveInput(CharacterInputButton gesture, int generation, Vector2 direction,
+            bool fromPointer, Vector2 pointer, bool hasDirection)
+        {
+            DeviceId = gesture.DeviceId;
+            GestureId = gesture.GestureId;
+            Generation = generation;
+            Direction = direction;
+            FromPointer = fromPointer;
+            Pointer = pointer;
+            HasDirection = hasDirection;
+        }
+    }
+
     public struct CharacterInputFrame
     {
         public Vector2 move, pointer, aimDirection;
@@ -21,6 +43,7 @@ namespace Ossastra.Characters
         public int debugCommand;
         public bool skillOnePressed,skillTwoPressed,skillThreePressed,skillOneHeld,skillTwoHeld,skillThreeHeld;
         public bool hasAttackEdges,attackPressed,attackReleased,attackRequestsBlocked;
+        public CharacterDiveInput diveInput;
         public CharacterInputButton[] offhandButtons,skillOneButtons,skillTwoButtons,skillThreeButtons;
         public bool jumpInputAvailable, jumpRequestsBlocked;
         public int jumpInputGeneration;
@@ -159,7 +182,8 @@ namespace Ossastra.Characters
         private void OnEnable()
         {
             foreach (var action in Actions()) if (action != null) action.Enable();
-            sampler = new DeviceActionSampler(jumpAction, () => HasPlayerInput && !InventoryCaptured && isActiveAndEnabled);
+            sampler = new DeviceActionSampler(jumpAction, () => HasPlayerInput && !InventoryCaptured && isActiveAndEnabled,
+                movementAction);
             sampler.Synchronize(SamplingActions(), mouseAction, IsPointerBlocked);
         }
         private void OnDisable() { ResetPlayerInput(true); sampler?.Dispose(); sampler = null; foreach (var action in Actions()) if (action != null) action.Disable(); }
@@ -178,7 +202,9 @@ namespace Ossastra.Characters
             var twoButtons=new List<CharacterInputButton>();var threeButtons=new List<CharacterInputButton>();
             var jumpButtons = new List<CharacterInputButton>();
             int debug = 0;
-            DeviceActionSampler.DeviceSample pointerDevice = null;
+            DeviceActionSampler.DeviceSample attackDevice = null;
+            CharacterInputButton attackGesture = default;
+            double attackTime = double.NegativeInfinity;
             foreach (var d in sampler.Devices)
             {
                 var c = d.SampleAxes(movementAction, gamepadAimAction, intentThreshold, directionChangeThreshold);
@@ -188,11 +214,22 @@ namespace Ossastra.Characters
                     ui?.move?.action!=null&&ui.move.action.enabled&&ui.move.action.controls.Any(control=>d.Action(movementAction).controls.Contains(control));
                 d.CaptureNavigation(navigation);
                 var weaponChord = d.Device is Gamepad && d.Held(weaponModeAction);
-                var right = d.Held(rightHandAction) && !weaponChord;
+                var mainButton = d.Button(rightHandAction);
                 var left = d.Held(leftHandAction) && !weaponChord;
-                held |= right; offhand |= left;
-                attackPressed |= !weaponChord&&d.Pressed(rightHandAction);
-                attackReleased |= d.Button(rightHandAction).Released;
+                held |= mainButton.Held && !weaponChord; offhand |= left;
+                attackReleased |= mainButton.Released;
+                attackPressed |= !weaponChord && mainButton.Pressed;
+                if (d.ConsumePress(rightHandAction, mainButton) && !weaponChord)
+                {
+                    double time = d.Time(rightHandAction);
+                    if (attackDevice == null || time > attackTime ||
+                        (time == attackTime && mainButton.GestureId > attackGesture.GestureId))
+                    {
+                        attackTime = time;
+                        attackGesture = mainButton;
+                        attackDevice = d;
+                    }
+                }
                 offhandPressed |= !weaponChord&&d.Pressed(leftHandAction);
                 leftButtons.Add(weaponChord?default:d.Button(leftHandAction));
                 oneButtons.Add(d.Button(skillOneAction));twoButtons.Add(d.Button(skillTwoAction));threeButtons.Add(d.Button(skillThreeAction));
@@ -209,7 +246,6 @@ namespace Ossastra.Characters
                     if (directional && d.Pressed(action) && !weaponChord && (action != dodgeAction || evasion))
                     { c.BattlePressed = true; c.BattleTime = System.Math.Max(c.BattleTime, d.Time(action)); }
                 }
-                if (d.Device is Pointer && d.Action(mouseAction)?.controls.Count > 0) pointerDevice = d;
                 if (d.Pressed(debugValidAction)) debug = 1; else if (d.Pressed(debugBlockedAction)) debug = 2;
                 else if (d.Pressed(debugResetAction)) debug = 3; else if (d.Pressed(debugInspectAction)) debug = 4;
                 candidates.Add(c);
@@ -222,7 +258,7 @@ namespace Ossastra.Characters
             }
             var captureMovement = inventoryCaptures.Values.Any(value => value);
             InputSources.Resolve(candidates, !captureMovement, !InventoryCaptured);
-            pointerDevice=sampler.Devices.Where(d=>d.Device is Pointer&&d.Action(mouseAction)?.controls.Count>0)
+            var pointerDevice=sampler.Devices.Where(d=>d.Device is Pointer&&d.Action(mouseAction)?.controls.Count>0)
                 .OrderByDescending(d=>d.Device.deviceId==InputSources.AimDeviceId)
                 .ThenByDescending(d=>d.Time(mouseAction)).FirstOrDefault();
             var frame = new CharacterInputFrame { move = InputSources.Move, aimSource = InputSources.AimSource,
@@ -244,6 +280,8 @@ namespace Ossastra.Characters
                 frame.hasPointer = frame.aimSource == PlayerInputSource.KeyboardMouse && frame.pointer.x >= 0 && frame.pointer.x <= Screen.width &&
                     frame.pointer.y >= 0 && frame.pointer.y <= Screen.height && !IsPointerBlocked(frame.pointer);
             }
+            if (attackDevice != null && !InventoryCaptured)
+                frame.diveInput = ReadDiveInput(attackDevice, attackGesture, pointerDevice);
             if (!frame.hasPointer)
             {
                 frame.hasDirectionalAim = true;
@@ -273,6 +311,36 @@ namespace Ossastra.Characters
             }
             CurrentFrame = frame; return frame;
         }
+        private CharacterDiveInput ReadDiveInput(DeviceActionSampler.DeviceSample attackDevice,
+            CharacterInputButton gesture, DeviceActionSampler.DeviceSample configuredPointer)
+        {
+            var moveDevice = attackDevice;
+            if (attackDevice.Device is Pointer)
+            {
+                // Mouse and keyboard share a context, while a pad may only use its own stick.
+                moveDevice = sampler.Devices.Where(device => device.Device is Keyboard && device.Candidate.MoveActive)
+                    .OrderByDescending(device => device.Candidate.MoveTime)
+                    .ThenBy(device => device.Device.deviceId).FirstOrDefault();
+            }
+            if (moveDevice == null || !moveDevice.Candidate.MoveActive) return default;
+            var direction = moveDevice.Candidate.Move;
+            if (attackDevice.Device is Gamepad)
+            {
+                bool hasAnalogMove = attackDevice.TryReadAnalogMove(out var analogMove);
+                float downward = hasAnalogMove ? analogMove.y : direction.y;
+                if (downward > -intentThreshold) return default;
+                return new CharacterDiveInput(gesture, GestureGeneration, analogMove, false, default, hasAnalogMove);
+            }
+            if (direction.y > -intentThreshold) return default;
+
+            var pointerDevice = attackDevice.Device is Pointer ? attackDevice : configuredPointer;
+            bool hasPointer = pointerDevice != null && pointerDevice.Action(mouseAction)?.controls.Count > 0;
+            var pointer = hasPointer ? pointerDevice.ReadPointer() : default;
+            hasPointer = hasPointer && pointer.x >= 0 && pointer.x <= Screen.width &&
+                pointer.y >= 0 && pointer.y <= Screen.height && !IsPointerBlocked(pointer);
+            return new CharacterDiveInput(gesture, GestureGeneration, default, true, pointer, hasPointer);
+        }
+
         private static CharacterInputButton[] CapturedButtons(CharacterInputButton[] current,CharacterInputButton[] previous)
             =>current.Select(b=>new CharacterInputButton(b.DeviceId,b.GestureId,b.Control,
                 b.Held&&(previous?.Any(p=>p.Held&&p.SameGesture(b))??false),false,b.Released)).ToArray();

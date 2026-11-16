@@ -10,7 +10,7 @@ using Ossastra.CharacterCore.Abilities;
 using Ossastra.Combat;
 namespace Ossastra.Characters
 {
-    public enum AbilityOperation { Secondary, SkillOne, SkillTwo, SkillThree }
+    public enum AbilityOperation { Secondary, SkillOne, SkillTwo, SkillThree, Contextual }
     public enum AbilityResourceOwner { BoundEquipment, MainEquipment }
     [Serializable]
     public sealed class AbilityBinding

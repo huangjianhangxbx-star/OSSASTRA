@@ -1,5 +1,5 @@
 /*
- * 普通跳跃的子阶段与步预算。由 MovementStateMachine 推进，碰撞和速度仍由原移动器拥有。
+ * 普通跳跃的子阶段与步预算。外部空中动作切断旧跳跃输入，碰撞和速度仍由原移动器拥有。
  */
 namespace Ossastra.CharacterCore
 {
@@ -11,7 +11,7 @@ namespace Ossastra.CharacterCore
         public OrdinaryJumpPhase Phase { get; private set; }
         private int steps, naturalAirSteps, headLock;
         private bool used, leftSupport, hold, release;
-        private bool startedHang;
+        private bool startedHang, externalFlight;
         private float hangGravity = 1f;
 
         public bool CanLaunch(int graceSteps)
@@ -48,6 +48,15 @@ namespace Ossastra.CharacterCore
             CancelHold();
         }
 
+        /// <summary>外部位移接管本次空中过程，只有重新获得支撑才重开普通跳与长按重力。</summary>
+        public void EnterExternalAirMotion()
+        {
+            used = externalFlight = true;
+            leftSupport = false;
+            Phase = OrdinaryJumpPhase.Falling;
+            CancelHold();
+        }
+
         public JumpVerticalCommand Step(int sustainSteps, int minSteps)
         {
             if (Phase != OrdinaryJumpPhase.Rising || !hold) return JumpVerticalCommand.Gravity;
@@ -60,7 +69,7 @@ namespace Ossastra.CharacterCore
 
         public float GravityScale(float dt, bool jumpHeld, float initial, float ramp)
         {
-            if (Phase != OrdinaryJumpPhase.Falling) return 1f;
+            if (externalFlight || Phase != OrdinaryJumpPhase.Falling) return 1f;
             if (!startedHang)
             {
                 startedHang = true;
@@ -82,7 +91,7 @@ namespace Ossastra.CharacterCore
             if (supported && !hitHead)
             {
                 Phase = OrdinaryJumpPhase.Grounded;
-                used = leftSupport = startedHang = false;
+                used = leftSupport = startedHang = externalFlight = false;
                 naturalAirSteps = steps = 0;
                 hangGravity = 1f;
                 CancelHold();
@@ -102,7 +111,7 @@ namespace Ossastra.CharacterCore
         {
             Phase = OrdinaryJumpPhase.Uninitialized;
             steps = naturalAirSteps = headLock = 0;
-            used = leftSupport = startedHang = false;
+            used = leftSupport = startedHang = externalFlight = false;
             hangGravity = 1f;
             CancelHold();
         }

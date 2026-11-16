@@ -101,6 +101,12 @@ namespace Ossastra.Characters
             Movement.ResolveDirections(frame);
             Dodge.Prepare(frame);
             Ability.Prepare(frame, deltaTime);
+            if (owner.StateAbilities is CharacterAbilities abilities && abilities.ClaimSideViewDive(frame))
+            {
+                Combat.ClearBuffer();
+                Combat.SuppressInput();
+                frame.attackPressed = false;
+            }
             Combat.RequestInput(frame);
             WeaponPosture.Prepare(frame);
             Tick(WeaponPosture, deltaTime);

@@ -13,7 +13,7 @@ using Ossastra.Combat;
 namespace Ossastra.Characters
 {
     [DisallowMultipleComponent]
-    public sealed class CharacterAbilities:MonoBehaviour,ICharacterAbilityController,ICombatGuard,ICharacterOffhandStatus,ICharacterMotionOverride,ICombatEvasion,ICharacterLocomotionScale,ICharacterActionDirectionSource
+    public sealed partial class CharacterAbilities:MonoBehaviour,ICharacterAbilityController,ICombatGuard,ICharacterOffhandStatus,ICharacterMotionOverride,ICombatEvasion,ICharacterLocomotionScale,ICharacterActionDirectionSource
     {
         private sealed class EquipmentSource:IAbilitySource,IAbilityStateSource
         {
@@ -347,9 +347,9 @@ namespace Ossastra.Characters
             }
         }
         private CharacterInputButton[] Buttons(AbilityOperation operation)=>operation==AbilityOperation.Secondary?input.offhandButtons:
-            operation==AbilityOperation.SkillOne?input.skillOneButtons:operation==AbilityOperation.SkillTwo?input.skillTwoButtons:input.skillThreeButtons;
+            operation==AbilityOperation.SkillOne?input.skillOneButtons:operation==AbilityOperation.SkillTwo?input.skillTwoButtons:operation==AbilityOperation.SkillThree?input.skillThreeButtons:null;
         private bool Held(AbilityOperation operation)=>operation==AbilityOperation.Secondary?input.offhandHeld:
-            operation==AbilityOperation.SkillOne?input.skillOneHeld:operation==AbilityOperation.SkillTwo?input.skillTwoHeld:input.skillThreeHeld;
+            operation==AbilityOperation.SkillOne?input.skillOneHeld:operation==AbilityOperation.SkillTwo?input.skillTwoHeld:operation==AbilityOperation.SkillThree&&input.skillThreeHeld;
         private bool Held(AbilityRun run)=>runGestures.TryGetValue(run.Context.id,out var origin)
             ? Buttons(run.Context.operation)?.Any(b=>b.Held&&b.SameGesture(origin))==true:Held(run.Context.operation);
         private static bool ConflictsWithLedge(CompiledAbilityExecutor executor)
@@ -396,7 +396,8 @@ namespace Ossastra.Characters
             if(owner==null||!isActiveAndEnabled||port==null||port.OwnerId!=owner.ActorId||string.IsNullOrWhiteSpace(port.InstanceId)||!Enum.IsDefined(typeof(AbilityOperation),operation)||
                 (companion?owner.GetComponent<CharacterInputHandler>().HasPlayerControl||!compiled.executor.AllowsCompanionUse:!owner.HasPlayerInput))return Reject("来源/控制身份无效");
             var resources=port.RuntimeState;
-            if(equipment!=null&&!equipment.ValidatePresentations(out var presentationError))return Reject(presentationError);
+            if (!OwnsSideViewDiveSource(port) && equipment != null &&
+                !equipment.ValidatePresentations(out var presentationError)) return Reject(presentationError);
             if(resources==null)return Reject("来源缺少稳定运行payload");
             var key=port.InstanceId+":"+compiled.cooldownIdentity;
             if(!port.IsAvailable||resources.Cooldowns.Remaining(key,resources.Clock(compiled.cooldownPolicy))>0)return Reject("来源失效或冷却中");
@@ -493,6 +494,8 @@ namespace Ossastra.Characters
             equipment?.State?.RightRuntime.Frost.SetModifiers(live.FrostCapacity,live.FrostRecovery);
             equipment?.State?.RightRuntime.Tick(delta,controlled,!IsGuarding,1+(equipment?.State?.RightRuntime.Frost.Current??0)*live.HastePerFrost);
             equipment?.State?.LeftRuntime?.Tick(delta,controlled);
+            if (owner.StateMovement?.IsSideView == true && TryGetComponent<SideViewDiveMount>(out var diveMount))
+                diveMount.TickSource(delta, controlled);
             foreach(var run in runs)
             {
                 var controlValid=run.Context.requestSource==CharacterActionSource.Companion?!owner.GetComponent<CharacterInputHandler>().HasPlayerControl:owner.GetComponent<CharacterInputHandler>().HasPlayerControl;

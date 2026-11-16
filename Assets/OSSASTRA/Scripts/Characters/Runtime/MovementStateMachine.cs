@@ -1,4 +1,7 @@
-/* 运动状态：方向采样在请求前，唯一真实位移在动作事实之后，使用本帧最新许可。 */
+/*
+ * 运动状态：采样跳跃、挂边和已接受的横版能力运动；在每个固定步只调用一次原移动器。
+ * 能力接管空中位移时清除旧跳跃输入，运动完成后将真实接触事实交回本次执行。
+ */
 using Ossastra.CharacterCore;
 using UnityEngine;
 namespace Ossastra.Characters
@@ -73,12 +76,11 @@ namespace Ossastra.Characters
             =>owner.StateOrienter.ResolvePresentation(owner.DataBus,owner.StateAbilities,owner.StateInput.HasPlayerControl);
         public override void Update(float deltaTime)
         {
-            var canMove = owner.StateFocused && !owner.IsPaused && owner.DataBus.AllowsMovement && (owner.DataBus.MoveReady || owner.DataBus.AbilityMotionActive);
             float elapsed = owner.IsSimulationSuspended ? 0f : deltaTime;
             var motor = owner.StateMovement;
             if (motor == null || !motor.IsSideView)
             {
-                owner.StateMover.Tick(canMove, elapsed);
+                owner.StateMover.Tick(CanMove(), elapsed);
                 return;
             }
             if (contactRevision != motor.ContactRevision)
@@ -113,6 +115,11 @@ namespace Ossastra.Characters
             // 仍在 Root 集中更新内步进，输入只采一次，每物理步只由原移动器提交一次。
             while (steps < 8 && accumulator + .000001f >= step)
             {
+                accumulator = Mathf.Max(0f, accumulator - step);
+                steps++;
+                if (TryTickSideViewAbility(motor, profile, step)) continue;
+
+                bool canMove = CanMove();
                 bool canTraverse = canMove && owner.DataBus.MoveReady && !owner.DataBus.ActionActive &&
                     owner.DataBus.MotionOverride?.IsActive != true && owner.StateStatusEffects?.BlocksIntent != true &&
                     owner.StatePosture?.IsStaggered != true && owner.StateOffhand?.IsAccepting != true &&
@@ -138,11 +145,32 @@ namespace Ossastra.Characters
                 jump.Observe(wasRising, motor.Grounded, bumped, motor.VerticalSpeed > 0f, profile.headLockSteps);
                 if (motor.Grounded) { launchGesture = default; launchHeld = false; }
                 if (pendingGesture.HasIdentity && (pendingTap || ++pendingAge > profile.queueSteps)) ClearPending();
-                accumulator = Mathf.Max(0f, accumulator - step);
-                steps++;
             }
             if (steps > 0) motor.PublishSideViewVelocity(before, step * steps);
             motor.SetSideViewPresentationFraction(accumulator / step);
+        }
+
+        private bool CanMove() => owner.StateFocused && !owner.IsPaused && owner.DataBus.AllowsMovement &&
+            (owner.DataBus.MoveReady || owner.DataBus.AbilityMotionActive);
+
+        private bool TryTickSideViewAbility(CharacterMovement motor, CharacterJumpProfile profile, float step)
+        {
+            if (!owner.CanSimulateIntent || !owner.DataBus.AllowsMovement ||
+                owner.StateStatusEffects?.HasForcedMotion == true || owner.StateArbitrator.Dodge?.IsActive == true)
+                return false;
+
+            var motion = (owner.StateAbilities as CharacterAbilities)?.ActiveSideViewMotion;
+            if (motion == null || !motion.TryPlanStep(step, out var command)) return false;
+
+            InvalidateInput();
+            jump.EnterExternalAirMotion();
+            traversal?.SuspendInput();
+            traversal?.Plan(false, step, profile);
+            var result = motor.TickSideView(true, step, JumpVerticalCommand.Gravity, 1f, false, abilityMotion: command);
+            traversal?.Observe(profile.traversal);
+            jump.Observe(command.IsBounce, result.Grounded, result.HitHead, motor.VerticalSpeed > 0f, profile.headLockSteps);
+            motion.ObserveStep(result);
+            return true;
         }
 
         private void SampleJump(CharacterInputFrame frame)

@@ -1,12 +1,13 @@
 /*
  * 脚本：CharacterMovement
- * 功能：依据角色输入与移动许可执行真实碰撞位移。横版配置启用时由运动子状态传入Y轴策略。
+ * 功能：执行唯一碰撞位移。横版运动状态传入跳跃策略、攀越位移或能力 XY 命令。
  * 边界：只管理运动；不决定攻击方向、不结算伤害。
  * 协作：Root初始化Bus并调用Tick；CharacterController实际位移决定速度和Run资格。
  */
 using System;
 using Ossastra.CharacterCore;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace Ossastra.Characters
 {
@@ -36,6 +37,7 @@ namespace Ossastra.Characters
         internal Collider LastTraversalObstacle { get; private set; }
         private SideViewPartyContacts partyContacts;
         private RaycastHit[] headHits = new RaycastHit[8];
+        private RaycastHit[] abilityPathHits = new RaycastHit[8];
         private Vector3 previousPose, latestPose;
         private float presentationFraction = 1f;
         private bool hasPose, hasEstablishedSupport;
@@ -80,7 +82,7 @@ namespace Ossastra.Characters
         {
             ClearMovementFacts();LastAllowed=allowed;
             if (dataBus == null || body == null || !body.enabled || delta <= 0) return;
-            MoveOnce(ResolveVelocity(allowed, speed), -groundStick, delta, false);
+            MoveOnce(ResolveVelocity(allowed, speed), -groundStick, delta, false, out _);
         }
 
         public void ConfigureSideView(CharacterJumpProfile profile)
@@ -95,33 +97,54 @@ namespace Ossastra.Characters
         internal void EmitTraversal(SideTraversalEventKind kind, int side)
             => SideTraversalOccurred?.Invoke(new SideTraversalEvent(kind, transform.position, side, sideStepId, ContactRevision));
 
-        internal void TickSideView(bool allowed, float delta, JumpVerticalCommand command, float gravityScale,
-            bool jumpAccepted, SideViewMotion traversalMotion = default)
+        internal SideViewAbilityMotionStep TickSideView(bool allowed, float delta, JumpVerticalCommand command,
+            float gravityScale, bool jumpAccepted, SideViewMotion traversalMotion = default,
+            SideViewAbilityMotionCommand? abilityMotion = null)
         {
-            if (!IsSideView || body == null || !body.enabled || delta <= 0f) return;
+            if (!IsSideView || body == null || !body.enabled || delta <= 0f) return default;
             var before = transform.position;
             if (!hasPose || latestPose != before) ResetSideViewPose();
             bool groundedBefore = Grounded;
-            bool footstepAllowed = allowed && !traversalMotion.ConstrainedPose && dataBus.MotionOverride?.IsActive != true &&
-                statusEffects?.HasForcedMotion != true && statusEffects?.BlocksIntent != true;
+            bool footstepAllowed = allowed && !abilityMotion.HasValue && !traversalMotion.ConstrainedPose &&
+                dataBus.MotionOverride?.IsActive != true && statusEffects?.HasForcedMotion != true &&
+                statusEffects?.BlocksIntent != true;
             partyContacts?.Prepare(body);
             LastAllowed = allowed;
-            var horizontal = ResolveVelocity(allowed, jumpProfile.runSpeed);
-            horizontal.y = horizontal.z = 0f;
-            if (traversalMotion.X.HasValue) horizontal.x = traversalMotion.X.Value;
-            if (command == JumpVerticalCommand.Sustain) VerticalSpeed = jumpProfile.jumpSpeed;
-            if (command == JumpVerticalCommand.Cut && VerticalSpeed > 0f)
-                VerticalSpeed *= jumpProfile.releaseSpeedScale;
-            bool stayingGrounded = Grounded && command == JumpVerticalCommand.Gravity;
-            float acceleration = jumpProfile.gravity * Mathf.Clamp01(gravityScale);
-            VerticalSpeed = stayingGrounded ? -groundStick
-                : Mathf.Max(-jumpProfile.fallSpeed, VerticalSpeed - acceleration * delta);
-            if (traversalMotion.Y.HasValue) VerticalSpeed = traversalMotion.Y.Value;
+
+            Vector3 horizontal;
+            if (abilityMotion.HasValue)
+            {
+                var velocity = abilityMotion.Value.Velocity;
+                horizontal = Vector3.right * velocity.x;
+                VerticalSpeed = velocity.y;
+            }
+            else
+            {
+                horizontal = ResolveVelocity(allowed, jumpProfile.runSpeed);
+                horizontal.y = horizontal.z = 0f;
+                if (traversalMotion.X.HasValue) horizontal.x = traversalMotion.X.Value;
+                if (command == JumpVerticalCommand.Sustain) VerticalSpeed = jumpProfile.jumpSpeed;
+                if (command == JumpVerticalCommand.Cut && VerticalSpeed > 0f)
+                    VerticalSpeed *= jumpProfile.releaseSpeedScale;
+                bool stayingGrounded = Grounded && command == JumpVerticalCommand.Gravity;
+                float acceleration = jumpProfile.gravity * Mathf.Clamp01(gravityScale);
+                VerticalSpeed = stayingGrounded ? -groundStick
+                    : Mathf.Max(-jumpProfile.fallSpeed, VerticalSpeed - acceleration * delta);
+                if (traversalMotion.Y.HasValue) VerticalSpeed = traversalMotion.Y.Value;
+            }
             float downBeforeContact = Mathf.Max(0f, -VerticalSpeed);
-            MoveOnce(horizontal, VerticalSpeed, delta, true, traversalMotion.ConstrainedPose);
+            bool abilityDrive = abilityMotion.HasValue && !abilityMotion.Value.IsBounce;
+            var terrain = MoveOnce(horizontal, VerticalSpeed, delta, true, out var attempted,
+                traversalMotion.ConstrainedPose, abilityDrive);
+            bool sweptGround = terrain.collider != null && terrain.normal.y >= Mathf.Cos(body.slopeLimit * Mathf.Deg2Rad);
+            if (sweptGround && stepSupport == null &&
+                Vector3.Dot(transform.position - before, attempted.normalized) + .002f >= terrain.distance)
+                stepSupport = terrain.collider;
             Grounded = (!traversalMotion.ConstrainedPose || traversalMotion.CanLand) &&
-                VerticalSpeed <= 0f && stepSupport != null && (LastCollision & CollisionFlags.Below) != 0;
-            bool hitHead = (LastCollision & CollisionFlags.Above) != 0;
+                VerticalSpeed <= 0f && stepSupport != null &&
+                ((LastCollision & CollisionFlags.Below) != 0 || sweptGround);
+            bool sweptHead = terrain.collider != null && terrain.normal.y < -.5f;
+            bool hitHead = (LastCollision & CollisionFlags.Above) != 0 || sweptHead;
             if (Grounded || hitHead && VerticalSpeed > 0f) VerticalSpeed = 0f;
 
             previousPose = before;
@@ -132,6 +155,25 @@ namespace Ossastra.Characters
             SideStepCompleted?.Invoke(new SideMovementStep(++sideStepId, ContactRevision, groundedBefore,
                 Grounded, launched, footstepAllowed, Mathf.Abs(latestPose.x - before.x), delta,
                 landingSpeed, latestPose, Grounded ? stepSupport : null));
+
+            if (!abilityMotion.HasValue) return default;
+            bool hitGround = Grounded || sweptGround;
+            var direction = attempted.normalized;
+            float forwardTravel = Vector3.Dot(latestPose - before, direction);
+            bool nativeSideBlocked = (LastCollision & CollisionFlags.Sides) != 0 &&
+                forwardTravel + .002f < attempted.magnitude;
+            bool hitWall = LastEnvironmentSideBlocked || nativeSideBlocked ||
+                terrain.collider != null && !sweptGround && !sweptHead;
+            var attackEnd = latestPose;
+            if (abilityDrive && (hitGround || hitWall || hitHead))
+            {
+                // 能力沿提交方向扫掠。碰撞器的沿面滑动不能把攻击延长到阻挡后方。
+                float maximum = terrain.collider == null ? attempted.magnitude : terrain.distance;
+                float traveled = Mathf.Clamp(forwardTravel, 0f, maximum);
+                attackEnd = before + direction * traveled;
+            }
+            return new SideViewAbilityMotionStep(before, latestPose, attackEnd, terrain.normal,
+                hitGround, hitWall, hitHead, Grounded);
         }
 
         internal void PublishSideViewVelocity(Vector3 before, float simulatedDelta)
@@ -153,7 +195,8 @@ namespace Ossastra.Characters
             return velocity;
         }
 
-        private void MoveOnce(Vector3 velocity, float vertical, float delta, bool sideView, bool captureTraversalObstacle = false)
+        private RaycastHit MoveOnce(Vector3 velocity, float vertical, float delta, bool sideView,
+            out Vector3 attempted, bool captureTraversalObstacle = false, bool clipAbilityDrive = false)
         {
             RequestedVelocity=velocity;
             var before = transform.position;
@@ -164,10 +207,13 @@ namespace Ossastra.Characters
             var constrained=environmentClearance==null
                 ?new CharacterClearanceResult(requestedDisplacement,false):environmentClearance.Constrain(requestedDisplacement);
             LastEnvironmentSideBlocked=constrained.SideBlocked;
+            attempted = constrained.Displacement;
+            var terrain = clipAbilityDrive ? FirstAbilityTerrainHit(attempted) : default;
+            var displacementToMove = terrain.collider == null ? attempted : attempted.normalized * terrain.distance;
             stepSupport = null;
             movingSideView = sideView;
             var collision = CollisionFlags.None;
-            try { collision = body.Move(constrained.Displacement); }
+            try { collision = body.Move(displacementToMove); }
             finally { movingSideView = false; }
             LastCollision = collision;
             if(((collision&CollisionFlags.Sides)!=0||LastEnvironmentSideBlocked)&&statusEffects!=null&&statusEffects.HasForcedMotion)statusEffects.StopForcedMotion();
@@ -177,6 +223,41 @@ namespace Ossastra.Characters
             if (sideView) displacement.z = 0;
             Velocity = displacement / delta;
             IsMoving = displacement.sqrMagnitude > .000001f;
+            return terrain;
+        }
+
+        private RaycastHit FirstAbilityTerrainHit(Vector3 displacement)
+        {
+            float distance = displacement.magnitude;
+            if (distance < .000001f) return default;
+
+            var scale = transform.lossyScale;
+            float radius = body.radius * Mathf.Max(Mathf.Abs(scale.x), Mathf.Abs(scale.z));
+            if (radius <= 0f) return default;
+            var axis = Vector3.up * Mathf.Max(0f, body.height * Mathf.Abs(scale.y) * .5f - radius);
+            var center = transform.TransformPoint(body.center);
+            var direction = displacement / distance;
+            var physicsWorld = gameObject.scene.GetPhysicsScene();
+            int count;
+            while (true)
+            {
+                count = physicsWorld.CapsuleCast(center - axis, center + axis, radius, direction,
+                    abilityPathHits, distance, Physics.AllLayers, QueryTriggerInteraction.Ignore);
+                if (count < abilityPathHits.Length) break;
+                Array.Resize(ref abilityPathHits, abilityPathHits.Length * 2);
+            }
+
+            var nearest = default(RaycastHit);
+            float nearestDistance = float.PositiveInfinity;
+            for (int i = 0; i < count; i++)
+            {
+                var hit = abilityPathHits[i];
+                if (hit.distance >= nearestDistance || Vector3.Dot(direction, hit.normal) >= -.0001f ||
+                    !IsTraversalObstacle(hit.collider)) continue;
+                nearest = hit;
+                nearestDistance = hit.distance;
+            }
+            return nearest;
         }
 
         private void OnControllerColliderHit(ControllerColliderHit hit)

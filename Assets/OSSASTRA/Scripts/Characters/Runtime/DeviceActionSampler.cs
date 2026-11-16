@@ -32,12 +32,19 @@ namespace Ossastra.Characters
             private readonly Dictionary<InputAction, InputAction> copies = new Dictionary<InputAction, InputAction>();
             private readonly Dictionary<InputAction, bool> armed = new Dictionary<InputAction, bool>();
             private readonly Dictionary<InputAction, double> eventTimes = new Dictionary<InputAction, double>();
-            private sealed class ButtonOwnership { public bool eligible; public long gesture; public string control; public InputControl initiatingControl; }
+            private sealed class ButtonOwnership
+            {
+                public bool eligible;
+                public long gesture, lastConsumedPress;
+                public string control;
+                public InputControl initiatingControl;
+            }
             private readonly Dictionary<InputAction, ButtonOwnership> buttons = new Dictionary<InputAction, ButtonOwnership>();
             private static long nextGesture;
             private readonly Func<Vector2, bool> blocked;
             private readonly InputAction pointer;
             private readonly InputAction orderedButton;
+            private readonly InputAction analogMove;
             private readonly Func<bool> acceptsOrderedPress;
             private readonly List<CharacterInputButton> orderedEdges = new List<CharacterInputButton>();
             private CharacterInputButton orderedHeld;
@@ -47,7 +54,7 @@ namespace Ossastra.Characters
             public DeviceInputCandidate Candidate { get; private set; }
 
             internal DeviceSample(InputDevice device, InputAction[] actions, InputAction pointer, Func<Vector2, bool> blocked,
-                InputAction orderedButton, Func<bool> acceptsOrderedPress)
+                InputAction orderedButton, Func<bool> acceptsOrderedPress, InputAction analogMoveSource)
             {
                 Device = device; this.pointer = pointer; this.blocked = blocked;
                 this.orderedButton = orderedButton;
@@ -80,6 +87,8 @@ namespace Ossastra.Characters
                         // canceled不清初始归属：同次输入更新的down/up仍必须按down时的归属判定。
                     }
                 }
+                if (device is Gamepad && analogMoveSource != null)
+                    analogMove = AddAnalogMove(map, device, analogMoveSource);
                 map.devices = new[] { device }; map.Enable();
                 if (orderedButton != null && copies.TryGetValue(orderedButton, out var orderedCopy))
                     RearmOrderedIfNeutral(orderedCopy);
@@ -127,6 +136,36 @@ namespace Ossastra.Characters
                 else if (orderedHeld.HasIdentity)
                     destination.Add(orderedHeld);
             }
+            private static InputAction AddAnalogMove(InputActionMap map, InputDevice device, InputAction source)
+            {
+                InputAction direct = null;
+                foreach (var binding in source.bindings)
+                {
+                    if (binding.isComposite || binding.isPartOfComposite || string.IsNullOrEmpty(binding.effectivePath) ||
+                        InputControlPath.TryFindControl<InputControl<Vector2>>(device, binding.effectivePath) == null) continue;
+                    if (direct == null)
+                    {
+                        // The digital stick composite can win normal Move arbitration with magnitude 1.
+                        // Keep that movement policy and sample its configured direct Vector2 bindings separately.
+                        direct = map.AddAction("AnalogMove", source.type, interactions: source.interactions,
+                            processors: source.processors, expectedControlLayout: "Vector2");
+                        direct.bindingMask = source.bindingMask;
+                        direct.wantsInitialStateCheck = source.wantsInitialStateCheck;
+                    }
+                    var analogBinding = binding;
+                    analogBinding.id = Guid.NewGuid();
+                    direct.AddBinding(analogBinding);
+                }
+                return direct;
+            }
+
+            public bool TryReadAnalogMove(out Vector2 value)
+            {
+                bool bound = analogMove != null && analogMove.controls.Count > 0;
+                value = bound ? analogMove.ReadValue<Vector2>() : default;
+                return bound;
+            }
+
             public InputAction Action(InputAction source) => source != null && copies.TryGetValue(source, out var value) ? value : null;
             public Vector2 Vector(InputAction source) => Action(source)?.ReadValue<Vector2>() ?? Vector2.zero;
             public Vector2 ReadPointer() => Vector(pointer);
@@ -146,6 +185,14 @@ namespace Ossastra.Characters
                 var held=Held(source);var b=buttons[source];
                 return new CharacterInputButton(Device.deviceId,b.gesture,b.control,held,b.eligible&&a.WasPressedThisFrame(),b.eligible&&a.WasReleasedThisFrame());
             }
+            public bool ConsumePress(InputAction source, CharacterInputButton button)
+            {
+                if (!button.Pressed || !button.HasIdentity || !buttons.TryGetValue(source, out var ownership) ||
+                    button.GestureId == ownership.lastConsumedPress) return false;
+                ownership.lastConsumedPress = button.GestureId;
+                return true;
+            }
+
             public bool ConsumedByComposite(InputAction source)
             {
                 var basic = Action(source); if (!(Device is Gamepad) || basic == null) return false;
@@ -202,13 +249,15 @@ namespace Ossastra.Characters
         }
         private readonly List<DeviceSample> devices = new List<DeviceSample>();
         private readonly InputAction orderedButton;
+        private readonly InputAction analogMoveSource;
         private readonly Func<bool> acceptsOrderedPress;
         private string signature;
         public DeviceActionSampler() { }
-        public DeviceActionSampler(InputAction orderedButton, Func<bool> acceptsOrderedPress)
+        public DeviceActionSampler(InputAction orderedButton, Func<bool> acceptsOrderedPress, InputAction analogMoveSource = null)
         {
             this.orderedButton = orderedButton;
             this.acceptsOrderedPress = acceptsOrderedPress;
+            this.analogMoveSource = analogMoveSource;
         }
         public IReadOnlyList<DeviceSample> Devices => devices;
         public void Synchronize(IEnumerable<InputAction> actions, InputAction pointer, Func<Vector2, bool> blocked)
@@ -226,7 +275,7 @@ namespace Ossastra.Characters
             foreach (var sample in devices.Where(s => !available.Contains(s.Device) || !s.Device.enabled).ToArray())
             { sample.Dispose(); devices.Remove(sample); }
             foreach (var d in available) if (d.enabled && !devices.Any(s => s.Device == d))
-                devices.Add(new DeviceSample(d, inputs, pointer, blocked, orderedButton, acceptsOrderedPress));
+                devices.Add(new DeviceSample(d, inputs, pointer, blocked, orderedButton, acceptsOrderedPress, analogMoveSource));
         }
         public void Suppress(InputAction preserve = null) { foreach (var d in devices) d.Suppress(preserve); }
         public void SuppressNewPresses() { foreach (var d in devices) d.SuppressNewPresses(); }
