@@ -77,7 +77,8 @@ namespace Ossastra.Commerce.Runtime
                 sessionId=Guid.NewGuid().ToString("N");
                 var actors=session.Coordinator.Characters.Select(c=>c.ActorId).ToArray();
                 if(actors.Any(string.IsNullOrWhiteSpace)||actors.Distinct().Count()!=actors.Length)throw new InvalidOperationException("角色稳定ID缺失或重复");
-                if(merchants==null||merchants.Length<1)throw new InvalidOperationException("尚未配置商人实例");
+                // 场景可没有可见商人；全局商人定义仍用于恢复跨地图的库存与补货状态。
+                if(merchants==null)throw new InvalidOperationException("商人实例列表缺失");
                 if(worldContainers==null||worldContainers.Any(c=>c==null||string.IsNullOrWhiteSpace(c.instanceId))||worldContainers.Select(c=>c.instanceId).Distinct().Count()!=worldContainers.Length)
                     throw new InvalidOperationException("箱子代理缺失或稳定ID重复；没有自动改写ID");
                 Economy=new CommerceEconomy(session.Ledger,this);
