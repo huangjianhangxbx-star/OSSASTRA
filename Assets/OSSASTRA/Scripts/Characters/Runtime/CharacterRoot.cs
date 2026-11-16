@@ -54,6 +54,9 @@ namespace Ossastra.Characters
         [SerializeField] private CharacterFollow follow;
         [SerializeField] private CombatVitals vitals;
         [SerializeField] private CombatPosture posture;
+        [SerializeField] private string postureBasicRecoveryEvent;
+        internal string PostureBasicRecoveryEvent => postureBasicRecoveryEvent;
+        public string LastPostureRecoveryEvent => actionPosture.LastSpineRecovery;
         [SerializeField] private StateArbitrator stateArbitrator;
         public StateArbitrator StateArbitrator=>stateArbitrator;
         private BasicActionRuntime runtime=>stateArbitrator?.Combat?.Runtime;
@@ -86,6 +89,8 @@ namespace Ossastra.Characters
         internal ICombatHitResolver StateHitResolver=>hitResolver;
         internal CombatVitals StateVitals=>vitals;
         internal CombatPosture StatePosture=>posture;
+        public bool UsesActionPosture => posture != null && posture.UsesActionPosture;
+        private readonly CharacterActionPosture actionPosture = new CharacterActionPosture();
         internal bool StateFocused=>focused;
         internal bool StateReady=>ready;
         internal float StateReleaseAt=>releaseAt;
@@ -239,6 +244,7 @@ namespace Ossastra.Characters
             input.ResetPlayerInput(true);
             orientation.ResetOrientation();
             movement.Teleport(position);
+            actionPosture.Clear();
             if(posture!=null) posture.ResetState();
             if(!vitals.RestoreAfterDeath()) return false;
             stamina?.Restore();
@@ -302,7 +308,23 @@ namespace Ossastra.Characters
             DataBus = new CharacterDataBus(actorId, inputSource, mover, orienter, runtime, authority, viewSpace);
             DataBus.BindTraversal(stateArbitrator.Movement);
             statusEffects=GetComponent<CombatStatusEffects>();if(statusEffects!=null)statusEffects.ControlChanged+=OnStatusControlChanged;
-            stamina=GetComponent<CharacterStamina>();if(stamina!=null)stamina.Initialize();
+            if (posture != null)
+            {
+                if (!posture.Initialize(vitals, this)) { Debug.LogError("Character posture configuration invalid", this); enabled = false; return; }
+                if (UsesActionPosture)
+                {
+                    actionPosture.Initialize(this, posture);
+                    posture.BindActionPostureReaction(() => stateArbitrator.Reaction.IsActive);
+                    posture.ActionPostureBroken += stateArbitrator.BeginPostureReaction;
+                }
+                else
+                {
+                    posture.Broken += OnPostureBroken;
+                    posture.Recovered += OnPostureRecovered;
+                }
+            }
+            stamina = UsesActionPosture ? null : GetComponent<CharacterStamina>();
+            stamina?.Initialize();
             dodge=GetComponent<CharacterDodge>();if(dodge!=null)dodge.Initialize(this,stamina);
             equipment=GetComponent<CharacterEquipment>();if(equipment!=null){equipment.Initialize(this);if(equipment.State==null){enabled=false;return;}}
             guard=GetComponent<ShieldGuard>();if(guard!=null)guard.Initialize(this,stamina,equipment);
@@ -318,14 +340,10 @@ namespace Ossastra.Characters
             mainAction=GetComponent<CharacterMainAction>();
             if(mainAction!=null&&mainAction.enabled){mainAction.Initialize(this);mainAction.Resolved+=OnHitReceipt;DataBus.BindMainMotion(mainAction);RefreshMainProfile();}
             if (!ready) { Debug.LogError("Character subsystem initialization failed", this); enabled = false; }
+            if (UsesActionPosture && presentation is Ossastra.CharacterAnimation.CharacterAnimationController controller)
+                controller.SpineSignal += actionPosture.OnSpineSignal;
             // 可选能力只接受本角色初始化；无组件/无assignment的旧场保持普通玩家行为。
             if (follow != null && !follow.Initialize(this)) Debug.LogWarning("Character follow unavailable: configuration or owner invalid", this);
-            if (posture != null)
-            {
-                if (!posture.Initialize(vitals, this)) { Debug.LogError("Character posture configuration invalid", this); enabled = false; return; }
-                posture.Broken += OnPostureBroken;
-                posture.Recovered += OnPostureRecovered;
-            }
             lightingReceiver=GetComponent<Ossastra.CharacterLighting.CharacterLightingReceiver>();
             if(lightingReceiver!=null)lightingReceiver.Initialize(new Ossastra.CharacterLighting.PlayerCharacterLightingSource(this));
         }
@@ -404,6 +422,21 @@ namespace Ossastra.Characters
 
         public void CancelAction(string reason){if(stateArbitrator!=null&&stateArbitrator.Combat!=null)stateArbitrator.Cancel(reason);}
 
+        internal void RegisterActionExposure(CharacterActionRequest request, Guid id, float? target)
+            => actionPosture.Register(request, id, target);
+
+        internal void EndActionExposure(Guid id) => actionPosture.End(id);
+        internal void BindActionRecoveryEvent(Guid id, string eventName) => actionPosture.BindEvent(id, eventName);
+        internal void UpdateActionPosture() => actionPosture.Update();
+
+        internal void SetReactionControl(object token, bool blocked)
+        {
+            if (blocked) authority.Block(token, ControlChannel.Move | ControlChannel.Attack);
+            else authority.Release(token);
+            if (follow != null) follow.ResetIntent();
+            stateArbitrator?.Combat?.SuppressInput();
+        }
+
         private void OnPostureBroken(string cause)
         {
             authority.Block(posture, ControlChannel.Move | ControlChannel.Attack);
@@ -449,7 +482,7 @@ namespace Ossastra.Characters
         private void OnApplicationPause(bool value)
           { applicationPaused = value; if(value)stateArbitrator?.Combat?.ClearBuffer(); if (follow != null) follow.ResetIntent(); if (value) stateArbitrator?.Combat?.SuppressInput(); }
         private void OnEnable() { stateArbitrator?.Combat?.SuppressInput(); if (intentSelector != null) intentSelector.Clear(); lightingReceiver?.TickPresentation(); }
-        private void OnDisable() { lightingReceiver?.Suspend();environmentClearance?.Suspend();foreach(var depth in visualDepth)depth.Suspend();viewSpace?.Suspend();stateArbitrator?.StopMovement();transientItems?.Hide();statusEffects?.Clear();mainAction?.ResetState();equipmentView?.Hide();equipmentSpineView?.Hide();skills?.Clear();offhand?.CancelAll(); CancelAction("disabled"); if (posture != null) posture.ResetState(); authority.Release(posture); if (follow != null) follow.ResetIntent(); if (intentSelector != null) intentSelector.Clear(); if (ready && presentation != null) presentation.SetPaused(false); }
+        private void OnDisable() { lightingReceiver?.Suspend();environmentClearance?.Suspend();foreach(var depth in visualDepth)depth.Suspend();viewSpace?.Suspend();stateArbitrator?.StopMovement();transientItems?.Hide();statusEffects?.Clear();mainAction?.ResetState();equipmentView?.Hide();equipmentSpineView?.Hide();skills?.Clear();offhand?.CancelAll(); CancelAction("disabled"); actionPosture.Clear(); posture?.SuspendState(); authority.Release(posture); if (follow != null) follow.ResetIntent(); if (intentSelector != null) intentSelector.Clear(); if (ready && presentation != null) presentation.SetPaused(false); }
         private void OnDestroy()
         {
             lightingReceiver?.DisposeReceiver();lightingReceiver=null;
@@ -461,7 +494,15 @@ namespace Ossastra.Characters
             if(mainAction!=null)mainAction.Resolved-=OnHitReceipt;
             if(statusEffects!=null)statusEffects.ControlChanged-=OnStatusControlChanged;
             if (vitals!=null) vitals.Died-=OnDied;
-            if (posture != null) { posture.Broken -= OnPostureBroken; posture.Recovered -= OnPostureRecovered; }
+            if (presentation is Ossastra.CharacterAnimation.CharacterAnimationController controller)
+                controller.SpineSignal -= actionPosture.OnSpineSignal;
+            if (posture != null)
+            {
+                posture.Broken -= OnPostureBroken;
+                posture.Recovered -= OnPostureRecovered;
+                if (stateArbitrator != null) posture.ActionPostureBroken -= stateArbitrator.BeginPostureReaction;
+                posture.BindActionPostureReaction(null);
+            }
             authority.Release(posture);
             // 终止本角色动作后解除本对象引用；不清其它角色或场景控制权威。
             CancelAction("destroyed");

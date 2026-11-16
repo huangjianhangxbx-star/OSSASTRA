@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using Ossastra.CharacterCore;
+using Ossastra.Combat;
 namespace Ossastra.Characters
 {
     [DisallowMultipleComponent]
@@ -19,6 +20,9 @@ namespace Ossastra.Characters
         }
         [SerializeField] private List<StateSnapshot> snapshots = new List<StateSnapshot>();
         [SerializeField] private string lastRejection;
+        [SerializeField, Min(.01f)] private float postureLaunchSeconds = .2f;
+        [SerializeField, Min(.01f)] private float postureDownSeconds = .45f;
+        [SerializeField, Min(.01f)] private float postureRiseSeconds = .25f;
         private readonly Dictionary<string, CharacterStateMachine> registrations = new Dictionary<string, CharacterStateMachine>();
         private readonly List<CharacterStateMachine> ordered = new List<CharacterStateMachine>();
         private readonly HashSet<CharacterStateMachine> entered = new HashSet<CharacterStateMachine>();
@@ -28,6 +32,8 @@ namespace Ossastra.Characters
         public DodgeStateMachine Dodge { get; private set; }
         public AbilityStateMachine Ability { get; private set; }
         public WeaponPostureStateMachine WeaponPosture { get; private set; }
+        public CharacterReactionStateMachine Reaction { get; private set; }
+        public float PostureRiseSeconds => ValidReactionDuration(postureRiseSeconds, .25f);
         public int FrameCount { get; private set; }
         public IReadOnlyList<StateSnapshot> Snapshots => snapshots;
         public void Initialize(CharacterRoot root)
@@ -42,6 +48,7 @@ namespace Ossastra.Characters
             Dodge = new DodgeStateMachine(); Register("Dodge", Dodge);
             Ability = new AbilityStateMachine(); Register("Ability", Ability);
             WeaponPosture = new WeaponPostureStateMachine(); Register("WeaponPosture", WeaponPosture);
+            Reaction = new CharacterReactionStateMachine(); Register("Reaction", Reaction);
             foreach (var machine in ordered) machine.Initialize(root);
         }
         private void Register(string request, CharacterStateMachine machine)
@@ -71,6 +78,15 @@ namespace Ossastra.Characters
         }
         // 外部能力也可同步提交/取消身体动作；接受事实当场建立边沿，不等下一帧。
         internal void ObserveCombatEdge() { if (Combat != null) ObserveEdge(Combat); }
+        internal void BeginPostureReaction(ResolvedPostureContact contact)
+        {
+            if (!Reaction.Begin(contact, ValidReactionDuration(postureLaunchSeconds, .2f),
+                    ValidReactionDuration(postureDownSeconds, .45f), PostureRiseSeconds)) return;
+            Movement.ResetJump();
+            Cancel("posture-broken:" + contact.Outcome.ActionId.ToString("N"));
+        }
+        private static float ValidReactionDuration(float value, float fallback)
+            => float.IsNaN(value) || float.IsInfinity(value) ? fallback : Mathf.Max(.01f, value);
         private void Tick(CharacterStateMachine machine, float deltaTime)
         {
             ObserveEdge(machine);
@@ -81,7 +97,7 @@ namespace Ossastra.Characters
         {
             if (owner == null) return;
             FrameCount++;
-            if (!owner.IsAlive) { owner.StateMovement?.Stop();Movement.ResetJump();WeaponPosture.MaintainDeath(); RefreshSnapshots(); return; }
+            if (!owner.IsAlive) { WeaponPosture.MaintainDeath(); StopMovement(); return; }
             Combat.RefreshMainProfile();
             owner.StateCombatBrain?.Sample(owner.SimulationTime, deltaTime);
             owner.StateInputSource.Read();
@@ -116,6 +132,7 @@ namespace Ossastra.Characters
             Combat.CompleteFrame(deltaTime);
             Tick(Dodge, deltaTime);
             Tick(Movement, deltaTime);
+            owner.UpdateActionPosture();
             // 动作/机动/真实移动已完成：统一交接显示朝向，两个模型只读同一结果。
             Movement.ResolvePresentation();
             owner.StateStamina?.Tick(owner.SimulationTime, !Combat.Runtime.IsActive && !Dodge.IsActive && !WeaponPosture.IsActive && owner.CanSimulateIntent);
@@ -140,9 +157,16 @@ namespace Ossastra.Characters
         }
         /// <summary>Root死亡/停用时停止运动并立即配对注册机退出，不等待已停用的Update。</summary>
         public void StopMovement()
-        { if(owner==null)return;owner.StateMovement?.Stop();if(Movement!=null){Movement.ResetJump();ObserveEdge(Movement);}RefreshSnapshots(); }
+        {
+            if (owner == null) return;
+            Reaction?.Stop();
+            owner.StateMovement?.Stop();
+            if (Movement != null) Movement.ResetJump();
+            RefreshSnapshots();
+        }
         public void Dispose()
         {
+            Reaction?.Stop();
             Combat?.Dispose();
             foreach (var machine in entered) machine.Exit();
             entered.Clear();

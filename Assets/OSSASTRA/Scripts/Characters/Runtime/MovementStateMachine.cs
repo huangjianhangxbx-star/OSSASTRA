@@ -117,6 +117,7 @@ namespace Ossastra.Characters
             {
                 accumulator = Mathf.Max(0f, accumulator - step);
                 steps++;
+                if (owner.StateArbitrator.Reaction.TryStep(motor, step)) continue;
                 if (TryTickSideViewAbility(motor, profile, step)) continue;
 
                 bool canMove = CanMove();

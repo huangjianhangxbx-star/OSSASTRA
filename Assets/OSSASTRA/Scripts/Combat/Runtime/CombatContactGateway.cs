@@ -55,15 +55,33 @@ namespace Ossastra.Combat
             foreach(var outcome in outcomes)
             {
                 var target=targets.First(t=>t.Health.Id==outcome.TargetId);
+                var component = target as MonoBehaviour;
+                // Freeze direction before feedback/death callbacks can move the actor or an attack source.
+                int directionX = 0;
+                if (outcome.HpAfter > 0 && component != null)
+                {
+                    var position = target is ICombatTarget combatTarget ? combatTarget.WorldPosition : component.transform.position;
+                    float horizontal = geometry?.ArrivalDirection.x ?? 0;
+                    if (Mathf.Abs(horizontal) <= .001f) horizontal = position.x - origin.x;
+                    if (Mathf.Abs(horizontal) <= .001f) horizontal = geometry?.ReleaseDirection.x ?? 0;
+                    directionX = horizontal < -.001f ? -1 : 1;
+                }
                 if(outcome.Reason==HitReason.Applied)
                 {
                     if(target is ICombatTarget combat)combat.OnHitResolved(outcome);else target.ShowHit();
                     if(!(target is ICombatReclaimPolicy reclaimPolicy)||reclaimPolicy.AllowsReclaim)source?.Recovery?.OnApplied(release,outcome);
                 }
                 if(outcome.Reason==HitReason.Guarded||outcome.Reason==HitReason.Evaded)defenses[target]?.OnDefenseResolved(outcome);
-                if(outcome.HpAfter>0 && outcome.PostureScale>0 && target is MonoBehaviour component && component!=null)
-                    foreach(var receiver in component.GetComponents<MonoBehaviour>().OfType<ICombatPostureReceiver>())
-                        receiver.ReceiveImpact(outcome,release.PostureImpact*outcome.PostureScale);
+                if (outcome.HpAfter <= 0 || component == null) continue;
+                double impact = release.PostureImpact * outcome.PostureScale;
+                foreach (var receiver in component.GetComponents<MonoBehaviour>().OfType<ICombatPostureReceiver>())
+                {
+                    if (receiver is IResolvedCombatPostureReceiver actionPosture && actionPosture.UsesActionPosture)
+                        actionPosture.ReceiveContact(new ResolvedPostureContact(outcome, impact, cause, effectSemantic,
+                            release.ParentExecutionId, release.EmissionIndex, directionX));
+                    else if (outcome.PostureScale > 0)
+                        receiver.ReceiveImpact(outcome, impact);
+                }
             }
             if(batch!=null)Publish(batch);
             return outcomes;

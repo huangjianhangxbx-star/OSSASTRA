@@ -8,7 +8,7 @@ namespace Ossastra.UserInterface
     public struct CharacterHudSnapshot
     {
         public string actorId,name,rightHand,leftHand,condition,rightInstanceId,leftInstanceId,leftDefinitionId,abilityResources,mainHandForm;
-        public bool alive,controlled;
+        public bool alive,controlled,usesActionPosture;
         public float hp,maxHp,grayHp,stamina,maxStamina,posture,maxPosture;
         public int durability;
         public string[] skillNames,skillStates;

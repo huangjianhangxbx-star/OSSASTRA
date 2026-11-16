@@ -56,7 +56,7 @@ namespace Ossastra.Characters
             {
                 if(!held||!CanMaintain){Cancel();return;}
                 var stamina=Context.owner.GetComponent<CharacterStamina>();
-                if(Context.definition.holdCost>0&&(stamina==null||!stamina.Drain(Context.definition.holdCost*delta,Context.owner.SimulationTime)))Cancel();
+                if(!Context.owner.UsesActionPosture&&Context.definition.holdCost>0&&(stamina==null||!stamina.Drain(Context.definition.holdCost*delta,Context.owner.SimulationTime)))Cancel();
             }
             public void OnGuarded(HitOutcome outcome)
             {if(IsGuarding&&outcome.TargetId==Context.owner.ActorId){if(frostCost>0)mainState.Frost.Spend(frostCost,mainState.EquippedTime);Context.source.CommitRelease(outcome.ActionId);Context.NotifyFeedback("guard");}}

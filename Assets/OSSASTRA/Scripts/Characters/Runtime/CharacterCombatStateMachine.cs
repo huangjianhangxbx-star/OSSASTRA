@@ -125,8 +125,19 @@ namespace Ossastra.Characters
             owner.StateAbilities?.ObserveFact(fact);
             owner.StateMainAction?.ObserveFact(fact);
             owner.PublishActionFact(fact);
-            if(fact.Kind==ActionFactKind.Finished||fact.Kind==ActionFactKind.Cancelled)owner.StateVitals?.Recovery?.ReleaseParent(fact.ActionId);
+            if (fact.Kind == ActionFactKind.Finished || fact.Kind == ActionFactKind.Cancelled)
+            {
+                if (owner.StateAbilities?.OwnsRelease(fact.ActionId) != true) owner.EndActionExposure(fact.ActionId);
+                owner.StateVitals?.Recovery?.ReleaseParent(fact.ActionId);
+            }
         }
+        private void BindPostureRecovery(Guid id, ConfiguredActionSnapshot phase, string marker)
+        {
+            if (owner.UsesActionPosture && owner.StatePresentation is Ossastra.CharacterAnimation.CharacterAnimationController controller &&
+                controller.HasPostureRecoveryEvent(phase, marker))
+                owner.BindActionRecoveryEvent(id, marker);
+        }
+
         private bool TryResolveConfiguredAction(ActionDefinitionSO config,out ConfiguredActionSnapshot frozen,out string reason,CharacterAnimationPreparation? preparation=null)
         {
             frozen=null;reason=null;
@@ -147,7 +158,7 @@ namespace Ossastra.Characters
             if(phase==null&&!TryResolveConfiguredAction(config,out phase,out var configurationError,preparation)){lastFact="Rejected: "+configurationError;return false;}
             if(!ValidatePrepared(phase,out var phaseError)){lastFact="Rejected: "+phaseError;return false;}
             frozen=phase.Timeline;
-            var signature=owner.Actions.CreateRequest(CharacterActionKind.Main,source,label).WithAttackSemantics(isAttack);
+            var signature=owner.Actions.CreateRequest(CharacterActionKind.Main,source,label).WithAttackSemantics(isAttack).WithPostureTarget(config.actionPostureExposure == -1 ? (isAttack ? 30 : 0) : config.actionPostureExposure);
             ActionRequestResult result=null;
             if(!owner.Actions.TryCommit(signature,cost,()=>
             {
@@ -159,6 +170,7 @@ namespace Ossastra.Characters
             {lastFact="Rejected: "+rejection;return false;}
             if(result.PreviousTerminal!=null)ObserveFact(result.PreviousTerminal);
             chain?.Clear();autonomousAction=false;autonomousTarget=null;AttackStage=0;
+            BindPostureRecovery(result.Fact.ActionId, phase, config.postureRecoveryEvent);
             (owner.StatePresentation as ICharacterConfiguredAnimation)?.CapturePhase(result.Fact.ActionId,phase);
             ObserveFact(result.Fact);owner.StateOrienter.FaceAttackDirection();actionId=result.Fact.ActionId;return true;
         }
@@ -199,7 +211,8 @@ namespace Ossastra.Characters
                 try{phase=defaults.FreezeDefaultAction(selected,stage);}catch(ArgumentException error){lastFact="Rejected: "+error.Message;return;}
             }
             if(phase!=null){if(!ValidatePrepared(phase,out var phaseError)){lastFact="Rejected: "+phaseError;return;}selected=phase.Timeline;}
-            var signature=owner.Actions.CreateRequest(CharacterActionKind.Main,aiTarget==null?CharacterActionSource.Player:CharacterActionSource.Companion,aiTarget==null?"player-input:Stage"+stage:"companion:Stage1");
+            var signature=owner.Actions.CreateRequest(CharacterActionKind.Main,aiTarget==null?CharacterActionSource.Player:CharacterActionSource.Companion,aiTarget==null?"player-input:Stage"+stage:"companion:Stage1").WithPostureTarget(
+                actionConfig == null || actionConfig.actionPostureExposure == -1 ? 20 : actionConfig.actionPostureExposure);
             ActionRequestResult request=null;
             var accepted=owner.Actions.TryCommit(signature,owner.StateStamina==null?0:prepared!=null?prepared.Cost:actionConfig!=null?actionConfig.staminaCost:owner.StateStamina.AttackCost,()=>
             {
@@ -210,6 +223,9 @@ namespace Ossastra.Characters
             if(request.PreviousTerminal!=null)ObserveFact(request.PreviousTerminal);
             if(request.Accepted)
             {
+                var marker = string.IsNullOrWhiteSpace(actionConfig?.postureRecoveryEvent)
+                    ? owner.PostureBasicRecoveryEvent : actionConfig.postureRecoveryEvent;
+                BindPostureRecovery(request.Fact.ActionId, phase, marker);
                 if(prepared!=null)
                 {
                     (owner.StatePresentation as ICharacterConfiguredAnimation)?.CapturePhase(request.Fact.ActionId,prepared.Phase);

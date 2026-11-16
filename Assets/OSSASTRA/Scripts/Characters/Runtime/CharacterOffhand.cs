@@ -50,7 +50,7 @@ namespace Ossastra.Characters
             if(floor.Length==0)return Reject("落点无可用地面");
             p=floor[0].point;
             if(!ClearPath(owner.transform.position,p))return Reject("落点被墙遮挡");
-            if(stamina==null||!stamina.CanSpend(20))return Reject("体力不足");
+            if(!owner.UsesActionPosture&&(stamina==null||!stamina.CanSpend(20)))return Reject("体力不足");
             var request=owner.Actions.CreateRequest(CharacterActionKind.Offhand,CharacterActionSource.Player);
             var id=request.RequestId;
             if(!owner.Actions.TryCommit(request,20,()=>state.TryAccept(id,gear.State.LeftInstanceId,owner.LifeGeneration)?id:Guid.Empty,out var reason))return Reject(reason);
@@ -65,6 +65,7 @@ namespace Ossastra.Characters
             if(owner.IsSimulationSuspended)return;
             if(!owner.CanSimulateIntent||!controlled)state.CancelPending();
             var released=state.Advance(delta,controlled,false);
+            if (!state.IsAccepting) owner.EndActionExposure(LastActionId);
             if(released!=null)
             {
                 if(gear.State.LeftInstanceId!=state.EquipmentId||owner.LifeGeneration!=state.LifeGeneration){LastResult="释放身份失效";return;}
@@ -104,8 +105,8 @@ namespace Ossastra.Characters
                 if(hit.collider.GetComponentInParent<CombatVitals>()==null)return false;
             return true;
         }
-        public void CancelPending(){state?.CancelPending();}
-        public void CancelAll(){state?.CancelPending();ClearFlight();}
+        public void CancelPending(){state?.CancelPending();owner?.EndActionExposure(LastActionId);}
+        public void CancelAll(){CancelPending();ClearFlight();}
         private void ClearFlight(){flight=null;if(visual!=null)Destroy(visual);visual=null;}
         private void OnDisable(){CancelAll();}
     }

@@ -7,6 +7,8 @@ namespace Ossastra.Characters
  [CreateAssetMenu(menuName="OSSASTRA/Input/Player Input Layout")]
  public sealed class PlayerInputLayoutSO:ScriptableObject
  {
+  [Tooltip("正式横版输入。由同一个按设备路由解析组合键、向上交互与消费。")]
+  public bool postureInputRouting;
 
   [Header("移动 / 键盘与手柄方向")]
   [Tooltip("读取二维移动向量；可配置2D Vector组合或手柄左摇杆。")]
@@ -16,24 +18,24 @@ namespace Ossastra.Characters
   [Header("手柄瞄准方向 / 右摇杆")]
   public InputAction aim=new InputAction("Aim",InputActionType.Value);
   [Header("右手 / 主手操作")]
-  [Tooltip("当前约定：鼠标左键、手柄RT；实际行为由当前主手装备定义决定。")]
+  [Tooltip("正式横版为鼠标左键／手柄 X；实际行为由当前主手装备定义决定。")]
   public InputAction rightHand=new InputAction("RightHandAction",InputActionType.Button);
   [Header("左手 / 副手操作")]
-  [Tooltip("当前约定：鼠标右键、手柄LT；按下、持续或长按的行为由装备SO绑定决定。")]
+  [Tooltip("正式横版为鼠标右键／手柄 RT；按下、持续或长按的行为由装备SO绑定决定。")]
   public InputAction leftHand=new InputAction("LeftHandAction",InputActionType.Button);
   [Header("本体闪避")]
-  [Tooltip("当前约定：空格、手柄B（Button East）。")]
+  [Tooltip("正式横版为左右 Shift／手柄 B。")]
   public InputAction dodge=new InputAction("Dodge",InputActionType.Button);
   [Header("普通跳跃")]
-  [Tooltip("横版场景配置键盘 J，手柄暂不绑定。")]
+  [Tooltip("正式横版为空格／手柄 A。")]
   public InputAction jump=new InputAction("Jump",InputActionType.Button);
-  [Header("技能1 / Q / LB + X")]
+  [Header("技能1 / 正式横版 Q / Y")]
   public InputAction skillOne=new InputAction("SkillOne",InputActionType.Button);
   [Header("技能2 / 固定E槽 / LB + Y")]
   public InputAction skillTwo=new InputAction("SkillTwo",InputActionType.Button);
   [Header("技能3 / R / LB + B")]
   public InputAction skillThree=new InputAction("SkillThree",InputActionType.Button);
-  [Header("场景交互 / F / 手柄A")]
+  [Header("场景交互 / 正式横版 W / 左摇杆上")]
   [Tooltip("请求当前合法上下文，例如拾取、容器、篝火；不是每个对象各自响应一次。")]
   public InputAction interact=new InputAction("Interact",InputActionType.Button);
   [Header("共享血瓶 / Y / LB + A")]
@@ -48,7 +50,7 @@ namespace Ossastra.Characters
   [Header("非暂停菜单 / Select")]
   public InputAction menu=new InputAction("Menu",InputActionType.Button);
   [Header("道具栏1引用 / 1 / RB + X")]
-  [Tooltip("目前为引用选择；连续使用、投掷瞄准流程尚未接入。")]
+  [Tooltip("正式横版通过槽位引用请求道具使用。")]
   public InputAction quickSlotOne=new InputAction("QuickSlotOne",InputActionType.Button);
   [Header("道具栏2引用 / 2 / RB + Y")]
   public InputAction quickSlotTwo=new InputAction("QuickSlotTwo",InputActionType.Button);
@@ -56,6 +58,25 @@ namespace Ossastra.Characters
   public InputAction quickSlotThree=new InputAction("QuickSlotThree",InputActionType.Button);
   [Header("道具栏4引用 / 4 / RB + A")]
   public InputAction quickSlotFour=new InputAction("QuickSlotFour",InputActionType.Button);
+  internal InputAction ActionForPostureCommand(PostureInputCommand command) => command switch
+  {
+   PostureInputCommand.MainHand => rightHand,
+   PostureInputCommand.Offhand => leftHand,
+   PostureInputCommand.Jump => jump,
+   PostureInputCommand.Dodge => dodge,
+   PostureInputCommand.SkillOne => skillOne,
+   PostureInputCommand.SkillTwo => skillTwo,
+   PostureInputCommand.SkillThree => skillThree,
+   PostureInputCommand.WeaponMode => weaponMode,
+   PostureInputCommand.SwitchCharacter => switchCharacter,
+   PostureInputCommand.Heal => heal,
+   PostureInputCommand.Interact => interact,
+   PostureInputCommand.QuickSlotOne => quickSlotOne,
+   PostureInputCommand.QuickSlotTwo => quickSlotTwo,
+   PostureInputCommand.QuickSlotThree => quickSlotThree,
+   PostureInputCommand.QuickSlotFour => quickSlotFour,
+   _ => null
+  };
   // 只枚举作者配置；用于按设备识别已消费的组合键，不启用这些共享SO Action。
   public IEnumerable<InputAction> ConfiguredActions()
   {

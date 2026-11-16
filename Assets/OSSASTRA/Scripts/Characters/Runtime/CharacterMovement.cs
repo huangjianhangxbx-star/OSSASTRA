@@ -99,21 +99,27 @@ namespace Ossastra.Characters
 
         internal SideViewAbilityMotionStep TickSideView(bool allowed, float delta, JumpVerticalCommand command,
             float gravityScale, bool jumpAccepted, SideViewMotion traversalMotion = default,
-            SideViewAbilityMotionCommand? abilityMotion = null)
+            SideViewAbilityMotionCommand? abilityMotion = null, PostureReactionStep? reactionMotion = null)
         {
             if (!IsSideView || body == null || !body.enabled || delta <= 0f) return default;
             var before = transform.position;
             if (!hasPose || latestPose != before) ResetSideViewPose();
             bool groundedBefore = Grounded;
-            bool footstepAllowed = allowed && !abilityMotion.HasValue && !traversalMotion.ConstrainedPose &&
+            bool footstepAllowed = allowed && !abilityMotion.HasValue && !reactionMotion.HasValue && !traversalMotion.ConstrainedPose &&
                 dataBus.MotionOverride?.IsActive != true && statusEffects?.HasForcedMotion != true &&
                 statusEffects?.BlocksIntent != true;
             partyContacts?.Prepare(body);
             LastAllowed = allowed;
 
-            bool abilityDrive = abilityMotion.HasValue && !abilityMotion.Value.IsBounce;
+            bool abilityDrive = !reactionMotion.HasValue && abilityMotion.HasValue && !abilityMotion.Value.IsBounce;
             Vector3 horizontal;
-            if (abilityMotion.HasValue)
+            if (reactionMotion.HasValue)
+            {
+                var motion = reactionMotion.Value;
+                horizontal = Vector3.right * motion.Horizontal;
+                if (motion.LaunchVertical.HasValue) VerticalSpeed = motion.LaunchVertical.Value;
+            }
+            else if (abilityMotion.HasValue)
             {
                 var velocity = abilityMotion.Value.Velocity;
                 horizontal = Vector3.right * velocity.x;
@@ -130,7 +136,8 @@ namespace Ossastra.Characters
                 if (command == JumpVerticalCommand.Sustain) VerticalSpeed = jumpProfile.jumpSpeed;
                 if (command == JumpVerticalCommand.Cut && VerticalSpeed > 0f)
                     VerticalSpeed *= jumpProfile.releaseSpeedScale;
-                bool stayingGrounded = Grounded && command == JumpVerticalCommand.Gravity;
+                bool stayingGrounded = Grounded && command == JumpVerticalCommand.Gravity &&
+                    reactionMotion?.LaunchVertical.HasValue != true;
                 float acceleration = jumpProfile.gravity * Mathf.Clamp01(gravityScale);
                 VerticalSpeed = stayingGrounded ? -groundStick
                     : Mathf.Max(-jumpProfile.fallSpeed, VerticalSpeed - acceleration * delta);

@@ -26,19 +26,19 @@ namespace Ossastra.UserInterface
         private CharacterHudSnapshot Project(Ossastra.Characters.CharacterRoot root)
         {
             if(root==null)return default;
-            var stamina=root.GetComponent<CharacterStamina>();var posture=root.GetComponent<CombatPosture>();
+            var stamina=root.UsesActionPosture?null:root.GetComponent<CharacterStamina>();var posture=root.GetComponent<CombatPosture>();
             var equipment=root.GetComponent<CharacterEquipment>();var skills=root.GetComponent<CharacterSkills>();
             var abilities=root.GetComponent<CharacterAbilities>();var modern=abilities!=null&&abilities.isActiveAndEnabled;
             var mainAction=root.GetComponent<CharacterMainAction>();if(root==coordinator.Current)WatchRejection(mainAction?.LastResult,ref previousMainAction);
             if(root==coordinator.Current&&modern)WatchRejection(abilities.LastResult,ref previousAbility);
             if(root==coordinator.Current){WatchRejection(root.Actions?.LastResult,ref previousAdmission);WatchRejection(root.GetComponent<CharacterDodge>()?.LastResult,ref previousDodge);WatchRejection(skills?.LastResult,ref previousSkill);WatchRejection(root.GetComponent<CharacterOffhand>()?.LastResult,ref previousOffhand);}
             return new CharacterHudSnapshot{actorId=root.ActorId,name=root.Definition?.displayName??root.ActorId,alive=root.IsAlive,controlled=root==coordinator.Current,
-                hp=root.Vitals?.Health.Current??0,maxHp=root.Vitals?.Health.Maximum??0,stamina=(float)(stamina?.Current??0),maxStamina=(float)(stamina?.Maximum??0),
+                usesActionPosture=root.UsesActionPosture,hp=root.Vitals?.Health.Current??0,maxHp=root.Vitals?.Health.Maximum??0,stamina=(float)(stamina?.Current??0),maxStamina=(float)(stamina?.Maximum??0),
                 grayHp=(float)(root.Vitals?.Recovery?.Gray??0),
                 abilityResources=modern?abilities.ResourceSummary:"",
                 posture=(float)(posture?.Current??0),maxPosture=(float)(posture?.Maximum??0),rightHand=equipment?.RightDefinition?.displayName??"未接入",mainHandForm=mainAction?.FormLabel??"I",
                 leftHand=equipment?.LeftDefinition?.displayName??"空",rightInstanceId=equipment?.State?.RightInstanceId,leftInstanceId=equipment?.State?.LeftInstanceId,leftDefinitionId=equipment?.LeftDefinition?.definitionId,durability=equipment?.State?.Durability??0,
-                condition=!root.IsAlive?"死亡 · 等待返场":posture!=null&&posture.IsStaggered?"失衡":root!=coordinator.Current?"自主战斗 / 跟随":"",
+                condition=!root.IsAlive?"死亡 · 等待返场":posture!=null&&posture.IsStaggered?(root.UsesActionPosture?"破防 · "+root.StateArbitrator.Reaction.CurrentStateName:"失衡"):root.UsesActionPosture&&posture.Current<=0?"架势耗尽 · 受击危险":root!=coordinator.Current?"自主战斗 / 跟随":"",
                 skillNames=Enumerable.Range(0,3).Select(i=>modern?abilities.SkillDefinition(i)?.displayName??"空槽":skills?.Definition(i)?.displayName??"未接入").ToArray(),
                 skillStates=Enumerable.Range(0,3).Select(i=>modern?AbilityStatus(root,abilities,i):SkillStatus(root,skills,i)).ToArray(),
                 skillCooldowns=Enumerable.Range(0,3).Select(i=>(float)(modern?abilities.SkillCooldown(i):skills?.Cooldown(i)??0)).ToArray()};

@@ -14,6 +14,7 @@ namespace Ossastra.Combat
         private readonly CombatStatusState state=new CombatStatusState();
         private Vector3 knockVelocity,frameVelocity;
         private float knockRemaining;
+        private bool postureReactionActive;
         public event Action ControlChanged;
         public bool BlocksIntent=>isActiveAndEnabled&&(state.IsStunned||knockRemaining>0||frameVelocity.sqrMagnitude>0);
         public bool IsStunned=>isActiveAndEnabled&&state.IsStunned;
@@ -22,10 +23,10 @@ namespace Ossastra.Combat
         public float SpeedScale=>isActiveAndEnabled?(float)state.SpeedScale:1;
         public void ApplySlow(Guid id,float ratio,float seconds){if(isActiveAndEnabled)state.ApplySlow(id,ratio,seconds);}
         public void ApplyStun(Guid id,float seconds)
-        {if(isActiveAndEnabled&&state.ApplyStun(id,seconds))ControlChanged?.Invoke();}
+        {if(isActiveAndEnabled&&!postureReactionActive&&state.ApplyStun(id,seconds))ControlChanged?.Invoke();}
         public void ApplyKnockback(Guid id,Vector3 displacement,float seconds)
         {
-            if(!isActiveAndEnabled||id==Guid.Empty||knockRemaining>0||seconds<=0||float.IsNaN(seconds)||float.IsInfinity(seconds)||impactWeight<=0)return;
+            if(!isActiveAndEnabled||postureReactionActive||id==Guid.Empty||knockRemaining>0||seconds<=0||float.IsNaN(seconds)||float.IsInfinity(seconds)||impactWeight<=0)return;
             displacement.y=0;var distance=displacement.magnitude;if(distance<=0||float.IsNaN(distance)||float.IsInfinity(distance))return;
             knockVelocity=displacement*impactWeight/seconds;knockRemaining=seconds;ControlChanged?.Invoke();
         }
@@ -37,6 +38,11 @@ namespace Ossastra.Combat
             if(blocked!=BlocksIntent)ControlChanged?.Invoke();
         }
         public void StopForcedMotion(){knockRemaining=0;knockVelocity=frameVelocity=Vector3.zero;ControlChanged?.Invoke();}
+        internal void SetPostureReactionActive(bool active)
+        {
+            postureReactionActive = active;
+            if (active && (knockRemaining > 0 || frameVelocity.sqrMagnitude > 0)) StopForcedMotion();
+        }
         public void Clear(){state.Clear();knockRemaining=0;knockVelocity=frameVelocity=Vector3.zero;ControlChanged?.Invoke();}
         public void Remove(Guid id){bool blocked=BlocksIntent;state.Remove(id);if(blocked!=BlocksIntent)ControlChanged?.Invoke();}
         private void OnDisable()=>Clear();

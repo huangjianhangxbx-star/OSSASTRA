@@ -52,7 +52,17 @@ namespace Ossastra.UserInterface
             companion=BuildCard(Cluster("CompanionCluster",3,0,377,220,Vector2.zero),true);
             inputLayoutInstaller=FindObjectOfType<Ossastra.Characters.PlayerInputLayoutInstaller>();
             BuildWorld();BuildSkills();BuildQuickSlots();BuildVitality();
-            if(inputHints!=null&&inputLayoutInstaller!=null){var c=inputLayoutInstaller.control.Current;var i=c==null?null:c.GetComponent<Ossastra.Characters.CharacterInputHandler>();if(i!=null)inputHints.text=DisplayBinding(i.rightHandAction)+" 右手 · "+DisplayBinding(i.leftHandAction)+" 左手\n"+DisplayBinding(i.dodgeAction)+" 闪避 · "+DisplayBinding(inputLayoutInstaller.control.switchAction)+" 换人\n"+DisplayBinding(inputLayoutInstaller.menuAction)+" 菜单 · "+DisplayBinding(inputLayoutInstaller.inventory.toggleAction)+" 背包";}
+            if (inputHints != null && inputLayoutInstaller != null)
+            {
+                var current = inputLayoutInstaller.control.Current;
+                var input = current != null ? current.GetComponent<Ossastra.Characters.CharacterInputHandler>() : null;
+                if (input != null)
+                    inputHints.text = input.UsesPostureInputRouting
+                        ? "Space / A 跳跃 · Shift / B 闪避\nW / 左摇杆上 交互 · Z / LB+RB 换人\n左键 / X 主手 · 右键 / RT 副手\n1–4 / RB+X/Y/B/A 使用道具"
+                        : DisplayBinding(input.rightHandAction) + " 右手 · " + DisplayBinding(input.leftHandAction) + " 左手\n" +
+                            DisplayBinding(input.dodgeAction) + " 闪避 · " + DisplayBinding(inputLayoutInstaller.control.switchAction) + " 换人\n" +
+                            DisplayBinding(inputLayoutInstaller.menuAction) + " 菜单 · " + DisplayBinding(inputLayoutInstaller.inventory.toggleAction) + " 背包";
+            }
             // 场景级HUD组合一次性收集敌人；头顶HP视图独立于玩家卡片，读取敌方原生命所有者。
             var enemyHealth=gameObject.AddComponent<EnemyHealthBarsView>();
             enemyHealth.Initialize(FindObjectsOfType<Ossastra.Enemies.EnemyRoot>(),Camera.main);
@@ -173,6 +183,8 @@ namespace Ossastra.UserInterface
             // 原型fill_full含2.15%两端留白，按原CSS端点映射，避免低血量刻度偏短。
             card.hp.fillAmount=.0215f+.957f*(s.maxHp<=0?0:Mathf.Clamp01(s.hp/s.maxHp));card.posture.fillAmount=.0215f+.957f*(s.maxPosture<=0?0:Mathf.Clamp01(s.posture/s.maxPosture));
             card.gray.enabled=s.grayHp>0;card.gray.fillAmount=.0215f+.957f*(s.maxHp<=0?0:Mathf.Clamp01((s.hp+s.grayHp)/s.maxHp));
+            card.stamina.enabled = !s.usesActionPosture;
+            card.staminaFill.enabled = !s.usesActionPosture;
             card.staminaFill.rectTransform.sizeDelta=new Vector2(((RectTransform)card.staminaFill.transform.parent).rect.width*.5f-2,11)*new Vector2(s.maxStamina<=0?0:Mathf.Clamp01(s.stamina/s.maxStamina),1);
             card.stamina.text=$"体力 {Mathf.CeilToInt(s.stamina)}/{s.maxStamina:0}";
             card.left.text=s.leftHand=="空"?"—":s.leftHand.Contains("盾")?"盾":"弹";card.condition.text=string.IsNullOrEmpty(s.condition)?s.abilityResources:s.condition;

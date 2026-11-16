@@ -41,10 +41,12 @@ namespace Ossastra.Characters
             }
             private readonly Dictionary<InputAction, ButtonOwnership> buttons = new Dictionary<InputAction, ButtonOwnership>();
             private static long nextGesture;
+            internal static long NextGesture() => ++nextGesture;
             private readonly Func<Vector2, bool> blocked;
             private readonly InputAction pointer;
             private readonly InputAction orderedButton;
             private readonly InputAction analogMove;
+            internal PosturePadInputSample PosturePad { get; }
             private readonly Func<bool> acceptsOrderedPress;
             private readonly List<CharacterInputButton> orderedEdges = new List<CharacterInputButton>();
             private CharacterInputButton orderedHeld;
@@ -54,7 +56,8 @@ namespace Ossastra.Characters
             public DeviceInputCandidate Candidate { get; private set; }
 
             internal DeviceSample(InputDevice device, InputAction[] actions, InputAction pointer, Func<Vector2, bool> blocked,
-                InputAction orderedButton, Func<bool> acceptsOrderedPress, InputAction analogMoveSource)
+                InputAction orderedButton, Func<bool> acceptsOrderedPress, InputAction analogMoveSource,
+                PlayerInputLayoutSO postureLayout)
             {
                 Device = device; this.pointer = pointer; this.blocked = blocked;
                 this.orderedButton = orderedButton;
@@ -76,7 +79,7 @@ namespace Ossastra.Characters
                         copy.started += c => {
                             var ui=device is Pointer && blocked != null && blocked(ReadPointer());
                             ownership.eligible=armed[source]&&!ui;
-                            ownership.gesture=++nextGesture; ownership.control=c.control?.path;
+                            ownership.gesture=NextGesture(); ownership.control=c.control?.path;
                             ownership.initiatingControl=c.control;
                         };
                         if (source == orderedButton)
@@ -89,6 +92,8 @@ namespace Ossastra.Characters
                 }
                 if (device is Gamepad && analogMoveSource != null)
                     analogMove = AddAnalogMove(map, device, analogMoveSource);
+                if (device is Gamepad pad && postureLayout != null)
+                    PosturePad = new PosturePadInputSample(pad, map, postureLayout, analogMoveSource, acceptsOrderedPress);
                 map.devices = new[] { device }; map.Enable();
                 if (orderedButton != null && copies.TryGetValue(orderedButton, out var orderedCopy))
                     RearmOrderedIfNeutral(orderedCopy);
@@ -228,6 +233,7 @@ namespace Ossastra.Characters
             }
             public void Suppress(InputAction preserve = null)
             {
+                PosturePad?.Suppress(preserve != null && preserve == orderedButton);
                 foreach (var source in copies.Keys)
                 {
                     if (source == preserve) continue;
@@ -244,23 +250,31 @@ namespace Ossastra.Characters
                 previousMove = previousAim = Vector2.zero;
             }
             public void SuppressNewPresses()
-            { foreach (var pair in copies) if (pair.Key != orderedButton && pair.Value.WasPressedThisFrame()) {armed[pair.Key] = false;buttons[pair.Key].eligible=false;} }
-            public void Dispose() { map.Disable(); map.Dispose(); }
+            {
+                PosturePad?.SuppressNewPresses();
+                foreach (var pair in copies)
+                    if (pair.Key != orderedButton && pair.Value.WasPressedThisFrame())
+                    { armed[pair.Key] = false; buttons[pair.Key].eligible=false; }
+            }
+            public void Dispose() { PosturePad?.Dispose(); map.Disable(); map.Dispose(); }
         }
         private readonly List<DeviceSample> devices = new List<DeviceSample>();
         private readonly InputAction orderedButton;
         private readonly InputAction analogMoveSource;
+        private readonly PlayerInputLayoutSO postureLayout;
         private readonly Func<bool> acceptsOrderedPress;
         private string signature;
         public DeviceActionSampler() { }
-        public DeviceActionSampler(InputAction orderedButton, Func<bool> acceptsOrderedPress, InputAction analogMoveSource = null)
+        public DeviceActionSampler(InputAction orderedButton, Func<bool> acceptsOrderedPress, InputAction analogMoveSource = null,
+            PlayerInputLayoutSO postureLayout = null)
         {
             this.orderedButton = orderedButton;
             this.acceptsOrderedPress = acceptsOrderedPress;
             this.analogMoveSource = analogMoveSource;
+            this.postureLayout = postureLayout;
         }
         public IReadOnlyList<DeviceSample> Devices => devices;
-        public void Synchronize(IEnumerable<InputAction> actions, InputAction pointer, Func<Vector2, bool> blocked)
+        public bool Synchronize(IEnumerable<InputAction> actions, InputAction pointer, Func<Vector2, bool> blocked)
         {
             var inputs = actions.Where(a => a != null).Distinct().ToArray();
             var available = InputSystem.devices.Where(d => d is Keyboard || d is Pointer || d is Gamepad).ToArray();
@@ -271,11 +285,13 @@ namespace Ossastra.Characters
                 foreach (var b in a.bindings) text.Append(b.effectivePath).Append(b.effectiveInteractions).Append(b.effectiveProcessors).Append(b.groups).Append(b.isComposite).Append(b.isPartOfComposite);
             }
             var next = text.ToString();
+            bool changed = signature != null && next != signature;
             if (next != signature) { Dispose(); signature = next; }
             foreach (var sample in devices.Where(s => !available.Contains(s.Device) || !s.Device.enabled).ToArray())
             { sample.Dispose(); devices.Remove(sample); }
             foreach (var d in available) if (d.enabled && !devices.Any(s => s.Device == d))
-                devices.Add(new DeviceSample(d, inputs, pointer, blocked, orderedButton, acceptsOrderedPress, analogMoveSource));
+                devices.Add(new DeviceSample(d, inputs, pointer, blocked, orderedButton, acceptsOrderedPress, analogMoveSource, postureLayout));
+            return changed;
         }
         public void Suppress(InputAction preserve = null) { foreach (var d in devices) d.Suppress(preserve); }
         public void SuppressNewPresses() { foreach (var d in devices) d.SuppressNewPresses(); }

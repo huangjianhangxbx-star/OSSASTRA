@@ -15,6 +15,14 @@ namespace Ossastra.CharacterAnimation
     public sealed class CharacterAnimationController : MonoBehaviour,ICharacterPresentation,ICharacterAnimationFacts,ICharacterConfiguredAnimation,ICharacterAnimationStateView,ICharacterDefaultActionAnimation,ICharacterPreparedAnimation
     {
         [SerializeField] private SkeletonAnimation skeleton;
+        [SerializeField] private string postureLaunchClip, postureDownClip, postureRiseClip;
+        [SerializeField] private bool usePosturePoseFallback;
+        [SerializeField] private string postureDodgeFallbackClip;
+        private Quaternion authoredSkeletonRotation;
+        private bool temporaryPosturePose;
+        private CharacterAnimationPlan reactionPlan;
+        private PostureReactionPhase displayedReaction;
+        private Guid displayedReactionId;
         private Ossastra.Characters.CharacterRoot root;
         private Ossastra.Characters.CharacterDataBus bus;
         private CharacterAnimationConfigManager config;
@@ -44,6 +52,7 @@ namespace Ossastra.CharacterAnimation
             if(skeleton==null)skeleton=GetComponent<SkeletonAnimation>();
             config=GetComponent<CharacterAnimationConfigManager>();composer=GetComponent<CharacterAnimationComposer>();handle=GetComponent<AnimationHandleSystem>();
             if(root==null||bus==null||skeleton==null||config==null||config.baseMap==null||composer==null||handle==null)return false;
+            authoredSkeletonRotation = skeleton.transform.localRotation;
             skeleton.Initialize(false);if(skeleton.Skeleton==null||!handle.Bind(root,skeleton,"body"))return false;
             config.Initialize(root);composer.Initialize(root,config,handle,"body",intent=>
             {
@@ -122,6 +131,17 @@ namespace Ossastra.CharacterAnimation
         }
         public bool CanCapturePhase(ConfiguredActionSnapshot snapshot,out string reason)
             =>ValidatePlan(snapshot?.CopyPresentationPlan() as CharacterAnimationPlan,out reason);
+        public bool HasPostureRecoveryEvent(ConfiguredActionSnapshot phase, string marker)
+        {
+            if (phase == null || string.IsNullOrWhiteSpace(marker)) return false;
+            var plan = phase.CopyPresentationPlan() as CharacterAnimationPlan;
+            var primary = plan?.clips.FirstOrDefault(clip => clip != null && clip.track == 0);
+            if (primary == null) return false;
+            var animation = skeleton?.Skeleton?.Data.FindAnimation(primary.animaName);
+            return animation != null && animation.Timelines.OfType<Spine.EventTimeline>()
+                .Any(timeline => timeline.Events.Any(node => node.Data.Name == marker));
+        }
+
         private bool ValidatePlan(CharacterAnimationPlan plan,out string reason)
         {
             reason=plan==null||!plan.HasOperations?"missing-frozen-animation-plan":null;
@@ -131,7 +151,24 @@ namespace Ossastra.CharacterAnimation
             return reason==null;
         }
         public ConfiguredActionSnapshot PrepareDodge(float duration)
-            =>FreezePlan(ResolveCandidate(EAnimationLogicState.Dodge,EAnimSemantic.Dodge,AnimationIntentSourceStateMachine.Dodge,null),new BasicAttackDefinition(0,0,0,duration,1));
+        {
+            var plan = ResolveCandidate(EAnimationLogicState.Dodge, EAnimSemantic.Dodge,
+                AnimationIntentSourceStateMachine.Dodge, null);
+            if (plan == null && root.UsesActionPosture && !string.IsNullOrEmpty(postureDodgeFallbackClip))
+            {
+                plan = new CharacterAnimationPlan
+                {
+                    characterRoot = root, runtimeSource = AnimationIntentSourceStateMachine.Dodge,
+                    runtimeSemantic = EAnimSemantic.Dodge, runtimeLogicId = EAnimationLogicState.Dodge
+                };
+                plan.clips.Add(new CharacterAnimationClip
+                {
+                    animaName = postureDodgeFallbackClip, track = 0, playbackRate = 1, scalesWithAction = true,
+                    characterRoot = root, skeletonDataAsset = skeleton.skeletonDataAsset
+                });
+            }
+            return FreezePlan(plan, new BasicAttackDefinition(0, 0, 0, duration, 1));
+        }
         public void CapturePhase(Guid id,ConfiguredActionSnapshot snapshot)
         {
             var plan=snapshot.CopyPresentationPlan() as CharacterAnimationPlan;
@@ -173,7 +210,7 @@ namespace Ossastra.CharacterAnimation
         public void Present()
         {
             if(bus==null||skeleton?.Skeleton==null)return;
-            if(!alive||!root.IsAlive){composer.ClearAllIntents();return;}
+            if(!alive||!root.IsAlive){ResetPosturePose();composer.ClearAllIntents();return;}
             SubmitMovement();
             var retain=(ActionPresentationPolicy.RetainMainPose(bus.ActionActive,bus.MoveReady,bus.IsMoving)||bus.AbilityMotionActive)&&capturedId==bus.ActionId&&captured!=null;
             var actionSource=CapturedSource==AnimationIntentSourceStateMachine.None?AnimationIntentSourceStateMachine.MainHand:CapturedSource;
@@ -199,7 +236,8 @@ namespace Ossastra.CharacterAnimation
             }
             if(hitReaction)Submit(AnimationIntentSourceStateMachine.Hurt,EAnimSemantic.HitReact,40,Guid.Empty,exclusive:true);
             else composer.RemoveIntent(AnimationIntentSourceStateMachine.Hurt);
-            if(staggered)Submit(AnimationIntentSourceStateMachine.Status,EAnimSemantic.Stagger,50,Guid.Empty,exclusive:true);
+            if(SubmitPostureReaction()) { }
+            else if(staggered)Submit(AnimationIntentSourceStateMachine.Status,EAnimSemantic.Stagger,50,Guid.Empty,exclusive:true);
             else composer.RemoveIntent(AnimationIntentSourceStateMachine.Status);
             int wallSide = bus.TraversalWallSide;
             if(direction!=null&&direction.IsConfigured)
@@ -212,7 +250,56 @@ namespace Ossastra.CharacterAnimation
             var selected=composer.CurrentBodyIntent;
             if(selected!=null){CurrentSemantic=AnimationSemanticTranslation.ToShared(selected.semantic);CurrentSource=selected.oneShot&&selected.actionId==bus.ActionId&&selected.priority==20?"action":selected.intentSourceStateMatine.ToString();CurrentReplayId=selected.phaseId!=Guid.Empty?selected.phaseId:selected.actionId;}
         }
-        private void OnDisable(){composer?.ClearAllIntents();if(handle!=null)handle.Signal-=OnSignal;}
+        private bool SubmitPostureReaction()
+        {
+            var reaction = root.StateArbitrator?.Reaction;
+            if (!root.UsesActionPosture || reaction?.IsActive != true)
+            {
+                ResetPosturePose();
+                return false;
+            }
+            if (displayedReaction != reaction.Phase || displayedReactionId != reaction.ActionId)
+            {
+                displayedReaction = reaction.Phase;
+                displayedReactionId = reaction.ActionId;
+                reactionPlan = null;
+                string clip = displayedReaction == PostureReactionPhase.Launched ? postureLaunchClip :
+                    displayedReaction == PostureReactionPhase.Downed ? postureDownClip : postureRiseClip;
+                if (!string.IsNullOrEmpty(clip) && skeleton.Skeleton.Data.FindAnimation(clip) is Spine.Animation animation)
+                {
+                    float speed = displayedReaction == PostureReactionPhase.GettingUp
+                        ? animation.Duration / root.StateArbitrator.PostureRiseSeconds : 1;
+                    reactionPlan = new CharacterAnimationPlan { characterRoot = root, runtimeSemantic = EAnimSemantic.Stagger };
+                    reactionPlan.clips.Add(new CharacterAnimationClip
+                    {
+                        animaName = clip, track = 0, loop = false, playbackRate = speed, mixDuration = .04f,
+                        characterRoot = root, skeletonDataAsset = skeleton.skeletonDataAsset
+                    });
+                }
+            }
+            if (reactionPlan == null && usePosturePoseFallback)
+            {
+                float rotation = displayedReaction == PostureReactionPhase.Downed ? 76 :
+                    displayedReaction == PostureReactionPhase.GettingUp ? 32 : 22;
+                skeleton.transform.localRotation = authoredSkeletonRotation *
+                    Quaternion.Euler(0, 0, -bus.ViewFacingX * rotation);
+                temporaryPosturePose = true;
+            }
+            Submit(AnimationIntentSourceStateMachine.Status, EAnimSemantic.Stagger, 50, reaction.ActionId,
+                plan: reactionPlan, exclusive:true, replayId:(int)displayedReaction);
+            return true;
+        }
+
+        private void ResetPosturePose()
+        {
+            if (temporaryPosturePose && skeleton != null) skeleton.transform.localRotation = authoredSkeletonRotation;
+            temporaryPosturePose = false;
+            displayedReaction = PostureReactionPhase.Inactive;
+            displayedReactionId = Guid.Empty;
+            reactionPlan = null;
+        }
+
+        private void OnDisable(){ResetPosturePose();composer?.ClearAllIntents();if(handle!=null)handle.Signal-=OnSignal;}
         private void OnEnable(){if(handle!=null){handle.Signal-=OnSignal;handle.Signal+=OnSignal;}}
         private void OnDestroy(){if(handle!=null)handle.Signal-=OnSignal;}
     }

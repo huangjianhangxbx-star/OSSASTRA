@@ -9,6 +9,7 @@ using UnityEngine.UI;
 using UnityEngine.InputSystem;
 using UnityEngine.EventSystems;
 using Ossastra.Inventory;
+using Ossastra.Characters;
 namespace Ossastra.UserInterface
 {
     [DefaultExecutionOrder(250)]
@@ -43,8 +44,17 @@ namespace Ossastra.UserInterface
         {
             if(labels==null||!session.Ready)return;
             var editing=EventSystem.current?.currentSelectedGameObject?.GetComponent<InputField>()?.isFocused==true;
+            var actor = session.Coordinator?.Current;
+            var input = actor != null ? actor.GetComponent<CharacterInputHandler>() : null;
+            bool useCommands = input != null && input.UsesPostureInputRouting;
             for(var i=0;i<10;i++)
             {
+                if (useCommands && i < 4 && !view.IsOpen)
+                {
+                    var command = (PostureInputCommand)((int)PostureInputCommand.QuickSlotOne + i);
+                    if (input.TryConsumePostureInput(command) && !editing) UseHotbar(i);
+                    continue;
+                }
                 if(!editing&&i<digitActions.Length&&digitActions[i]?.WasPressedThisFrame()==true)
                 {if(view.IsOpen){var q=session.BindHotbar(i,view.SelectedItemId);view.Feedback(q.Ok?"已绑定引用":q.Reason);}else {session.SelectHotbar(i);view.Feedback(session.LastResult);}}
             }
@@ -56,6 +66,23 @@ namespace Ossastra.UserInterface
                 if(labels[i]!=null)labels[i].text=d==null?"—":d.displayName+"\n"+(quantity>0?"×"+quantity:"缺货");
             }
             if(priorityText!=null){var d=session.Definition(session.PriorityDefinitionId);var count=items.Where(item=>item.Location.ContainerId=="reserve"&&item.DefinitionId==session.PriorityDefinitionId).Sum(item=>item.Quantity);priorityText.text=d==null?"优先物品\n未指定":d.displayName+"\n"+(count>0?"×"+count:"缺货 · 请交付");}
+        }
+        private void UseHotbar(int slot)
+        {
+            var id = session.Hotbar[slot];
+            if (string.IsNullOrEmpty(id)) { view.Feedback("快捷栏为空"); return; }
+            var item = session.Ledger.Items.FirstOrDefault(candidate =>
+                candidate.DefinitionId == id && candidate.Location.ContainerId == "team" && candidate.Quantity > 0);
+            if (item == null) { view.Feedback("快捷栏物品缺货"); return; }
+            var definition = session.Definition(id);
+            var port = session.GetComponents<MonoBehaviour>().OfType<IInventoryItemUse>().FirstOrDefault();
+            if (definition == null || port == null || definition.useKind == InventoryUseKind.None)
+            {
+                view.Feedback("此物品暂未接入快捷使用");
+                return;
+            }
+            port.TryUse(item.Id);
+            view.Feedback(port.LastResult);
         }
         private void OnDisable(){foreach(var action in digitActions)action?.Disable();}
         private void OnDestroy(){if(session!=null)session.Changed-=OnInventoryChanged;foreach(var action in digitActions)action?.Dispose();}

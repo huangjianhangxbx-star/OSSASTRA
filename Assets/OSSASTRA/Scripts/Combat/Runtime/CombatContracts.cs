@@ -28,6 +28,37 @@ namespace Ossastra.Combat
     {
         void ReceiveImpact(HitOutcome outcome, double impact);
     }
+    public interface IResolvedCombatPostureReceiver : ICombatPostureReceiver
+    {
+        bool UsesActionPosture { get; }
+        void ReceiveContact(ResolvedPostureContact contact);
+    }
+    /// <summary>One settled contact and its frozen launch direction. It never mutates health.</summary>
+    public readonly struct ResolvedPostureContact
+    {
+        public HitOutcome Outcome { get; }
+        public double EffectiveImpact { get; }
+        public CombatContactCause Cause { get; }
+        public string EffectSemantic { get; }
+        public System.Guid ParentExecutionId { get; }
+        public int EmissionIndex { get; }
+        public int DirectionX { get; }
+        public bool CanBreak { get; }
+
+        internal ResolvedPostureContact(HitOutcome outcome, double effectiveImpact, CombatContactCause cause,
+            string effectSemantic, System.Guid parentExecutionId, int emissionIndex, int directionX)
+        {
+            Outcome = outcome;
+            EffectiveImpact = effectiveImpact;
+            Cause = cause;
+            EffectSemantic = effectSemantic ?? string.Empty;
+            ParentExecutionId = parentExecutionId;
+            EmissionIndex = emissionIndex;
+            DirectionX = directionX;
+            // Ice pulse is the current damage-over-time emitter. Ice shatter is a distinct attack.
+            CanBreak = !string.Equals(EffectSemantic, "ice.pulse", System.StringComparison.Ordinal);
+        }
+    }
     public interface ICombatLifeState { bool IsAlive { get; } }
     public interface IHitTarget { Health Health { get; } void ShowHit(); }
     /// <summary>特定场景实体在HP写入前拒绝来源释放，例如冰柱忽略产生自己的凿冰执行。</summary>

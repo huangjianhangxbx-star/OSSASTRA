@@ -30,11 +30,11 @@ namespace Ossastra.Characters
         {
             if(!held){guarding=false;armed=true;return;}
             var valid=isActiveAndEnabled&&owner!=null&&owner.CanSimulateIntent&&playerAllowed&&equipment!=null&&equipment.isActiveAndEnabled&&
-                equipment.State.LeftKind==OffhandKind.Shield&&equipment.State.Durability>0&&stamina!=null&&
+                equipment.State.LeftKind==OffhandKind.Shield&&equipment.State.Durability>0&&(owner.UsesActionPosture||stamina!=null)&&
                 (owner.DataBus.MotionOverride==null||!owner.DataBus.MotionOverride.IsActive);
             if(!valid){Cancel();return;}
             if(guarding)
-            {if(!stamina.Drain(holdCostPerSecond*delta,owner.SimulationTime)){Cancel();LastResult="体力耗尽，需松键";}return;}
+            {if(!owner.UsesActionPosture&&!stamina.Drain(holdCostPerSecond*delta,owner.SimulationTime)){Cancel();LastResult="体力耗尽，需松键";}return;}
             if(!armed)return;armed=false;
             var request=owner.Actions.CreateRequest(CharacterActionKind.Guard,CharacterActionSource.Player);
             if(owner.Actions.TryCommit(request,startCost,()=>{guarding=true;return request.RequestId;},out var reason))LastResult="举盾 SAMPLE";

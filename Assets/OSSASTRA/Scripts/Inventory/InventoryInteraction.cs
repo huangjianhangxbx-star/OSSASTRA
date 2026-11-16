@@ -36,12 +36,23 @@ namespace Ossastra.Inventory
             if(session==null||!session.Ready||view==null)return;
             var actor=session.Coordinator.Current;
             if(actor==null||!focused){sampler.Suppress();Prompt="";return;}
-            var layout=actor.GetComponent<CharacterInputHandler>().inputLayout;
-            sampler.Synchronize(layout==null?new[]{interactAction}:new[]{interactAction}.Concat(layout.ConfiguredActions()),null,null);
-            var pressed=sampler.Devices.Any(d=>d.Pressed(interactAction)&&!d.ConsumedByComposite(interactAction));
+            var input = actor.GetComponent<CharacterInputHandler>();
+            var layout = input.inputLayout;
+            bool commerceOpen = commerceUi != null && commerceUi.IsOpen;
+            bool craftingOpen = crafting != null && crafting.userInterface != null && crafting.userInterface.IsOpen;
+            bool windowOwnsInteraction = commerceOpen || craftingOpen;
+            bool pressed;
+            if (input.UsesPostureInputRouting)
+                pressed = input.TryConsumePostureInput(PostureInputCommand.Interact, windowOwnsInteraction) &&
+                    (windowOwnsInteraction || !actor.StateArbitrator.Movement.TraversalBlocksAttack);
+            else
+            {
+                sampler.Synchronize(layout==null?new[]{interactAction}:new[]{interactAction}.Concat(layout.ConfiguredActions()),null,null);
+                pressed=sampler.Devices.Any(d=>d.Pressed(interactAction)&&!d.ConsumedByComposite(interactAction));
+            }
             // 商店捕获会关闭角色玩家源，但不应同时切断这个已打开窗口自己的确认入口。
-            if(commerceUi!=null&&commerceUi.IsOpen){Prompt="";if(pressed)commerceUi.TryConfirmInteraction();return;}
-            if(crafting!=null&&crafting.userInterface!=null&&crafting.userInterface.IsOpen){Prompt="";if(pressed)crafting.userInterface.TryConfirmInteraction();return;}
+            if(commerceOpen){Prompt="";if(pressed)commerceUi.TryConfirmInteraction();return;}
+            if(craftingOpen){Prompt="";if(pressed)crafting.userInterface.TryConfirmInteraction();return;}
             if(!actor.GetComponent<CharacterInputHandler>().HasPlayerInput||!actor.CanSimulateIntent||EventSystem.current?.currentSelectedGameObject?.GetComponent<InputField>()?.isFocused==true){sampler.Suppress();Prompt="";return;}
             var nearest=session.AccessibleExternal.OrderBy(id=>Vector3.SqrMagnitude((session.ContainerPosition(id)??actor.transform.position)-actor.transform.position)).ToArray();
             var manual=nearest.FirstOrDefault(id=>session.IsLoosePickup(id));
@@ -57,6 +68,7 @@ namespace Ossastra.Inventory
             var useFire=fireAvailable&&fireDistance<containerDistance&&fireDistance<merchantDistance&&fireDistance<stationDistance;
             var useMerchant=merchant!=null&&merchantDistance<=containerDistance&&merchantDistance<=fireDistance&&merchantDistance<stationDistance;
             Prompt=manual!=null?"交互 拾取":useStation?"交互 "+station.definition.displayName:useFire?"交互 篝火补给":useMerchant?"交互 "+merchant.displayName:nearest.Length>0?"交互 打开容器":"";
+            if (!string.IsNullOrEmpty(Prompt) && input.UsesPostureInputRouting) Prompt = "W / 左摇杆上 · " + Prompt;
             if(!pressed)return;
             // 优先散落条目；容器/篝火分支互斥，绝不对同一次F继续向后派发。
             if(manual!=null)

@@ -20,6 +20,12 @@ namespace Ossastra.Characters
             var currentRevision=service.Coordinator.ControlRevision;
             if(revision!=currentRevision){revision=currentRevision;armed=false;return;}
             if(!focused||!service.CanRequest){armed=false;return;}
+            var input = service.Coordinator.Current != null ? service.Coordinator.Current.StateInput : null;
+            if (input != null && input.UsesPostureInputRouting)
+            {
+                if (input.TryConsumePostureInput(PostureInputCommand.Heal)) service.TryUse();
+                return;
+            }
             if(!healingAction.IsPressed()){armed=true;return;}
             if(armed&&healingAction.WasPressedThisFrame()){armed=false;service.TryUse();}
         }

@@ -96,6 +96,7 @@ namespace Ossastra.Characters
         private ICharacterPlayerControlSource playerControl;
         private bool managedPlayerInput;
         private DeviceActionSampler sampler;
+        private int lastSamplerFrame = -1;
         private readonly PlayerInputSourceState localSources = new PlayerInputSourceState();
         [Header("混合输入 / 已处理Action轴后的意图门槛，不再次执行deadzone")]
         [SerializeField, Range(.01f, 1)] private float intentThreshold = .15f;
@@ -105,6 +106,7 @@ namespace Ossastra.Characters
         public int GestureGeneration { get; private set; }
         public int JumpGestureGeneration { get; private set; }
         private bool movementArmed=true;
+        public bool UsesPostureInputRouting => inputLayout != null && inputLayout.postureInputRouting;
 
         // 控制身份与设备采样许可分开：UI捕获不能暂停本体已接受副手/CD。
         public bool HasPlayerControl => !managedPlayerInput || (ControlSourceAlive && playerControl.IsPlayerControlOwner(this));
@@ -179,21 +181,61 @@ namespace Ossastra.Characters
         private IEnumerable<InputAction> SamplingActions()
             => inputLayout==null?Actions():Actions().Concat(inputLayout.ConfiguredActions().Where(a=>a!=inputLayout.move&&a!=inputLayout.pointer&&a!=inputLayout.aim));
 
+        public bool TryConsumePostureInput(PostureInputCommand command, bool allowCapturedInteraction = false)
+        {
+            if (!UsesPostureInputRouting || sampler == null || !HasPlayerInput || !isActiveAndEnabled) return false;
+            var action = inputLayout.ActionForPostureCommand(command);
+            if (action == null) return false;
+            SynchronizeSampler();
+            bool pressed = false;
+            foreach (var device in sampler.Devices)
+            {
+                if (device.PosturePad != null)
+                {
+                    bool requested = device.PosturePad.ConsumePress(command);
+                    // Left-stick Up remains available to uGUI navigation while a modal is open.
+                    pressed |= requested && !allowCapturedInteraction;
+                }
+                else
+                    pressed |= device.ConsumePress(action, device.Button(action));
+            }
+            return pressed && (!InventoryCaptured || (allowCapturedInteraction && command == PostureInputCommand.Interact));
+        }
+
         private void OnEnable()
         {
             foreach (var action in Actions()) if (action != null) action.Enable();
             sampler = new DeviceActionSampler(jumpAction, () => HasPlayerInput && !InventoryCaptured && isActiveAndEnabled,
-                movementAction);
-            sampler.Synchronize(SamplingActions(), mouseAction, IsPointerBlocked);
+                movementAction, UsesPostureInputRouting ? inputLayout : null);
+            lastSamplerFrame = -1;
+            SynchronizeSampler();
+            if (UsesPostureInputRouting) InputSystem.onDeviceChange += OnPostureDeviceChanged;
         }
-        private void OnDisable() { ResetPlayerInput(true); sampler?.Dispose(); sampler = null; foreach (var action in Actions()) if (action != null) action.Disable(); }
+        private void OnDisable()
+        {
+            InputSystem.onDeviceChange -= OnPostureDeviceChanged;
+            ResetPlayerInput(true);
+            sampler?.Dispose();
+            sampler = null;
+            foreach (var action in Actions()) if (action != null) action.Disable();
+        }
         private void OnDestroy() { sampler?.Dispose(); foreach (var action in Actions()) if (action != null) action.Dispose(); }
+
+        private void OnPostureDeviceChanged(InputDevice device, InputDeviceChange change)
+        {
+            if (change != InputDeviceChange.Removed && change != InputDeviceChange.Disconnected &&
+                change != InputDeviceChange.Disabled) return;
+            if (sampler == null || !sampler.Devices.Any(sample => sample.Device == device)) return;
+            // An ownership generation ends when the physical source disappears, without inventing a release.
+            lastSamplerFrame = -1;
+            ResetPlayerInput();
+        }
 
         public CharacterInputFrame Read()
         {
             if (!HasPlayerInput || !isActiveAndEnabled || movementAction == null || !movementAction.enabled || sampler == null)
             { CurrentFrame = default; return CurrentFrame; }
-            sampler.Synchronize(SamplingActions(), mouseAction, IsPointerBlocked);
+            SynchronizeSampler();
             var candidates = new List<DeviceInputCandidate>();
             bool held = false, dodge = false, offhand = false, offhandPressed = false;
             bool one = false, two = false, three = false, oneHeld = false, twoHeld = false, threeHeld = false, mode = false;
@@ -205,6 +247,7 @@ namespace Ossastra.Characters
             DeviceActionSampler.DeviceSample attackDevice = null;
             CharacterInputButton attackGesture = default;
             double attackTime = double.NegativeInfinity;
+            bool acceptsNewPress = !InventoryCaptured;
             foreach (var d in sampler.Devices)
             {
                 var c = d.SampleAxes(movementAction, gamepadAimAction, intentThreshold, directionChangeThreshold);
@@ -213,15 +256,19 @@ namespace Ossastra.Characters
                 var navigation=events!=null&&events.sendNavigationEvents&&events.currentSelectedGameObject!=null&&events.currentSelectedGameObject.activeInHierarchy&&
                     ui?.move?.action!=null&&ui.move.action.enabled&&ui.move.action.controls.Any(control=>d.Action(movementAction).controls.Contains(control));
                 d.CaptureNavigation(navigation);
-                var weaponChord = d.Device is Gamepad && d.Held(weaponModeAction);
-                var mainButton = d.Button(rightHandAction);
-                var left = d.Held(leftHandAction) && !weaponChord;
-                held |= mainButton.Held && !weaponChord; offhand |= left;
+                var pad = d.PosturePad;
+                var weaponChord = pad == null && d.Device is Gamepad && d.Held(weaponModeAction);
+                var mainButton = pad?.ReadButton(PostureInputCommand.MainHand, acceptsNewPress) ?? d.Button(rightHandAction);
+                var leftButton = pad?.ReadButton(PostureInputCommand.Offhand, acceptsNewPress) ?? d.Button(leftHandAction);
+                var oneButton = pad?.ReadButton(PostureInputCommand.SkillOne, acceptsNewPress) ?? d.Button(skillOneAction);
+                var twoButton = pad?.ReadButton(PostureInputCommand.SkillTwo, acceptsNewPress) ?? d.Button(skillTwoAction);
+                var threeButton = pad?.ReadButton(PostureInputCommand.SkillThree, acceptsNewPress) ?? d.Button(skillThreeAction);
+                held |= mainButton.Held && !weaponChord; offhand |= leftButton.Held && !weaponChord;
                 attackReleased |= mainButton.Released;
                 attackPressed |= !weaponChord && mainButton.Pressed;
-                if (d.ConsumePress(rightHandAction, mainButton) && !weaponChord)
+                if ((pad != null ? mainButton.Pressed : d.ConsumePress(rightHandAction, mainButton)) && !weaponChord)
                 {
-                    double time = d.Time(rightHandAction);
+                    double time = pad?.EventTime(PostureInputCommand.MainHand) ?? d.Time(rightHandAction);
                     if (attackDevice == null || time > attackTime ||
                         (time == attackTime && mainButton.GestureId > attackGesture.GestureId))
                     {
@@ -230,21 +277,31 @@ namespace Ossastra.Characters
                         attackDevice = d;
                     }
                 }
-                offhandPressed |= !weaponChord&&d.Pressed(leftHandAction);
-                leftButtons.Add(weaponChord?default:d.Button(leftHandAction));
-                oneButtons.Add(d.Button(skillOneAction));twoButtons.Add(d.Button(skillTwoAction));threeButtons.Add(d.Button(skillThreeAction));
-                d.ConsumeOrderedButton(jumpButtons);
-                var evasion = d.Pressed(dodgeAction) && !d.ConsumedByComposite(dodgeAction);
+                offhandPressed |= !weaponChord && leftButton.Pressed;
+                leftButtons.Add(weaponChord ? default : leftButton);
+                oneButtons.Add(oneButton); twoButtons.Add(twoButton); threeButtons.Add(threeButton);
+                if (pad != null) pad.ConsumeJumps(jumpButtons);
+                else d.ConsumeOrderedButton(jumpButtons);
+                var evasion = pad?.ReadButton(PostureInputCommand.Dodge, acceptsNewPress).Pressed ??
+                    (d.Pressed(dodgeAction) && !d.ConsumedByComposite(dodgeAction));
                 dodge |= evasion;
-                one |= d.Pressed(skillOneAction); two |= d.Pressed(skillTwoAction); three |= d.Pressed(skillThreeAction);
-                oneHeld |= d.Held(skillOneAction); twoHeld |= d.Held(skillTwoAction); threeHeld |= d.Held(skillThreeAction);
-                mode |= d.Pressed(weaponModeAction);
-                var battleActions = new[] { rightHandAction, leftHandAction, dodgeAction, skillOneAction, skillTwoAction, skillThreeAction };
-                foreach (var action in battleActions)
+                one |= oneButton.Pressed; two |= twoButton.Pressed; three |= threeButton.Pressed;
+                oneHeld |= oneButton.Held; twoHeld |= twoButton.Held; threeHeld |= threeButton.Held;
+                mode |= pad?.ReadButton(PostureInputCommand.WeaponMode, acceptsNewPress).Pressed ?? d.Pressed(weaponModeAction);
+                if (!weaponChord)
                 {
-                    bool directional = d.Device is Gamepad || d.Device is Pointer && (action == rightHandAction || action == leftHandAction);
-                    if (directional && d.Pressed(action) && !weaponChord && (action != dodgeAction || evasion))
-                    { c.BattlePressed = true; c.BattleTime = System.Math.Max(c.BattleTime, d.Time(action)); }
+                    if (d.Device is Gamepad || d.Device is Pointer)
+                    {
+                        RecordBattlePress(c, mainButton.Pressed, pad?.EventTime(PostureInputCommand.MainHand) ?? d.Time(rightHandAction));
+                        RecordBattlePress(c, leftButton.Pressed, pad?.EventTime(PostureInputCommand.Offhand) ?? d.Time(leftHandAction));
+                    }
+                    if (d.Device is Gamepad)
+                    {
+                        RecordBattlePress(c, evasion, pad?.EventTime(PostureInputCommand.Dodge) ?? d.Time(dodgeAction));
+                        RecordBattlePress(c, oneButton.Pressed, pad?.EventTime(PostureInputCommand.SkillOne) ?? d.Time(skillOneAction));
+                        RecordBattlePress(c, twoButton.Pressed, pad?.EventTime(PostureInputCommand.SkillTwo) ?? d.Time(skillTwoAction));
+                        RecordBattlePress(c, threeButton.Pressed, pad?.EventTime(PostureInputCommand.SkillThree) ?? d.Time(skillThreeAction));
+                    }
                 }
                 if (d.Pressed(debugValidAction)) debug = 1; else if (d.Pressed(debugBlockedAction)) debug = 2;
                 else if (d.Pressed(debugResetAction)) debug = 3; else if (d.Pressed(debugInspectAction)) debug = 4;
@@ -311,9 +368,32 @@ namespace Ossastra.Characters
             }
             CurrentFrame = frame; return frame;
         }
+
+        private static void RecordBattlePress(DeviceInputCandidate candidate, bool pressed, double time)
+        {
+            if (!pressed) return;
+            candidate.BattlePressed = true;
+            candidate.BattleTime = System.Math.Max(candidate.BattleTime, time);
+        }
+
+        private void SynchronizeSampler()
+        {
+            if (UsesPostureInputRouting && lastSamplerFrame == Time.frameCount) return;
+            lastSamplerFrame = Time.frameCount;
+            if (sampler.Synchronize(SamplingActions(), mouseAction, IsPointerBlocked) && UsesPostureInputRouting)
+                ResetPlayerInput();
+        }
+
         private CharacterDiveInput ReadDiveInput(DeviceActionSampler.DeviceSample attackDevice,
             CharacterInputButton gesture, DeviceActionSampler.DeviceSample configuredPointer)
         {
+            if (attackDevice.PosturePad != null)
+            {
+                Vector2 analog = attackDevice.PosturePad.MainHandPressMove;
+                return analog.y <= -intentThreshold
+                    ? new CharacterDiveInput(gesture, GestureGeneration, analog, false, default, true)
+                    : default;
+            }
             var moveDevice = attackDevice;
             if (attackDevice.Device is Pointer)
             {

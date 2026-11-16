@@ -12,6 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9d99079284a799a4aa205befb9982cd7, type: 3}
   m_Name: PlayerInputLayout_SideView
   m_EditorClassIdentifier: 
+  postureInputRouting: 1
   move:
     m_Name: Movement
     m_Type: 0
@@ -161,7 +162,7 @@ MonoBehaviour:
       m_Flags: 0
     - m_Name: 
       m_Id: cf95ac44-cf22-4524-8505-b06654b7e8d7
-      m_Path: <Gamepad>/rightTrigger
+      m_Path: <Gamepad>/buttonWest
       m_Interactions: 
       m_Processors: 
       m_Groups: 
@@ -186,7 +187,7 @@ MonoBehaviour:
       m_Flags: 0
     - m_Name: 
       m_Id: 0ec4da63-1a9e-46a2-b013-32728219df41
-      m_Path: <Gamepad>/leftTrigger
+      m_Path: <Gamepad>/rightTrigger
       m_Interactions: 
       m_Processors: 
       m_Groups: 
@@ -203,7 +204,7 @@ MonoBehaviour:
     m_SingletonActionBindings:
     - m_Name: 
       m_Id: a771faf5-6144-4c03-8d2d-486b92bf6109
-      m_Path: <Keyboard>/space
+      m_Path: <Keyboard>/leftShift
       m_Interactions: 
       m_Processors: 
       m_Groups: 
@@ -212,6 +213,14 @@ MonoBehaviour:
     - m_Name: 
       m_Id: afbda90e-57a2-4a57-938c-760e67b3940d
       m_Path: <Gamepad>/buttonEast
+      m_Interactions: 
+      m_Processors: 
+      m_Groups: 
+      m_Action: Dodge
+      m_Flags: 0
+    - m_Name: 
+      m_Id: 8af74dcd-667e-4f71-bee0-a6ab2cdf26a7
+      m_Path: <Keyboard>/rightShift
       m_Interactions: 
       m_Processors: 
       m_Groups: 
@@ -228,7 +237,15 @@ MonoBehaviour:
     m_SingletonActionBindings:
     - m_Name: 
       m_Id: 3b4b80f1-53e5-4952-80ed-4ebc4bcb3f95
-      m_Path: <Keyboard>/j
+      m_Path: <Keyboard>/space
+      m_Interactions: 
+      m_Processors: 
+      m_Groups: 
+      m_Action: Jump
+      m_Flags: 0
+    - m_Name: 
+      m_Id: 6a74492e-a6a2-4ba1-987c-bad336edd42d
+      m_Path: <Gamepad>/buttonSouth
       m_Interactions: 
       m_Processors: 
       m_Groups: 
@@ -251,30 +268,14 @@ MonoBehaviour:
       m_Groups: 
       m_Action: SkillOne
       m_Flags: 0
-    - m_Name: ButtonWithOneModifier
-      m_Id: 186dd055-e9ce-4659-9510-64034dd7be3d
-      m_Path: ButtonWithOneModifier
+    - m_Name: 
+      m_Id: 8e15efd2-be3d-4aca-9e79-ffb6d0632451
+      m_Path: <Gamepad>/buttonNorth
       m_Interactions: 
       m_Processors: 
       m_Groups: 
       m_Action: SkillOne
-      m_Flags: 4
-    - m_Name: Modifier
-      m_Id: 1404f951-319d-4fe3-a23e-f5ac49c445a9
-      m_Path: <Gamepad>/leftShoulder
-      m_Interactions: 
-      m_Processors: 
-      m_Groups: 
-      m_Action: SkillOne
-      m_Flags: 8
-    - m_Name: Button
-      m_Id: 92a84c15-76ed-4b0e-a643-0efe9c4c2e84
-      m_Path: <Gamepad>/buttonWest
-      m_Interactions: 
-      m_Processors: 
-      m_Groups: 
-      m_Action: SkillOne
-      m_Flags: 8
+      m_Flags: 0
     m_Flags: 0
   skillTwo:
     m_Name: SkillTwo
@@ -368,15 +369,7 @@ MonoBehaviour:
     m_SingletonActionBindings:
     - m_Name: 
       m_Id: f2159dc1-8259-4e88-8714-b31875242735
-      m_Path: <Keyboard>/f
-      m_Interactions: 
-      m_Processors: 
-      m_Groups: 
-      m_Action: Interact
-      m_Flags: 0
-    - m_Name: 
-      m_Id: 3ec0a537-f5a4-4eb9-9ef4-70df38ecfa09
-      m_Path: <Gamepad>/buttonSouth
+      m_Path: <Keyboard>/w
       m_Interactions: 
       m_Processors: 
       m_Groups: 

@@ -30,7 +30,7 @@ namespace Ossastra.Characters
         public bool Request(Vector2 move,bool playerInput)
         {
             if(!isActiveAndEnabled||state==null||owner==null||!owner.CanSimulateIntent||!playerInput||IsActive||
-                !owner.DataBus.AllowsMovement||!owner.DataBus.MoveReady||stamina==null||!stamina.CanSpend(cost))
+                !owner.DataBus.AllowsMovement||!owner.DataBus.MoveReady||(!owner.UsesActionPosture&&(stamina==null||!stamina.CanSpend(cost))))
             {LastResult="拒绝：控制/动作/体力资格";return false;}
             direction=move.sqrMagnitude>.0001f?new Vector3(move.x,0,move.y).normalized:owner.DataBus.AttackDirection;
             direction.y=0;if(direction.sqrMagnitude<.0001f){LastResult="无可靠方向";return false;}
@@ -45,8 +45,12 @@ namespace Ossastra.Characters
             PreparedAnimation=animation;
             LastResult="Accepted SAMPLE，表现由角色动画配置映射";return true;
         }
-        public void Tick(double time){state?.Tick(time);}
-        public void Cancel(){state?.Cancel();PreparedAnimation=null;}
+        public void Tick(double time)
+        {
+            state?.Tick(time);
+            if (!IsActive) owner?.EndActionExposure(ActionId);
+        }
+        public void Cancel(){state?.Cancel();PreparedAnimation=null;owner?.EndActionExposure(ActionId);}
         private void OnDisable(){Cancel();}
     }
 }

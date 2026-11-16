@@ -84,6 +84,12 @@ namespace Ossastra.Characters
         {
             if (Current != null && !Current.IsAlive) SelectSurvivor(true);
             else if (Current != null && (!Current.isActiveAndEnabled || Current.DataBus == null)) Revoke("当前角色不可用");
+            var input = Current != null ? Current.StateInput : null;
+            if (input != null && input.UsesPostureInputRouting)
+            {
+                if (input.TryConsumePostureInput(PostureInputCommand.SwitchCharacter)) SwitchNext();
+                return;
+            }
             var held = switchAction != null && switchAction.enabled && switchAction.IsPressed();
             if (switchIntent.Observe(held) && focused && !applicationPaused) SwitchNext();
         }
