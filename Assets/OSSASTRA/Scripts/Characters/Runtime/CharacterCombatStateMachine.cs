@@ -214,7 +214,12 @@ namespace Ossastra.Characters
             var actionConfig=prepared!=null?prepared.Definition:owner.StateCharacterDefinition==null?null:ActionLibrary[stage-1];
             var selected=stage==2?secondDefinition:definition;
             ConfiguredActionSnapshot phase=prepared?.Phase;
-            if(phase==null&&actionConfig!=null&&!TryResolveConfiguredAction(actionConfig,out phase,out var configurationError,new CharacterAnimationPreparation(true,stage))){lastFact="Rejected: "+configurationError;return;}
+            if (phase == null && actionConfig != null && !TryResolveConfiguredAction(actionConfig, out phase,
+                out var configurationError, new CharacterAnimationPreparation(true, stage, useAuthoredLogic: true)))
+            {
+                lastFact = "Rejected: " + configurationError;
+                return;
+            }
             if(phase==null&&owner.StatePresentation is ICharacterDefaultActionAnimation defaults)
             {
                 try{phase=defaults.FreezeDefaultAction(selected,stage);}catch(ArgumentException error){lastFact="Rejected: "+error.Message;return;}
@@ -249,11 +254,20 @@ namespace Ossastra.Characters
             }
             else lastFact="Rejected: "+request.Reason;
         }
-        internal bool ChangeAbilityPhase(Guid id,ConfiguredActionSnapshot phase)
+        internal bool ChangeAbilityPhase(Guid id, ConfiguredActionSnapshot phase, string postureRecoveryEvent = null)
         {
-            if(!ValidatePrepared(phase,out var error)){lastFact="Rejected: "+error;return false;}
-            var fact=runtime.Rephase(id,phase.Timeline);if(fact==null)return false;
-            ((ICharacterConfiguredAnimation)owner.StatePresentation).CapturePhase(id,phase);ObserveFact(fact);return true;
+            if (!ValidatePrepared(phase, out var error))
+            {
+                lastFact = "Rejected: " + error;
+                return false;
+            }
+            var fact = runtime.Rephase(id, phase.Timeline);
+            if (fact == null) return false;
+            ((ICharacterConfiguredAnimation)owner.StatePresentation).CapturePhase(id, phase);
+            // 仅绑定新阶段实际拥有的标记；切相本身继续持有同一份架势恢复锁。
+            if (!string.IsNullOrWhiteSpace(postureRecoveryEvent)) BindPostureRecovery(id, phase, postureRecoveryEvent);
+            ObserveFact(fact);
+            return true;
         }
         public void CancelAction(string reason)
         {

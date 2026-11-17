@@ -2,7 +2,7 @@
  * 脚本：CharacterDataBus
  * 功能：为单个角色提供输入、运动、朝向、动作和权限的只读访问门面。
  * 边界：状态仍由原模块唯一写入；不复制可写HP、动作时钟或全局控制状态。
- * 协作：Root创建；Movement／Spine实时读取接口拥有者；观察方向只读投影，世界方向保持原所有权。
+ * 协作：Root创建；Movement／Spine读取所属模块；身体、装备和朝向使用同一主动作姿势判定。
  */
 using System;
 using Ossastra.CharacterCore;
@@ -44,6 +44,7 @@ namespace Ossastra.Characters
         public Guid ActionId => actionRuntime.ActionId;
         public bool MoveReady => actionRuntime.MoveReady;
         public bool AttackReady => actionRuntime.AttackReady;
+        public bool RetainsMainPose => actionRuntime.RetainsMainPose(IsMoving) || AbilityMotionActive;
         public bool AllowsMovement => controlAuthority.Allows(ControlChannel.Move);
         public bool AllowsAttack => controlAuthority.Allows(ControlChannel.Attack);
         public ICharacterStamina Stamina {get;private set;}

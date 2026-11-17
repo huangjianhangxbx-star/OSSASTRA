@@ -397,14 +397,14 @@ namespace Ossastra.Characters
                 (companion?owner.GetComponent<CharacterInputHandler>().HasPlayerControl||!compiled.executor.AllowsCompanionUse:!owner.HasPlayerInput))return Reject("来源/控制身份无效");
             var resources=port.RuntimeState;
             if (!OwnsSideViewDiveSource(port) && equipment != null &&
-                !equipment.ValidatePresentations(out var presentationError)) return Reject(presentationError);
+                !equipment.ValidatePresentations(out var presentationError, presentationMainHand)) return Reject(presentationError);
             if(resources==null)return Reject("来源缺少稳定运行payload");
             var key=port.InstanceId+":"+compiled.cooldownIdentity;
             if(!port.IsAvailable||resources.Cooldowns.Remaining(key,resources.Clock(compiled.cooldownPolicy))>0)return Reject("来源失效或冷却中");
             if(runs.Count>=8)return Reject("能力执行预算已满");
             CompiledAbilityExecutor executor;
             var animationPreparation=new CharacterAnimationPreparation(presentationMainHand);
-            try{executor=compiled.executor.Prepare(owner,port,animationPreparation);}catch(ArgumentException error){return Reject(error.Message);}
+            try{executor=compiled.executor.Prepare(owner,port,animationPreparation,compiled.animation);}catch(ArgumentException error){return Reject(error.Message);}
             if (owner.StateArbitrator.Movement.TraversalBlocksAttack && ConflictsWithLedge(executor))
                 return Reject("ledge-action-blocked");
             if(!executor.CanUseSource(port))return Reject("来源资源不允许当前能力");

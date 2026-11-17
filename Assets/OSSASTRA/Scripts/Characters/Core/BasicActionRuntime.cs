@@ -1,6 +1,6 @@
 /*
  * 脚本：BasicActionRuntime
- * 功能：维护单角色的动作身份、时钟与Accepted／Released／Ready／终结事实。
+ * 功能：维护单角色的动作身份、阶段权限、时钟与Accepted／Released／Ready／终结事实。
  * 边界：不采设备、不驱动Spine、不查询碰撞、不直接改HP。
  * 协作：Root请求并推进；Release对象交世界适配器；暂停不推进时钟。
  */
@@ -67,6 +67,8 @@ namespace Ossastra.CharacterCore
         public bool MoveReady => !IsActive || moveReady;
         public bool AttackReady => !IsActive || attackReady;
         public Guid ActionId => IsActive ? actionId : Guid.Empty;
+        public bool RetainsMainPose(bool isMoving) => IsActive &&
+            (definition.RetainsPoseWhileMoving || ActionPresentationPolicy.RetainMainPose(true, MoveReady, isMoving));
         // 同一时钟的绝对读数供有限接续窗口使用；没有动作时也推进，不另建连段计时器。
         public double SimulationTime { get; private set; }
 
@@ -109,7 +111,8 @@ namespace Ossastra.CharacterCore
             elapsed = 0;
             timeCorrection = 0;
             nextNode = 0;
-            moveReady = false;
+            // 外部维持阶段可在切相时开放走动，但不发布普通定时节点或开放下一次主攻击。
+            moveReady = attack.AllowsMovementWhileWaiting;
             attackReady = false;
             // 两种Ready可互换先后；同一时刻固定Release→Move→Attack→Finish。
             nodes = attack.WaitsForPhaseChange ? Array.Empty<(double, ActionFactKind)>() : new[] {
@@ -117,7 +120,8 @@ namespace Ossastra.CharacterCore
                 (attack.MoveReadyAt, ActionFactKind.MoveReady),
                 (attack.AttackReadyAt, ActionFactKind.AttackReady),
                 (attack.FinishAt, ActionFactKind.Finished)
-            }.OrderBy(n => n.Item1).ThenBy(n => n.Item2).ToArray();
+            }.Where(node => node.Item2 != ActionFactKind.Released || attack.HasReleaseNode)
+             .OrderBy(node => node.Item1).ThenBy(node => node.Item2).ToArray();
         }
 
         public IReadOnlyList<ActionFact> Advance(double delta, bool paused)

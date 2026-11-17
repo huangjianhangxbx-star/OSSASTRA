@@ -29,9 +29,15 @@ namespace Ossastra.Characters
         {if(InventoryBound){var ok=inventory.TryEquip(definition);LastResult=ok?"装备已转移":"拒绝：库存/动作/容量资格不符";return ok;}if(definition==null||definition.mainHand||!ownedOffhands.Contains(definition)){LastResult="拒绝：非本体持有的副手定义";return false;}return EquipDefinition(definition);}
         public EquipmentState State {get;private set;}
         public string LastResult {get;private set;}="无";
-        public bool ValidatePresentations(out string reason)
+        public bool ValidatePresentations(out string reason, bool? mainHand = null)
         {
-            try{ValidatePresentation(RightDefinition);ValidatePresentation(LeftDefinition);reason=null;return true;}
+            try
+            {
+                if (mainHand != false) ValidatePresentation(RightDefinition);
+                if (mainHand != true) ValidatePresentation(LeftDefinition);
+                reason = null;
+                return true;
+            }
             catch(ArgumentException error){reason=error.Message;return false;}
         }
         private void ValidatePresentation(EquipmentDefinitionSO definition)

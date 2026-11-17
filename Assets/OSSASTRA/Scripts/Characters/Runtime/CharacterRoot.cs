@@ -395,7 +395,8 @@ namespace Ossastra.Characters
         internal ConfiguredActionSnapshot FreezeAbilityPhase(ActionDefinitionSO config,CharacterAnimationPreparation? preparation=null)
             =>presentation is ICharacterPreparedAnimation prepared?prepared.PrepareAnimation(config,preparation??new CharacterAnimationPreparation(true)):
                 ((ICharacterConfiguredAnimation)presentation).FreezeAction(config);
-        internal bool ChangeAbilityPhase(Guid id,ConfiguredActionSnapshot phase)=>stateArbitrator.Combat.ChangeAbilityPhase(id,phase);
+        internal bool ChangeAbilityPhase(Guid id, ConfiguredActionSnapshot phase, string postureRecoveryEvent = null)
+            => stateArbitrator.Combat.ChangeAbilityPhase(id, phase, postureRecoveryEvent);
         private Vector3? PointerDirection(CharacterInputFrame frame)
         {
             var point = PointerGroundPoint(frame);

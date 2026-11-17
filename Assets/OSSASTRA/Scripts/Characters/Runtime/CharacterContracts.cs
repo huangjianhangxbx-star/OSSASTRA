@@ -98,7 +98,13 @@ namespace Ossastra.Characters
     {
         public readonly bool? MainHand;
         public readonly int Stage;
-        public CharacterAnimationPreparation(bool? mainHand,int stage=0){MainHand=mainHand;Stage=stage;}
+        public readonly bool UseAuthoredLogic;
+        public CharacterAnimationPreparation(bool? mainHand, int stage = 0, bool useAuthoredLogic = false)
+        {
+            MainHand = mainHand;
+            Stage = stage;
+            UseAuthoredLogic = useAuthoredLogic;
+        }
     }
     /// <summary>位移能力的只读表现身份；仍由唯一Movement执行速度。</summary>
     public interface ICharacterMotionAnimation:ICharacterMotionOverride

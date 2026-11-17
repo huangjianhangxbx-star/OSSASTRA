@@ -75,18 +75,21 @@ namespace Ossastra.CharacterAnimation
             var index=preparation.Stage;
             if(index==0)index=definition.animationLogicId==EAnimationLogicState.Attack_Normal_1?1:definition.animationLogicId==EAnimationLogicState.Attack_Normal_2?2:definition.animationLogicId==EAnimationLogicState.Attack_Normal_3?3:definition.animationLogicId==EAnimationLogicState.Attack_Normal_4?4:0;
             var semantic=index==1?EAnimSemantic.Attack_Normal_1:index==2?EAnimSemantic.Attack_Normal_2:index==3?EAnimSemantic.Attack_Normal_3:index==4?EAnimSemantic.Attack_Normal_4:EAnimSemantic.Ability;
-            return ResolveCandidate(definition.animationLogicId,semantic,source,preparation.MainHand,index);
+            return ResolveCandidate(definition.animationLogicId,semantic,source,preparation.MainHand,index,preparation.UseAuthoredLogic);
         }
-        private CharacterAnimationPlan ResolveCandidate(EAnimationLogicState fallback,EAnimSemantic semantic,AnimationIntentSourceStateMachine source,bool? mainHand,int preparedStage=0)
+        private CharacterAnimationPlan ResolveCandidate(EAnimationLogicState actionLogic,EAnimSemantic semantic,
+            AnimationIntentSourceStateMachine source,bool? mainHand,int preparedStage=0,bool useAuthoredLogic=false)
         {
             var candidate=new AnimationIntent{root=root,actorId=root.ActorId,target="body",lifeGeneration=root.LifeGeneration,presentationGeneration=generation,
-                intentSourceStateMatine=source,semantic=semantic,logicId=fallback,phaseId=Guid.NewGuid(),oneShot=true};
+                intentSourceStateMatine=source,semantic=semantic,logicId=actionLogic,phaseId=Guid.NewGuid(),oneShot=true};
             var intents=composer.SnapshotIntents().ToDictionary(pair=>pair.Key,pair=>pair.Value);
             intents[source]=candidate;
             var equipment=root.GetComponent<Ossastra.Characters.CharacterEquipment>();
             var context=new AnimationComposeContext{root=root,dataBus=bus,target="body",activeIntents=intents,preparedStage=preparedStage,
                 sourceEquipment=mainHand.HasValue?(mainHand.Value?equipment?.RightDefinition:equipment?.LeftDefinition):null,configurationVersion=config.ConfigurationVersion};
-            var logic=config.RouteIntent(candidate,context);var plan=config.ResolvePlan(logic,context);
+            // 普攻动作资产决定片段逻辑，连段位置继续供语义及装备／模型覆写判断使用。
+            var logic = useAuthoredLogic ? actionLogic : config.RouteIntent(candidate, context);
+            var plan = config.ResolvePlan(logic, context);
             if(plan!=null){plan.runtimeSource=source;plan.runtimeSemantic=semantic;}return plan;
         }
         public bool CanCaptureAction(Ossastra.Characters.ActionDefinitionSO definition,out string reason)
@@ -212,7 +215,7 @@ namespace Ossastra.CharacterAnimation
             if(bus==null||skeleton?.Skeleton==null)return;
             if(!alive||!root.IsAlive){ResetPosturePose();composer.ClearAllIntents();return;}
             SubmitMovement();
-            var retain=(ActionPresentationPolicy.RetainMainPose(bus.ActionActive,bus.MoveReady,bus.IsMoving)||bus.AbilityMotionActive)&&capturedId==bus.ActionId&&captured!=null;
+            var retain=bus.RetainsMainPose&&capturedId==bus.ActionId&&captured!=null;
             var actionSource=CapturedSource==AnimationIntentSourceStateMachine.None?AnimationIntentSourceStateMachine.MainHand:CapturedSource;
             foreach(var source in new[]{AnimationIntentSourceStateMachine.MainHand,AnimationIntentSourceStateMachine.Skill,AnimationIntentSourceStateMachine.OffHand})
                 if((!retain||source!=actionSource)&&composer.GetIntent(source)?.oneShot==true)composer.RemoveIntent(source);

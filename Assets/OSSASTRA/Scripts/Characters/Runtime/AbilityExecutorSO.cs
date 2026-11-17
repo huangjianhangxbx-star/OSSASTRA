@@ -15,6 +15,9 @@ namespace Ossastra.Characters
         public virtual CompiledAbilityExecutor Prepare(CharacterRoot owner)=>this;
         public virtual CompiledAbilityExecutor Prepare(CharacterRoot owner,IAbilitySource source)=>Prepare(owner);
         public virtual CompiledAbilityExecutor Prepare(CharacterRoot owner,IAbilitySource source,CharacterAnimationPreparation preparation)=>Prepare(owner,source);
+        /// <summary>有多段身体动作的能力可以同时冻结本次请求的初始定义。</summary>
+        public virtual CompiledAbilityExecutor Prepare(CharacterRoot owner,IAbilitySource source,CharacterAnimationPreparation preparation,ActionDefinitionSO initialAction)
+            =>Prepare(owner,source,preparation);
         public virtual ConfiguredActionSnapshot InitialPhase=>null;
         public virtual Ossastra.Combat.DeliveryParameters AcceptanceDelivery=>null;
         public virtual bool RepeatWhileHeld=>false;

@@ -105,7 +105,7 @@ namespace Ossastra.Characters
             intents.Clear();Add(AnimationSemantic.Idle,"movement",Guid.Empty);
             if(dataBus.IsMoving)Add(AnimationSemantic.Move,"movement",Guid.Empty);
             // 恢复门与呈现占用分离；跑步交接不取消主动作或提前开放AttackReady。
-            if(ActionPresentationPolicy.RetainMainPose(dataBus.ActionActive,dataBus.MoveReady,dataBus.IsMoving)||dataBus.AbilityMotionActive)Add(attackStage==2?AnimationSemantic.BasicAttackSecond:AnimationSemantic.BasicAttack,"action",dataBus.ActionId);
+            if(dataBus.RetainsMainPose)Add(attackStage==2?AnimationSemantic.BasicAttackSecond:AnimationSemantic.BasicAttack,"action",dataBus.ActionId);
             var motion=dataBus.MotionOverride as ICharacterMotionAnimation;
             if(motion!=null&&motion.IsActive)Add(AnimationSemantic.Dodge,"dodge",motion.ActionId);
             if(guards.Any(g=>g.IsGuarding))Add(AnimationSemantic.Guard,"guard",Guid.Empty);
