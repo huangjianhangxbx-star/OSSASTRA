@@ -45,7 +45,7 @@ namespace Ossastra.Commerce.Runtime
         public void ConfigureStartup(string selectedProfileId, string selectedSaveDirectory,
             CommerceStartupIntent intent)
         {
-            if(initialized||restoring||saves!=null)throw new InvalidOperationException("档案会话已开始，不能换槽");
+            if(initialized||restoring||saves!=null||editorInventoryPreview)throw new InvalidOperationException("档案会话已开始，不能换槽");
             if(string.IsNullOrWhiteSpace(selectedProfileId)||selectedProfileId.Length>256
                 ||string.IsNullOrWhiteSpace(selectedSaveDirectory)||!Enum.IsDefined(typeof(CommerceStartupIntent),intent))
                 throw new ArgumentException("档案 ID、目录或启动意图无效");
@@ -65,7 +65,7 @@ namespace Ossastra.Commerce.Runtime
         private long revision,sessionGeneration,loadedSequence;
         private double lastSavedSimulation;
         private float nextCheckpoint;
-        private bool initialized,uiReady,restoring,closing,flushInProgress,startupConfigured;
+        private bool initialized,uiReady,restoring,closing,flushInProgress,startupConfigured,editorInventoryPreview;
         private string sessionId;
         private bool finalizingPersistence;
         private byte[] lifecyclePayload;
@@ -82,7 +82,7 @@ namespace Ossastra.Commerce.Runtime
             if(inventory==null){Diagnostic="CommerceService缺少InventorySession";enabled=false;return;}
             inventory.ConfigureStartupAdapter(this);
             // 禁用交易只撤下交易入口；普通背包继续可用。保存故障仍须守住同一编辑门。
-            inventory.ConfigureEditGate(()=>saves!=null&&saves.Status.CanEdit);
+            inventory.ConfigureEditGate(()=>editorInventoryPreview||(saves!=null&&saves.Status.CanEdit));
         }
         /// <summary>不把坏档当空档。所有配置及身份先校验，恢复成功之前没有初始物品授予。</summary>
         public bool RestoreOrSeed(InventorySession session,out bool seed,out string error)
@@ -90,8 +90,24 @@ namespace Ossastra.Commerce.Runtime
             seed=false;error=null;snapshotParticipants.FreezeRegistration();restoring=true;
             try
             {
-                if(requireExplicitStartup&&!startupConfigured)
+                if (requireExplicitStartup && !startupConfigured)
+                {
+#if UNITY_EDITOR
+                    // 直接测试正式横版地图时用现有库存播种和手槽绑定，完全跳过存档路径。
+                    if (Application.isPlaying &&
+                        Ossastra.SideView.Slice.SideViewSliceSessionFlow.Instance == null &&
+                        Ossastra.SideView.Slice.SliceSceneCatalog.GameplayScenes.Any(scene =>
+                            scene.Path == gameObject.scene.path && scene.MapId == mapId))
+                    {
+                        session.SetActiveMap(mapId);
+                        editorInventoryPreview = true;
+                        Diagnostic = "编辑器地图直跑：背包仅在本次 Play 生效。";
+                        seed = true;
+                        return true;
+                    }
+#endif
                     throw new InvalidOperationException("请从标题选择存档槽后进入地图。");
+                }
                 sessionId=Guid.NewGuid().ToString("N");
                 var actors=session.Coordinator.Characters.Select(c=>c.ActorId).ToArray();
                 if(actors.Any(string.IsNullOrWhiteSpace)||actors.Distinct().Count()!=actors.Length)throw new InvalidOperationException("角色稳定ID缺失或重复");
@@ -193,7 +209,8 @@ namespace Ossastra.Commerce.Runtime
             {userInterface.Initialize(inventoryView,inventoryView.Skin,this);uiReady=true;}
             if(!Ready)
             {
-                if(uiReady)userInterface.SetPersistenceStatus("经济模块未启用；没有重新授予物品。\n"+Diagnostic,false);
+                if(uiReady)userInterface.SetPersistenceStatus(editorInventoryPreview ? Diagnostic :
+                    "经济模块未启用；没有重新授予物品。\n"+Diagnostic,false);
                 return;
             }
             // Both save barriers freeze the periodic simulation/checkpoint source
