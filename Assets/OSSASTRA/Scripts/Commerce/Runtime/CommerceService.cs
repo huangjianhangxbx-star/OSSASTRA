@@ -1,6 +1,6 @@
 /* 脚本：CommerceService
  * 功能：本地图唯一交易与共同保存组装根；接入账本、uGUI及显式领域值载荷，同修订串行保存。
- * 时序：Awake注入库存启动适配器；库存建立定义后先恢复，只有Missing才播种；Ready后才开放交互。
+ * 时序：Awake注入库存启动适配器；按场景配置检查启动会话，随后先恢复，只有Missing才播种；Ready后才开放交互。
  * 退出：普通/退出保存统一记录已接受快照的修订与序号；依赖释放后只复用匹配的完整检查点，仍等待原writer排空。
  * 边界：不更新角色子模块、动画或音声，不暂停世界。后台只接收主线程冻结的字节。
  */
@@ -32,6 +32,8 @@ namespace Ossastra.Commerce.Runtime
         public string mapId="commerce-map",profileId="commerce-main";
         [Tooltip("留空使用persistentDataPath/Commerce；验证档与正式档分别配置，不自动删除档案。")]
         public string saveDirectory;
+        [Tooltip("由标题选档并传入会话后才允许访问存档。")]
+        public bool requireExplicitStartup;
         [Min(.25f)] public float checkpointSeconds=3;
         public CommerceEconomy Economy {get;private set;}
         public CommerceSaveStatus SaveStatus=>saves?.Status;
@@ -50,6 +52,7 @@ namespace Ossastra.Commerce.Runtime
             profileId=selectedProfileId;
             saveDirectory=selectedSaveDirectory;
             StartupIntent=intent;
+            startupConfigured=true;
         }
         private readonly CommerceSnapshotParticipants snapshotParticipants=new CommerceSnapshotParticipants();
         private CommerceFileSaveStore store;
@@ -62,7 +65,7 @@ namespace Ossastra.Commerce.Runtime
         private long revision,sessionGeneration,loadedSequence;
         private double lastSavedSimulation;
         private float nextCheckpoint;
-        private bool initialized,uiReady,restoring,closing,flushInProgress;
+        private bool initialized,uiReady,restoring,closing,flushInProgress,startupConfigured;
         private string sessionId;
         private bool finalizingPersistence;
         private byte[] lifecyclePayload;
@@ -87,6 +90,8 @@ namespace Ossastra.Commerce.Runtime
             seed=false;error=null;snapshotParticipants.FreezeRegistration();restoring=true;
             try
             {
+                if(requireExplicitStartup&&!startupConfigured)
+                    throw new InvalidOperationException("请从标题选择存档槽后进入地图。");
                 sessionId=Guid.NewGuid().ToString("N");
                 var actors=session.Coordinator.Characters.Select(c=>c.ActorId).ToArray();
                 if(actors.Any(string.IsNullOrWhiteSpace)||actors.Distinct().Count()!=actors.Length)throw new InvalidOperationException("角色稳定ID缺失或重复");

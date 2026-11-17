@@ -1,6 +1,5 @@
 /*
- * SV-SLICE-01 title authoring. Execute through the Editor menu or call Assemble() from Unity MCP.
- * Reads the six map-authored Progress roots; saves only the dedicated title scene and Build Settings.
+ * 在编辑器中读取六张横版地图的检查点，装配游戏标题、存档会话与正式构建入口。
  */
 using System;
 using System.Collections.Generic;
@@ -20,9 +19,7 @@ namespace Ossastra.SideView.Slice.Editor
     {
         private const string ThemePath = "Assets/OSSASTRA/SideView/GameMenu/ReferenceTheme.asset";
         private const string GameMenuPath = "Assets/OSSASTRA/SideView/GameMenu/GameMenu.prefab";
-        private const string TitleFolder = "Assets/OSSASTRA/SideView/PrivateValidation/SV-SLICE-01";
-
-        [MenuItem("OSSASTRA/横版/SV-SLICE-01/装配独立标题与双场锚点")]
+        [MenuItem("OSSASTRA/横版/装配标题与存档入口")]
         public static void Assemble()
         {
             if (EditorApplication.isPlayingOrWillChangePlaymode)
@@ -35,12 +32,11 @@ namespace Ossastra.SideView.Slice.Editor
                     throw new InvalidOperationException("存在未保存的场景：" + SceneManager.GetSceneAt(i).path);
             var theme = ExistingTheme();
             var entries = SliceSceneCatalog.GameplayScenes.Select(ReadMap).ToArray();
-            EnsureFolder();
             EnsureTitle(theme, entries);
             EnsureBuildSettings();
             if (original.IsValid() && original.isLoaded) SceneManager.SetActiveScene(original);
             AssetDatabase.SaveAssets();
-            Debug.Log("[SV-SLICE-01] 独立标题已保存；六场地图目录从既有 Progress 锚点读取。");
+            Debug.Log("横版标题已保存，六张地图的检查点已经登记。");
         }
 
         private static GameMenuTheme ExistingTheme()
@@ -116,7 +112,7 @@ namespace Ossastra.SideView.Slice.Editor
                 Undo.RecordObject(flow, "Configure Slice scene catalog");
                 flow.titleScenePath = SliceSceneCatalog.TitleScenePath;
                 flow.firstMapId = SliceSceneCatalog.Tut01MapId;
-                flow.saveDirectory = string.Empty; // Runtime uses isolated persistentDataPath/SV-SLICE-01.
+                flow.saveDirectory = string.Empty; // 沿用八槽存档的持久化目录与槽位标识。
                 flow.scenes = entries;
                 Undo.RecordObject(menu, "Configure Slice title menu");
                 menu.sessionFlow = flow;
@@ -134,7 +130,7 @@ namespace Ossastra.SideView.Slice.Editor
                 }
                 EditorSceneManager.MarkSceneDirty(scene);
                 if (!EditorSceneManager.SaveScene(scene, SliceSceneCatalog.TitleScenePath))
-                    throw new InvalidOperationException("独立标题场景未保存。");
+                    throw new InvalidOperationException("标题场景未保存。");
             }
             finally
             {
@@ -168,12 +164,6 @@ namespace Ossastra.SideView.Slice.Editor
 
         private static IEnumerable<T> Items<T>(Scene scene) where T : Component
             => scene.GetRootGameObjects().SelectMany(root => root.GetComponentsInChildren<T>(true));
-
-        private static void EnsureFolder()
-        {
-            if (!AssetDatabase.IsValidFolder(TitleFolder))
-                AssetDatabase.CreateFolder("Assets/OSSASTRA/SideView/PrivateValidation", "SV-SLICE-01");
-        }
 
         private static void EnsureBuildSettings()
         {

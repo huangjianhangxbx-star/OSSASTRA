@@ -372,6 +372,9 @@ namespace Ossastra.SideView.Slice
                 Party = MustFind<CharacterControlCoordinator>(scene);
                 Commerce = MustFind<CommerceService>(scene);
                 Commerce.mapId = mapId;
+                Commerce.requireExplicitStartup = true;
+                Commerce.profileId = string.Empty;
+                Commerce.saveDirectory = string.Empty;
                 MustFind<WorldPropsRoot>(scene).mapId = mapId;
             }
         }

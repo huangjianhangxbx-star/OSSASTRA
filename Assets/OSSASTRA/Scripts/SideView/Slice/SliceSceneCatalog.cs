@@ -21,7 +21,7 @@ namespace Ossastra.SideView.Slice
     public static class SliceSceneCatalog
     {
         public const string TitleScenePath =
-            "Assets/OSSASTRA/SideView/PrivateValidation/SV-SLICE-01/SC_SliceTitle.unity";
+            "Assets/OSSASTRA/SideView/SC_SideViewTitle.unity";
         public const string Tut01ScenePath = "Assets/OSSASTRA/SideView/SC_SideViewAdventure.unity";
         public const string Tut02ScenePath =
             "Assets/OSSASTRA/SideView/PrivateValidation/SV-WORLD-01/SC_Tut02Entry.unity";
