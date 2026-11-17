@@ -15,6 +15,9 @@ namespace Ossastra.Characters
   public InventoryInteraction interaction;
   public InventoryView inventory;
   public MenuInputAdapter gameMenu;
+  [SerializeField] private bool requireGameMenu;
+  private bool waitForMenuRelease;
+  public bool RequiresGameMenu => requireGameMenu;
   public InputAction menuAction=new InputAction("Menu",InputActionType.Button);
   private void Awake()
   {
@@ -28,15 +31,29 @@ namespace Ossastra.Characters
    if(hotbar!=null&&hotbar.digitActions.Length>=4){var refs=new[]{layout.quickSlotOne,layout.quickSlotTwo,layout.quickSlotThree,layout.quickSlotFour};for(int i=0;i<4;i++)PlayerInputLayoutSO.Replace(ref hotbar.digitActions[i],refs[i]);}
    PlayerInputLayoutSO.Replace(ref menuAction,layout.menu);
   }
-  private void OnEnable(){menuAction.Enable();}
+  private void OnEnable()
+  {
+   waitForMenuRelease = requireGameMenu;
+   menuAction.Enable();
+  }
   private void Update()
   {
+   if (requireGameMenu && control != null && control.IsWorldInputCaptured)
+   {
+    waitForMenuRelease = true;
+    return;
+   }
+   if (waitForMenuRelease)
+   {
+    if (!menuAction.IsPressed()) waitForMenuRelease = false;
+    return;
+   }
    if(gameMenu!=null)
    {
     gameMenu.Poll(menuAction,control,inventory);
     return;
    }
-   if(menuAction.WasPressedThisFrame()&&inventory!=null)inventory.ToggleMenu();
+   if(!requireGameMenu&&menuAction.WasPressedThisFrame()&&inventory!=null)inventory.ToggleMenu();
   }
   private void OnDisable()
   {
@@ -46,4 +63,3 @@ namespace Ossastra.Characters
   private void OnDestroy(){menuAction.Dispose();}
  }
 }
-

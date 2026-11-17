@@ -1,6 +1,6 @@
 /* 脚本：BgmSceneContextAdapter
  * 功能：声明本场是否为标题，保持场景事实入口独立。
- * 边界：当前没有正式标题流程，本轮测试场配置false；诊断标题不伪称生产接线。
+ * 边界：只声明标题场身份，曲目和混音由音频根及规则表决定。
  */
 using UnityEngine;
 namespace Ossastra.Audio

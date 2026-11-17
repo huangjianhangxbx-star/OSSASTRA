@@ -128,7 +128,7 @@ namespace Ossastra.SideView.Slice.Editor
                     camera.backgroundColor = theme.Background;
                     camera.orthographic = true;
                 }
-                EditorSceneManager.MarkSceneDirty(scene);
+                FormalSideViewSceneAuthoring.InstallTitleAudio(scene);
                 if (!EditorSceneManager.SaveScene(scene, SliceSceneCatalog.TitleScenePath))
                     throw new InvalidOperationException("标题场景未保存。");
             }

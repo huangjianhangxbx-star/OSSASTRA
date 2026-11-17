@@ -25,8 +25,10 @@ namespace Ossastra.Audio
         {
             var views = Array.FindAll(Object.FindObjectsOfType<Ossastra.UserInterface.CombatFeedbackView>(), v => v.gameObject.scene == scene);
             var sideMotion = Array.Find(Object.FindObjectsOfType<SideViewLocomotionAudioAdapter>(), a => a.isActiveAndEnabled && a.gameObject.scene == scene);
+            var context = Array.Find(Object.FindObjectsOfType<BgmContextHost>(),
+                value => value.isActiveAndEnabled && value.gameObject.scene == scene);
             var root = GameAudioRoot.Instance;
-            if (views.Length == 0 && sideMotion == null)
+            if (views.Length == 0 && sideMotion == null && context == null)
             {
                 if (mode == LoadSceneMode.Single && root != null) root.BeginSfxWorld(scene.path + "#" + scene.handle);
                 return;
@@ -43,15 +45,17 @@ namespace Ossastra.Audio
             }
             if (!root.IsOwner) return;
             if (mode == LoadSceneMode.Single) root.BeginSfxWorld(scene.path + "#" + scene.handle);
-            if (sideMotion != null && scene == SceneManager.GetActiveScene())
+            if (scene == SceneManager.GetActiveScene())
             {
-                var context = Array.Find(Object.FindObjectsOfType<BgmContextHost>(), value => value.isActiveAndEnabled && value.gameObject.scene == scene);
                 if (context != null) context.AttachAudioRoot(root);
-                else Debug.LogWarning("SIDE_AUDIO_CONTEXT_MISSING：横版场需要 BgmContextHost，不能仅凭音频根存在判定音乐就绪。");
+                else if (sideMotion != null) Debug.LogWarning(
+                    "SIDE_AUDIO_CONTEXT_MISSING：横版场需要 BgmContextHost。", sideMotion);
             }
 
-            EnsureAdapter<CombatSfxFactAdapter>(scene, "Combat SFX Facts [Audio Owned]");
             EnsureAdapter<InterfaceAudioAdapter>(scene, "Interface Facts [Audio Owned]");
+            if (views.Length == 0 && sideMotion == null) return;
+
+            EnsureAdapter<CombatSfxFactAdapter>(scene, "Combat SFX Facts [Audio Owned]");
             if (sideMotion == null) EnsureAdapter<LocomotionAudioAdapter>(scene, "Locomotion Facts [Audio Owned]");
             else
             {

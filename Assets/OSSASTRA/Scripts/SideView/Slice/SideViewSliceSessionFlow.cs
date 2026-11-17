@@ -170,7 +170,8 @@ namespace Ossastra.SideView.Slice
                     if (sceneConfigurationError != null) break;
                     var commerce = FindObjectOfType<CommerceService>(true);
                     var progress = FindObjectOfType<SideViewSliceProgress>(true);
-                    if (commerce != null && progress != null && commerce.Ready && progress.Ready)
+                    if (commerce != null && progress != null && commerce.Ready && progress.Ready &&
+                        FormalSideViewScene.IsReady(SceneManager.GetActiveScene(), out _))
                     {
                         if (!pendingResume || resumeApplied || progress.TryApplyCheckpoint())
                         {
@@ -179,13 +180,16 @@ namespace Ossastra.SideView.Slice
                             launchIntent = CommerceStartupIntent.Any;
                             busy = false;
                             Status = "游戏会话就绪";
+                            ReleaseGameplay();
                             yield break;
                         }
                     }
                     yield return null;
                 }
             }
-            Status = "启动失败：" + (sceneConfigurationError ?? "存档或检查点未能恢复");
+            FormalSideViewScene.IsReady(SceneManager.GetActiveScene(), out var gameplayError);
+            Status = "启动失败：" + (sceneConfigurationError ?? gameplayError ?? "存档或检查点未能恢复");
+            Debug.LogError("[SV-SLICE-01] " + Status, this);
             activeProfileId = null;
             pendingResume = false;
             launchIntent = CommerceStartupIntent.Any;
@@ -193,7 +197,11 @@ namespace Ossastra.SideView.Slice
             AsyncOperation back = null;
             try { back = LoadSingle(titleScenePath); }
             catch (Exception ex) { Status += "；标题加载失败：" + ex.Message; }
-            if (back != null) while (!back.isDone) yield return null;
+            if (back != null)
+            {
+                while (!back.isDone) yield return null;
+                ReleaseGameplay();
+            }
             busy = false;
         }
 
@@ -202,6 +210,12 @@ namespace Ossastra.SideView.Slice
             if (string.IsNullOrEmpty(activeProfileId) || mode != LoadSceneMode.Single) return;
             var entry = EntryForScene(scene.path);
             if (entry == null) return;
+            if (!gameActive && busy)
+            {
+                ReleaseGameplay();
+                capturedParty = FormalSideViewScene.FindActive<CharacterControlCoordinator>(scene);
+                if (capturedParty != null) capturedParty.SetInputCapture(this, true);
+            }
             var commerce = FindObjectsOfType<CommerceService>(true)
                 .FirstOrDefault(candidate => candidate.gameObject.scene == scene);
             if (commerce == null)

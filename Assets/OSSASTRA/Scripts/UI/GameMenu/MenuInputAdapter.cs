@@ -1,6 +1,7 @@
 // 索取并释放菜单输入，沿用既有角色、库存与音频入口。
 using System.Collections.Generic;
 using Ossastra.Characters;
+using Ossastra.SideView.Slice;
 using Ossastra.UserInterface;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -79,6 +80,9 @@ namespace Ossastra.UI.GameMenu
             UnbindMenu();
             boundMenu = menu;
             if (boundMenu == null) return;
+            var flow = SideViewSliceSessionFlow.Instance;
+            if (flow != null && flow.GameActive)
+                boundMenu.BindSaveAndReturn(() => flow != null && flow.RequestReturnToTitle());
             boundMenu.AudioRequested += EnterAudio;
             boundMenu.Closed += OnMenuClosed;
         }

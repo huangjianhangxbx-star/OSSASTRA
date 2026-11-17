@@ -18,25 +18,6 @@ namespace Ossastra.Development
         private const string ActionPath = AssetFolder + "Action_SideViewDive_Preview.asset";
         private const string FreyciaDefinition = "temporary-b.vc02";
 
-        [InitializeOnLoadMethod]
-        private static void RegisterPreviewStartup()
-        {
-            EditorApplication.playModeStateChanged += EnableMountedPreviews;
-        }
-
-        private static void EnableMountedPreviews(PlayModeStateChange state)
-        {
-            if (state != PlayModeStateChange.EnteredPlayMode) return;
-            var scene = SceneManager.GetActiveScene();
-            if (scene.path != ScenePath) return;
-
-            foreach (var root in scene.GetRootGameObjects())
-                foreach (var mount in root.GetComponentsInChildren<SideViewDiveMount>())
-                    if (mount.isActiveAndEnabled && mount.Definition != null &&
-                        mount.Definition.executor is SideViewDiveAbilitySO)
-                        mount.EnablePreview(true);
-        }
-
         [MenuItem("OSSASTRA/横版/俯冲候选/装配芙蕾茜娅预览")]
         public static void Install()
         {
@@ -59,10 +40,10 @@ namespace Ossastra.Development
                 action.animationLogicId = Ossastra.CharacterAnimation.EAnimationLogicState.Attack_Normal_1;
                 action.finishAt = action.moveReadyAt = action.attackReadyAt = .5f;
                 action.staminaCost = 0;
-                action.timingEvidence = "SAMPLE — 复用该角色第一段攻击映射。正式动画与恢复事件待接。";
+                action.timingEvidence = "沿用该角色第一段攻击动画映射；动作和架势系统处理费用与恢复。";
                 definition = ScriptableObject.CreateInstance<AbilityDefinitionSO>();
                 definition.definitionId = "side-view.dive.preview";
-                definition.displayName = "俯冲下击（预览）";
+                definition.displayName = "俯冲下击";
                 definition.effectRoot = definition.damageChannel = "side-view-dive";
                 definition.occupancy = AbilityOccupancy.Body | AbilityOccupancy.MainHand | AbilityOccupancy.Motion;
                 definition.acceptCost = definition.releaseCost = definition.cooldown = 0;
@@ -77,16 +58,17 @@ namespace Ossastra.Development
 
             var mount = owner.GetComponent<SideViewDiveMount>();
             if (mount == null) mount = Undo.AddComponent<SideViewDiveMount>(owner.gameObject);
-            if (mount.Definition == definition) return;
-            if (mount.Definition != null)
+            if (mount.Definition == definition && mount.OwnedAtStart) return;
+            if (mount.Definition != null && mount.Definition != definition)
                 throw new InvalidOperationException("芙蕾茜娅已有其他俯冲配置，请先检查");
             var binding = new SerializedObject(mount);
             binding.FindProperty("definition").objectReferenceValue = definition;
+            binding.FindProperty("ownedAtStart").boolValue = true;
             binding.ApplyModifiedProperties();
             EditorSceneManager.MarkSceneDirty(scene);
             if (!EditorSceneManager.SaveScene(scene))
                 throw new InvalidOperationException("未保存俯冲预览装配");
-            Debug.Log("[SV-DIVE-01] 已登记芙蕾茜娅预览，进入正式横版场 Play 时自动开启，菜单可开关。");
+            Debug.Log("[SV-DIVE-01] 已登记芙蕾茜娅下冲能力。");
         }
 
         [MenuItem("OSSASTRA/横版/俯冲候选/开关芙蕾茜娅预览", true)]
@@ -99,8 +81,8 @@ namespace Ossastra.Development
             var mount = FindFreycia(SceneManager.GetActiveScene()).GetComponent<SideViewDiveMount>();
             if (mount == null || mount.Definition == null)
                 throw new InvalidOperationException("芙蕾茜娅尚未安装俯冲预览");
-            mount.EnablePreview(!mount.PreviewEnabled);
-            Debug.Log("[SV-DIVE-01] 芙蕾茜娅俯冲预览 " + (mount.PreviewEnabled ? "开启" : "关闭"));
+            mount.SetDevelopmentOverride(!mount.IsAvailable);
+            Debug.Log("[SV-DIVE-01] 芙蕾茜娅俯冲预览 " + (mount.IsAvailable ? "开启" : "关闭"));
         }
 
         private static Ossastra.Characters.CharacterRoot FindFreycia(Scene scene)

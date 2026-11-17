@@ -4,6 +4,7 @@ Shader "Ossastra/Characters/SideViewAceSprite"
  {
   [PerRendererData] _MainTex("Sprite Texture",2D)="white"{}
   _Color("Tint",Color)=(1,1,1,1)
+  [HideInInspector] _OssastraHitFlash("Hit Flash",Float)=0
   [MaterialToggle] PixelSnap("Pixel snap",Float)=0
   [HideInInspector] _RendererColor("RendererColor",Color)=(1,1,1,1)
   [HideInInspector] _Flip("Flip",Vector)=(1,1,1,1)
@@ -36,6 +37,7 @@ Shader "Ossastra/Characters/SideViewAceSprite"
    #define SAMPLE_TEXTURE2D(tex, samplerState, uv) tex.Sample(samplerState, uv)
    #endif
    #include "SideViewAceFusion.hlsl"
+   float _OssastraHitFlash;
    struct Varyings { float4 position:SV_POSITION; float2 uv:TEXCOORD0; float4 color:COLOR; UNITY_VERTEX_OUTPUT_STEREO };
    Varyings Vert(appdata_t input)
    {
@@ -56,6 +58,7 @@ Shader "Ossastra/Characters/SideViewAceSprite"
    {
        float4 color = SampleSpriteTexture(input.uv) * input.color;
        color.rgb = SideViewAceFusionColor(color.rgb * color.a, color.a, input.position);
+       color.rgb = lerp(color.rgb, max(color.rgb, color.aaa), _OssastraHitFlash);
        return color;
    }
    ENDCG

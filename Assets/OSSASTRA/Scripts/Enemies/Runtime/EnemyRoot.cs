@@ -30,7 +30,7 @@ namespace Ossastra.Enemies
         {
             get
             {
-                if (sideView != null) return sideView.Direction;
+                if (sideView != null) return sideView.HitDirection;
                 var direction = target == null ? Vector3.forward : target.WorldPosition - transform.position;
                 direction.y = 0;
                 return direction.normalized;
@@ -134,7 +134,7 @@ namespace Ossastra.Enemies
                 LastFact=fact.Kind+" #"+fact.ActionId.ToString("N");
                 if(fact.Kind==ActionFactKind.Released)warning.Release(fact.ActionId);
                 if(fact.Kind==ActionFactKind.Finished || fact.Kind==ActionFactKind.Cancelled)warning.Clear(fact.ActionId);
-                sideView?.Observe(fact, Time.time, activeAttack.MoveReadyAt - activeAttack.ReleaseAt);
+                sideView?.Observe(fact, Time.time);
                 ActionObserved?.Invoke(fact);
                 if(fact.Release!=null)
                 {
@@ -148,13 +148,13 @@ namespace Ossastra.Enemies
                 sideView.Move(Time.deltaTime);
                 if (pendingRelease != null)
                 {
-                    if (!sideView.DamageWindowOpen(Time.time))
+                    if (sideView.Phase != SideViewEnemyPhase.Active)
                     {
                         var missed = pendingRelease;
                         pendingRelease = null;
                         hitShape.CompleteMiss(missed);
                     }
-                    else if (hitShape.ResolveOverlap(pendingRelease, sideView.HitDirection, 0, true))
+                    else if (sideView.DamageWindowOpen(Time.time) && hitShape.ResolveOverlap(pendingRelease, sideView.HitDirection, 0, true))
                         pendingRelease = null;
                 }
             }

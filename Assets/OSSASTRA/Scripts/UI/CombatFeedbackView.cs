@@ -36,6 +36,8 @@ namespace Ossastra.UserInterface
         private SideViewCombatEffects effects;
         private bool started;
         private int bottleUses;
+        public bool IsSideViewReady => isActiveAndEnabled && sideView &&
+            shakeSink is ICombatImpactShakeSink && effects != null && effects.IsReady;
         public int ReleaseCues {get;private set;}
         public int HitCues {get;private set;}
         public int MotionCues {get;private set;}

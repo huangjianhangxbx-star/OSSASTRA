@@ -4,6 +4,7 @@ Shader "Ossastra/Characters/SideViewSpine"
  {
   [NoScaleOffset] _MainTex("Main Texture",2D)="black"{}
   _Color("Tint",Color)=(1,1,1,1)
+  [HideInInspector] _OssastraHitFlash("Hit Flash",Float)=0
   _Cutoff("Cutout alpha",Range(.001,1))=.06
   _PmaInput("DepthPlane texture is premultiplied",Float)=0
   [Toggle(_STRAIGHT_ALPHA_INPUT)] _StraightAlphaInput("Straight Alpha Texture",Int)=1
@@ -54,6 +55,7 @@ Shader "Ossastra/Characters/SideViewSpine"
    TEXTURE2D(_MainTex); SAMPLER(sampler_MainTex);
    float4 _MainTex_ST, _Color;
    float _SideViewCutout, _PmaInput, _Cutoff;
+   float _OssastraHitFlash;
 
    struct Attributes { float4 position : POSITION; float2 uv : TEXCOORD0; float4 color : COLOR; };
    struct Varyings { float4 position : SV_POSITION; float2 uv : TEXCOORD0; float4 color : COLOR; float3 world : TEXCOORD1; };
@@ -79,6 +81,7 @@ Shader "Ossastra/Characters/SideViewSpine"
        else color.rgb *= texel.a;
        #endif
        color.rgb = SideViewShade(color.rgb, color.a, input.position.xy, input.world);
+       color.rgb = lerp(color.rgb, max(color.rgb, color.aaa), _OssastraHitFlash);
        return color;
    }
    ENDHLSL

@@ -1,3 +1,9 @@
+/*
+ * 脚本：SideViewEnemyBrain
+ * 功能：感知场内队员、稳定保留目标，并将横版敌人的策略意图送入 EnemyRoot。
+ * 职责：拥有横版 CharacterController 位移和表面查询，消费根发布的正式动作节点。
+ * 边界：不直接结算 HP、不创建攻击回执，逐怪行为和招式选择由策略负责。
+ */
 using System;
 using Ossastra.CharacterCore;
 using Ossastra.Combat;
@@ -11,51 +17,55 @@ namespace Ossastra.Enemies
 
     [DisallowMultipleComponent]
     [RequireComponent(typeof(CharacterController))]
-    public sealed class SideViewEnemyBrain : MonoBehaviour, IEnemyBrain
+    public sealed partial class SideViewEnemyBrain : MonoBehaviour, IEnemyBrain
     {
         [SerializeField] private SideViewEnemyKind kind;
         [SerializeField] private CombatVitals[] targets = Array.Empty<CombatVitals>();
         [SerializeField, Min(.1f)] private float wakeRange = 6, attackRange = 3, verticalRange = 1.6f;
         [SerializeField, Min(0)] private float walkSpeed = 1.8f, attackSpeed = 5.5f, retryDelay = 1.2f;
+        [SerializeField, Min(0)] private float targetSwitchMargin = .45f;
+        [SerializeField, Min(0), Tooltip("相对出生标记的根高度。0 使用该敌人策略的默认高度。")]
+        private float spawnClearance;
+        [SerializeField, Range(-180, 180), Tooltip("爬虫出生表面相对地面的平面角度。")]
+        private float surfaceAngle;
         [SerializeField] private LayerMask terrainLayers = ~0;
+        private readonly RaycastHit[] terrainHits = new RaycastHit[24];
         private CombatVitals owner;
         private ICombatTarget pursuit;
         private CharacterController body;
+        private Tactics tactics;
         private float nextAttack;
         private float lastSeen;
         private float verticalVelocity;
-        private float pendingAttackUntil;
+        private float phaseStarted;
         private int facing = -1;
-        private int actionNumber;
-        private bool interruptedRoll;
-        private bool secondMove;
+        private int previousHp;
         private Vector3 home;
-        private Vector3 crawlerSurface = Vector3.up;
-        private int crawlSign = -1;
 
         public bool IsAvailable => isActiveAndEnabled;
         public bool HasTarget => pursuit != null;
-        public bool SecondMove => secondMove;
-        public bool Bumped => interruptedRoll && kind == SideViewEnemyKind.Thumper && Phase == SideViewEnemyPhase.Active;
         public SideViewEnemyKind Kind => kind;
         public SideViewEnemyPhase Phase { get; private set; }
         public Vector3 Direction => Vector3.right * facing;
-        public float VisualAngle => kind == SideViewEnemyKind.Crawler
-            ? Vector3.SignedAngle(Vector3.up, crawlerSurface, Vector3.forward) : 0;
-        public Vector3 HitDirection => kind == SideViewEnemyKind.Crawler ? Vector3.zero
-            : kind == SideViewEnemyKind.Fly || (kind == SideViewEnemyKind.Mother && secondMove) ? Vector3.down : Direction;
+        public float VisualAngle => tactics?.VisualAngle ?? 0;
+        public Vector3 HitDirection => tactics?.HitDirection ?? Direction;
         public Vector3 MoveDirection { get; private set; }
-        public bool DamageWindowOpen(float now) => Phase == SideViewEnemyPhase.Active && now <= pendingAttackUntil;
-        public bool IsAirborne => kind == SideViewEnemyKind.Fly || kind == SideViewEnemyKind.Mother;
+        public bool DamageWindowOpen(float now) => Phase == SideViewEnemyPhase.Active && tactics.ContactEnabled(now);
+        public bool IsAirborne => (tactics?.Clearance ?? 0) > 0;
+        internal string AnimationKey => tactics?.AnimationKey ?? "idle";
 
         public bool Initialize(CombatVitals value)
         {
             if (value == null || value.gameObject != gameObject || value.Health == null) return false;
             owner = value;
             body = GetComponent<CharacterController>();
-            home = transform.position;
+            tactics = CreateTactics();
+            // 上浮的是实际碰撞和感知根。已有地图的地面标记也按这条合同恢复空中锚。
+            var clearance = spawnClearance > 0 ? spawnClearance : tactics.Clearance;
+            home = transform.position + Vector3.up * clearance;
+            ReturnToSpawn();
             ResetDecision(Time.time);
-            return body != null && targets.Length > 0;
+            return body != null && targets != null && targets.Length > 0;
         }
 
         public void ResetDecision(float now)
@@ -64,74 +74,58 @@ namespace Ossastra.Enemies
             nextAttack = now + .35f;
             lastSeen = float.NegativeInfinity;
             verticalVelocity = 0;
+            facing = -1;
             MoveDirection = Vector3.zero;
-            Phase = SideViewEnemyPhase.Idle;
-            crawlerSurface = Vector3.up;
+            previousHp = owner != null && owner.Health != null ? owner.Health.Current : 0;
+            SetPhase(SideViewEnemyPhase.Idle, now);
+            tactics?.Reset(now);
         }
 
         public void Tick(float now, float delta)
         {
+            var damaged = owner.Health.Current < previousHp;
+            previousHp = owner.Health.Current;
             if (Phase >= SideViewEnemyPhase.Windup) return;
-            pursuit = Select(wakeRange);
-            if (pursuit != null)
-            {
-                lastSeen = now;
-                Phase = SideViewEnemyPhase.Alert;
-                var offset = pursuit.WorldPosition - transform.position;
-                facing = SideViewEnemyRules.Facing(offset.x, facing);
-                if (IsAirborne)
-                    MoveDirection = Vector3.ClampMagnitude(offset + Vector3.up * (kind == SideViewEnemyKind.Fly ? 1.5f : .8f), 1);
-                else
-                    MoveDirection = Mathf.Abs(offset.x) > attackRange * .78f ? Direction : Vector3.zero;
-                return;
-            }
-
-            var memory = kind == SideViewEnemyKind.Fly ? 8 : 6;
-            Phase = now - lastSeen < memory ? SideViewEnemyPhase.Alert : SideViewEnemyPhase.Idle;
-            if (kind == SideViewEnemyKind.Crawler)
-                MoveDirection = Direction;
-            else
-            {
-                var offset = home - transform.position;
-                MoveDirection = Mathf.Abs(offset.x) > .18f ? Vector3.right * Mathf.Sign(offset.x) : Vector3.zero;
-                if (IsAirborne)
-                {
-                    var direction = MoveDirection;
-                    direction.y = Mathf.Clamp(offset.y, -1, 1);
-                    MoveDirection = direction;
-                }
-            }
+            pursuit = SelectVisibleTarget();
+            if (pursuit != null || damaged) lastSeen = now;
+            SetPhase(now - lastSeen < tactics.MemorySeconds ? SideViewEnemyPhase.Alert : SideViewEnemyPhase.Idle, now);
+            tactics.Decide(now, damaged);
         }
 
         public bool TrySelect(float now, out ICombatTarget candidate)
         {
-            candidate = now >= nextAttack ? Select(attackRange) : null;
-            return candidate != null;
+            candidate = pursuit;
+            return candidate != null && now >= nextAttack && tactics.TryAttack(now, TargetOffset);
         }
 
-        private ICombatTarget Select(float range)
+        private ICombatTarget SelectVisibleTarget()
         {
             ICombatTarget best = null;
-            var distance = float.PositiveInfinity;
+            var bestDistance = float.PositiveInfinity;
+            var retainedDistance = float.PositiveInfinity;
             foreach (var target in targets)
             {
                 if (!IsEligible(target)) continue;
                 var offset = target.WorldPosition - transform.position;
-                if (!SideViewEnemyRules.Detects(offset.x, offset.y, offset.z, range, verticalRange, .8f) ||
+                if (!SideViewEnemyRules.Detects(offset.x, offset.y, offset.z, wakeRange, verticalRange, .8f) ||
                     !CombatSight.IsClear(transform, target.transform, .45f)) continue;
-                if (kind == SideViewEnemyKind.Fly && range == attackRange && (offset.y > -.2f || Mathf.Abs(offset.x) > .8f))
-                    continue;
-                var score = offset.x * offset.x + offset.y * offset.y;
-                if (!SideViewEnemyRules.Beats(target.Health.Id, score, best?.Health.Id, distance)) continue;
+
+                var distance = offset.x * offset.x + offset.y * offset.y;
+                if (ReferenceEquals(pursuit, target)) retainedDistance = distance;
+                if (!SideViewEnemyRules.Beats(target.Health.Id, distance, best?.Health.Id, bestDistance)) continue;
                 best = target;
-                distance = score;
+                bestDistance = distance;
             }
+            // 换主控和两个队员距离小幅交替不会改变承诺目标。
+            if (!float.IsPositiveInfinity(retainedDistance) &&
+                !SideViewEnemyRules.ShouldSwitchTarget(retainedDistance, bestDistance, targetSwitchMargin))
+                return pursuit;
             return best;
         }
 
         public bool IsEligible(ICombatTarget candidate)
         {
-            if (!IsAvailable || owner == null || !owner.IsAvailable ||
+            if (!IsAvailable || owner == null || !owner.IsAvailable || targets == null ||
                 !CombatTargetValidity.IsAvailable(candidate) || candidate.TargetTransform == null) return false;
             var seen = false;
             foreach (var target in targets)
@@ -144,130 +138,111 @@ namespace Ossastra.Enemies
                 candidate.Health.Id, candidate.Faction, candidate.IsAlive);
         }
 
-        public BasicAttackDefinition ChooseAttack(BasicAttackDefinition primary)
-        {
-            secondMove = (kind == SideViewEnemyKind.Gang || kind == SideViewEnemyKind.Mimic ||
-                kind == SideViewEnemyKind.Mother) && actionNumber % 2 == 1;
-            if (!secondMove) return primary;
-            if (kind == SideViewEnemyKind.Gang)
-                return new BasicAttackDefinition(1.5, 3.167, 5.167, 5.167, primary.Damage, primary.PostureImpact);
-            if (kind == SideViewEnemyKind.Mimic)
-                return new BasicAttackDefinition(.58, 2, 3.333, 3.333, primary.Damage, primary.PostureImpact);
-            var release = primary.ReleaseAt + .18;
-            return new BasicAttackDefinition(release, primary.MoveReadyAt + .3, primary.AttackReadyAt + .3,
-                primary.FinishAt + .3, primary.Damage, primary.PostureImpact);
-        }
+        public BasicAttackDefinition ChooseAttack(BasicAttackDefinition primary) => tactics.Timing(primary);
 
         public void Commit(ICombatTarget selected)
         {
-            facing = SideViewEnemyRules.Facing(selected.WorldPosition.x - transform.position.x, facing);
+            var now = Time.time;
+            Face(selected.WorldPosition.x - transform.position.x);
             MoveDirection = Vector3.zero;
-            interruptedRoll = false;
-            Phase = SideViewEnemyPhase.Windup;
-            actionNumber++;
+            SetPhase(SideViewEnemyPhase.Windup, now);
+            tactics.Commit(now);
         }
 
-        public void OnAccepted(float now) => nextAttack = now + retryDelay;
+        public void OnAccepted(float now) { }
 
-        public void Observe(ActionFact fact, float now, double activeDuration)
+        public void Observe(ActionFact fact, float now)
         {
             switch (fact.Kind)
             {
                 case ActionFactKind.Released:
-                    Phase = SideViewEnemyPhase.Active;
-                    pendingAttackUntil = now + (float)activeDuration;
+                    SetPhase(SideViewEnemyPhase.Active, now);
                     break;
                 case ActionFactKind.MoveReady:
-                    Phase = SideViewEnemyPhase.Recovery;
+                    SetPhase(SideViewEnemyPhase.Recovery, now);
                     break;
                 case ActionFactKind.Finished:
-                    Phase = SideViewEnemyPhase.Alert;
+                    SetPhase(SideViewEnemyPhase.Alert, now);
+                    // 长动作的有效窗、后摇与再次决策是三段时钟。
+                    nextAttack = now + tactics.Cooldown;
                     break;
             }
+            tactics.Observe(fact.Kind, now);
         }
 
         public void Move(float delta)
         {
-            if (body == null || !body.enabled || delta <= 0) return;
-            if (kind == SideViewEnemyKind.Crawler)
-            {
-                Crawl(delta);
-                return;
-            }
-            var direction = MoveDirection;
-            var speed = walkSpeed;
-            if (Phase >= SideViewEnemyPhase.Windup)
-            {
-                direction = Vector3.zero;
-                if (Phase == SideViewEnemyPhase.Active && !interruptedRoll)
-                    direction = kind == SideViewEnemyKind.Mother && !secondMove
-                        ? Direction + Vector3.down * .35f
-                        : kind == SideViewEnemyKind.Fly || (kind == SideViewEnemyKind.Mother && secondMove)
-                            ? Vector3.down : kind == SideViewEnemyKind.Gang ? Vector3.zero : Direction;
-                speed = kind == SideViewEnemyKind.Crawler ? walkSpeed : attackSpeed;
-                if (kind == SideViewEnemyKind.Gang && !secondMove && !interruptedRoll)
-                {
-                    direction = Direction;
-                    speed = Phase == SideViewEnemyPhase.Windup ? .85f
-                        : Phase == SideViewEnemyPhase.Active ? 2.03f : .42f;
-                }
-                else if (kind == SideViewEnemyKind.Mimic)
-                {
-                    if (Phase == SideViewEnemyPhase.Recovery) direction = -Direction;
-                    else if (!secondMove) direction = Vector3.zero;
-                }
-            }
-
-            if (!IsAirborne && direction.x != 0 && !HasGround(direction.x))
-            {
-                if (kind == SideViewEnemyKind.Crawler && Phase < SideViewEnemyPhase.Windup) facing *= -1;
-                if (Phase == SideViewEnemyPhase.Active) interruptedRoll = true;
-                direction.x = 0;
-            }
-            direction.z = 0;
-            if (!IsAirborne)
-                verticalVelocity = body.isGrounded && verticalVelocity <= 0 ? -2 : Mathf.Max(-14, verticalVelocity - 22 * delta);
-            var translation = direction * speed;
-            translation.y += verticalVelocity;
-            var collision = body.Move(translation * delta);
-            if ((collision & CollisionFlags.Sides) != 0)
-            {
-                if (kind == SideViewEnemyKind.Crawler && Phase < SideViewEnemyPhase.Windup) facing *= -1;
-                if (Phase == SideViewEnemyPhase.Active) interruptedRoll = true;
-            }
+            if (body != null && body.enabled && delta > 0) tactics.Move(Time.time, delta);
         }
 
-        private void Crawl(float delta)
+        /// <summary>研究场触发原作爬虫对既成环境声音或演奏事件的反应。</summary>
+        public bool NotifyAmbientSignal(Vector3 source, bool sustained)
         {
-            var center = body.bounds.center;
-            var tangent = new Vector3(crawlerSurface.y, -crawlerSurface.x, 0) * crawlSign;
-            var probe = body.radius + .23f;
-            if (TryTerrain(center, tangent, probe, out var insideCorner))
-            {
-                crawlerSurface = PlanarCardinal(insideCorner.normal);
-                tangent = new Vector3(crawlerSurface.y, -crawlerSurface.x, 0) * crawlSign;
-            }
-            else if (!TryTerrain(center + tangent * .2f, -crawlerSurface, body.height * .5f + .32f, out _))
-            {
-                if (crawlerSurface != Vector3.up)
-                    crawlerSurface = Vector3.up;
-                crawlSign *= -1;
-                tangent = -tangent;
-            }
-            facing = crawlSign;
-            body.Move((tangent * walkSpeed - crawlerSurface * 1.7f) * delta);
+            if (!IsAvailable || owner == null || !owner.IsAlive || tactics is not CrawlerTactics crawler)
+                return false;
+            return crawler.HeardSignal(source, sustained, Time.time);
         }
 
-        private static Vector3 PlanarCardinal(Vector3 normal)
-            => Mathf.Abs(normal.y) >= Mathf.Abs(normal.x)
-                ? Vector3.up * Mathf.Sign(normal.y) : Vector3.right * Mathf.Sign(normal.x);
+        private Vector3 Position => transform.position;
+        private Vector3 TargetOffset => pursuit == null ? Vector3.zero : pursuit.WorldPosition - Position;
+        private float PhaseAge(float now) => now - phaseStarted;
+
+        private void SetPhase(SideViewEnemyPhase value, float now)
+        {
+            if (Phase == value) return;
+            Phase = value;
+            phaseStarted = now;
+        }
+
+        private void Face(float x)
+        {
+            if (Mathf.Abs(x) > .07f) facing = SideViewEnemyRules.Facing(x, facing);
+        }
+
+        private bool GroundAhead(float sign)
+        {
+            var origin = body.bounds.center + Vector3.right * (Mathf.Sign(sign) * (body.radius + .22f));
+            origin.y = body.bounds.min.y + .18f;
+            return TryTerrain(origin, Vector3.down, .65f, out _);
+        }
+
+        private bool WallAhead(float sign, float travel)
+            => TryTerrain(body.bounds.center, Vector3.right * Mathf.Sign(sign), body.radius + travel + .06f, out _);
+
+        private float FloorY(float x)
+        {
+            var origin = new Vector3(x, body.bounds.center.y, Position.z);
+            return TryTerrain(origin, Vector3.down, 12, out var floor) ? floor.point.y : home.y - tactics.Clearance;
+        }
+
+        private void Walk(float velocity, float delta)
+        {
+            if (velocity != 0 && !GroundAhead(velocity)) velocity = 0;
+            verticalVelocity = body.isGrounded && verticalVelocity <= 0 ? -2 : Mathf.Max(-14, verticalVelocity - 22 * delta);
+            Step(new Vector3(velocity, verticalVelocity, 0), delta);
+        }
+
+        private CollisionFlags Step(Vector3 velocity, float delta)
+        {
+            MoveDirection = velocity.sqrMagnitude > .001f ? velocity.normalized : Vector3.zero;
+            return body.Move(velocity * delta);
+        }
+
+        private void Glide(Vector3 goal, float speed, float delta)
+        {
+            var offset = goal - Position;
+            offset.z = 0;
+            Step(Vector3.ClampMagnitude(offset / Mathf.Max(.15f, delta), speed), delta);
+        }
 
         private bool TryTerrain(Vector3 origin, Vector3 direction, float distance, out RaycastHit nearest)
         {
             nearest = default;
             var best = float.PositiveInfinity;
-            foreach (var hit in Physics.RaycastAll(origin, direction, distance, terrainLayers, QueryTriggerInteraction.Ignore))
+            var count = Physics.RaycastNonAlloc(origin, direction, terrainHits, distance, terrainLayers, QueryTriggerInteraction.Ignore);
+            for (var index = 0; index < count; index++)
             {
+                var hit = terrainHits[index];
                 if (hit.distance >= best || hit.transform.IsChildOf(transform) || CombatSpatialTarget.Find(hit.collider) != null ||
                     Mathf.Abs(hit.normal.z) > .75f) continue;
                 best = hit.distance;
@@ -276,13 +251,20 @@ namespace Ossastra.Enemies
             return best < float.PositiveInfinity;
         }
 
-        private bool HasGround(float sign)
-        {
-            var origin = body.bounds.center + Vector3.right * (Mathf.Sign(sign) * (body.radius + .22f));
-            origin.y = body.bounds.min.y + .18f;
-            return TryTerrain(origin, Vector3.down, .65f, out _);
-        }
-
         internal void ReturnToSpawn() => transform.position = home;
+
+        private Tactics CreateTactics()
+        {
+            return kind switch
+            {
+                SideViewEnemyKind.Thumper => new ThumperTactics(this),
+                SideViewEnemyKind.Fly => new FlyTactics(this),
+                SideViewEnemyKind.Crawler => new CrawlerTactics(this),
+                SideViewEnemyKind.Gang => new GangTactics(this),
+                SideViewEnemyKind.Mimic => new MimicTactics(this),
+                SideViewEnemyKind.Mother => new MotherTactics(this),
+                _ => throw new ArgumentOutOfRangeException(nameof(kind))
+            };
+        }
     }
 }

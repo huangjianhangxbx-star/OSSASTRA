@@ -2,7 +2,7 @@
  * 脚本：CombatVitals
  * 功能：持有本体唯一Health/阵营，接收正式结算并通知可选虚血模块，单次死亡时关闭表现和碰撞。
  * 边界：IsAlive只读Health；不另存isDead，不选Current、不计算攻击、不自动复活。
- * 协作：Root/敌人显式Initialize；Melee反馈已Applied结果；根推进可选资源，返场仍恢复同一本体。
+ * 协作：Root/敌人显式Initialize；Melee反馈已Applied结果；受击时钟驱动独立材质闪白；返场仍恢复同一本体。
  */
 using System;
 using Ossastra.CharacterCore;
@@ -22,16 +22,16 @@ namespace Ossastra.Combat
         private Renderer[] renderers;
         private Collider[] colliders;
         private bool[] rendererEnabled, colliderEnabled;
-        private MaterialPropertyBlock[] originalBlocks;
-        private MaterialPropertyBlock flashBlock;
-        private bool deathNotified, flashing;
+        private const float HitReactionSeconds = .15f;
+        private CombatHitFlash hitFlash;
+        private bool deathNotified, hitReacting;
         private CombatRecovery recovery;
         private CombatRegeneration regeneration;
         public CombatRecovery Recovery=>recovery;
-        private float flashUntil;
+        private float hitReactUntil;
         public Health Health { get; private set; }
         public bool IsAlive => Health != null && Health.Current>0;
-        public bool IsHitReacting => flashing && IsAlive;
+        public bool IsHitReacting => hitReacting && IsAlive;
         public bool IsAvailable => isActiveAndEnabled && IsAlive;
         public Vector3 WorldPosition => transform.position;
         public Transform TargetTransform => transform;
@@ -48,14 +48,11 @@ namespace Ossastra.Combat
             Health=new Health(actorId,maximumHp);
             recovery=GetComponent<CombatRecovery>();recovery?.Initialize(this);
             regeneration=GetComponent<CombatRegeneration>();regeneration?.Initialize(this);
-            // Unity原生对象必须在显式主线程初始化中创建，不能依赖MonoBehaviour字段构造时机。
-            flashBlock=new MaterialPropertyBlock();
             renderers=GetComponentsInChildren<Renderer>(true);
+            hitFlash = new CombatHitFlash(renderers);
             colliders=GetComponentsInChildren<Collider>(true);
             rendererEnabled=new bool[renderers.Length]; colliderEnabled=new bool[colliders.Length];
-            originalBlocks=new MaterialPropertyBlock[renderers.Length];
-            for (var i=0;i<renderers.Length;i++)
-            { rendererEnabled[i]=renderers[i].enabled; originalBlocks[i]=new MaterialPropertyBlock(); renderers[i].GetPropertyBlock(originalBlocks[i]); }
+            for (var i=0;i<renderers.Length;i++) rendererEnabled[i]=renderers[i].enabled;
             for (var i=0;i<colliders.Length;i++) colliderEnabled[i]=colliders[i].enabled;
             return true;
         }
@@ -67,7 +64,8 @@ namespace Ossastra.Combat
             recovery?.RecordLoss(outcome);
             if (IsAlive) { ShowHit(); return; }
             if (deathNotified) return;
-            deathNotified=true; DeathCount++; flashing=false;
+            deathNotified=true; DeathCount++;
+            EndHitReaction();
             recovery?.ResetState();
             regeneration?.Clear();
             // 只退本体表现/碰撞，保留Root/身份/Health供会话与调试读取；死亡不靠禁用全组Root。
@@ -78,19 +76,31 @@ namespace Ossastra.Combat
 
         public void ShowHit()
         {
-            if (!IsAlive || renderers==null) return;
-            flashUntil=Time.time+.15f; flashing=true;
-            flashBlock.SetColor("_Color",Color.white); flashBlock.SetColor("_BaseColor",Color.white);
-            foreach (var r in renderers) if (r!=null) r.SetPropertyBlock(flashBlock);
+            if (!IsAlive) return;
+            hitReactUntil = Time.time + HitReactionSeconds;
+            hitReacting = true;
+            hitFlash.Apply();
         }
 
         private void Update()
         {
-            if (!flashing || Time.time<flashUntil) return;
-            flashing=false; RestoreBlocks();
+            if (hitReacting && Time.time >= hitReactUntil) EndHitReaction();
         }
-        private void RestoreBlocks()
-        { for (var i=0;i<renderers.Length;i++) if (renderers[i]!=null) renderers[i].SetPropertyBlock(originalBlocks[i]); }
+
+        // 当前帧换装或切灯光方案时，同一脉冲继续作用于新材质。
+        private void LateUpdate()
+        {
+            if (hitReacting) hitFlash.Apply();
+        }
+
+        private void OnDisable() => EndHitReaction();
+
+        private void EndHitReaction()
+        {
+            if (!hitReacting) return;
+            hitReacting = false;
+            hitFlash.Clear();
+        }
 
         /// <summary>开发回放恢复同一身份/Health，仅还原本组件关掉的Renderer/Collider；无生产计时返场。</summary>
         public void RestoreForDevelopment()
@@ -106,11 +116,11 @@ namespace Ossastra.Combat
         }
         private void RestoreBody(string reason)
         {
-            deathNotified=false; flashing=false; LastResult=reason;
+            deathNotified=false; LastResult=reason;
+            EndHitReaction();
             recovery?.ResetState();
             for (var i=0;i<renderers.Length;i++) if (renderers[i]!=null) renderers[i].enabled=rendererEnabled[i];
             for (var i=0;i<colliders.Length;i++) if (colliders[i]!=null) colliders[i].enabled=colliderEnabled[i];
-            RestoreBlocks();
         }
     }
 }

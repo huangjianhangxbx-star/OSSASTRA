@@ -41,6 +41,7 @@ namespace Ossastra.UI.GameMenu
         private readonly Image[] nodes = new Image[7];
         private readonly Image[] tabLights = new Image[7];
         private Text previousHint, nextHint, footerHint, closeHint;
+        private Func<bool> saveAndReturn;
         private GameObject previousFocus;
         private bool built, externalOverlay = true, gamepad;
         private static GameMenuRoot displayedMenu;
@@ -50,6 +51,10 @@ namespace Ossastra.UI.GameMenu
 
         public event Action AudioRequested;
         public event Action Closed;
+        public void BindSaveAndReturn(Func<bool> action) => saveAndReturn = action;
+
+        public bool IsConfigured => theme != null && overlay != null && composition != null &&
+            pageRoots != null && pageRoots.Length == pages.Length && Array.TrueForAll(pageRoots, page => page != null);
         public bool IsOpen { get; private set; }
         public bool OwnsGameplayInput => IsOpen;
         public int CurrentPage { get; private set; }
@@ -258,8 +263,11 @@ namespace Ossastra.UI.GameMenu
             nextHint = Key(top, "Next tab", 1749, 41, 1);
             var footer = NewRect("Footer", composition, 0, 1018, 1920, 62);
             ClickableLabel(footer, "Sound settings", 44, 8, 146, 38, "声音设置", () => AudioRequested?.Invoke(), theme.Muted);
+            if (saveAndReturn != null)
+                ClickableLabel(footer, "Save and return", 198, 8, 214, 38, "保存并返回标题",
+                    () => { if (saveAndReturn()) Close(); }, theme.Muted);
             closeHint = ClickableLabel(footer, "Close", 1715, 8, 153, 38, "", () => Cancel(), theme.Text);
-            footerHint = Label(footer, "Context shortcuts", 210, 6, 1494, 40, "", 23, theme.Text);
+            footerHint = Label(footer, "Context shortcuts", 425, 6, 1279, 40, "", 23, theme.Text);
             footerHint.alignment = TextAnchor.MiddleRight;
         }
 

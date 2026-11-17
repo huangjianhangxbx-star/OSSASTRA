@@ -1,3 +1,4 @@
+// 组装正式横版路线并落盘敌方实例、Boss 和本场交战事实接线。
 using System;
 using System.Linq;
 using Ossastra.Characters;
@@ -35,6 +36,7 @@ namespace Ossastra.SideView.Slice.Editor
                     var enemy = SideViewSliceEnemyAuthoring.Place(marker.transform, marker.stableId, marker.candidateId, targets, art);
                     if (marker.isBoss) AddBoss(marker, enemy, progress, party, roots);
                 }
+                FormalSideViewSceneAuthoring.InstallCombatAudio(scene);
                 if (!EditorSceneManager.SaveScene(scene))
                     throw new InvalidOperationException("Enemy scene save failed: " + spec.Path);
             }

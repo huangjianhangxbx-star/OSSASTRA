@@ -76,61 +76,99 @@ namespace Ossastra.SideView.Slice
                     : new Vector3(-deck.Width / 2 + 10f, deck.BaseY, 0f);
         }
 
-        private static void BuildRestMenu(SVSliceRestPoint point)
+        private static void BuildRestMenu(SVSliceRestPoint point) => RebuildRestMenu(point);
+
+        public static void RebuildRestMenu(SVSliceRestPoint point)
         {
-            var ui = new GameObject("保存椅 UI", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
-            ui.transform.SetParent(point.transform, false);
-            var canvas = ui.GetComponent<Canvas>();
-            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            canvas.sortingOrder = 300;
-            var scaler = ui.GetComponent<CanvasScaler>();
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1600, 900);
-            scaler.matchWidthOrHeight = .5f;
-            var panel = Widget(ui.transform, "休息菜单", new Vector2(38, -38), new Vector2(324, 249));
-            var border = panel.gameObject.AddComponent<Image>();
-            border.color = new Color(.044f, .027f, .045f, .91f);
-            Label(panel, "破落的房间", new Vector2(30, -20), new Vector2(265, 40), 31, Color.white);
-            point.saveButton = CreateButton(panel, "保存", new Vector2(30, -84));
-            point.leaveButton = CreateButton(panel, "出发", new Vector2(30, -140));
-            point.statusLabel = Label(panel, "", new Vector2(30, -194), new Vector2(273, 33), 18, new Color(.58f, .82f, .87f));
-            point.panel = ui;
-            ui.SetActive(false);
+            if (point == null) throw new ArgumentNullException(nameof(point));
+            if (point.panel != null && point.panel.name == "保存椅正式休息界面")
+            {
+                BindRestFocus(point.saveButton);
+                BindRestFocus(point.leaveButton);
+                return;
+            }
+            if (point.panel != null && (point.panel.transform.parent != point.transform || point.panel.name != "保存椅 UI"))
+                throw new InvalidOperationException("保存椅的现有界面不是已识别的旧装配：" + point.panel.name);
+
+            var theme = AssetDatabase.LoadAssetAtPath<Ossastra.UI.GameMenu.GameMenuTheme>(
+                "Assets/OSSASTRA/SideView/GameMenu/ReferenceTheme.asset");
+            var font = theme != null ? theme.Font : Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            var ui = SlicePresentation.Canvas(point.transform, "保存椅正式休息界面", 300, true);
+            Undo.RegisterCreatedObjectUndo(ui.gameObject, "Build rest menu");
+            Undo.RecordObject(point, "Bind rest menu");
+            if (point.panel != null) Undo.DestroyObjectImmediate(point.panel);
+
+            var shade = SlicePresentation.ArtImage(ui, "左侧渐隐", new Rect(0, -60, 860, 1040),
+                new Color(0, 0, 0, .72f), "TalkGlow");
+            shade.uvRect = new Rect(.5f, 0, .5f, 1);
+            SlicePresentation.Label(ui, "区域", new Rect(52, 53, 440, 40), "锁之塔", 22, font,
+                SlicePresentation.AccentColor, TextAnchor.MiddleLeft);
+            SlicePresentation.ArtImage(ui, "保存点徽记", new Rect(50, 98, 49, 49), Color.white, "RestIcon");
+            var title = SlicePresentation.Label(ui, "保存点", new Rect(108, 85, 530, 68), "破落的房间", 42, font,
+                SlicePresentation.TextColor, TextAnchor.MiddleLeft);
+            SlicePresentation.Shadow(title);
+            SlicePresentation.Rule(ui, "地点分隔线", new Rect(36, 164, 533, 2), new Color(1, 1, 1, .4f));
+
+            point.saveButton = BuildRestButton(ui, font, "保存", 186);
+            point.leaveButton = BuildRestButton(ui, font, "出发", 256);
+            ConnectRestNavigation(point.saveButton, point.leaveButton);
+            ConnectRestNavigation(point.leaveButton, point.saveButton);
+            point.statusLabel = SlicePresentation.Label(ui, "保存状态", new Rect(84, 335, 410, 48), "", 24,
+                font, SlicePresentation.AccentColor, TextAnchor.MiddleLeft);
+            SlicePresentation.Shadow(point.statusLabel);
+
+            var footer = SlicePresentation.Node(ui, "操作提示", new Rect(0, 0, 300, 52));
+            footer.anchorMin = footer.anchorMax = new Vector2(1, 0);
+            footer.pivot = new Vector2(1, 0);
+            footer.anchoredPosition = new Vector2(-24, 21);
+            point.confirmGlyph = SlicePresentation.ArtImage(footer, "确认键", new Rect(9, 8, 52, 33), Color.white, "Enter");
+            point.cancelGlyph = SlicePresentation.ArtImage(footer, "关闭键", new Rect(150, 8, 52, 33), Color.white, "Escape");
+            point.confirmLabel = SlicePresentation.Label(footer, "确定", new Rect(61, 0, 83, 49), "确定", 24, font,
+                SlicePresentation.TextColor);
+            point.cancelLabel = SlicePresentation.Label(footer, "关闭", new Rect(202, 0, 83, 49), "关闭", 24, font,
+                SlicePresentation.TextColor);
+            point.hud = point.gameObject.scene.GetRootGameObjects()
+                .SelectMany(root => root.GetComponentsInChildren<Ossastra.UserInterface.CharacterHudView>(true))
+                .FirstOrDefault();
+            point.panel = ui.gameObject;
+            point.panel.SetActive(false);
+            EditorUtility.SetDirty(point);
+            UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(point.gameObject.scene);
         }
 
-        private static Button CreateButton(RectTransform parent, string text, Vector2 position)
+        private static Button BuildRestButton(RectTransform panel, Font font, string text, float y)
         {
-            var box = Widget(parent, text, position, new Vector2(264, 44));
-            var image = box.gameObject.AddComponent<Image>();
-            image.color = new Color(.19f, .135f, .18f, 1f);
-            var button = box.gameObject.AddComponent<Button>();
-            button.targetGraphic = image;
-            Label(box, text, new Vector2(19, 0), new Vector2(215, 44), 25, Color.white);
+            var baseButton = SlicePresentation.Image(panel, text, new Rect(0, y, 531, 56), Color.white);
+            baseButton.raycastTarget = true;
+            var button = baseButton.gameObject.AddComponent<Button>();
+            button.targetGraphic = baseButton;
+            var colors = button.colors;
+            colors.normalColor = new Color(1, 1, 1, .01f);
+            colors.highlightedColor = new Color(.52f, .83f, .88f, .46f);
+            colors.selectedColor = new Color(.52f, .83f, .88f, .82f);
+            colors.pressedColor = new Color(.52f, .83f, .88f, .98f);
+            colors.disabledColor = new Color(1, 1, 1, .01f);
+            button.colors = colors;
+            BindRestFocus(button);
+            var label = SlicePresentation.Label(baseButton.transform, "文字", new Rect(103, 0, 340, 56), text, 34,
+                font, SlicePresentation.AccentColor, TextAnchor.MiddleLeft);
+            SlicePresentation.Shadow(label);
             return button;
         }
 
-        private static Text Label(RectTransform parent, string content, Vector2 position, Vector2 size, int pointSize, Color color)
+        private static void ConnectRestNavigation(Button button, Button neighbor)
         {
-            var widget = Widget(parent, "文本", position, size);
-            var label = widget.gameObject.AddComponent<Text>();
-            label.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            label.fontSize = pointSize;
-            label.text = content;
-            label.color = color;
-            label.alignment = TextAnchor.MiddleLeft;
-            label.raycastTarget = false;
-            return label;
+            button.navigation = new Navigation { mode = Navigation.Mode.Explicit, selectOnUp = neighbor, selectOnDown = neighbor };
         }
 
-        private static RectTransform Widget(Transform parent, string name, Vector2 position, Vector2 size)
+        private static void BindRestFocus(Button button)
         {
-            var host = new GameObject(name, typeof(RectTransform));
-            var rect = (RectTransform)host.transform;
-            rect.SetParent(parent, false);
-            rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0, 1);
-            rect.anchoredPosition = position;
-            rect.sizeDelta = size;
-            return rect;
+            if (button == null || !(button.targetGraphic is RawImage image)) return;
+            var texture = SlicePresentation.Art("RestFocus") ?? SlicePresentation.Art("ButtonLight");
+            if (image.texture == texture) return;
+            Undo.RecordObject(image, "Bind rest focus");
+            image.texture = texture;
+            EditorUtility.SetDirty(image);
         }
 
         private sealed class RoomDeck

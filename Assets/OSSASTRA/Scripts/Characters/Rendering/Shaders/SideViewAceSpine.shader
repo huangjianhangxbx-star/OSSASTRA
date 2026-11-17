@@ -4,6 +4,7 @@ Shader "Ossastra/Characters/SideViewAceSpine"
  {
   [NoScaleOffset] _MainTex("Main Texture",2D)="black"{}
   _Color("Tint",Color)=(1,1,1,1)
+  [HideInInspector] _OssastraHitFlash("Hit Flash",Float)=0
   _Cutoff("Cutout alpha",Range(.001,1))=.06
   _PmaInput("DepthPlane texture is premultiplied",Float)=0
   [Toggle(_STRAIGHT_ALPHA_INPUT)] _StraightAlphaInput("Straight Alpha Texture",Int)=1
@@ -40,6 +41,7 @@ Shader "Ossastra/Characters/SideViewAceSpine"
    TEXTURE2D(_MainTex); SAMPLER(sampler_MainTex);
    float4 _MainTex_ST, _Color;
    float _SideViewCutout, _PmaInput, _Cutoff, _AceSlotTint;
+   float _OssastraHitFlash;
 
    struct Attributes { float4 position : POSITION; float2 uv : TEXCOORD0; float4 color : COLOR; };
    struct Varyings { float4 position : SV_POSITION; float2 uv : TEXCOORD0; float4 color : COLOR; };
@@ -68,6 +70,7 @@ Shader "Ossastra/Characters/SideViewAceSpine"
        #endif
        // Separate native blend slots keep their operator input and do not get surface gain twice.
        if (_AceSlotTint < .5) color.rgb = SideViewAceFusionColor(color.rgb, color.a, input.position);
+       color.rgb = lerp(color.rgb, max(color.rgb, color.aaa), _OssastraHitFlash);
        return color;
    }
    ENDHLSL

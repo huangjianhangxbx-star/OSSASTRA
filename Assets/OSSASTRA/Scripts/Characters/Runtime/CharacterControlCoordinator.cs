@@ -40,6 +40,7 @@ namespace Ossastra.Characters
         private CharacterSwitchLink switchLink;
         internal bool CanManuallySwitch => configured && isActiveAndEnabled && focused && !applicationPaused &&
             inputCaptures.Count == 0 && inventoryCaptures.Count == 0;
+        public bool IsWorldInputCaptured => inputCaptures.Count > 0;
         public bool SwitchLinkReady => switchLink != null && switchLink.CanShowReady();
         internal bool BlocksSwitchLinkCompanion(CharacterRoot actor)
             => switchLink != null && switchLink.BlocksCompanion(actor);

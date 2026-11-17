@@ -30,15 +30,54 @@ namespace Ossastra.Inventory
         public InputAction interactAction=new InputAction("InventoryInteract",InputActionType.Button,"<Keyboard>/f");
         private bool focused=true;
         private readonly DeviceActionSampler sampler=new DeviceActionSampler();
-        public string Prompt {get;private set;}="";
+        public readonly struct Focus
+        {
+            public readonly object Target;
+            public readonly Vector3 WorldAnchor;
+            public readonly string Text;
+
+            internal Focus(object target, Vector3 worldAnchor, string text)
+            {
+                Target = target;
+                WorldAnchor = worldAnchor;
+                Text = text;
+            }
+        }
+
+        private Focus currentFocus;
+        private CharacterInputHandler focusInput;
+        public string Prompt => currentFocus.Text ?? string.Empty;
+        public CharacterControlCoordinator Coordinator => session != null ? session.Coordinator : null;
+
+        public bool TryGetFocus(out Focus value)
+        {
+            value = currentFocus;
+            if (!isActiveAndEnabled || !focused || session == null || !session.Ready ||
+                focusInput == null || !focusInput.HasPlayerInput || focusInput.InventoryCaptured || Coordinator == null ||
+                Coordinator.Current == null || Coordinator.Current.gameObject != focusInput.gameObject)
+                return false;
+            if (value.Target is SVSliceWorldInteractable target && (target == null || !target.isActiveAndEnabled))
+                return false;
+            return value.Target != null && !string.IsNullOrEmpty(value.Text);
+        }
+
+        public InputAction PromptAction => focusInput != null && focusInput.UsesPostureInputRouting
+            ? focusInput.inputLayout.interact : interactAction;
+
+        public InputAction PromptDirectionalAction => focusInput != null && focusInput.UsesPostureInputRouting
+            ? focusInput.movementAction : null;
+
         private void OnEnable(){interactAction.Enable();sampler.Suppress();}
         private void Start(){if(campfire!=null)campfire.SetContextOwner(this);}
         private void Update()
         {
+            currentFocus = default;
+            focusInput = null;
             if(session==null||!session.Ready||view==null)return;
             var actor=session.Coordinator.Current;
-            if(actor==null||!focused){sampler.Suppress();Prompt="";return;}
+            if(actor==null||!focused){sampler.Suppress();return;}
             var input = actor.GetComponent<CharacterInputHandler>();
+            if (input == null) { sampler.Suppress(); return; }
             var layout = input.inputLayout;
             bool commerceOpen = commerceUi != null && commerceUi.IsOpen;
             bool craftingOpen = crafting != null && crafting.userInterface != null && crafting.userInterface.IsOpen;
@@ -53,9 +92,10 @@ namespace Ossastra.Inventory
                 pressed=sampler.Devices.Any(d=>d.Pressed(interactAction)&&!d.ConsumedByComposite(interactAction));
             }
             // 商店捕获会关闭角色玩家源，但不应同时切断这个已打开窗口自己的确认入口。
-            if(commerceOpen){Prompt="";if(pressed)commerceUi.TryConfirmInteraction();return;}
-            if(craftingOpen){Prompt="";if(pressed)crafting.userInterface.TryConfirmInteraction();return;}
-            if(!actor.GetComponent<CharacterInputHandler>().HasPlayerInput||!actor.CanSimulateIntent||EventSystem.current?.currentSelectedGameObject?.GetComponent<InputField>()?.isFocused==true){sampler.Suppress();Prompt="";return;}
+            if(commerceOpen){if(pressed)commerceUi.TryConfirmInteraction();return;}
+            if(craftingOpen){if(pressed)crafting.userInterface.TryConfirmInteraction();return;}
+            if(!input.HasPlayerInput||!actor.CanSimulateIntent||EventSystem.current?.currentSelectedGameObject?.GetComponent<InputField>()?.isFocused==true){sampler.Suppress();return;}
+            if (input.UsesPostureInputRouting && actor.StateArbitrator.Movement.TraversalBlocksAttack) return;
             var nearest=session.AccessibleExternal.OrderBy(id=>Vector3.SqrMagnitude((session.ContainerPosition(id)??actor.transform.position)-actor.transform.position)).ToArray();
             var manual=nearest.FirstOrDefault(id=>session.IsLoosePickup(id));
             var merchant=commerce==null?null:commerce.NearestTarget();
@@ -73,8 +113,19 @@ namespace Ossastra.Inventory
                 .OrderBy(target=>(target.transform.position-actor.transform.position).sqrMagnitude).FirstOrDefault();
             var sliceDistance=sliceTarget==null?float.PositiveInfinity:(sliceTarget.transform.position-actor.transform.position).sqrMagnitude;
             var useSlice=sliceTarget!=null&&sliceDistance<stationDistance&&sliceDistance<merchantDistance&&sliceDistance<containerDistance&&sliceDistance<fireDistance;
-            Prompt=manual!=null?"交互 拾取":useSlice?"交互 "+sliceTarget.Prompt:useStation?"交互 "+station.definition.displayName:useFire?"交互 篝火补给":useMerchant?"交互 "+merchant.displayName:nearest.Length>0?"交互 打开容器":"";
-            if (!string.IsNullOrEmpty(Prompt) && input.UsesPostureInputRouting) Prompt = "W / 左摇杆上 · " + Prompt;
+            focusInput = input;
+            if (manual != null)
+                currentFocus = new Focus(manual, session.ContainerPosition(manual) ?? actor.transform.position, "拾取");
+            else if (useSlice)
+                currentFocus = new Focus(sliceTarget, sliceTarget.transform.position, sliceTarget.Prompt);
+            else if (useStation)
+                currentFocus = new Focus(station, station.Anchor, station.definition.displayName);
+            else if (useFire)
+                currentFocus = new Focus(campfire, campfire.transform.position, "篝火补给");
+            else if (useMerchant)
+                currentFocus = new Focus(merchant, merchant.transform.position, merchant.displayName);
+            else if (nearest.Length > 0)
+                currentFocus = new Focus(nearest[0], session.ContainerPosition(nearest[0]) ?? actor.transform.position, "打开容器");
             if(!pressed)return;
             // 优先散落条目；容器/篝火分支互斥，绝不对同一次F继续向后派发。
             if(manual!=null)
@@ -93,5 +144,3 @@ namespace Ossastra.Inventory
         private void OnDestroy(){if(campfire!=null)campfire.SetContextOwner(null);sampler.Dispose();interactAction.Dispose();}
     }
 }
-
-

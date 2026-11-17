@@ -1,3 +1,9 @@
+/*
+ * 脚本：SideViewSliceEnemyAuthoring
+ * 功能：给横版场景中的敌人绑定身体、动作、感知和本机参考动画。
+ * 负责：生成及升级既有实例的素材接线，保持稳定身份和世界存档语义。
+ * 边界：不运行敌人的行为，原素材留在本机，使用 AssetDatabase 做实际导入。
+ */
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -14,6 +20,7 @@ namespace Ossastra.SideView.Slice.Editor
     public static class SideViewSliceEnemyAuthoring
     {
         private const string PrivateAssets = "Assets/OSSASTRA/SideView/Slice/PrivateArt";
+        private const string SpriteMaterial = "Assets/OSSASTRA/SideView/Slice/Materials/SideViewEnemySprite.mat";
 
         [Serializable] private sealed class Manifest { public Import import; public Clip[] clips; }
         [Serializable] private sealed class Import { public float pixelsPerUnit; public Vector2 pivot; public float feetOffsetYFromColliderUnits; }
@@ -30,7 +37,7 @@ namespace Ossastra.SideView.Slice.Editor
             public string[] poses;
         }
 
-        private static readonly string[] Keys = { "idle", "alert", "windup", "active", "recover", "death", "windup2", "active2", "recover2", "bump" };
+        private static readonly string[] Keys = { "idle", "alert", "windup", "active", "recover", "death", "windup2", "active2", "recover2", "bump", "wake", "turn", "sing", "ascend", "walk", "hurt" };
 
         public static SliceEnemyRoot Place(Transform anchor, string stableId, string candidateId, CombatVitals[] targets, string artRoot)
         {
@@ -38,17 +45,10 @@ namespace Ossastra.SideView.Slice.Editor
                 targets.Any(target => target == null))
                 throw new ArgumentException("Enemy placement needs an anchor, stable identity and live character references.");
             var spec = Specification(candidateId);
-            var directory = candidateId.StartsWith("EM-", StringComparison.Ordinal)
-                ? Path.Combine(artRoot, "InPlace", candidateId)
-                : Path.Combine(artRoot, candidateId);
-            var manifest = JsonUtility.FromJson<Manifest>(File.ReadAllText(Path.Combine(directory, "manifest.json")));
-            if (manifest?.import == null || manifest.clips == null || manifest.import.pixelsPerUnit <= 0)
-                throw new InvalidDataException("Enemy sprite manifest is incomplete for " + candidateId);
             var existing = anchor.Find(stableId);
             if (existing != null) throw new InvalidOperationException("Enemy is already authored at " + stableId);
-            PrepareAssets(candidateId, directory, manifest, spec.poses);
-            var clips = ImportClips(candidateId, manifest, spec.poses);
-            if (candidateId == "SS-B01") clips = clips.Append(ImportMotherCorpse(artRoot)).ToArray();
+            var clips = LoadClips(candidateId, artRoot, spec, out var manifest);
+            var material = LoadSpriteMaterial();
             var enemy = new GameObject(stableId);
             Undo.RegisterCreatedObjectUndo(enemy, "Place side-view enemy");
             enemy.transform.SetParent(anchor, false);
@@ -92,6 +92,7 @@ namespace Ossastra.SideView.Slice.Editor
             var visual = new GameObject("SourceSprites");
             visual.transform.SetParent(enemy.transform, false);
             var renderer = visual.AddComponent<SpriteRenderer>();
+            renderer.sharedMaterial = material;
             renderer.sprite = clips[0].frames[0];
             renderer.sortingOrder = 5;
             var drawnHeight = Mathf.Max(.01f, renderer.sprite.bounds.size.y);
@@ -102,6 +103,58 @@ namespace Ossastra.SideView.Slice.Editor
             EditorUtility.SetDirty(enemy.GetComponent<SideViewEnemySprites>());
             enemy.SetActive(true);
             return root;
+        }
+
+        /// <summary>在既有真实场景上补齐状态动画和受击材质，维持实例标记、碰撞和档案身份。</summary>
+        public static void UpgradeExisting(SliceEnemyRoot enemy, string artRoot)
+        {
+            if (enemy == null || !enemy.TryGetComponent<SideViewEnemySprites>(out var sprites))
+                throw new ArgumentException("Enemy upgrade requires an existing side-view root and sprite view.");
+            var marker = enemy.GetComponentInParent<SVSliceEnemySpawn>();
+            if (marker == null || string.IsNullOrWhiteSpace(marker.candidateId))
+                throw new InvalidOperationException("Missing candidate identity on " + enemy.name);
+            var renderer = new SerializedObject(sprites).FindProperty("visual").objectReferenceValue as SpriteRenderer;
+            if (renderer == null) throw new InvalidOperationException("Missing sprite view on " + enemy.name);
+            var material = LoadSpriteMaterial();
+            var clips = LoadClips(marker.candidateId, artRoot, Specification(marker.candidateId), out _);
+            Undo.RecordObjects(new UnityEngine.Object[] { sprites, renderer }, "Update side-view enemy appearance");
+            renderer.sharedMaterial = material;
+            sprites.Configure(renderer, clips, marker.candidateId != "SS-N03");
+            EditorUtility.SetDirty(sprites);
+            EditorUtility.SetDirty(renderer);
+        }
+
+        private static SideViewEnemySprites.Sequence[] LoadClips(string candidateId, string artRoot, Spec spec, out Manifest manifest)
+        {
+            var directory = candidateId.StartsWith("EM-", StringComparison.Ordinal)
+                ? Path.Combine(artRoot, "InPlace", candidateId)
+                : Path.Combine(artRoot, candidateId);
+            manifest = JsonUtility.FromJson<Manifest>(File.ReadAllText(Path.Combine(directory, "manifest.json")));
+            if (manifest?.import == null || manifest.clips == null || manifest.import.pixelsPerUnit <= 0)
+                throw new InvalidDataException("Enemy sprite manifest is incomplete for " + candidateId);
+            PrepareAssets(candidateId, directory, manifest, spec.poses);
+            var clips = ImportClips(candidateId, manifest, spec.poses);
+            return candidateId == "SS-B01" ? clips.Append(ImportMotherCorpse(artRoot)).ToArray() : clips;
+        }
+
+        private static Material LoadSpriteMaterial()
+        {
+            var material = AssetDatabase.LoadAssetAtPath<Material>(SpriteMaterial);
+            var shader = Shader.Find("Ossastra/Combat/SideViewHitSprite");
+            if (shader == null || !shader.isSupported)
+                throw new InvalidOperationException("横版敌人受击 Shader 未导入或不受支持。");
+            if (material != null)
+            {
+                if (material.shader != shader)
+                    throw new InvalidOperationException("共用敌人材质引用了其他 Shader：" + SpriteMaterial);
+                return material;
+            }
+            const string parent = "Assets/OSSASTRA/SideView/Slice";
+            if (!AssetDatabase.IsValidFolder(parent + "/Materials"))
+                AssetDatabase.CreateFolder(parent, "Materials");
+            material = new Material(shader);
+            AssetDatabase.CreateAsset(material, SpriteMaterial);
+            return material;
         }
 
         private static void PrepareAssets(string id, string directory, Manifest manifest, string[] names)
@@ -152,7 +205,8 @@ namespace Ossastra.SideView.Slice.Editor
                 result.Add(new SideViewEnemySprites.Sequence
                 {
                     key = Keys[index], sourceName = clip.name, framesPerSecond = clip.fps / stride, frames = sprites,
-                    loop = id.StartsWith("SS-") ? clip.wrapMode < 2 : index < 2 || (id != "EM-e0100" && (index == 3 || index == 7)),
+                    loop = id.StartsWith("SS-") ? clip.wrapMode < 2 : index < 2 || Keys[index] == "walk" ||
+                        (id != "EM-e0100" && (index == 3 || index == 7)),
                     loopStart = Mathf.Clamp(clip.loopStart / stride, 0, sprites.Length - 1)
                 });
             }
@@ -228,31 +282,33 @@ namespace Ossastra.SideView.Slice.Editor
                 case "SS-N03": return new Spec { kind = SideViewEnemyKind.Thumper, bodyHeight = 1.05f, visualHeight = 2.4f,
                     release = .72f, active = 1.05f, recovery = .44f, reach = .75f, radius = .72f,
                     wake = 5, range = 2.8f, vertical = 1.25f, speed = 1.3f, dash = 5.8f,
-                    hp = 45, damage = 10, poses = new[] { "Sleep", "Roar", "Roll Antic", "Roll Attack", "Roll End", "Death Land",
-                        null, null, null, "Roll Hit" } };
+                    hp = 45, damage = 10, poses = new[] { "Sleep", "Idle", "Roll Antic", "Roll Attack", "Roll End", "Death Land",
+                        null, null, null, "Roll Hit", "Roar", "Roll Turn" } };
                 case "SS-N01": return new Spec { kind = SideViewEnemyKind.Fly, bodyHeight = .56f, visualHeight = 1.35f,
                     release = .6f, active = .6f, recovery = .7f, reach = .55f, radius = .6f,
                     wake = 5, range = 2, vertical = 4.6f, speed = 2.3f, dash = 8,
-                    hp = 20, damage = 8, poses = new[] { "Fly", "Chase", "Antic", "Drill", "Drill End", "Death Land" } };
+                    hp = 20, damage = 8, poses = new[] { "Fly", "Chase", "Antic", "Drill", "Drill End", "Death Land",
+                        null, null, null, "Drill Bounce", "Startle" } };
                 case "SS-N02": return new Spec { kind = SideViewEnemyKind.Crawler, bodyHeight = .55f, visualHeight = .95f,
                     release = 0, active = .24f, recovery = .75f, reach = .15f, radius = .62f,
                     wake = 2, range = .85f, vertical = .82f, speed = 2, dash = 0,
-                    hp = 18, damage = 5, poses = new[] { "Walk", "Walk", "Walk", "Walk", "Walk", "Death Land" } };
+                    hp = 18, damage = 5, poses = new[] { "Walk", "Walk", "Walk", "Walk", "Walk", "Death Land",
+                        null, null, null, null, "Startle", "Turn", "Sing" } };
                 case "EM-e0161": return new Spec { kind = SideViewEnemyKind.Gang, bodyHeight = 1.65f, visualHeight = 3.1f,
                     release = 2, active = 1.667f, recovery = 2.5f, reach = 1.05f, radius = 1.8f,
                     wake = 7, range = 2.8f, vertical = 1.7f, speed = 1.65f, dash = 0,
                     hp = 62, damage = 14, poses = new[] { "idle", "walk", "attack_a_start", "attack_a_loop", "attack_a_end", "down_loop",
-                        "attack_b_start", "attack_b_loop", "attack_b_end" } };
+                        "attack_b_start", "attack_b_loop", "attack_b_end", null, "find_enemy", null, null, null, "walk", "damage_a_end" } };
                 case "EM-e0100": return new Spec { kind = SideViewEnemyKind.Mimic, bodyHeight = 1.05f, visualHeight = 2.1f,
                     release = .43f, active = 1.237f, recovery = 1.333f, reach = .7f, radius = .7f,
                     wake = 4, range = 2, vertical = 1.3f, speed = 0, dash = 4.7f,
                     hp = 35, damage = 10, poses = new[] { "idle_peace", "idle", "attack_a", "attack_a", "backstep", "down_loop",
-                        "attack_b", "attack_b", "backstep" } };
+                        "attack_b", "attack_b", "backstep", null, "wake", null, null, null, "walk", "damage_a_end" } };
                 case "SS-B01": return new Spec { kind = SideViewEnemyKind.Mother, bodyHeight = 1.85f, visualHeight = 3.2f,
                     release = .66f, active = .8f, recovery = .8f, reach = .8f, radius = 1.25f,
                     wake = 11, range = 4.5f, vertical = 4.8f, speed = 3.6f, dash = 7,
                     hp = 120, damage = 16, poses = new[] { "Fly", "Fly", "Antic", "Charge", "Charge Recover", null,
-                        "RoofAntic", "Smash", "Recover" } };
+                        "RoofAntic", "Smash", "Recover", null, "Roar", null, null, "FlyUp" } };
                 default: throw new ArgumentException("Unknown enemy candidate " + id);
             }
         }

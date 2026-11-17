@@ -30,8 +30,17 @@ namespace Ossastra.Development
         public static void Install()
         {
             var scene = SceneManager.GetActiveScene();
-            if (EditorApplication.isPlayingOrWillChangePlaymode || scene.path != ScenePath || scene.isDirty)
-                throw new InvalidOperationException("请在已保存的正式横版场的 Edit 模式装配。");
+            if (EditorApplication.isPlayingOrWillChangePlaymode || scene.isDirty)
+                throw new InvalidOperationException("请在已保存的横版场的 Edit 模式装配。");
+            InstallForScene(scene);
+            if (scene.isDirty && !EditorSceneManager.SaveScene(scene))
+                throw new InvalidOperationException("横版场菜单接线未保存。");
+        }
+
+        public static MenuInputAdapter InstallForScene(Scene scene)
+        {
+            if (!scene.IsValid() || !scene.isLoaded || EditorApplication.isPlayingOrWillChangePlaymode)
+                throw new InvalidOperationException("菜单装配需要已打开的横版编辑场景。");
             var installers = GetSceneItems<PlayerInputLayoutInstaller>(scene).ToArray();
             var systems = GetSceneItems<EventSystem>(scene).ToArray();
             if (installers.Length != 1 || installers[0].layout == null || installers[0].inventory == null ||
@@ -59,8 +68,7 @@ namespace Ossastra.Development
                 PrefabUtility.RecordPrefabInstancePropertyModifications(installer);
                 EditorSceneManager.MarkSceneDirty(scene);
             }
-            if (scene.isDirty && !EditorSceneManager.SaveScene(scene))
-                throw new InvalidOperationException("正式场菜单接线未保存。");
+            return adapter;
         }
 
         private static GameMenuTheme RebuildReferenceTheme()

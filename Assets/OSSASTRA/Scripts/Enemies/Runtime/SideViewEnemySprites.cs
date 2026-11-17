@@ -1,3 +1,8 @@
+/*
+ * 脚本：SideViewEnemySprites
+ * 功能：依据敌人策略、正式受击和死亡事实播放参考帧。
+ * 职责：保持动画阶段衔接、帧朝向和爬行表面朝向；不决定敌人状态或伤害。
+ */
 using System;
 using Ossastra.Combat;
 using UnityEngine;
@@ -43,7 +48,8 @@ namespace Ossastra.Enemies
         private void LateUpdate()
         {
             if (visual == null || brain == null || vitals == null || vitals.Health == null) return;
-            var key = vitals.IsAlive ? GetLiveKey() : "death";
+            var key = vitals.IsAlive ? brain.AnimationKey : "death";
+            if (vitals.IsHitReacting && brain.Phase < SideViewEnemyPhase.Windup && Find("hurt") != null) key = "hurt";
             var next = Find(key) ?? (vitals.IsAlive ? Find("idle") : null);
             if (next == null || next.frames.Length == 0)
             {
@@ -67,20 +73,6 @@ namespace Ossastra.Enemies
                     : current.frames.Length - 1;
             visual.transform.localRotation = Quaternion.Euler(0, 0, brain.VisualAngle);
             visual.sprite = current.frames[frame];
-        }
-
-        private string GetLiveKey()
-        {
-            switch (brain.Phase)
-            {
-                case SideViewEnemyPhase.Windup: return brain.SecondMove && Find("windup2") != null ? "windup2" : "windup";
-                case SideViewEnemyPhase.Active:
-                    if (brain.Bumped && Find("bump") != null) return "bump";
-                    return brain.SecondMove && Find("active2") != null ? "active2" : "active";
-                case SideViewEnemyPhase.Recovery: return brain.SecondMove && Find("recover2") != null ? "recover2" : "recover";
-                case SideViewEnemyPhase.Alert: return "alert";
-                default: return "idle";
-            }
         }
 
         private Sequence Find(string key)

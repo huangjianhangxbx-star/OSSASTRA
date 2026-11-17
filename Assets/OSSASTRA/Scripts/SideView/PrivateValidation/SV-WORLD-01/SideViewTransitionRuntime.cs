@@ -13,6 +13,7 @@ using Ossastra.Inventory;
 using Ossastra.Commerce.Runtime;
 using Ossastra.WorldProps;
 using Ossastra.WorldTransition;
+using Ossastra.SideView.Slice;
 
 namespace Ossastra.SideViewWorld
 {
@@ -181,16 +182,19 @@ namespace Ossastra.SideViewWorld
             var commerce = FindObjectOfType<CommerceService>(true);
             var worldProps = FindObjectOfType<WorldPropsRoot>(true);
             var cameraFollow = FindObjectOfType<SideViewCameraFollow>(true);
+            var destination = SceneManager.GetActiveScene();
             for (var frames = 0; frames < 120 && arrivalConfirmed
                     && (inventory == null || !inventory.Ready || commerce == null
-                        || !commerce.Ready || worldProps == null || !worldProps.Ready); frames++)
+                        || !commerce.Ready || worldProps == null || !worldProps.Ready
+                        || !FormalSideViewScene.IsReady(destination, out _)); frames++)
             {
                 yield return null;
                 inventory = FindObjectOfType<InventorySession>(true);
                 commerce = FindObjectOfType<CommerceService>(true);
                 worldProps = FindObjectOfType<WorldPropsRoot>(true);
             }
-            if (!arrivalConfirmed || !actorRestored || inventory == null || !inventory.Ready
+            var gameplayReady = FormalSideViewScene.IsReady(destination, out var gameplayError);
+            if (!gameplayReady || !arrivalConfirmed || !actorRestored || inventory == null || !inventory.Ready
                 || commerce == null || !commerce.Ready || commerce.SaveStatus == null
                 || !commerce.SaveStatus.CanEdit || worldProps == null || !worldProps.Ready
                 || !string.Equals(commerce.mapId, SideViewTransitionCatalog.MapIdForScene(activeTicket.DestinationScene), StringComparison.Ordinal)
@@ -200,7 +204,8 @@ namespace Ossastra.SideViewWorld
             {
                 tickets.Abort(activeTicket.Id);
                 Phase = "source-recovery";
-                Status = "目标落点或横版会话未就绪，尝试返回";
+                Status = "目标横版会话未就绪：" + (gameplayError ?? "落点、角色或存档未恢复");
+                Debug.LogError("[SideViewTransition] " + Status, this);
                 recoveryPending = true;
                 AsyncOperation recovery = null;
                 try { recovery = LoadSingle(sourceScenePath); }
@@ -208,7 +213,7 @@ namespace Ossastra.SideViewWorld
                 if (recovery != null)
                     while (!recovery.isDone) yield return null;
                 Status = recovery == null ? "返回源场失败：" + (error ?? "未知原因")
-                    : "已返回源场；目标横版会话未就绪";
+                    : "已返回源场；" + (gameplayError ?? "目标横版会话未就绪");
                 yield return FinishFailure();
                 yield break;
             }

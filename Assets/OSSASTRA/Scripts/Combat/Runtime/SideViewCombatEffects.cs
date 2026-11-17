@@ -214,6 +214,8 @@ namespace Ossastra.Combat
                 material = new Material(shader) { name = "SideViewCombatEffects", hideFlags = HideFlags.DontSave };
         }
 
+        public bool IsReady => material != null;
+
         internal SideViewEffectAdmission Play(SideViewEffectShape shape, SideViewEffectRecipe recipe, Vector3 point,
             Vector3 direction, CharacterMovement body = null, Color? tint = null, Vector3 anchorOffset = default)
         {
@@ -444,4 +446,3 @@ namespace Ossastra.Combat
         }
     }
 }
-

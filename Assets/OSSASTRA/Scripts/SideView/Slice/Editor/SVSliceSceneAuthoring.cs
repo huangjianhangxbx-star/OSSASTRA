@@ -44,6 +44,9 @@ namespace Ossastra.SideView.Slice
             var profile = GetCameraProfile();
             var paths = new[] { TowerRest, TowerLift, TowerCombat, TowerBoss };
             var optionalArt = LoadLocalTowerArt();
+            var first = EditorSceneManager.OpenScene(Tut01);
+            FormalSideViewSceneAuthoring.InstallGameplay(first);
+            EditorSceneManager.SaveScene(first);
             foreach (var path in paths) AssembleTowerRoom(path, profile, optionalArt);
             PatchOpening(Tut01);
             PatchOpening(Tut02);
@@ -83,6 +86,7 @@ namespace Ossastra.SideView.Slice
                 ConfigureBoss(context, art);
             SetCameraProfile(context, profile);
             WireComparison(context, deck);
+            FormalSideViewSceneAuthoring.InstallGameplay(scene);
             EditorSceneManager.SaveScene(scene);
         }
 
@@ -210,6 +214,7 @@ namespace Ossastra.SideView.Slice
             }
             else ConfigureProgress(context, anchor);
             EnableRenderControls(context);
+            FormalSideViewSceneAuthoring.InstallGameplay(scene);
             EditorSceneManager.SaveScene(scene);
         }
 

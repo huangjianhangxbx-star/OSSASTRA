@@ -1,3 +1,4 @@
+// 横版俯冲按主手手势认领输入，沿用角色的动作、费用和运动权威。
 using System.Linq;
 using UnityEngine;
 
@@ -29,8 +30,7 @@ namespace Ossastra.Characters
                 return false;
             var motion = owner.StateArbitrator.Movement;
             if (!motion.IsAirborne && !motion.TraversalBlocksAttack) return false;
-            if (!TryGetComponent<SideViewDiveMount>(out var mount) || !mount.isActiveAndEnabled ||
-                !mount.PreviewEnabled || mount.Definition == null ||
+            if (!TryGetComponent<SideViewDiveMount>(out var mount) || !mount.IsAvailable ||
                 !(mount.Definition.executor is SideViewDiveAbilitySO executor))
                 return false;
 
