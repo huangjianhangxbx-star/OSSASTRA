@@ -264,8 +264,46 @@ namespace Ossastra.SideView.TerrainWorkshop
                     shelf.DrawLibrary(map.library, kit, () => Refresh(true));
                     shelf.DrawCalibration(kit, () => Refresh(true), () => { trial = null; Repaint(); });
                 }
+                DrawMapUsages();
                 DrawTrial();
             }
+        }
+
+        private TerrainSolution usageSolution;
+        private TerrainArt usageArt;
+        private TerrainPart[] usages = Array.Empty<TerrainPart>();
+        private int usageIndex;
+
+        private void DrawMapUsages()
+        {
+            if (root == null || result == null || shelf.Item == null) return;
+            if (usageSolution != result || usageArt != shelf.Item)
+            {
+                usageSolution = result;
+                usageArt = shelf.Item;
+                usages = result.Parts.Where(part => part.Art == usageArt).ToArray();
+                usageIndex = 0;
+            }
+            EditorGUILayout.LabelField($"当前地图使用「{usageArt.name}」共 {usages.Length} 处");
+            if (usages.Length == 0) return;
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                if (GUILayout.Button("上一处")) usageIndex = (usageIndex + usages.Length - 1) % usages.Length;
+                GUILayout.Label($"{usageIndex + 1} / {usages.Length}");
+                if (GUILayout.Button("下一处")) usageIndex = (usageIndex + 1) % usages.Length;
+                if (GUILayout.Button("定位"))
+                {
+                    picked = usages[usageIndex];
+                    issue = null;
+                    var view = SceneView.lastActiveSceneView;
+                    if (view != null)
+                    {
+                        view.pivot = root.transform.TransformPoint(picked.Bounds.center);
+                        view.Repaint();
+                    }
+                }
+            }
+            EditorGUILayout.LabelField(usages[usageIndex].Key, EditorStyles.wordWrappedMiniLabel);
         }
 
         private void CopyKit()

@@ -19,6 +19,7 @@ namespace Ossastra.SideView.TerrainWorkshop
             EditorPrefs.GetString(FavoriteKey, "").Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries));
         private string query = "", theme = "", purpose = "", origin = "";
         private string importMessage;
+        private TerrainRule selectedVariant;
         private int stateFilter, previewBackground;
         private bool libraryExpanded = true, onlyFavorites, filtersExpanded, sourceExpanded;
         private bool cropMode, detailsExpanded;
@@ -100,7 +101,7 @@ namespace Ossastra.SideView.TerrainWorkshop
                     for (int i = row; i < Math.Min(row + 3, Slots.Length); i++)
                         DrawSlot(kit, Slots[i], changed);
             }
-            var rule = kit.Rule(Slot);
+            var rule = DrawVariants(kit, changed);
             if (rule == null || rule.art == null)
             {
                 if (Slot == TerrainSlot.Fill)
@@ -111,6 +112,52 @@ namespace Ossastra.SideView.TerrainWorkshop
             else DrawCalibrationImage(kit, rule, changed, preview);
 
             if (rule != null) DrawRuleFields(kit, rule, changed);
+        }
+
+        private TerrainRule ActiveRule(TerrainKit kit, TerrainSlot slot)
+        {
+            if (selectedVariant != null && selectedVariant.slot == slot && kit.rules.Contains(selectedVariant))
+                return selectedVariant;
+            return kit.Rule(slot);
+        }
+
+        private TerrainRule DrawVariants(TerrainKit kit, Action changed)
+        {
+            var active = ActiveRule(kit, Slot);
+            if (active == null || Slot == TerrainSlot.Fill || Slot == TerrainSlot.Attached || Slot == TerrainSlot.Cap)
+                return active;
+
+            var options = kit.rules.Where(rule => rule != null && rule.slot == Slot).ToArray();
+            var names = options.Select((rule, i) => $"{i + 1}. {(rule.art != null ? rule.art.name : "空")}").ToArray();
+            selectedVariant = options[EditorGUILayout.Popup("当前变体", Array.IndexOf(options, active), names)];
+            using (new EditorGUI.DisabledScope(Item == null || options.Any(rule => rule.art == Item)))
+            {
+                if (GUILayout.Button("将选中素材添加为变体"))
+                {
+                    Undo.RecordObject(kit, "添加地形变体");
+                    var added = JsonUtility.FromJson<TerrainRule>(JsonUtility.ToJson(selectedVariant));
+                    added.art = Item;
+                    added.weight = 1;
+                    kit.rules = kit.rules.Append(added).ToArray();
+                    selectedVariant = added;
+                    kit.state = 1;
+                    referencedKits = null;
+                    Notify(kit, changed);
+                }
+            }
+            using (new EditorGUI.DisabledScope(options.Length < 2))
+            {
+                if (GUILayout.Button("移除当前变体"))
+                {
+                    Undo.RecordObject(kit, "移除地形变体");
+                    kit.rules = kit.rules.Where(rule => rule != selectedVariant).ToArray();
+                    selectedVariant = kit.Rule(Slot);
+                    kit.state = 1;
+                    referencedKits = null;
+                    Notify(kit, changed);
+                }
+            }
+            return selectedVariant;
         }
 
         public bool AssignSelected(TerrainKit kit, TerrainSlot slot, Action changed) => Assign(kit, slot, Item, changed);
@@ -380,7 +427,7 @@ namespace Ossastra.SideView.TerrainWorkshop
 
         private void DrawSlot(TerrainKit kit, TerrainSlot slot, Action changed)
         {
-            var rule = kit.Rule(slot);
+            var rule = ActiveRule(kit, slot);
             string state = rule?.art != null ? "● " : slot == TerrainSlot.Fill ? "◐ " : "○ ";
             var area = GUILayoutUtility.GetRect(0, 24, GUILayout.ExpandWidth(true));
             if (GUI.Toggle(area, slot == Slot, new GUIContent(state + Label(slot), rule?.art != null ? rule.art.name : "拖入素材"), EditorStyles.miniButton))
@@ -610,7 +657,7 @@ namespace Ossastra.SideView.TerrainWorkshop
         private bool Assign(TerrainKit kit, TerrainSlot slot, TerrainArt art, Action changed)
         {
             if (kit == null || art == null) return false;
-            var rule = kit.Rule(slot);
+            var rule = ActiveRule(kit, slot);
             if (rule?.art == art) return false;
             Undo.RecordObject(kit, "分配地形饰边素材");
             if (rule == null)

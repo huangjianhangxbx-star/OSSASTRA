@@ -385,7 +385,8 @@ namespace Ossastra.SideView.TerrainWorkshop
             var matches = kit.rules.Where(rule => rule != null && rule.slot == slot && HasArt(rule.art) && rule.weight > 0 &&
                 rule.placement == reference.placement && Mathf.Approximately(rule.span, reference.span) &&
                 Mathf.Approximately(rule.spacing, reference.spacing) && Mathf.Approximately(rule.overlap, reference.overlap)).ToArray();
-            if (matches.Length <= 1) return reference;
+            if (matches.Length == 0) return reference;
+            if (matches.Length == 1) return matches[0];
             float value = Stable01(kit.Id + "|" + key) * matches.Sum(rule => rule.weight);
             foreach (var match in matches)
             {
