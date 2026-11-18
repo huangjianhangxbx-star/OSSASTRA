@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <LangVersion>9.0</LangVersion>
+    <ImplicitUsings>disable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../../../Assets/OSSASTRA/Scripts/SideView/Terrain/Core/TerrainGrid.cs" Link="TerrainGrid.cs"/>
+  </ItemGroup>
+</Project>
