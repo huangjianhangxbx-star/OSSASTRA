@@ -26,6 +26,7 @@ namespace Ossastra.SideView.Slice
             {
                 case Recipe.Legacy: comparison.SelectLegacy(); break;
                 case Recipe.Silksong: comparison.SelectSilksong(); break;
+                case Recipe.OSLight: comparison.SelectOSLight(); break;
                 case Recipe.Ace: comparison.SelectAce(); break;
             }
             if (!selectedRecipe.HasValue) return;

@@ -27,6 +27,17 @@ namespace Ossastra.Characters.Rendering
         [SerializeField] private Vector4 aceOuter = new Vector4(3.8f, .48f, .26f, 1.25f);
         [SerializeField] private Vector4 aceShoulder = new Vector4(.85f, 1.2f, .016f, .14f);
 
+        // 参数顺序与联合剪影的正式角色槽一致，只在 D 生效。
+        private readonly Vector4[] candidateBody = { new Vector4(1, .32f, .65f, 0), new Vector4(1, .32f, .65f, 0) };
+        private readonly Vector4[] candidateEdges = { new Vector4(2.5f, .8f, 3.8f, .48f), new Vector4(2.5f, .8f, 3.8f, .48f) };
+        public void SetCandidateActor(int slot, Vector3 body, Vector4 edges)
+        {
+            if (slot < 0 || slot >= candidateBody.Length) return;
+            candidateBody[slot] = new Vector4(Mathf.Clamp(body.x, .5f, 1.5f), Mathf.Clamp01(body.y), Mathf.Clamp01(body.z), 0);
+            candidateEdges[slot] = new Vector4(Mathf.Clamp(edges.x, 1, 8), Mathf.Clamp(edges.y, 0, 3),
+                Mathf.Clamp(edges.z, 1, 4), Mathf.Clamp(edges.w, 0, 2));
+        }
+
         private static readonly int PresentationOffsetId = Shader.PropertyToID("_SideViewPresentationOffset");
         private static readonly int OriginalTintId = Shader.PropertyToID("_SideViewOriginalHeroTint");
         private static readonly int FusionActorId = Shader.PropertyToID("_SideViewAceFusionActor");
@@ -85,7 +96,7 @@ namespace Ossastra.Characters.Rendering
         private void PublishPresentation(ScriptableRenderContext context, Camera renderingCamera)
         {
             if (renderingCamera != camera) return;
-            Shader.SetGlobalVector("_SideViewAceColorDiagnostic", comparison != null && comparison.UsesAceCharacterMaterial
+            Shader.SetGlobalVector("_SideViewAceColorDiagnostic", comparison != null && comparison.UsesAceCharacterMaterial && !comparison.IsOSLightCandidate
                 ? aceColorDiagnostic : Vector4.zero);
             PublishMaterialStrategy(comparison != null && comparison.UsesAceCharacterMaterial);
             // URP snapshots renderer properties for drawing before the coverage pass runs.
@@ -113,7 +124,7 @@ namespace Ossastra.Characters.Rendering
                     WritePresentationOffset(renderer, offset, originalTint, fusion && i < fusionBindings.Length ? i + 1 : 0);
                     stale.Remove(renderer);
                 }
-                if (fusion && i < fusionBindings.Length && outerEnabled && aceOuter.y > 0 && aceOuter.z > 0)
+                if (fusion && i < fusionBindings.Length && (comparison.IsOSLightCandidate ? candidateEdges[i].w > 0 : outerEnabled && aceOuter.y > 0 && aceOuter.z > 0))
                     GetOuter(actor).ArmFusion(camera, i);
             }
             foreach (var renderer in stale)
@@ -208,16 +219,28 @@ namespace Ossastra.Characters.Rendering
             cmd.SetGlobalVectorArray("_SideViewAceFusionTile", fusionTiles);
             cmd.SetGlobalVector("_SideViewAceFusionScreen", new Vector4(width, height, 1f / width, 1f / height));
             cmd.SetGlobalVector("_SideViewAceFusionTexel", atlas != null ? new Vector4(1f / atlas.width, 1f / atlas.height, 0, 0) : Vector4.zero);
-            Vector4 rim = useCalibratedAceRim ? aceCalibratedRim : aceRim;
+            bool candidate = comparison.IsOSLightCandidate;
+            Vector4 rim = !candidate && useCalibratedAceRim ? aceCalibratedRim : aceRim;
             if (!innerEnabled) rim.z = 0;
             cmd.SetGlobalVector("_SideViewAceFusionRim", rim);
             cmd.SetGlobalVector("_SideViewAceFusionShoulder", aceShoulder);
+            if (candidate)
+            {
+                cmd.SetGlobalVectorArray("_SvCandidateActorBody", candidateBody);
+                cmd.SetGlobalVectorArray("_SvCandidateActorEdges", candidateEdges);
+            }
             for (int i = 0; i < Mathf.Min(actors.Length, fusionBindings.Length); i++)
                 if (actors[i] != null && outer.TryGetValue(actors[i], out var glow))
                 {
                     var binding = fusionBindings[i];
-                    if (outerEnabled && aceColorDiagnostic.x < .5f && atlas != null && binding.Owner != null)
-                        glow.PresentFusion(cmd, binding, atlas, aceOuter, fusionBindings[1 - i]);
+                    Vector4 settings = aceOuter;
+                    if (candidate)
+                    {
+                        settings.x = candidateEdges[i].z;
+                        settings.y = candidateEdges[i].w;
+                    }
+                    if ((candidate ? settings.y > 0 : outerEnabled && aceColorDiagnostic.x < .5f) && atlas != null && binding.Owner != null)
+                        glow.PresentFusion(cmd, binding, atlas, settings, fusionBindings[1 - i]);
                     else glow.Hide();
                 }
         }

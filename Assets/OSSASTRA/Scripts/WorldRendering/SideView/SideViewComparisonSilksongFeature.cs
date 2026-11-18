@@ -28,7 +28,7 @@ namespace Ossastra.WorldRendering.SideView
             var camera = data.cameraData.camera;
             if (camera == null || camera.cameraType != CameraType.Game) return;
             int id = camera.GetInstanceID();
-            if (!camera.TryGetComponent<SideViewRenderComparison>(out var comparison) || !comparison.IsSilksong ||
+            if (!camera.TryGetComponent<SideViewRenderComparison>(out var comparison) || !comparison.UsesLayeredWorld ||
                 data.cameraData.postProcessEnabled || data.cameraData.renderType != CameraRenderType.Base)
             {
                 Release(id);
@@ -170,12 +170,14 @@ namespace Ossastra.WorldRendering.SideView
                 var nearDrawing = CreateDrawingSettings(NearTag, ref data, SortingCriteria.CommonTransparent);
                 context.DrawRenderers(data.cullResults, ref nearDrawing, ref filtering);
 
-                if (comparison.TryGetHeroLightRect(out var rect))
+                if ((!comparison.IsOSLightCandidate || SideViewOSLightControls.HeroLightEnabled) && comparison.TryGetHeroLightRect(out var rect))
                 {
                     Blitter.BlitCameraTexture(cmd, cameraColor, backdrop);
                     cmd.SetGlobalTexture(LightTextureId, comparison.HeroLight);
                     cmd.SetGlobalVector(LightRectId, rect);
-                    cmd.SetGlobalVector(LightTintId, comparison.HeroLightGamma);
+                    var tint = comparison.HeroLightGamma;
+                    if (comparison.IsOSLightCandidate) tint.a = .722f;
+                    cmd.SetGlobalVector(LightTintId, tint);
                     Blitter.BlitCameraTexture(cmd, backdrop, cameraColor, material, 1);
                 }
                 CoreUtils.SetRenderTarget(cmd, cameraColor, cameraDepth);
@@ -259,16 +261,21 @@ namespace Ossastra.WorldRendering.SideView
                 SideViewComparisonDarkness.ClearBindings(cmd);
                 cmd.SetGlobalVector(SourceSizeId, TexelSize(source));
                 cmd.SetGlobalVector(BloomSizeId, TexelSize(bloom));
-                Blitter.BlitCameraTexture(cmd, source, bloom, material, 0);
-                for (int iteration = 0; iteration < 2; iteration++)
+                if (!comparison.IsOSLightCandidate || SideViewOSLightControls.BloomEnabled)
                 {
-                    cmd.SetGlobalFloat(IterationId, iteration);
-                    cmd.SetGlobalVector(SourceSizeId, TexelSize(bloom));
-                    Blitter.BlitCameraTexture(cmd, bloom, bloomScratch, material, 1);
-                    cmd.SetGlobalVector(SourceSizeId, TexelSize(bloomScratch));
-                    Blitter.BlitCameraTexture(cmd, bloomScratch, bloom, material, 2);
+                    Blitter.BlitCameraTexture(cmd, source, bloom, material, 0);
+                    for (int iteration = 0; iteration < 2; iteration++)
+                    {
+                        cmd.SetGlobalFloat(IterationId, iteration);
+                        cmd.SetGlobalVector(SourceSizeId, TexelSize(bloom));
+                        Blitter.BlitCameraTexture(cmd, bloom, bloomScratch, material, 1);
+                        cmd.SetGlobalVector(SourceSizeId, TexelSize(bloomScratch));
+                        Blitter.BlitCameraTexture(cmd, bloomScratch, bloom, material, 2);
+                    }
+                    cmd.SetGlobalTexture(BloomId, bloom.nameID);
                 }
-                cmd.SetGlobalTexture(BloomId, bloom.nameID);
+                else cmd.SetGlobalTexture(BloomId, Texture2D.blackTexture);
+                cmd.SetGlobalFloat("_SvSkipCandidateCurves", comparison.IsOSLightCandidate && !SideViewOSLightControls.GradeEnabled ? 1 : 0);
                 cmd.SetGlobalVector(BloomScaleId, new Vector4(1, 1, 0, 0));
                 cmd.SetGlobalVector(SourceSizeId, TexelSize(source));
                 Blitter.BlitCameraTexture(cmd, source, cameraColor, material, 3);

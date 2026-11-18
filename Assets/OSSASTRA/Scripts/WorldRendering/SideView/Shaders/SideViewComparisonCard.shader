@@ -38,7 +38,9 @@ Shader "Ossastra/SideView/ComparisonCard"
         float4 _Color, _SideViewOriginalColorScale;
         float _Premultiply, _BlurPixels, _SideViewEnvironmentRole, _SideViewMetadataRole, _SideViewOriginalAmbient;
         float _SideViewRenderMode, _SideViewSplitBackground, _SideViewFarBackground, _SideViewBelowActors, _SideViewReplacementCoverage;
-        float _SideViewAceSurfaceResponse;
+        float _SideViewAceSurfaceResponse, _SvOSLightCandidate;
+        float4x4 _SvWorldToLightClip;
+        float4 _SvWorldLightClear;
         float4 _SideViewAmbientGamma;
         struct Attributes { float4 position : POSITION; float2 uv : TEXCOORD0; float4 color : COLOR; };
         struct Varyings { float4 position : SV_POSITION; float2 uv : TEXCOORD0; float4 color : COLOR; float3 world : TEXCOORD1; };
@@ -74,6 +76,18 @@ Shader "Ossastra/SideView/ComparisonCard"
         {
             float4 sample = SampleCard(input, applyCardBlur);
             sample.rgb = SideViewOriginalWorldColor(sample.rgb, input.color.rgb, _SideViewAmbientGamma.rgb, _SideViewOriginalAmbient);
+            if (_SvOSLightCandidate > .5 && _SideViewAceLightMapsReady > .5 && _SideViewAceSurfaceResponse > 0 && sample.a * input.color.a > 0)
+            {
+                float4 projected = mul(_SvWorldToLightClip, float4(input.world, 1));
+                float2 uv = projected.xy / projected.w * .5 + .5;
+                #if UNITY_UV_STARTS_AT_TOP
+                    uv.y = 1 - uv.y;
+                #endif
+                float3 local = SAMPLE_TEXTURE2D(_SideViewAceWorldAmbient, sampler_LinearClamp, uv).rgb;
+                // 灯图保存显示域数值。以半精度清屏值为零点，在直线颜色域只施加局部变化。
+                float3 delta = SideViewAceDecode(local) - SideViewAceDecode(f16tof32(f32tof16(_SvWorldLightClear.rgb)));
+                sample.rgb *= 1 + clamp(delta, -.65, 1.25) * saturate(_SideViewAceSurfaceResponse);
+            }
             sample.a *= input.color.a;
             sample.rgb *= lerp(1, sample.a, _Premultiply);
             return sample;

@@ -40,6 +40,7 @@ Shader "Hidden/Ossastra/SideView/ComparisonSilksongGrade"
         float4 _SvBloomScaleBias;
         float _SvBloomIteration;
 
+        float _SvSkipCandidateCurves;
         CBUFFER_START(UnityPerMaterial)
             float4 _SvNoiseColor;
             float _SvBloomEnabled;
@@ -165,7 +166,7 @@ Shader "Hidden/Ossastra/SideView/ComparisonSilksongGrade"
             }
             if (_SvNoiseStrength > 0.0)
                 displayRgb = ApplyCameraNoise(displayRgb, viewportUv);
-            if (_SvGradeEnabled > 0.5)
+            if (_SvGradeEnabled > 0.5 && _SvSkipCandidateCurves < 0.5)
                 displayRgb = ApplyRgbCurves(displayRgb);
 
             displayRgb = (displayRgb * _SvBrightness - 0.5) * _SvContrast + 0.5;

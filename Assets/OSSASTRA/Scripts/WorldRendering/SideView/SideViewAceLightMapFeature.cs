@@ -166,6 +166,9 @@ namespace Ossastra.WorldRendering.SideView
                 {
                     int draws = DrawGroup(cmd, world, SideViewAceLightGroups.World, owner.Ambient(false), projection) +
                                 DrawGroup(cmd, character, SideViewAceLightGroups.Character, owner.Ambient(true), projection);
+                    // 远景目标为 360p，直接复用灯图的世界投影矩阵。
+                    cmd.SetGlobalMatrix("_SvWorldToLightClip", projection);
+                    cmd.SetGlobalVector("_SvWorldLightClear", (Vector4)owner.Ambient(false));
                     world.Publish(cmd);
                     character.Publish(cmd);
                     int edgeDraws = 0;

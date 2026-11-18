@@ -21,7 +21,7 @@ namespace Ossastra.WorldRendering.SideView
     [DisallowMultipleComponent, RequireComponent(typeof(Camera), typeof(SideViewCharacterRendering))]
     public sealed class SideViewRenderComparison : MonoBehaviour
     {
-        public enum Recipe { Legacy = 1, Silksong = 2, Ace = 3 }
+        public enum Recipe { Legacy = 1, Silksong = 2, Ace = 3, OSLight = 4 }
         public enum AceCharacterMaterial { Original, Replica, Fusion }
 
         [Serializable]
@@ -32,6 +32,7 @@ namespace Ossastra.WorldRendering.SideView
             [Min(0)] public float seconds;
         }
 
+        private static readonly int CandidateId = Shader.PropertyToID("_SvOSLightCandidate");
         private static readonly int ModeId = Shader.PropertyToID("_SideViewRenderMode");
         private static readonly int SplitId = Shader.PropertyToID("_SideViewSplitBackground");
         private static readonly int AmbientId = Shader.PropertyToID("_SideViewAmbientGamma");
@@ -70,6 +71,7 @@ namespace Ossastra.WorldRendering.SideView
         private readonly Dictionary<Renderer, (Material source, Material owned)> assignments = new();
         private readonly Dictionary<(Material source, float role, float meta, float ambient, Vector4 tint, bool far, bool below, bool replace, float aceResponse), Material> variants = new();
         private readonly Dictionary<SideViewActor, TintState> heroTints = new(2);
+        private IReadOnlyList<SideViewComparisonCardCatalog.Entry> boundEntries;
         private Camera ownedCamera;
         private SideViewCharacterRendering characters;
         private Recipe requested = Recipe.Legacy;
@@ -88,9 +90,11 @@ namespace Ossastra.WorldRendering.SideView
         public Recipe? Active { get; private set; }
         public AceCharacterMaterial ActiveAceMaterial { get; private set; } = AceCharacterMaterial.Replica;
         public string Status { get; private set; }
+        public bool IsOSLightCandidate => Active == Recipe.OSLight;
+        internal bool UsesLayeredWorld => IsSilksong || IsOSLightCandidate;
         internal bool IsSilksong => Active == Recipe.Silksong;
-        internal bool UsesAceCharacterMaterial => Active == Recipe.Ace && ActiveAceMaterial != AceCharacterMaterial.Original;
-        internal bool UsesAceFusionMaterial => Active == Recipe.Ace && ActiveAceMaterial == AceCharacterMaterial.Fusion;
+        internal bool UsesAceCharacterMaterial => IsOSLightCandidate || Active == Recipe.Ace && ActiveAceMaterial != AceCharacterMaterial.Original;
+        internal bool UsesAceFusionMaterial => IsOSLightCandidate || Active == Recipe.Ace && ActiveAceMaterial == AceCharacterMaterial.Fusion;
         internal Material SilksongLayers => silksongLayers;
         internal Material SilksongGrade => silksongGrade;
         internal Texture2D HeroLight => heroLight;
@@ -104,6 +108,7 @@ namespace Ossastra.WorldRendering.SideView
 
         public void SelectLegacy() => requested = Recipe.Legacy;
         public void SelectSilksong() => requested = Recipe.Silksong;
+        public void SelectOSLight() => requested = Recipe.OSLight;
         public void SelectAce() => requested = Recipe.Ace;
         public void SelectAceOriginal() => requestedAceMaterial = AceCharacterMaterial.Original;
         public void SelectAceReplica() => requestedAceMaterial = AceCharacterMaterial.Replica;
@@ -111,6 +116,7 @@ namespace Ossastra.WorldRendering.SideView
 
         private void Awake()
         {
+            SideViewOSLightControls.Attach(this, statusLabel, blue, freycia);
             requested = startupRecipe;
             requestedAceMaterial = startupAceMaterial;
         }
@@ -174,6 +180,7 @@ namespace Ossastra.WorldRendering.SideView
             }
 
             foreach (var pair in assignments) pair.Key.sharedMaterial = pair.Value.owned;
+            boundEntries = cards.Entries;
             return true;
         }
 
@@ -190,14 +197,25 @@ namespace Ossastra.WorldRendering.SideView
                 }
             }
             var cmd = CommandBufferPool.Get("Side view comparison camera scope");
-            if (Active == Recipe.Silksong)
+            if (UsesLayeredWorld)
             {
                 // 原作横版相机为单采样。B 的颜色链反复读取同一相机颜色，避免 URP 的多采样解析中途丢弃透明层。
                 savedCameraMsaa = camera.allowMSAA;
                 silksongMsaaLease = true;
                 camera.allowMSAA = false;
             }
-            cmd.SetGlobalFloat(ModeId, (float)Active.Value);
+            cmd.SetGlobalFloat(ModeId, UsesLayeredWorld ? (float)Recipe.Silksong : (float)Active.Value);
+            cmd.SetGlobalFloat(CandidateId, IsOSLightCandidate ? 1 : 0);
+            if (IsOSLightCandidate)
+            {
+                bool grade = SideViewOSLightControls.GradeEnabled && silksongGrade.GetFloat("_SvGradeEnabled") > .5f;
+                var lut = silksongGrade.GetTexture("_SvRgbLut");
+                cmd.SetGlobalTexture("_SvCandidateGradeLut", lut ? lut : Texture2D.whiteTexture);
+                cmd.SetGlobalVector("_SvCandidateGradeParams", new Vector4(grade && lut ? 1 : 0,
+                    silksongGrade.GetFloat("_SvBloomThreshold"),
+                    SideViewOSLightControls.BloomEnabled && silksongGrade.GetFloat("_SvBloomEnabled") > .5f
+                        ? silksongGrade.GetFloat("_SvBloomIntensity") : 0, silksongGrade.GetFloat("_SvWorldSaturation")));
+            }
             cmd.SetGlobalFloat(SplitId, 0);
             cmd.SetGlobalFloat(LegacyCoverageId, Active == Recipe.Legacy ? 1 : 0);
             cmd.SetGlobalVector(AmbientId, new Vector4(.469823548f, .511372566f, .527352956f, 1));
@@ -208,6 +226,22 @@ namespace Ossastra.WorldRendering.SideView
 
         private void LateUpdate()
         {
+            if ((aceRenderFailed || aceEdgesFailed) && IsOSLightCandidate && requested == Active)
+            {
+                requested = Recipe.Silksong;
+                TrySelect(requested);
+                Status = DescribeActive() + " · D 未生成本帧的分层、成片或方向灯图。";
+            }
+            if (Active.HasValue && (cards == null || !ReferenceEquals(boundEntries, cards.Entries)))
+            {
+                // 地编重铺替换整份登记表；先归还旧材质，随后只接管新登记对象。
+                ReleaseCards();
+                if (!TryPrepareCards())
+                {
+                    ReleaseMode();
+                    Active = null;
+                }
+            }
             if (aceRenderFailed && requested == Recipe.Ace)
             {
                 requested = aceReturnRecipe;
@@ -276,6 +310,9 @@ namespace Ossastra.WorldRendering.SideView
                     if (legacyWorldLook != null && legacyEnvironment != null) return true;
                     reason = "A 的旧主场配方未绑定。";
                     return false;
+                case Recipe.OSLight:
+                    return CanSelect(Recipe.Silksong, out reason) && CanSelect(Recipe.Ace, out reason)
+                        && TryPrepareAceMaterial(AceCharacterMaterial.Fusion, out reason);
                 case Recipe.Silksong:
                     if (silksongLayers != null && silksongLayers.shader.isSupported && silksongGrade != null &&
                         silksongGrade.shader.isSupported && heroLight != null && vignette != null && darknessShader != null &&
@@ -304,6 +341,8 @@ namespace Ossastra.WorldRendering.SideView
                     if (!legacyEnvironment.TryApply(ownedCamera, environment, sky, blue, freycia, out restoreLegacy, out reason))
                         return false;
                     return TryPublishLegacy(out reason);
+                case Recipe.OSLight:
+                    return aceLighting.TryActivate(ownedCamera, out reason);
                 case Recipe.Silksong:
                     return true;
                 case Recipe.Ace:
@@ -365,6 +404,7 @@ namespace Ossastra.WorldRendering.SideView
         {
             Recipe.Legacy => "A 旧主场完整渲染",
             Recipe.Silksong => "B 丝之歌渲染",
+            Recipe.OSLight => "D OSLight 融合",
             Recipe.Ace => ActiveAceMaterial switch
             {
                 AceCharacterMaterial.Original => "C ACELight · 旧材质参考",
@@ -477,12 +517,14 @@ namespace Ossastra.WorldRendering.SideView
         {
             if (camera != ownedCamera || !inRender) return;
             var cmd = CommandBufferPool.Get("Side view comparison camera cleanup");
+            cmd.SetGlobalFloat(CandidateId, 0);
             cmd.SetGlobalFloat(ModeId, 0);
             cmd.SetGlobalFloat(SplitId, 0);
             cmd.SetGlobalFloat(LegacyCoverageId, 0);
             context.ExecuteCommandBuffer(cmd);
             CommandBufferPool.Release(cmd);
-            if (Active == Recipe.Ace && aceLighting.LastLightMapFrame != Time.frameCount) aceRenderFailed = true;
+            if (IsOSLightCandidate && (LastBackgroundFrame != Time.frameCount || LastGradeFrame != Time.frameCount)) aceRenderFailed = true;
+            else if ((Active == Recipe.Ace || IsOSLightCandidate) && aceLighting.LastLightMapFrame != Time.frameCount) aceRenderFailed = true;
             else if (UsesAceFusionMaterial && aceLighting.LastTextureCount != 10) aceEdgesFailed = true;
             RestoreCameraSampling();
             inRender = false;
@@ -507,6 +549,7 @@ namespace Ossastra.WorldRendering.SideView
             foreach (var pair in assignments)
                 if (pair.Key != null && pair.Key.sharedMaterial == pair.Value.owned) pair.Key.sharedMaterial = pair.Value.source;
             assignments.Clear();
+            boundEntries = null;
             foreach (var variant in variants.Values) Destroy(variant);
             variants.Clear();
         }
@@ -526,6 +569,7 @@ namespace Ossastra.WorldRendering.SideView
             RestoreCameraSampling();
             if (aceCharacterControls != null) aceCharacterControls.SetActive(false);
             if (!inRender) return;
+            Shader.SetGlobalFloat(CandidateId, 0);
             Shader.SetGlobalFloat(ModeId, 0);
             Shader.SetGlobalFloat(SplitId, 0);
             Shader.SetGlobalFloat(LegacyCoverageId, 0);
