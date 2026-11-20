@@ -28,6 +28,9 @@ namespace Ossastra.Development
         public bool pressed, released, uiCaptured, grounded, allowsMove, allowsAttack;
         public double actionSeconds;
         public float visualFacing;
+        public float effectiveMarkerTime, collectedTrackTime, consumedUnscaledTime;
+        public int markerOccurrence, markerCycle, replay;
+        public long markerSequence;
         public Vector3 aim, arrivalDirection, releaseOrigin, sectorOrigin;
         public bool hasSector;
     }
@@ -243,10 +246,22 @@ namespace Ossastra.Development
 
         private void OnSignal(AnimationSignal signal)
         {
-            var e = Add("动画", "Spine · " + signal.Name, signal.Target + " · " + signal.Source, signal.ActionId);
+            string detail = signal.Calibrated
+                ? $"{signal.Animation} · {signal.Meaning}/{signal.Purpose} · 第 {signal.Occurrence + 1} 次 · 源 {signal.Time:F3}s → 校准 {signal.EffectiveTime:F3}s · 采集轨时 {signal.CollectedTime:F3}s"
+                : signal.Target + " · " + signal.Source;
+            var e = Add("动画", "Spine · " + signal.Name, detail, signal.ActionId);
             if (e == null) return;
             e.localTime = signal.Time; e.animationTrack = signal.Track; e.phase = Id(signal.PhaseId);
             e.source = signal.Source.ToString();
+            e.clip = signal.Animation;
+            e.semantic = signal.Calibrated ? signal.Meaning.ToString() : "";
+            e.effectiveMarkerTime = signal.EffectiveTime;
+            e.collectedTrackTime = signal.CollectedTime;
+            e.consumedUnscaledTime = signal.ConsumedTime;
+            e.markerOccurrence = signal.Occurrence;
+            e.markerCycle = signal.Cycle;
+            e.markerSequence = signal.Sequence;
+            e.replay = signal.ReplayId;
         }
 
         private void BindAnimationState()
@@ -256,6 +271,7 @@ namespace Ossastra.Development
             UnbindAnimationState();
             animationState = next;
             if (next == null) return;
+            next.Event += OnSourceEvent;
             next.Start += OnTrackStart;
             next.End += OnTrackEnd;
         }
@@ -263,9 +279,24 @@ namespace Ossastra.Development
         private void UnbindAnimationState()
         {
             if (animationState == null) return;
+            animationState.Event -= OnSourceEvent;
             animationState.Start -= OnTrackStart;
             animationState.End -= OnTrackEnd;
             animationState = null;
+        }
+
+        private void OnSourceEvent(TrackEntry entry, Spine.Event source)
+        {
+            if (!Recording || Frozen || entry == null || source == null) return;
+            var action = Guid.Empty;
+            if (animationHandle && animationHandle.IsCurrent(entry, out var bound)) action = bound.runtimeActionId;
+            var item = Add("动画", "Spine 源回调", $"{source.Data.Name} · {entry.Animation?.Name} · 轨道 {entry.TrackIndex}", action);
+            if (item == null) return;
+            item.animationTrack = entry.TrackIndex;
+            item.clip = entry.Animation?.Name;
+            item.localTime = source.Time;
+            item.collectedTrackTime = entry.TrackTime;
+            item.playbackRate = entry.TimeScale;
         }
 
         private void OnTrackStart(TrackEntry entry) => Track("轨道进入", entry);

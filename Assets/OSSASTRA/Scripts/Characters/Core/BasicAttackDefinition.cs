@@ -18,6 +18,7 @@ namespace Ossastra.CharacterCore
         public int Damage { get; }
         public double PostureImpact { get; }
         public bool WaitsForPhaseChange { get; }
+        public bool EventDriven { get; }
         public bool HasReleaseNode { get; }
         public bool AllowsMovementWhileWaiting { get; }
         public bool RetainsPoseWhileMoving { get; }
@@ -29,7 +30,7 @@ namespace Ossastra.CharacterCore
 
         private BasicAttackDefinition(double release, double move, double ready, double finish, int damage,
             double postureImpact, bool waitsForPhaseChange, bool allowsMovementWhileWaiting = false,
-            bool retainsPoseWhileMoving = false, bool hasReleaseNode = true)
+            bool retainsPoseWhileMoving = false, bool hasReleaseNode = true, bool eventDriven = false)
         {
             if (!Finite(release) || !Finite(move) || !Finite(ready) || !Finite(finish) ||
                 release < 0 || move < release || ready < release || finish < move || finish < ready)
@@ -43,6 +44,7 @@ namespace Ossastra.CharacterCore
             Damage = damage;
             // 与伤害一起冻结；默认零使未启用架势的旧场保持原行为。
             PostureImpact = postureImpact;
+            EventDriven = eventDriven;
             WaitsForPhaseChange = waitsForPhaseChange;
             HasReleaseNode = !waitsForPhaseChange && hasReleaseNode;
             AllowsMovementWhileWaiting = allowsMovementWhileWaiting;
@@ -58,6 +60,14 @@ namespace Ossastra.CharacterCore
         public BasicAttackDefinition WithoutReleaseNode()
             => new BasicAttackDefinition(ReleaseAt, MoveReadyAt, AttackReadyAt, FinishAt, Damage, PostureImpact,
                 WaitsForPhaseChange, AllowsMovementWhileWaiting, RetainsPoseWhileMoving, hasReleaseNode: false);
+
+        /// <summary>已验证的动画事件独占阶段推进权，保留原伤害与架势结算。</summary>
+        public static BasicAttackDefinition FromEvents(int damage, double impact)
+            => new BasicAttackDefinition(0, 0, 0, 0, damage, impact, true, false, true, false, true);
+
+        public BasicAttackDefinition AsEventDriven()
+            => new BasicAttackDefinition(ReleaseAt, MoveReadyAt, AttackReadyAt, FinishAt, Damage, PostureImpact,
+                true, AllowsMovementWhileWaiting, true, false, true);
 
         internal static bool Finite(double value) => !double.IsNaN(value) && !double.IsInfinity(value);
     }

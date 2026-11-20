@@ -1,0 +1,423 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a1a5e911e8a3b594caf92f166d0f4eed, type: 3}
+  m_Name: BlueFiveFace_EventCalibration
+  m_EditorClassIdentifier:
+  skeleton: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
+  migratedBehaviors:
+  - rozeul.basic.1
+  - rozeul.basic.2
+  - rozeul.basic.3
+  - rozeul.basic.4
+  - HunterBreak_Adapted.action
+  framesPerSecond: 30
+  bindings:
+  - behavior: rozeul.basic.1
+    animation: a1
+    eventName: Hit
+    previousEvent: Dash
+    nextEvent: Break
+    sourceString:
+    anchor:
+    track: 0
+    occurrence: 0
+    sourceInt: 0
+    sourceCount: 1
+    offsetFrames: 0
+    soundOffsetFrames: 0
+    effectOffsetFrames: 0
+    sourceTime: 0.03333333
+    sourceFloat: 0
+    volume: 1
+    scale: 1
+    lifetime: 1
+    rotation: 0
+    follow: 0
+    localOffset: {x: 0, y: 0, z: 0}
+    semantic: 0
+    sound: {fileID: 0}
+    effect: {fileID: 0}
+  - behavior: rozeul.basic.1
+    animation: a1
+    eventName: Break
+    previousEvent: Hit
+    nextEvent: End
+    sourceString:
+    anchor:
+    track: 0
+    occurrence: 0
+    sourceInt: 0
+    sourceCount: 1
+    offsetFrames: 0
+    soundOffsetFrames: 0
+    effectOffsetFrames: 0
+    sourceTime: 0.2
+    sourceFloat: 0
+    volume: 1
+    scale: 1
+    lifetime: 1
+    rotation: 0
+    follow: 0
+    localOffset: {x: 0, y: 0, z: 0}
+    semantic: 2
+    sound: {fileID: 0}
+    effect: {fileID: 0}
+  - behavior: rozeul.basic.1
+    animation: a1
+    eventName: End
+    previousEvent: Break
+    nextEvent:
+    sourceString:
+    anchor:
+    track: 0
+    occurrence: 0
+    sourceInt: 0
+    sourceCount: 1
+    offsetFrames: 0
+    soundOffsetFrames: 0
+    effectOffsetFrames: 0
+    sourceTime: 0.23333333
+    sourceFloat: 0
+    volume: 1
+    scale: 1
+    lifetime: 1
+    rotation: 0
+    follow: 0
+    localOffset: {x: 0, y: 0, z: 0}
+    semantic: 1
+    sound: {fileID: 0}
+    effect: {fileID: 0}
+  - behavior: rozeul.basic.2
+    animation: a2
+    eventName: Hit
+    previousEvent: Dash
+    nextEvent: Break
+    sourceString:
+    anchor:
+    track: 0
+    occurrence: 0
+    sourceInt: 0
+    sourceCount: 1
+    offsetFrames: 0
+    soundOffsetFrames: 0
+    effectOffsetFrames: 0
+    sourceTime: 0
+    sourceFloat: 0
+    volume: 1
+    scale: 1
+    lifetime: 1
+    rotation: 0
+    follow: 0
+    localOffset: {x: 0, y: 0, z: 0}
+    semantic: 0
+    sound: {fileID: 0}
+    effect: {fileID: 0}
+  - behavior: rozeul.basic.2
+    animation: a2
+    eventName: Break
+    previousEvent: Hit
+    nextEvent: End
+    sourceString:
+    anchor:
+    track: 0
+    occurrence: 0
+    sourceInt: 0
+    sourceCount: 1
+    offsetFrames: 0
+    soundOffsetFrames: 0
+    effectOffsetFrames: 0
+    sourceTime: 0.2
+    sourceFloat: 0
+    volume: 1
+    scale: 1
+    lifetime: 1
+    rotation: 0
+    follow: 0
+    localOffset: {x: 0, y: 0, z: 0}
+    semantic: 2
+    sound: {fileID: 0}
+    effect: {fileID: 0}
+  - behavior: rozeul.basic.2
+    animation: a2
+    eventName: End
+    previousEvent: Break
+    nextEvent:
+    sourceString:
+    anchor:
+    track: 0
+    occurrence: 0
+    sourceInt: 0
+    sourceCount: 1
+    offsetFrames: 0
+    soundOffsetFrames: 0
+    effectOffsetFrames: 0
+    sourceTime: 0.23333333
+    sourceFloat: 0
+    volume: 1
+    scale: 1
+    lifetime: 1
+    rotation: 0
+    follow: 0
+    localOffset: {x: 0, y: 0, z: 0}
+    semantic: 1
+    sound: {fileID: 0}
+    effect: {fileID: 0}
+  - behavior: rozeul.basic.3
+    animation: a3
+    eventName: Hit
+    previousEvent: Dash
+    nextEvent: Break
+    sourceString:
+    anchor:
+    track: 0
+    occurrence: 0
+    sourceInt: 0
+    sourceCount: 1
+    offsetFrames: 0
+    soundOffsetFrames: 0
+    effectOffsetFrames: 0
+    sourceTime: 0.03333333
+    sourceFloat: 0
+    volume: 1
+    scale: 1
+    lifetime: 1
+    rotation: 0
+    follow: 0
+    localOffset: {x: 0, y: 0, z: 0}
+    semantic: 0
+    sound: {fileID: 0}
+    effect: {fileID: 0}
+  - behavior: rozeul.basic.3
+    animation: a3
+    eventName: Break
+    previousEvent: Hit
+    nextEvent: End
+    sourceString:
+    anchor:
+    track: 0
+    occurrence: 0
+    sourceInt: 0
+    sourceCount: 1
+    offsetFrames: 0
+    soundOffsetFrames: 0
+    effectOffsetFrames: 0
+    sourceTime: 0.2666667
+    sourceFloat: 0
+    volume: 1
+    scale: 1
+    lifetime: 1
+    rotation: 0
+    follow: 0
+    localOffset: {x: 0, y: 0, z: 0}
+    semantic: 2
+    sound: {fileID: 0}
+    effect: {fileID: 0}
+  - behavior: rozeul.basic.3
+    animation: a3
+    eventName: End
+    previousEvent: Break
+    nextEvent:
+    sourceString:
+    anchor:
+    track: 0
+    occurrence: 0
+    sourceInt: 0
+    sourceCount: 1
+    offsetFrames: 0
+    soundOffsetFrames: 0
+    effectOffsetFrames: 0
+    sourceTime: 0.3
+    sourceFloat: 0
+    volume: 1
+    scale: 1
+    lifetime: 1
+    rotation: 0
+    follow: 0
+    localOffset: {x: 0, y: 0, z: 0}
+    semantic: 1
+    sound: {fileID: 0}
+    effect: {fileID: 0}
+  - behavior: rozeul.basic.4
+    animation: a4
+    eventName: Hit
+    previousEvent: Dash
+    nextEvent: Break
+    sourceString:
+    anchor:
+    track: 0
+    occurrence: 0
+    sourceInt: 0
+    sourceCount: 1
+    offsetFrames: 0
+    soundOffsetFrames: 0
+    effectOffsetFrames: 0
+    sourceTime: 0.13333334
+    sourceFloat: 0
+    volume: 1
+    scale: 1
+    lifetime: 1
+    rotation: 0
+    follow: 0
+    localOffset: {x: 0, y: 0, z: 0}
+    semantic: 0
+    sound: {fileID: 0}
+    effect: {fileID: 0}
+  - behavior: rozeul.basic.4
+    animation: a4
+    eventName: Break
+    previousEvent: Hit
+    nextEvent: End
+    sourceString:
+    anchor:
+    track: 0
+    occurrence: 0
+    sourceInt: 0
+    sourceCount: 1
+    offsetFrames: 0
+    soundOffsetFrames: 0
+    effectOffsetFrames: 0
+    sourceTime: 0.5
+    sourceFloat: 0
+    volume: 1
+    scale: 1
+    lifetime: 1
+    rotation: 0
+    follow: 0
+    localOffset: {x: 0, y: 0, z: 0}
+    semantic: 2
+    sound: {fileID: 0}
+    effect: {fileID: 0}
+  - behavior: rozeul.basic.4
+    animation: a4
+    eventName: End
+    previousEvent: Break
+    nextEvent:
+    sourceString:
+    anchor:
+    track: 0
+    occurrence: 0
+    sourceInt: 0
+    sourceCount: 1
+    offsetFrames: 0
+    soundOffsetFrames: 0
+    effectOffsetFrames: 0
+    sourceTime: 0.5
+    sourceFloat: 0
+    volume: 1
+    scale: 1
+    lifetime: 1
+    rotation: 0
+    follow: 0
+    localOffset: {x: 0, y: 0, z: 0}
+    semantic: 1
+    sound: {fileID: 0}
+    effect: {fileID: 0}
+  - behavior: HunterBreak_Adapted.action
+    animation: "a0.5\u5927\u6233\u523A"
+    eventName: Hit
+    previousEvent: Dash
+    nextEvent: Break
+    sourceString:
+    anchor:
+    track: 0
+    occurrence: 0
+    sourceInt: 0
+    sourceCount: 1
+    offsetFrames: 0
+    soundOffsetFrames: 0
+    effectOffsetFrames: 0
+    sourceTime: 0
+    sourceFloat: 0
+    volume: 1
+    scale: 1
+    lifetime: 1
+    rotation: 0
+    follow: 0
+    localOffset: {x: 0, y: 0, z: 0}
+    semantic: 0
+    sound: {fileID: 0}
+    effect: {fileID: 0}
+  - behavior: HunterBreak_Adapted.action
+    animation: "a0.5\u5927\u6233\u523A"
+    eventName: End
+    previousEvent: Break
+    nextEvent:
+    sourceString: 1
+    anchor:
+    track: 0
+    occurrence: 0
+    sourceInt: 0
+    sourceCount: 1
+    offsetFrames: 0
+    soundOffsetFrames: 0
+    effectOffsetFrames: 0
+    sourceTime: 0.2
+    sourceFloat: 0
+    volume: 1
+    scale: 1
+    lifetime: 1
+    rotation: 0
+    follow: 0
+    localOffset: {x: 0, y: 0, z: 0}
+    semantic: 1
+    sound: {fileID: 0}
+    effect: {fileID: 0}
+  - behavior: _move
+    animation: _move
+    eventName: Footstep
+    previousEvent:
+    nextEvent: Footstep
+    sourceString:
+    anchor:
+    track: 0
+    occurrence: 0
+    sourceInt: 11
+    sourceCount: 2
+    offsetFrames: 0
+    soundOffsetFrames: 0
+    effectOffsetFrames: 0
+    sourceTime: 0.2666667
+    sourceFloat: 0
+    volume: 1
+    scale: 1
+    lifetime: 1
+    rotation: 0
+    follow: 0
+    localOffset: {x: 0, y: 0, z: 0}
+    semantic: 3
+    sound: {fileID: 0}
+    effect: {fileID: 0}
+  - behavior: _move
+    animation: _move
+    eventName: Footstep
+    previousEvent: Footstep
+    nextEvent:
+    sourceString:
+    anchor:
+    track: 0
+    occurrence: 1
+    sourceInt: 7
+    sourceCount: 2
+    offsetFrames: 0
+    soundOffsetFrames: 0
+    effectOffsetFrames: 0
+    sourceTime: 0.5333333
+    sourceFloat: 0
+    volume: 1
+    scale: 1
+    lifetime: 1
+    rotation: 0
+    follow: 0
+    localOffset: {x: 0, y: 0, z: 0}
+    semantic: 3
+    sound: {fileID: 0}
+    effect: {fileID: 0}

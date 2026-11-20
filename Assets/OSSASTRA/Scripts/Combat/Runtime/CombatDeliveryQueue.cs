@@ -106,12 +106,12 @@ namespace Ossastra.Combat
             }
             source.Recovery?.RetainParent(parent);flights.Add(flight);return true;
         }
-        public void Tick(float delta)
+        public void Tick(float delta, bool detachedOnly = false)
         {
             for(int i=flights.Count-1;i>=0;i--)
             {
                 var f=flights[i];if(f.source==null||!f.valid()){Remove(i);continue;}
-                if(f.emittedFrame==Time.frameCount)continue;
+                if(f.emittedFrame==Time.frameCount || (detachedOnly && f.config.mode==DeliveryMode.Sector && f.config.followSource))continue;
                 var previousElapsed=f.elapsed;f.elapsed+=delta;
                 if(f.config.mode==DeliveryMode.Sector)
                 {

@@ -42,7 +42,34 @@ namespace Ossastra.CharacterAnimation
             LastResult="已绑定 "+targetId; return true;
         }
         private void OnSignal(AnimationSignal signal) => Signal?.Invoke(signal);
-        public void FlushSignals() => signals?.Flush();
+        public AnimationCalibrationSO CandidateCalibration {get;set;}
+        internal AnimationCalibrationSO Profile => CandidateCalibration!=null ? CandidateCalibration : owner?.Definition?.eventCalibration;
+        private readonly Dictionary<TrackEntry,AnimationMarkerPlayback> markers=new Dictionary<TrackEntry,AnimationMarkerPlayback>();
+        private long sequence;
+        public bool HasCalibratedFootstep => markers.Any(p=>p.Value.HasFootstep && IsCurrent(p.Key,out _));
+        internal bool CollectMarker(TrackEntry entry,Spine.Event e)=>markers.TryGetValue(entry,out var playback)&&playback.Collect(e,entry);
+        public void FlushSignals()
+        {
+            signals?.Flush();
+            if(markers.Count==0 || (boundToActor && (owner==null || owner.IsSimulationSuspended)))return;
+            foreach(var pair in markers.ToArray())
+            {
+                var entry=pair.Key;
+                if(!IsCurrent(entry,out var clip))continue;
+                pair.Value.Advance(entry,(node,cycle)=>
+                {
+                    if(!IsCurrent(entry,out var active)||!ReferenceEquals(active,clip))return;
+                    if(clip.runtimeActionId!=Guid.Empty && (owner?.DataBus==null || !owner.DataBus.ActionActive || owner.DataBus.ActionId!=clip.runtimeActionId))return;
+                    var b=node.Binding;
+                    OnSignal(new AnimationSignal{ActorId=clip.runtimeActor,Target=clip.runtimeTarget,ActionId=clip.runtimeActionId,
+                        PhaseId=clip.runtimePhaseId,Generation=clip.runtimeGeneration,LifeGeneration=clip.runtimeLifeGeneration,
+                        Track=entry.TrackIndex,ReplayId=clip.runtimeReplayId,Source=clip.runtimeSourceStateMachine,
+                        Name=b.eventName,Time=b.sourceTime,Animation=b.animation,Calibrated=true,Binding=b,Meaning=b.semantic,
+                        Cycle=cycle,Occurrence=b.occurrence,EffectiveTime=node.Time,Purpose=node.Purpose,Sequence=++sequence,
+                        CollectedTime=entry.TrackTime,ConsumedTime=Time.unscaledTime});
+                });
+            }
+        }
         public bool IsCurrent(TrackEntry entry, out CharacterAnimationClip clip)
         {
             clip=null;
@@ -121,15 +148,26 @@ namespace Ossastra.CharacterAnimation
         {
             entry.MixDuration=clip.mixDuration; entry.TimeScale=clip.playbackRate; entry.Additive=clip.isAdditive;
             entries[entry]=clip.Clone();
+            markers.Remove(entry);
+            var nodes=clip.runtimeMarkers;
+            int fps=clip.runtimeFps;
+            var profile=Profile;
+            if(nodes==null && clip.runtimeActionId==Guid.Empty && profile!=null && profile.MatchesSkeleton(skeletonAnimation.skeletonDataAsset))
+            {
+                nodes=(profile.bindings??Array.Empty<AnimationCalibrationBinding>()).Where(b=>b!=null && b.semantic==AnimationEventMeaning.Footstep &&
+                    b.behavior==clip.animaName && b.track==clip.track && profile.Valid(b,entry.Animation)).Select(b=>b.Copy()).ToArray();
+                fps=profile.framesPerSecond;
+            }
+            if(nodes!=null && nodes.Length>0)markers[entry]=new AnimationMarkerPlayback(nodes,fps,entry.Animation.Duration);
         }
         private void RemoveEntryRecords(int track,TrackEntry keep=null)
-        { foreach(var entry in entries.Where(p=>p.Value.track==track&&!ReferenceEquals(p.Key,keep)).Select(p=>p.Key).ToArray()){signals?.Forget(entry);entries.Remove(entry);} }
+        { foreach(var entry in entries.Where(p=>p.Value.track==track&&!ReferenceEquals(p.Key,keep)).Select(p=>p.Key).ToArray()){signals?.Forget(entry);markers.Remove(entry);entries.Remove(entry);} }
         private void ClearTrack(int track)
         { if(state!=null)state.ClearTrack(track);trackCommands.Remove(track);RemoveEntryRecords(track); }
         public void ClearAll()
-        { foreach(var track in trackCommands.Keys.ToArray())ClearTrack(track);entries.Clear();signals?.Clear();currentPlan=null; }
+        { foreach(var track in trackCommands.Keys.ToArray())ClearTrack(track);entries.Clear();signals?.Clear();markers.Clear();currentPlan=null; }
         private void ResetBinding()
-        { if(signals!=null){signals.Signal-=OnSignal;signals.Dispose();}signals=null;trackCommands.Clear();entries.Clear();currentPlan=null;state=null; }
+        { if(signals!=null){signals.Signal-=OnSignal;signals.Dispose();}signals=null;trackCommands.Clear();entries.Clear();markers.Clear();currentPlan=null;state=null; }
         private void OnDisable(){ClearAll();signals?.Dispose();}
         private void OnDestroy(){ResetBinding();owner=null;skeletonAnimation=null;}
     }

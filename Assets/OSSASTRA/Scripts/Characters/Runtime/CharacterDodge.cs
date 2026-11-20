@@ -29,18 +29,23 @@ namespace Ossastra.Characters
             state=new DodgeState(duration,invulnerableFrom,invulnerableTo);}
         public bool Request(Vector2 move,bool playerInput)
         {
-            if(!isActiveAndEnabled||state==null||owner==null||!owner.CanSimulateIntent||!playerInput||IsActive||
-                !owner.DataBus.AllowsMovement||!owner.DataBus.MoveReady||(!owner.UsesActionPosture&&(stamina==null||!stamina.CanSpend(cost))))
-            {LastResult="拒绝：控制/动作/体力资格";return false;}
+            if(!isActiveAndEnabled||state==null||owner==null||!owner.CanSimulateIntent||!playerInput||IsActive)
+            {LastResult="拒绝：角色或冲刺控制未就绪";return false;}
+            if(!owner.DataBus.AllowsMovement || (!owner.DataBus.MoveReady && !owner.DodgeCancelOpen))
+            {LastResult="拒绝：移动受限或冲刺取消窗口未开启";return false;}
+            if(!owner.UsesActionPosture && (stamina==null || !stamina.CanSpend(cost)))
+            {LastResult="拒绝：冲刺体力不足";return false;}
             direction=move.sqrMagnitude>.0001f?new Vector3(move.x,0,move.y).normalized:owner.DataBus.AttackDirection;
             direction.y=0;if(direction.sqrMagnitude<.0001f){LastResult="无可靠方向";return false;}
             direction.Normalize();
             ConfiguredActionSnapshot animation=null;
             var presentation=owner.StatePresentation as ICharacterPreparedAnimation;
             try{if(presentation!=null)animation=presentation.PrepareDodge(duration);}catch(ArgumentException error){LastResult="拒绝："+error.Message;return false;}
+            var displacedAction=owner.DodgeCancelOpen ? owner.DataBus.ActionId : Guid.Empty;
             var request=owner.Actions.CreateRequest(CharacterActionKind.Dodge,CharacterActionSource.Player);
             if(!owner.Actions.TryCommit(request,cost,()=>state.TryStart(owner.SimulationTime)?request.RequestId:Guid.Empty,out var reason))
             {LastResult="拒绝："+reason;return false;}
+            if(displacedAction!=Guid.Empty)owner.FinishDodgeCancel(displacedAction);
             ActionId=request.RequestId;
             PreparedAnimation=animation;
             LastResult="Accepted SAMPLE，表现由角色动画配置映射";return true;

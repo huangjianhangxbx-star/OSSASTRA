@@ -32,6 +32,8 @@ namespace Ossastra.Characters
         [Tooltip("允许自然恢复的真实 Spine 事件。留空时由动作终结释放。")]
         public string postureRecoveryEvent;
         [TextArea] public string timingEvidence;
+        public BasicAttackDefinition FreezeTiming(Ossastra.CharacterAnimation.AnimationCalibrationSO calibration)
+            => calibration != null && calibration.Drives(definitionId) ? BasicAttackDefinition.FromEvents(damage, postureImpact) : Freeze();
         public BasicAttackDefinition Freeze()
         {
             float At(ActionFactKind kind,float fallback)

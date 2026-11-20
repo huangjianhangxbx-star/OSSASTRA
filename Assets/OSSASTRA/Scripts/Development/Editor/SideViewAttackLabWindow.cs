@@ -41,6 +41,8 @@ namespace Ossastra.Development.Editor
         private CombatFeedbackView swingView;
         private bool previousSwingSuppression;
         private Vector2 scroll;
+        private AttackLabAnimationCalibration calibration;
+        private int workMode;
 
         [MenuItem("OSSASTRA/战斗/横版攻击调试台")]
         public static void Open()
@@ -63,6 +65,7 @@ namespace Ossastra.Development.Editor
 
         private void OnDisable()
         {
+            calibration?.Dispose();
             windowActive = false;
             EditorApplication.update -= TickWindow;
             EditorApplication.playModeStateChanged -= ModeChanged;
@@ -193,6 +196,13 @@ namespace Ossastra.Development.Editor
 
         private void OnGUI()
         {
+            workMode = GUILayout.Toolbar(workMode, new[] { "实战验证", "动作与音画校准" });
+            if (workMode == 1)
+            {
+                calibration ??= new AttackLabAnimationCalibration();
+                calibration.Draw(session);
+                return;
+            }
             if (session == null || !Application.isPlaying || session.Actor == null)
             {
                 EditorGUILayout.LabelField("横版攻击调试台", EditorStyles.boldLabel);
@@ -347,7 +357,18 @@ namespace Ossastra.Development.Editor
             EditorGUILayout.LabelField("移动 " + actor.StateArbitrator?.Movement?.CurrentStateName + "   ·   垂直速度 " + bus.VerticalSpeed.ToString("F2") + "   ·   可再次攻击 " + bus.AllowsAttack);
             EditorGUILayout.LabelField("瞄准 " + bus.AttackDirection.ToString("F2") + "   ·   显示朝向 " + bus.VisualFacingX + "   ·   " + bus.DirectionReason, EditorStyles.wordWrappedMiniLabel);
             if (posture != null) EditorGUILayout.LabelField("架势 " + posture.Current.ToString("0.#") + " / " + posture.Maximum.ToString("0.#") + "   ·   恢复 " + actor.LastPostureRecoveryEvent, EditorStyles.wordWrappedMiniLabel);
-            EditorGUILayout.LabelField("模拟正常速度。冻结记录只停止采集。命中停顿、逐帧倒回未接入。", EditorStyles.wordWrappedMiniLabel);
+            var vitals = actor.GetComponent<Ossastra.Combat.CombatVitals>();
+            if (vitals != null)
+            {
+                vitals.enableAttackHitStop = EditorGUILayout.Toggle("普攻首段命中停顿", vitals.enableAttackHitStop);
+                if (vitals.enableAttackHitStop)
+                {
+                    vitals.hitStopSeconds = EditorGUILayout.Slider("停顿时间（秒）", vitals.hitStopSeconds, 0, .12f);
+                    vitals.stopAttacker = EditorGUILayout.Toggle("暂停攻击者", vitals.stopAttacker);
+                    vitals.stopVictim = EditorGUILayout.Toggle("暂停受击者", vitals.stopVictim);
+                }
+            }
+            EditorGUILayout.LabelField("冻结记录只停止采集。", EditorStyles.wordWrappedMiniLabel);
         }
 
         private string CurrentCondition() => JsonUtility.ToJson(new Condition { mode=(int)session.Condition, station=(int)session.Station,

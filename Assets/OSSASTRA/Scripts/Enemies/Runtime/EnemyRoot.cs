@@ -58,7 +58,7 @@ namespace Ossastra.Enemies
         public bool ActionActive => runtime!=null && runtime.IsActive;
         public bool AttacksEnabled { get => attacksEnabled; set { attacksEnabled=value; if(!value) Cancel("development-attacks-disabled"); } }
         public int PresentationGeneration { get; private set; }
-        public bool IsSimulationSuspended => !focused || applicationPaused || paused;
+        public bool IsSimulationSuspended => !focused || applicationPaused || paused || (vitals != null && vitals.InHitStop);
         private Ossastra.AnimationPresentation.IEntityPresentation presentation;
         private EnemyViewSpaceAdapter viewSpace;
         private EnemyMovement viewMovement;
@@ -102,6 +102,7 @@ namespace Ossastra.Enemies
         {
             if(runtime==null) return;
             if(vitals==null || !vitals.IsAvailable) { Cancel("source-unavailable"); return; }
+            if(vitals.InHitStop) return;
             // 1. 根独占架势时钟，禁用开发攻击不冻结恢复；失焦/暂停停钟。
             if (posture != null) posture.Tick(!focused || applicationPaused || paused ? 0 : Time.deltaTime, runtime.IsActive);
             statusEffects?.Tick(IsSimulationSuspended?0:Time.deltaTime);

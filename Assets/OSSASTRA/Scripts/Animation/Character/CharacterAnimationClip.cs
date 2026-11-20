@@ -55,6 +55,9 @@ public class CharacterAnimationClip
     [System.NonSerialized] public int runtimeGeneration;
     [System.NonSerialized] public int runtimeLifeGeneration;
     [System.NonSerialized] public string runtimeActor, runtimeTarget;
+    [System.NonSerialized] public string runtimeBehavior;
+    [System.NonSerialized] public Ossastra.CharacterAnimation.AnimationCalibrationBinding[] runtimeMarkers;
+    [System.NonSerialized] public int runtimeFps;
     [System.NonSerialized] public bool runtimeStructural;
     private IEnumerable<string> GetAnimationNames()
     {
@@ -94,6 +97,7 @@ public class CharacterAnimationClip
         copy.skeletonDataAsset = skeletonDataAsset;
         copy.characterRoot = characterRoot;
         copy.runtimeSourceStateMachine = runtimeSourceStateMachine;
+        copy.runtimeBehavior=runtimeBehavior;copy.runtimeMarkers=runtimeMarkers;copy.runtimeFps=runtimeFps;
         copy.runtimeReplayId = runtimeReplayId;
         copy.playbackRate = playbackRate;
         copy.scalesWithAction = scalesWithAction; copy.sourceDuration = sourceDuration;

@@ -98,6 +98,16 @@ namespace Ossastra.Characters
             if (owner == null) return;
             FrameCount++;
             if (!owner.IsAlive) { WeaponPosture.MaintainDeath(); StopMovement(); return; }
+            if (owner.StateVitals != null && owner.StateVitals.InHitStop)
+            {
+                owner.StateInputSource.Read();
+                if (!owner.IsSimulationSuspended)
+                {
+                    if (owner.StateAbilities is CharacterAbilities active) active.TickDetachedEffects(deltaTime);
+                    else owner.StateSkills?.TickEffects(deltaTime);
+                }
+                return;
+            }
             Combat.RefreshMainProfile();
             owner.StateCombatBrain?.Sample(owner.SimulationTime, deltaTime);
             owner.StateInputSource.Read();

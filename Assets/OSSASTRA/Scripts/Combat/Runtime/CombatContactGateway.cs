@@ -90,6 +90,10 @@ namespace Ossastra.Combat
                 }
             }
             if(batch!=null)Publish(batch);
+            if(source != null && source.enableAttackHitStop)
+                foreach(var outcome in outcomes)
+                    if(outcome.Reason == HitReason.Applied)
+                        source.ApplyHitStop(release, targets.First(t => t.Health.Id == outcome.TargetId) as CombatVitals);
             return outcomes;
         }
 

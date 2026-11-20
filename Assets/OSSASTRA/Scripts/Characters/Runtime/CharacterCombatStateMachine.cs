@@ -56,7 +56,7 @@ namespace Ossastra.Characters
    definition=new BasicAttackDefinition(root.StateReleaseAt,root.StateMoveReadyAt,root.StateAttackReadyAt,root.StateFinishAt,root.StateDamage,root.StatePostureImpact);
    runtime=new BasicActionRuntime(root.ActorId);chainProfile=root.GetComponent<BasicChainProfile>();
    var config=root.Definition;
-   if(config!=null){if(ActionLibrary.Length==0)throw new ArgumentException("Character basic attacks required");configuredAttacks=Array.ConvertAll(ActionLibrary,a=>a.Freeze());definition=configuredAttacks[0];chain=new BasicChainState(config.preInput,config.bufferLifetime,config.continuationWindow,configuredAttacks.Length,config.requireHitForContinuation);}
+   if(config!=null){if(ActionLibrary.Length==0)throw new ArgumentException("Character basic attacks required");configuredAttacks=Array.ConvertAll(ActionLibrary,a=>a.FreezeTiming(root.Definition?.eventCalibration));definition=configuredAttacks[0];chain=new BasicChainState(config.preInput,config.bufferLifetime,config.continuationWindow,configuredAttacks.Length,config.requireHitForContinuation);}
    else if(chainProfile!=null&&chainProfile.enabled){definition=chainProfile.stage1.Freeze();secondDefinition=chainProfile.stage2.Freeze();chain=chainProfile.CreateState();}
    if(chain!=null){hitReceipts=root.StateMelee;hitReceipts.Resolved+=OnHitReceipt;}
   }
@@ -99,8 +99,21 @@ namespace Ossastra.Characters
   public override void Update(float deltaTime)
   {
             owner.StateMainAction?.PrepareMotion(runtime.SimulationTime+(owner.IsSimulationSuspended?0:deltaTime),owner.IsSimulationSuspended?0:deltaTime);
-            foreach (var fact in runtime.Advance(deltaTime, owner.IsPaused || !owner.StateFocused))
-            {
+            foreach (var fact in runtime.Advance(deltaTime, owner.IsPaused || !owner.StateFocused)) DispatchFact(fact);
+  }
+
+  internal bool ConsumeAnimationMarker(Guid id, Guid phase, ActionMarkerKind marker)
+  {
+      if (owner.IsSimulationSuspended || !runtime.EventDriven || runtime.ActionId != id ||
+          !(owner.StatePresentation is Ossastra.CharacterAnimation.CharacterAnimationController controller) ||
+          controller.CapturedActionId != id || phase == Guid.Empty || controller.CapturedPhaseId != phase) return false;
+      foreach (var fact in runtime.ConsumeMarker(id, marker)) DispatchFact(fact);
+      return true;
+  }
+
+  private void DispatchFact(ActionFact fact)
+  {
+                if (fact.Kind == ActionFactKind.AttackReady) chain?.MarkReady(fact.ActionId, runtime.SimulationTime);
                 bool switchAttack = fact.Release != null && fact.ActionId == switchAttackId;
                 if (switchAttack) owner.StateOrienter.OrientTowards(owner.transform.position + switchAttackDirection);
                 ObserveFact(fact);
@@ -110,20 +123,18 @@ namespace Ossastra.Characters
                     // 在释放当帧按值采样方向；不是接受动作时锁定，前摇中仍可重新瞄准。
                     var releaseDirection = switchAttack ? switchAttackDirection : owner.StateOrienter.AttackDirection;
                     owner.StateOrienter.FaceAttackDirection();
-                    if(owner.StateAbilities!=null&&owner.StateAbilities.OwnsRelease(fact.ActionId))continue;
+                    if(owner.StateAbilities!=null&&owner.StateAbilities.OwnsRelease(fact.ActionId))return;
                     if(owner.StateMainAction!=null&&owner.StateMainAction.TryRelease(fact,releaseDirection,out bool delivered))
                     {
                         if (delivered) RecordBasicRelease(fact.ActionId);
-                        continue;
+                        return;
                     }
-                    if(owner.StateSkills!=null&&owner.StateSkills.TryHandleRelease(fact.Release,releaseDirection))continue;
+                    if(owner.StateSkills!=null&&owner.StateSkills.TryHandleRelease(fact.Release,releaseDirection))return;
                     if(owner.StateHitResolver is CombatMeleeHit melee)
                         melee.Resolve(fact.Release,releaseDirection,AttackStage);
                     else owner.StateHitResolver.Resolve(fact.Release,releaseDirection);
                     RecordBasicRelease(fact.ActionId);
                 }
-            }
-
   }
   public void CompleteFrame(float deltaTime)
   {
@@ -156,6 +167,7 @@ namespace Ossastra.Characters
             if (fact.Kind == ActionFactKind.Finished || fact.Kind == ActionFactKind.Cancelled)
             {
                 if (owner.StateAbilities?.OwnsRelease(fact.ActionId) != true) owner.EndActionExposure(fact.ActionId);
+                owner.StateVitals?.DisarmHitStop(fact.ActionId);
                 owner.StateVitals?.Recovery?.ReleaseParent(fact.ActionId);
             }
         }
@@ -233,7 +245,7 @@ namespace Ossastra.Characters
             }
             else if(owner.StateCharacterDefinition!=null)
             {
-                configuredAttacks=Array.ConvertAll(ActionLibrary,a=>a.Freeze());definition=configuredAttacks[0];
+                configuredAttacks=Array.ConvertAll(ActionLibrary,a=>a.FreezeTiming(owner.Definition?.eventCalibration));definition=configuredAttacks[0];
                 var chainSource=owner.StateCharacterDefinition;
 #if UNITY_EDITOR
                 chainSource=AttackLabBindings.Resolve(owner,chainSource);
@@ -284,7 +296,8 @@ namespace Ossastra.Characters
                 else if(phase!=null)(owner.StatePresentation as ICharacterConfiguredAnimation)?.CapturePhase(request.Fact.ActionId,phase);
                 AttackStage=stage; autonomousAction=aiTarget!=null; autonomousTarget=aiTarget;
                 if(autonomousAction) { chain?.Clear(); owner.StateCombatBrain.OnAccepted(); owner.StateOrienter.OrientTowards(aiTarget.transform.position); }
-                else chain?.Accepted(stage,request.Fact.ActionId,runtime.SimulationTime,selected.AttackReadyAt);
+                else chain?.Accepted(stage,request.Fact.ActionId,runtime.SimulationTime,selected.AttackReadyAt,selected.EventDriven);
+                if(stage == 1 && selected.EventDriven) owner.StateVitals?.ArmHitStop(request.Fact.ActionId);
                 TrackBasicAttack(request.Fact.ActionId, aiTarget == null);
                 ObserveFact(request.Fact); owner.StateOrienter.FaceAttackDirection();
             }

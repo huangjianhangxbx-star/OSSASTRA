@@ -10,7 +10,14 @@ namespace Ossastra.CharacterAnimation
         public Guid ActionId, PhaseId;
         public int Generation, LifeGeneration, Track, ReplayId;
         public AnimationIntentSourceStateMachine Source;
-        public float Time;
+        public float Time, EffectiveTime, CollectedTime, ConsumedTime;
+        public string Animation;
+        public int Cycle,Occurrence;
+        public long Sequence;
+        public bool Calibrated;
+        public AnimationEventMeaning Meaning;
+        public AnimationSignalPurpose Purpose;
+        public AnimationCalibrationBinding Binding;
     }
     public sealed class CharacterSpineEventSystem : IDisposable
     {
@@ -26,13 +33,13 @@ namespace Ossastra.CharacterAnimation
         }
         private void OnEvent(TrackEntry entry,Spine.Event e)
         {
-            if(handle==null||!handle.IsCurrent(entry,out var clip))return;
+            if(handle==null||!handle.IsCurrent(entry,out var clip)||handle.CollectMarker(entry,e))return;
             var cycle=entry.Loop&&entry.Animation.Duration>0?(int)(entry.TrackTime/entry.Animation.Duration):0;
             var key=e.Data.Name+"|"+e.Time;
             if(!consumed.TryGetValue(entry,out var nodes)){nodes=new Dictionary<string,int>();consumed.Add(entry,nodes);}
             if(nodes.TryGetValue(key,out var previous)&&previous==cycle)return;
             nodes[key]=cycle;
-            pending.Enqueue((entry,new AnimationSignal{ActorId=clip.runtimeActor,Target=clip.runtimeTarget,ActionId=clip.runtimeActionId,PhaseId=clip.runtimePhaseId,Generation=clip.runtimeGeneration,LifeGeneration=clip.runtimeLifeGeneration,Source=clip.runtimeSourceStateMachine,ReplayId=clip.runtimeReplayId,Track=entry.TrackIndex,Name=e.Data.Name,Time=e.Time}));
+            pending.Enqueue((entry,new AnimationSignal{ActorId=clip.runtimeActor,Target=clip.runtimeTarget,ActionId=clip.runtimeActionId,PhaseId=clip.runtimePhaseId,Generation=clip.runtimeGeneration,LifeGeneration=clip.runtimeLifeGeneration,Source=clip.runtimeSourceStateMachine,ReplayId=clip.runtimeReplayId,Track=entry.TrackIndex,Name=e.Data.Name,Time=e.Time,Animation=entry.Animation.Name,EffectiveTime=e.Time,Cycle=cycle}));
         }
         public void Flush()
         {

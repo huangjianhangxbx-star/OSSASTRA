@@ -19,10 +19,10 @@ namespace Ossastra.Characters
         [Range(0,360)] public float arcDegrees=114.59156f;
         [Min(0)] public float dashAt,dashDistance,dashDuration;
         public bool prefixReplaceable;
-        public MainActionStage Freeze()
+        public MainActionStage Freeze(Ossastra.CharacterAnimation.AnimationCalibrationSO calibration = null)
         {
             if(action==null)throw new ArgumentException("Missing action for main stage: "+stageId);
-            return new MainActionStage(stageId,action.Freeze(),range,arcDegrees,dashAt,dashDistance,dashDuration,prefixReplaceable);
+            return new MainActionStage(stageId,action.FreezeTiming(calibration),range,arcDegrees,dashAt,dashDistance,dashDuration,prefixReplaceable);
         }
     }
     public sealed class FrozenMainActionProfile
@@ -43,16 +43,16 @@ namespace Ossastra.Characters
         public MainActionStageDefinition[] stages=Array.Empty<MainActionStageDefinition>();
         public MainActionStageDefinition chisel;
         public MainActionStageDefinition[] rapidPrefix=Array.Empty<MainActionStageDefinition>(),rapidPlusPrefix=Array.Empty<MainActionStageDefinition>();
-        public FrozenMainActionProfile Freeze(EffectSnapshot effects=null)
+        public FrozenMainActionProfile Freeze(EffectSnapshot effects=null, Ossastra.CharacterAnimation.AnimationCalibrationSO calibration=null)
         {
             if(float.IsNaN(contactDuration)||float.IsInfinity(contactDuration)||contactDuration<0)throw new ArgumentException(name+": invalid contact duration");
             if(stages==null||rapidPrefix==null||rapidPlusPrefix==null)throw new ArgumentException(name+": missing main profile array");
             // Unity内联类重载后可能把null还原为空对象；空ID且无action才是缺省，半配置仍拒绝。
             var optionalChisel=chisel==null||chisel.action==null&&string.IsNullOrWhiteSpace(chisel.stageId)?null:chisel;
-            var sequence=new MainActionSequence(definitionId,stages.Select(s=>s?.Freeze()??throw new ArgumentException(name+": missing stage")).ToArray(),bufferSeconds,continuationSeconds,fullComboRecovery,postureScale);
+            var sequence=new MainActionSequence(definitionId,stages.Select(s=>s?.Freeze(calibration)??throw new ArgumentException(name+": missing stage")).ToArray(),bufferSeconds,continuationSeconds,fullComboRecovery,postureScale);
             var all=stages.Concat(optionalChisel==null?Array.Empty<MainActionStageDefinition>():new[]{optionalChisel}).Concat(rapidPrefix).Concat(rapidPlusPrefix).ToArray();
             if(all.Any(s=>s==null)||all.Select(s=>s.stageId).Distinct().Count()!=all.Length)throw new ArgumentException(name+": duplicate/missing stage identity");
-            sequence=sequence.Compose(optionalChisel?.Freeze(),rapidPrefix.Select(s=>s.Freeze()).ToArray(),rapidPlusPrefix.Select(s=>s.Freeze()).ToArray(),effects);
+            sequence=sequence.Compose(optionalChisel?.Freeze(calibration),rapidPrefix.Select(s=>s.Freeze(calibration)).ToArray(),rapidPlusPrefix.Select(s=>s.Freeze(calibration)).ToArray(),effects);
             var animations=Enumerable.Range(0,sequence.Count).Select(i=>all.First(s=>s.stageId==sequence.Stage(i).Id).action).ToArray();
             return new FrozenMainActionProfile(sequence,animations);
         }

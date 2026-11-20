@@ -3,6 +3,7 @@
  * 边界：不读攻击按键、不接受动作、不执行命中；拒绝请求没有释放反馈。
  * 协作：根动作、能力释放及命中网关为事实源；相机接收冲击请求，声音仍由原适配器消费。
  */
+using Ossastra.CharacterAnimation;
 using System;
 using System.Linq;
 using System.Collections.Generic;
@@ -125,10 +126,36 @@ namespace Ossastra.UserInterface
             effects = new SideViewCombatEffects(transform, sideViewEffects);
             CombatContactGateway.Resolved += OnSideViewContact;
             unsubscribe.Add(() => CombatContactGateway.Resolved -= OnSideViewContact);
+            CharacterAnimationController.EffectRequested+=OnCalibratedEffect;
+            unsubscribe.Add(()=>CharacterAnimationController.EffectRequested-=OnCalibratedEffect);
             CombatContactGateway.SectorReleased += OnSideViewRelease;
             unsubscribe.Add(() => CombatContactGateway.SectorReleased -= OnSideViewRelease);
         }
 
+        private sealed class CalibratedEffect
+        {
+            internal GameObject instance;
+            internal CharacterAnimationController owner;
+            internal AnimationCalibrationBinding binding;
+            internal float remaining;
+        }
+        private readonly List<CalibratedEffect> calibratedEffects=new List<CalibratedEffect>();
+        private Ossastra.Audio.SideViewLocomotionAudioAdapter locomotionAudio;
+        private void OnCalibratedEffect(CharacterAnimationController owner, AnimationSignal signal)
+        {
+            if(owner.gameObject.scene!=gameObject.scene || !isActiveAndEnabled || !signal.Binding.effect ||
+               (SuppressLabSwing && signal.Meaning==AnimationEventMeaning.Release))return;
+            if(signal.Meaning==AnimationEventMeaning.Footstep)
+            {
+                if(locomotionAudio==null)locomotionAudio=FindObjectsOfType<Ossastra.Audio.SideViewLocomotionAudioAdapter>().FirstOrDefault(a=>a.gameObject.scene==gameObject.scene);
+                if(locomotionAudio==null||!locomotionAudio.CanEmitFootstep(owner.GetComponentInParent<Ossastra.Characters.CharacterRoot>()))return;
+            }
+            var binding=signal.Binding;
+            var effect=Instantiate(binding.effect,owner.AnchorPosition(binding),
+                owner.AnchorRotation(binding),transform);
+            effect.transform.localScale*=binding.scale;
+            calibratedEffects.Add(new CalibratedEffect{instance=effect,owner=owner,binding=binding,remaining=binding.lifetime});
+        }
         public bool SuppressLabSwing { get; set; }
 
         private void OnSideViewRelease(CombatReleaseVisualFact fact)
@@ -148,6 +175,8 @@ namespace Ossastra.UserInterface
             ReleaseCues++;
             LastReleaseGeometry = geometry;
             LastReleaseActionId = fact.ActionId;
+            var actorAnimation=fact.Source==null?null:fact.Source.GetComponentInParent<Ossastra.Characters.CharacterRoot>()?.StatePresentation as CharacterAnimationController;
+            if(actorAnimation!=null && actorAnimation.CustomReleaseEffect==fact.ActionId)return;
             if (SuppressLabSwing)
             {
                 CombatTraceProbe.For(fact.Source)?.Note("反馈", "实验关闭挥击特效", "保留正式判定", fact.ActionId, fact.ParentExecutionId, fact.EmissionIndex);
@@ -258,6 +287,17 @@ namespace Ossastra.UserInterface
         {
             if (sideView)
             {
+                for(int i=calibratedEffects.Count-1;i>=0;i--)
+                {
+                    var fx=calibratedEffects[i];
+                    fx.remaining-=Time.deltaTime;
+                    if(!fx.instance || !fx.owner || fx.remaining<=0)
+                    {
+                        if(fx.instance)Destroy(fx.instance);
+                        calibratedEffects.RemoveAt(i);
+                    }
+                    else if(fx.binding.follow)fx.instance.transform.SetPositionAndRotation(fx.owner.AnchorPosition(fx.binding),fx.owner.AnchorRotation(fx.binding));
+                }
                 effects?.Tick(Time.deltaTime);
                 return;
             }
@@ -279,6 +319,8 @@ namespace Ossastra.UserInterface
         {
             foreach (var remove in unsubscribe) remove();
             unsubscribe.Clear();
+            foreach(var fx in calibratedEffects)if(fx.instance)Destroy(fx.instance);
+            calibratedEffects.Clear();
             observations.Clear();
             foreach (var stroke in strokes)
                 if (stroke.line != null) Destroy(stroke.line.gameObject);

@@ -10,6 +10,7 @@ using System.Linq;
 
 namespace Ossastra.CharacterCore
 {
+    public enum ActionMarkerKind { Release, Finish, DodgeWindow }
     public enum ActionFactKind { Accepted, Released, MoveReady, AttackReady, Finished, Cancelled, PhaseChanged }
 
     // 事实是结果，不是任意广播；调用者按返回顺序处理。
@@ -60,6 +61,10 @@ namespace Ossastra.CharacterCore
         private double timeCorrection;
         private Guid actionId;
         private string source;
+        private int emissionIndex;
+        private bool dodgeWindow;
+        public bool EventDriven => definition?.EventDriven == true;
+        public bool AllowsDodgeCancel => EventDriven && dodgeWindow;
         private bool moveReady;
         private bool attackReady;
 
@@ -92,6 +97,7 @@ namespace Ossastra.CharacterCore
             definition = attack;
             source = requestSource;
             actionId = Guid.NewGuid();
+            emissionIndex = 0;
             SetPhase(attack);
             return new ActionRequestResult(null, Fact(ActionFactKind.Accepted, 0), previousTerminal);
         }
@@ -111,6 +117,7 @@ namespace Ossastra.CharacterCore
             elapsed = 0;
             timeCorrection = 0;
             nextNode = 0;
+            dodgeWindow = false;
             // 外部维持阶段可在切相时开放走动，但不发布普通定时节点或开放下一次主攻击。
             moveReady = attack.AllowsMovementWhileWaiting;
             attackReady = false;
@@ -150,6 +157,26 @@ namespace Ossastra.CharacterCore
                 if (node.Kind == ActionFactKind.Finished) definition = null;
             }
             return facts;
+        }
+
+        /// <summary>消费已通过播放身份校验的标记，事实继续经原释放与许可入口投递。</summary>
+        public IReadOnlyList<ActionFact> ConsumeMarker(Guid expectedAction, ActionMarkerKind marker)
+        {
+            if (!EventDriven || expectedAction != actionId) return Array.Empty<ActionFact>();
+            switch (marker)
+            {
+                case ActionMarkerKind.Release:
+                    var release = AttackRelease.ForEmission(actionId, emissionIndex++, actorId, definition.Damage, definition.PostureImpact);
+                    return new[] { Fact(ActionFactKind.Released, elapsed, release: release) };
+                case ActionMarkerKind.DodgeWindow:
+                    dodgeWindow = true;
+                    return Array.Empty<ActionFact>();
+                case ActionMarkerKind.Finish:
+                    moveReady = attackReady = true;
+                    definition = null;
+                    return new[] { Fact(ActionFactKind.MoveReady, elapsed), Fact(ActionFactKind.AttackReady, elapsed), Fact(ActionFactKind.Finished, elapsed) };
+                default: return Array.Empty<ActionFact>();
+            }
         }
 
         public ActionFact Cancel(string reason)

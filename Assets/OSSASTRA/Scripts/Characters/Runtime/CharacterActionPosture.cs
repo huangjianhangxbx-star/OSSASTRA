@@ -64,7 +64,8 @@ namespace Ossastra.Characters
 
         internal void OnSpineSignal(AnimationSignal signal)
         {
-            if (posture == null || signal.ActorId != owner.ActorId || signal.LifeGeneration != owner.LifeGeneration ||
+            if (signal.Purpose != AnimationSignalPurpose.Marker || (owner.DrivesActionFromEvents && !signal.Calibrated) ||
+                posture == null || signal.ActorId != owner.ActorId || signal.LifeGeneration != owner.LifeGeneration ||
                 signal.ActionId != owner.DataBus.ActionId ||
                 signal.Track != 0 ||
                 !recoveryEvents.TryGetValue(signal.ActionId, out string marker) ||

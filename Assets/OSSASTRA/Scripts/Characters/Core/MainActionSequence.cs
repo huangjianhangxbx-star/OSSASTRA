@@ -22,11 +22,11 @@ namespace Ossastra.CharacterCore
         public MainActionStage(string id,BasicAttackDefinition timeline,double range,double arcDegrees,double dashAt=0,double dashDistance=0,double dashDuration=0,bool prefixReplaceable=false,string sourceId=null)
         {
             if(string.IsNullOrWhiteSpace(id)||timeline==null||new[]{range,arcDegrees,dashAt,dashDistance,dashDuration}.Any(v=>!BasicAttackDefinition.Finite(v)||v<0)||
-                range<=0||arcDegrees>360||dashDistance>0&&(dashDuration<=0||dashAt+dashDuration>timeline.FinishAt))throw new ArgumentException("Invalid main stage geometry/dash: "+id);
+                range<=0||arcDegrees>360||dashDistance>0&&(dashDuration<=0||!timeline.EventDriven && dashAt+dashDuration>timeline.FinishAt))throw new ArgumentException("Invalid main stage geometry/dash: "+id);
             Id=id;Timeline=timeline;Range=range;ArcDegrees=arcDegrees;DashAt=dashAt;DashDistance=dashDistance;DashDuration=dashDuration;PrefixReplaceable=prefixReplaceable;SourceId=sourceId;
         }
         public MainActionStage WithDamageAndSource(int damage,string sourceId)=>new MainActionStage(Id,
-            new BasicAttackDefinition(Timeline.ReleaseAt,Timeline.MoveReadyAt,Timeline.AttackReadyAt,Timeline.FinishAt,damage,Timeline.PostureImpact),
+            Timeline.EventDriven ? BasicAttackDefinition.FromEvents(damage,Timeline.PostureImpact) : new BasicAttackDefinition(Timeline.ReleaseAt,Timeline.MoveReadyAt,Timeline.AttackReadyAt,Timeline.FinishAt,damage,Timeline.PostureImpact),
             Range,ArcDegrees,DashAt,DashDistance,DashDuration,PrefixReplaceable,sourceId);
         public double TravelBetween(double from,double to)
         {

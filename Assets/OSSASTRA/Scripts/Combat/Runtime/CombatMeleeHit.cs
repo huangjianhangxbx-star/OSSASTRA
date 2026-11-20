@@ -32,7 +32,7 @@ namespace Ossastra.Combat
             if(release==null) throw new ArgumentNullException(nameof(release));
             var source=GetComponent<CombatVitals>();
             if(!isActiveAndEnabled || (source!=null && (!source.IsAvailable || source.Health.Id!=release.ActorId)))
-            { release.Resolve(Array.Empty<Health>()); LastResult="来源失效或释放身份不符"; Resolved?.Invoke(release.ActionId,false); return true; }
+            { release.Resolve(Array.Empty<Health>()); LastResult="来源失效或释放身份不符"; Resolved?.Invoke(release.ParentExecutionId,false); return true; }
             var plane = CombatSpatialTarget.PlaneFor(source);
             var geometry = new CombatContactGeometry(plane, transform.position, releaseDirection, releaseDirection, basicAttackStage);
             var reachDirection = plane == CombatPlane.SideXY ? geometry.ReleaseDirection : releaseDirection;
@@ -59,7 +59,7 @@ namespace Ossastra.Combat
                 CombatContactCause.Direct, null, geometry, target => points[target], environment);
             LastResult=outcomes.Count==0?(environment.HasValue?"接触环境／无伤害目标":"空挥／无合法敌对目标"):string.Join("; ",outcomes.Select(o=>
                 o.ActorId+" → "+o.TargetId+" "+o.HpBefore+"→"+o.HpAfter+" "+o.Reason+" #"+o.ActionId.ToString("N")));
-            Resolved?.Invoke(release.ActionId,outcomes.Any(o=>o.Reason==HitReason.Applied));
+            Resolved?.Invoke(release.ParentExecutionId,outcomes.Any(o=>o.Reason==HitReason.Applied));
             return true;
         }
 
@@ -84,7 +84,7 @@ namespace Ossastra.Combat
         {
             release.Resolve(Array.Empty<Health>());
             LastResult = "空挥／无合法敌对目标";
-            Resolved?.Invoke(release.ActionId, false);
+            Resolved?.Invoke(release.ParentExecutionId, false);
         }
     }
 }

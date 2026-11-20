@@ -698,3 +698,5 @@ Root及子Unity/源码writer释放，Git仅定向自有源/meta/合同/文档，
 独立6Shader/HLSL+4模板/7物体17槽，source+original有限13克隆，Room精确新家族/Renderer18。Math19、Integration17、生产Forward独立输入12与实际Room17槽匹配通过；同版Release两灯八相位/16图/30秒八步旋转完成。ToonGPU整帧新增p50/p95日.362/.163ms、夜.295/.424ms在.5ms门内；总24–25ms仍非60，CPU有效Unknown。Main38根归还/单场Edit45/dirtytrue未保存，前后安全副本完整序列化相同，32保护/2源档SHA保持，临时探针清除，Lab冷读通过。候选非Main默认，素材/场景仅本机；定向Git待publication核验后连续草v1.3，关机延后两轮完成。
 
 SV-COMBAT-LAB-01 已接入独立横版攻击场。OSSASTRA → 战斗 → 横版攻击调试台可试玩双角色、观察五轨并比较基线与候选；同菜单的「验证横版攻击调试台」可重跑主手切换、实际查询方向、震屏和复位回归。[使用与验收](../ossastra/SV-COMBAT-LAB-01/使用与验收.md)
+
+SV-COMBAT-LAB-02 在横版攻击调试台增加动作与音画校准。两名角色的走跑和普攻按身体轨事件校准。详见 [使用与验收](../ossastra/SV-COMBAT-LAB-02/使用与验收.md)。

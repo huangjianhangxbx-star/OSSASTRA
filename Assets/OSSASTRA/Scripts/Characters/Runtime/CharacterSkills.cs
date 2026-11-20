@@ -63,7 +63,7 @@ namespace Ossastra.Characters
         }
         public bool TryHandleRelease(AttackRelease release,Vector3 direction)
         {
-            if(pending==null||pending.id!=release.ActionId)return false;
+            if(pending==null||pending.id!=release.ParentExecutionId)return false;
             var execution=pending;pending=null;ReleasedCount++;
             if(execution.effect==SkillEffectKind.Melee){LastResult="技能释放：近战";return false;}
             execution.release=release;execution.origin=owner.transform.position;execution.landing=execution.origin+direction*execution.range;

@@ -3,6 +3,7 @@
  * 边界：不持有AudioSource，不补造玩法事件；旧世界租约不能复活。
  */
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 namespace Ossastra.Audio
 {
@@ -25,7 +26,35 @@ namespace Ossastra.Audio
         {
             return owner==null?new SfxDecision(false,"SOURCE_LEASE_DISPOSED"):owner.SubmitSceneSfx(this,definition,factKey,position);
         }
-        public void Dispose(){if(owner==null)return;var root=owner;owner=null;root.ReleaseSfxSource(this);}
+        private readonly Dictionary<AudioClip, SfxEventDefinitionSO> clipDefinitions = new Dictionary<AudioClip, SfxEventDefinitionSO>();
+
+        // 校准片段复用正式短音的租约、混音和声部仲裁。
+        internal SfxDecision SubmitClip(AudioClip clip, string factKey, Vector3 position, float volume)
+        {
+            if (owner == null || clip == null) return new SfxDecision(false, "CALIBRATED_CLIP_UNAVAILABLE");
+            if (!clipDefinitions.TryGetValue(clip, out var definition))
+            {
+                definition = ScriptableObject.CreateInstance<SfxEventDefinitionSO>();
+                definition.hideFlags = HideFlags.HideAndDontSave;
+                definition.eventId = "animation.clip." + clip.GetInstanceID();
+                definition.clips = new[] { clip };
+                clipDefinitions.Add(clip, definition);
+            }
+            definition.volume = Mathf.Clamp01(volume);
+            return SubmitDefinition(definition, factKey, position);
+        }
+
+        public void Dispose()
+        {
+            if (owner != null)
+            {
+                var root = owner;
+                owner = null;
+                root.ReleaseSfxSource(this);
+            }
+            foreach (var definition in clipDefinitions.Values) UnityEngine.Object.Destroy(definition);
+            clipDefinitions.Clear();
+        }
         /// <summary>只能停止本租约签发的声部，不能凭全局VoiceId停止别人。</summary>
         public bool StopVoice(long voiceId)=>owner!=null&&owner.StopSfxVoice(this,voiceId);
     }

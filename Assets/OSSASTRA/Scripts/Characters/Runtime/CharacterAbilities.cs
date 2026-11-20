@@ -494,6 +494,13 @@ namespace Ossastra.Characters
             }
             if(fact.Kind==ActionFactKind.Cancelled||fact.Kind==ActionFactKind.Finished)ownedBodyReleases.Remove(fact.ActionId);
         }
+        internal void CloseAttachedContacts(Guid parent) => deliveries.CloseAttachedContacts(parent);
+        internal void TickDetachedEffects(float delta)
+        {
+            deliveries.Tick(delta, true);
+            if(iceWorld!=null){EnsureIceWorld();iceWorld?.Tick(delta);}
+            TickRocketMarks();
+        }
         public void TickEffects(float delta)
         {
             if(owner==null)return;

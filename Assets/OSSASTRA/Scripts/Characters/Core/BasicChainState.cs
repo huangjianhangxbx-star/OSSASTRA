@@ -13,7 +13,8 @@ namespace Ossastra.CharacterCore
         private readonly bool requireHit;
         private Guid actionId;
         private int stage;
-        private bool hit, buffered;
+        private bool hit, buffered, awaitingMarker;
+        private double pressedAt;
         private double readyAt, bufferUntil;
         public bool HasBuffer => buffered;
         private bool CanContinue => stage>0&&stage<stageCount&&(!requireHit||hit);
@@ -30,8 +31,8 @@ namespace Ossastra.CharacterCore
         {
             if(!eligible){Clear();return 0;}
             if(attackReady) {buffered=false;return CanContinue&&now<=WindowUntil?stage+1:1;}
-            if(CanContinue&&!buffered&&now>=readyAt-preInput&&now<=readyAt)
-            {buffered=true;bufferUntil=now+bufferLifetime;}
+            if(CanContinue&&!buffered&&(awaitingMarker || now>=readyAt-preInput&&now<=readyAt))
+            {pressedAt=now;buffered=true;bufferUntil=now+bufferLifetime;}
             return 0;
         }
         public int Poll(double now,bool attackReady)
@@ -41,9 +42,16 @@ namespace Ossastra.CharacterCore
             if(!attackReady)return 0;
             buffered=false;return CanContinue?stage+1:0;
         }
-        public void Accepted(int stage,Guid id,double now,double attackReadyAt)
-        {this.stage=stage;actionId=id;readyAt=now+attackReadyAt;hit=false;buffered=false;}
-        public void Hit(Guid id,bool applied){if(actionId==id)hit=applied;}
+        public void Accepted(int stage,Guid id,double now,double attackReadyAt,bool eventDriven=false)
+        {awaitingMarker=eventDriven;this.stage=stage;actionId=id;readyAt=eventDriven?double.PositiveInfinity:now+attackReadyAt;hit=false;buffered=false;}
+        public void MarkReady(Guid id,double now)
+        {
+            if(actionId!=id || !awaitingMarker)return;
+            awaitingMarker=false;
+            readyAt=now;
+            if(buffered && now-pressedAt>preInput)buffered=false;
+        }
+        public void Hit(Guid id,bool applied){if(actionId==id)hit|=applied;}
         public void Clear(){stage=0;actionId=Guid.Empty;hit=false;buffered=false;}
         private static bool Valid(double v)=>!double.IsNaN(v)&&!double.IsInfinity(v)&&v>=0;
     }

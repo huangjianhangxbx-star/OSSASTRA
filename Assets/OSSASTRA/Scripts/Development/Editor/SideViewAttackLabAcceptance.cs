@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Ossastra.Characters;
+using Ossastra.CharacterAnimation;
 using Ossastra.Combat;
 using Ossastra.UserInterface;
 using UnityEditor;
@@ -58,14 +59,14 @@ namespace Ossastra.Development.Editor
         private static void OnMode(PlayModeStateChange mode)
         {
             if (!SessionState.GetBool(Pending, false)) return;
-            if (mode == PlayModeStateChange.EnteredPlayMode) deadline = EditorApplication.timeSinceStartup + 35;
+            if (mode == PlayModeStateChange.EnteredPlayMode) deadline = EditorApplication.timeSinceStartup + 65;
             if (mode == PlayModeStateChange.ExitingPlayMode) Complete("验收进行时退出了 Play");
         }
 
         private static void Tick()
         {
             if (!SessionState.GetBool(Pending, false) || !EditorApplication.isPlaying) return;
-            if (deadline == 0) deadline = EditorApplication.timeSinceStartup + 35;
+            if (deadline == 0) deadline = EditorApplication.timeSinceStartup + 65;
             if (EditorApplication.timeSinceStartup > deadline) { Complete("超时。"+Context()); return; }
             if (started) return;
             lab = UnityEngine.Object.FindObjectOfType<AttackLabSession>();
@@ -255,6 +256,167 @@ namespace Ossastra.Development.Editor
                 Check(ok && q!=null && q.direction.x*(right?1:-1)>.99f && rows.All(e=>e.label!="Applied"),
                       $"空挥实际查询方向 {q?.direction}，球心 {q?.start}。"+Context());
             }
+            var offsets = CheckReleaseOffsets();
+            while (offsets.MoveNext()) yield return offsets.Current;
+            var stops = CheckLocalHitStop();
+            while (stops.MoveNext()) yield return stops.Current;
+            int freycia = members.FindIndex(c => c && c.ActorId == "temporary-b");
+            lab.Condition = AttackLabTargetMode.Whiff;
+            if (freycia >= 0 && lab.SwitchActor(freycia))
+            {
+                var oldInput = input;
+                input = lab.Actor.GetComponent<CharacterInputHandler>();
+                try
+                {
+                    Reset("芙蕾第一击");
+                    yield return new WaitForSeconds(.25f);
+                    bool freyciaAccepted = Send(lab.RequestAttack);
+                    yield return new WaitForSeconds(1);
+                    var rows = Rows();
+                    Check(freyciaAccepted && rows.Any(r => r.clip == "ATK1" && r.semantic == "Release") &&
+                          rows.Count(r => r.label == "Released") == 1 &&
+                          rows.Any(r => r.clip == "ATK1" && r.semantic == "Finish"),
+                          $"芙蕾 ATK1 受理 {freyciaAccepted}，{lab.Status}，正式释放 {rows.Count(r => r.label == "Released")} 次");
+                    var feet = CheckFootsteps();
+                    while (feet.MoveNext()) yield return feet.Current;
+                }
+                finally
+                {
+                    input.SetInventoryCapture(captureOwner, false, true);
+                    input = oldInput;
+                    lab.SwitchActor(indexA);
+                }
+            }
+            else Check(false, "无法切换至芙蕾验收第一击");
+        }
+
+        private static IEnumerator CheckFootsteps()
+        {
+            var audio = UnityEngine.Object.FindObjectOfType<Ossastra.Audio.SideViewLocomotionAudioAdapter>();
+            if (!audio) { Check(false, "训练场缺少正式横版运动音频适配器"); yield break; }
+            turnPad = InputSystem.AddDevice<Gamepad>();
+            input.SetInventoryCapture(captureOwner, false, true);
+            lab.Party.SetInventoryCapture(captureOwner, false, true);
+            try
+            {
+                foreach (bool walk in new[] { true, false })
+                {
+                    Reset(walk ? "慢走脚步" : "普通移动脚步");
+                    InputSystem.QueueStateEvent(turnPad, new GamepadState());
+                    yield return new WaitForSeconds(.2f);
+                    int before = audio.SubmittedFootsteps;
+                    InputSystem.QueueStateEvent(turnPad, new GamepadState { leftStick = Vector2.right * (walk ? .4f : .9f) });
+                    yield return new WaitForSeconds(1.8f);
+                    InputSystem.QueueStateEvent(turnPad, new GamepadState());
+                    yield return new WaitForSeconds(.2f);
+                    int played = audio.SubmittedFootsteps - before;
+                    string clip = walk ? "Walk" : "Move";
+                    int marks = Rows().Count(r => r.clip == clip && r.semantic == "Footstep");
+                    yield return new WaitForSeconds(.3f);
+                    Check(marks > 0 && played == marks && audio.SubmittedFootsteps == before + played,
+                          $"{clip} 时间轴脚步 {marks} 次，运动音频提交 {played} 次，停止后新增 {audio.SubmittedFootsteps - before - played} 次");
+                }
+            }
+            finally
+            {
+                InputSystem.QueueStateEvent(turnPad, new GamepadState());
+                input.SetInventoryCapture(captureOwner, true, true);
+                lab.Party.SetInventoryCapture(captureOwner, true, true);
+            }
+        }
+
+        private static IEnumerator CheckLocalHitStop()
+        {
+            var vitals = lab.Actor.Vitals;
+            bool enabled = vitals.enableAttackHitStop, attacker = vitals.stopAttacker;
+            float duration = vitals.hitStopSeconds;
+            try
+            {
+                foreach (int mode in new[] { 0, 1, 2 })
+                {
+                    lab.Condition = mode == 2 ? AttackLabTargetMode.Whiff : AttackLabTargetMode.Fixed;
+                    Reset("命中停顿 " + mode);
+                    vitals.enableAttackHitStop = mode != 0;
+                    vitals.stopAttacker = true;
+                    vitals.hitStopSeconds = .12f;
+                    yield return new WaitForSeconds(.15f);
+                    bool accepted = Send(lab.RequestAttack), paused = false;
+                    double until = Time.realtimeSinceStartupAsDouble + .85;
+                    while (Time.realtimeSinceStartupAsDouble < until)
+                    {
+                        paused |= vitals.InHitStop;
+                        yield return null;
+                    }
+                    var rows = Rows();
+                    Check(accepted && paused == (mode == 1) && !vitals.InHitStop &&
+                          rows.Count(r => r.label == "Released") == 1 && rows.Any(r => r.label == "Applied") == (mode != 2),
+                          $"卡肉 {mode}，受理 {accepted}，观察到攻击者局部停顿 {paused}，已恢复 {!vitals.InHitStop}");
+                }
+            }
+            finally { vitals.enableAttackHitStop = enabled; vitals.hitStopSeconds = duration; vitals.stopAttacker = attacker; }
+        }
+
+        // 使用运行副本比较同一条正式释放标记。直接观察调试台采集的时刻和正式释放数。
+        private static IEnumerator CheckReleaseOffsets()
+        {
+            var source = lab.Actor.Definition.eventCalibration;
+            var baseline = Rows().FirstOrDefault(e => e.semantic == "Release" && e.markerSequence > 0);
+            var driver = lab.Actor.GetComponentsInChildren<Ossastra.CharacterAnimation.CharacterAnimationController>(true)
+                .FirstOrDefault(c => c.isActiveAndEnabled && c.Skeleton != null);
+            var handle = driver ? driver.GetComponent<Ossastra.CharacterAnimation.AnimationHandleSystem>() : null;
+            if (!source || baseline == null || !handle) { Check(false, "缺少正式释放基线或活动身体轨"); yield break; }
+            foreach (int offset in new[] { -1, 0, 1 })
+            {
+                var candidate = UnityEngine.Object.Instantiate(source);
+                var marker = candidate.bindings.First(b => b.animation == baseline.clip && b.semantic == AnimationEventMeaning.Release);
+                marker.offsetFrames = offset;
+                try
+                {
+                    Reset("释放偏移 " + offset);
+                    handle.CandidateCalibration = candidate;
+                    yield return new WaitForSeconds(.2f);
+                    bool ok = Send(lab.RequestAttack);
+                    yield return new WaitForSeconds(.85f);
+                    var rows = Rows();
+                    var hit = rows.FirstOrDefault(e => e.clip == baseline.clip && e.semantic == "Release");
+                    int releases = rows.Count(e => e.label == "Released");
+                    Check(ok && hit != null && releases == 1 &&
+                          Mathf.Abs(hit.effectiveMarkerTime - hit.localTime - (float)offset / candidate.framesPerSecond) < .0001f,
+                          $"偏移 {offset} 帧，片段 {baseline.clip}，有效时间 {hit?.effectiveMarkerTime:F4}s，正式释放 {releases} 次");
+                }
+                finally
+                {
+                    handle.CandidateCalibration = null;
+                    UnityEngine.Object.Destroy(candidate);
+                }
+            }
+            // 专门拉开窗口与释放，检验拒绝不会先取消，以及成功取消后不会迟发。
+            var cancelTest = UnityEngine.Object.Instantiate(source);
+            var release = cancelTest.bindings.First(b => b.animation == baseline.clip && b.semantic == AnimationEventMeaning.Release);
+            var window = cancelTest.bindings.First(b => b.behavior == release.behavior && b.animation == baseline.clip &&
+                b.semantic == AnimationEventMeaning.DodgeCancel);
+            window.offsetFrames = 1 - Mathf.RoundToInt(window.sourceTime * cancelTest.framesPerSecond);
+            release.offsetFrames = 6 - Mathf.RoundToInt(release.sourceTime * cancelTest.framesPerSecond);
+            try
+            {
+                Reset("冲刺取消候选");
+                handle.CandidateCalibration = cancelTest;
+                yield return new WaitForSeconds(.2f);
+                var dodge = lab.Actor.GetComponent<CharacterDodge>();
+                bool startedAttack = Send(lab.RequestAttack);
+                var attackId = lab.Actor.DataBus.ActionId;
+                bool early = Send(() => dodge.Request(Vector2.right, true));
+                bool preserved = lab.Actor.DataBus.ActionId == attackId && lab.Actor.DataBus.ActionActive;
+                double limit = Time.realtimeSinceStartupAsDouble + 1;
+                while (!Rows().Any(e => e.semantic == "DodgeCancel") && Time.realtimeSinceStartupAsDouble < limit) yield return null;
+                bool refused = !Send(() => dodge.Request(Vector2.right, false)) && lab.Actor.DataBus.ActionId == attackId;
+                bool cancelled = Send(() => dodge.Request(Vector2.right, true));
+                string dodgeReason = dodge.LastResult + " active=" + lab.Actor.DataBus.ActionActive + " move=" + lab.Actor.DataBus.AllowsMovement;
+                yield return new WaitForSeconds(.55f);
+                Check(startedAttack && !early && preserved && refused && cancelled && Rows().All(r => r.label != "Released"),
+                      $"冲刺窗口：提前受理 {early}，原动作保留 {preserved}，无权限请求被拒 {refused}，窗口内受理 {cancelled} ({dodgeReason})，释放 {Rows().Count(r => r.label == "Released")} 次");
+            }
+            finally { handle.CandidateCalibration = null; UnityEngine.Object.Destroy(cancelTest); }
         }
 
         // 虚拟设备走正式 Action + 移动朝向采样。等到正式 Released 后才送反向摇杆。

@@ -82,7 +82,7 @@ namespace Ossastra.Characters
 #endif
             if(profileDefinition!=null)
             {
-                try{profile=profileDefinition.Freeze(abilities?.SnapshotEffects());}
+                try{profile=profileDefinition.Freeze(abilities?.SnapshotEffects(),owner.Definition?.eventCalibration);}
                 catch(ArgumentException e){LastResult="拒绝：动作组无效，使用角色默认："+e.Message;profileDefinition=null;}
             }
             return true;
@@ -96,7 +96,10 @@ namespace Ossastra.Characters
                 var animation = owner.FreezeAbilityPhase(definition,
                     new CharacterAnimationPreparation(true, index + 1, useAuthoredLogic: true));
                 var t = stage.Timeline;
-                var timeline=new BasicAttackDefinition(t.ReleaseAt,t.MoveReadyAt,t.AttackReadyAt,t.FinishAt,t.Damage,t.PostureImpact*profile.Sequence.PostureScale);
+                var impact = t.PostureImpact * profile.Sequence.PostureScale;
+                var timeline = animation.Timeline.EventDriven
+                    ? BasicAttackDefinition.FromEvents(t.Damage, impact)
+                    : new BasicAttackDefinition(t.ReleaseAt,t.MoveReadyAt,t.AttackReadyAt,t.FinishAt,t.Damage,impact);
                 var phase=animation.WithTimeline(timeline);
                 prepared=new PreparedStage(stage,phase,definition,index+1,profileDefinition.contactDuration,index==profile.Sequence.Count-1,profile.Sequence.FullComboRecovery);return true;
             }
@@ -110,6 +113,8 @@ namespace Ossastra.Characters
         public void ObserveFact(ActionFact fact)
         {
             if(fact.ActionId!=actionId)return;
+            if(fact.Kind==ActionFactKind.Finished && accepted?.Last==true && accepted.Phase.Timeline.EventDriven)
+                finalRecoveryUntil=owner.SimulationTime+accepted.FullRecovery;
             if(fact.Kind==ActionFactKind.Finished||fact.Kind==ActionFactKind.Cancelled)
             {deliveries.CompleteParent(actionId);accepted=null;actionId=Guid.Empty;if(fact.Kind==ActionFactKind.Cancelled)MotionVelocity=Vector3.zero;}
         }
@@ -118,11 +123,11 @@ namespace Ossastra.Characters
             delivered = false;
             if(accepted==null||fact.ActionId!=actionId)return false;
             var stage=accepted;var id=actionId;var state=equipment.State.RightRuntime;
-            if(stage.Last)finalRecoveryUntil=acceptedAt+stage.Phase.Timeline.FinishAt+stage.FullRecovery;
+            if(stage.Last&&!stage.Phase.Timeline.EventDriven)finalRecoveryUntil=acceptedAt+stage.Phase.Timeline.FinishAt+stage.FullRecovery;
             if(!string.IsNullOrEmpty(stage.Stage.SourceId)&&!state.Frost.Spend(1,state.EquippedTime))
             {LastResult="拒绝：凿冰释放需要 1 霜寒";return true;}
             var life=generation;var instance=weaponInstance;var t=stage.Phase.Timeline;
-            delivered = deliveries.Emit(owner.Vitals,id,0,new DeliveryParameters{mode=DeliveryMode.Sector,range=(float)stage.Stage.Range,arc=(float)stage.Stage.ArcDegrees,
+            delivered = deliveries.Emit(owner.Vitals,id,fact.Release.EmissionIndex,new DeliveryParameters{mode=DeliveryMode.Sector,range=(float)stage.Stage.Range,arc=(float)stage.Stage.ArcDegrees,
                 activeDuration=stage.ContactDuration,followSource=true},t.Damage,(float)t.PostureImpact,transform.position,direction,transform.position,
                 ()=>this!=null&&isActiveAndEnabled&&owner!=null&&owner.IsAlive&&owner.LifeGeneration==life&&equipment.State.RightInstanceId==instance,
                 receipts=>Resolved?.Invoke(id,receipts.Any(r=>r.Reason==HitReason.Applied)),basicAttackStage:stage.BasicAttackStage);

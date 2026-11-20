@@ -10,6 +10,7 @@ namespace Ossastra.Characters
     public sealed class CharacterDefinitionSO:ScriptableObject
     {
         public string definitionId,displayName;
+        public Ossastra.CharacterAnimation.AnimationCalibrationSO eventCalibration;
         [HideInInspector] public CharacterAnimationProfileSO animationProfile; // 历史场/迁移来源；正式动画在ConfigManager原式SO中维护。
         public CharacterRigProfileSO rigProfile;
         [Tooltip("当场景指定此副手作为初始装备时，新队伍将它收入背包，角色以空副手出场。")]

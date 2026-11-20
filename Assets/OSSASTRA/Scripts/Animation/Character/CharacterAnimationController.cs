@@ -67,8 +67,57 @@ namespace Ossastra.CharacterAnimation
             if(direction!=null&&!direction.Initialize(root,skeleton,config))return false;
             handle.Signal-=OnSignal;handle.Signal+=OnSignal;return true;
         }
-        private void OnSignal(AnimationSignal signal)=>SpineSignal?.Invoke(signal);
-        public void FlushSignals()=>handle?.FlushSignals();
+        public bool HasCalibratedFootstep=>handle!=null && handle.HasCalibratedFootstep;
+        public static event Action<CharacterAnimationController,AnimationSignal> EffectRequested;
+        public Guid CustomReleaseSound { get; private set; }
+        public Guid CustomReleaseEffect { get; private set; }
+        public Vector3 AnchorPosition(AnimationCalibrationBinding binding)
+        {
+            var bone=binding.ResolveAnchor(skeleton.Skeleton);
+            if(bone!=null)
+            {
+                bone.AppliedPose.LocalToWorld(binding.localOffset.x,binding.localOffset.y,out var x,out var y);
+                return skeleton.transform.TransformPoint(new Vector3(x,y,binding.localOffset.z));
+            }
+            var position=Vector3.zero;
+            var offset=binding.localOffset;
+            offset.x*=Mathf.Sign(skeleton.Skeleton.ScaleX);
+            return skeleton.transform.TransformPoint(position+offset);
+        }
+        public Quaternion AnchorRotation(AnimationCalibrationBinding binding)
+        {
+            var bone=binding.ResolveAnchor(skeleton.Skeleton);
+            var angle=bone==null?binding.rotation:bone.AppliedPose.LocalToWorldRotation(binding.rotation);
+            return skeleton.transform.rotation*Quaternion.Euler(0,0,angle);
+        }
+        private void OnSignal(AnimationSignal signal)
+        {
+            if(signal.Calibrated && signal.Purpose==AnimationSignalPurpose.Marker && signal.Meaning==AnimationEventMeaning.Release)
+            {
+                CustomReleaseSound=signal.Binding.sound?signal.ActionId:Guid.Empty;
+                CustomReleaseEffect=signal.Binding.effect?signal.ActionId:Guid.Empty;
+            }
+            SpineSignal?.Invoke(signal);
+            if(signal.Calibrated && signal.Purpose==AnimationSignalPurpose.Effect) EffectRequested?.Invoke(this,signal);
+            if(!signal.Calibrated || signal.Purpose!=AnimationSignalPurpose.Marker || signal.ActionId==Guid.Empty)return;
+            switch(signal.Meaning)
+            {
+                case AnimationEventMeaning.Release: root.ConsumeAnimationMarker(signal.ActionId,signal.PhaseId,ActionMarkerKind.Release);break;
+                case AnimationEventMeaning.Finish: root.ConsumeAnimationMarker(signal.ActionId,signal.PhaseId,ActionMarkerKind.Finish);break;
+                case AnimationEventMeaning.DodgeCancel: root.ConsumeAnimationMarker(signal.ActionId,signal.PhaseId,ActionMarkerKind.DodgeWindow);break;
+            }
+        }
+        private Guid checkedPlaybackPhase;
+        public void FlushSignals()
+        {
+            handle?.FlushSignals();
+            if(root==null || root.IsSimulationSuspended || !root.DrivesActionFromEvents ||
+                !bus.ActionActive || bus.ActionId!=capturedId || !bus.RetainsMainPose || checkedPlaybackPhase!=phaseId)return;
+            var track=skeleton?.AnimationState?.GetTrack(0);
+            if(track==null || !handle.IsCurrent(track,out var clip) ||
+                clip.runtimeActionId!=capturedId || clip.runtimePhaseId!=phaseId)
+                root.CancelOwnedMainAction(capturedId,"calibrated-playback-lost");
+        }
         private CharacterAnimationPlan ResolveAction(Ossastra.Characters.ActionDefinitionSO definition,CharacterAnimationPreparation preparation)
         {
             if(definition==null||definition.animationLogicId==EAnimationLogicState.None||!Enum.IsDefined(typeof(EAnimationLogicState),definition.animationLogicId))return null;
@@ -105,20 +154,43 @@ namespace Ossastra.CharacterAnimation
         public ConfiguredActionSnapshot PrepareAnimation(Ossastra.Characters.ActionDefinitionSO definition,CharacterAnimationPreparation preparation)
         {
             if(definition==null)throw new ArgumentException("missing-action-definition");
-            return FreezePlan(ResolveAction(definition,preparation),definition.Freeze());
+            return FreezePlan(ResolveAction(definition,preparation),definition.FreezeTiming(handle.Profile),definition.definitionId);
         }
-        private ConfiguredActionSnapshot FreezePlan(CharacterAnimationPlan original,BasicAttackDefinition timeline)
+        private ConfiguredActionSnapshot FreezePlan(CharacterAnimationPlan original,BasicAttackDefinition timeline,string behavior=null)
         {
             if(!ValidatePlan(original,out var reason))throw new ArgumentException(reason);
             var plan=original.CloneFor(root);
+            var profile=handle.Profile;
+            var rules=profile?.bindings?.Where(b=>b!=null && behavior!=null && b.behavior==behavior).ToArray();
+            if(profile!=null && profile.Drives(behavior))
+            {
+                if(rules==null || rules.Length==0)throw new ArgumentException("已迁移动作没有绑定："+behavior);
+                if(!profile.MatchesSkeleton(skeleton.skeletonDataAsset))throw new ArgumentException("校准骨架失配："+behavior);
+                var carrier=plan.clips.FirstOrDefault(c=>c.track==0);
+                if(carrier==null)throw new ArgumentException("缺主轨："+behavior);
+                var rows=rules.Where(b=>b.animation==carrier.animaName && b.track==carrier.track).ToArray();
+                var animation=skeleton.Skeleton.Data.FindAnimation(carrier.animaName);
+                if(rows.Length==0 || rows.Any(b=>!profile.Valid(b,animation)) ||
+                    rows.GroupBy(b=>(b.eventName,b.occurrence,b.semantic)).Any(g=>g.Count()>1) ||
+                    rows.Count(b=>b.semantic==AnimationEventMeaning.Finish)!=1 || !rows.Any(b=>b.semantic==AnimationEventMeaning.Release))
+                    throw new ArgumentException("源事件或正式收尾失配："+behavior+" / "+carrier.animaName);
+                float Effective(AnimationCalibrationBinding b)=>b.sourceTime+(float)b.offsetFrames/profile.framesPerSecond;
+                var finish=rows.Single(b=>b.semantic==AnimationEventMeaning.Finish);
+                if(rows.Any(b=>b.semantic!=AnimationEventMeaning.Finish && Effective(b)>Effective(finish)))
+                    throw new ArgumentException("动作标记位于结束之后："+behavior);
+                carrier.runtimeMarkers=rows.Select(b=>b.Copy()).ToArray();
+                carrier.runtimeFps=profile.framesPerSecond;
+                carrier.runtimeBehavior=behavior;
+                timeline=timeline.AsEventDriven();
+            }
             foreach(var clip in PlanClips(plan))
-                if(clip.scalesWithAction)
+                if(clip.scalesWithAction && !timeline.EventDriven)
                 {
                     var duration=clip.sourceDuration>0?clip.sourceDuration:skeleton.Skeleton.Data.FindAnimation(clip.animaName).Duration;
                     clip.playbackRate=duration/(float)timeline.FinishAt;
                 }
             var primary=plan.clips.FirstOrDefault(c=>c.track==0);
-            return new ConfiguredActionSnapshot(timeline,primary?.animaName,primary?.mixDuration??0,primary?.playbackRate??1,primary?.loop??false,()=>plan.CloneFor(root),replacement=>FreezePlan(original,replacement));
+            return new ConfiguredActionSnapshot(timeline,primary?.animaName,primary?.mixDuration??0,primary?.playbackRate??1,primary?.loop??false,()=>plan.CloneFor(root),replacement=>FreezePlan(original,replacement,behavior));
         }
         public void CaptureAction(Guid id,Ossastra.Characters.ActionDefinitionSO definition)=>CapturePhase(id,FreezeAction(definition));
         public void CaptureDefaultAction(Guid id,BasicAttackDefinition timeline,int index)
@@ -128,7 +200,7 @@ namespace Ossastra.CharacterAnimation
             var logic=index==2?EAnimationLogicState.Attack_Normal_2:index==3?EAnimationLogicState.Attack_Normal_3:index==4?EAnimationLogicState.Attack_Normal_4:EAnimationLogicState.Attack_Normal_1;
             var plan=ResolveCandidate(logic,index==2?EAnimSemantic.Attack_Normal_2:index==3?EAnimSemantic.Attack_Normal_3:index==4?EAnimSemantic.Attack_Normal_4:EAnimSemantic.Attack_Normal_1,AnimationIntentSourceStateMachine.MainHand,true,index);
             if(plan==null)throw new ArgumentException("Default action mapping missing: "+logic);
-            return FreezePlan(plan,timeline);
+            return FreezePlan(plan,timeline,logic.ToString());
         }
         public bool CanCapturePhase(ConfiguredActionSnapshot snapshot,out string reason)
             =>ValidatePlan(snapshot?.CopyPresentationPlan() as CharacterAnimationPlan,out reason);
@@ -284,6 +356,7 @@ namespace Ossastra.CharacterAnimation
             }
             else skeleton.Skeleton.ScaleX=scaleX*(wallSide == 0 ? bus.ViewFacingX : wallSide);
             composer.Commit(generation);
+            if(retain)checkedPlaybackPhase=phaseId;
             var selected=composer.CurrentBodyIntent;
             if(selected!=null){CurrentSemantic=AnimationSemanticTranslation.ToShared(selected.semantic);CurrentSource=selected.oneShot&&selected.actionId==bus.ActionId&&selected.priority==20?"action":selected.intentSourceStateMatine.ToString();CurrentReplayId=selected.phaseId!=Guid.Empty?selected.phaseId:selected.actionId;}
         }

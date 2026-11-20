@@ -153,7 +153,7 @@ namespace Ossastra.Characters
         public bool IsPaused => applicationPaused;
         public bool ActionActive => DataBus != null && DataBus.ActionActive;
         public bool IsAlive => lifeState==null || lifeState.IsAlive;
-        public bool CanSimulateIntent => ready && IsAlive && isActiveAndEnabled && focused && !IsPaused && (posture == null || !posture.IsStaggered) && (statusEffects==null||!statusEffects.BlocksIntent);
+        public bool CanSimulateIntent => ready && !(vitals != null && vitals.InHitStop) && IsAlive && isActiveAndEnabled && focused && !IsPaused && (posture == null || !posture.IsStaggered) && (statusEffects==null||!statusEffects.BlocksIntent);
         public CombatVitals Vitals => vitals;
         public event Action<CharacterRoot> Died;
         public CharacterFollow Follow => follow;
@@ -375,7 +375,7 @@ namespace Ossastra.Characters
         private void CommitPresentation()
         {
             (presentation as Ossastra.AnimationPresentation.ICharacterAnimationFacts)?.CollectFacts(IsAlive, posture!=null && posture.IsStaggered, vitals!=null && vitals.IsHitReacting, animationGeneration, AttackStage);
-            presentation.SetPaused(IsPaused || !focused);
+            presentation.SetPaused(IsSimulationSuspended || (vitals != null && vitals.InHitStop));
             presentation.Present();
         }
         private Vector3? PointerGroundPoint(CharacterInputFrame frame)
@@ -415,6 +415,17 @@ namespace Ossastra.Characters
         internal bool TryAbilityBodyAction(ActionDefinitionSO config,CharacterActionSource source,string label,float cost,out Guid actionId,Func<bool> prepareSource=null,Action rollbackSource=null,ConfiguredActionSnapshot phase=null,CharacterAnimationPreparation? preparation=null,bool isAttack=true)
             =>stateArbitrator.Combat.TryAbilityBodyAction(config,source,label,cost,out actionId,prepareSource,rollbackSource,phase,preparation,isAttack);
         /// <summary>能力按已接受身份只撤回自己的主通道；副手、盾和机动不借此被全局取消。</summary>
+        public bool ConsumeAnimationMarker(Guid actionId, Guid phaseId, ActionMarkerKind kind)
+            => stateArbitrator.Combat.ConsumeAnimationMarker(actionId,phaseId,kind);
+        internal bool DrivesActionFromEvents => stateArbitrator?.Combat?.Runtime?.EventDriven == true;
+        internal bool DodgeCancelOpen => stateArbitrator.Combat.Runtime?.AllowsDodgeCancel == true;
+        internal void FinishDodgeCancel(Guid actionId)
+        {
+            if (!DodgeCancelOpen || stateArbitrator.Combat.Runtime.ActionId != actionId) return;
+            StateMainAction?.CloseAttachedContacts(actionId);
+            (StateAbilities as CharacterAbilities)?.CloseAttachedContacts(actionId);
+            CancelOwnedMainAction(actionId,"animation-dodge-cancel");
+        }
         internal bool CancelOwnedMainAction(Guid actionId,string reason)=>stateArbitrator.Combat.CancelOwnedMainAction(actionId,reason);
 
         // 动作组只更新空闲候选；已受理动作继续用冻结时间线与表现，不因来源切换重新计费。

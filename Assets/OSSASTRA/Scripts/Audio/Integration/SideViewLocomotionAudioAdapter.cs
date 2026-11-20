@@ -7,6 +7,7 @@
 using System;
 using System.Collections.Generic;
 using Ossastra.Characters;
+using Ossastra.CharacterAnimation;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using ActorRoot = Ossastra.Characters.CharacterRoot;
@@ -28,10 +29,14 @@ namespace Ossastra.Audio
             public SideMovementStep? footstep, launch, land;
             public readonly List<SideTraversalEvent> traversal = new List<SideTraversalEvent>(4);
             public SideViewAudioCue footstepKind;
+            public CharacterAnimationController animation;
+            public Action<AnimationSignal> markerCallback;
+            public SideMovementStep? latestMotion;
             public void ClearPending() { footstep = launch = land = null; traversal.Clear(); }
             public void Reset()
             {
                 ClearPending();
+                latestMotion = null;
                 sampler.Reset();
                 source?.Dispose();
                 source = null;
@@ -90,13 +95,19 @@ namespace Ossastra.Audio
                 };
                 movement.SideStepCompleted += item.callback;
                 movement.SideTraversalOccurred += item.traversalCallback;
+                item.markerCallback = signal => OnMarker(item, signal);
+                BindAnimation(item);
                 observations.Add(item);
             }
         }
 
         private void Observe(Observation item, SideMovementStep step)
         {
-            if (!ConnectWorld() || !Eligible(item)) return;
+            bool canPlayAudio = ConnectWorld();
+            if (!Eligible(item)) return;
+            BindAnimation(item);
+            item.latestMotion = step;
+            if (!canPlayAudio) return;
             ObservedMotionSteps++;
             var cue = item.sampler.Observe(step.StepId, step.ContactEpoch, step.GroundedBefore, step.GroundedAfter,
                 step.Launched, step.AllowsFootstep, step.SupportCollider != null, step.HorizontalDistance,
@@ -104,7 +115,7 @@ namespace Ossastra.Audio
             if (cue == SideViewAudioCue.Jump) item.launch = step;
             if (cue == SideViewAudioCue.Land) item.land = step;
             if (!step.GroundedAfter) item.footstep = null;
-            if (cue == SideViewAudioCue.Walk || cue == SideViewAudioCue.Run)
+            if ((cue == SideViewAudioCue.Walk || cue == SideViewAudioCue.Run) && item.animation?.HasCalibratedFootstep != true)
             {
                 // 一帧补算多个权威步只发最后一个脚步；累计器已经消耗完整路程，下一帧不补播。
                 if (item.footstep.HasValue) CoalescedFootsteps++;
@@ -128,7 +139,7 @@ namespace Ossastra.Audio
                     SubmitEdge(item, item.launch.Value, jumpCue, true);
                 if (item.land.HasValue && !item.traversal.Exists(f => f.StepId == item.land.Value.StepId && f.Kind == SideTraversalEventKind.ClimbComplete))
                     SubmitEdge(item, item.land.Value, landingCue, false);
-                if (item.footstep.HasValue) SubmitFootstep(item, item.footstep.Value);
+                if (item.footstep.HasValue && item.animation?.HasCalibratedFootstep != true) SubmitFootstep(item, item.footstep.Value);
                 item.ClearPending();
             }
         }
@@ -170,7 +181,48 @@ namespace Ossastra.Audio
             LastDecision = source.SubmitDefinition(definition, (jump ? "jump:" : "land:") + step.StepId, step.WorldPosition).Reason;
         }
 
-        private void SubmitFootstep(Observation item, SideMovementStep step)
+        private static void BindAnimation(Observation item)
+        {
+            var active = item.actor.StatePresentation as CharacterAnimationController;
+            if (ReferenceEquals(active, item.animation)) return;
+            if (item.animation != null) item.animation.SpineSignal -= item.markerCallback;
+            item.animation = active;
+            if (active != null) active.SpineSignal += item.markerCallback;
+            item.latestMotion = null;
+        }
+
+        private void OnMarker(Observation item, AnimationSignal marker)
+        {
+            if (!marker.Calibrated || marker.Meaning != AnimationEventMeaning.Footstep ||
+                !ConnectWorld() || !Eligible(item) || !item.latestMotion.HasValue) return;
+            var step = item.latestMotion.Value;
+            if (!CanEmitFootstep(item, step)) return;
+            var custom = marker.Binding.sound;
+            if (marker.Purpose != (custom ? AnimationSignalPurpose.Sound : AnimationSignalPurpose.Marker)) return;
+            item.footstep = null;
+            item.footstepKind = item.movement.IsWalking ? SideViewAudioCue.Walk : SideViewAudioCue.Run;
+            string factKey = $"anim-step:{marker.Generation}:{marker.ReplayId}:{marker.Cycle}:{marker.Occurrence}:{marker.Sequence}";
+            if (custom)
+            {
+                var source = Lease(item);
+                if (source == null || !audioRoot.WorldAudioEnabled) return;
+                SubmittedFootsteps++;
+                LastDecision = source.SubmitClip(custom, factKey, step.WorldPosition, marker.Binding.volume).Reason;
+            }
+            else SubmitFootstep(item, step, factKey);
+        }
+
+        internal bool CanEmitFootstep(ActorRoot actor)
+        {
+            var item = observations.Find(o => o.actor == actor);
+            return item != null && item.latestMotion.HasValue && CanEmitFootstep(item, item.latestMotion.Value);
+        }
+
+        private static bool CanEmitFootstep(Observation item, SideMovementStep step) =>
+            Eligible(item) && IsCurrent(item, step) && step.GroundedBefore && step.GroundedAfter &&
+            !step.Launched && step.AllowsFootstep && step.HorizontalDistance > .0001f && step.SupportCollider != null;
+
+        private void SubmitFootstep(Observation item, SideMovementStep step, string factKey = null)
         {
             if (!IsCurrent(item, step) || !audioRoot.WorldAudioEnabled || step.SupportCollider == null) return;
             var source = Lease(item);
@@ -184,7 +236,7 @@ namespace Ossastra.Audio
             if (surface != "generic" && audioRoot.SfxCatalog != null && !audioRoot.SfxCatalog.TryResolve(cue, out _, out _))
                 cue = role + ".footstep.generic" + gait;
             SubmittedFootsteps++;
-            LastDecision = source.Submit(cue, "step:" + step.StepId, step.WorldPosition).Reason;
+            LastDecision = source.Submit(cue, factKey ?? "step:" + step.StepId, step.WorldPosition).Reason;
         }
 
         private void SubmitTraversal(Observation item, SideTraversalEvent fact)
@@ -208,6 +260,7 @@ namespace Ossastra.Audio
 
         private static void Detach(Observation item)
         {
+            if (item.animation != null) item.animation.SpineSignal -= item.markerCallback;
             if (item.movement != null)
             {
                 item.movement.SideStepCompleted -= item.callback;

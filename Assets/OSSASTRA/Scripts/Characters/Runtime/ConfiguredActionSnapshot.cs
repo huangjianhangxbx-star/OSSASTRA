@@ -16,7 +16,7 @@ namespace Ossastra.Characters
         private readonly System.Func<BasicAttackDefinition,ConfiguredActionSnapshot> replaceTimeline;
         public object CopyPresentationPlan()=>copyPresentationPlan?.Invoke();
         public ConfiguredActionSnapshot WithTimeline(BasicAttackDefinition timeline)
-            =>replaceTimeline!=null?replaceTimeline(timeline):new ConfiguredActionSnapshot(timeline,Clip,Mix,Rate*(float)(Timeline.FinishAt/timeline.FinishAt),Loop,copyPresentationPlan);
+            =>replaceTimeline!=null?replaceTimeline(timeline):new ConfiguredActionSnapshot(timeline,Clip,Mix,timeline.EventDriven ? Rate : Rate*(float)(Timeline.FinishAt/timeline.FinishAt),Loop,copyPresentationPlan);
         public ConfiguredActionSnapshot(BasicAttackDefinition timeline,string clip,float mix,float rate,bool loop,System.Func<object> copyPresentationPlan=null,System.Func<BasicAttackDefinition,ConfiguredActionSnapshot> replaceTimeline=null)
         {Timeline=timeline;Clip=clip;Mix=mix;Rate=rate;Loop=loop;this.copyPresentationPlan=copyPresentationPlan;this.replaceTimeline=replaceTimeline;}
     }

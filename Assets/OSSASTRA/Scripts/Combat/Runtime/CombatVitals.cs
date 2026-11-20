@@ -29,6 +29,30 @@ namespace Ossastra.Combat
         private CombatRegeneration regeneration;
         public CombatRecovery Recovery=>recovery;
         private float hitReactUntil;
+        [Header("事件普攻首段 · 命中停顿")]
+        public bool enableAttackHitStop;
+        [Range(0f,.12f)] public float hitStopSeconds = .045f;
+        public bool stopAttacker = true, stopVictim = true;
+        private Guid hitStopAttack, stoppedEmission;
+        private int hitFrame;
+        private double stopUntil;
+        public bool InHitStop => Time.frameCount > hitFrame && Time.unscaledTimeAsDouble < stopUntil;
+        internal void ArmHitStop(Guid parent) { hitStopAttack = parent; stoppedEmission = Guid.Empty; }
+        internal void DisarmHitStop(Guid parent) { if(hitStopAttack == parent) hitStopAttack = Guid.Empty; }
+        internal void ApplyHitStop(AttackRelease release, CombatVitals victim)
+        {
+            if (!enableAttackHitStop || hitStopAttack != release.ParentExecutionId || hitStopSeconds <= 0) return;
+            if (stopAttacker && stoppedEmission != release.ActionId) BeginHitStop(hitStopSeconds);
+            stoppedEmission = release.ActionId;
+            if (stopVictim && victim != null && victim.IsAlive) victim.BeginHitStop(hitStopSeconds);
+        }
+        private void BeginHitStop(float seconds)
+        {
+            if (stopUntil > Time.unscaledTimeAsDouble) return;
+            hitFrame = Time.frameCount;
+            stopUntil = Time.unscaledTimeAsDouble + Mathf.Clamp(seconds, 0, .12f);
+        }
+        private void ResetHitStop() { hitStopAttack = stoppedEmission = Guid.Empty; stopUntil = 0; }
         public Health Health { get; private set; }
         public bool IsAlive => Health != null && Health.Current>0;
         public bool IsHitReacting => hitReacting && IsAlive;
@@ -64,7 +88,7 @@ namespace Ossastra.Combat
             recovery?.RecordLoss(outcome);
             if (IsAlive) { ShowHit(); return; }
             if (deathNotified) return;
-            deathNotified=true; DeathCount++;
+            ResetHitStop(); deathNotified=true; DeathCount++;
             EndHitReaction();
             recovery?.ResetState();
             regeneration?.Clear();
@@ -84,6 +108,7 @@ namespace Ossastra.Combat
 
         private void Update()
         {
+            if (InHitStop && hitReacting) hitReactUntil += Time.deltaTime;
             if (hitReacting && Time.time >= hitReactUntil) EndHitReaction();
         }
 
@@ -93,7 +118,7 @@ namespace Ossastra.Combat
             if (hitReacting) hitFlash.Apply();
         }
 
-        private void OnDisable() => EndHitReaction();
+        private void OnDisable() { ResetHitStop(); EndHitReaction(); }
 
         private void EndHitReaction()
         {
@@ -116,7 +141,7 @@ namespace Ossastra.Combat
         }
         private void RestoreBody(string reason)
         {
-            deathNotified=false; LastResult=reason;
+            ResetHitStop(); deathNotified=false; LastResult=reason;
             EndHitReaction();
             recovery?.ResetState();
             for (var i=0;i<renderers.Length;i++) if (renderers[i]!=null) renderers[i].enabled=rendererEnabled[i];

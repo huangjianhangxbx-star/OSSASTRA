@@ -3,6 +3,7 @@
  * 边界：只读战斗，不写输入/HP/动画；没有自有播放器或第二个动作时钟。
  * 协作：接受时缓存招式；接触保留子击/目标身份；同帧释放先于接触声提交，玩法顺序不变。
  */
+using Ossastra.CharacterAnimation;
 using System;using System.Collections.Generic;using System.Linq;
 using Ossastra.CharacterCore;using Ossastra.Characters;using Ossastra.Combat;using UnityEngine;
 using ActorRoot=Ossastra.Characters.CharacterRoot;using EnemyEntityRoot=Ossastra.Enemies.EnemyRoot;
@@ -14,6 +15,7 @@ namespace Ossastra.Audio
   private sealed class ActionSound {public string selector;public int stage;}
   private sealed class Observation
   {
+   public CharacterAnimationController animation;
    public ActorRoot actor;public EnemyEntityRoot enemy;public CombatVitals vitals;public CharacterAbilities abilities;public CharacterMainAction main;public CharacterDodge dodge;
    public SfxSourceHandle source;public int hp,generation;public Guid dodgeId;public long sequence;public bool connected;
    public readonly List<Action> remove=new List<Action>();
@@ -71,6 +73,20 @@ namespace Ossastra.Audio
    o.connected=true;o.hp=o.vitals.Health.Current;o.generation=o.actor==null?0:o.actor.LifeGeneration;o.dodgeId=o.dodge==null?Guid.Empty:o.dodge.ActionId;
    Action<HitOutcome> died=f=>{if(CanObserve(o))Queue(o,"target","death",0,"","death:"+o.generation+":"+(++o.sequence),o.Entity.transform.position);};
    o.vitals.Died+=died;o.remove.Add(()=>{if(o.vitals!=null)o.vitals.Died-=died;});
+   if(o.actor!=null)
+   {
+    o.animation=o.actor.StatePresentation as CharacterAnimationController;
+    if(o.animation!=null)
+    {
+     Action<AnimationSignal> audio=s=>{
+      if(!CanObserve(o)||!s.Calibrated||s.Purpose!=AnimationSignalPurpose.Sound||s.Meaning==AnimationEventMeaning.Footstep||!s.Binding.sound)return;
+      var key="anim:"+s.Generation+":"+s.Sequence;
+      Record(o.vitals.Health.Id.ToString(),key,o.source.SubmitClip(s.Binding.sound,key,o.animation.AnchorPosition(s.Binding),s.Binding.volume));
+     };
+     o.animation.SpineSignal+=audio;
+     o.remove.Add(()=>{if(o.animation!=null)o.animation.SpineSignal-=audio;});
+    }
+   }
    Action<ActionFact> action=f=>OnAction(o,f);
    if(o.actor!=null){o.actor.ActionObserved+=action;o.remove.Add(()=>{if(o.actor!=null)o.actor.ActionObserved-=action;});}
    else{o.enemy.ActionObserved+=action;o.remove.Add(()=>{if(o.enemy!=null)o.enemy.ActionObserved-=action;});}
@@ -88,11 +104,13 @@ namespace Ossastra.Audio
    }
    // 能力离手和身体由丰富反馈唯一出声。即使Run结束，Root的Source也保留其身份。
    if(f.Kind!=ActionFactKind.Released||(f.Source??"").StartsWith("ability:",StringComparison.Ordinal)||o.abilities!=null&&o.abilities.OwnsRelease(f.ActionId))return;
+   if(o.animation!=null && o.animation.CustomReleaseSound==f.ActionId)return;
    if(o.actions.TryGetValue(f.ActionId,out var sound))Queue(o,sound.selector,"release",sound.stage,"","release:"+f.ActionId.ToString("N"),o.Entity.transform.position,action:f.ActionId,parent:f.Release?.ParentExecutionId??f.ActionId,emission:f.Release?.EmissionIndex??-1);
   }
   private void OnAbility(Observation o,AbilityFeedbackFact f)
   {
    if(f==null||!CanObserve(o))return;
+   if(f.Kind=="release" && o.animation!=null && o.animation.CustomReleaseSound==f.ExecutionId)return;
    if(f.Kind=="accepted"||f.Kind=="cancel"||f.Kind=="end")return;
    var selector=string.IsNullOrEmpty(f.DefinitionId)?"resource":f.DefinitionId;
    string key="ability:"+f.ExecutionId.ToString("N")+":"+f.EmissionIndex+":"+f.Channel+":"+f.Kind;

@@ -10,7 +10,7 @@ namespace Ossastra.Characters
         public override bool AllowsRequest(CharacterActionKind kind, out string reason)
         {
             reason = null;
-            if (kind == CharacterActionKind.Dodge && (!owner.DataBus.AllowsMovement || !owner.DataBus.MoveReady || IsActive)) reason = "motion-not-ready";
+            if (kind == CharacterActionKind.Dodge && (!owner.DataBus.AllowsMovement || (!owner.DataBus.MoveReady && !owner.DodgeCancelOpen) || IsActive)) reason = "motion-not-ready";
             else if (kind == CharacterActionKind.Main && IsActive) reason = "main-not-ready";
             else if (kind == CharacterActionKind.Guard && IsActive) reason = "dodge-active";
             return reason == null;
