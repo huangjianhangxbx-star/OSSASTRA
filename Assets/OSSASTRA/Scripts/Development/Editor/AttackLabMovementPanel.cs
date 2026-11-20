@@ -1,5 +1,7 @@
 // 横版运动作者页。正式角色引用、实验候选和实测轨迹各自有明确的生命周期。
 using System;
+using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using Ossastra.Characters;
 using UnityEditor;
@@ -15,10 +17,26 @@ namespace Ossastra.Development.Editor
         private ActorRoot actor;
         private CharacterMovement motor;
         private CharacterJumpProfile source, draft, applied;
-        private string sourceVersion, status;
+        private string sourceVersion, sourcePath, status;
+        private readonly Dictionary<string, NumericEdit> edits = new Dictionary<string, NumericEdit>();
+        private bool editedText;
         private Vector2 scroll;
         private bool traversalOpen;
         private bool velocityChart;
+
+        [Serializable]
+        private sealed class NumericEdit
+        {
+            public string path, label, text;
+            public bool valid;
+        }
+
+        [Serializable]
+        private sealed class CandidateDraft
+        {
+            public string sourceVersion, sourcePath, values;
+            public NumericEdit[] edits;
+        }
 
         public void Observe(AttackLabSession session)
         {
@@ -26,10 +44,9 @@ namespace Ossastra.Development.Editor
             if (active != actor)
             {
                 ReleaseCandidate();
-                DestroyProfile(ref draft);
                 actor = active;
                 motor = actor != null ? actor.GetComponent<CharacterMovement>() : null;
-                ReadSource();
+                ReadSource(restoreDraft: true);
             }
             if (motor != null && motor.JumpProfile != applied)
                 DestroyProfile(ref applied);
@@ -64,7 +81,8 @@ namespace Ossastra.Development.Editor
             EditorGUILayout.LabelField("候选在复位时生效", applied != null ? "试验当前使用候选" : "试验当前使用正式值");
 
             var authored = motor.AuthoredJumpProfile;
-            bool conflict = authored != source || source == null || sourceVersion != EditorJsonUtility.ToJson(source);
+            bool conflict = authored != source || source == null || sourcePath != AssetDatabase.GetAssetPath(source) ||
+                sourceVersion != EditorJsonUtility.ToJson(source);
             if (conflict) EditorGUILayout.HelpBox("正式来源或其数值已变化。本页保留草稿，重新读取后才可应用或写回。", MessageType.Warning);
             if (!string.IsNullOrEmpty(status)) EditorGUILayout.HelpBox(status, MessageType.Info);
 
@@ -113,8 +131,11 @@ namespace Ossastra.Development.Editor
 
             traversalOpen = EditorGUILayout.Foldout(traversalOpen, "抓边、翻越与墙边能力", true);
             if (traversalOpen) DrawTraversal(originalData, candidateData, activeData);
-            candidateData.ApplyModifiedPropertiesWithoutUndo();
-            string invalid = InvalidReason(draft);
+            bool valuesChanged = candidateData.ApplyModifiedPropertiesWithoutUndo();
+            if (valuesChanged || editedText) RememberDraft();
+            editedText = false;
+            var incomplete = edits.Values.FirstOrDefault(edit => !edit.valid);
+            string invalid = incomplete != null ? $"「{incomplete.label}」需要一个有效的数值。已保留输入。" : InvalidReason(draft);
             if (!string.IsNullOrEmpty(invalid)) EditorGUILayout.HelpBox(invalid, MessageType.Warning);
 
             using (new EditorGUILayout.HorizontalScope())
@@ -144,6 +165,8 @@ namespace Ossastra.Development.Editor
                     float step = draft.stepSeconds;
                     EditorUtility.CopySerialized(preset, draft);
                     draft.stepSeconds = step;
+                    edits.Clear();
+                    RememberDraft();
                     status = "预设已读取到候选。";
                 }
             }
@@ -281,7 +304,7 @@ namespace Ossastra.Development.Editor
                 : (Vector2)(step.WorldPosition - first.PreviousWorldPosition)).ToArray();
         }
 
-        private static void Row(string path, string label, SerializedObject original, SerializedObject candidate, SerializedObject active)
+        private void Row(string path, string label, SerializedObject original, SerializedObject candidate, SerializedObject active)
         {
             var proposed = candidate.FindProperty(path);
             var initial = original.FindProperty(path);
@@ -294,12 +317,38 @@ namespace Ossastra.Development.Editor
                 GUILayout.Label(Format(initial), GUILayout.Width(70));
                 if (proposed.propertyType == SerializedPropertyType.Boolean)
                     proposed.boolValue = EditorGUILayout.Toggle(proposed.boolValue, GUILayout.Width(90));
-                else if (proposed.propertyType == SerializedPropertyType.Integer)
-                    proposed.intValue = EditorGUILayout.DelayedIntField(proposed.intValue, GUILayout.Width(90));
                 else
-                    proposed.floatValue = EditorGUILayout.DelayedFloatField(proposed.floatValue, GUILayout.Width(90));
+                    EditNumber(path, label, proposed);
                 GUILayout.Label(Format(running), GUILayout.Width(70));
             }
+        }
+
+        // 数值在输入事件中写入草稿，Apply 不依赖失焦后才送达的 DelayedField 事件。
+        private void EditNumber(string path, string label, SerializedProperty proposed)
+        {
+            bool integer = proposed.propertyType == SerializedPropertyType.Integer;
+            string previous = edits.TryGetValue(path, out var edit) ? edit.text :
+                integer ? proposed.intValue.ToString(CultureInfo.InvariantCulture) :
+                proposed.floatValue.ToString("R", CultureInfo.InvariantCulture);
+            GUI.SetNextControlName("AttackLabMotion." + path);
+            string current = EditorGUILayout.TextField(previous, GUILayout.Width(90));
+            if (current == previous) return;
+
+            bool valid;
+            if (integer)
+            {
+                valid = int.TryParse(current, NumberStyles.Integer, CultureInfo.InvariantCulture, out int number);
+                if (valid) proposed.intValue = number;
+            }
+            else
+            {
+                valid = (float.TryParse(current, NumberStyles.Float, CultureInfo.InvariantCulture, out float number) ||
+                    float.TryParse(current, NumberStyles.Float, CultureInfo.CurrentCulture, out number)) &&
+                    !float.IsNaN(number) && !float.IsInfinity(number);
+                if (valid) proposed.floatValue = number;
+            }
+            edits[path] = new NumericEdit { path = path, label = label, text = current, valid = valid };
+            editedText = true;
         }
 
         private static string Format(SerializedProperty value)
@@ -323,9 +372,26 @@ namespace Ossastra.Development.Editor
                 status = "候选未应用。正式来源已变，或另一实验正在使用该角色。";
                 return;
             }
-            DestroyProfile(ref applied);
+            var previous = applied;
             applied = next;
-            if (!Reset(session)) ReleaseCandidate();
+            if (Reset(session) && motor.JumpProfile == next)
+            {
+                DestroyProfile(ref previous);
+                return;
+            }
+
+            // 若复位失败，保留编辑稿并恢复本页已有的运行候选。
+            applied = null;
+            if (motor != null && motor.JumpProfile == next)
+            {
+                if (previous != null && motor.TryUseDevelopmentProfile(this, source, previous))
+                    applied = previous;
+                else
+                    motor.ReleaseDevelopmentProfile(this);
+            }
+            if (applied == null) DestroyProfile(ref previous);
+            DestroyProfile(ref next);
+            status = "候选未完成应用与复位。" + session.Status + " 草稿已保留。";
         }
 
         private bool Reset(AttackLabSession session)
@@ -418,16 +484,54 @@ namespace Ossastra.Development.Editor
             return null;
         }
 
-        private void ReadSource()
+        private string DraftKey => actor == null ? null :
+            "Ossastra.AttackLab.MovementDraft." + actor.gameObject.scene.path + ":" + actor.ActorId;
+
+        private void RememberDraft()
+        {
+            if (draft == null || DraftKey == null) return;
+            var snapshot = new CandidateDraft
+            {
+                sourceVersion = sourceVersion,
+                sourcePath = sourcePath,
+                values = EditorJsonUtility.ToJson(draft),
+                edits = edits.Values.ToArray()
+            };
+            SessionState.SetString(DraftKey, JsonUtility.ToJson(snapshot));
+        }
+
+        private void ReadSource(bool restoreDraft = false)
         {
             DestroyProfile(ref draft);
+            edits.Clear();
+            editedText = false;
             source = motor != null ? motor.AuthoredJumpProfile : null;
             if (source == null) { sourceVersion = null; return; }
             // Instantiate 会复制序列化的普通 class traversal；编辑候选不会写到正式来源。
             draft = UObject.Instantiate(source);
             draft.hideFlags = HideFlags.HideAndDontSave;
             sourceVersion = EditorJsonUtility.ToJson(source);
+            sourcePath = AssetDatabase.GetAssetPath(source);
             status = null;
+
+            var key = DraftKey;
+            if (key == null) return;
+            if (!restoreDraft)
+            {
+                SessionState.EraseString(key);
+                return;
+            }
+
+            string saved = SessionState.GetString(key, "");
+            if (string.IsNullOrEmpty(saved)) return;
+            var snapshot = JsonUtility.FromJson<CandidateDraft>(saved);
+            if (snapshot == null || string.IsNullOrEmpty(snapshot.values)) return;
+            EditorJsonUtility.FromJsonOverwrite(snapshot.values, draft);
+            draft.hideFlags = HideFlags.HideAndDontSave;
+            sourceVersion = snapshot.sourceVersion;
+            sourcePath = snapshot.sourcePath;
+            foreach (var edit in snapshot.edits ?? Array.Empty<NumericEdit>())
+                edits[edit.path] = edit;
         }
 
         private void ReleaseCandidate()
