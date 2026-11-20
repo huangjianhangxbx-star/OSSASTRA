@@ -9,7 +9,7 @@ using Ossastra.CharacterCore.Abilities;
 namespace Ossastra.CharacterCore
 {
     public enum OffhandKind { None, Shield, Bomb, Other }
-    public sealed class EquipmentState
+    public sealed partial class EquipmentState
     {
         private sealed class Item
         {

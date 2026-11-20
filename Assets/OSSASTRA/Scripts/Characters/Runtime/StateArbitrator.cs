@@ -119,6 +119,7 @@ namespace Ossastra.Characters
             Ability.Prepare(frame, deltaTime);
             if (owner.StateAbilities is CharacterAbilities abilities && abilities.ClaimSideViewDive(frame))
             {
+                Ossastra.Combat.CombatTraceProbe.For(owner)?.Note("输入", "俯冲认领主手", abilities.LastResult);
                 Combat.ClearBuffer();
                 Combat.SuppressInput();
                 frame.attackPressed = false;

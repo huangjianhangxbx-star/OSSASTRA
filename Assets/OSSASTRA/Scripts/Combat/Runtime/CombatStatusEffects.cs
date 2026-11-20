@@ -28,7 +28,10 @@ namespace Ossastra.Combat
         {
             if(!isActiveAndEnabled||postureReactionActive||id==Guid.Empty||knockRemaining>0||seconds<=0||float.IsNaN(seconds)||float.IsInfinity(seconds)||impactWeight<=0)return;
             displacement.y=0;var distance=displacement.magnitude;if(distance<=0||float.IsNaN(distance)||float.IsInfinity(distance))return;
-            knockVelocity=displacement*impactWeight/seconds;knockRemaining=seconds;ControlChanged?.Invoke();
+            knockVelocity=displacement*impactWeight/seconds;knockRemaining=seconds;
+            CombatTraceProbe.ForExecution(this,id)?.Note("反馈","击退已接受",$"速度 {knockVelocity} · 持续 {seconds:0.###} s",
+                id, target: GetComponent<CombatVitals>()?.Health?.Id ?? "");
+            ControlChanged?.Invoke();
         }
         public void Tick(float delta)
         {

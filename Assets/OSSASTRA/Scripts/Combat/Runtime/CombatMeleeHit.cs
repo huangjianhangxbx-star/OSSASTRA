@@ -39,8 +39,15 @@ namespace Ossastra.Combat
             var weaponOrigin = geometry.ReleaseOrigin + Vector3.up * height;
             var center = weaponOrigin + reachDirection * reach;
             var overlaps = Physics.OverlapSphere(center, radius, targetLayers, QueryTriggerInteraction.Collide);
+            var trace = CombatTraceProbe.For(source, true);
+            trace?.Query(release, "OverlapSphere", center, center, reachDirection, radius, 360, targetLayers, overlaps.Length, "Collide");
             var candidates = CombatSpatialTarget.OverlapContacts(overlaps, center,
-                target => target is MonoBehaviour body && CombatSight.IsClear(transform, body.transform, height), out var points, plane);
+                target =>
+                {
+                    var clear = target is MonoBehaviour body && CombatSight.IsClear(transform, body.transform, height);
+                    trace?.Note("判定","近战视线",clear ? "通过" : "无实体或视线阻挡",release.ActionId,release.ParentExecutionId,release.EmissionIndex,target.Health.Id);
+                    return clear;
+                }, out var points, plane);
             var opposingContact = plane == CombatPlane.SideXY &&
                 candidates.Any(target => CombatContactGateway.AllowsTargetFaction(release, source, target));
             if (waitForContact && !opposingContact) return false;

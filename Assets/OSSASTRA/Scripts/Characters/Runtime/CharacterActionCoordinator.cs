@@ -82,6 +82,7 @@ namespace Ossastra.Characters
             });
             if(!ok&&reason==null)reason="duplicate-or-port-rejected";
             LastResult=ok?"Accepted "+request.Kind+" #"+request.RequestId.ToString("N"):"Rejected "+reason;
+            if (!ok) Ossastra.Combat.CombatTraceProbe.For(owner)?.Note("状态","请求被拒",request.Kind+" · "+reason+" · 请求 "+request.RequestId.ToString("N"));
             return ok;
         }
     }

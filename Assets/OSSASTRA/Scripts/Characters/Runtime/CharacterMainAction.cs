@@ -54,6 +54,9 @@ namespace Ossastra.Characters
         public Guid ExecutionId=>actionId;
         public string AcceptedStageId=>accepted?.Stage.Id;
         public int InFlightCount=>deliveries.InFlightCount;
+#if UNITY_EDITOR
+        public void InvalidateLaboratoryProfile() => cachedSelection = null;
+#endif
         public void Initialize(CharacterRoot root)
         {owner=root;equipment=GetComponent<CharacterEquipment>();abilities=GetComponent<CharacterAbilities>();input=GetComponent<CharacterInputHandler>();engagement=FindObjectOfType<CombatEngagementSession>();}
         public bool Configure(string id)
@@ -74,6 +77,9 @@ namespace Ossastra.Characters
             if(cachedSelection==SelectedId&&cachedWeapon==equipment.State.RightInstanceId&&sourceRevision==state.Sources.Revision&&cachedQ==q&&cachedR==r)return false;
             cachedSelection=SelectedId;cachedWeapon=equipment.State.RightInstanceId;sourceRevision=state.Sources.Revision;cachedQ=q;cachedR=r;
             profileDefinition=Choices.FirstOrDefault(p=>p!=null&&p.definitionId==SelectedId);profile=null;
+#if UNITY_EDITOR
+            profileDefinition = AttackLabBindings.Resolve(owner, profileDefinition);
+#endif
             if(profileDefinition!=null)
             {
                 try{profile=profileDefinition.Freeze(abilities?.SnapshotEffects());}

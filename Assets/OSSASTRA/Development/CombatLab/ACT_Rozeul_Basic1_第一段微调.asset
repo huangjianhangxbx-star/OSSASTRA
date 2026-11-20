@@ -1,0 +1,25 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8090f610c0b97bd4180b42d47c6dc728, type: 3}
+  m_Name: "ACT_Rozeul_Basic1_\u7B2C\u4E00\u6BB5\u5FAE\u8C03"
+  m_EditorClassIdentifier: 
+  schema: 1
+  binding: temporary-a|5a2bbb46cad1d204a88c9cf2a03ae72f/11400000|7e065cb27e2567141aa0fb6317301f85/11400000||47b447c37302f284bb0988416c4ed795/11400000
+  baselineRevision: c8bee4f044fac501bf633143bc6664bf
+  conditionJson: '{"mode":1,"station":0,"distance":1.350000023841858,"height":0.0,"right":true,"enemyAttacks":false,"actor":"temporary-a"}'
+  changes:
+  - id: basic.1.finish
+    value: 1.125
+  - id: basic.1.damage
+    value: 13
+  - id: skill.cooldown
+    value: 6.1

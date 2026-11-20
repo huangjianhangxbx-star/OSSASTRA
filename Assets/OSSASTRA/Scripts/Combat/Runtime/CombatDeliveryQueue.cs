@@ -74,6 +74,8 @@ namespace Ossastra.Combat
             var flight=new Flight{source=source,parent=parent,config=config.Freeze(),
                 Geometry=new CombatContactGeometry(plane,origin,travelDirection,travelDirection,basicAttackStage),release=config.mode==DeliveryMode.Sector&&config.activeDuration>0?
                 AttackRelease.ForContactWindow(parent,index,source.Health.Id,damage,posture,reclaimBudget,reclaimRate):AttackRelease.ForEmission(parent,index,source.Health.Id,damage,posture,reclaimBudget,reclaimRate),origin=origin,landing=landing,direction=travelDirection.normalized,position=origin+Vector3.up*.8f,valid=valid,resolved=resolved,emittedFrame=Time.frameCount};
+            CombatTraceProbe.For(source,true)?.Note("判定", "发射", config.mode + " · 持续 " + config.activeDuration + " s",
+                flight.release.ActionId, parent, index);
             if(config.mode==DeliveryMode.Sector)
             {
                 CombatContactGateway.PublishSectorRelease(flight.release, source, flight.Geometry, .8f);
@@ -146,11 +148,22 @@ namespace Ossastra.Combat
         private static RaycastHit? FirstContact(Flight f,Vector3 a,Vector3 b)
         {
             var delta=b-a;if(delta.sqrMagnitude<.000001f)return null;
-            foreach(var hit in Physics.SphereCastAll(a,f.config.collisionRadius,delta.normalized,delta.magnitude,f.config.collisionLayers,QueryTriggerInteraction.Ignore).OrderBy(h=>h.distance))
+            var hits = Physics.SphereCastAll(a,f.config.collisionRadius,delta.normalized,delta.magnitude,f.config.collisionLayers,QueryTriggerInteraction.Ignore);
+            var trace = CombatTraceProbe.For(f.source, true);
+            trace?.Query(f.release, "SphereCastAll", a, b, delta.normalized, f.config.collisionRadius, 0, f.config.collisionLayers, hits.Length, "Ignore", f.config.activeDuration, f.elapsed);
+            foreach(var hit in hits.OrderBy(h=>h.distance))
             {
                 var target=CombatSpatialTarget.Find(hit.collider);
-                if(ReferenceEquals(target,f.source)||target!=null&&(!CombatTargetValidity.IsAvailable(target)||target is ICombatTarget combat&&combat.Faction==f.source.Faction))continue;
-                if((f.config.mode==DeliveryMode.Ray||f.config.mode==DeliveryMode.Projectile)&&target is ICombatProjectileContact policy&&!policy.AllowsDirectProjectile)continue;
+                if(ReferenceEquals(target,f.source)||target!=null&&(!CombatTargetValidity.IsAvailable(target)||target is ICombatTarget combat&&combat.Faction==f.source.Faction))
+                {
+                    trace?.Note("判定","投射候选已排除","来源自身、无效身份或同阵营 · "+hit.collider.name, f.release.ActionId,f.parent,f.release.EmissionIndex);
+                    continue;
+                }
+                if((f.config.mode==DeliveryMode.Ray||f.config.mode==DeliveryMode.Projectile)&&target is ICombatProjectileContact policy&&!policy.AllowsDirectProjectile)
+                {
+                    trace?.Note("判定","投射候选已排除","目标禁止直接投射物",f.release.ActionId,f.parent,f.release.EmissionIndex);
+                    continue;
+                }
                 return hit;
             }
             return null;
@@ -160,12 +173,22 @@ namespace Ossastra.Combat
         {
             var center = point + Vector3.up * .8f;
             var overlaps = Physics.OverlapSphere(center, radius, f.config.collisionLayers, QueryTriggerInteraction.Ignore);
+            var trace = CombatTraceProbe.For(f.source, true);
+            trace?.Query(f.release, "OverlapSphere", center, center, f.direction, radius, sector ? f.config.arc : 360,
+                f.config.collisionLayers, overlaps.Length, "Ignore", f.config.activeDuration, f.elapsed, sector ? point : (Vector3?)null);
             return CombatSpatialTarget.OverlapContacts(overlaps, center, target =>
             {
-                if (ReferenceEquals(target, f.source)) return false;
-                var position = CombatSpatialTarget.Position(target);
-                return (!sector || CombatContactGeometry.ContainsSector(position - point, f.direction, f.config.arc, f.Geometry.Plane)) &&
-                    Clear(point, position);
+                var reason = "";
+                if (ReferenceEquals(target, f.source)) reason = "来源自身";
+                else
+                {
+                    var position = CombatSpatialTarget.Position(target);
+                    if (sector && !CombatContactGeometry.ContainsSector(position - point, f.direction, f.config.arc, f.Geometry.Plane))
+                        reason = "角度外";
+                    else if (!Clear(point, position)) reason = "视线阻挡";
+                }
+                trace?.Note("判定","空间候选",reason.Length == 0 ? "通过" : reason, f.release.ActionId, f.parent, f.release.EmissionIndex, target.Health.Id);
+                return reason.Length == 0;
             }, out contacts, f.Geometry.Plane);
         }
         public static bool Clear(Vector3 a,Vector3 b)
@@ -198,7 +221,15 @@ namespace Ossastra.Combat
             f.resolved?.Invoke(receipts);
         }
         private void Remove(int i)
-        {var parent=flights[i].parent;if(flights[i].visual!=null)UnityEngine.Object.Destroy(flights[i].visual);flights[i].source?.Recovery?.ReleaseParent(parent);flights.RemoveAt(i);ForgetCompleted(parent);}
+        {
+            var f = flights[i];
+            CombatTraceProbe.For(f.source,true)?.Note("判定","投递窗口已移除", f.config.mode + " · 已推进 " + f.elapsed + " s",
+                f.release.ActionId, f.parent, f.release.EmissionIndex);
+            if (f.visual != null) UnityEngine.Object.Destroy(f.visual);
+            f.source?.Recovery?.ReleaseParent(f.parent);
+            flights.RemoveAt(i);
+            ForgetCompleted(f.parent);
+        }
         public void Clear(){for(int i=flights.Count-1;i>=0;i--)Remove(i);emitted.Clear();activeParents.Clear();}
     }
 }

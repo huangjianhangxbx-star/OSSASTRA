@@ -1195,3 +1195,5 @@ ToonSurface01 Root共享精确租约细化：LookDevFiniteToon.cs、SurfaceLight
 
 ## 2026-11-11 LOOKDEV-01 v1.3 candidate complete / writers released
 本轮实现/同版Player/恢复完成，Root与shader/integration/validation源码和Unity writer全部释放。GPU新增门通过但总帧60未过；原43dirty不夹带，Main未保存dirtytrue恢复，32保护/2原档SHA相同。只剩精确GitHub发布核验；成功后依用户顺序进入VEGETATION-01A v1.3新计划，当前不关机。详专属交付与publication回执。
+
+2026-11-20 SV-COMBAT-LAB-01 complete / ownership released，独立横版攻击调试台、动作候选适配与真实判定观察。[任务记录](tasks/2026-11-20-sv-combat-lab-01.md)

@@ -43,10 +43,16 @@ namespace Ossastra.Combat
         {
             if(release==null)throw new ArgumentNullException(nameof(release));
             if(source!=null && (!source.IsAvailable || source.Health.Id!=release.ActorId))return release.Resolve(Array.Empty<Health>());
-            var targets=candidates.Where(CombatTargetValidity.IsAvailable)
-                .Where(t=>!(t is ICombatContactFilter filter)||filter.Accepts(release)).Distinct()
-                .GroupBy(t=>t.Health.Id,StringComparer.Ordinal).Where(g=>g.Count()==1).Select(g=>g.Single())
-                .Where(t => AllowsTargetFaction(release, source, t)).ToArray();
+            var trace = CombatTraceProbe.For(source,true);
+            bool Permit(bool allowed, string step, string target = "")
+            {
+                if (!allowed) trace?.Note("判定","结算筛除",step,release.ActionId,release.ParentExecutionId,release.EmissionIndex,target);
+                return allowed;
+            }
+            var targets=candidates.Where(t=>Permit(CombatTargetValidity.IsAvailable(t),"无效身份"))
+                .Where(t=>Permit(!(t is ICombatContactFilter filter)||filter.Accepts(release),"目标接触策略",t.Health.Id)).Distinct()
+                .GroupBy(t=>t.Health.Id,StringComparer.Ordinal).Where(g=>Permit(g.Count()==1,"同一身份对应多个目标",g.Key)).Select(g=>g.Single())
+                .Where(t=>Permit(AllowsTargetFaction(release,source,t),"自身、源状态或阵营",t.Health.Id)).ToArray();
             var defenses=targets.ToDictionary(t=>t,t=>(t as MonoBehaviour)?.GetComponents<MonoBehaviour>().OfType<ICombatDefense>().FirstOrDefault(x=>(x as Behaviour).isActiveAndEnabled));
             var outcomes=release.ResolveContacts(targets.Select(t=>new AttackContact(t.Health,defenses[t]?.CaptureDefense(origin)??DefenseSnapshot.Normal)));
             // 只快照真实回执的位置；在死亡/破坏表现回调之前捕获，发布仍在原分发循环之后。

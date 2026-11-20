@@ -265,6 +265,21 @@ namespace Ossastra.Characters
                 var oneButton = pad?.ReadButton(PostureInputCommand.SkillOne, acceptsNewPress) ?? d.Button(skillOneAction);
                 var twoButton = pad?.ReadButton(PostureInputCommand.SkillTwo, acceptsNewPress) ?? d.Button(skillTwoAction);
                 var threeButton = pad?.ReadButton(PostureInputCommand.SkillThree, acceptsNewPress) ?? d.Button(skillThreeAction);
+                var trace = Ossastra.Combat.CombatTraceProbe.For(this);
+                if (trace != null)
+                {
+                    void Edge(CharacterInputButton button, string label, double at)
+                    {
+                        if (!button.Pressed && !button.Released) return;
+                        trace.InputEdge(label, d.Device.displayName, button.DeviceId, button.Control, button.GestureId,
+                            button.Pressed, button.Released, InventoryCaptured, button.Pressed && at > 0 ? at : -1);
+                    }
+                    Edge(mainButton,"主手",pad?.EventTime(PostureInputCommand.MainHand) ?? d.Time(rightHandAction));
+                    Edge(leftButton,"副手",pad?.EventTime(PostureInputCommand.Offhand) ?? d.Time(leftHandAction));
+                    Edge(oneButton,"技能一",pad?.EventTime(PostureInputCommand.SkillOne) ?? d.Time(skillOneAction));
+                    Edge(twoButton,"技能二",pad?.EventTime(PostureInputCommand.SkillTwo) ?? d.Time(skillTwoAction));
+                    Edge(threeButton,"技能三",pad?.EventTime(PostureInputCommand.SkillThree) ?? d.Time(skillThreeAction));
+                }
                 held |= mainButton.Held && !weaponChord; offhand |= leftButton.Held && !weaponChord;
                 attackReleased |= mainButton.Released;
                 attackPressed |= !weaponChord && mainButton.Pressed;

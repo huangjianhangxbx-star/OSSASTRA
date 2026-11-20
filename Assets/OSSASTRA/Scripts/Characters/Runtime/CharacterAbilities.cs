@@ -376,7 +376,13 @@ namespace Ossastra.Characters
             if(directory!=null&&definition!=directory.nativeAbility&&!SkillChoices.Contains(definition)&&
                 !(equipment.RightDefinition.abilityBindings??Array.Empty<AbilityBinding>()).Any(b=>b!=null&&(b.ability==definition||b.longPressAbility==definition)))return Reject("能力不属于当前主手职业目录");
             CompiledAbility compiled;
-            try{compiled=definition.Compile();}catch(ArgumentException e){return Reject(e.Message);}
+#if UNITY_EDITOR
+            // 只覆写本角色代表主手技能的受理快照，装备目录与副手载荷仍用真实定义查找。
+            var snapshotSource = main ? AttackLabBindings.Resolve(owner, definition) : definition;
+#else
+            var snapshotSource = definition;
+#endif
+            try{compiled=snapshotSource.Compile();}catch(ArgumentException e){return Reject(e.Message);}
             var binding=main?null:equipment.LeftDefinition?.abilityBindings?.FirstOrDefault(b=>b!=null&&b.operation==operation&&(b.ability==definition||b.longPressAbility==definition));
             var mainPayload=binding!=null&&binding.resourceOwner==AbilityResourceOwner.MainEquipment;
             var port=new EquipmentSource(equipment,main||mainPayload,compiled.wearOnRelease,mainPayload?equipment.State.LeftInstanceId:null);

@@ -39,7 +39,17 @@ namespace Ossastra.Characters
    return reason==null;
   }
   private bool ChainAvailable=>owner.StateCharacterDefinition!=null||(chainProfile!=null&&chainProfile.isActiveAndEnabled);
-  private ActionDefinitionSO[] ActionLibrary=>owner.StateActionLibrary;
+  private ActionDefinitionSO[] ActionLibrary
+  {
+      get
+      {
+#if UNITY_EDITOR
+          return AttackLabBindings.ResolveActions(owner,owner.StateActionLibrary);
+#else
+          return owner.StateActionLibrary;
+#endif
+      }
+  }
   public override void Initialize(CharacterRoot root)
   {
    base.Initialize(root);
@@ -57,11 +67,17 @@ namespace Ossastra.Characters
   public void RequestInput(CharacterInputFrame frame)
   {
             var pressed=frame.hasAttackEdges?intent.Observe(frame.attackHeld,frame.attackPressed):intent.Observe(frame.attackHeld);
+            var trace = CombatTraceProbe.For(owner);
+            if (pressed || frame.attackPressed)
+                trace?.Note("输入","主手输入交给战斗状态机",$"有效边沿={pressed}，界面捕获={frame.attackPointerBlocked}，请求封锁={frame.attackRequestsBlocked}，焦点={owner.StateFocused}，攀越限制={owner.StateArbitrator.Movement.TraversalBlocksAttack}，瞄准={frame.aimSource}");
             if(owner.StateArbitrator.Movement.TraversalBlocksAttack){ClearBuffer();if(frame.attackHeld)SuppressInput();return;}
             if (pressed && !frame.attackRequestsBlocked && owner.StateFocused && !frame.attackPointerBlocked)
             {
+                bool wasBuffered = HasBufferedAttack;
                 var stage=chain==null?1:chain.Request(runtime.SimulationTime,runtime.AttackReady,
                     owner.StateInput.HasPlayerInput && !owner.IsPaused && owner.StateAuthority.Allows(ControlChannel.Attack) && ChainAvailable && (owner.StateMainAction==null||owner.StateMainAction.AllowsBasicRequest));
+                if (HasBufferedAttack && !wasBuffered) trace?.Note("输入","普攻入缓冲","当前动作结束前的预输入",runtime.ActionId);
+                else if (stage==0) trace?.Note("输入","未发起新普攻",$"再次攻击许可={runtime.AttackReady}，已有缓冲={HasBufferedAttack}，整套收尾许可={owner.StateMainAction?.AllowsBasicRequest}",runtime.ActionId);
                 if(stage>0) RequestStage(stage);
             }
 
@@ -115,7 +131,10 @@ namespace Ossastra.Characters
             if(chain!=null && !owner.StateArbitrator.Movement.TraversalBlocksAttack &&
                 owner.StateInput.HasPlayerInput && !owner.IsPaused && owner.StateFocused && owner.StateAuthority.Allows(ControlChannel.Attack))
             {
+                bool hadBuffer = chain.HasBuffer;
                 var bufferedStage=chain.Poll(runtime.SimulationTime,runtime.AttackReady);
+                if (hadBuffer && !chain.HasBuffer)
+                    CombatTraceProbe.For(owner)?.Note("输入", bufferedStage>0?"消费缓冲":"缓冲过期或接续资格结束", "接续段 "+bufferedStage,runtime.ActionId);
                 if(bufferedStage>0) RequestStage(bufferedStage);
             }
 
@@ -192,7 +211,20 @@ namespace Ossastra.Characters
         public void RefreshMainProfile()
         {
             if(owner.StateMainAction==null||!owner.StateMainAction.RefreshWhenIdle())return;
-            var sequence=owner.StateMainAction.Sequence;
+            RebuildMainSequence();
+        }
+#if UNITY_EDITOR
+        public void RebindLaboratorySequence()
+        {
+            if(owner == null || owner.ActionActive) return;
+            owner.StateMainAction?.InvalidateLaboratoryProfile();
+            owner.StateMainAction?.RefreshWhenIdle();
+            RebuildMainSequence();
+        }
+#endif
+        private void RebuildMainSequence()
+        {
+            var sequence=owner.StateMainAction?.Sequence;
             if(sequence!=null)
             {
                 configuredAttacks=new BasicAttackDefinition[sequence.Count];
@@ -202,7 +234,11 @@ namespace Ossastra.Characters
             else if(owner.StateCharacterDefinition!=null)
             {
                 configuredAttacks=Array.ConvertAll(ActionLibrary,a=>a.Freeze());definition=configuredAttacks[0];
-                chain=new BasicChainState(owner.StateCharacterDefinition.preInput,owner.StateCharacterDefinition.bufferLifetime,owner.StateCharacterDefinition.continuationWindow,configuredAttacks.Length,owner.StateCharacterDefinition.requireHitForContinuation);
+                var chainSource=owner.StateCharacterDefinition;
+#if UNITY_EDITOR
+                chainSource=AttackLabBindings.Resolve(owner,chainSource);
+#endif
+                chain=new BasicChainState(chainSource.preInput,chainSource.bufferLifetime,chainSource.continuationWindow,configuredAttacks.Length,chainSource.requireHitForContinuation);
             }
         }
         private void RequestStage(int stage, CombatVitals aiTarget = null)

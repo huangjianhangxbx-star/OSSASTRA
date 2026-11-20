@@ -15,6 +15,14 @@ namespace Ossastra.Characters
         public Vector2 LastAimDirection { get; private set; } = Vector2.right;
         public Vector2 Move { get; private set; }
 
+        // A new trial starts with the requested facing until fresh device intent claims aim.
+        internal void BeginAttackLabTrial(bool facingRight)
+        {
+            AimSource = PlayerInputSource.None;
+            AimDeviceId = -1;
+            LastAimDirection = facingRight ? Vector2.right : Vector2.left;
+        }
+
         public void Resolve(IReadOnlyList<DeviceInputCandidate> devices, bool exploration, bool combat)
         {
             DeviceInputCandidate owner = null, newest = null;

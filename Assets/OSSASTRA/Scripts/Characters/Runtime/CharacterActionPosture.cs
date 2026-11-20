@@ -132,6 +132,7 @@ namespace Ossastra.Characters
         {
             foreach (var id in recoveryEvents.Keys) posture?.EndActionExposure(id);
             recoveryEvents.Clear();
+            LastSpineRecovery = null;
             End(jump);
             End(traverse);
             jump = traverse = Guid.Empty;

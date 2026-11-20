@@ -129,6 +129,8 @@ namespace Ossastra.UserInterface
             unsubscribe.Add(() => CombatContactGateway.SectorReleased -= OnSideViewRelease);
         }
 
+        public bool SuppressLabSwing { get; set; }
+
         private void OnSideViewRelease(CombatReleaseVisualFact fact)
         {
             if (effects == null || fact.SourceSceneHandle != gameObject.scene.handle) return;
@@ -144,11 +146,17 @@ namespace Ossastra.UserInterface
             var forward = EffectDirection(recipe, geometry, default, geometry.ReleaseDirection, false);
             var body = fact.Source == null ? null : fact.Source.GetComponent<CharacterMovement>();
             ReleaseCues++;
-            ReleaseEffectRequests++;
             LastReleaseGeometry = geometry;
             LastReleaseActionId = fact.ActionId;
+            if (SuppressLabSwing)
+            {
+                CombatTraceProbe.For(fact.Source)?.Note("反馈", "实验关闭挥击特效", "保留正式判定", fact.ActionId, fact.ParentExecutionId, fact.EmissionIndex);
+                return;
+            }
+            ReleaseEffectRequests++;
             var result = effects.Play(SideViewEffectShape.Swing, recipe, geometry.ReleaseOrigin, forward,
                 body: body, anchorOffset: Vector3.up * fact.WeaponHeight);
+            CombatTraceProbe.For(fact.Source)?.Note("反馈","挥击特效",result.ToString(),fact.ActionId,fact.ParentExecutionId,fact.EmissionIndex);
             if (result == SideViewEffectAdmission.Accepted) ReleaseEffectsAccepted++;
             else LastSideViewEffectFailure = result;
         }
@@ -181,6 +189,7 @@ namespace Ossastra.UserInterface
             {
                 sink.RequestImpact(new CombatImpactShakeRequest(batch.ParentExecutionId, batch.ActionId,
                     batch.EmissionIndex, batch.ActorId, impulse, strength));
+                CombatTraceProbe.For(batch.Source)?.Note("反馈","已请求震屏","强度 "+strength.ToString("F3"),batch.ActionId,batch.ParentExecutionId,batch.EmissionIndex);
                 ShakeRequests++;
             }
 
@@ -193,6 +202,7 @@ namespace Ossastra.UserInterface
                 HitCues++;
                 ContactEffectRequests++;
                 var result = effects.Play(shape, recipe, contact.VisualPosition, direction, tint: tint);
+                CombatTraceProbe.For(batch.Source)?.Note("反馈",shape+" 特效",result.ToString(),batch.ActionId,batch.ParentExecutionId,batch.EmissionIndex);
                 if (result == SideViewEffectAdmission.Accepted) ContactEffectsAccepted++;
                 else LastSideViewEffectFailure = result;
                 LastContactPosition = contact.Position;

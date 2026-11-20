@@ -472,6 +472,32 @@ namespace Ossastra.Characters
         }
 
 
+        // 仅由独立攻击调试场调用。沿各模块的现有生命周期释放旧执行，最后递增角色代际。
+        internal void ResetAttackLabActor(Vector3 position, Vector3 facing)
+        {
+            CancelAction("attack-lab-reset");
+            stateArbitrator?.StopMovement();
+            statusEffects?.Clear();
+            mainAction?.ResetState();
+            skills?.Clear();
+            offhand?.CancelAll();
+            if (abilities is CharacterAbilities active && active.enabled)
+            {
+                active.enabled = false;
+                active.enabled = true;
+            }
+            actionPosture.Clear();
+            vitals?.RestoreForDevelopment();
+            posture?.ResetState();
+            if (posture != null) authority.Release(posture);
+            stamina?.Restore();
+            follow?.ResetIntent();
+            input?.ResetPlayerInput(true);
+            movement?.Teleport(position);
+            orientation?.InitializeArrivalFacing(facing);
+            lifeGeneration++;
+        }
+
         public void SetAttackRestriction(object owner, bool restricted, string reason = "attack-restricted")
         {
             if (restricted) { authority.Block(owner, ControlChannel.Attack); CancelAction(reason); }

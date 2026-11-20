@@ -50,6 +50,13 @@ namespace Ossastra.Characters
             view.transparencySortAxis = Vector3.forward;
         }
 
+        internal void ResetAttackLabCamera()
+        {
+            ClearSwitchZoom();
+            ClearShake();
+            ResetFollow();
+        }
+
         private void OnDisable()
         {
             ClearSwitchZoom();
