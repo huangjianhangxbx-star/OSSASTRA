@@ -27,6 +27,7 @@ namespace Ossastra.Characters
         private Camera view;
         private CharacterRoot followed;
         private CharacterMovement motor;
+        private CharacterController followedBody;
         private uint contactRevision;
         private Vector2 velocity;
         private float lookX, lookY, switchRemaining;
@@ -115,6 +116,7 @@ namespace Ossastra.Characters
         {
             followed = null;
             motor = null;
+            followedBody = null;
             velocity = Vector2.zero;
             lookX = lookY = switchRemaining = 0f;
         }
@@ -158,6 +160,7 @@ namespace Ossastra.Characters
             {
                 followed = current;
                 motor = current.GetComponent<CharacterMovement>();
+                followedBody = current.GetComponent<CharacterController>();
                 velocity = Vector2.zero;
                 lookX = lookY = 0f;
                 switchRemaining = profile == null ? 0f : profile.switchBlendSeconds;
@@ -171,10 +174,20 @@ namespace Ossastra.Characters
             ApplySwitchProjection();
             var center = (Vector2)BasePosition;
             Vector2 minOffset = default, maxOffset = default;
+            float viewportHeight = view.orthographic ? view.orthographicSize * 2f :
+                2f * Mathf.Abs(anchor.z - depth) * Mathf.Tan(view.fieldOfView * .5f * Mathf.Deg2Rad);
+            float footY = anchor.y;
+            if (followedBody != null && followedBody.enabled)
+                footY += followedBody.bounds.min.y - current.transform.position.y;
+            // 底部快捷栏、角色卡和技能键最高至屏高约 30%。按实际投影预留脚底空间。
+            // 跌出房间时止于房间下沿，以免镜头追进地图之外。
+            if (profile != null) footY = Mathf.Max(footY, profile.worldBounds.yMin);
+            const float footViewportFloor = .32f;
+            float highestSafeCenter = footY + (.5f - footViewportFloor) * viewportHeight;
             if (profile == null)
             {
                 TargetCenter = new Vector2(Mathf.Clamp(anchor.x, minimumCenter.x, maximumCenter.x),
-                    Mathf.Clamp(anchor.y + verticalOffset, minimumCenter.y, maximumCenter.y));
+                    Mathf.Min(Mathf.Clamp(anchor.y + verticalOffset, minimumCenter.y, maximumCenter.y), highestSafeCenter));
                 center = switched || relocated || smoothTime <= 0f ? TargetCenter :
                     Vector2.SmoothDamp(center, TargetCenter, ref velocity, smoothTime);
             }
@@ -193,6 +206,7 @@ namespace Ossastra.Characters
                 }
                 ReadViewportOffsets(anchor.z, out minOffset, out maxOffset);
                 TargetCenter = Confine(TargetCenter, minOffset, maxOffset);
+                TargetCenter = new Vector2(TargetCenter.x, Mathf.Min(TargetCenter.y, highestSafeCenter));
                 bool snap = initial || relocated || switched && Vector2.Distance(center, TargetCenter) > profile.switchSnapDistance;
                 if (snap)
                 {
@@ -211,12 +225,16 @@ namespace Ossastra.Characters
                     switchRemaining = Mathf.Max(0f, switchRemaining - elapsed);
                 }
             }
+            if (center.y > highestSafeCenter)
+            {
+                center.y = highestSafeCenter;
+                velocity.y = Mathf.Min(velocity.y, 0f);
+            }
             BasePosition = new Vector3(center.x, center.y, depth);
             // 用角色平面的可见高度标定平移幅度，镜头缩放时仍保持相近的屏幕占比。
-            float viewportHeight = view.orthographic ? view.orthographicSize * 2f :
-                2f * Mathf.Abs(anchor.z - depth) * Mathf.Tan(view.fieldOfView * .5f * Mathf.Deg2Rad);
             var finalCenter = center + impactShake.Tick(elapsed, viewportHeight, shake);
             if (profile != null) finalCenter = Confine(finalCenter, minOffset, maxOffset);
+            finalCenter.y = Mathf.Min(finalCenter.y, highestSafeCenter);
             AppliedShakeOffset = finalCenter - center;
             transform.position = new Vector3(finalCenter.x, finalCenter.y, depth);
         }

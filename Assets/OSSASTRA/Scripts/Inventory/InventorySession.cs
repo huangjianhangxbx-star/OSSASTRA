@@ -84,6 +84,14 @@ namespace Ossastra.Inventory
                         SeedEquipped(root,gear,InventoryHand.Left,gear.LeftDefinition,gear.State.LeftInstanceId,gear.State.Durability,gear.State.LeftRuntime);
                     }
                     Grant(initialTeam,"team");Grant(initialChest,"external");
+                    foreach(var root in coordinator.Characters)
+                    {
+                        var item=root.GetComponent<CharacterEquipment>().StartingBagItem;
+                        if(item==null)continue;
+                        var result=Ledger.Grant("team",item.DefinitionId,1,item);
+                        if(!result.Ok)result=Ledger.Grant("external",item.DefinitionId,1,item);
+                        if(!result.Ok)throw new ArgumentException("初始副手入库失败："+result.Reason);
+                    }
                 }
                 foreach(var root in coordinator.Characters)root.GetComponent<CharacterEquipment>().BindInventory(new Slots(this,root));
                 foreach(var root in coordinator.Characters)root.Died+=OnDied;

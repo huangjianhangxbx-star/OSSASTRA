@@ -18,13 +18,14 @@ namespace Ossastra.Characters
         private CharacterRoot owner;
         private ICharacterEquipmentInventory inventory;
         public bool InventoryBound=>inventory!=null;
+        public EquipmentItemState StartingBagItem {get;private set;}
         public EquipmentDefinitionSO RightDefinition=>InventoryBound?inventory.RightDefinition:rightDefinition;
         public EquipmentDefinitionSO LeftDefinition=>InventoryBound?inventory.LeftDefinition:State==null?null:ownedOffhands.FirstOrDefault(d=>d!=null&&d.definitionId==State.LeftDefinitionId)
             ??ownedOffhands.FirstOrDefault(d=>d!=null&&State.LeftDefinitionId!=null&&State.LeftDefinitionId.StartsWith("legacy:")&&d.offhandKind==State.LeftKind);
         public EquipmentDefinitionSO[] OwnedOffhands=>InventoryBound?inventory.AvailableOffhands:(EquipmentDefinitionSO[])ownedOffhands.Clone();
         public bool CanChangeEquipment=>Idle()&&!(GetComponent<CharacterAbilities>()?.IsBusy??false);
         public void BindInventory(ICharacterEquipmentInventory source)
-        {if(source==null||State==null||inventory!=null&&!ReferenceEquals(inventory,source))throw new InvalidOperationException("Invalid inventory binding");State.BindSlots(source);inventory=source;}
+        {if(source==null||State==null||inventory!=null&&!ReferenceEquals(inventory,source))throw new InvalidOperationException("Invalid inventory binding");State.BindSlots(source);inventory=source;StartingBagItem=null;}
         public bool TryEquip(EquipmentDefinitionSO definition)
         {if(InventoryBound){var ok=inventory.TryEquip(definition);LastResult=ok?"装备已转移":"拒绝：库存/动作/容量资格不符";return ok;}if(definition==null||definition.mainHand||!ownedOffhands.Contains(definition)){LastResult="拒绝：非本体持有的副手定义";return false;}return EquipDefinition(definition);}
         public EquipmentState State {get;private set;}
@@ -55,6 +56,11 @@ namespace Ossastra.Characters
             foreach(var definition in ownedOffhands.Where(d=>d!=null))State.RegisterDefinition(definition.definitionId,definition.offhandKind,initialDurability);
             var initial=ownedOffhands.FirstOrDefault(d=>d!=null&&d.offhandKind==initialOffhand);
             if(initial!=null)State.TryEquipDefinition(initial.definitionId,true);else State.TryEquip(initialOffhand,true);
+            if(initial!=null && root.Definition!=null && initial==root.Definition.startingOffhandInBag)
+            {
+                StartingBagItem=new EquipmentItemState(State.LeftInstanceId,initial.definitionId,initial.offhandKind,State.Durability,State.LeftRuntime);
+                State.TryEquip(OffhandKind.None,true);
+            }
         }
         public bool TryEquip(OffhandKind kind)
         {

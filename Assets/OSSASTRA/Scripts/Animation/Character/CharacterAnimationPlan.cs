@@ -14,6 +14,10 @@ public class CharacterAnimationPlan
     [ListDrawerSettings(ShowItemCount = true, DraggableItems = true, ShowPaging = true, NumberOfItemsPerPage = 5)]
     public List<CharacterAnimationClip> clips = new List<CharacterAnimationClip>();
 
+    [FoldoutGroup("移动时的循环轨道", false)]
+    [Tooltip("持续动作移动时使用的整组循环轨道。留空沿用正常轨道。")]
+    public CharacterAnimationClip[] movingLoopClips = System.Array.Empty<CharacterAnimationClip>();
+
     [FoldoutGroup("Queued Clips", false)]
     [ListDrawerSettings(ShowItemCount = true, DraggableItems = true, ShowPaging = true, NumberOfItemsPerPage = 5)]
     public List<CharacterAnimationQueuedClip> queuedClips = new List<CharacterAnimationQueuedClip>();
@@ -42,6 +46,16 @@ public class CharacterAnimationPlan
         copyPlan.runtimeLogicId = runtimeLogicId;
         copyPlan.runtimeSource = runtimeSource;
         copyPlan.runtimeSemantic = runtimeSemantic;
+
+        if (movingLoopClips != null && movingLoopClips.Length > 0)
+        {
+            copyPlan.movingLoopClips = System.Array.ConvertAll(movingLoopClips, source =>
+            {
+                var clip = source?.Clone();
+                if (clip != null) clip.characterRoot = root;
+                return clip;
+            });
+        }
 
         if (clips != null)
         {
@@ -93,6 +107,9 @@ public class CharacterAnimationPlan
         || (queuedClips != null && queuedClips.Exists(q => q != null && q.clip != null && q.clip.track >= 0 && !string.IsNullOrEmpty(q.clip.animaName)));
     public void SetSkeletonDataAsset(SkeletonDataAsset skeletonDataAsset)
     {
+        if (movingLoopClips != null)
+            foreach (var clip in movingLoopClips)
+                if (clip != null) clip.skeletonDataAsset = skeletonDataAsset;
         if (clips != null)
         {
             for (int i = 0; i < clips.Count; i++)

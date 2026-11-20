@@ -100,7 +100,7 @@ namespace Ossastra.Audio
             ObservedMotionSteps++;
             var cue = item.sampler.Observe(step.StepId, step.ContactEpoch, step.GroundedBefore, step.GroundedAfter,
                 step.Launched, step.AllowsFootstep, step.SupportCollider != null, step.HorizontalDistance,
-                step.SimulatedSeconds, step.LandingDownwardSpeed);
+                step.SimulatedSeconds, step.LandingDownwardSpeed, item.movement.IsWalking);
             if (cue == SideViewAudioCue.Jump) item.launch = step;
             if (cue == SideViewAudioCue.Land) item.land = step;
             if (!step.GroundedAfter) item.footstep = null;

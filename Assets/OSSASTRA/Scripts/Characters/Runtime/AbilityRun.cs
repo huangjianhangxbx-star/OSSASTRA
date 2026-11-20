@@ -65,6 +65,7 @@ namespace Ossastra.Characters
         public AbilityRunContext Context {get;}
         public bool Ended {get;protected set;}
         public virtual bool RequiresHeld=>false;
+        public virtual bool RequiresWalk => false;
         public abstract void Tick(float delta,bool held);
         public virtual void OnResolved(int index,string channel,IReadOnlyList<HitOutcome> receipts) { }
         public virtual void Cancel(){Context.source.CancelReservation();Ended=true;}

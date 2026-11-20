@@ -196,7 +196,8 @@ namespace Ossastra.Characters
             if (movement != null && movement.IsSideView)
             {
                 float horizontal = frame.move.x;
-                frame.move = new Vector2(Mathf.Abs(horizontal) > .3f ? Mathf.Sign(horizontal) : 0f, 0f);
+                frame.walkRequested = input.InputSources.ResolveSideViewWalk(frame.moveSource, horizontal);
+                frame.move = new Vector2(Mathf.Abs(horizontal) >= PlayerInputSourceState.SideHorizontalThreshold ? Mathf.Sign(horizontal) : 0f, 0f);
                 frame.aimDirection.y = 0f;
                 return frame;
             }

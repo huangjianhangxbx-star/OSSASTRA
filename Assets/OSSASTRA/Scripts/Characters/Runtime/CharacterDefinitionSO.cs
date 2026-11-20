@@ -12,6 +12,8 @@ namespace Ossastra.Characters
         public string definitionId,displayName;
         [HideInInspector] public CharacterAnimationProfileSO animationProfile; // 历史场/迁移来源；正式动画在ConfigManager原式SO中维护。
         public CharacterRigProfileSO rigProfile;
+        [Tooltip("当场景指定此副手作为初始装备时，新队伍将它收入背包，角色以空副手出场。")]
+        public EquipmentDefinitionSO startingOffhandInBag;
         [Tooltip("可选模型方向表现；空引用保留单面角色原行为，不改变玩法方向。")]
         public CharacterDirectionProfileSO directionProfile;
         public ActionDefinitionSO[] basicAttacks=Array.Empty<ActionDefinitionSO>();

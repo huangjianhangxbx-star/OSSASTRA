@@ -43,11 +43,12 @@ namespace Ossastra.Characters
         private CharacterController body;
         private CharacterDataBus dataBus;
         private Ossastra.Combat.CombatStatusEffects statusEffects;
-        private ICharacterLocomotionScale locomotionScale;
+        private CharacterAbilities abilities;
         private ICharacterEnvironmentClearance environmentClearance;
         private SideViewMovingSupport movingSupport;
         private Vector3 lastMovingSupportPosition;
         public bool IsMoving { get; private set; }
+        public bool IsWalking { get; private set; }
         public Vector3 Velocity { get; private set; }
         public CharacterJumpProfile JumpProfile => jumpProfile;
         public bool IsSideView => jumpProfile != null;
@@ -99,7 +100,7 @@ namespace Ossastra.Characters
             sideDepth = transform.position.z;
             ResetSideViewPose();
             statusEffects=GetComponent<Ossastra.Combat.CombatStatusEffects>();
-            locomotionScale=GetComponent<CharacterAbilities>();
+            abilities=GetComponent<CharacterAbilities>();
             return body != null;
         }
 
@@ -226,6 +227,8 @@ namespace Ossastra.Characters
                 statusEffects?.BlocksIntent != true;
             partyContacts?.Prepare(body);
             LastAllowed = allowed;
+            bool useWalkSpeed = footstepAllowed && !traversalMotion.X.HasValue && dataBus.Input.move.x != 0f &&
+                (dataBus.Input.walkRequested || (abilities != null && abilities.RequiresWalk));
 
             bool abilityDrive = !reactionMotion.HasValue && abilityMotion.HasValue && !abilityMotion.Value.IsBounce;
             Vector3 horizontal;
@@ -245,7 +248,8 @@ namespace Ossastra.Characters
                 horizontal = Vector3.right * (switchRetreat.Value.x / delta);
             else
             {
-                horizontal = ResolveVelocity(allowed, jumpProfile.runSpeed);
+                float speedScale = useWalkSpeed ? jumpProfile.walkSpeedRatio : 1f;
+                horizontal = ResolveVelocity(allowed, jumpProfile.runSpeed * speedScale);
                 horizontal.y = horizontal.z = 0f;
                 if (traversalMotion.X.HasValue) horizontal.x = traversalMotion.X.Value;
             }
@@ -299,6 +303,7 @@ namespace Ossastra.Characters
             if (movingSupport != null) lastMovingSupportPosition = movingSupport.transform.position;
             previousPose = before;
             latestPose = transform.position;
+            IsWalking = Grounded && useWalkSpeed && Mathf.Abs(latestPose.x - before.x - supportDisplacement.x) > .001f;
             bool launched = jumpAccepted && !hitHead && latestPose.y > before.y + supportDisplacement.y + .001f;
             float landingSpeed = !traversalMotion.ConstrainedPose && !groundedBefore && Grounded && hasEstablishedSupport ? downBeforeContact : 0f;
             hasEstablishedSupport |= Grounded;
@@ -338,7 +343,7 @@ namespace Ossastra.Characters
             var move = allowed ? Vector2.ClampMagnitude(dataBus.Input.move, 1) : Vector2.zero;
             // 平时与闪避共同走这一处Move；覆盖速度仍接受本体移动权限和真实墙体碰撞。
             var velocity=allowed&&dataBus.MotionOverride!=null&&dataBus.MotionOverride.IsActive
-                ?dataBus.MotionOverride.MotionVelocity:new Vector3(move.x,0,move.y)*runSpeed*(locomotionScale?.LocomotionScale??1);
+                ?dataBus.MotionOverride.MotionVelocity:new Vector3(move.x,0,move.y)*runSpeed*(abilities?.LocomotionScale??1);
             // 受迫位移优先于自愿移动，但仍只经过本方法一次Move和墙体碰撞。
             if(statusEffects!=null)velocity=statusEffects.HasForcedMotion?statusEffects.ForcedVelocity:
                 statusEffects.BlocksIntent?Vector3.zero:velocity*statusEffects.SpeedScale;
@@ -455,7 +460,7 @@ namespace Ossastra.Characters
                 candidate.GetComponentInParent<Ossastra.Combat.CombatVitals>() == null;
 
         private void ClearMovementFacts()
-        { LastAllowed=false;RequestedVelocity=Vector3.zero;LastEnvironmentSideBlocked=false;IsMoving=false;Velocity=Vector3.zero; }
+        { LastAllowed=false;RequestedVelocity=Vector3.zero;LastEnvironmentSideBlocked=false;IsMoving=false;IsWalking=false;Velocity=Vector3.zero; }
 
         /// <summary>只清运动事实，不Move、不改坐标；死亡/禁用路径也必须形成真实退出边沿。</summary>
         public void Stop()

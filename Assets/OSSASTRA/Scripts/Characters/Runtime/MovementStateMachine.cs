@@ -15,6 +15,7 @@ namespace Ossastra.Characters
         public override string CurrentStateName => IsSwitchRetreatActive ? "SwitchRetreat" : traversal?.OwnsAirState == true ? TraversalMode.ToString() :
             IsAirborne ? "Airborne/" + jump.Phase : IsActive ? "Move" : "Idle";
         public int AcceptedJumps { get; private set; }
+        internal OrdinaryJumpPhase JumpPhase => jump.Phase;
         public SideViewTraversalMode TraversalMode => traversal?.Mode ??
             (IsAirborne ? SideViewTraversalMode.Airborne : SideViewTraversalMode.Grounded);
         public int TraversalRevision => traversal?.Revision ?? 0;

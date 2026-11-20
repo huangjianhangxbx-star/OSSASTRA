@@ -21,6 +21,7 @@ namespace Ossastra.CharacterAnimation
         private Quaternion authoredSkeletonRotation;
         private bool temporaryPosturePose;
         private CharacterAnimationPlan reactionPlan;
+        private OrdinaryJumpPhase presentedJumpPhase;
         private PostureReactionPhase displayedReaction;
         private Guid displayedReactionId;
         private Ossastra.Characters.CharacterRoot root;
@@ -96,10 +97,7 @@ namespace Ossastra.CharacterAnimation
         {
             reason=null;if(config==null||skeleton?.Skeleton==null){reason="animation-not-initialized";return false;}
             var plan=ResolveAction(definition,new CharacterAnimationPreparation(true));if(plan==null||!plan.HasOperations){reason="missing-original-animation-plan:"+definition?.animationLogicId;return false;}
-            foreach(var clip in plan.clips.Concat(plan.queuedClips.Where(q=>q!=null).Select(q=>q.clip)))
-                if(clip==null||clip.track<0||skeleton.Skeleton.Data.FindAnimation(clip.animaName)==null||!FinitePositive(clip.playbackRate)||float.IsNaN(clip.mixDuration)||float.IsInfinity(clip.mixDuration)||clip.mixDuration<0)
-                {reason="invalid-original-animation-clip:"+clip?.animaName;return false;}
-            return true;
+            return ValidatePlan(plan,out reason,"invalid-original-animation-clip:");
         }
         private static bool FinitePositive(float value)=>!float.IsNaN(value)&&!float.IsInfinity(value)&&value>0;
         public ConfiguredActionSnapshot FreezeAction(Ossastra.Characters.ActionDefinitionSO definition)
@@ -113,7 +111,7 @@ namespace Ossastra.CharacterAnimation
         {
             if(!ValidatePlan(original,out var reason))throw new ArgumentException(reason);
             var plan=original.CloneFor(root);
-            foreach(var clip in plan.clips.Concat(plan.queuedClips.Where(q=>q!=null).Select(q=>q.clip)))
+            foreach(var clip in PlanClips(plan))
                 if(clip.scalesWithAction)
                 {
                     var duration=clip.sourceDuration>0?clip.sourceDuration:skeleton.Skeleton.Data.FindAnimation(clip.animaName).Duration;
@@ -145,14 +143,17 @@ namespace Ossastra.CharacterAnimation
                 .Any(timeline => timeline.Events.Any(node => node.Data.Name == marker));
         }
 
-        private bool ValidatePlan(CharacterAnimationPlan plan,out string reason)
+        private bool ValidatePlan(CharacterAnimationPlan plan,out string reason,string invalidClip = "invalid-frozen-animation-clip:")
         {
             reason=plan==null||!plan.HasOperations?"missing-frozen-animation-plan":null;
-            if(reason==null)foreach(var clip in plan.clips.Concat(plan.queuedClips.Where(q=>q!=null).Select(q=>q.clip)))
+            if(reason==null)foreach(var clip in PlanClips(plan))
                 if(clip==null||clip.track<0||skeleton?.Skeleton?.Data.FindAnimation(clip.animaName)==null||!FinitePositive(clip.playbackRate)||float.IsNaN(clip.mixDuration)||float.IsInfinity(clip.mixDuration)||clip.mixDuration<0)
-                {reason="invalid-frozen-animation-clip:"+clip?.animaName;break;}
+                {reason=invalidClip+clip?.animaName;break;}
             return reason==null;
         }
+        private static System.Collections.Generic.IEnumerable<CharacterAnimationClip> PlanClips(CharacterAnimationPlan plan)
+            => plan.clips.Concat(plan.movingLoopClips ?? Array.Empty<CharacterAnimationClip>())
+                .Concat(plan.queuedClips.Where(queue => queue != null).Select(queue => queue.clip));
         public ConfiguredActionSnapshot PrepareDodge(float duration)
         {
             var plan = ResolveCandidate(EAnimationLogicState.Dodge, EAnimSemantic.Dodge,
@@ -179,7 +180,7 @@ namespace Ossastra.CharacterAnimation
             captured=plan;capturedId=id;phaseId=Guid.NewGuid();
         }
         public void CollectFacts(bool isAlive,bool isStaggered,bool reacting,int presentationGeneration,int attackStage=1)
-        {alive=isAlive;staggered=isStaggered;hitReaction=reacting;stage=attackStage;if(generation!=presentationGeneration){generation=presentationGeneration;composer?.ClearAllIntents();}}
+        {alive=isAlive;staggered=isStaggered;hitReaction=reacting;stage=attackStage;if(generation!=presentationGeneration){generation=presentationGeneration;presentedJumpPhase=OrdinaryJumpPhase.Uninitialized;composer?.ClearAllIntents();}}
         public void SetPaused(bool paused){if(skeleton!=null)skeleton.timeScale=paused?0:timeScale;}
         private void Submit(AnimationIntentSourceStateMachine source,EAnimSemantic semantic,int priority,Guid action,Guid phase=default,CharacterAnimationPlan plan=null,bool exclusive=false,bool oneShot=false,
             EAnimationLogicState logic=EAnimationLogicState.None,int replayId=0)
@@ -193,6 +194,9 @@ namespace Ossastra.CharacterAnimation
         {
             // 同一个片段可作临时回退，仍提交有身份的墙边语义，避免零速度被识别为站立。
             var semantic = bus.IsMoving ? EAnimSemantic.Jog : EAnimSemantic.Idle;
+            if (bus.IsMoving && bus.IsGrounded && bus.IsWalking && config.baseMap.plansMovement.Exists(
+                e => e?.logicID == EAnimationLogicState.Walk && e.plan?.HasOperations == true))
+                semantic = EAnimSemantic.Walk;
             var logic = EAnimationLogicState.None;
             if (config.sideViewTraversalMap != null)
             {
@@ -209,6 +213,36 @@ namespace Ossastra.CharacterAnimation
             bool traversing = logic != EAnimationLogicState.None;
             Submit(AnimationIntentSourceStateMachine.Movement, semantic, traversing ? 12 : bus.IsMoving ? 10 : 0,
                 Guid.Empty, logic:logic, replayId:traversing ? bus.TraversalRevision : 0);
+            SubmitJump(traversing);
+        }
+
+        private void SubmitJump(bool traversing)
+        {
+            var previous = presentedJumpPhase;
+            presentedJumpPhase = traversing || config.baseMap.plansJump == null || config.baseMap.plansJump.Count == 0
+                ? OrdinaryJumpPhase.Uninitialized : bus.JumpPhase;
+            EAnimSemantic semantic;
+            switch (presentedJumpPhase)
+            {
+                case OrdinaryJumpPhase.Rising:
+                    semantic = EAnimSemantic.Jump_Start;
+                    break;
+                case OrdinaryJumpPhase.Falling:
+                    semantic = EAnimSemantic.Jump_Falling;
+                    break;
+                case OrdinaryJumpPhase.Grounded when previous == OrdinaryJumpPhase.Rising || previous == OrdinaryJumpPhase.Falling:
+                    semantic = EAnimSemantic.Jump_Landing;
+                    break;
+                case OrdinaryJumpPhase.Grounded when composer.CurrentBodyIntent?.semantic == EAnimSemantic.Jump_Landing
+                    && skeleton.AnimationState.GetTrack(0)?.IsComplete == false:
+                    semantic = EAnimSemantic.Jump_Landing;
+                    break;
+                default:
+                    composer.RemoveIntent(AnimationIntentSourceStateMachine.Jump);
+                    return;
+            }
+            // 配置中的轨道队列负责起跳接空中姿势、下落起势接循环。碰撞落地可立即截断它们。
+            Submit(AnimationIntentSourceStateMachine.Jump, semantic, 11, Guid.Empty, replayId:bus.JumpRevision);
         }
         public void Present()
         {
@@ -302,7 +336,7 @@ namespace Ossastra.CharacterAnimation
             reactionPlan = null;
         }
 
-        private void OnDisable(){ResetPosturePose();composer?.ClearAllIntents();if(handle!=null)handle.Signal-=OnSignal;}
+        private void OnDisable(){presentedJumpPhase=OrdinaryJumpPhase.Uninitialized;ResetPosturePose();composer?.ClearAllIntents();if(handle!=null)handle.Signal-=OnSignal;}
         private void OnEnable(){if(handle!=null){handle.Signal-=OnSignal;handle.Signal+=OnSignal;}}
         private void OnDestroy(){if(handle!=null)handle.Signal-=OnSignal;}
     }

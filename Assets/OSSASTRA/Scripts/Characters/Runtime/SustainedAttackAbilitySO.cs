@@ -17,6 +17,7 @@ namespace Ossastra.Characters
         public ActionDefinitionSO loopAction;
         public ActionDefinitionSO endAction;
         [Range(0f, 1f)] public float movementScale = 1f;
+        [Tooltip("横版维持阶段使用角色的慢走速度。")] public bool walkDuringLoop;
         [Min(.01f)] public float pulseInterval = .20f;
 
         public override bool UsesBodyAction => true;
@@ -47,29 +48,32 @@ namespace Ossastra.Characters
         }
 
         public override CompiledAbilityExecutor CompileExecutor()
-            => new Executor(loopAction, endAction, movementScale, pulseInterval);
+            => new Executor(loopAction, endAction, movementScale, pulseInterval, walkDuringLoop);
 
         private sealed class Executor : CompiledAbilityExecutor
         {
             private readonly ActionDefinitionSO loopAction, endAction;
             private readonly float movementScale, pulseInterval;
+            private readonly bool walkDuringLoop;
             private readonly ConfiguredActionSnapshot loop, end;
             private readonly string recoveryEvent;
 
-            public Executor(ActionDefinitionSO loopAction, ActionDefinitionSO endAction, float movementScale, float pulseInterval)
+            public Executor(ActionDefinitionSO loopAction, ActionDefinitionSO endAction, float movementScale, float pulseInterval, bool walkDuringLoop)
             {
                 this.loopAction = loopAction;
                 this.endAction = endAction;
+                this.walkDuringLoop = walkDuringLoop;
                 this.movementScale = movementScale;
                 this.pulseInterval = pulseInterval;
             }
 
             private Executor(ConfiguredActionSnapshot start, ConfiguredActionSnapshot loop, ConfiguredActionSnapshot end,
-                float movementScale, float pulseInterval, string recoveryEvent)
+                float movementScale, float pulseInterval, bool walkDuringLoop, string recoveryEvent)
             {
                 InitialPhase = start.WithTimeline(start.Timeline.WithoutTimedNodes());
                 this.loop = loop.WithTimeline(loop.Timeline.WithoutTimedNodes(allowMovement: true, retainPoseWhileMoving: true));
                 this.end = end.WithTimeline(end.Timeline.WithoutReleaseNode());
+                this.walkDuringLoop = walkDuringLoop;
                 this.movementScale = movementScale;
                 this.pulseInterval = pulseInterval;
                 this.recoveryEvent = recoveryEvent;
@@ -92,11 +96,11 @@ namespace Ossastra.Characters
                     string.IsNullOrWhiteSpace(last.Clip) || first.Clip == held.Clip ||
                     first.Clip == last.Clip || held.Clip == last.Clip || first.Loop || !held.Loop || last.Loop)
                     throw new ArgumentException("持续攻击需要三个不同的身体片段，循环只在持续段开启。");
-                return new Executor(first, held, last, movementScale, pulseInterval, endAction.postureRecoveryEvent);
+                return new Executor(first, held, last, movementScale, pulseInterval, walkDuringLoop, endAction.postureRecoveryEvent);
             }
 
             public override AbilityRun CreateRun(AbilityRunContext context)
-                => new Run(context, InitialPhase.Timeline.FinishAt, loop, end, movementScale, pulseInterval, recoveryEvent);
+                => new Run(context, InitialPhase.Timeline.FinishAt, loop, end, movementScale, pulseInterval, walkDuringLoop, recoveryEvent);
         }
 
         private sealed class Run : AbilityRun, ICharacterLocomotionScale
@@ -106,6 +110,7 @@ namespace Ossastra.Characters
             private readonly ConfiguredActionSnapshot loop, end;
             private readonly double startLength, interval;
             private readonly float movementScale;
+            private readonly bool walkDuringLoop;
             private readonly int inputGeneration, controlRevision, damage;
             private readonly float impact;
             private readonly string recoveryEvent;
@@ -115,9 +120,10 @@ namespace Ossastra.Characters
             private int index;
 
             public Run(AbilityRunContext context, double startLength, ConfiguredActionSnapshot loop,
-                ConfiguredActionSnapshot end, float movementScale, double interval, string recoveryEvent) : base(context)
+                ConfiguredActionSnapshot end, float movementScale, double interval, bool walkDuringLoop, string recoveryEvent) : base(context)
             {
                 this.startLength = startLength;
+                this.walkDuringLoop = walkDuringLoop;
                 this.loop = loop;
                 this.end = end;
                 this.movementScale = movementScale;
@@ -130,6 +136,7 @@ namespace Ossastra.Characters
             }
 
             public float LocomotionScale => !Ended && phase == Phase.Loop ? movementScale : 1f;
+            public override bool RequiresWalk => !Ended && phase == Phase.Loop && walkDuringLoop;
 
             public override void Tick(float delta, bool held)
             {

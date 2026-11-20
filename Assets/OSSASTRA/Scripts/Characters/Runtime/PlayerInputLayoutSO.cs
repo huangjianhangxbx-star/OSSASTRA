@@ -13,6 +13,8 @@ namespace Ossastra.Characters
   [Header("移动 / 键盘与手柄方向")]
   [Tooltip("读取二维移动向量；可配置2D Vector组合或手柄左摇杆。")]
   public InputAction move=new InputAction("Move",InputActionType.Value);
+  [Header("横版键盘慢走切换")]
+  public InputAction walkToggle=new InputAction("WalkToggle",InputActionType.Button);
   [Header("鼠标位置 / 屏幕坐标")]
   public InputAction pointer=new InputAction("Pointer",InputActionType.Value);
   [Header("手柄瞄准方向 / 右摇杆")]
@@ -80,7 +82,7 @@ namespace Ossastra.Characters
   // 只枚举作者配置；用于按设备识别已消费的组合键，不启用这些共享SO Action。
   public IEnumerable<InputAction> ConfiguredActions()
   {
-   yield return move; yield return pointer; yield return aim; yield return rightHand; yield return leftHand;
+   yield return move; yield return walkToggle; yield return pointer; yield return aim; yield return rightHand; yield return leftHand;
    yield return dodge; yield return jump; yield return skillOne; yield return skillTwo; yield return skillThree;
    yield return interact; yield return heal; yield return switchCharacter; yield return inventory;
    yield return weaponMode; yield return menu; yield return quickSlotOne; yield return quickSlotTwo; yield return quickSlotThree; yield return quickSlotFour;

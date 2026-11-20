@@ -14,6 +14,27 @@ namespace Ossastra.Characters
         public PlayerInputSource AimSource { get; private set; }
         public Vector2 LastAimDirection { get; private set; } = Vector2.right;
         public Vector2 Move { get; private set; }
+        internal const float SideHorizontalThreshold = .15f;
+        private bool keyboardWalk, stickInMoveGait;
+        private int gaitDeviceId = -1;
+
+        internal void ToggleKeyboardWalk() => keyboardWalk = !keyboardWalk;
+
+        internal bool ResolveSideViewWalk(PlayerInputSource source, float horizontal)
+        {
+            float strength = System.Math.Abs(horizontal);
+            if (source != PlayerInputSource.Gamepad || strength < SideHorizontalThreshold)
+            {
+                stickInMoveGait = false;
+                gaitDeviceId = -1;
+                return source == PlayerInputSource.KeyboardMouse && keyboardWalk && strength >= SideHorizontalThreshold;
+            }
+            if (gaitDeviceId != MoveDeviceId) stickInMoveGait = false;
+            gaitDeviceId = MoveDeviceId;
+            // The two detents keep small fluctuations around the gait transition from restarting animations.
+            stickInMoveGait = strength >= (stickInMoveGait ? .45f : .60f);
+            return !stickInMoveGait;
+        }
 
         // A new trial starts with the requested facing until fresh device intent claims aim.
         internal void BeginAttackLabTrial(bool facingRight)

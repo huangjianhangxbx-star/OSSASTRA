@@ -34,7 +34,8 @@ namespace Ossastra.Audio
 
         /// <summary>同一序号只消费一次。没有模拟步时不调用，已有累计不会被显示帧清空。</summary>
         public SideViewAudioCue Observe(long stepId, long epoch, bool groundedBefore, bool groundedAfter,
-            bool launched, bool allowsFootstep, bool hasSupport, float horizontalDistance, float seconds, float downwardSpeed)
+            bool launched, bool allowsFootstep, bool hasSupport, float horizontalDistance, float seconds, float downwardSpeed,
+            bool walking = false)
         {
             if (seenStep && stepId <= lastStep) return SideViewAudioCue.None;
             if (!seenStep || contactEpoch != epoch)
@@ -67,7 +68,7 @@ namespace Ossastra.Audio
                 return landed ? SideViewAudioCue.Land : SideViewAudioCue.None;
             }
 
-            bool running = horizontalDistance / seconds >= runSpeed;
+            bool running = !walking && horizontalDistance / seconds >= runSpeed;
             double stride = running ? runStride : walkStride;
             distance += horizontalDistance;
             // 只保留不足一步的余量，既不补发旧声，也不因浮点边界让整步漂到下一帧。

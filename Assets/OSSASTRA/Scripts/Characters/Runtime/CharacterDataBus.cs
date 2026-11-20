@@ -25,6 +25,9 @@ namespace Ossastra.Characters
         public string ActorId { get; }
         public CharacterInputFrame Input => input.CurrentFrame;
         public bool IsMoving => movement.IsMoving;
+        public bool IsWalking => movement is CharacterMovement motor && motor.IsWalking;
+        public OrdinaryJumpPhase JumpPhase => traversal?.JumpPhase ?? OrdinaryJumpPhase.Uninitialized;
+        public int JumpRevision => traversal?.AcceptedJumps ?? 0;
         public Vector3 Velocity => movement.Velocity;
         public float VerticalSpeed => movement is CharacterMovement motor ? motor.VerticalSpeed : 0f;
         public bool IsGrounded => movement is CharacterMovement motor && motor.IsSideView && motor.Grounded;

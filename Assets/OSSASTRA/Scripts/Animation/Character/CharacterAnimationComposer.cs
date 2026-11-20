@@ -123,6 +123,11 @@ namespace Ossastra.CharacterAnimation
                 if(logic==EAnimationLogicState.None){LastResult="缺少语义路由："+intent.semantic;continue;}
                 var raw=intent.frozenPlan?.CloneFor(characterRoot)??configManager.ResolvePlan(logic,context);
                 if(raw==null||!raw.HasOperations){LastResult="缺少有效映射："+logic;continue;}
+                if (intent.frozenPlan != null && context.dataBus.IsMoving && raw.movingLoopClips.Length > 0)
+                {
+                    raw.clips.Clear();
+                    raw.clips.AddRange(raw.movingLoopClips);
+                }
                 var key=intent.actionId+"|"+intent.phaseId+"|"+intent.presentationGeneration+"|"+logic+"|"+PlanKey(raw);
                 CharacterAnimationPlan plan;
                 if(cache.TryGetValue(intent.intentSourceStateMatine,out var cached)&&cached.key==key)plan=cached.plan.CloneFor(characterRoot);

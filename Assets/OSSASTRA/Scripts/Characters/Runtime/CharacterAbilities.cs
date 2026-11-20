@@ -98,6 +98,7 @@ namespace Ossastra.Characters
             return true;
         }
         public float LocomotionScale=>runs.Where(r=>!r.Ended).OfType<ICharacterLocomotionScale>().Select(r=>r.LocomotionScale).DefaultIfEmpty(1).Min();
+        internal bool RequiresWalk => runs.Exists(run => !run.Ended && run.RequiresWalk);
         private ICharacterMotionOverride ActiveMotion=>runs.Where(r=>!r.Ended).OfType<ICharacterMotionOverride>().FirstOrDefault(r=>r.IsActive);
         public bool IsActive=>isActiveAndEnabled&&ActiveMotion!=null;
         public Vector3 MotionVelocity=>ActiveMotion?.MotionVelocity??Vector3.zero;

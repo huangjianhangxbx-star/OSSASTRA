@@ -39,6 +39,7 @@ namespace Ossastra.Characters
     {
         public Vector2 move, pointer, aimDirection;
         public PlayerInputSource moveSource, aimSource;
+        public bool walkRequested;
         public bool weaponModePressed,attackHeld, dodgePressed, offhandHeld, offhandPressed, hasPointer, hasDirectionalAim, attackPointerBlocked;
         public int debugCommand;
         public bool skillOnePressed,skillTwoPressed,skillThreePressed,skillOneHeld,skillTwoHeld,skillThreeHeld;
@@ -72,7 +73,12 @@ namespace Ossastra.Characters
         public InputAction offhandAction { get=>leftHandAction; set=>leftHandAction=value; }
         public PlayerInputLayoutSO inputLayout;
         public InputAction weaponModeAction=new InputAction("WeaponMode",InputActionType.Button);
-        private void Awake(){if(inputLayout!=null)inputLayout.Apply(this);}
+        private CharacterMovement motor;
+        private void Awake()
+        {
+            motor = GetComponent<CharacterMovement>();
+            if (inputLayout != null) inputLayout.Apply(this);
+        }
         public InputAction skillOneAction = new InputAction("SkillOne",InputActionType.Button);
         public InputAction skillTwoAction = new InputAction("SkillTwo",InputActionType.Button);
         public InputAction skillThreeAction = new InputAction("SkillThree",InputActionType.Button);
@@ -252,7 +258,11 @@ namespace Ossastra.Characters
             bool acceptsNewPress = !InventoryCaptured;
             foreach (var d in sampler.Devices)
             {
-                var c = d.SampleAxes(movementAction, gamepadAimAction, intentThreshold, directionChangeThreshold);
+                var c = d.SampleAxes(movementAction, gamepadAimAction, intentThreshold, directionChangeThreshold,
+                    motor != null && motor.IsSideView);
+                if (d.Device is Keyboard && inputLayout?.walkToggle != null &&
+                    d.ConsumePress(inputLayout.walkToggle, d.Button(inputLayout.walkToggle)) && !InventoryCaptured)
+                    InputSources.ToggleKeyboardWalk();
                 var events=EventSystem.current;
                 var ui=events?.currentInputModule as UnityEngine.InputSystem.UI.InputSystemUIInputModule;
                 var navigation=events!=null&&events.sendNavigationEvents&&events.currentSelectedGameObject!=null&&events.currentSelectedGameObject.activeInHierarchy&&

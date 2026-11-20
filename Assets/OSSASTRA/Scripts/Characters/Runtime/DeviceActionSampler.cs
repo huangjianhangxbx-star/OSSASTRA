@@ -210,9 +210,35 @@ namespace Ossastra.Characters
                 }
                 return false;
             }
-            public DeviceInputCandidate SampleAxes(InputAction move, InputAction aim, float threshold, float change)
+            private Vector2 ReadSideViewMove(InputAction move)
             {
-                var m = Vector(move); var a = Vector(aim);
+                var action = Action(move);
+                if (action == null) return Vector2.zero;
+                var value = action.ReadValue<Vector2>();
+                var control = action.activeControl;
+                if (control != null)
+                {
+                    var stick = control as StickControl ?? control.parent as StickControl;
+                    if (stick != null) return TryReadAnalogMove(out var analog) ? analog : stick.ReadValue();
+                    if (value != Vector2.zero) return value; // A bound D-pad still moves at the normal gait.
+                }
+                // Legacy layouts can bind just the four directional buttons of the stick: the
+                // composite has no active control yet when a light push is below its button threshold.
+                foreach (var bound in action.controls)
+                {
+                    var stick = bound as StickControl ?? bound.parent as StickControl;
+                    if (stick == null) continue;
+                    var analog = stick.ReadValue();
+                    if (analog.sqrMagnitude > value.sqrMagnitude) value = analog;
+                }
+                return value;
+            }
+
+            public DeviceInputCandidate SampleAxes(InputAction move, InputAction aim, float threshold, float change,
+                bool sideView = false)
+            {
+                var m = sideView && Device is Gamepad ? ReadSideViewMove(move) : Vector(move);
+                var a = Vector(aim);
                 bool ma = m.sqrMagnitude >= threshold * threshold, aa = a.sqrMagnitude >= threshold * threshold;
                 Candidate = new DeviceInputCandidate { DeviceId = Device.deviceId, IsGamepad = Device is Gamepad,
                     Move = ma ? m : Vector2.zero, Aim = aa ? a : Vector2.zero, MoveActive = ma, AimActive = aa,

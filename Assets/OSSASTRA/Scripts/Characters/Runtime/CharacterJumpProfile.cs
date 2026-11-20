@@ -11,7 +11,8 @@ namespace Ossastra.Characters
     public sealed class CharacterJumpProfile : ScriptableObject
     {
         [Min(.001f)] public float stepSeconds = .02f;
-        [Min(.01f)] public float runSpeed = 8.25f;
+        [Min(.01f)] public float runSpeed = 6.6f;
+        [Range(.05f, 1f)] public float walkSpeedRatio = .45f;
         [Min(.01f)] public float jumpSpeed = 18.6f;
         [Min(.01f)] public float gravity = 60f;
         [Min(.01f)] public float fallSpeed = 30f;

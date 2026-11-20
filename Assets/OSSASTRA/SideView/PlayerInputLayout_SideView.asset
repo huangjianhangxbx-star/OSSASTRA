@@ -110,6 +110,31 @@ MonoBehaviour:
       m_Action: Movement
       m_Flags: 0
     m_Flags: 0
+  walkToggle:
+    m_Name: WalkToggle
+    m_Type: 1
+    m_ExpectedControlType: 
+    m_Id: 2f0c1213-505d-437f-82d7-d4a7dc4d8b00
+    m_Processors: 
+    m_Interactions: 
+    m_SingletonActionBindings:
+    - m_Name: 
+      m_Id: 6e054e55-7e3b-4da6-93c0-b3a9a0f75e93
+      m_Path: <Keyboard>/leftAlt
+      m_Interactions: 
+      m_Processors: 
+      m_Groups: 
+      m_Action: WalkToggle
+      m_Flags: 0
+    - m_Name: 
+      m_Id: ae3f92fd-4e2c-483a-ad4f-3022048d75c2
+      m_Path: <Keyboard>/rightAlt
+      m_Interactions: 
+      m_Processors: 
+      m_Groups: 
+      m_Action: WalkToggle
+      m_Flags: 0
+    m_Flags: 0
   pointer:
     m_Name: Mouse
     m_Type: 0
