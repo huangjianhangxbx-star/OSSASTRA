@@ -40,7 +40,12 @@ namespace Ossastra.Development.Editor
 
         public void Observe(AttackLabSession session)
         {
-            var active = session != null ? session.Actor : null;
+            Bind(session != null ? session.Actor : null);
+            trace.Observe(session, applied != null);
+        }
+
+        private void Bind(ActorRoot active)
+        {
             if (active != actor)
             {
                 ReleaseCandidate();
@@ -50,15 +55,20 @@ namespace Ossastra.Development.Editor
             }
             if (motor != null && motor.JumpProfile != applied)
                 DestroyProfile(ref applied);
-            trace.Observe(session, applied != null);
         }
 
-        public void Draw(AttackLabSession session)
+        public void Draw(AttackLabSession session, ActorRoot sceneActor = null)
         {
-            Observe(session);
-            if (!Application.isPlaying || session == null || actor == null || motor == null || draft == null)
+            if (session != null) Observe(session);
+            else
             {
-                EditorGUILayout.HelpBox("进入调试台独立测试场后，在此调整已装配的横版角色。", MessageType.Info);
+                Bind(sceneActor);
+                trace.Observe(null, false);
+            }
+
+            if (actor == null || motor == null || draft == null)
+            {
+                EditorGUILayout.HelpBox("本场没有可调校的横版角色。", MessageType.Info);
                 return;
             }
 
@@ -72,13 +82,9 @@ namespace Ossastra.Development.Editor
             EditorGUILayout.LabelField("移动、跳跃与翻越", EditorStyles.boldLabel);
             EditorGUILayout.LabelField("正在调整", actor.Definition != null ? actor.Definition.displayName : actor.name);
             EditorGUILayout.ObjectField("正式运动来源", motor.AuthoredJumpProfile, typeof(CharacterJumpProfile), false);
-            int sceneUsers = session.Party.Characters.Count(item =>
-                item != null && item.GetComponent<CharacterMovement>()?.AuthoredJumpProfile == source);
-            bool hasRoleOverride = actor.Definition != null && actor.Definition.sideViewMovementOverride == source;
-            EditorGUILayout.LabelField("写回影响范围",
-                (hasRoleOverride ? "角色定义引用的配置" : "场景和 Prefab 引用的配置") +
-                $" · 本场 {sceneUsers} 名角色共用 · 写回影响全部引用者", EditorStyles.wordWrappedMiniLabel);
-            EditorGUILayout.LabelField("候选在复位时生效", applied != null ? "试验当前使用候选" : "试验当前使用正式值");
+            EditorGUILayout.LabelField("角色默认值适用于引用同一角色定义的横版场景。", EditorStyles.wordWrappedMiniLabel);
+            if (session != null)
+                EditorGUILayout.LabelField("本次试跑", applied != null ? "使用候选" : "使用正式值");
 
             var authored = motor.AuthoredJumpProfile;
             bool conflict = authored != source || source == null || sourcePath != AssetDatabase.GetAssetPath(source) ||
@@ -86,21 +92,24 @@ namespace Ossastra.Development.Editor
             if (conflict) EditorGUILayout.HelpBox("正式来源或其数值已变化。本页保留草稿，重新读取后才可应用或写回。", MessageType.Warning);
             if (!string.IsNullOrEmpty(status)) EditorGUILayout.HelpBox(status, MessageType.Info);
 
-            EditorGUILayout.Space();
-            using (new EditorGUILayout.HorizontalScope())
+            if (session != null)
             {
-                var names = new[] { "平地", "低台沿", "侧墙", "低顶", "定点下落", "高台沿" };
-                int selected = Mathf.Clamp((int)session.Station, 0, names.Length - 1);
-                var station = (AttackLabStation)EditorGUILayout.Popup("运动测试区", selected, names);
-                if (station != session.Station)
+                EditorGUILayout.Space();
+                using (new EditorGUILayout.HorizontalScope())
                 {
-                    session.Station = station;
-                    Reset(session);
+                    var names = new[] { "平地", "低台沿", "侧墙", "低顶", "定点下落", "高台沿" };
+                    int selected = Mathf.Clamp((int)session.Station, 0, names.Length - 1);
+                    var station = (AttackLabStation)EditorGUILayout.Popup("运动测试区", selected, names);
+                    if (station != session.Station)
+                    {
+                        session.Station = station;
+                        Reset(session);
+                    }
+                    if (GUILayout.Button("重新开始本区", GUILayout.Width(104))) Reset(session);
                 }
-                if (GUILayout.Button("重新开始本区", GUILayout.Width(104))) Reset(session);
-            }
 
-            DrawMeasurements(session);
+                DrawMeasurements(session);
+            }
             EditorGUILayout.Space();
             var candidateData = new SerializedObject(draft);
             var originalData = new SerializedObject(source != null ? source : draft);
@@ -138,27 +147,33 @@ namespace Ossastra.Development.Editor
             string invalid = incomplete != null ? $"「{incomplete.label}」需要一个有效的数值。已保留输入。" : InvalidReason(draft);
             if (!string.IsNullOrEmpty(invalid)) EditorGUILayout.HelpBox(invalid, MessageType.Warning);
 
-            using (new EditorGUILayout.HorizontalScope())
+            using (new EditorGUI.DisabledScope(conflict || invalid != null || PersistentRoleGuid(actor) == null))
+                if (GUILayout.Button("保存为角色默认（所有横版场景）", GUILayout.Height(28))) SaveRoleDefault();
+
+            if (session != null)
             {
-                using (new EditorGUI.DisabledScope(conflict || invalid != null))
-                    if (GUILayout.Button("应用候选并复位")) ApplyCandidate(session);
-                if (GUILayout.Button("恢复基线并复位"))
+                using (new EditorGUILayout.HorizontalScope())
                 {
-                    ReleaseCandidate();
-                    Reset(session);
+                    using (new EditorGUI.DisabledScope(conflict || invalid != null))
+                        if (GUILayout.Button("应用候选并复位")) ApplyCandidate(session);
+                    if (GUILayout.Button("恢复基线并复位"))
+                    {
+                        ReleaseCandidate();
+                        Reset(session);
+                    }
                 }
-                if (GUILayout.Button("重读正式配置")) ReadSource();
             }
+
             using (new EditorGUILayout.HorizontalScope())
-            using (new EditorGUI.DisabledScope(conflict || invalid != null))
             {
-                if (GUILayout.Button("写回共享来源")) Save(false);
-                if (GUILayout.Button("另存并绑定角色配置")) Save(true);
+                if (GUILayout.Button("舍弃候选，重读正式配置")) ReadSource();
+                using (new EditorGUI.DisabledScope(conflict || invalid != null))
+                    if (GUILayout.Button("写回共享来源")) SaveSharedSource();
             }
             using (new EditorGUILayout.HorizontalScope())
             {
                 using (new EditorGUI.DisabledScope(invalid != null))
-                    if (GUILayout.Button("另存运动预设")) SavePreset(false);
+                    if (GUILayout.Button("另存运动预设")) SavePreset();
                 var preset = (CharacterJumpProfile)EditorGUILayout.ObjectField("读取候选预设", null, typeof(CharacterJumpProfile), false);
                 if (preset != null)
                 {
@@ -403,58 +418,89 @@ namespace Ossastra.Development.Editor
             return ready;
         }
 
-        private void Save(bool separate)
+        private void SaveRoleDefault()
         {
-            if (separate)
+            var role = actor.Definition;
+            string rolePath = AssetDatabase.GetAssetPath(role);
+            string path = System.IO.Path.ChangeExtension(rolePath, null) + "_Movement.asset";
+            if (AssetDatabase.LoadMainAssetAtPath(path) != null && AssetDatabase.GetAssetPath(role.sideViewMovementOverride) != path)
             {
-                var role = actor.Definition;
-                if (role == null || !EditorUtility.IsPersistent(role))
-                {
-                    status = "角色没有可写入的正式角色定义。";
-                    return;
-                }
-                var asset = SavePreset(true);
-                if (asset == null) return;
-                Undo.RecordObject(role, "为角色绑定专用运动配置");
+                string roleGuid = AssetDatabase.AssetPathToGUID(rolePath);
+                path = System.IO.Path.ChangeExtension(rolePath, null) + "_Movement_" + roleGuid + ".asset";
+            }
+
+            const string label = "保存角色运动默认值";
+            Undo.IncrementCurrentGroup();
+            int undoGroup = Undo.GetCurrentGroup();
+            Undo.SetCurrentGroupName(label);
+            var asset = role.sideViewMovementOverride;
+            bool bindNewAsset = asset == null || AssetDatabase.GetAssetPath(asset) != path;
+            if (!bindNewAsset)
+            {
+                Undo.RecordObject(asset, label);
+                CopyCandidateTo(asset);
+            }
+            else
+            {
+                path = AssetDatabase.GenerateUniqueAssetPath(path);
+                asset = CreatePreset(path, label);
+                Undo.RecordObject(role, label);
                 role.sideViewMovementOverride = asset;
                 EditorUtility.SetDirty(role);
-                Undo.FlushUndoRecordObjects();
-                AssetDatabase.SaveAssetIfDirty(role);
-                ReadSource();
-                status = "角色专用配置已绑定。下一次「恢复基线并复位」将使用新的正式配置。";
-                return;
             }
+
+            Undo.FlushUndoRecordObjects();
+            AssetDatabase.SaveAssetIfDirty(asset);
+            if (bindNewAsset) AssetDatabase.SaveAssetIfDirty(role);
+            Undo.CollapseUndoOperations(undoGroup);
+            ReadSource();
+            status = applied != null
+                ? "角色默认值已保存。恢复基线并复位后，独立测试场也会使用新的默认值。"
+                : "角色默认值已保存，引用该角色定义的横版场景会使用新值。";
+        }
+
+        private void SaveSharedSource()
+        {
             if (source == null || !EditorUtility.IsPersistent(source) ||
                 !EditorUtility.DisplayDialog("写回共享运动配置",
                     $"「{source.name}」的所有正式角色引用都会使用新值。", "写回", "取消")) return;
             Undo.RecordObject(source, "写回运动配置");
-            var flags = source.hideFlags;
-            draft.name = source.name;
-            EditorUtility.CopySerialized(draft, source);
-            source.hideFlags = flags;
-            EditorUtility.SetDirty(source);
+            CopyCandidateTo(source);
             Undo.FlushUndoRecordObjects();
             AssetDatabase.SaveAssetIfDirty(source);
             ReadSource();
             status = "正式来源已写回。";
         }
 
-        private CharacterJumpProfile SavePreset(bool separate)
+        private void CopyCandidateTo(CharacterJumpProfile asset)
         {
-            var label = separate ? "新建角色专用运动配置" : "另存运动候选预设";
+            var flags = asset.hideFlags;
+            draft.name = asset.name;
+            EditorUtility.CopySerialized(draft, asset);
+            asset.hideFlags = flags;
+            EditorUtility.SetDirty(asset);
+        }
+
+        private void SavePreset()
+        {
+            const string label = "另存运动候选预设";
             string path = EditorUtility.SaveFilePanelInProject(label, actor.name + "_运动", "asset", "");
-            if (string.IsNullOrEmpty(path)) return null;
+            if (string.IsNullOrEmpty(path)) return;
             if (AssetDatabase.LoadMainAssetAtPath(path) != null)
             {
                 status = "目标路径已有资产。请选择新名字。";
-                return null;
+                return;
             }
+            AssetDatabase.SaveAssetIfDirty(CreatePreset(path, label));
+        }
+
+        private CharacterJumpProfile CreatePreset(string path, string label)
+        {
             var asset = UObject.Instantiate(draft);
             asset.name = System.IO.Path.GetFileNameWithoutExtension(path);
             asset.hideFlags = HideFlags.None;
             AssetDatabase.CreateAsset(asset, path);
             Undo.RegisterCreatedObjectUndo(asset, label);
-            AssetDatabase.SaveAssetIfDirty(asset);
             return asset;
         }
 
@@ -484,8 +530,25 @@ namespace Ossastra.Development.Editor
             return null;
         }
 
-        private string DraftKey => actor == null ? null :
-            "Ossastra.AttackLab.MovementDraft." + actor.gameObject.scene.path + ":" + actor.ActorId;
+        private static string PersistentRoleGuid(ActorRoot character)
+        {
+            if (character == null || character.Definition == null || !EditorUtility.IsPersistent(character.Definition))
+                return null;
+            string path = AssetDatabase.GetAssetPath(character.Definition);
+            return string.IsNullOrEmpty(path) ? null : AssetDatabase.AssetPathToGUID(path);
+        }
+
+        private const string DraftPrefix = "Ossastra.AttackLab.MovementDraft.";
+        private string LegacyDraftKey => actor == null ? null : DraftPrefix + actor.gameObject.scene.path + ":" + actor.ActorId;
+
+        private string DraftKey
+        {
+            get
+            {
+                string role = PersistentRoleGuid(actor);
+                return string.IsNullOrEmpty(role) ? LegacyDraftKey : DraftPrefix + "character:" + role;
+            }
+        }
 
         private void RememberDraft()
         {
@@ -497,7 +560,9 @@ namespace Ossastra.Development.Editor
                 values = EditorJsonUtility.ToJson(draft),
                 edits = edits.Values.ToArray()
             };
-            SessionState.SetString(DraftKey, JsonUtility.ToJson(snapshot));
+            var key = DraftKey;
+            SessionState.SetString(key, JsonUtility.ToJson(snapshot));
+            if (LegacyDraftKey != key) SessionState.EraseString(LegacyDraftKey);
         }
 
         private void ReadSource(bool restoreDraft = false)
@@ -519,10 +584,13 @@ namespace Ossastra.Development.Editor
             if (!restoreDraft)
             {
                 SessionState.EraseString(key);
+                if (LegacyDraftKey != key) SessionState.EraseString(LegacyDraftKey);
                 return;
             }
 
             string saved = SessionState.GetString(key, "");
+            bool migrate = string.IsNullOrEmpty(saved) && LegacyDraftKey != key;
+            if (migrate) saved = SessionState.GetString(LegacyDraftKey, "");
             if (string.IsNullOrEmpty(saved)) return;
             var snapshot = JsonUtility.FromJson<CandidateDraft>(saved);
             if (snapshot == null || string.IsNullOrEmpty(snapshot.values)) return;
@@ -532,6 +600,7 @@ namespace Ossastra.Development.Editor
             sourcePath = snapshot.sourcePath;
             foreach (var edit in snapshot.edits ?? Array.Empty<NumericEdit>())
                 edits[edit.path] = edit;
+            if (migrate) RememberDraft();
         }
 
         private void ReleaseCandidate()

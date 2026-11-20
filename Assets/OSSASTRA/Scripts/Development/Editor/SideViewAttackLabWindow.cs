@@ -10,6 +10,7 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
+using ActorRoot = Ossastra.Characters.CharacterRoot;
 
 namespace Ossastra.Development.Editor
 {
@@ -44,6 +45,7 @@ namespace Ossastra.Development.Editor
         private AttackLabAnimationCalibration calibration;
         private AttackLabFeedbackPanel feedback;
         private AttackLabMovementPanel movement;
+        private ActorRoot sceneMovementActor;
         private int workMode;
 
         [MenuItem("OSSASTRA/战斗/横版攻击调试台")]
@@ -230,12 +232,7 @@ namespace Ossastra.Development.Editor
             if (workMode == 3)
             {
                 movement ??= new AttackLabMovementPanel();
-                if (session == null)
-                {
-                    EditorGUILayout.HelpBox("进入独立测试场后，用角色的真实移动和接触对照参数。", MessageType.Info);
-                    using (new EditorGUI.DisabledScope(EditorApplication.isPlayingOrWillChangePlaymode))
-                        if (GUILayout.Button("进入独立测试场并试玩")) Launch();
-                }
+                if (session == null) DrawSceneMovement();
                 else
                 {
                     DrawActors();
@@ -267,6 +264,35 @@ namespace Ossastra.Development.Editor
             }
             if (!string.IsNullOrEmpty(note)) EditorGUILayout.HelpBox(note, MessageType.Info);
             EditorGUILayout.EndScrollView();
+        }
+
+        private void DrawSceneMovement()
+        {
+            var scene = SceneManager.GetActiveScene();
+            var party = FindObjectsOfType<CharacterControlCoordinator>()
+                .FirstOrDefault(item => item.gameObject.scene == scene && item.Characters.Count != 0);
+            IEnumerable<ActorRoot> roster = party != null ? party.Characters : FindObjectsOfType<ActorRoot>();
+            var actors = roster.Where(item => item != null && item.gameObject.scene == scene && item.Definition != null &&
+                    item.GetComponent<CharacterMovement>()?.AuthoredJumpProfile != null)
+                .OrderByDescending(item => party != null ? item == party.Current : item.HasPlayerInput)
+                .ThenBy(item => item.ActorId, StringComparer.Ordinal)
+                .ToArray();
+
+            if (actors.Length > 0)
+            {
+                int selected = Mathf.Max(0, Array.IndexOf(actors, sceneMovementActor));
+                var names = actors.Select(item => string.IsNullOrEmpty(item.Definition.displayName)
+                    ? item.name : item.Definition.displayName).ToArray();
+                selected = EditorGUILayout.Popup("本场横版角色", selected, names);
+                sceneMovementActor = actors[selected];
+            }
+            else sceneMovementActor = null;
+
+            if (!EditorApplication.isPlayingOrWillChangePlaymode &&
+                GUILayout.Button("进入独立测试场对照轨迹") && !Launch())
+                note = "测试场尚未就绪，请查看 Console。";
+            if (!string.IsNullOrEmpty(note)) EditorGUILayout.HelpBox(note, MessageType.Info);
+            movement.Draw(null, sceneMovementActor);
         }
 
         private void DrawActors()
