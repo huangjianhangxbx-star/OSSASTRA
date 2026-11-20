@@ -46,6 +46,7 @@ namespace Ossastra.Combat
             public Action<IReadOnlyList<HitOutcome>> resolved;
             public GameObject visual;
             public Guid parent;
+            public string channel;
         }
         private readonly List<Flight> flights=new List<Flight>();
         private readonly HashSet<(Guid,int)> emitted=new HashSet<(Guid,int)>();
@@ -66,14 +67,14 @@ namespace Ossastra.Combat
         {if(!activeParents.Contains(parent)&&!flights.Any(f=>f.parent==parent))emitted.RemoveWhere(key=>key.Item1==parent);}
         public int InFlightCount=>flights.Count;
         public int ResolvedCount {get;private set;}
-        public bool Emit(CombatVitals source,Guid parent,int index,DeliveryParameters config,int damage,float posture,Vector3 origin,Vector3 direction,Vector3 landing,Func<bool> valid,Action<IReadOnlyList<HitOutcome>> resolved,Sprite sprite=null,float scale=.25f,double reclaimBudget=.05,double reclaimRate=.5,int basicAttackStage=0)
+        public bool Emit(CombatVitals source,Guid parent,int index,DeliveryParameters config,int damage,float posture,Vector3 origin,Vector3 direction,Vector3 landing,Func<bool> valid,Action<IReadOnlyList<HitOutcome>> resolved,Sprite sprite=null,float scale=.25f,double reclaimBudget=.05,double reclaimRate=.5,int basicAttackStage=0,AttackHitStop hitStop=default,string channel=null)
         {
             if(source==null||!source.IsAvailable||parent==Guid.Empty||!activeParents.Contains(parent)||index<0||damage<=0||config==null||valid==null||!valid()||!emitted.Add((parent,index)))return false;
             var plane = CombatSpatialTarget.PlaneFor(source);
             var travelDirection = plane == CombatPlane.SideXY ? CombatContactGeometry.Project(direction, plane) : direction;
             var flight=new Flight{source=source,parent=parent,config=config.Freeze(),
                 Geometry=new CombatContactGeometry(plane,origin,travelDirection,travelDirection,basicAttackStage),release=config.mode==DeliveryMode.Sector&&config.activeDuration>0?
-                AttackRelease.ForContactWindow(parent,index,source.Health.Id,damage,posture,reclaimBudget,reclaimRate):AttackRelease.ForEmission(parent,index,source.Health.Id,damage,posture,reclaimBudget,reclaimRate),origin=origin,landing=landing,direction=travelDirection.normalized,position=origin+Vector3.up*.8f,valid=valid,resolved=resolved,emittedFrame=Time.frameCount};
+                AttackRelease.ForContactWindow(parent,index,source.Health.Id,damage,posture,reclaimBudget,reclaimRate,hitStop):AttackRelease.ForEmission(parent,index,source.Health.Id,damage,posture,reclaimBudget,reclaimRate,hitStop),origin=origin,landing=landing,direction=travelDirection.normalized,position=origin+Vector3.up*.8f,valid=valid,resolved=resolved,emittedFrame=Time.frameCount,channel=channel};
             CombatTraceProbe.For(source,true)?.Note("判定", "发射", config.mode + " · 持续 " + config.activeDuration + " s",
                 flight.release.ActionId, parent, index);
             if(config.mode==DeliveryMode.Sector)
@@ -206,8 +207,10 @@ namespace Ossastra.Combat
                 var hit = physicsHit.Value;
                 // SphereCast从重叠内开始时，point可能是零向量，保留估计质量而不把特效送去世界原点。
                 cast = hit.distance > .0001f
-                    ? new CombatContactPoint(hit.point, CombatContactPointQuality.PhysicsCast, hit.normal)
-                    : new CombatContactPoint(hit.collider.bounds.ClosestPoint(f.position), CombatContactPointQuality.EstimatedOverlap);
+                    ? new CombatContactPoint(hit.point, CombatContactPointQuality.PhysicsCast, hit.normal,
+                        null, Ossastra.Audio.SideViewFeedbackRuntime.MaterialOf(hit.collider, false))
+                    : new CombatContactPoint(hit.collider.bounds.ClosestPoint(f.position), CombatContactPointQuality.EstimatedOverlap,
+                        null, null, Ossastra.Audio.SideViewFeedbackRuntime.MaterialOf(hit.collider, false));
             }
             var hitTarget = physicsHit.HasValue ? CombatSpatialTarget.Find(physicsHit.Value.collider) : null;
             CombatContactPoint? ReadContact(IHitTarget target)
@@ -216,7 +219,7 @@ namespace Ossastra.Combat
                 return contacts != null && contacts.TryGetValue(target, out var contact) ? contact : (CombatContactPoint?)null;
             }
             var receipts = CombatContactGateway.Resolve(f.release, f.source, targets, point,
-                CombatContactCause.Direct, null, geometry, ReadContact, hitTarget == null ? cast : null);
+                CombatContactCause.Direct, null, geometry, ReadContact, hitTarget == null ? cast : null, f.config.mode, f.channel);
             ResolvedCount++;
             f.resolved?.Invoke(receipts);
         }

@@ -61,7 +61,12 @@ namespace Ossastra.Characters
         public StateArbitrator StateArbitrator=>stateArbitrator;
         private BasicActionRuntime runtime=>stateArbitrator?.Combat?.Runtime;
         internal ActionDefinitionSO[] StateActionLibrary=>ActionLibrary;
-        internal void PublishActionFact(ActionFact fact){orienter?.ObserveActionFact(fact);ActionObserved?.Invoke(fact);}
+        internal void PublishActionFact(ActionFact fact)
+        {
+            orienter?.ObserveActionFact(fact);
+            Ossastra.Audio.SideViewFeedbackRuntime.Observe(this, fact);
+            ActionObserved?.Invoke(fact);
+        }
         internal Vector3? StatePointerDirection(CharacterInputFrame frame)=>PointerDirection(frame);
         internal Vector3? StatePointerGroundPoint(CharacterInputFrame frame)=>PointerGroundPoint(frame);
         internal CharacterDefinitionSO StateCharacterDefinition=>characterDefinition;
@@ -142,6 +147,7 @@ namespace Ossastra.Characters
         private int animationGeneration=>stateArbitrator?.Combat?.AnimationGeneration??0;
         public int LifeGeneration => lifeGeneration;
         public bool IsSimulationSuspended => !focused || IsPaused;
+        public bool IsLocalHitStop => vitals != null && vitals.InHitStop;
         public CharacterDataBus DataBus { get; private set; }
         public ICharacterActionCoordinator Actions {get;private set;}
         public ICharacterAbilityController Abilities=>abilities;
@@ -272,6 +278,7 @@ namespace Ossastra.Characters
             if (vitals!=null)
             {
                 if (!vitals.Initialize(actorId)) { Debug.LogError("Character vitals identity/configuration invalid",this); enabled=false; return; }
+                vitals.RegisterHitStopConsumer(this);
                 lifeState=vitals; vitals.Died+=OnDied;
             }
             if (movement == null || orientation == null || view == null || melee == null || input == null || viewCamera == null)
@@ -367,7 +374,7 @@ namespace Ossastra.Characters
 
         // Spine在Update求骨骼；本根LateUpdate消费同帧挂点，Renderer稍后构建网格。
         // 此处仅推进装备表现，不执行第二次Move或结算。
-        private void LateUpdate(){if(ready){(presentation as Ossastra.CharacterAnimation.CharacterAnimationController)?.FlushSignals();equipmentView?.TickPresentation();equipmentSpineView?.TickPresentation();transientItems?.TickPresentation();
+        private void LateUpdate(){if(ready){if(!IsLocalHitStop)(presentation as Ossastra.CharacterAnimation.CharacterAnimationController)?.FlushSignals();equipmentView?.TickPresentation();equipmentSpineView?.TickPresentation();transientItems?.TickPresentation();
             // 装备实例已由原表现端口完成，本帧显示深度才接收同一相机；不增加第二次Move/动画提交。
             foreach(var depth in visualDepth)depth.Prepare(viewCamera);
             lightingReceiver?.TickPresentation();}}
@@ -375,8 +382,8 @@ namespace Ossastra.Characters
         private void CommitPresentation()
         {
             (presentation as Ossastra.AnimationPresentation.ICharacterAnimationFacts)?.CollectFacts(IsAlive, posture!=null && posture.IsStaggered, vitals!=null && vitals.IsHitReacting, animationGeneration, AttackStage);
-            presentation.SetPaused(IsSimulationSuspended || (vitals != null && vitals.InHitStop));
-            presentation.Present();
+            presentation.SetPaused(IsSimulationSuspended || IsLocalHitStop);
+            if (!IsLocalHitStop) presentation.Present();
         }
         private Vector3? PointerGroundPoint(CharacterInputFrame frame)
         {
@@ -516,12 +523,18 @@ namespace Ossastra.Characters
             else authority.Release(owner);
         }
 
+        internal void ResetHitStopControl()
+        {
+            vitals?.ResetHitStop();
+            stateArbitrator?.Combat?.ClearBuffer();
+            stateArbitrator?.Combat?.SuppressInput();
+        }
         private void OnApplicationFocus(bool hasFocus)
-        { focused = hasFocus; if (follow != null) follow.ResetIntent(); if (!hasFocus) CancelAction("focus-lost"); else stateArbitrator?.Combat?.SuppressInput(); }
+        { focused = hasFocus; if (follow != null) follow.ResetIntent(); if (!hasFocus) { ResetHitStopControl(); CancelAction("focus-lost"); } else stateArbitrator?.Combat?.SuppressInput(); }
         private void OnApplicationPause(bool value)
-          { applicationPaused = value; if(value)stateArbitrator?.Combat?.ClearBuffer(); if (follow != null) follow.ResetIntent(); if (value) stateArbitrator?.Combat?.SuppressInput(); }
+          { applicationPaused = value; if(value)ResetHitStopControl(); if (follow != null) follow.ResetIntent(); }
         private void OnEnable() { stateArbitrator?.Combat?.SuppressInput(); if (intentSelector != null) intentSelector.Clear(); lightingReceiver?.TickPresentation(); }
-        private void OnDisable() { lightingReceiver?.Suspend();environmentClearance?.Suspend();foreach(var depth in visualDepth)depth.Suspend();viewSpace?.Suspend();stateArbitrator?.StopMovement();transientItems?.Hide();statusEffects?.Clear();mainAction?.ResetState();equipmentView?.Hide();equipmentSpineView?.Hide();skills?.Clear();offhand?.CancelAll(); CancelAction("disabled"); actionPosture.Clear(); posture?.SuspendState(); authority.Release(posture); if (follow != null) follow.ResetIntent(); if (intentSelector != null) intentSelector.Clear(); if (ready && presentation != null) presentation.SetPaused(false); }
+        private void OnDisable() { ResetHitStopControl();lightingReceiver?.Suspend();environmentClearance?.Suspend();foreach(var depth in visualDepth)depth.Suspend();viewSpace?.Suspend();stateArbitrator?.StopMovement();transientItems?.Hide();statusEffects?.Clear();mainAction?.ResetState();equipmentView?.Hide();equipmentSpineView?.Hide();skills?.Clear();offhand?.CancelAll(); CancelAction("disabled"); actionPosture.Clear(); posture?.SuspendState(); authority.Release(posture); if (follow != null) follow.ResetIntent(); if (intentSelector != null) intentSelector.Clear(); if (ready && presentation != null) presentation.SetPaused(false); }
         private void OnDestroy()
         {
             lightingReceiver?.DisposeReceiver();lightingReceiver=null;

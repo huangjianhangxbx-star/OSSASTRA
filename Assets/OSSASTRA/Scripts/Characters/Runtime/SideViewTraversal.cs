@@ -17,9 +17,20 @@ namespace Ossastra.Characters
         public readonly int WallSide;
         public readonly long StepId;
         public readonly uint ContactEpoch;
+        public readonly Collider ContactCollider;
+        public readonly Vector3? ContactPosition;
 
-        public SideTraversalEvent(SideTraversalEventKind kind, Vector3 position, int side, long stepId, uint contactEpoch)
-        { Kind = kind; Position = position; WallSide = side; StepId = stepId; ContactEpoch = contactEpoch; }
+        public SideTraversalEvent(SideTraversalEventKind kind, Vector3 position, int side, long stepId, uint contactEpoch,
+            Collider contactCollider = null, Vector3? contactPosition = null)
+        {
+            Kind = kind;
+            Position = position;
+            WallSide = side;
+            StepId = stepId;
+            ContactEpoch = contactEpoch;
+            ContactCollider = contactCollider;
+            ContactPosition = contactPosition;
+        }
     }
 
     internal readonly struct SideViewMotion
@@ -52,6 +63,8 @@ namespace Ossastra.Characters
         private Matrix4x4 climbObstacleTransform;
         private float slideTime, slideSpeed;
         private SideTraversalEventKind? pendingEvent;
+        private Collider eventCollider;
+        private Vector3? eventContact;
         private int eventSide;
         private Vector3 plannedFrom, plannedTo;
         private int blockedSteps;
@@ -65,6 +78,8 @@ namespace Ossastra.Characters
         public int Revision { get; private set; }
         public int WallSide => wallSide;
         public string LastRejection { get; private set; }
+        public Vector3? Grip => BlocksAttack && anchor.IsValid ? anchor.Grip : (Vector3?)null;
+        public string CurrentPhase => Mode == SideViewTraversalMode.LedgeClimb ? climbPhase.ToString() : Mode.ToString();
         public bool BlocksAttack => Mode == SideViewTraversalMode.LedgeHang || Mode == SideViewTraversalMode.LedgeClimb;
         public bool OwnsAirState => BlocksAttack || Mode == SideViewTraversalMode.WallSlide || lockSteps > 0;
 
@@ -145,7 +160,7 @@ namespace Ossastra.Characters
             kickedWall = contact;
             lockSteps = Mathf.Max(1, settings.wallJumpLongLockSteps);
             sinceKick = 0;
-            SetEvent(SideTraversalEventKind.WallJump, contact.Side);
+            SetEvent(SideTraversalEventKind.WallJump, contact.Side, contact.Hit.collider, contact.Hit.point);
             ChangeMode(SideViewTraversalMode.Airborne);
         }
 
@@ -267,7 +282,7 @@ namespace Ossastra.Characters
                 lockSteps = 0;
                 lastDropped = default;
                 ClearClimbFailure();
-                if (landedFromClimb) SetEvent(SideTraversalEventKind.ClimbComplete, anchor.Wall.Side);
+                if (landedFromClimb) SetEvent(SideTraversalEventKind.ClimbComplete, anchor.Wall.Side, anchor.Top.collider, anchor.Top.point);
                 landedFromClimb = false;
                 anchor = default;
                 ChangeMode(SideViewTraversalMode.Grounded);
@@ -279,7 +294,7 @@ namespace Ossastra.Characters
             else if (Mode == SideViewTraversalMode.LedgeHang && !announcedHang && Reached(anchor.Hang))
             {
                 announcedHang = true;
-                SetEvent(SideTraversalEventKind.Grab, anchor.Wall.Side);
+                SetEvent(SideTraversalEventKind.Grab, anchor.Wall.Side, anchor.Wall.Hit.collider, anchor.Grip);
             }
             // 实际胶囊可能截断查询许可。只比较请求轴的真实进度，不能把沿墙偏移当成上攀成功。
             var requested = plannedTo - plannedFrom;
@@ -300,8 +315,10 @@ namespace Ossastra.Characters
             if (pendingEvent.HasValue)
             {
                 if (pendingEvent != SideTraversalEventKind.WallJump || motor.VerticalSpeed > 0f)
-                    motor.EmitTraversal(pendingEvent.Value, eventSide);
+                    motor.EmitTraversal(pendingEvent.Value, eventSide, eventCollider, eventContact);
                 pendingEvent = null;
+                eventCollider = null;
+                eventContact = null;
             }
         }
 
@@ -310,7 +327,7 @@ namespace Ossastra.Characters
             var command = ledgeInput.ForWall(anchor.Wall.Side);
             if (command == LedgeInputCommand.Drop)
             {
-                SetEvent(SideTraversalEventKind.Drop, anchor.Wall.Side);
+                SetEvent(SideTraversalEventKind.Drop, anchor.Wall.Side, anchor.Wall.Hit.collider, anchor.Grip);
                 AbandonAnchor();
                 return default;
             }
@@ -475,7 +492,12 @@ namespace Ossastra.Characters
             Revision++;
         }
 
-        private void SetEvent(SideTraversalEventKind kind, int side)
-        { pendingEvent = kind; eventSide = side; }
+        private void SetEvent(SideTraversalEventKind kind, int side, Collider collider, Vector3 point)
+        {
+            pendingEvent = kind;
+            eventSide = side;
+            eventCollider = collider;
+            eventContact = point;
+        }
     }
 }

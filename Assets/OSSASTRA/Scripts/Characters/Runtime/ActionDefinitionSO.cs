@@ -27,6 +27,8 @@ namespace Ossastra.Characters
         [Min(.01f)] public float finishAt=1;
         [Min(1)] public int damage=12;
         [Min(0)] public float postureImpact=35,staminaCost=10;
+        [Tooltip("逐招式局部命中停顿，时长为秒；攻击与受击端各自独立。")]
+        public AttackHitStop hitStop;
         [Tooltip("-1 使用该动作类型的推荐架势暴露量。")]
         [Min(-1)] public float actionPostureExposure = -1;
         [Tooltip("允许自然恢复的真实 Spine 事件。留空时由动作终结释放。")]

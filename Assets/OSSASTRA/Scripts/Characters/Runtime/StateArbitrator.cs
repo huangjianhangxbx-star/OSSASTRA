@@ -101,8 +101,10 @@ namespace Ossastra.Characters
             if (owner.StateVitals != null && owner.StateVitals.InHitStop)
             {
                 owner.StateInputSource.Read();
+                Combat.BufferInputDuringHitStop(owner.DataBus.Input);
                 if (!owner.IsSimulationSuspended)
                 {
+                    owner.StateMainAction?.TickEffects(deltaTime, detachedOnly: true);
                     if (owner.StateAbilities is CharacterAbilities active) active.TickDetachedEffects(deltaTime);
                     else owner.StateSkills?.TickEffects(deltaTime);
                 }

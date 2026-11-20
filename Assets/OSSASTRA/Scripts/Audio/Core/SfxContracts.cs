@@ -11,6 +11,22 @@ namespace Ossastra.Audio
     /// <summary>短音混音语义；未来语音和环境仅保留路由，不代表本轮已有完整服务。</summary>
     public enum SfxBus { Player, Companion, Enemy, UI, Interaction, Voice, Ambience }
 
+    internal readonly struct SfxPlaybackSettings
+    {
+        internal readonly float Volume, PitchMin, PitchMax, StartMs;
+
+        internal SfxPlaybackSettings(float volume, float pitchMin, float pitchMax, float startMs)
+        {
+            Volume = volume;
+            PitchMin = pitchMin;
+            PitchMax = pitchMax;
+            StartMs = startMs;
+        }
+
+        internal bool IsValid => Volume >= 0 && Volume <= 1 && PitchMin >= .01f &&
+            PitchMax >= PitchMin && PitchMax <= 3 && StartMs >= 0 && !float.IsInfinity(StartMs);
+    }
+
     /// <summary>已发生事实的声音请求；同一动作的不同子击必须提供不同FactKey。</summary>
     public readonly struct SfxRequest
     {
@@ -21,9 +37,14 @@ namespace Ossastra.Audio
         public string FactKey { get; }
         public Vector3 WorldPosition { get; }
         public double OccurredAt { get; }
+        internal SfxPlaybackSettings? Playback { get; }
 
         public SfxRequest(string eventId, string sourceId, string worldScopeId, int sourceGeneration,
             string factKey, Vector3 worldPosition, double occurredAt)
+            : this(eventId, sourceId, worldScopeId, sourceGeneration, factKey, worldPosition, occurredAt, null) { }
+
+        internal SfxRequest(string eventId, string sourceId, string worldScopeId, int sourceGeneration,
+            string factKey, Vector3 worldPosition, double occurredAt, SfxPlaybackSettings? playback)
         {
             EventId = eventId;
             SourceId = sourceId;
@@ -32,6 +53,7 @@ namespace Ossastra.Audio
             FactKey = factKey;
             WorldPosition = worldPosition;
             OccurredAt = occurredAt;
+            Playback = playback;
         }
     }
 

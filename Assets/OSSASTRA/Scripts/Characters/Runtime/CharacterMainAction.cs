@@ -130,7 +130,7 @@ namespace Ossastra.Characters
             delivered = deliveries.Emit(owner.Vitals,id,fact.Release.EmissionIndex,new DeliveryParameters{mode=DeliveryMode.Sector,range=(float)stage.Stage.Range,arc=(float)stage.Stage.ArcDegrees,
                 activeDuration=stage.ContactDuration,followSource=true},t.Damage,(float)t.PostureImpact,transform.position,direction,transform.position,
                 ()=>this!=null&&isActiveAndEnabled&&owner!=null&&owner.IsAlive&&owner.LifeGeneration==life&&equipment.State.RightInstanceId==instance,
-                receipts=>Resolved?.Invoke(id,receipts.Any(r=>r.Reason==HitReason.Applied)),basicAttackStage:stage.BasicAttackStage);
+                receipts=>Resolved?.Invoke(id,receipts.Any(r=>r.Reason==HitReason.Applied)),basicAttackStage:stage.BasicAttackStage,hitStop:fact.Release.HitStop);
             if(!string.IsNullOrEmpty(stage.Stage.SourceId))abilities?.ScheduleIceColumn(id,transform.position,transform.position+direction.normalized*1.5f,stage.Stage.SourceId);
             LastResult="已释放 "+stage.Stage.Id;return true;
         }
@@ -142,7 +142,7 @@ namespace Ossastra.Characters
             if(distance>0)MotionVelocity=motionDirection*(float)(distance/delta);
         }
         internal void CloseAttachedContacts(Guid id) => deliveries.CloseAttachedContacts(id);
-        public void TickEffects(float delta){if(delta>0)deliveries.Tick(delta);}
+        public void TickEffects(float delta, bool detachedOnly = false){if(delta>0)deliveries.Tick(delta, detachedOnly);}
         public void ResetState(){deliveries.Clear();accepted=null;actionId=Guid.Empty;MotionVelocity=Vector3.zero;finalRecoveryUntil=0;}
         private bool Reject(string reason){LastResult="拒绝："+reason;return false;}
         private void OnDisable(){if(actionId!=Guid.Empty&&owner!=null)owner.CancelOwnedMainAction(actionId,"main-action-disabled");ResetState();}

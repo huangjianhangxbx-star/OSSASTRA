@@ -15,9 +15,14 @@ namespace Ossastra.Enemies
         private EnemyRoot root;private EnemyMovement movement;private CombatPosture posture;private float facing=1;
         private EnemyViewSpaceAdapter viewSpace;
         private void Awake(){root=GetComponent<EnemyRoot>();movement=GetComponent<EnemyMovement>();posture=GetComponent<CombatPosture>();viewSpace=GetComponent<EnemyViewSpaceAdapter>();}
+        internal void SynchronizeClock()
+        {
+            if (root != null && presenter != null) presenter.SetPaused(root.IsSimulationSuspended);
+        }
         public void Present()
         {
             if(!isActiveAndEnabled||root==null||root.Vitals==null||presenter==null)return;
+            if(root.Vitals.InHitStop) { SynchronizeClock(); return; }
             var velocity=movement==null?Vector3.zero:movement.Velocity;
             var direction=root.ActionActive?root.AttackDirection:velocity;
             if(viewSpace!=null&&viewSpace.IsEffective)facing=viewSpace.Facing;

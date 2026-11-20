@@ -23,6 +23,10 @@ namespace Ossastra.AnimationPresentation
         public string FallbackReason {get;private set;}
         public AnimationSemantic Semantic {get;private set;}
         public int CommitCount {get;private set;}
+        public void SetPaused(bool paused)
+        {
+            if (initialized && skeleton != null) skeleton.timeScale = paused ? 0 : originalSpeed;
+        }
         public void Present(SemanticIntent intent,float facing,bool paused)
         {
             if(!isActiveAndEnabled || skeleton==null || skeleton.skeletonDataAsset==null)return;
@@ -37,7 +41,7 @@ namespace Ossastra.AnimationPresentation
             var clip=ClipFallback.Resolve(requested,idle,s=>skeleton.Skeleton.Data.FindAnimation(s)!=null);
             FallbackReason=clip==null?"无可用片段":clip!=requested?"缺少 "+intent.Semantic+"，回退Idle":"";
             if(clip==null)return;
-            skeleton.timeScale=paused?0:originalSpeed;
+            SetPaused(paused);
             skeleton.Skeleton.ScaleX=originalScale*(facing<0?-1:1);
             if(identity.ShouldCommit(clip,intent))
             {var track=skeleton.AnimationState.SetAnimation(0,clip,chosen==null||clip!=requested||chosen.loop);track.MixDuration=chosen==null?.08f:chosen.mixDuration;CommitCount++;}

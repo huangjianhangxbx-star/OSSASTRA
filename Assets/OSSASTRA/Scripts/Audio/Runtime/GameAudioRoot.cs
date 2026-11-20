@@ -240,12 +240,13 @@ namespace Ossastra.Audio
         public SfxDecision SubmitSfx(SfxRequest request) => SubmitSfxCore(request, null, false);
 
         /// <summary>本场持久配置的一次声仍须经过同一来源代次、仲裁、混音和播放池。</summary>
-        internal SfxDecision SubmitSceneSfx(SfxSourceHandle source, SfxEventDefinitionSO definition, string factKey, Vector3 position)
+        internal SfxDecision SubmitSceneSfx(SfxSourceHandle source, SfxEventDefinitionSO definition, string factKey,
+            Vector3 position, double? occurredAt = null, SfxPlaybackSettings? playback = null)
         {
             if (source == null || !sources.Contains(source)) return new SfxDecision(false, "SCENE_SOURCE_LEASE_UNAVAILABLE");
             if (definition == null || definition.loop) return new SfxDecision(false, "SCENE_ONE_SHOT_DEFINITION_REQUIRED");
             var request = new SfxRequest(definition.eventId, source.SourceId, source.WorldScopeId, source.Generation,
-                factKey, position, Time.realtimeSinceStartupAsDouble);
+                factKey, position, occurredAt ?? Time.realtimeSinceStartupAsDouble, playback);
             return SubmitSfxCore(request, definition, true);
         }
 

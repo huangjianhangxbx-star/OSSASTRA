@@ -2,6 +2,7 @@
  * 运动状态：采样跳跃、挂边、退场和已接受的横版能力运动；每个固定步只调用一次原移动器。
  * 能力接管空中位移时清除旧跳跃输入，运动完成后将真实接触事实交回本次执行。
  */
+using System;
 using Ossastra.CharacterCore;
 using UnityEngine;
 namespace Ossastra.Characters
@@ -21,6 +22,9 @@ namespace Ossastra.Characters
         public int TraversalRevision => traversal?.Revision ?? 0;
         public int TraversalWallSide => traversal?.WallSide ?? 0;
         public string TraversalLastRejection => traversal?.LastRejection;
+        public string TraversalPhase => traversal?.CurrentPhase ?? TraversalMode.ToString();
+        public Vector3? TraversalGrip => traversal?.Grip;
+        public event Action<string, string> JumpInputObserved;
         internal bool TraversalBlocksAttack => traversal?.BlocksAttack == true;
 
         private enum JumpLaunch { None, Ordinary, Wall }
@@ -31,6 +35,7 @@ namespace Ossastra.Characters
         private CharacterActionRequest pendingRequest;
         private bool pendingTap, launchHeld, anyHeld;
         private int pendingAge, inputGeneration, controlRevision;
+        private string pendingRejection;
         private uint contactRevision;
         private float accumulator;
         private float retreatVelocity, retreatRemaining;
@@ -178,7 +183,8 @@ namespace Ossastra.Characters
                 bool bumped = wasRising && (motor.LastCollision & CollisionFlags.Above) != 0;
                 jump.Observe(wasRising, motor.Grounded, bumped, motor.VerticalSpeed > 0f, profile.headLockSteps);
                 if (motor.Grounded) { launchGesture = default; launchHeld = false; }
-                if (pendingGesture.HasIdentity && (pendingTap || ++pendingAge > profile.queueSteps)) ClearPending();
+                if (pendingGesture.HasIdentity && (pendingTap || ++pendingAge > profile.queueSteps))
+                    RejectPending(pendingRejection ?? "jump-buffer-expired");
             }
             if (steps > 0) motor.PublishSideViewVelocity(before, step * steps);
             motor.SetSideViewPresentationFraction(accumulator / step);
@@ -245,12 +251,19 @@ namespace Ossastra.Characters
             {
                 if (!button.HasIdentity) continue;
                 anyHeld |= button.Held;
-                if (button.Pressed && !frame.jumpRequestsBlocked && !TraversalBlocksAttack)
+                if (button.Pressed)
                 {
-                    pendingGesture = button;
-                    pendingRequest = owner.Actions.CreateRequest(CharacterActionKind.Jump, CharacterActionSource.Player, "jump-input");
-                    pendingAge = 0;
-                    pendingTap = button.Released;
+                    JumpInputObserved?.Invoke("请求", null);
+                    if (frame.jumpRequestsBlocked || TraversalBlocksAttack)
+                        JumpInputObserved?.Invoke("拒绝", frame.jumpRequestsBlocked ? "jump-input-blocked" : "ledge-action-blocked");
+                    else
+                    {
+                        pendingGesture = button;
+                        pendingRequest = owner.Actions.CreateRequest(CharacterActionKind.Jump, CharacterActionSource.Player, "jump-input");
+                        pendingAge = 0;
+                        pendingRejection = null;
+                        pendingTap = button.Released;
+                    }
                 }
                 if (!button.Released) continue;
                 if (launchGesture.SameGesture(button))
@@ -258,14 +271,18 @@ namespace Ossastra.Characters
                     jump.Release();
                     launchHeld = false;
                 }
-                if (pendingGesture.SameGesture(button) && !pendingTap) ClearPending();
+                if (pendingGesture.SameGesture(button) && !pendingTap) RejectPending(pendingRejection ?? "jump-released");
             }
         }
 
         private JumpLaunch TryLaunch(CharacterJumpProfile profile)
         {
-            if (!pendingGesture.HasIdentity || TraversalBlocksAttack || !AllowsJump(out var launch, out _))
+            if (!pendingGesture.HasIdentity || TraversalBlocksAttack) return JumpLaunch.None;
+            if (!AllowsJump(out var launch, out var blocked))
+            {
+                pendingRejection = blocked;
                 return JumpLaunch.None;
+            }
             bool accepted = owner.Actions.TryCommit(pendingRequest, 0f, () =>
             {
                 if (launch == JumpLaunch.Wall)
@@ -283,10 +300,18 @@ namespace Ossastra.Characters
                 if (pendingTap) jump.Release();
                 AcceptedJumps++;
                 return pendingRequest.RequestId;
-            }, out _);
+            }, out var reason);
+            JumpInputObserved?.Invoke(accepted ? "受理" : "拒绝",
+                accepted ? (launch == JumpLaunch.Wall ? "wall" : "ordinary") : reason);
             // 当前准备就绪时只向账本提交一次。延迟资格仍由前置 gate 和缓冲步数控制。
             ClearPending();
             return accepted ? launch : JumpLaunch.None;
+        }
+
+        private void RejectPending(string reason)
+        {
+            JumpInputObserved?.Invoke("拒绝", reason);
+            ClearPending();
         }
 
         private void ClearPending()
@@ -294,6 +319,7 @@ namespace Ossastra.Characters
             pendingGesture = default;
             pendingRequest = default;
             pendingAge = 0;
+            pendingRejection = null;
             pendingTap = false;
         }
 

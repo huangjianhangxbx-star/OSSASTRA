@@ -32,6 +32,7 @@ namespace Ossastra.Characters
         public readonly float projectileScale;
         public readonly EffectSnapshot effects;
         public readonly ShotEnhancementSnapshot shot;
+        public readonly AttackHitStop hitStop;
         internal Action<AbilityRunContext,AbilityEmission,DeliveryParameters,string,float> deliveryPort;
         internal Action<int,string,IReadOnlyList<HitOutcome>> onResolved;
         internal Action<Guid,string,Vector3> feedback;
@@ -57,6 +58,8 @@ namespace Ossastra.Characters
             this.presentationMainHand=presentationMainHand;
             projectileSprite=sprite;projectileScale=scale;
             this.effects=effects??new EffectSnapshot(0,Array.Empty<EffectSourceRow>(),0,false);
+            if (definition.executor.IsAttack && definition.animation != null)
+                hitStop = owner.Vitals?.CaptureHitStop(definition.animation.hitStop, false) ?? definition.animation.hitStop;
             this.releasePaymentId=releasePaymentId;shot=source.RuntimeState.ShotEnhancements.Snapshot();
         }
     }

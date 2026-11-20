@@ -41,6 +41,8 @@ namespace Ossastra.Enemies
         private int facing = -1;
         private int previousHp;
         private Vector3 home;
+        private EnemyRoot simulationOwner;
+        private float SimulationTime => simulationOwner != null ? simulationOwner.SimulationTime : Time.time;
 
         public bool IsAvailable => isActiveAndEnabled;
         public bool HasTarget => pursuit != null;
@@ -58,13 +60,14 @@ namespace Ossastra.Enemies
         {
             if (value == null || value.gameObject != gameObject || value.Health == null) return false;
             owner = value;
+            simulationOwner = GetComponent<EnemyRoot>();
             body = GetComponent<CharacterController>();
             tactics = CreateTactics();
             // 上浮的是实际碰撞和感知根。已有地图的地面标记也按这条合同恢复空中锚。
             var clearance = spawnClearance > 0 ? spawnClearance : tactics.Clearance;
             home = transform.position + Vector3.up * clearance;
             ReturnToSpawn();
-            ResetDecision(Time.time);
+            ResetDecision(SimulationTime);
             return body != null && targets != null && targets.Length > 0;
         }
 
@@ -142,7 +145,7 @@ namespace Ossastra.Enemies
 
         public void Commit(ICombatTarget selected)
         {
-            var now = Time.time;
+            var now = SimulationTime;
             Face(selected.WorldPosition.x - transform.position.x);
             MoveDirection = Vector3.zero;
             SetPhase(SideViewEnemyPhase.Windup, now);
@@ -172,7 +175,7 @@ namespace Ossastra.Enemies
 
         public void Move(float delta)
         {
-            if (body != null && body.enabled && delta > 0) tactics.Move(Time.time, delta);
+            if (body != null && body.enabled && delta > 0) tactics.Move(SimulationTime, delta);
         }
 
         /// <summary>研究场触发原作爬虫对既成环境声音或演奏事件的反应。</summary>
@@ -180,7 +183,7 @@ namespace Ossastra.Enemies
         {
             if (!IsAvailable || owner == null || !owner.IsAlive || tactics is not CrawlerTactics crawler)
                 return false;
-            return crawler.HeardSignal(source, sustained, Time.time);
+            return crawler.HeardSignal(source, sustained, SimulationTime);
         }
 
         private Vector3 Position => transform.position;

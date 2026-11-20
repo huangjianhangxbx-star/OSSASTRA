@@ -20,6 +20,9 @@ namespace Ossastra.Characters
   private CombatVitals autonomousTarget;
   private bool autonomousAction;
   private readonly AttackIntent intent=new AttackIntent();
+  private bool readyPressDuringHitStop;
+  private bool hitStopInputTracked;
+  private int hitStopControlRevision, hitStopGestureGeneration;
   private string lastFact="Idle";
   private int animationGeneration;
   public int AttackStage {get;private set;}
@@ -60,13 +63,20 @@ namespace Ossastra.Characters
    else if(chainProfile!=null&&chainProfile.enabled){definition=chainProfile.stage1.Freeze();secondDefinition=chainProfile.stage2.Freeze();chain=chainProfile.CreateState();}
    if(chain!=null){hitReceipts=root.StateMelee;hitReceipts.Resolved+=OnHitReceipt;}
   }
-  public void ClearBuffer()=>chain?.Clear();
+  public void ClearBuffer()
+  {
+      readyPressDuringHitStop = false;
+      hitStopInputTracked = false;
+      chain?.Clear();
+  }
   public void SuppressInput()=>intent.SuppressUntilRelease();
   public void OnHitReceipt(Guid id,bool applied){if(!autonomousAction)chain?.Hit(id,applied);}
   public void Dispose(){if(hitReceipts!=null)hitReceipts.Resolved-=OnHitReceipt;hitReceipts=null;}
   public void RequestInput(CharacterInputFrame frame)
   {
             var pressed=frame.hasAttackEdges?intent.Observe(frame.attackHeld,frame.attackPressed):intent.Observe(frame.attackHeld);
+            pressed |= readyPressDuringHitStop;
+            readyPressDuringHitStop = false;
             var trace = CombatTraceProbe.For(owner);
             if (pressed || frame.attackPressed)
                 trace?.Note("输入","主手输入交给战斗状态机",$"有效边沿={pressed}，界面捕获={frame.attackPointerBlocked}，请求封锁={frame.attackRequestsBlocked}，焦点={owner.StateFocused}，攀越限制={owner.StateArbitrator.Movement.TraversalBlocksAttack}，瞄准={frame.aimSource}");
@@ -82,6 +92,48 @@ namespace Ossastra.Characters
             }
 
   }
+        internal void BufferInputDuringHitStop(CharacterInputFrame frame)
+        {
+            var pressed = frame.hasAttackEdges ? intent.Observe(frame.attackHeld, frame.attackPressed) : intent.Observe(frame.attackHeld);
+            if (!owner.HasPlayerInput || owner.IsSimulationSuspended || frame.attackRequestsBlocked || frame.attackPointerBlocked ||
+                owner.StateArbitrator.Movement.TraversalBlocksAttack || !owner.StateAuthority.Allows(ControlChannel.Attack))
+            {
+                DiscardHitStopInput();
+                if (frame.attackHeld) SuppressInput();
+                return;
+            }
+            ClearStaleHitStopInput(frame);
+            if (!pressed || (owner.StateMainAction != null && !owner.StateMainAction.AllowsBasicRequest)) return;
+
+            // 保留一条边沿，原动作时钟暂停。恢复后由既有主手请求路径检查当前资格。
+            bool hadBuffer = HasBufferedAttack;
+            if (runtime.AttackReady) readyPressDuringHitStop = true;
+            else if (ChainAvailable) chain?.Request(runtime.SimulationTime, false, true);
+            if (readyPressDuringHitStop || (!hadBuffer && HasBufferedAttack))
+            {
+                hitStopInputTracked = true;
+                hitStopControlRevision = owner.ActionControlRevision;
+                hitStopGestureGeneration = owner.StateInput.GestureGeneration;
+                CombatTraceProbe.For(owner)?.Note("输入", "卡肉中记录攻击缓冲", "恢复后按原动作资格消费", runtime.ActionId);
+            }
+        }
+
+        private void ClearStaleHitStopInput(CharacterInputFrame frame)
+        {
+            if (!hitStopInputTracked) return;
+            if (frame.attackRequestsBlocked || frame.attackPointerBlocked ||
+                hitStopControlRevision != owner.ActionControlRevision || hitStopGestureGeneration != owner.StateInput.GestureGeneration)
+                DiscardHitStopInput();
+            else if (!HasBufferedAttack && !readyPressDuringHitStop)
+                hitStopInputTracked = false;
+        }
+
+        private void DiscardHitStopInput()
+        {
+            if (!hitStopInputTracked) return;
+            hitStopInputTracked = readyPressDuringHitStop = false;
+            chain?.DiscardBufferedPress();
+        }
   public void RequestCompanion()
   {
             bool blocksNewCompanion = owner.StateInput.BlocksSwitchLinkCompanion(owner);
@@ -151,7 +203,11 @@ namespace Ossastra.Characters
 
   }
   public void PrepareFrame(CharacterInputFrame frame)
-  {if(chain!=null&&(!owner.HasPlayerInput||owner.IsPaused||!owner.StateFocused||!ChainAvailable))chain.Clear();}
+  {
+      if (!owner.HasPlayerInput || owner.IsPaused || !owner.StateFocused) ClearBuffer();
+      else if (chain != null && !ChainAvailable) chain.Clear();
+      ClearStaleHitStopInput(frame);
+  }
         public void ObserveFact(ActionFact fact)
         {
             if(fact.Kind==ActionFactKind.Accepted)owner.StateVitals?.Recovery?.RetainParent(fact.ActionId);
@@ -167,7 +223,7 @@ namespace Ossastra.Characters
             if (fact.Kind == ActionFactKind.Finished || fact.Kind == ActionFactKind.Cancelled)
             {
                 if (owner.StateAbilities?.OwnsRelease(fact.ActionId) != true) owner.EndActionExposure(fact.ActionId);
-                owner.StateVitals?.DisarmHitStop(fact.ActionId);
+                if (fact.Kind == ActionFactKind.Cancelled) owner.StateVitals?.CancelHitStopForParent(fact.ActionId);
                 owner.StateVitals?.Recovery?.ReleaseParent(fact.ActionId);
             }
         }
@@ -203,13 +259,14 @@ namespace Ossastra.Characters
             if(!owner.Actions.TryCommit(signature,cost,()=>
             {
                 if(prepareSource!=null&&!prepareSource())return Guid.Empty;
-                result=runtime.Request(frozen,label,owner.StateAuthority,owner.IsPaused);
+                var hitStop = isAttack ? owner.StateVitals?.CaptureHitStop(config.hitStop, false) ?? config.hitStop : default;
+                result=runtime.Request(frozen,label,owner.StateAuthority,owner.IsPaused,hitStop);
                 if(!result.Accepted)rollbackSource?.Invoke();
                 return result.Accepted?result.Fact.ActionId:Guid.Empty;
             },out var rejection))
             {lastFact="Rejected: "+rejection;return false;}
             if(result.PreviousTerminal!=null)ObserveFact(result.PreviousTerminal);
-            chain?.Clear();autonomousAction=false;autonomousTarget=null;AttackStage=0;
+            ClearBuffer();autonomousAction=false;autonomousTarget=null;AttackStage=0;
             BindPostureRecovery(result.Fact.ActionId, phase, config.postureRecoveryEvent);
             (owner.StatePresentation as ICharacterConfiguredAnimation)?.CapturePhase(result.Fact.ActionId,phase);
             ObserveFact(result.Fact);owner.StateOrienter.FaceAttackDirection();actionId=result.Fact.ActionId;return true;
@@ -217,7 +274,7 @@ namespace Ossastra.Characters
         internal bool CancelOwnedMainAction(Guid actionId,string reason)
         {
             if(runtime==null||!runtime.IsActive||runtime.ActionId!=actionId)return false;
-            animationGeneration++;autonomousAction=false;autonomousTarget=null;chain?.Clear();
+            animationGeneration++;autonomousAction=false;autonomousTarget=null;ClearBuffer();
             var terminal=runtime.Cancel(reason);if(terminal!=null)ObserveFact(terminal);return true;
         }
         public void RefreshMainProfile()
@@ -276,9 +333,11 @@ namespace Ossastra.Characters
             var signature=owner.Actions.CreateRequest(CharacterActionKind.Main,aiTarget==null?CharacterActionSource.Player:CharacterActionSource.Companion,aiTarget==null?"player-input:Stage"+stage:"companion:Stage1").WithPostureTarget(
                 actionConfig == null || actionConfig.actionPostureExposure == -1 ? 20 : actionConfig.actionPostureExposure);
             ActionRequestResult request=null;
+            var authoredStop = actionConfig?.hitStop ?? default;
+            var hitStop = owner.StateVitals?.CaptureHitStop(authoredStop, stage == 1 && selected.EventDriven) ?? authoredStop;
             var accepted=owner.Actions.TryCommit(signature,owner.StateStamina==null?0:prepared!=null?prepared.Cost:actionConfig!=null?actionConfig.staminaCost:owner.StateStamina.AttackCost,()=>
             {
-                request=runtime.Request(selected,aiTarget==null?"player-input:Stage"+stage:"companion:Stage1",owner.StateAuthority,owner.IsPaused);
+                request=runtime.Request(selected,aiTarget==null?"player-input:Stage"+stage:"companion:Stage1",owner.StateAuthority,owner.IsPaused,hitStop);
                 return request.Accepted?request.Fact.ActionId:Guid.Empty;
             },out var rejection);
             if(!accepted){lastFact="Rejected: "+rejection;return;}
@@ -297,7 +356,6 @@ namespace Ossastra.Characters
                 AttackStage=stage; autonomousAction=aiTarget!=null; autonomousTarget=aiTarget;
                 if(autonomousAction) { chain?.Clear(); owner.StateCombatBrain.OnAccepted(); owner.StateOrienter.OrientTowards(aiTarget.transform.position); }
                 else chain?.Accepted(stage,request.Fact.ActionId,runtime.SimulationTime,selected.AttackReadyAt,selected.EventDriven);
-                if(stage == 1 && selected.EventDriven) owner.StateVitals?.ArmHitStop(request.Fact.ActionId);
                 TrackBasicAttack(request.Fact.ActionId, aiTarget == null);
                 ObserveFact(request.Fact); owner.StateOrienter.FaceAttackDirection();
             }
@@ -325,7 +383,7 @@ namespace Ossastra.Characters
             owner.StateGuard?.Cancel();
             owner.StateOffhand?.CancelPending();
             animationGeneration++; autonomousAction=false; autonomousTarget=null; owner.StateCombatBrain?.ResetCandidate();
-            chain?.Clear();
+            ClearBuffer();
             // 取消必须具名；抑制仍按住的输入，不能把下一帧误判为新请求。
             intent.SuppressUntilRelease();
             var terminal = runtime == null ? null : runtime.Cancel(reason);

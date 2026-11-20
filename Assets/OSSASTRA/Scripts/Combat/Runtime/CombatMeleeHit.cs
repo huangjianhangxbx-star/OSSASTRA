@@ -77,7 +77,8 @@ namespace Ossastra.Combat
             if (!nearest.HasValue) return null;
             var surface = nearest.Value;
             if (!overlaps.Contains(surface.collider) || CombatSpatialTarget.Find(surface.collider) != null) return null;
-            return new CombatContactPoint(surface.point, CombatContactPointQuality.PhysicsCast, surface.normal);
+            return new CombatContactPoint(surface.point, CombatContactPointQuality.PhysicsCast, surface.normal, null,
+                Ossastra.Audio.SideViewFeedbackRuntime.MaterialOf(surface.collider, false));
         }
 
         internal void CompleteMiss(AttackRelease release)

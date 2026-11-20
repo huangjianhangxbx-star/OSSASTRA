@@ -88,6 +88,9 @@ namespace Ossastra.Audio
             if (record.ClipIndex < 0 || record.ClipIndex >= definition.clips.Length)
                 return FailPermit(record.VoiceId, "CLIP_INDEX_INVALID");
             AudioClip clip = definition.clips[record.ClipIndex];
+            int startSample = SideViewFeedbackSettings.SampleOffset(record.Request.Playback?.StartMs ?? 0,
+                clip.samples, clip.frequency);
+            if (startSample < 0) return FailPermit(record.VoiceId, "START_PAST_CLIP_END");
             if (clip.loadState != AudioDataLoadState.Loaded)
                 return FailPermit(record.VoiceId, "MEDIA_NOT_READY: " + clip.loadState);
             AudioMixerGroup output = route(definition.bus);
@@ -98,7 +101,7 @@ namespace Ossastra.Audio
             source.Stop();
             source.loop = definition.loop;
             source.clip = clip;
-            source.volume = definition.volume;
+            source.volume = record.Request.Playback?.Volume ?? definition.volume;
             source.pitch = record.Pitch;
             source.priority = Mathf.Clamp(256 - record.Priority * 255 / 100, 0, 256);
             source.outputAudioMixerGroup = output;
@@ -115,7 +118,9 @@ namespace Ossastra.Audio
             AudioSettings.GetDSPBufferSize(out int bufferLength, out int bufferCount);
             double bufferSafety = (double)bufferLength * bufferCount / Math.Max(1, AudioSettings.outputSampleRate);
             // Play实际进入DSP可能晚一个缓冲块；正常以isPlaying归还，期限另留缓冲余量避免截断短音尾部。
-            slot.EndsAt = definition.loop?double.PositiveInfinity:slot.StartedAt + (double)clip.samples / clip.frequency / record.Pitch + Math.Max(.05, bufferSafety + .02);
+            slot.EndsAt = definition.loop?double.PositiveInfinity:slot.StartedAt +
+                (double)(clip.samples - startSample) / clip.frequency / record.Pitch + Math.Max(.05, bufferSafety + .02);
+            if (startSample != 0) source.timeSamples = startSample;
             slot.ObservedPlaying = false;
             ActiveCount++;
             source.Play();

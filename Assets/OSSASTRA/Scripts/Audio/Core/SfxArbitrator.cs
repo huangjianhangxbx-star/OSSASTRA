@@ -108,6 +108,7 @@ namespace Ossastra.Audio
                 return Reject("STALE_SOURCE");
             if (definition == null) return Reject("ASSET_BLOCKED_NO_DEFINITION");
             if (!definition.TryValidate(out string reason)) return Reject(reason);
+            if (request.Playback.HasValue && !request.Playback.Value.IsValid) return Reject("INVALID_PLAYBACK_SETTINGS");
             if (!string.Equals(request.EventId, definition.eventId, StringComparison.Ordinal)) return Reject("EVENT_DEFINITION_MISMATCH");
             if (now - request.OccurredAt > definition.maxAgeSeconds) return Reject("EXPIRED");
 
@@ -157,7 +158,11 @@ namespace Ossastra.Audio
             int clipIndex = Mathf.Min(choiceCount - 1, (int)(Sample() * choiceCount));
             // 从N-1个候选直接映射回原数组，固定一次抽样；避免恒定随机源导致重抽死循环。
             if (excludePrevious && clipIndex >= previousIndex) clipIndex++;
-            float pitch = Mathf.Lerp(definition.pitchMin, definition.pitchMax, (float)Sample());
+            if (request.Playback.HasValue && SideViewFeedbackSettings.SampleOffset(
+                    request.Playback.Value.StartMs, definition.clips[clipIndex].samples,
+                    definition.clips[clipIndex].frequency) < 0) return Reject("START_PAST_CLIP_END");
+            float pitch = Mathf.Lerp(request.Playback?.PitchMin ?? definition.pitchMin,
+                request.Playback?.PitchMax ?? definition.pitchMax, (float)Sample());
             if (stolen != null) active.Remove(stolen.VoiceId);
             long id = ++nextVoice;
             active.Add(id, new SfxVoiceRecord(id, request, definition, clipIndex, pitch));

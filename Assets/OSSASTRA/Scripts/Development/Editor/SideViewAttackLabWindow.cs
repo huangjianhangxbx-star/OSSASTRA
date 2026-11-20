@@ -17,8 +17,8 @@ namespace Ossastra.Development.Editor
     {
         private const string OwnStart = "Ossastra.AttackLab.OwnStart";
         private const string OldStart = "Ossastra.AttackLab.OldStart";
-        private static readonly string[] Conditions = {"空挥", "固定位置受击", "正常受击"};
-        private static readonly string[] Stations = {"平地", "平台边缘", "墙边"};
+        private static readonly string[] Conditions = {"空挥", "固定位置受击", "正常受击", "格挡木桩", "致死靶", "双目标"};
+        private static readonly string[] Stations = {"平地", "平台边缘", "墙边", "低顶", "台边下落", "翻越高台"};
         [Serializable] private sealed class Condition
         {
             public int mode, station;
@@ -42,12 +42,15 @@ namespace Ossastra.Development.Editor
         private bool previousSwingSuppression;
         private Vector2 scroll;
         private AttackLabAnimationCalibration calibration;
+        private AttackLabFeedbackPanel feedback;
+        private AttackLabMovementPanel movement;
         private int workMode;
 
         [MenuItem("OSSASTRA/战斗/横版攻击调试台")]
+        [MenuItem("OSSASTRA/战斗/横版角色手感调试台")]
         public static void Open()
         {
-            var window = GetWindow<SideViewAttackLabWindow>("横版攻击调试台");
+            var window = GetWindow<SideViewAttackLabWindow>("横版角色手感调试台");
             window.minSize = new Vector2(410, 400);
             window.Show();
         }
@@ -66,6 +69,10 @@ namespace Ossastra.Development.Editor
         private void OnDisable()
         {
             calibration?.Dispose();
+            feedback?.Dispose();
+            feedback = null;
+            movement?.Dispose();
+            movement = null;
             windowActive = false;
             EditorApplication.update -= TickWindow;
             EditorApplication.playModeStateChanged -= ModeChanged;
@@ -84,6 +91,11 @@ namespace Ossastra.Development.Editor
 
         private void CaptureInput()
         {
+            if (SideViewAttackLabAcceptance.IsRunning)
+            {
+                ReleaseInput();
+                return;
+            }
             if (!windowActive || !Application.isPlaying || session == null || session.Actor == null) return;
             var input = session.Actor.GetComponent<CharacterInputHandler>();
             if (captured == input && capturedParty == session.Party) return;
@@ -117,6 +129,8 @@ namespace Ossastra.Development.Editor
                 }
             }
             if (session == null) return;
+            movement?.Observe(session);
+            feedback?.Observe(session);
             if (focusedWindow == this) CaptureInput();
             else if ((captured != null || capturedParty != null) && EditorApplication.timeSinceStartup >= releaseAt &&
                      (Mouse.current == null || !Mouse.current.leftButton.isPressed)) ReleaseInput();
@@ -147,6 +161,10 @@ namespace Ossastra.Development.Editor
             {
                 ReleaseInput();
                 RestoreSwing();
+                feedback?.Dispose();
+                feedback = null;
+                movement?.Dispose();
+                movement = null;
                 tuning?.Dispose();
                 tuning = new AttackLabTuningPanel { RequestReset = StartTrial, RestoreCondition = RestoreCondition };
                 session = null;
@@ -196,11 +214,33 @@ namespace Ossastra.Development.Editor
 
         private void OnGUI()
         {
-            workMode = GUILayout.Toolbar(workMode, new[] { "实战验证", "动作与音画校准" });
+            workMode = GUILayout.Toolbar(workMode, new[] { "试玩与对照", "动画与事件", "命中与受击", "移动与翻越", "运动接触" });
             if (workMode == 1)
             {
                 calibration ??= new AttackLabAnimationCalibration();
                 calibration.Draw(session);
+                return;
+            }
+            if (workMode == 2 || workMode == 4)
+            {
+                feedback ??= new AttackLabFeedbackPanel();
+                feedback.Draw(session, workMode == 4, () => SendCommand(false));
+                return;
+            }
+            if (workMode == 3)
+            {
+                movement ??= new AttackLabMovementPanel();
+                if (session == null)
+                {
+                    EditorGUILayout.HelpBox("进入独立测试场后，用角色的真实移动和接触对照参数。", MessageType.Info);
+                    using (new EditorGUI.DisabledScope(EditorApplication.isPlayingOrWillChangePlaymode))
+                        if (GUILayout.Button("进入独立测试场并试玩")) Launch();
+                }
+                else
+                {
+                    DrawActors();
+                    movement.Draw(session);
+                }
                 return;
             }
             if (session == null || !Application.isPlaying || session.Actor == null)
@@ -229,7 +269,7 @@ namespace Ossastra.Development.Editor
             EditorGUILayout.EndScrollView();
         }
 
-        private void DrawPlay()
+        private void DrawActors()
         {
             var actors = session.Party?.Characters;
             if (actors != null)
@@ -244,10 +284,15 @@ namespace Ossastra.Development.Editor
                     else note = session.Status;
                 }
             }
+        }
+
+        private void DrawPlay()
+        {
+            DrawActors();
             DrawLoadout();
             EditorGUI.BeginChangeCheck();
-            session.Condition = (AttackLabTargetMode)GUILayout.Toolbar((int)session.Condition, Conditions);
-            session.Station = (AttackLabStation)GUILayout.Toolbar((int)session.Station, Stations);
+            session.Condition = (AttackLabTargetMode)EditorGUILayout.Popup("目标条件", (int)session.Condition, Conditions);
+            session.Station = (AttackLabStation)EditorGUILayout.Popup("场地", (int)session.Station, Stations);
             session.Distance = EditorGUILayout.Slider("目标水平距离", session.Distance, .25f, 12f);
             session.Height = EditorGUILayout.Slider("目标相对高度", session.Height, -2f, 4f);
             session.FacingRight = GUILayout.Toolbar(session.FacingRight ? 1 : 0, new[]{"面向左", "面向右"}) == 1;
@@ -357,17 +402,6 @@ namespace Ossastra.Development.Editor
             EditorGUILayout.LabelField("移动 " + actor.StateArbitrator?.Movement?.CurrentStateName + "   ·   垂直速度 " + bus.VerticalSpeed.ToString("F2") + "   ·   可再次攻击 " + bus.AllowsAttack);
             EditorGUILayout.LabelField("瞄准 " + bus.AttackDirection.ToString("F2") + "   ·   显示朝向 " + bus.VisualFacingX + "   ·   " + bus.DirectionReason, EditorStyles.wordWrappedMiniLabel);
             if (posture != null) EditorGUILayout.LabelField("架势 " + posture.Current.ToString("0.#") + " / " + posture.Maximum.ToString("0.#") + "   ·   恢复 " + actor.LastPostureRecoveryEvent, EditorStyles.wordWrappedMiniLabel);
-            var vitals = actor.GetComponent<Ossastra.Combat.CombatVitals>();
-            if (vitals != null)
-            {
-                vitals.enableAttackHitStop = EditorGUILayout.Toggle("普攻首段命中停顿", vitals.enableAttackHitStop);
-                if (vitals.enableAttackHitStop)
-                {
-                    vitals.hitStopSeconds = EditorGUILayout.Slider("停顿时间（秒）", vitals.hitStopSeconds, 0, .12f);
-                    vitals.stopAttacker = EditorGUILayout.Toggle("暂停攻击者", vitals.stopAttacker);
-                    vitals.stopVictim = EditorGUILayout.Toggle("暂停受击者", vitals.stopVictim);
-                }
-            }
             EditorGUILayout.LabelField("冻结记录只停止采集。", EditorStyles.wordWrappedMiniLabel);
         }
 

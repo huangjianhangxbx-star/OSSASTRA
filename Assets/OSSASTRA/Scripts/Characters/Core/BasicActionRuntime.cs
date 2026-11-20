@@ -62,6 +62,7 @@ namespace Ossastra.CharacterCore
         private Guid actionId;
         private string source;
         private int emissionIndex;
+        private AttackHitStop hitStop;
         private bool dodgeWindow;
         public bool EventDriven => definition?.EventDriven == true;
         public bool AllowsDodgeCancel => EventDriven && dodgeWindow;
@@ -84,7 +85,7 @@ namespace Ossastra.CharacterCore
         }
 
         public ActionRequestResult Request(BasicAttackDefinition attack, string requestSource,
-            ControlAuthority gate, bool paused = false)
+            ControlAuthority gate, bool paused = false, AttackHitStop hitStop = default)
         {
             if (attack == null) throw new ArgumentNullException(nameof(attack));
             if (gate == null) throw new ArgumentNullException(nameof(gate));
@@ -98,6 +99,7 @@ namespace Ossastra.CharacterCore
             source = requestSource;
             actionId = Guid.NewGuid();
             emissionIndex = 0;
+            this.hitStop = hitStop;
             SetPhase(attack);
             return new ActionRequestResult(null, Fact(ActionFactKind.Accepted, 0), previousTerminal);
         }
@@ -150,7 +152,7 @@ namespace Ossastra.CharacterCore
                 var node = nodes[nextNode++];
                 AttackRelease release = null;
                 if (node.Kind == ActionFactKind.Released)
-                    release = new AttackRelease(actionId, actorId, definition.Damage, definition.PostureImpact);
+                    release = new AttackRelease(actionId, actorId, definition.Damage, definition.PostureImpact, hitStop);
                 if (node.Kind == ActionFactKind.MoveReady) moveReady = true;
                 if (node.Kind == ActionFactKind.AttackReady) attackReady = true;
                 facts.Add(Fact(node.Kind, node.At, release: release));
@@ -166,7 +168,7 @@ namespace Ossastra.CharacterCore
             switch (marker)
             {
                 case ActionMarkerKind.Release:
-                    var release = AttackRelease.ForEmission(actionId, emissionIndex++, actorId, definition.Damage, definition.PostureImpact);
+                    var release = AttackRelease.ForEmission(actionId, emissionIndex++, actorId, definition.Damage, definition.PostureImpact, hitStop: hitStop);
                     return new[] { Fact(ActionFactKind.Released, elapsed, release: release) };
                 case ActionMarkerKind.DodgeWindow:
                     dodgeWindow = true;

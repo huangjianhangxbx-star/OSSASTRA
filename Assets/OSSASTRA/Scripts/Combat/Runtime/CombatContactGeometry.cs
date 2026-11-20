@@ -18,18 +18,20 @@ namespace Ossastra.Combat
         public Vector3 VisualPosition => visualPosition ?? Position;
         public CombatContactPointQuality Quality { get; }
         public Vector3? Normal { get; }
+        public string Material { get; }
         public bool HasNormal => Normal.HasValue;
 
         public CombatContactPoint(Vector3 position, CombatContactPointQuality quality, Vector3? normal = null)
             : this(position, quality, normal, null) { }
 
         internal CombatContactPoint(Vector3 position, CombatContactPointQuality quality, Vector3? normal,
-            Vector3? visualPosition)
+            Vector3? visualPosition, string material = null)
         {
             Position = position;
             Quality = quality;
             Normal = normal;
             this.visualPosition = visualPosition;
+            Material = material;
         }
     }
 

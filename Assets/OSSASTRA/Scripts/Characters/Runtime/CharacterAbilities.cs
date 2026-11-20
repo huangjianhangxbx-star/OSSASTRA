@@ -567,7 +567,8 @@ namespace Ossastra.Characters
                 releaseOrigin,direction,landing,()=>this!=null&&isActiveAndEnabled&&owner!=null&&owner.IsAlive&&owner.LifeGeneration==context.lifeGeneration,
                 receipts=>{LastResult="接触 "+receipts.Count+" #"+context.id.ToString("N");context.onResolved?.Invoke(emission.Index,channel,receipts);
                     PublishFeedback(new AbilityFeedbackFact(context.id,definitionId,sourceInstanceId,receipts.Any(r=>r.Reason==HitReason.Applied)?"hit":"miss",landing,
-                        emission.Index,channel,deliveryMode,requestSource,operation));},context.projectileSprite,context.projectileScale,context.definition.reclaimBudget,context.definition.reclaimRate);
+                        emission.Index,channel,deliveryMode,requestSource,operation));},context.projectileSprite,context.projectileScale,context.definition.reclaimBudget,context.definition.reclaimRate,
+                hitStop: context.hitStop, channel: channel);
             if (emitted)
             {
                 EmittedCount++;

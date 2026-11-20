@@ -4,6 +4,7 @@
  */
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 namespace Ossastra.Audio
@@ -25,6 +26,8 @@ namespace Ossastra.Audio
         [Tooltip("空白通用；仅来自真实目标AudioSurfaceFact的明确材质，不由攻击位置猜测。")]
         public string material;
         public string cue;
+
+        internal CombatSoundBinding Copy() => (CombatSoundBinding)MemberwiseClone();
     }
 
     [CreateAssetMenu(menuName="OSSASTRA/Audio/Combat Sound Profile",fileName="OssastraCombatSoundProfile")]
@@ -48,18 +51,40 @@ namespace Ossastra.Audio
         public bool TryResolve(string selector,string kind,int stage,string channel,out string cue,string deliveryMode=null,string role=null,string material=null)
         {
             cue=null;if(!Validate(out _))return false;
+            return TryResolve(bindings,selector,kind,stage,channel,out cue,deliveryMode,role,material);
+        }
+
+        internal CombatSoundBinding[] FreezeFor(string selector)
+            => Validate(out _) ? bindings.Where(row => row.selector == selector || row.selector == "*").Select(row => row.Copy()).ToArray()
+                : Array.Empty<CombatSoundBinding>();
+
+        internal static bool TryResolve(CombatSoundBinding[] rows, string selector, string kind, int stage, string channel,
+            out string cue, string deliveryMode, string role, string material)
+        {
+            cue = null;
             int best=-1;
-            foreach(var row in bindings)
+            foreach(var row in rows)
             {
-                if(row.kind!=kind||row.selector!=selector&&row.selector!="*"||row.stage!=0&&row.stage!=stage||
-                    !string.IsNullOrEmpty(row.channel)&&row.channel!=(channel??"")||
-                    !string.IsNullOrEmpty(row.deliveryMode)&&row.deliveryMode!=(deliveryMode??"")||
-                    !string.IsNullOrEmpty(row.role)&&row.role!=(role??"")||!string.IsNullOrEmpty(row.material)&&row.material!=(material??""))continue;
-                // 同动作的明确接触材质优先于通用连段重击，不能在第4段把金属误变肉击。
-                int score=(row.selector==selector?64:0)+(!string.IsNullOrEmpty(row.material)?32:0)+(row.stage!=0?16:0)+(!string.IsNullOrEmpty(row.channel)?8:0)+(!string.IsNullOrEmpty(row.deliveryMode)?4:0)+(!string.IsNullOrEmpty(row.role)?2:0);
+                if (row.kind != kind) continue;
+                int score = MatchScore(row.selector, row.stage, row.channel, row.deliveryMode, row.role, row.material,
+                    selector, stage, channel, deliveryMode, role, material);
                 if(score<=best)continue;best=score;cue=row.cue;
             }
             return cue!=null;
+        }
+
+        internal static int MatchScore(string rowSelector, int rowStage, string rowChannel, string rowDelivery,
+            string rowRole, string rowMaterial, string selector, int stage, string channel, string delivery,
+            string role, string material)
+        {
+            bool Matches(string expected, string actual) => string.IsNullOrEmpty(expected) || expected == actual;
+            if (rowSelector != selector && rowSelector != "*" || rowStage != 0 && rowStage != stage ||
+                !Matches(rowChannel, channel) || !Matches(rowDelivery, delivery) ||
+                !Matches(rowRole, role) || !Matches(rowMaterial, material)) return -1;
+            // 明确材质优先于通用连段，同一套规则也用于角色覆盖。
+            return (rowSelector == selector ? 64 : 0) + (!string.IsNullOrEmpty(rowMaterial) ? 32 : 0) +
+                (rowStage != 0 ? 16 : 0) + (!string.IsNullOrEmpty(rowChannel) ? 8 : 0) +
+                (!string.IsNullOrEmpty(rowDelivery) ? 4 : 0) + (!string.IsNullOrEmpty(rowRole) ? 2 : 0);
         }
     }
 }

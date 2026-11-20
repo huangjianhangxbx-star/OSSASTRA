@@ -11,6 +11,10 @@ namespace Ossastra.Characters
     {
         public string definitionId,displayName;
         public Ossastra.CharacterAnimation.AnimationCalibrationSO eventCalibration;
+        [Tooltip("角色专用的横版运动配置。留空时使用场景或预制件原有配置。")]
+        public CharacterJumpProfile sideViewMovementOverride;
+        [Tooltip("此角色实际战斗接触和运动接触的表现覆盖。")]
+        public Ossastra.Audio.SideViewFeedbackProfileSO sideViewFeedback;
         [HideInInspector] public CharacterAnimationProfileSO animationProfile; // 历史场/迁移来源；正式动画在ConfigManager原式SO中维护。
         public CharacterRigProfileSO rigProfile;
         [Tooltip("当场景指定此副手作为初始装备时，新队伍将它收入背包，角色以空副手出场。")]

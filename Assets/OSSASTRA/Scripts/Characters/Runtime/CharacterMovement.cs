@@ -44,13 +44,26 @@ namespace Ossastra.Characters
         private CharacterDataBus dataBus;
         private Ossastra.Combat.CombatStatusEffects statusEffects;
         private CharacterAbilities abilities;
+        private CharacterRoot root;
+        private CharacterJumpProfile developmentProfile;
+        private object developmentProfileOwner;
         private ICharacterEnvironmentClearance environmentClearance;
         private SideViewMovingSupport movingSupport;
         private Vector3 lastMovingSupportPosition;
         public bool IsMoving { get; private set; }
         public bool IsWalking { get; private set; }
         public Vector3 Velocity { get; private set; }
-        public CharacterJumpProfile JumpProfile => jumpProfile;
+        public CharacterJumpProfile AuthoredJumpProfile
+        {
+            get
+            {
+                if (jumpProfile == null) return null;
+                if (root == null) root = GetComponent<CharacterRoot>();
+                var role = root != null ? root.Definition : null;
+                return role != null && role.sideViewMovementOverride != null ? role.sideViewMovementOverride : jumpProfile;
+            }
+        }
+        public CharacterJumpProfile JumpProfile => developmentProfile != null ? developmentProfile : AuthoredJumpProfile;
         public bool IsSideView => jumpProfile != null;
         public float VerticalSpeed { get; private set; }
         public bool Grounded { get; private set; }
@@ -58,6 +71,8 @@ namespace Ossastra.Characters
         internal uint ContactRevision { get; private set; }
         private float sideDepth;
         private Collider stepSupport;
+        private Vector3? stepSupportPoint, lastGroundSupportPoint;
+        private Collider lastGroundSupport;
         private SideViewLedgeProbe switchGroundProbe;
         private Vector3 traversalMoveDirection;
         internal Collider LastTraversalObstacle { get; private set; }
@@ -114,8 +129,31 @@ namespace Ossastra.Characters
         public void ConfigureSideView(CharacterJumpProfile profile)
         {
             jumpProfile = profile;
+            developmentProfile = null;
+            developmentProfileOwner = null;
             sideDepth = transform.position.z;
             Stop();
+        }
+
+        // 候选只占用本实验的运行引用。移除后重新读取正式角色配置，避免覆盖外部改动。
+        public bool TryUseDevelopmentProfile(object owner, CharacterJumpProfile source, CharacterJumpProfile profile)
+        {
+            if (!Application.isEditor && !Debug.isDebugBuild || !Application.isPlaying || owner == null || profile == null ||
+                source == null || source != AuthoredJumpProfile ||
+                developmentProfileOwner != null && !ReferenceEquals(developmentProfileOwner, owner)) return false;
+            developmentProfileOwner = owner;
+            developmentProfile = profile;
+            Stop();
+            return true;
+        }
+
+        public bool ReleaseDevelopmentProfile(object owner)
+        {
+            if (owner == null || !ReferenceEquals(developmentProfileOwner, owner)) return false;
+            developmentProfileOwner = null;
+            developmentProfile = null;
+            Stop();
+            return true;
         }
 
         internal SideViewLedgeProbe CreateLedgeProbe() => new SideViewLedgeProbe(body, IsTraversalObstacle, IsEnvironmentContact);
@@ -210,8 +248,8 @@ namespace Ossastra.Characters
             return reached;
         }
 
-        internal void EmitTraversal(SideTraversalEventKind kind, int side)
-            => SideTraversalOccurred?.Invoke(new SideTraversalEvent(kind, transform.position, side, sideStepId, ContactRevision));
+        internal void EmitTraversal(SideTraversalEventKind kind, int side, Collider collider, Vector3? contactPoint)
+            => SideTraversalOccurred?.Invoke(new SideTraversalEvent(kind, transform.position, side, sideStepId, ContactRevision, collider, contactPoint));
 
         internal SideViewAbilityMotionStep TickSideView(bool allowed, float delta, JumpVerticalCommand command,
             float gravityScale, bool jumpAccepted, SideViewMotion traversalMotion = default,
@@ -219,6 +257,7 @@ namespace Ossastra.Characters
             Vector3? switchRetreat = null)
         {
             if (!IsSideView || body == null || !body.enabled || delta <= 0f) return default;
+            var profile = JumpProfile;
             var before = transform.position;
             if (!hasPose || latestPose != before) ResetSideViewPose();
             bool groundedBefore = Grounded;
@@ -248,21 +287,21 @@ namespace Ossastra.Characters
                 horizontal = Vector3.right * (switchRetreat.Value.x / delta);
             else
             {
-                float speedScale = useWalkSpeed ? jumpProfile.walkSpeedRatio : 1f;
-                horizontal = ResolveVelocity(allowed, jumpProfile.runSpeed * speedScale);
+                float speedScale = useWalkSpeed ? profile.walkSpeedRatio : 1f;
+                horizontal = ResolveVelocity(allowed, profile.runSpeed * speedScale);
                 horizontal.y = horizontal.z = 0f;
                 if (traversalMotion.X.HasValue) horizontal.x = traversalMotion.X.Value;
             }
             if (!abilityDrive)
             {
-                if (command == JumpVerticalCommand.Sustain) VerticalSpeed = jumpProfile.jumpSpeed;
+                if (command == JumpVerticalCommand.Sustain) VerticalSpeed = profile.jumpSpeed;
                 if (command == JumpVerticalCommand.Cut && VerticalSpeed > 0f)
-                    VerticalSpeed *= jumpProfile.releaseSpeedScale;
+                    VerticalSpeed *= profile.releaseSpeedScale;
                 bool stayingGrounded = Grounded && command == JumpVerticalCommand.Gravity &&
                     reactionMotion?.LaunchVertical.HasValue != true;
-                float acceleration = jumpProfile.gravity * Mathf.Clamp01(gravityScale);
+                float acceleration = profile.gravity * Mathf.Clamp01(gravityScale);
                 VerticalSpeed = stayingGrounded ? -groundStick
-                    : Mathf.Max(-jumpProfile.fallSpeed, VerticalSpeed - acceleration * delta);
+                    : Mathf.Max(-profile.fallSpeed, VerticalSpeed - acceleration * delta);
                 if (traversalMotion.Y.HasValue) VerticalSpeed = traversalMotion.Y.Value;
             }
             float downBeforeContact = Mathf.Max(0f, -VerticalSpeed);
@@ -280,7 +319,10 @@ namespace Ossastra.Characters
             bool sweptGround = terrain.collider != null && terrain.normal.y >= Mathf.Cos(body.slopeLimit * Mathf.Deg2Rad);
             if (sweptGround && stepSupport == null &&
                 Vector3.Dot(transform.position - before, attempted.normalized) + .002f >= terrain.distance)
+            {
                 stepSupport = terrain.collider;
+                stepSupportPoint = terrain.point;
+            }
             Grounded = (!traversalMotion.ConstrainedPose || traversalMotion.CanLand) &&
                 VerticalSpeed <= 0f && stepSupport != null &&
                 ((LastCollision & CollisionFlags.Below) != 0 || sweptGround);
@@ -307,9 +349,28 @@ namespace Ossastra.Characters
             bool launched = jumpAccepted && !hitHead && latestPose.y > before.y + supportDisplacement.y + .001f;
             float landingSpeed = !traversalMotion.ConstrainedPose && !groundedBefore && Grounded && hasEstablishedSupport ? downBeforeContact : 0f;
             hasEstablishedSupport |= Grounded;
-            SideStepCompleted?.Invoke(new SideMovementStep(++sideStepId, ContactRevision, groundedBefore,
-                Grounded, launched, footstepAllowed, Mathf.Abs(latestPose.x - before.x), delta,
-                landingSpeed, latestPose, Grounded ? stepSupport : null));
+            if (Grounded)
+            {
+                lastGroundSupport = stepSupport;
+                lastGroundSupportPoint = stepSupportPoint;
+            }
+            sideStepId++;
+            if (SideStepCompleted != null)
+            {
+                var driver = SideMovementDriver.Locomotion;
+                if (reactionMotion.HasValue) driver = SideMovementDriver.Reaction;
+                else if (abilityMotion.HasValue) driver = abilityDrive ? SideMovementDriver.Ability : SideMovementDriver.Rebound;
+                else if (switchRetreat.HasValue) driver = SideMovementDriver.SwitchRetreat;
+                else if (traversalMotion.X.HasValue || traversalMotion.Y.HasValue) driver = SideMovementDriver.Traversal;
+                bool sideBlocked = LastEnvironmentSideBlocked ||
+                    ((LastCollision & CollisionFlags.Sides) != 0 && Mathf.Abs(Velocity.x) + .002f < Mathf.Abs(horizontal.x));
+                SideStepCompleted.Invoke(new SideMovementStep(sideStepId, ContactRevision, groundedBefore,
+                    Grounded, launched, footstepAllowed, Mathf.Abs(latestPose.x - before.x), delta,
+                    landingSpeed, latestPose, Grounded ? stepSupport : null, Grounded ? stepSupportPoint : null,
+                    launched ? lastGroundSupport : null, launched ? lastGroundSupportPoint : null,
+                    before, driver, hitHead, sideBlocked, movingSupport != null || supportDisplacement.sqrMagnitude > .000001f,
+                    horizontal.x, VerticalSpeed, dataBus.Input.move.x));
+            }
 
             if (!abilityMotion.HasValue) return default;
             bool hitGround = Grounded || sweptGround;
@@ -366,6 +427,7 @@ namespace Ossastra.Characters
             var terrain = clipAbilityDrive ? FirstAbilityTerrainHit(attempted) : default;
             var displacementToMove = terrain.collider == null ? attempted : attempted.normalized * terrain.distance;
             stepSupport = null;
+            stepSupportPoint = null;
             movingSideView = sideView;
             var collision = CollisionFlags.None;
             try { collision = body.Move(displacementToMove); }
@@ -423,7 +485,10 @@ namespace Ossastra.Characters
                 LastTraversalObstacle = hit.collider;
             if (hit.normal.y >= Mathf.Cos(body.slopeLimit * Mathf.Deg2Rad) &&
                 hit.point.y < transform.TransformPoint(body.center).y)
+            {
                 stepSupport = hit.collider;
+                stepSupportPoint = hit.point;
+            }
         }
 
         internal bool HasJumpHeadroom()
@@ -470,6 +535,8 @@ namespace Ossastra.Characters
             Grounded = false;
             hasEstablishedSupport = false;
             stepSupport = null;
+            stepSupportPoint = lastGroundSupportPoint = null;
+            lastGroundSupport = null;
             movingSupport = null;
             ResetSideViewPose();
             LastCollision = CollisionFlags.None;

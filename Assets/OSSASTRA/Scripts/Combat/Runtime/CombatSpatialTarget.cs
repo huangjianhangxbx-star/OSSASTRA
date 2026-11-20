@@ -42,7 +42,8 @@ namespace Ossastra.Combat
           Vector3? visual = plane == CombatPlane.SideXY && target is CombatVitals vitals && vitals.SideViewOpaqueImpactSurface
               ? CameraFacingContact(collider, sample, vitals.gameObject.scene.handle)
               : null;
-          var point = new CombatContactPoint(sample, CombatContactPointQuality.EstimatedOverlap, null, visual);
+          var point = new CombatContactPoint(sample, CombatContactPointQuality.EstimatedOverlap, null, visual,
+              Ossastra.Audio.SideViewFeedbackRuntime.MaterialOf(collider, false));
           if (!known)
           {
               candidates.Add(target);

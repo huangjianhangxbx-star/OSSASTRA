@@ -26,6 +26,14 @@ namespace Ossastra.Audio
         {
             return owner==null?new SfxDecision(false,"SOURCE_LEASE_DISPOSED"):owner.SubmitSceneSfx(this,definition,factKey,position);
         }
+        internal SfxDecision SubmitConfirmed(string eventId, SfxEventDefinitionSO definition, string factKey,
+            Vector3 position, double occurredAt, SfxPlaybackSettings? playback = null)
+        {
+            if (owner == null) return new SfxDecision(false, "SOURCE_LEASE_DISPOSED");
+            if (definition != null) return owner.SubmitSceneSfx(this, definition, factKey, position, occurredAt, playback);
+            return owner.SubmitSfx(new SfxRequest(eventId, SourceId, WorldScopeId, Generation,
+                factKey, position, occurredAt, playback));
+        }
         private readonly Dictionary<AudioClip, SfxEventDefinitionSO> clipDefinitions = new Dictionary<AudioClip, SfxEventDefinitionSO>();
 
         // 校准片段复用正式短音的租约、混音和声部仲裁。

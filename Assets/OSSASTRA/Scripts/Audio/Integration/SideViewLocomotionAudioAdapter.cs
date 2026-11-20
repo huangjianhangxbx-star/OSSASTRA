@@ -8,6 +8,8 @@ using System;
 using System.Collections.Generic;
 using Ossastra.Characters;
 using Ossastra.CharacterAnimation;
+using Ossastra.Combat;
+using Ossastra.UserInterface;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using ActorRoot = Ossastra.Characters.CharacterRoot;
@@ -18,6 +20,18 @@ namespace Ossastra.Audio
     [DisallowMultipleComponent]
     public sealed class SideViewLocomotionAudioAdapter : MonoBehaviour
     {
+        private sealed class PendingMotionSound
+        {
+            public SideViewMotionKind kind;
+            public SfxEventDefinitionSO sound;
+            public SfxPlaybackSettings? playback;
+            public long epoch, step;
+            public int life, revision;
+            public string material, profile;
+            public Vector3 position;
+            public double occurredAt, dueAt;
+        }
+
         private sealed class Observation
         {
             public ActorRoot actor;
@@ -32,10 +46,14 @@ namespace Ossastra.Audio
             public CharacterAnimationController animation;
             public Action<AnimationSignal> markerCallback;
             public SideMovementStep? latestMotion;
+            public readonly List<PendingMotionSound> delayed = new List<PendingMotionSound>();
+            public int feedbackRevision;
             public void ClearPending() { footstep = launch = land = null; traversal.Clear(); }
             public void Reset()
             {
                 ClearPending();
+                delayed.Clear();
+                feedbackRevision++;
                 latestMotion = null;
                 sampler.Reset();
                 source?.Dispose();
@@ -61,6 +79,8 @@ namespace Ossastra.Audio
         private GameAudioRoot audioRoot;
         private string world;
         private float nextDiscovery;
+        private ActorRoot previousCurrent;
+        private CombatFeedbackView feedbackView;
 
         public int ObservedMotionSteps { get; private set; }
         public int SubmittedFootsteps { get; private set; }
@@ -70,12 +90,19 @@ namespace Ossastra.Audio
         public int CoalescedFootsteps { get; private set; }
         public string LastDecision { get; private set; } = "等待权威运动步";
 
-        private void OnEnable() => Discover();
+        private void OnEnable()
+        {
+            SideViewFeedbackRuntime.TrialReset += OnTrialReset;
+            Discover();
+        }
         private void Start() => Discover();
 
         internal void Discover()
         {
             nextDiscovery = Time.unscaledTime + .5f;
+            if (feedbackView == null)
+                foreach (var view in FindObjectsOfType<CombatFeedbackView>())
+                    if (view.gameObject.scene == gameObject.scene) { feedbackView = view; break; }
             if (coordinator == null || !coordinator.isActiveAndEnabled)
             {
                 coordinator = null;
@@ -91,7 +118,8 @@ namespace Ossastra.Audio
                 item.callback = step => Observe(item, step);
                 item.traversalCallback = fact =>
                 {
-                    if (ConnectWorld() && Eligible(item)) item.traversal.Add(fact);
+                    ConnectWorld();
+                    if (Eligible(item)) item.traversal.Add(fact);
                 };
                 movement.SideStepCompleted += item.callback;
                 movement.SideTraversalOccurred += item.traversalCallback;
@@ -103,11 +131,10 @@ namespace Ossastra.Audio
 
         private void Observe(Observation item, SideMovementStep step)
         {
-            bool canPlayAudio = ConnectWorld();
+            ConnectWorld();
             if (!Eligible(item)) return;
             BindAnimation(item);
             item.latestMotion = step;
-            if (!canPlayAudio) return;
             ObservedMotionSteps++;
             var cue = item.sampler.Observe(step.StepId, step.ContactEpoch, step.GroundedBefore, step.GroundedAfter,
                 step.Launched, step.AllowsFootstep, step.SupportCollider != null, step.HorizontalDistance,
@@ -127,7 +154,14 @@ namespace Ossastra.Audio
         private void LateUpdate()
         {
             if (Time.unscaledTime >= nextDiscovery) Discover();
-            if (!ConnectWorld()) return;
+            ConnectWorld();
+            var controlled = coordinator == null ? null : coordinator.Current;
+            if (controlled != previousCurrent)
+            {
+                var previous = observations.Find(item => item.actor == previousCurrent);
+                if (previous != null) previous.Reset();
+                previousCurrent = controlled;
+            }
             for (int i = observations.Count - 1; i >= 0; i--)
             {
                 var item = observations[i];
@@ -140,6 +174,7 @@ namespace Ossastra.Audio
                 if (item.land.HasValue && !item.traversal.Exists(f => f.StepId == item.land.Value.StepId && f.Kind == SideTraversalEventKind.ClimbComplete))
                     SubmitEdge(item, item.land.Value, landingCue, false);
                 if (item.footstep.HasValue && item.animation?.HasCalibratedFootstep != true) SubmitFootstep(item, item.footstep.Value);
+                FlushSounds(item);
                 item.ClearPending();
             }
         }
@@ -166,6 +201,7 @@ namespace Ossastra.Audio
 
         private SfxSourceHandle Lease(Observation item)
         {
+            if (audioRoot == null) return null;
             if (item.source == null || item.source.IsDisposed)
                 item.source = audioRoot.RegisterSfxSource("side-motion@" + item.actor.GetInstanceID());
             return item.source;
@@ -174,11 +210,13 @@ namespace Ossastra.Audio
         private void SubmitEdge(Observation item, SideMovementStep step, SfxEventDefinitionSO definition, bool jump)
         {
             if (!IsCurrent(item, step)) return;
-            if (definition == null) { LastDecision = jump ? "ASSET_BLOCKED_ORDINARY_JUMP" : "ASSET_BLOCKED_ORDINARY_LANDING"; return; }
-            var source = Lease(item);
-            if (source == null) return;
-            if (jump) SubmittedJumps++; else SubmittedLandings++;
-            LastDecision = source.SubmitDefinition(definition, (jump ? "jump:" : "land:") + step.StepId, step.WorldPosition).Reason;
+            var contact = jump ? step.LaunchSupportCollider : step.SupportCollider;
+            var position = (jump ? step.LaunchSupportPosition : step.SupportPosition) ?? step.WorldPosition;
+            var travel = StepTravel(step);
+            if (!jump) travel.y = -(float)step.LandingDownwardSpeed * (float)step.SimulatedSeconds;
+            OfferContact(item, jump ? SideViewMotionKind.Jump : SideViewMotionKind.Land,
+                definition, contact, position, step.StepId, step.ContactEpoch, (float)step.LandingDownwardSpeed,
+                jump ? Vector3.up : Vector3.down, travel, Vector3.up);
         }
 
         private static void BindAnimation(Observation item)
@@ -224,7 +262,7 @@ namespace Ossastra.Audio
 
         private void SubmitFootstep(Observation item, SideMovementStep step, string factKey = null)
         {
-            if (!IsCurrent(item, step) || !audioRoot.WorldAudioEnabled || step.SupportCollider == null) return;
+            if (!IsCurrent(item, step) || audioRoot == null || !audioRoot.WorldAudioEnabled || step.SupportCollider == null) return;
             var source = Lease(item);
             if (source == null) return;
             var fact = step.SupportCollider.GetComponentInParent<AudioSurfaceFact>();
@@ -243,19 +281,123 @@ namespace Ossastra.Audio
         {
             if (fact.ContactEpoch != item.movement.ContactRevision) return;
             SfxEventDefinitionSO definition;
+            SideViewMotionKind kind;
+            var towardWall = Vector3.right * fact.WallSide;
+            var surfaceOut = -towardWall;
+            Vector3 release;
             switch (fact.Kind)
             {
-                case SideTraversalEventKind.Grab: definition = grabCue; break;
-                case SideTraversalEventKind.WallJump: definition = wallJumpCue; break;
-                case SideTraversalEventKind.ClimbComplete: definition = climbCue; break;
-                case SideTraversalEventKind.Drop: definition = dropCue; break;
+                case SideTraversalEventKind.Grab:
+                    definition = grabCue; kind = SideViewMotionKind.Grab; release = towardWall; break;
+                case SideTraversalEventKind.WallJump:
+                    definition = wallJumpCue; kind = SideViewMotionKind.WallJump; release = surfaceOut + Vector3.up; break;
+                case SideTraversalEventKind.ClimbComplete:
+                    definition = climbCue; kind = SideViewMotionKind.Climb; release = Vector3.up; surfaceOut = Vector3.up; break;
+                case SideTraversalEventKind.Drop:
+                    definition = dropCue; kind = SideViewMotionKind.Drop; release = Vector3.down; break;
                 default: return;
             }
-            if (definition == null) { LastDecision = "ASSET_BLOCKED_TRAVERSAL_" + fact.Kind; return; }
-            var source = Lease(item);
-            if (source == null) return;
-            SubmittedTraversals++;
-            LastDecision = source.SubmitDefinition(definition, "traversal:" + fact.Kind + ":" + fact.StepId, fact.Position).Reason;
+            var travel = item.latestMotion is SideMovementStep step && step.StepId == fact.StepId
+                ? StepTravel(step) : release;
+            OfferContact(item, kind, definition, fact.ContactCollider, fact.ContactPosition ?? fact.Position,
+                fact.StepId, fact.ContactEpoch, 0, release, travel, surfaceOut);
+        }
+
+        private static Vector3 StepTravel(SideMovementStep step) =>
+            CombatContactGeometry.Project(step.WorldPosition - step.PreviousWorldPosition, CombatPlane.SideXY);
+
+        private static Vector3 ContactDirection(CombatEffectDirection mode, Vector3 release, Vector3 travel, Vector3 surfaceOut)
+        {
+            if (mode == CombatEffectDirection.Fixed) return Vector3.right;
+            if (mode == CombatEffectDirection.Surface && surfaceOut.sqrMagnitude > .000001f) return surfaceOut;
+            if (mode != CombatEffectDirection.Released && travel.sqrMagnitude > .000001f) return travel;
+            return release.sqrMagnitude > .000001f ? release : Vector3.right;
+        }
+
+        private void OfferContact(Observation item, SideViewMotionKind kind, SfxEventDefinitionSO fallback,
+            Collider contact, Vector3 position, long step, long epoch, float downwardSpeed,
+            Vector3 release, Vector3 travel, Vector3 surfaceOut)
+        {
+            string material = SideViewFeedbackRuntime.MaterialOf(contact, false);
+            if (string.IsNullOrEmpty(material)) material = SideViewFeedbackRuntime.MaterialOf(contact, true);
+            var profile = SideViewFeedbackRuntime.ProfileFor(item.actor);
+            var row = profile == null ? null : profile.ResolveMovement(kind, material);
+            var settings = row?.settings;
+            bool customSound = settings?.overrideSound == true;
+            var sound = customSound ? settings.sound : fallback;
+            int life = item.actor.LifeGeneration;
+            int revision = item.feedbackRevision;
+            float intensity = kind == SideViewMotionKind.Land && settings != null && downwardSpeed >= settings.strongLandingSpeed
+                ? settings.strongLandingMultiplier : 1f;
+            string label = row == null ? "共用运动反馈" : profile.name + " / " + (row.material ?? "通用");
+            double now = Time.realtimeSinceStartupAsDouble;
+            CombatTraceProbe.For(item.actor)?.Note("运动反馈", kind.ToString(),
+                $"事实 · 第 {step} 步 / 支撑代 {epoch} / {material ?? "无明确材质"} / 下落 {downwardSpeed:F2} · {label}");
+            if (settings?.overrideEffect == true && settings.effect != null && feedbackView != null)
+            {
+                var visual = settings.Copy();
+                visual.effectScale *= intensity;
+                var direction = ContactDirection(settings.direction, release, travel, surfaceOut);
+                feedbackView.QueueContactEffect(visual, position, direction, item.actor,
+                    follow: settings.followTarget ? item.actor.Vitals : null,
+                    stillCurrent: () => IsCurrent(item, epoch, life, revision));
+            }
+            if (sound == null)
+            {
+                LastDecision = customSound ? "AUTHORED_MUTED" : "ASSET_BLOCKED_MOTION_" + kind;
+                CombatTraceProbe.For(item.actor)?.Note("运动反馈", kind.ToString(), LastDecision);
+                return;
+            }
+            if (item.delayed.Count >= 32) return;
+            SfxPlaybackSettings? playback = null;
+            if (customSound)
+                playback = new SfxPlaybackSettings(Mathf.Clamp01(sound.volume * settings.volume * intensity),
+                    settings.pitchMin, settings.pitchMax, settings.soundStartMs);
+            else if (!Mathf.Approximately(intensity, 1f))
+                playback = new SfxPlaybackSettings(Mathf.Clamp01(sound.volume * intensity), sound.pitchMin, sound.pitchMax, 0);
+            item.delayed.Add(new PendingMotionSound
+            {
+                kind = kind, sound = sound, position = position, step = step, epoch = epoch, life = life, revision = revision,
+                occurredAt = now, dueAt = now + (customSound ? Math.Max(0, settings.soundDelayMs) / 1000.0 : 0),
+                material = material, profile = label,
+                playback = playback
+            });
+        }
+
+        private static bool IsCurrent(Observation item, long epoch, int life, int revision)
+            => Eligible(item) && item.actor.LifeGeneration == life && item.feedbackRevision == revision &&
+                item.movement.ContactRevision == epoch;
+
+        private void FlushSounds(Observation item)
+        {
+            double now = Time.realtimeSinceStartupAsDouble;
+            for (int i = 0; i < item.delayed.Count;)
+            {
+                var cue = item.delayed[i];
+                if (!IsCurrent(item, cue.epoch, cue.life, cue.revision))
+                {
+                    item.delayed.RemoveAt(i);
+                    continue;
+                }
+                if (now < cue.dueAt) { i++; continue; }
+                item.delayed.RemoveAt(i);
+                var source = Lease(item);
+                if (source == null) continue;
+                if (cue.kind == SideViewMotionKind.Jump) SubmittedJumps++;
+                else if (cue.kind == SideViewMotionKind.Land) SubmittedLandings++;
+                else SubmittedTraversals++;
+                var decision = source.SubmitConfirmed(cue.sound.eventId, cue.sound,
+                    "motion:"+cue.kind+":"+cue.step+":"+cue.epoch, cue.position, cue.occurredAt, cue.playback);
+                LastDecision = decision.Reason;
+                CombatTraceProbe.For(item.actor)?.Note("运动反馈", cue.kind.ToString(),
+                    $"声音提交 {cue.sound.eventId} / {cue.material ?? "通用"} / {cue.profile} · {decision.Reason}");
+            }
+        }
+
+        private void OnTrialReset(int scene)
+        {
+            if (scene != gameObject.scene.handle) return;
+            foreach (var item in observations) item.Reset();
         }
 
         private static void Detach(Observation item)
@@ -271,11 +413,13 @@ namespace Ossastra.Audio
 
         private void OnDisable()
         {
+            SideViewFeedbackRuntime.TrialReset -= OnTrialReset;
             foreach (var item in observations) Detach(item);
             observations.Clear();
             audioRoot = null;
             world = null;
             coordinator = null;
+            previousCurrent = null;
         }
     }
 }

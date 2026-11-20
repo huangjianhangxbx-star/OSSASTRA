@@ -11,8 +11,8 @@ using ActorRoot = Ossastra.Characters.CharacterRoot;
 
 namespace Ossastra.Development
 {
-    public enum AttackLabTargetMode { Whiff, Fixed, Normal }
-    public enum AttackLabStation { Flat, Ledge, Wall }
+    public enum AttackLabTargetMode { Whiff, Fixed, Normal, Guarded, Lethal, Pair }
+    public enum AttackLabStation { Flat, Ledge, Wall, LowCeiling, Drop, HighLedge }
 
     [DefaultExecutionOrder(900)]
     [RequireComponent(typeof(AttackLabTrace))]
@@ -20,13 +20,17 @@ namespace Ossastra.Development
     {
         [SerializeField] private CharacterControlCoordinator party;
         [SerializeField] private LabEnemy target;
+        [SerializeField] private LabEnemy fragileTarget, pairedTarget;
         [SerializeField] private SideViewCameraFollow follow;
         [SerializeField] private Transform playerPlatform, targetPlatform, wall;
+        private Transform lowCeiling, climbBlock;
         private readonly Dictionary<string, Action> equipmentBaselines = new Dictionary<string, Action>();
         private ActorRoot trialActor;
         public CharacterControlCoordinator Party => party;
         public ActorRoot Actor => party == null ? null : party.Current;
-        public LabEnemy Target => target;
+        public LabEnemy Target => Condition == AttackLabTargetMode.Lethal && fragileTarget != null ? fragileTarget : target;
+        public LabEnemy PairedTarget => pairedTarget;
+        public bool HasOutcomeFixtures => fragileTarget != null && pairedTarget != null;
         public AttackLabTrace Trace { get; private set; }
         public int Generation { get; private set; }
         public string Version { get; private set; } = "基线";
@@ -73,7 +77,38 @@ namespace Ossastra.Development
             wall = wallFixture;
         }
 
-        private void Awake() => Trace = GetComponent<AttackLabTrace>();
+        public void ConfigureOutcomeFixtures(LabEnemy fragile, LabEnemy paired)
+        {
+            fragileTarget = fragile;
+            pairedTarget = paired;
+        }
+
+        private void Awake()
+        {
+            Trace = GetComponent<AttackLabTrace>();
+            if (wall == null) return;
+            lowCeiling = CreateMotionFixture("低顶", "stone");
+            climbBlock = CreateMotionFixture("翻越高台", "stone");
+            ConfigureSurface(transform.Find("平地"), "stone");
+            ConfigureSurface(playerPlatform, "stone");
+        }
+
+        private Transform CreateMotionFixture(string fixtureName, string material)
+        {
+            var fixture = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            fixture.name = fixtureName;
+            fixture.transform.SetParent(transform, false);
+            fixture.GetComponent<Renderer>().sharedMaterial = wall.GetComponent<Renderer>().sharedMaterial;
+            fixture.AddComponent<Ossastra.Audio.AudioSurfaceFact>().surface = material;
+            fixture.SetActive(false);
+            return fixture.transform;
+        }
+
+        private static void ConfigureSurface(Transform fixture, string material)
+        {
+            if (fixture != null && !fixture.TryGetComponent<Ossastra.Audio.AudioSurfaceFact>(out _))
+                fixture.gameObject.AddComponent<Ossastra.Audio.AudioSurfaceFact>().surface = material;
+        }
         private void Start() => ResetTrial("基线");
 
         private void LateUpdate()
@@ -105,10 +140,12 @@ namespace Ossastra.Development
                 return Fail("正式角色控制尚未就绪。");
 
             Trace.EndTrial();
+            Ossastra.Audio.SideViewFeedbackRuntime.ResetTrial(gameObject.scene.handle);
             if (Actor != trialActor) observedSkill = -1;
             party.GetComponent<CharacterSwitchLink>()?.Interrupt();
             var facing = FacingRight ? Vector3.right : Vector3.left;
-            var playerHeight = Mathf.Max(0, -Height) + (Station == AttackLabStation.Ledge ? .65f : 0f);
+            var platformHeight = Station == AttackLabStation.Drop ? 2.25f : Station == AttackLabStation.Ledge ? .65f : 0f;
+            var playerHeight = Mathf.Max(0, -Height) + platformHeight;
             var targetHeight = playerHeight + Height;
             var playerStart = new Vector3(0, playerHeight + .035f, 0);
             // 墙面调试把实体墙放在双方之间。给双胶囊与墙体留出实际碰撞间隔。
@@ -117,13 +154,19 @@ namespace Ossastra.Development
             Distance = Mathf.Clamp(Distance, minDistance, 12f);
             var enemyStart = new Vector3(facing.x * Distance, targetHeight + .035f, 0);
             // 边缘情景的长台在玩家身后收口，目标正对台沿。其他高度用独立窄托台支撑。
-            float width = Station == AttackLabStation.Ledge ? 4f : .65f;
+            float width = platformHeight > 0f ? 4f : .65f;
             SetFixture(playerPlatform, new Vector3((.325f-width*.5f)*facing.x, playerHeight*.5f, 0),
                 new Vector3(width, playerHeight, 4));
             SetFixture(targetPlatform, new Vector3(enemyStart.x, targetHeight*.5f, 0),
-                new Vector3(.65f, targetHeight, 4));
+                new Vector3(.65f, Condition == AttackLabTargetMode.Whiff ? 0f : targetHeight, 4));
             SetFixture(wall, new Vector3(facing.x * .98f, 2.5f, 0),
                 new Vector3(.75f, Station == AttackLabStation.Wall ? 5f : 0f, 4));
+            if (lowCeiling != null)
+                SetFixture(lowCeiling, new Vector3(0, playerHeight + 2.3f, 0),
+                    new Vector3(4f, Station == AttackLabStation.LowCeiling ? .6f : 0f, 4));
+            if (climbBlock != null)
+                SetFixture(climbBlock, new Vector3(facing.x * 2.6f, 1.125f, 0),
+                    new Vector3(2.25f, Station == AttackLabStation.HighLedge ? 2.25f : 0f, 4));
             Physics.SyncTransforms();
 
             foreach (var member in party.Characters)
@@ -143,18 +186,11 @@ namespace Ossastra.Development
             }
 
             Actor.GetComponent<CharacterInputHandler>()?.InputSources.BeginAttackLabTrial(FacingRight);
-            target.gameObject.SetActive(true);
-            target.RestoreForDevelopment();
-            target.Vitals.SpatialPlane = CombatPlane.SideXY;
-            target.GetComponent<CombatStatusEffects>()?.Clear();
-            var movement = target.GetComponent<EnemyMovement>();
-            if (movement != null) { movement.Stop(); movement.enabled = Condition == AttackLabTargetMode.Normal; }
-            var controller = target.GetComponent<CharacterController>();
-            if (controller != null) controller.enabled = false;
-            target.transform.position = enemyStart;
-            if (controller != null) controller.enabled = true;
-            target.AttacksEnabled = Condition != AttackLabTargetMode.Whiff && EnemyAttacks;
-            target.gameObject.SetActive(Condition != AttackLabTargetMode.Whiff);
+            PositionTarget(target, enemyStart, Condition != AttackLabTargetMode.Whiff && Target == target);
+            PositionTarget(fragileTarget, enemyStart, Condition == AttackLabTargetMode.Lethal);
+            // 两靶错开高度和水平距离，保留各自的真实视线与胶囊命中。
+            PositionTarget(pairedTarget, enemyStart - facing * .23f + Vector3.up * .97f,
+                Condition == AttackLabTargetMode.Pair);
             Physics.SyncTransforms();
 
             var feedback = FindObjectOfType<CombatFeedbackView>();
@@ -175,6 +211,34 @@ namespace Ossastra.Development
             if (!fixture.gameObject.activeSelf) return;
             fixture.position = position;
             fixture.localScale = size;
+        }
+
+        private void PositionTarget(LabEnemy enemy, Vector3 position, bool used)
+        {
+            if (enemy == null) return;
+            if (!used)
+            {
+                enemy.gameObject.SetActive(false);
+                return;
+            }
+            enemy.gameObject.SetActive(true);
+            enemy.RestoreForDevelopment();
+            if (enemy.Vitals == null) return;
+            enemy.Vitals.SpatialPlane = CombatPlane.SideXY;
+            enemy.GetComponent<CombatStatusEffects>()?.Clear();
+            var guard = enemy.GetComponent<AttackLabGuardFixture>();
+            if (guard != null) guard.enabled = Condition == AttackLabTargetMode.Guarded;
+            var movement = enemy.GetComponent<EnemyMovement>();
+            if (movement != null)
+            {
+                movement.Stop();
+                movement.enabled = Condition == AttackLabTargetMode.Normal;
+            }
+            var controller = enemy.GetComponent<CharacterController>();
+            if (controller != null) controller.enabled = false;
+            enemy.transform.position = position;
+            if (controller != null) controller.enabled = true;
+            enemy.AttacksEnabled = EnemyAttacks;
         }
 
         public bool RequestAttack()

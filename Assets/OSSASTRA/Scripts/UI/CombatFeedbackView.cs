@@ -11,6 +11,7 @@ using UnityEngine;
 using Ossastra.Characters;
 using Ossastra.CharacterCore;
 using Ossastra.Combat;
+using Ossastra.Audio;
 namespace Ossastra.UserInterface
 {
     [DefaultExecutionOrder(250)]
@@ -130,6 +131,8 @@ namespace Ossastra.UserInterface
             unsubscribe.Add(()=>CharacterAnimationController.EffectRequested-=OnCalibratedEffect);
             CombatContactGateway.SectorReleased += OnSideViewRelease;
             unsubscribe.Add(() => CombatContactGateway.SectorReleased -= OnSideViewRelease);
+            SideViewFeedbackRuntime.TrialReset += OnTrialReset;
+            unsubscribe.Add(() => SideViewFeedbackRuntime.TrialReset -= OnTrialReset);
         }
 
         private sealed class CalibratedEffect
@@ -141,6 +144,20 @@ namespace Ossastra.UserInterface
         }
         private readonly List<CalibratedEffect> calibratedEffects=new List<CalibratedEffect>();
         private Ossastra.Audio.SideViewLocomotionAudioAdapter locomotionAudio;
+        private sealed class ContactEffect
+        {
+            internal SideViewFeedbackSettings settings;
+            internal GameObject instance;
+            internal CombatVitals follow;
+            internal Vector3 position, targetOrigin;
+            internal Quaternion rotation;
+            internal double at, expires;
+            internal Component source;
+            internal Guid action, parent;
+            internal int emission;
+            internal Func<bool> stillCurrent;
+        }
+        private readonly List<ContactEffect> contactEffects = new List<ContactEffect>();
         private void OnCalibratedEffect(CharacterAnimationController owner, AnimationSignal signal)
         {
             if(owner.gameObject.scene!=gameObject.scene || !isActiveAndEnabled || !signal.Binding.effect ||
@@ -204,14 +221,15 @@ namespace Ossastra.UserInterface
             {
                 var reason = receipt.Outcome.Reason;
                 if (reason == HitReason.Applied && receipt.Outcome.HpAfter < receipt.Outcome.HpBefore)
-                    Impact(SideViewEffectShape.Hit, hitRecipe, receipt.Contact, reason);
+                    Impact(SideViewEffectShape.Hit, hitRecipe, receipt.Contact, SideViewContactResult.Hit, receipt.Material, reason, receipt.Target);
                 else if (reason == HitReason.Guarded)
-                    Impact(SideViewEffectShape.Guard, sideViewEffects.guard, receipt.Contact, reason);
+                    Impact(SideViewEffectShape.Guard, sideViewEffects.guard, receipt.Contact, SideViewContactResult.Guard, receipt.Material, reason, receipt.Target);
                 else if (reason == HitReason.Evaded)
-                    Impact(SideViewEffectShape.Evade, sideViewEffects.evade, receipt.Contact, reason);
+                    Impact(SideViewEffectShape.Evade, sideViewEffects.evade, receipt.Contact, SideViewContactResult.Evade, receipt.Material, reason, receipt.Target);
             }
             if (batch.EnvironmentContact.HasValue)
-                Impact(SideViewEffectShape.Surface, sideViewEffects.surface, batch.EnvironmentContact.Value, null);
+                Impact(SideViewEffectShape.Surface, sideViewEffects.surface, batch.EnvironmentContact.Value, SideViewContactResult.Surface,
+                    batch.EnvironmentContact.Value.Material, null, null);
 
             // 批内使用最强一次；相机用发射身份合并持续窗口在后续批次的合法接触。
             if (strength > 0 && shakeSink != null && shakeSink is ICombatImpactShakeSink sink)
@@ -222,18 +240,34 @@ namespace Ossastra.UserInterface
                 ShakeRequests++;
             }
 
-            void Impact(SideViewEffectShape shape, SideViewEffectRecipe recipe, CombatContactPoint contact, HitReason? reason)
+            void Impact(SideViewEffectShape shape, SideViewEffectRecipe recipe, CombatContactPoint contact,
+                SideViewContactResult outcome, string material, HitReason? reason, CombatVitals target)
             {
-                var direction = EffectDirection(recipe, geometry, contact, contact.Position - batch.Origin, true);
+                var row = SideViewFeedbackRuntime.Contact(batch, outcome, material, out string resolvedLabel);
+                var settings = row?.settings;
+                bool customEffect = settings?.overrideEffect == true;
+                var direction = customEffect || settings?.overrideShake == true
+                    ? EffectDirection(settings.direction, geometry, contact, contact.Position - batch.Origin, true)
+                    : EffectDirection(recipe, geometry, contact, contact.Position - batch.Origin, true);
                 Color? tint = shape == SideViewEffectShape.Hit && recipe != null &&
                     (batch.EffectSemantic == "ice.pulse" || batch.EffectSemantic == "ice.shatter")
                     ? new Color(.54f, .86f, 1f, recipe.tint.a) : (Color?)null;
                 HitCues++;
                 ContactEffectRequests++;
-                var result = effects.Play(shape, recipe, contact.VisualPosition, direction, tint: tint);
-                CombatTraceProbe.For(batch.Source)?.Note("反馈",shape+" 特效",result.ToString(),batch.ActionId,batch.ParentExecutionId,batch.EmissionIndex);
-                if (result == SideViewEffectAdmission.Accepted) ContactEffectsAccepted++;
-                else LastSideViewEffectFailure = result;
+                CombatTraceProbe.For(batch.Source)?.Note("反馈", "实战配方",
+                    resolvedLabel+" / "+outcome+" / "+(material??"无明确材质")+" · "+(customEffect?settings.effect?.name??"不播特效":"共用特效"),
+                    batch.ActionId,batch.ParentExecutionId,batch.EmissionIndex);
+                if (!customEffect)
+                {
+                    var result = effects.Play(shape, recipe, contact.VisualPosition, direction, tint: tint);
+                    CombatTraceProbe.For(batch.Source)?.Note("反馈",shape+" 特效",result.ToString(),batch.ActionId,batch.ParentExecutionId,batch.EmissionIndex);
+                    if (result == SideViewEffectAdmission.Accepted) ContactEffectsAccepted++;
+                    else LastSideViewEffectFailure = result;
+                }
+                else if (settings.effect != null)
+                    QueueContactEffect(settings, contact.VisualPosition, direction, batch.Source,
+                        settings.followTarget && target != null && target.IsAlive ? target : null,
+                        batch.ActionId,batch.ParentExecutionId,batch.EmissionIndex);
                 LastContactPosition = contact.Position;
                 LastContactVisualPosition = contact.VisualPosition;
                 LastContactDirection = direction;
@@ -242,11 +276,11 @@ namespace Ossastra.UserInterface
                 // 更换贴图或方向配方时，命中震屏仍沿原先的反馈配置。
                 var shakeRecipe = shape == SideViewEffectShape.Hit ? sideViewEffects.hit : recipe;
                 float weight = batch.Cause == CombatContactCause.Periodic ? .25f : 1f;
-                float value = shakeRecipe == null ? 0f : Mathf.Clamp01(shakeRecipe.shake) * weight;
+                float value = Mathf.Clamp01(settings?.overrideShake == true ? settings.shake : shakeRecipe?.shake ?? 0) * weight;
                 if (value > strength)
                 {
                     strength = value;
-                    impulse = ReferenceEquals(shakeRecipe, recipe) ? direction :
+                    impulse = settings?.overrideShake == true || ReferenceEquals(shakeRecipe, recipe) ? direction :
                         EffectDirection(shakeRecipe, geometry, contact, contact.Position - batch.Origin, true);
                 }
             }
@@ -257,22 +291,77 @@ namespace Ossastra.UserInterface
 
         private static Vector3 EffectDirection(SideViewEffectRecipe recipe, CombatContactGeometry geometry,
             CombatContactPoint contact, Vector3 fallback, bool reverseSurfaceFallback)
+            => EffectDirection(recipe?.direction ?? CombatEffectDirection.Fixed, geometry, contact, fallback, reverseSurfaceFallback);
+
+        private static Vector3 EffectDirection(CombatEffectDirection mode, CombatContactGeometry geometry,
+            CombatContactPoint contact, Vector3 fallback, bool reverseSurfaceFallback)
         {
-            if (recipe == null || recipe.direction == CombatEffectDirection.Fixed) return Vector3.right;
+            if (mode == CombatEffectDirection.Fixed) return Vector3.right;
             var travel = geometry.ArrivalDirection.sqrMagnitude > .0001f
                 ? geometry.ArrivalDirection : geometry.ReleaseDirection;
             if (travel.sqrMagnitude <= .0001f) travel = fallback;
             Vector3 direction;
-            if (recipe.direction == CombatEffectDirection.Surface)
+            if (mode == CombatEffectDirection.Surface)
             {
                 direction = CombatContactGeometry.Project(contact.Normal ?? Vector3.zero, CombatPlane.SideXY);
                 if (direction.sqrMagnitude <= .0001f) direction = reverseSurfaceFallback ? -travel : travel;
             }
-            else if (recipe.direction == CombatEffectDirection.Released && geometry.ReleaseDirection.sqrMagnitude > .0001f)
+            else if (mode == CombatEffectDirection.Released && geometry.ReleaseDirection.sqrMagnitude > .0001f)
                 direction = geometry.ReleaseDirection;
             else direction = travel;
             direction = CombatContactGeometry.Project(direction, CombatPlane.SideXY);
             return direction.sqrMagnitude > .0001f ? direction.normalized : Vector3.right;
+        }
+
+        internal void QueueContactEffect(SideViewFeedbackSettings settings, Vector3 contact, Vector3 direction,
+            Component source, CombatVitals follow = null, Guid action = default, Guid parent = default, int emission = -1,
+            Func<bool> stillCurrent = null)
+        {
+            if (!isActiveAndEnabled || settings.effect == null || contactEffects.Count >= 128) return;
+            var rotation = Quaternion.Euler(0, 0, Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg);
+            contactEffects.Add(new ContactEffect
+            {
+                settings = settings.Copy(), position = contact + rotation * settings.localOffset, rotation = rotation,
+                follow = follow, targetOrigin = follow == null ? default : follow.WorldPosition,
+                at = Time.realtimeSinceStartupAsDouble + Math.Max(0,settings.effectDelayMs)/1000.0,
+                source = source, action = action, parent = parent, emission = emission, stillCurrent = stillCurrent
+            });
+        }
+
+        private void TickContactEffects()
+        {
+            double now = Time.realtimeSinceStartupAsDouble;
+            for (int i = 0; i < contactEffects.Count;)
+            {
+                var cue = contactEffects[i];
+                if (!cue.instance && cue.expires == 0 && now >= cue.at && cue.settings.effect != null &&
+                    (cue.stillCurrent == null || cue.stillCurrent()))
+                {
+                    cue.instance = Instantiate(cue.settings.effect, cue.position, cue.rotation, transform);
+                    cue.instance.transform.localScale *= Mathf.Max(.001f,cue.settings.effectScale);
+                    cue.expires = now + Mathf.Max(.01f,cue.settings.effectLifetime);
+                    if (cue.action != Guid.Empty) ContactEffectsAccepted++;
+                    CombatTraceProbe.For(cue.source)?.Note("反馈", "自定义接触特效", cue.settings.effect.name,
+                        cue.action,cue.parent,cue.emission);
+                }
+                if (now >= cue.at && (!cue.instance || now >= cue.expires))
+                {
+                    if (cue.instance) Destroy(cue.instance);
+                    contactEffects.RemoveAt(i);
+                    continue;
+                }
+                if (cue.instance && cue.follow != null && cue.follow.isActiveAndEnabled && cue.follow.IsAlive)
+                    cue.instance.transform.position = cue.position + cue.follow.WorldPosition - cue.targetOrigin;
+                i++;
+            }
+        }
+
+        private void OnTrialReset(int sceneHandle)
+        {
+            if (sceneHandle != gameObject.scene.handle) return;
+            foreach (var cue in contactEffects)
+                if (cue.instance) Destroy(cue.instance);
+            contactEffects.Clear();
         }
         private void Arc(Vector3 position,Vector3 direction,Color color,float radius,bool ring=false)
         {
@@ -287,6 +376,7 @@ namespace Ossastra.UserInterface
         {
             if (sideView)
             {
+                TickContactEffects();
                 for(int i=calibratedEffects.Count-1;i>=0;i--)
                 {
                     var fx=calibratedEffects[i];
@@ -329,6 +419,7 @@ namespace Ossastra.UserInterface
             material = null;
             effects?.Dispose();
             effects = null;
+            OnTrialReset(gameObject.scene.handle);
         }
     }
 }

@@ -72,7 +72,7 @@ namespace Ossastra.Characters
             if(owner==null||bodyView==null||body==null||body.Skeleton==null)return;
             BindViews();
             var visible=isActiveAndEnabled&&owner.isActiveAndEnabled&&owner.IsAlive;
-            var delta=owner.IsSimulationSuspended?0:Time.deltaTime;
+            var delta=owner.IsSimulationSuspended||owner.IsLocalHitStop?0:Time.deltaTime;
             left?.Present(owner,bodyView,delta,visible);right?.Present(owner,bodyView,delta,visible);
             LastResult="左："+left?.Status+"；右："+right?.Status;
         }

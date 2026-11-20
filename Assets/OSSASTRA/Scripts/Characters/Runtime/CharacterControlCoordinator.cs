@@ -182,6 +182,9 @@ namespace Ossastra.Characters
         private void Select(CharacterRoot next, bool requireMovementRelease=false, bool linkedSwitch=false)
         {
             // 先撤回旧权威并清所有快照，再授予新身份。整帧禁入避免外部晚调用导致同帧双控。
+            var previous = Current;
+            previous?.ResetHitStopControl();
+            if (next != previous) next?.ResetHitStopControl();
             Current = null;
             ControlRevision++;
             foreach (var input in inputs) if (input != null) input.ResetPlayerInput(requireMovementRelease);

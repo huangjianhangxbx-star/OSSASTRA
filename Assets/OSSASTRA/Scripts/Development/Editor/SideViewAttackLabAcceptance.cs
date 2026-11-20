@@ -3,6 +3,8 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Ossastra.Audio;
+using Ossastra.CharacterCore;
 using Ossastra.Characters;
 using Ossastra.CharacterAnimation;
 using Ossastra.Combat;
@@ -36,6 +38,7 @@ namespace Ossastra.Development.Editor
         private static bool originalRight, originalEnemyAttacks, originalFrozen, originalDetailed, started;
         private static IEnumerator routine;
         private static double deadline;
+        internal static bool IsRunning => SessionState.GetBool(Pending, false);
 
         static SideViewAttackLabAcceptance()
         {
@@ -260,6 +263,8 @@ namespace Ossastra.Development.Editor
             while (offsets.MoveNext()) yield return offsets.Current;
             var stops = CheckLocalHitStop();
             while (stops.MoveNext()) yield return stops.Current;
+            var feedback = CheckContactFeedback();
+            while (feedback.MoveNext()) yield return feedback.Current;
             int freycia = members.FindIndex(c => c && c.ActorId == "temporary-b");
             lab.Condition = AttackLabTargetMode.Whiff;
             if (freycia >= 0 && lab.SwitchActor(freycia))
@@ -288,6 +293,151 @@ namespace Ossastra.Development.Editor
                 }
             }
             else Check(false, "无法切换至芙蕾验收第一击");
+            input.SetInventoryCapture(captureOwner, false, true);
+            lab.Party.SetInventoryCapture(captureOwner, false, true);
+            var movement = AttackLabMovementAcceptance.Cases(lab, Check);
+            while (movement.MoveNext()) yield return movement.Current;
+            CheckDurableRoleSettings();
+        }
+
+        private static void CheckDurableRoleSettings()
+        {
+            var realRole = lab.Actor.Definition;
+            var shared = lab.Actor.GetComponent<CharacterMovement>().AuthoredJumpProfile;
+            var original = UnityEngine.Object.Instantiate(realRole);
+            var root = new GameObject("隔离角色配置读回");
+            root.SetActive(false);
+            string saveFolder = AssetDatabase.GUIDToAssetPath(AssetDatabase.CreateFolder("Assets",
+                "AttackLabAcceptance_" + Guid.NewGuid().ToString("N")));
+            if (string.IsNullOrEmpty(saveFolder))
+            {
+                UnityEngine.Object.Destroy(root);
+                UnityEngine.Object.Destroy(original);
+                Check(false, "无法建立隔离的配置验收目录");
+                return;
+            }
+            try
+            {
+                var movement = UnityEngine.Object.Instantiate(shared);
+                movement.runSpeed = shared.runSpeed + .5f;
+                var recipe = ScriptableObject.CreateInstance<SideViewFeedbackProfileSO>();
+                recipe.movement = new[] { new SideViewMotionFeedbackBinding { kind = SideViewMotionKind.Land,
+                    material = "stone", settings = new SideViewFeedbackSettings { soundDelayMs = 37 } } };
+                var attack = ScriptableObject.CreateInstance<ActionDefinitionSO>();
+                attack.hitStop = new AttackHitStop { configured = true, attackerSeconds = .045f, receiverSeconds = .07f };
+                AssetDatabase.CreateAsset(movement, saveFolder + "/Movement.asset");
+                AssetDatabase.CreateAsset(recipe, saveFolder + "/Feedback.asset");
+                AssetDatabase.CreateAsset(attack, saveFolder + "/Action.asset");
+                AssetDatabase.CreateAsset(original, saveFolder + "/Role.asset");
+                original.sideViewMovementOverride = movement;
+                original.sideViewFeedback = recipe;
+                original.basicAttacks = new[] { attack };
+                EditorUtility.SetDirty(original);
+                AssetDatabase.SaveAssetIfDirty(original);
+                AssetDatabase.ImportAsset(saveFolder + "/Role.asset", ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate);
+                var loaded = AssetDatabase.LoadAssetAtPath<CharacterDefinitionSO>(saveFolder + "/Role.asset");
+                var reader = root.AddComponent<Ossastra.Characters.CharacterRoot>();
+                var binding = new SerializedObject(reader);
+                binding.FindProperty("characterDefinition").objectReferenceValue = loaded;
+                binding.ApplyModifiedPropertiesWithoutUndo();
+                var motor = root.GetComponent<CharacterMovement>();
+                motor.ConfigureSideView(shared);
+                Check(loaded != null && loaded != realRole && motor.AuthoredJumpProfile == loaded.sideViewMovementOverride &&
+                    Mathf.Approximately(motor.AuthoredJumpProfile.runSpeed, shared.runSpeed + .5f) &&
+                    loaded.sideViewFeedback.ResolveMovement(SideViewMotionKind.Land, "stone")?.settings.soundDelayMs == 37f &&
+                    Mathf.Approximately(loaded.basicAttacks[0].hitStop.receiverSeconds, .07f),
+                    "正式角色引用重导入：正常运动读取角色专用 Profile，材质反馈与逐招卡肉写盘");
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(root);
+                AssetDatabase.DeleteAsset(saveFolder);
+            }
+        }
+
+        private static IEnumerator CheckContactFeedback()
+        {
+            if (!lab.HasOutcomeFixtures) { Check(false, "缺少守卫、致死或双目标装配"); yield break; }
+            var actor = lab.Actor;
+            var vitals = actor.GetComponent<CombatVitals>();
+            var priorStop = vitals.LaboratoryHitStop;
+            var profile = ScriptableObject.CreateInstance<SideViewFeedbackProfileSO>();
+            profile.name = "独立实战反馈对照";
+            var catalog = Ossastra.Audio.GameAudioRoot.Instance?.SfxCatalog;
+            var sound = catalog?.events?.FirstOrDefault(item => item && !item.loop && item.clips != null &&
+                item.clips.Length > 0 && item.eventId.StartsWith("player.", StringComparison.Ordinal) &&
+                (item.eventId.Contains("hit") || item.eventId.Contains("impact")));
+            var settings = new SideViewFeedbackSettings { overrideSound = sound != null, sound = sound,
+                soundDelayMs = 70, soundStartMs = 10, overrideShake = true, shake = 0 };
+            profile.combat = new[]
+            {
+                new SideViewCombatFeedbackBinding { selector = "*", result = SideViewContactResult.Hit, settings = settings },
+                new SideViewCombatFeedbackBinding { selector = "*", result = SideViewContactResult.Hit, material = "metal", settings = settings },
+                new SideViewCombatFeedbackBinding { selector = "*", result = SideViewContactResult.Guard, material = "metal", settings = settings }
+            };
+            try
+            {
+                Check(SideViewFeedbackRuntime.SetPreview(actor, profile, captureOwner), "取得角色独立反馈对照租约");
+                foreach (var mode in new[] { AttackLabTargetMode.Whiff, AttackLabTargetMode.Guarded, AttackLabTargetMode.Fixed,
+                             AttackLabTargetMode.Lethal, AttackLabTargetMode.Pair })
+                {
+                    lab.Condition = mode;
+                    lab.Distance = mode == AttackLabTargetMode.Pair ? .8f : 1.12f;
+                    lab.Station = AttackLabStation.Flat;
+                    Reset("真实回执 " + mode);
+                    vitals.LaboratoryHitStop = new AttackHitStop { configured = true, attackerSeconds = .045f,
+                        receiverSeconds = mode == AttackLabTargetMode.Pair ? .12f : .045f, onGuard = true };
+                    yield return new WaitForSeconds(.25f);
+                    int hp = lab.Target.Vitals.Health.Current;
+                    int secondHp = mode == AttackLabTargetMode.Pair ? lab.PairedTarget.Vitals.Health.Current : 0;
+                    bool accepted = Send(lab.RequestAttack);
+                    bool attackerFroze = false, victimFroze = false, secondFroze = false;
+                    bool stretched = false;
+                    float end = Time.realtimeSinceStartup + .9f;
+                    while (Time.realtimeSinceStartup < end)
+                    {
+                        yield return null;
+                        if (mode == AttackLabTargetMode.Fixed && !stretched && hp > lab.Target.Vitals.Health.Current)
+                        {
+                            stretched = true;
+                            // 模拟长渲染更新，验证首次消费不因请求帧和显示帧之间隔了 45 ms 而丢失。
+                            System.Threading.Thread.Sleep(78);
+                        }
+                        attackerFroze |= vitals.InHitStop;
+                        victimFroze |= lab.Target.Vitals.InHitStop;
+                        if (mode == AttackLabTargetMode.Pair) secondFroze |= lab.PairedTarget.Vitals.InHitStop;
+                    }
+                    var rows = Rows();
+                    var outcomes = rows.Where(row => row.label == "Applied" || row.label == "Guarded").ToArray();
+                    var recipes = rows.Where(row => row.label == "实战配方").ToArray();
+                    bool correctContact = mode == AttackLabTargetMode.Whiff
+                        ? outcomes.Length == 0 && recipes.Length == 0 && !attackerFroze
+                        : mode == AttackLabTargetMode.Guarded
+                            ? outcomes.Any(row => row.label == "Guarded") && lab.Target.Vitals.Health.Current == hp
+                            : lab.Target.Vitals.Health.Current < hp;
+                    bool modeCheck = mode == AttackLabTargetMode.Lethal ? lab.Target.Vitals.Health.Current == 0 :
+                        mode != AttackLabTargetMode.Pair || (lab.PairedTarget.Vitals.Health.Current < secondHp && secondFroze);
+                    bool localClock = mode == AttackLabTargetMode.Whiff ||
+                        (attackerFroze && (mode == AttackLabTargetMode.Lethal || victimFroze) && !vitals.InHitStop);
+                    bool recipeExpected = mode == AttackLabTargetMode.Whiff ||
+                        recipes.Any(entry => entry.detail.Contains(profile.name));
+                    Check(accepted && correctContact && modeCheck && localClock && recipeExpected,
+                        $"{mode}：HP {hp}→{lab.Target.Vitals.Health.Current}，回执 {outcomes.Length}，配方 {recipes.Length}，攻/受/第二目标暂停 {attackerFroze}/{victimFroze}/{secondFroze}，受控长帧 {stretched}");
+                    if (mode == AttackLabTargetMode.Fixed || mode == AttackLabTargetMode.Pair)
+                        lines.Add("   攻击者：" + vitals.LastHitStop + " · 受击者：" + lab.Target.Vitals.LastHitStop +
+                            (mode == AttackLabTargetMode.Pair ? " · 第二目标：" + lab.PairedTarget.Vitals.LastHitStop : ""));
+                    if (mode == AttackLabTargetMode.Lethal && sound != null)
+                        Check(rows.Any(entry => entry.label == "声音提交" && entry.track == "反馈" && entry.detail.Contains(sound.eventId)),
+                            "致死命中的已确认延迟音效，经统一声音根提交");
+                }
+            }
+            finally
+            {
+                vitals.LaboratoryHitStop = priorStop;
+                SideViewFeedbackRuntime.ClearPreview(actor, captureOwner);
+                UnityEngine.Object.Destroy(profile);
+                lab.Distance = 1.2f;
+            }
         }
 
         private static IEnumerator CheckFootsteps()

@@ -52,6 +52,7 @@ namespace Ossastra.CharacterCore
             if(buffered && now-pressedAt>preInput)buffered=false;
         }
         public void Hit(Guid id,bool applied){if(actionId==id)hit|=applied;}
+        public void DiscardBufferedPress() => buffered = false;
         public void Clear(){stage=0;actionId=Guid.Empty;hit=false;buffered=false;}
         private static bool Valid(double v)=>!double.IsNaN(v)&&!double.IsInfinity(v)&&v>=0;
     }

@@ -30,8 +30,8 @@ namespace Ossastra.Development.Editor
 
         public static bool EnsureScene()
         {
-            if (AssetDatabase.LoadAssetAtPath<SceneAsset>(ScenePath) != null) return true;
             if (EditorApplication.isPlayingOrWillChangePlaymode || EditorApplication.isCompiling) return false;
+            if (AssetDatabase.LoadAssetAtPath<SceneAsset>(ScenePath) != null) return EnsureOutcomeFixtures();
             if (!AssetDatabase.IsValidFolder(Folder)) AssetDatabase.CreateFolder("Assets/OSSASTRA/SideView", "Development");
             var previous = SceneManager.GetActiveScene();
             Scene lab = default;
@@ -113,6 +113,7 @@ namespace Ossastra.Development.Editor
                 var stand = Ground(session.transform, material, "目标托台", new Vector3(7,.35f,0), new Vector3(.65f,.7f,4));
                 var wall = Ground(session.transform, material, "练习墙", new Vector3(10,2.5f,0), new Vector3(.75f,5,4));
                 session.Configure(party, target, follow, ledge, stand, wall);
+                AddOutcomeFixtures(session);
                 party.Characters[0].transform.position = new Vector3(0,.035f,0);
                 party.Characters[1].transform.position = new Vector3(-35,.035f,0);
                 target.transform.position = new Vector3(1.4f,.035f,0);
@@ -131,6 +132,70 @@ namespace Ossastra.Development.Editor
                 if (lab.IsValid() && lab.isLoaded) EditorSceneManager.CloseScene(lab, true);
                 foreach (var path in created) AssetDatabase.DeleteAsset(path);
             }
+        }
+
+        // 旧训练场只补目标装配。保留当前编辑场景及其未保存内容。
+        private static bool EnsureOutcomeFixtures()
+        {
+            var previous = SceneManager.GetActiveScene();
+            var lab = SceneManager.GetSceneByPath(ScenePath);
+            bool openedHere = !lab.isLoaded;
+            try
+            {
+                if (openedHere) lab = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Additive);
+                var session = One<AttackLabSession>(lab);
+                if (session.HasOutcomeFixtures) return true;
+                if (lab.isDirty)
+                {
+                    Debug.LogWarning("攻击调试台场景有未保存的修改。现有场地可试玩，新增靶组将在场景保存后安装。");
+                    return true;
+                }
+                AddOutcomeFixtures(session);
+                EditorSceneManager.MarkSceneDirty(lab);
+                return EditorSceneManager.SaveScene(lab);
+            }
+            catch (Exception error)
+            {
+                Debug.LogException(error);
+                return false;
+            }
+            finally
+            {
+                if (previous.IsValid() && previous.isLoaded) SceneManager.SetActiveScene(previous);
+                if (openedHere && lab.IsValid() && lab.isLoaded) EditorSceneManager.CloseScene(lab, true);
+            }
+        }
+
+        private static void AddOutcomeFixtures(AttackLabSession session)
+        {
+            var original = session.Target;
+            LabEnemy Create(string displayName, string identity, int? hitPoints)
+            {
+                var instance = Object.Instantiate(original, original.transform.parent);
+                instance.name = displayName;
+                var enemy = new SerializedObject(instance);
+                enemy.FindProperty("actorId").stringValue = identity;
+                enemy.FindProperty("attacksEnabled").boolValue = false;
+                enemy.ApplyModifiedPropertiesWithoutUndo();
+                if (hitPoints.HasValue)
+                {
+                    var vitals = new SerializedObject(instance.GetComponent<CombatVitals>());
+                    vitals.FindProperty("maximumHp").intValue = hitPoints.Value;
+                    vitals.ApplyModifiedPropertiesWithoutUndo();
+                }
+                instance.gameObject.SetActive(false);
+                return instance;
+            }
+
+            var fragile = Create("致死反馈靶", "attack-lab-fragile", 1);
+            var paired = Create("第二命中靶", "attack-lab-paired", null);
+            var guard = original.GetComponent<AttackLabGuardFixture>();
+            if (guard == null) guard = original.gameObject.AddComponent<AttackLabGuardFixture>();
+            guard.enabled = false;
+            var substance = original.GetComponent<Ossastra.Audio.AudioSurfaceFact>();
+            if (substance == null) substance = original.gameObject.AddComponent<Ossastra.Audio.AudioSurfaceFact>();
+            substance.impactMaterial = "metal";
+            session.ConfigureOutcomeFixtures(fragile, paired);
         }
 
         private static T One<T>(Scene scene) where T : Component =>

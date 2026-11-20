@@ -21,18 +21,20 @@ namespace Ossastra.Combat
         /// <summary>保持旧消费者使用的目标锚点语义，空间反馈改读Contact。</summary>
         public Vector3 Position { get; }
         public CombatContactPoint Contact { get; }
+        public string Material { get; }
 
         public CombatContactReceipt(HitOutcome outcome, CombatVitals target, Vector3 position)
             : this(outcome, target, position, null) { }
 
         internal CombatContactReceipt(HitOutcome outcome, CombatVitals target, Vector3 position,
-            CombatContactPoint? contact)
+            CombatContactPoint? contact, string material = null)
         {
             Outcome = outcome ?? throw new ArgumentNullException(nameof(outcome));
             Target = target;
             TargetId = outcome.TargetId;
             Position = position;
             Contact = contact ?? new CombatContactPoint(position, CombatContactPointQuality.TargetAnchor);
+            Material = string.IsNullOrEmpty(Contact.Material) ? material : Contact.Material;
         }
     }
 
@@ -51,6 +53,8 @@ namespace Ossastra.Combat
         public IReadOnlyList<CombatContactReceipt> Receipts { get; }
         public CombatContactGeometry? Geometry { get; }
         public CombatContactPoint? EnvironmentContact { get; }
+        public string DeliveryMode { get; }
+        public string Channel { get; }
 
         public CombatContactBatch(Guid parentExecutionId, Guid actionId, int emissionIndex, string actorId,
             CombatVitals source, Vector3 origin, IEnumerable<CombatContactReceipt> receipts, CombatContactCause cause=CombatContactCause.Direct,
@@ -59,7 +63,8 @@ namespace Ossastra.Combat
 
         internal CombatContactBatch(Guid parentExecutionId, Guid actionId, int emissionIndex, string actorId,
             CombatVitals source, Vector3 origin, IEnumerable<CombatContactReceipt> receipts, CombatContactCause cause,
-            string effectSemantic, CombatContactGeometry? geometry, CombatContactPoint? environmentContact)
+            string effectSemantic, CombatContactGeometry? geometry, CombatContactPoint? environmentContact,
+            string deliveryMode = null, string channel = null)
         {
             ParentExecutionId = parentExecutionId;
             ActionId = actionId;
@@ -72,6 +77,8 @@ namespace Ossastra.Combat
             EffectSemantic=effectSemantic??"";
             Geometry = geometry;
             EnvironmentContact = environmentContact;
+            DeliveryMode = deliveryMode;
+            Channel = channel;
             // 复制再包装，不能把调用方的可变数组作为只读接口直接暴露。
             Receipts = Array.AsReadOnly((receipts ?? throw new ArgumentNullException(nameof(receipts))).ToArray());
         }

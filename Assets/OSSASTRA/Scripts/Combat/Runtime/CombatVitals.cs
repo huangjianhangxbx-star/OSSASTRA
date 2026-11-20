@@ -12,6 +12,7 @@ using UnityEngine;
 namespace Ossastra.Combat
 {
     [DisallowMultipleComponent]
+    [DefaultExecutionOrder(-120)]
     public sealed class CombatVitals : MonoBehaviour, ICombatTarget
     {
         [SerializeField, Min(1)] private int maximumHp=100;
@@ -29,30 +30,90 @@ namespace Ossastra.Combat
         private CombatRegeneration regeneration;
         public CombatRecovery Recovery=>recovery;
         private float hitReactUntil;
-        [Header("事件普攻首段 · 命中停顿")]
+        [Header("旧版调试 · 首段普攻停顿")]
         public bool enableAttackHitStop;
         [Range(0f,.12f)] public float hitStopSeconds = .045f;
         public bool stopAttacker = true, stopVictim = true;
-        private Guid hitStopAttack, stoppedEmission;
-        private int hitFrame;
-        private double stopUntil;
-        public bool InHitStop => Time.frameCount > hitFrame && Time.unscaledTimeAsDouble < stopUntil;
-        internal void ArmHitStop(Guid parent) { hitStopAttack = parent; stoppedEmission = Guid.Empty; }
-        internal void DisarmHitStop(Guid parent) { if(hitStopAttack == parent) hitStopAttack = Guid.Empty; }
-        internal void ApplyHitStop(AttackRelease release, CombatVitals victim)
+        private readonly LocalHitStopClock hitStop = new LocalHitStopClock();
+        private Behaviour hitStopConsumer;
+        private Guid stopRelease, stopParent;
+        private int stopEmission;
+        public bool InHitStop => hitStop.Frozen;
+        public bool SupportsLocalHitStop => hitStopConsumer != null && hitStopConsumer.isActiveAndEnabled;
+        public string LastHitStop { get; private set; } = "尚未请求";
+#if UNITY_EDITOR
+        public AttackHitStop? LaboratoryHitStop { get; set; }
+#endif
+        internal void RegisterHitStopConsumer(Behaviour owner) => hitStopConsumer = owner;
+        internal AttackHitStop CaptureHitStop(AttackHitStop authored, bool supportsLegacyPreview)
         {
-            if (!enableAttackHitStop || hitStopAttack != release.ParentExecutionId || hitStopSeconds <= 0) return;
-            if (stopAttacker && stoppedEmission != release.ActionId) BeginHitStop(hitStopSeconds);
-            stoppedEmission = release.ActionId;
-            if (stopVictim && victim != null && victim.IsAlive) victim.BeginHitStop(hitStopSeconds);
+#if UNITY_EDITOR
+            if (LaboratoryHitStop.HasValue) return LaboratoryHitStop.Value;
+#endif
+            if (authored.configured || !enableAttackHitStop || !supportsLegacyPreview) return authored;
+            return new AttackHitStop
+            {
+                configured = true,
+                attackerSeconds = stopAttacker ? hitStopSeconds : 0,
+                receiverSeconds = stopVictim ? hitStopSeconds : 0
+            };
         }
-        private void BeginHitStop(float seconds)
+
+        internal void ApplyHitStop(AttackRelease release, CombatVitals receiver, HitOutcome outcome)
         {
-            if (stopUntil > Time.unscaledTimeAsDouble) return;
-            hitFrame = Time.frameCount;
-            stopUntil = Time.unscaledTimeAsDouble + Mathf.Clamp(seconds, 0, .12f);
+            var config = release.HitStop;
+            if (!config.Accepts(outcome.Reason)) return;
+            if (release.TryClaimAttackerStop()) BeginHitStop(release, config.attackerSeconds);
+            if (config.receiverSeconds <= 0 || outcome.HpAfter <= 0) return;
+            if (receiver != null && receiver.SupportsLocalHitStop)
+                receiver.BeginHitStop(release, config.receiverSeconds);
+            else
+                CombatTraceProbe.For(this)?.Note("反馈", "目标未接局部卡肉", outcome.TargetId,
+                    release.ActionId, release.ParentExecutionId, release.EmissionIndex, outcome.TargetId);
         }
-        private void ResetHitStop() { hitStopAttack = stoppedEmission = Guid.Empty; stopUntil = 0; }
+
+        private void BeginHitStop(AttackRelease release, float seconds)
+        {
+            if (!SupportsLocalHitStop || !IsAvailable ||
+                !hitStop.Request(release.ParentExecutionId, seconds, Time.frameCount, Time.unscaledTimeAsDouble))
+                return;
+            stopRelease = release.ActionId;
+            stopParent = release.ParentExecutionId;
+            stopEmission = release.EmissionIndex;
+            TraceHitStop("卡肉请求", $"{hitStop.RequestedSeconds * 1000:0.#} ms");
+        }
+
+        private void AdvanceHitStop()
+        {
+            if (!SupportsLocalHitStop)
+            {
+                ResetHitStop();
+                return;
+            }
+            var edge = hitStop.Advance(Time.frameCount, Time.unscaledTimeAsDouble);
+            if (edge == HitStopEdge.Started)
+                TraceHitStop("卡肉开始", $"未缩放时钟 {hitStop.StartedAt:F3} s");
+            if (edge == HitStopEdge.Ended)
+                TraceHitStop("卡肉结束", $"实测 {(hitStop.FinishedAt - hitStop.StartedAt) * 1000:0.#} ms / {hitStop.Frames} 帧");
+        }
+
+        internal void CancelHitStopForParent(Guid parent)
+        {
+            if (hitStop.Cancel(parent)) TraceHitStop("卡肉取消", "动作撤销");
+        }
+        internal void ResetHitStop()
+        {
+            bool active = hitStop.Parent != Guid.Empty;
+            hitStop.Reset();
+            if (active) TraceHitStop("卡肉取消", "本体状态变更");
+        }
+
+        private void TraceHitStop(string label, string detail)
+        {
+            LastHitStop = label + " · " + detail;
+            var trace = CombatTraceProbe.For(this) ?? CombatTraceProbe.ForExecution(this, stopParent);
+            trace?.Note("反馈", label, detail, stopRelease, stopParent, stopEmission, Health?.Id);
+        }
         public Health Health { get; private set; }
         public bool IsAlive => Health != null && Health.Current>0;
         public bool IsHitReacting => hitReacting && IsAlive;
@@ -108,6 +169,7 @@ namespace Ossastra.Combat
 
         private void Update()
         {
+            AdvanceHitStop();
             if (InHitStop && hitReacting) hitReactUntil += Time.deltaTime;
             if (hitReacting && Time.time >= hitReactUntil) EndHitReaction();
         }
