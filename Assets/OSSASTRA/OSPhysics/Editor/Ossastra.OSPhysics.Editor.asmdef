@@ -1,0 +1,12 @@
+{
+    "name": "Ossastra.OSPhysics.Editor",
+    "rootNamespace": "Ossastra.OSPhysics.Editor",
+    "includePlatforms": ["Editor"],
+    "references": [
+        "Ossastra.OSPhysics.Core",
+        "Ossastra.OSPhysics.Config",
+        "Ossastra.OSPhysics.Visual",
+        "Ossastra.OSPhysics.Runtime"
+    ],
+    "autoReferenced": false
+}

@@ -1,0 +1,75 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e49063a770a5aa3439e0e1364a786815, type: 3}
+  m_Name: MatterCatalog_SAMPLE
+  m_EditorClassIdentifier: 
+  entries:
+  - kind: 1
+    phase: 1
+    density: 128
+    downwardRate: 255
+    lateralRate: 104
+    ignitionHeat: 0
+    burnRate: 0
+    heatSpread: 0
+    ashYield: 0
+    smokePerFuel: 0
+  - kind: 2
+    phase: 1
+    density: 95
+    downwardRate: 104
+    lateralRate: 42
+    ignitionHeat: 138
+    burnRate: 3
+    heatSpread: 55
+    ashYield: 0
+    smokePerFuel: 6
+  - kind: 3
+    phase: 2
+    density: 230
+    downwardRate: 255
+    lateralRate: 255
+    ignitionHeat: 0
+    burnRate: 0
+    heatSpread: 0
+    ashYield: 0
+    smokePerFuel: 0
+  - kind: 4
+    phase: 0
+    density: 70
+    downwardRate: 0
+    lateralRate: 0
+    ignitionHeat: 108
+    burnRate: 8
+    heatSpread: 55
+    ashYield: 35
+    smokePerFuel: 4
+  - kind: 5
+    phase: 0
+    density: 176
+    downwardRate: 0
+    lateralRate: 0
+    ignitionHeat: 196
+    burnRate: 4
+    heatSpread: 64
+    ashYield: 95
+    smokePerFuel: 8
+  - kind: 6
+    phase: 2
+    density: 158
+    downwardRate: 255
+    lateralRate: 255
+    ignitionHeat: 0
+    burnRate: 0
+    heatSpread: 0
+    ashYield: 0
+    smokePerFuel: 0
