@@ -11,6 +11,8 @@ namespace Ossastra.Combat
     public sealed class CombatStatusEffects:MonoBehaviour
     {
         [SerializeField,Range(0,1)] private float impactWeight=1;
+        // 旧资产的受推倍率可供非打断运动读取；零仍表示免疫。
+        internal float ImpactWeight => Mathf.Clamp01(impactWeight);
         private readonly CombatStatusState state=new CombatStatusState();
         private Vector3 knockVelocity,frameVelocity;
         private float knockRemaining;

@@ -173,9 +173,16 @@ namespace Ossastra.Enemies
             tactics.Observe(fact.Kind, now);
         }
 
+        internal Ossastra.Combat.ActionImpactMotor Impact { get; set; }
+        private bool movedThisTick;
+
         public void Move(float delta)
         {
-            if (body != null && body.enabled && delta > 0) tactics.Move(SimulationTime, delta);
+            if (body == null || !body.enabled || delta <= 0) return;
+            movedThisTick = false;
+            tactics.Move(SimulationTime, delta);
+            // 个别蓄力阶段没有自愿运动，仍由同一个 Step 提交目标受击命令。
+            if (!movedThisTick && Impact && Impact.HasMotion) Step(Vector3.zero, delta);
         }
 
         /// <summary>研究场触发原作爬虫对既成环境声音或演奏事件的反应。</summary>
@@ -228,7 +235,23 @@ namespace Ossastra.Enemies
         private CollisionFlags Step(Vector3 velocity, float delta)
         {
             MoveDirection = velocity.sqrMagnitude > .001f ? velocity.normalized : Vector3.zero;
-            return body.Move(velocity * delta);
+            movedThisTick = true;
+            return ApplyStep(velocity, delta);
+        }
+
+        internal void StepImpactOnly(float delta)
+        {
+            if (body && body.enabled && Impact && Impact.HasMotion && delta > 0) ApplyStep(Vector3.zero, delta);
+        }
+
+        private CollisionFlags ApplyStep(Vector3 velocity, float delta)
+        {
+            if (!Impact || !Impact.HasMotion) return body.Move(velocity * delta);
+            var before = transform.position;
+            var requested = Impact.EnemyStep(velocity, delta, 22f);
+            var collision = Impact.MoveBody(body, requested);
+            Impact.ObserveEnemy(requested, transform.position - before, collision);
+            return collision;
         }
 
         private void Glide(Vector3 goal, float speed, float delta)

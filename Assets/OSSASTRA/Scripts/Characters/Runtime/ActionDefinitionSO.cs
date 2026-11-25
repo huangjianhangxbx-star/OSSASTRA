@@ -18,6 +18,8 @@ namespace Ossastra.Characters
     [CreateAssetMenu(menuName="OSSASTRA/Actions/Action Definition")]
     public sealed class ActionDefinitionSO:ScriptableObject
     {
+        [Tooltip("新词条在下次动作接受时冻结；旁路保留原伤害、费用及能力内在运动。")]
+        public ActionEffectList effects = new ActionEffectList();
         public string definitionId;
         [HideInInspector] public string animationKey; // 历史资产读取兼容；正式作者只维护animationLogicId。
         [Tooltip("正式动画逻辑ID；animationKey仅保留未迁移旧资产的读取兼容。")]

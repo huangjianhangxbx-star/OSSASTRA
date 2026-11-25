@@ -446,7 +446,7 @@ namespace Ossastra.Characters
             Guid id;
             if(compiled.executor.UsesBodyAction)
             {
-                if(!owner.TryAbilityBodyAction(compiled.animation,source,"ability:"+compiled.id,compiled.cost,out id,()=>port.TryReserve(reservation),port.CancelReservation,executor.InitialPhase,animationPreparation,executor.IsAttack))return RejectReserved(owner.LastFact);
+                if(!owner.StateArbitrator.Combat.TryAbilityBodyAction(compiled.animation,source,"ability:"+compiled.id,compiled.cost,out id,()=>port.TryReserve(reservation),port.CancelReservation,executor.InitialPhase,animationPreparation,executor.IsAttack,compiled.author,direction,port.InstanceId))return RejectReserved(owner.LastFact);
             }
             else
             {
@@ -454,6 +454,8 @@ namespace Ossastra.Characters
                 if(!owner.Actions.TryCommit(request,compiled.cost,()=>port.TryReserve(reservation)?request.RequestId:Guid.Empty,out var reason))return RejectReserved(reason);
             }
             var context=new AbilityRunContext(owner,compiled,port,id,direction.normalized,landing,Emit,operation,sprite,scale,frozenEffects,releasePayment,source,presentationMainHand);
+            context.impactRun = executor.UsesBodyAction ? owner.StateArbitrator.Combat.ImpactFor(id) :
+                ActionImpactRun.Accept(owner, compiled.author, compiled.author.effects, id, direction, port.InstanceId + "/" + compiled.id);
             context.OpensSwitchLink = source == CharacterActionSource.Player &&
                 compiled.opensSwitchLinkOnRelease && executor.IsAttack;
             if (context.OpensSwitchLink) context.SwitchLinkIdentity = owner.StateArbitrator.Combat.CaptureSwitchIdentity();
@@ -532,7 +534,8 @@ namespace Ossastra.Characters
         private void ReleaseEndedRuns()
         {
             foreach(var run in runs.Where(r=>r.Ended))
-            {runGestures.Remove(run.Context.id);run.Context.NotifyFeedback("end");owner.Vitals?.Recovery?.ReleaseParent(run.Context.id);run.Context.source.CancelReservation();stamina?.CancelReservation(run.Context.releasePaymentId);owner.EndActionExposure(run.Context.id);deliveries.CompleteParent(run.Context.id);}
+            {if (!run.Context.definition.executor.UsesBodyAction) run.Context.impactRun?.End();
+                runGestures.Remove(run.Context.id);run.Context.NotifyFeedback("end");owner.Vitals?.Recovery?.ReleaseParent(run.Context.id);run.Context.source.CancelReservation();stamina?.CancelReservation(run.Context.releasePaymentId);owner.EndActionExposure(run.Context.id);deliveries.CompleteParent(run.Context.id);}
             runs.RemoveAll(r=>r.Ended);
         }
         private void Emit(AbilityRunContext context,AbilityEmission emission)
@@ -568,7 +571,7 @@ namespace Ossastra.Characters
                 receipts=>{LastResult="接触 "+receipts.Count+" #"+context.id.ToString("N");context.onResolved?.Invoke(emission.Index,channel,receipts);
                     PublishFeedback(new AbilityFeedbackFact(context.id,definitionId,sourceInstanceId,receipts.Any(r=>r.Reason==HitReason.Applied)?"hit":"miss",landing,
                         emission.Index,channel,deliveryMode,requestSource,operation));},context.projectileSprite,context.projectileScale,context.definition.reclaimBudget,context.definition.reclaimRate,
-                hitStop: context.hitStop, channel: channel);
+                hitStop: context.hitStop, channel: channel, bindRelease: context.impactRun == null ? null : context.impactRun.Bind);
             if (emitted)
             {
                 EmittedCount++;
@@ -600,7 +603,7 @@ namespace Ossastra.Characters
             }
             return true;
         }
-        public void CancelPending(string reason){foreach(var run in runs){if(!run.Ended)run.Context.NotifyFeedback("cancel");run.Cancel();stamina?.CancelReservation(run.Context.releasePaymentId);owner?.EndActionExposure(run.Context.id);}foreach(var binding in bindings)binding.executor?.StopSource(binding.source);}
+        public void CancelPending(string reason){foreach(var run in runs){run.Context.impactRun?.End();if(!run.Ended)run.Context.NotifyFeedback("cancel");run.Cancel();stamina?.CancelReservation(run.Context.releasePaymentId);owner?.EndActionExposure(run.Context.id);}foreach(var binding in bindings)binding.executor?.StopSource(binding.source);}
         private void OnDisable()
         {if(owner!=null)foreach(var run in runs)if(run.Context.definition.executor.UsesBodyAction)owner.CancelOwnedMainAction(run.Context.id,"ability-disabled");CancelPending("disabled");equipment?.State?.RightRuntime.ShotEnhancements.Clear();deliveries.Clear();iceWorld?.Dispose();iceWorld=null;rocketMarks.Clear();rocketDirectReadyAt.Clear();if(owner!=null)ReleaseEndedRuns();}
     }

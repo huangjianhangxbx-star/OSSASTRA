@@ -10,6 +10,7 @@ namespace Ossastra.Enemies
     public sealed class EnemyMovement : MonoBehaviour,IEnemyMovement
     {
         [SerializeField,Min(0)] private float speed=1.8f,groundStick=2;
+        internal Ossastra.Combat.ActionImpactMotor Impact { get; set; }
         private CharacterController body;
         private Ossastra.Combat.CombatStatusEffects statusEffects;
         public Vector3 Velocity { get; private set; }
@@ -24,7 +25,13 @@ namespace Ossastra.Enemies
             var velocity=Vector3.ClampMagnitude(direction,1)*speed;
             if(statusEffects!=null)velocity=statusEffects.HasForcedMotion?statusEffects.ForcedVelocity:
                 statusEffects.BlocksIntent?Vector3.zero:velocity*statusEffects.SpeedScale;
-            var collision=body.Move((velocity+Vector3.down*groundStick)*delta);
+            velocity += Vector3.down * groundStick;
+            if (Impact && Impact.HasMotion && statusEffects != null &&
+                (statusEffects.HasForcedMotion || statusEffects.BlocksIntent)) Impact.ClearMotion();
+            bool impact = Impact && Impact.HasMotion;
+            var requested = impact ? Impact.EnemyStep(velocity, delta, 22f) : velocity * delta;
+            var collision = impact ? Impact.MoveBody(body, requested) : body.Move(requested);
+            if (impact) Impact.ObserveEnemy(requested, transform.position - before, collision);
             if((collision&CollisionFlags.Sides)!=0&&statusEffects!=null&&statusEffects.HasForcedMotion)statusEffects.StopForcedMotion();
             var displacement=transform.position-before;displacement.y=0;Velocity=displacement/delta;
         }

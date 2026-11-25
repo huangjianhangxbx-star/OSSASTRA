@@ -12,6 +12,15 @@ namespace Ossastra.Characters
  public sealed partial class CharacterCombatStateMachine:CharacterStateMachine,IParallelCharacterStateMachine
  {
   private BasicActionRuntime runtime;
+  private ActionImpactRun impactRun;
+  internal ActionImpactRun ImpactFor(Guid id) => impactRun?.Id == id ? impactRun : null;
+  internal void OnImpactSpine(Guid action, Guid phase, string eventName)
+  {
+      if (owner.IsSimulationSuspended || runtime.ActionId != action || phase == Guid.Empty ||
+          !(owner.StatePresentation is Ossastra.CharacterAnimation.CharacterAnimationController controller) ||
+          controller.CapturedPhaseId != phase) return;
+      ImpactFor(action)?.Spine(eventName);
+  }
   private BasicAttackDefinition definition,secondDefinition;
   private BasicAttackDefinition[] configuredAttacks;
   private BasicChainState chain;
@@ -71,7 +80,7 @@ namespace Ossastra.Characters
   }
   public void SuppressInput()=>intent.SuppressUntilRelease();
   public void OnHitReceipt(Guid id,bool applied){if(!autonomousAction)chain?.Hit(id,applied);}
-  public void Dispose(){if(hitReceipts!=null)hitReceipts.Resolved-=OnHitReceipt;hitReceipts=null;}
+  public void Dispose(){impactRun?.End();impactRun=null;if(hitReceipts!=null)hitReceipts.Resolved-=OnHitReceipt;hitReceipts=null;}
   public void RequestInput(CharacterInputFrame frame)
   {
             var pressed=frame.hasAttackEdges?intent.Observe(frame.attackHeld,frame.attackPressed):intent.Observe(frame.attackHeld);
@@ -181,6 +190,7 @@ namespace Ossastra.Characters
                         if (delivered) RecordBasicRelease(fact.ActionId);
                         return;
                     }
+                    ImpactFor(fact.ActionId)?.Bind(fact.Release, null);
                     if(owner.StateSkills!=null&&owner.StateSkills.TryHandleRelease(fact.Release,releaseDirection))return;
                     if(owner.StateHitResolver is CombatMeleeHit melee)
                         melee.Resolve(fact.Release,releaseDirection,AttackStage);
@@ -208,7 +218,8 @@ namespace Ossastra.Characters
       else if (chain != null && !ChainAvailable) chain.Clear();
       ClearStaleHitStopInput(frame);
   }
-        public void ObserveFact(ActionFact fact)
+        public void ObserveFact(ActionFact fact) => ObserveFact(fact, null);
+        private void ObserveFact(ActionFact fact, string phaseClip)
         {
             if(fact.Kind==ActionFactKind.Accepted)owner.StateVitals?.Recovery?.RetainParent(fact.ActionId);
             LastActionSource=fact.Source;
@@ -216,6 +227,8 @@ namespace Ossastra.Characters
             if (fact.Reason != null) lastFact += " " + fact.Reason;
             if (owner.StateVerboseTrace) Debug.Log("Character " + lastFact, owner);
             owner.StateArbitrator.ObserveCombatEdge();
+            ImpactFor(fact.ActionId)?.Observe(fact, phaseClip);
+            if ((fact.Kind == ActionFactKind.Finished || fact.Kind == ActionFactKind.Cancelled) && impactRun?.Id == fact.ActionId) impactRun = null;
             owner.StateAbilities?.ObserveFact(fact);
             owner.StateMainAction?.ObserveFact(fact);
             ObserveSwitchActionFact(fact);
@@ -247,7 +260,7 @@ namespace Ossastra.Characters
             if(reason!=null)return false;
             return !(owner.StatePresentation is ICharacterPreparedAnimation validator)||validator.CanCapturePhase(phase,out reason);
         }
-        internal bool TryAbilityBodyAction(ActionDefinitionSO config,CharacterActionSource source,string label,float cost,out Guid actionId,Func<bool> prepareSource=null,Action rollbackSource=null,ConfiguredActionSnapshot phase=null,CharacterAnimationPreparation? preparation=null,bool isAttack=true)
+        internal bool TryAbilityBodyAction(ActionDefinitionSO config,CharacterActionSource source,string label,float cost,out Guid actionId,Func<bool> prepareSource=null,Action rollbackSource=null,ConfiguredActionSnapshot phase=null,CharacterAnimationPreparation? preparation=null,bool isAttack=true,AbilityDefinitionSO ability=null, Vector3? effectAim=null, string equipmentSource=null)
         {
             actionId=Guid.Empty;if(config==null||!owner.StateReady)return false;
             BasicAttackDefinition frozen;
@@ -269,6 +282,9 @@ namespace Ossastra.Characters
             ClearBuffer();autonomousAction=false;autonomousTarget=null;AttackStage=0;
             BindPostureRecovery(result.Fact.ActionId, phase, config.postureRecoveryEvent);
             (owner.StatePresentation as ICharacterConfiguredAnimation)?.CapturePhase(result.Fact.ActionId,phase);
+            ScriptableObject effectSource = ability != null ? (ScriptableObject)ability : config;
+            impactRun = ActionImpactRun.Accept(owner, effectSource, ability != null ? ability.effects : config.effects,
+                result.Fact.ActionId, effectAim ?? owner.StateOrienter.AttackDirection, (equipmentSource ?? "") + "/" + effectSource.name);
             ObserveFact(result.Fact);owner.StateOrienter.FaceAttackDirection();actionId=result.Fact.ActionId;return true;
         }
         internal bool CancelOwnedMainAction(Guid actionId,string reason)
@@ -357,6 +373,9 @@ namespace Ossastra.Characters
                 if(autonomousAction) { chain?.Clear(); owner.StateCombatBrain.OnAccepted(); owner.StateOrienter.OrientTowards(aiTarget.transform.position); }
                 else chain?.Accepted(stage,request.Fact.ActionId,runtime.SimulationTime,selected.AttackReadyAt,selected.EventDriven);
                 TrackBasicAttack(request.Fact.ActionId, aiTarget == null);
+                var effectDefinition = actionConfig;
+                impactRun = ActionImpactRun.Accept(owner, effectDefinition, effectDefinition?.effects, request.Fact.ActionId,
+                    owner.StateOrienter.AttackDirection, $"{owner.StateEquipment?.State?.RightInstanceId}/段{stage}", prepared?.Stage.DashDistance > 0);
                 ObserveFact(request.Fact); owner.StateOrienter.FaceAttackDirection();
             }
             else lastFact="Rejected: "+request.Reason;
@@ -373,7 +392,7 @@ namespace Ossastra.Characters
             ((ICharacterConfiguredAnimation)owner.StatePresentation).CapturePhase(id, phase);
             // 仅绑定新阶段实际拥有的标记；切相本身继续持有同一份架势恢复锁。
             if (!string.IsNullOrWhiteSpace(postureRecoveryEvent)) BindPostureRecovery(id, phase, postureRecoveryEvent);
-            ObserveFact(fact);
+            ObserveFact(fact, phase.Clip);
             return true;
         }
         public void CancelAction(string reason)

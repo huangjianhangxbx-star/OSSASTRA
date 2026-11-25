@@ -25,6 +25,9 @@ namespace Ossastra.Characters
         public string ActorId { get; }
         public CharacterInputFrame Input => input.CurrentFrame;
         public bool IsMoving => movement.IsMoving;
+        // 实位移供碰撞和相机读取，全身招式窗口只关闭走跑表现资格。
+        internal float ImpactFacing => movement is CharacterMovement motor && motor.Impact ? motor.Impact.LockedFacing : 0f;
+        public bool PresentsLocomotion => IsMoving && ImpactFacing == 0f;
         public bool IsWalking => movement is CharacterMovement motor && motor.IsWalking;
         public OrdinaryJumpPhase JumpPhase => traversal?.JumpPhase ?? OrdinaryJumpPhase.Uninitialized;
         public int JumpRevision => traversal?.AcceptedJumps ?? 0;
@@ -47,7 +50,7 @@ namespace Ossastra.Characters
         public Guid ActionId => actionRuntime.ActionId;
         public bool MoveReady => actionRuntime.MoveReady;
         public bool AttackReady => actionRuntime.AttackReady;
-        public bool RetainsMainPose => actionRuntime.RetainsMainPose(IsMoving) || AbilityMotionActive;
+        public bool RetainsMainPose => actionRuntime.RetainsMainPose(PresentsLocomotion) || AbilityMotionActive;
         public bool AllowsMovement => controlAuthority.Allows(ControlChannel.Move);
         public bool AllowsAttack => controlAuthority.Allows(ControlChannel.Attack);
         public ICharacterStamina Stamina {get;private set;}

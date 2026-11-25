@@ -11,7 +11,7 @@ using ActorRoot = Ossastra.Characters.CharacterRoot;
 
 namespace Ossastra.Development
 {
-    public enum AttackLabTargetMode { Whiff, Fixed, Normal, Guarded, Lethal, Pair }
+    public enum AttackLabTargetMode { Whiff, Fixed, Normal, Guarded, Lethal, Pair, Light, Heavy, Immune }
     public enum AttackLabStation { Flat, Ledge, Wall, LowCeiling, Drop, HighLedge }
 
     [DefaultExecutionOrder(900)]
@@ -232,7 +232,14 @@ namespace Ossastra.Development
             if (movement != null)
             {
                 movement.Stop();
-                movement.enabled = Condition == AttackLabTargetMode.Normal;
+                bool pushTrial = Condition == AttackLabTargetMode.Light || Condition == AttackLabTargetMode.Heavy ||
+                                 Condition == AttackLabTargetMode.Immune;
+                movement.enabled = Condition == AttackLabTargetMode.Normal || pushTrial;
+                var impact = enemy.GetComponent<ActionImpactMotor>();
+                if (impact == null && pushTrial) impact = enemy.gameObject.AddComponent<ActionImpactMotor>();
+                if (impact != null)
+                    impact.PushResistance = Condition == AttackLabTargetMode.Heavy ? .6f :
+                        Condition == AttackLabTargetMode.Immune ? 1f : 0f;
             }
             var controller = enemy.GetComponent<CharacterController>();
             if (controller != null) controller.enabled = false;

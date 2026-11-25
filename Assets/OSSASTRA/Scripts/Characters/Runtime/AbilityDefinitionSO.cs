@@ -32,6 +32,7 @@ namespace Ossastra.Characters
     {
         public readonly string id,displayName,cooldownIdentity;
         public readonly string effectRoot,damageChannel;
+        internal readonly AbilityDefinitionSO author;
         public readonly AbilityPlan plan;
         public readonly float cost,cooldown,holdCost,releaseCost;
         public readonly bool wearOnRelease, opensSwitchLinkOnRelease;
@@ -43,6 +44,7 @@ namespace Ossastra.Characters
         public readonly CompiledAbilityExecutor executor;
         internal CompiledAbility(AbilityDefinitionSO definition)
         {
+            author=definition;
             id=definition.definitionId;displayName=definition.displayName;cooldownIdentity=string.IsNullOrWhiteSpace(definition.cooldownIdentity)?id:definition.cooldownIdentity;cost=definition.acceptCost;cooldown=definition.cooldown;
             holdCost=definition.holdCostPerSecond;releaseCost=definition.releaseCost;wearOnRelease=definition.wearOnRelease;
             opensSwitchLinkOnRelease=definition.opensSwitchLinkOnRelease;
@@ -61,6 +63,8 @@ namespace Ossastra.Characters
     {
         [Tooltip("勾选后，实控角色实际投递的攻击可以开启切换连携。")]
         public bool opensSwitchLinkOnRelease;
+        [Tooltip("新词条在下次动作接受时冻结；旁路保留原伤害、费用及能力内在运动。")]
+        public ActionEffectList effects = new ActionEffectList();
         public const int CurrentSchema=1;
         public int schemaVersion=CurrentSchema;
         public AbilityCooldownPolicy cooldownPolicy;

@@ -1,4 +1,4 @@
-// 横版攻击调试台。窗口只负责测试命令、作者选择与结果呈现，角色和判定仍由正式链推进。
+// 横版攻击调试台。管理试验条件、动作参数与招式效果候选的生命周期，实际运动和判定仍由正式链推进。
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -18,7 +18,7 @@ namespace Ossastra.Development.Editor
     {
         private const string OwnStart = "Ossastra.AttackLab.OwnStart";
         private const string OldStart = "Ossastra.AttackLab.OldStart";
-        private static readonly string[] Conditions = {"空挥", "固定位置受击", "正常受击", "格挡木桩", "致死靶", "双目标"};
+        private static readonly string[] Conditions = {"空挥", "固定位置受击", "正常受击", "格挡木桩", "致死靶", "双目标", "可动轻靶", "可动重靶", "免推靶"};
         private static readonly string[] Stations = {"平地", "平台边缘", "墙边", "低顶", "台边下落", "翻越高台"};
         [Serializable] private sealed class Condition
         {
@@ -45,6 +45,7 @@ namespace Ossastra.Development.Editor
         private AttackLabAnimationCalibration calibration;
         private AttackLabFeedbackPanel feedback;
         private AttackLabMovementPanel movement;
+        private AttackLabImpactPanel impact;
         private ActorRoot sceneMovementActor;
         private int workMode;
 
@@ -70,6 +71,8 @@ namespace Ossastra.Development.Editor
 
         private void OnDisable()
         {
+            impact?.Dispose();
+            impact = null;
             calibration?.Dispose();
             feedback?.Dispose();
             feedback = null;
@@ -130,6 +133,7 @@ namespace Ossastra.Development.Editor
                     if (swingView != null) previousSwingSuppression = swingView.SuppressLabSwing;
                 }
             }
+            impact?.Observe(session);
             if (session == null) return;
             movement?.Observe(session);
             feedback?.Observe(session);
@@ -161,6 +165,8 @@ namespace Ossastra.Development.Editor
         {
             if (change == PlayModeStateChange.ExitingPlayMode)
             {
+                impact?.Dispose();
+                impact = null;
                 ReleaseInput();
                 RestoreSwing();
                 feedback?.Dispose();
@@ -216,7 +222,7 @@ namespace Ossastra.Development.Editor
 
         private void OnGUI()
         {
-            workMode = GUILayout.Toolbar(workMode, new[] { "试玩与对照", "动画与事件", "命中与受击", "移动与翻越", "运动接触" });
+            workMode = GUILayout.Toolbar(workMode, new[] { "试玩与对照", "动画与事件", "命中与受击", "移动与翻越", "运动接触", "招式效果" });
             if (workMode == 1)
             {
                 calibration ??= new AttackLabAnimationCalibration();
@@ -251,6 +257,17 @@ namespace Ossastra.Development.Editor
                 return;
             }
 
+            if (workMode == 5)
+            {
+                DrawActors();
+                DrawLoadout();
+                session.Condition = (AttackLabTargetMode)EditorGUILayout.Popup("目标条件", (int)session.Condition, Conditions);
+                session.Station = (AttackLabStation)EditorGUILayout.Popup("场地", (int)session.Station, Stations);
+                impact ??= new AttackLabImpactPanel();
+                impact.Draw(session, ResetImpactTrial);
+                if (!string.IsNullOrEmpty(note)) EditorGUILayout.HelpBox(note, MessageType.Info);
+                return;
+            }
             GUILayout.Label(session.Actor.ActorId + "   /   " + session.WeaponLabel, EditorStyles.boldLabel);
             EditorGUILayout.LabelField("试验 " + session.Generation + "   ·   " + session.Version + "   ·   " + session.SkillLabel, EditorStyles.wordWrappedMiniLabel);
             tab = GUILayout.Toolbar(tab, new[] {"试玩与记录", "参数与预设"});
@@ -449,6 +466,16 @@ namespace Ossastra.Development.Editor
             session.EnemyAttacks = value.enemyAttacks;
             if (!string.IsNullOrEmpty(value.observedSkill) && session.SelectSkillSlot(value.observedSlot))
                 tuning.ObservedSkillSlot = session.SkillSlot;
+        }
+
+        private bool ResetImpactTrial(string version)
+        {
+            // 清理原参数页的覆盖，确保 A/B 只比较这一个招式的效果。
+            tuning.Bind(session.Actor);
+            if (!tuning.CanApply(false, out note)) return false;
+            if (!session.ResetTrial(version)) { note = session.Status; return false; }
+            candidate = false;
+            return tuning.ApplyAfterReset(session.Actor, false, out note);
         }
 
         private void StartTrial(bool useCandidate)

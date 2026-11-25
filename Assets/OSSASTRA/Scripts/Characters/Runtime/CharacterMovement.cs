@@ -40,6 +40,8 @@ namespace Ossastra.Characters
         [SerializeField, Min(.01f)] private float speed = 3;
         [SerializeField, Min(.01f)] private float groundStick = 2;
         [SerializeField] private CharacterJumpProfile jumpProfile;
+        // 招式状态只生成请求，本运动器仍是玩家碰撞体的唯一提交者。
+        internal Ossastra.Combat.ActionImpactMotor Impact { get; set; }
         private CharacterController body;
         private CharacterDataBus dataBus;
         private Ossastra.Combat.CombatStatusEffects statusEffects;
@@ -264,6 +266,13 @@ namespace Ossastra.Characters
             bool footstepAllowed = allowed && !abilityMotion.HasValue && !reactionMotion.HasValue && !switchRetreat.HasValue && !traversalMotion.ConstrainedPose &&
                 dataBus.MotionOverride?.IsActive != true && statusEffects?.HasForcedMotion != true &&
                 statusEffects?.BlocksIntent != true;
+            bool acceptsImpact = !reactionMotion.HasValue && !abilityMotion.HasValue && !switchRetreat.HasValue &&
+                !traversalMotion.ConstrainedPose && !traversalMotion.X.HasValue && !traversalMotion.Y.HasValue &&
+                dataBus.MotionOverride?.IsActive != true && statusEffects?.HasForcedMotion != true && statusEffects?.BlocksIntent != true;
+            bool hasImpact = Impact && Impact.HasMotion;
+            if (hasImpact && !acceptsImpact) { Impact.ClearMotion(); hasImpact = false; }
+            bool fullBody = Impact && Impact.LockedFacing != 0;
+            footstepAllowed &= !fullBody && !hasImpact;
             partyContacts?.Prepare(body);
             LastAllowed = allowed;
             bool useWalkSpeed = footstepAllowed && !traversalMotion.X.HasValue && dataBus.Input.move.x != 0f &&
@@ -292,20 +301,25 @@ namespace Ossastra.Characters
                 horizontal.y = horizontal.z = 0f;
                 if (traversalMotion.X.HasValue) horizontal.x = traversalMotion.X.Value;
             }
+            float inputSpeed = acceptsImpact ? horizontal.x : 0;
+            float? launch = null;
+            Vector2 effectStep = hasImpact ? Impact.Step(delta, out launch) : Vector2.zero;
+            horizontal.x += effectStep.x / delta;
+            if (launch.HasValue) VerticalSpeed = launch.Value;
             if (!abilityDrive)
             {
                 if (command == JumpVerticalCommand.Sustain) VerticalSpeed = profile.jumpSpeed;
                 if (command == JumpVerticalCommand.Cut && VerticalSpeed > 0f)
                     VerticalSpeed *= profile.releaseSpeedScale;
                 bool stayingGrounded = Grounded && command == JumpVerticalCommand.Gravity &&
-                    reactionMotion?.LaunchVertical.HasValue != true;
+                    reactionMotion?.LaunchVertical.HasValue != true && !launch.HasValue;
                 float acceleration = profile.gravity * Mathf.Clamp01(gravityScale);
                 VerticalSpeed = stayingGrounded ? -groundStick
                     : Mathf.Max(-profile.fallSpeed, VerticalSpeed - acceleration * delta);
                 if (traversalMotion.Y.HasValue) VerticalSpeed = traversalMotion.Y.Value;
             }
             float downBeforeContact = Mathf.Max(0f, -VerticalSpeed);
-            float physicalVertical = VerticalSpeed;
+            float physicalVertical = VerticalSpeed + effectStep.y / delta;
             if (switchRetreat.HasValue && Mathf.Abs(switchRetreat.Value.x) > .0001f)
                 physicalVertical = (switchRetreat.Value.y - .003f) / delta;
             var supportDisplacement = groundedBefore && movingSupport != null && movingSupport.isActiveAndEnabled &&
@@ -315,7 +329,7 @@ namespace Ossastra.Characters
             horizontal.x += supportDisplacement.x / delta;
             physicalVertical += supportDisplacement.y / delta;
             var terrain = MoveOnce(horizontal, physicalVertical, delta, true, out var attempted,
-                traversalMotion.ConstrainedPose, abilityDrive);
+                traversalMotion.ConstrainedPose, abilityDrive, hasImpact);
             bool sweptGround = terrain.collider != null && terrain.normal.y >= Mathf.Cos(body.slopeLimit * Mathf.Deg2Rad);
             if (sweptGround && stepSupport == null &&
                 Vector3.Dot(transform.position - before, attempted.normalized) + .002f >= terrain.distance)
@@ -341,6 +355,8 @@ namespace Ossastra.Characters
             bool hitHead = (LastCollision & CollisionFlags.Above) != 0 || sweptHead;
             if (Grounded || hitHead && VerticalSpeed > 0f) VerticalSpeed = 0f;
 
+            if (hasImpact)
+                Impact.Observe((horizontal + Vector3.up * physicalVertical) * delta, transform.position - before, Grounded);
             movingSupport = Grounded && stepSupport != null ? stepSupport.GetComponentInParent<SideViewMovingSupport>() : null;
             if (movingSupport != null) lastMovingSupportPosition = movingSupport.transform.position;
             previousPose = before;
@@ -358,6 +374,7 @@ namespace Ossastra.Characters
             if (SideStepCompleted != null)
             {
                 var driver = SideMovementDriver.Locomotion;
+                if (hasImpact || Impact && Impact.HasInputWindow) driver = SideMovementDriver.ActionImpact;
                 if (reactionMotion.HasValue) driver = SideMovementDriver.Reaction;
                 else if (abilityMotion.HasValue) driver = abilityDrive ? SideMovementDriver.Ability : SideMovementDriver.Rebound;
                 else if (switchRetreat.HasValue) driver = SideMovementDriver.SwitchRetreat;
@@ -369,7 +386,7 @@ namespace Ossastra.Characters
                     landingSpeed, latestPose, Grounded ? stepSupport : null, Grounded ? stepSupportPoint : null,
                     launched ? lastGroundSupport : null, launched ? lastGroundSupportPoint : null,
                     before, driver, hitHead, sideBlocked, movingSupport != null || supportDisplacement.sqrMagnitude > .000001f,
-                    horizontal.x, VerticalSpeed, dataBus.Input.move.x));
+                    horizontal.x, VerticalSpeed, dataBus.Input.move.x, inputSpeed, effectStep.x / delta));
             }
 
             if (!abilityMotion.HasValue) return default;
@@ -403,8 +420,10 @@ namespace Ossastra.Characters
         {
             var move = allowed ? Vector2.ClampMagnitude(dataBus.Input.move, 1) : Vector2.zero;
             // 平时与闪避共同走这一处Move；覆盖速度仍接受本体移动权限和真实墙体碰撞。
+            float locomotionScale = abilities?.LocomotionScale ?? 1f;
+            if (Impact && IsSideView) locomotionScale = Impact.InputScale(move.x, locomotionScale);
             var velocity=allowed&&dataBus.MotionOverride!=null&&dataBus.MotionOverride.IsActive
-                ?dataBus.MotionOverride.MotionVelocity:new Vector3(move.x,0,move.y)*runSpeed*(abilities?.LocomotionScale??1);
+                ?dataBus.MotionOverride.MotionVelocity:new Vector3(move.x,0,move.y)*runSpeed*locomotionScale;
             // 受迫位移优先于自愿移动，但仍只经过本方法一次Move和墙体碰撞。
             if(statusEffects!=null)velocity=statusEffects.HasForcedMotion?statusEffects.ForcedVelocity:
                 statusEffects.BlocksIntent?Vector3.zero:velocity*statusEffects.SpeedScale;
@@ -412,7 +431,7 @@ namespace Ossastra.Characters
         }
 
         private RaycastHit MoveOnce(Vector3 velocity, float vertical, float delta, bool sideView,
-            out Vector3 attempted, bool captureTraversalObstacle = false, bool clipAbilityDrive = false)
+            out Vector3 attempted, bool captureTraversalObstacle = false, bool clipAbilityDrive = false, bool applyImpact = false)
         {
             RequestedVelocity=velocity;
             var before = transform.position;
@@ -430,7 +449,7 @@ namespace Ossastra.Characters
             stepSupportPoint = null;
             movingSideView = sideView;
             var collision = CollisionFlags.None;
-            try { collision = body.Move(displacementToMove); }
+            try { collision = applyImpact ? Impact.MoveBody(body, displacementToMove) : body.Move(displacementToMove); }
             finally { movingSideView = false; }
             LastCollision = collision;
             if(((collision&CollisionFlags.Sides)!=0||LastEnvironmentSideBlocked)&&statusEffects!=null&&statusEffects.HasForcedMotion)statusEffects.StopForcedMotion();
@@ -530,6 +549,7 @@ namespace Ossastra.Characters
         /// <summary>只清运动事实，不Move、不改坐标；死亡/禁用路径也必须形成真实退出边沿。</summary>
         public void Stop()
         {
+            Impact?.ResetState();
             ClearMovementFacts();
             VerticalSpeed = 0;
             Grounded = false;

@@ -67,7 +67,7 @@ namespace Ossastra.Combat
         {if(!activeParents.Contains(parent)&&!flights.Any(f=>f.parent==parent))emitted.RemoveWhere(key=>key.Item1==parent);}
         public int InFlightCount=>flights.Count;
         public int ResolvedCount {get;private set;}
-        public bool Emit(CombatVitals source,Guid parent,int index,DeliveryParameters config,int damage,float posture,Vector3 origin,Vector3 direction,Vector3 landing,Func<bool> valid,Action<IReadOnlyList<HitOutcome>> resolved,Sprite sprite=null,float scale=.25f,double reclaimBudget=.05,double reclaimRate=.5,int basicAttackStage=0,AttackHitStop hitStop=default,string channel=null)
+        public bool Emit(CombatVitals source,Guid parent,int index,DeliveryParameters config,int damage,float posture,Vector3 origin,Vector3 direction,Vector3 landing,Func<bool> valid,Action<IReadOnlyList<HitOutcome>> resolved,Sprite sprite=null,float scale=.25f,double reclaimBudget=.05,double reclaimRate=.5,int basicAttackStage=0,AttackHitStop hitStop=default,string channel=null,Action<AttackRelease,string> bindRelease=null)
         {
             if(source==null||!source.IsAvailable||parent==Guid.Empty||!activeParents.Contains(parent)||index<0||damage<=0||config==null||valid==null||!valid()||!emitted.Add((parent,index)))return false;
             var plane = CombatSpatialTarget.PlaneFor(source);
@@ -75,6 +75,8 @@ namespace Ossastra.Combat
             var flight=new Flight{source=source,parent=parent,config=config.Freeze(),
                 Geometry=new CombatContactGeometry(plane,origin,travelDirection,travelDirection,basicAttackStage),release=config.mode==DeliveryMode.Sector&&config.activeDuration>0?
                 AttackRelease.ForContactWindow(parent,index,source.Health.Id,damage,posture,reclaimBudget,reclaimRate,hitStop):AttackRelease.ForEmission(parent,index,source.Health.Id,damage,posture,reclaimBudget,reclaimRate,hitStop),origin=origin,landing=landing,direction=travelDirection.normalized,position=origin+Vector3.up*.8f,valid=valid,resolved=resolved,emittedFrame=Time.frameCount,channel=channel};
+            // 取得本次真实释放身份后绑定招式快照；同步射线与扇区可能在本帧立即返回命中。
+            bindRelease?.Invoke(flight.release, channel);
             CombatTraceProbe.For(source,true)?.Note("判定", "发射", config.mode + " · 持续 " + config.activeDuration + " s",
                 flight.release.ActionId, parent, index);
             if(config.mode==DeliveryMode.Sector)

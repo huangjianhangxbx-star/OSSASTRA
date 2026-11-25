@@ -1,0 +1,250 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &-8818584400700752234
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1db120c60ef6b72439007f98c596cf68, type: 3}
+  m_Name: "\u5706\u952F\u6301\u7EED\u6267\u884C\u5668"
+  m_EditorClassIdentifier: 
+  loopAction: {fileID: 1052307344018502088}
+  endAction: {fileID: 6779284264851964351}
+  movementScale: 1
+  walkDuringLoop: 1
+  pulseInterval: 0.2
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 10864447e0a8f6046b2d3ff2b0036e31, type: 3}
+  m_Name: SawSustain
+  m_EditorClassIdentifier: 
+  opensSwitchLinkOnRelease: 0
+  effects:
+    bypass: 0
+    entries:
+    - rid: 5399185409467220002
+    - rid: 5399185409467220003
+  schemaVersion: 1
+  cooldownPolicy: 0
+  definitionId: sample.freycia.saw.sustained
+  displayName: "\u5706\u952F\uFF08\u624B\u611F\u6837\u677F\uFF09"
+  cooldownIdentity: 
+  effectRoot: freycia.saw.sustained
+  damageChannel: melee
+  executor: {fileID: -8818584400700752234}
+  action: {fileID: 1740973939841428590}
+  occupancy: 3
+  acceptCost: 10
+  cooldown: 0.4
+  holdCostPerSecond: 0
+  releaseCost: 0
+  wearOnRelease: 1
+  reclaimBudget: 0.05
+  reclaimRate: 0.5
+  finishAt: 0.4
+  moveReadyAt: 0.4
+  attackReadyAt: 0.4
+  delivery:
+    mode: 0
+    range: 1.8
+    radius: 0.6
+    arc: 100
+    speed: 10
+    flightTime: 0.45
+    collisionRadius: 0.08
+    arcHeight: 1
+    activeDuration: 0
+    followSource: 0
+    collisionLayers:
+      serializedVersion: 2
+      m_Bits: 4294967295
+  releases:
+  - at: 0
+    damage: 12
+    postureImpact: 8
+  references:
+    version: 2
+    RefIds:
+    - rid: 5399185409467220002
+      type: {class: InputMovementScaleEffect, ns: Ossastra.Characters, asm: Assembly-CSharp}
+      data:
+        id: 9935e72f812141ac8c3f33d26181f445
+        enabled: 1
+        trigger: 0
+        frequency: 0
+        spineEvent: 
+        phaseClip: 
+        emissionIndex: -1
+        channel: 
+        onGuard: 0
+        interval: 0.2
+        maxTriggers: 0
+        ground: 0
+        scale: 0.3
+        allowed: 0
+        fullBody: 0
+        endAtMoveReady: 0
+    - rid: 5399185409467220003
+      type: {class: TargetKnockbackEffect, ns: Ossastra.Characters, asm: Assembly-CSharp}
+      data:
+        id: 17ea68f09bfb4da9aea2b4888afc9fc5
+        enabled: 1
+        trigger: 5
+        frequency: 2
+        spineEvent: 
+        phaseClip: 
+        emissionIndex: -1
+        channel: 
+        onGuard: 0
+        interval: 0.2
+        maxTriggers: 0
+        ground: 0
+        distance: 0.02
+        duration: 0.15
+        curve:
+          serializedVersion: 2
+          m_Curve:
+          - serializedVersion: 3
+            time: 0
+            value: 0
+            inSlope: 0
+            outSlope: 1
+            tangentMode: 0
+            weightedMode: 0
+            inWeight: 0
+            outWeight: 0
+          - serializedVersion: 3
+            time: 1
+            value: 1
+            inSlope: 1
+            outSlope: 0
+            tangentMode: 0
+            weightedMode: 0
+            inWeight: 0
+            outWeight: 0
+          m_PreInfinity: 2
+          m_PostInfinity: 2
+          m_RotationOrder: 4
+        awayFromAttacker: 1
+--- !u!114 &1052307344018502088
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5bba4018ccf9dcc4791e5343ec68a44f, type: 3}
+  m_Name: "\u7EF4\u6301"
+  m_EditorClassIdentifier: 
+  effects:
+    bypass: 0
+    entries: []
+  definitionId: sample.freycia.saw.2
+  animationKey: 
+  animationLogicId: 528
+  eventTimeline: []
+  releaseAt: 0
+  moveReadyAt: 0.06666667
+  attackReadyAt: 0.06666667
+  finishAt: 0.06666667
+  damage: 12
+  postureImpact: 8
+  staminaCost: 0
+  hitStop:
+    configured: 0
+    attackerSeconds: 0
+    receiverSeconds: 0
+    onGuard: 0
+  actionPostureExposure: -1
+  postureRecoveryEvent: 
+  timingEvidence: 
+  references:
+    version: 2
+    RefIds: []
+--- !u!114 &1740973939841428590
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5bba4018ccf9dcc4791e5343ec68a44f, type: 3}
+  m_Name: "\u8D77\u624B"
+  m_EditorClassIdentifier: 
+  effects:
+    bypass: 0
+    entries: []
+  definitionId: sample.freycia.saw.1
+  animationKey: 
+  animationLogicId: 527
+  eventTimeline: []
+  releaseAt: 0
+  moveReadyAt: 0.13333334
+  attackReadyAt: 0.13333334
+  finishAt: 0.13333334
+  damage: 12
+  postureImpact: 8
+  staminaCost: 0
+  hitStop:
+    configured: 0
+    attackerSeconds: 0
+    receiverSeconds: 0
+    onGuard: 0
+  actionPostureExposure: -1
+  postureRecoveryEvent: 
+  timingEvidence: 
+  references:
+    version: 2
+    RefIds: []
+--- !u!114 &6779284264851964351
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5bba4018ccf9dcc4791e5343ec68a44f, type: 3}
+  m_Name: "\u6536\u62DB"
+  m_EditorClassIdentifier: 
+  effects:
+    bypass: 0
+    entries: []
+  definitionId: sample.freycia.saw.3
+  animationKey: 
+  animationLogicId: 529
+  eventTimeline: []
+  releaseAt: 0
+  moveReadyAt: 0.4
+  attackReadyAt: 0.4
+  finishAt: 0.4
+  damage: 12
+  postureImpact: 8
+  staminaCost: 0
+  hitStop:
+    configured: 0
+    attackerSeconds: 0
+    receiverSeconds: 0
+    onGuard: 0
+  actionPostureExposure: -1
+  postureRecoveryEvent: 
+  timingEvidence: 
+  references:
+    version: 2
+    RefIds: []

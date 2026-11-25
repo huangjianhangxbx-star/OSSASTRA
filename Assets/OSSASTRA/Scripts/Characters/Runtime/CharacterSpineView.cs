@@ -103,7 +103,7 @@ namespace Ossastra.Characters
             if(dataBus==null||skeleton==null||skeleton.Skeleton==null||skeleton.AnimationState==null)return;
             // 每帧重新采集，不保留过期请求；Root本帧事实是唯一资格来源。
             intents.Clear();Add(AnimationSemantic.Idle,"movement",Guid.Empty);
-            if(dataBus.IsMoving)Add(AnimationSemantic.Move,"movement",Guid.Empty);
+            if(dataBus.PresentsLocomotion)Add(AnimationSemantic.Move,"movement",Guid.Empty);
             // 恢复门与呈现占用分离；跑步交接不取消主动作或提前开放AttackReady。
             if(dataBus.RetainsMainPose)Add(attackStage==2?AnimationSemantic.BasicAttackSecond:AnimationSemantic.BasicAttack,"action",dataBus.ActionId);
             var motion=dataBus.MotionOverride as ICharacterMotionAnimation;

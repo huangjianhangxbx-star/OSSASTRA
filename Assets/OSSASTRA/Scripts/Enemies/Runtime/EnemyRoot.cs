@@ -118,7 +118,17 @@ namespace Ossastra.Enemies
             statusEffects?.Tick(IsSimulationSuspended?0:Time.deltaTime);
             if(statusEffects!=null&&statusEffects.BlocksIntent)
             {movement?.Tick(Vector3.zero,IsSimulationSuspended?0:Time.deltaTime);return;}
-            if(!attacksEnabled || !focused || applicationPaused || paused || !authority.Allows(ControlChannel.Attack)) {movement?.Stop();return;}
+            if (!focused || applicationPaused || paused || !authority.Allows(ControlChannel.Attack))
+            { movement?.Stop(); return; }
+            if (!attacksEnabled)
+            {
+                // 训练场停用攻击 AI 的可动靶仍沿原运动所有者消费受击请求。
+                if (sideView != null) sideView.StepImpactOnly(Time.deltaTime);
+                else if (viewMovement && viewMovement.Impact && viewMovement.Impact.HasMotion)
+                    viewMovement.Tick(Vector3.zero, Time.deltaTime);
+                else movement?.Stop();
+                return;
+            }
             // 2. 决策资格先于动作请求；Brain不掌握架势数值或第二时钟。
             if(brain==null || !brain.IsAvailable) { Cancel("brain-disabled"); return; }
             brain.Tick(now,Time.deltaTime);
@@ -186,12 +196,13 @@ namespace Ossastra.Enemies
         private void OnStatusControlChanged(){if(statusEffects!=null&&statusEffects.BlocksIntent)Cancel("combat-status");}
         private void OnPostureBroken(string cause)
         {
+            GetComponent<ActionImpactMotor>()?.ClearMotion();
             authority.Block(posture, ControlChannel.Move | ControlChannel.Attack);
             Cancel("posture-broken:" + cause);
         }
         private void OnPostureRecovered() { authority.Release(posture); }
-        private void OnDied(HitOutcome outcome) { statusEffects?.Clear();Cancel("death:"+outcome.ActorId); }
-        private void OnDisable() { vitals?.ResetHitStop(); Cancel("enemy-disabled"); if (posture != null) posture.ResetState(); authority.Release(posture); }
+        private void OnDied(HitOutcome outcome) { GetComponent<ActionImpactMotor>()?.ResetState();statusEffects?.Clear();Cancel("death:"+outcome.ActorId); }
+        private void OnDisable() { GetComponent<ActionImpactMotor>()?.ResetState();vitals?.ResetHitStop(); Cancel("enemy-disabled"); if (posture != null) posture.ResetState(); authority.Release(posture); }
         private void OnApplicationFocus(bool value) { focused=value; if(!value) { vitals?.ResetHitStop(); Cancel("focus-lost"); } }
         private void OnApplicationPause(bool value) { applicationPaused=value; if(value) { vitals?.ResetHitStop(); Cancel("application-paused"); } }
         private void OnDestroy()
@@ -203,7 +214,7 @@ namespace Ossastra.Enemies
             Cancel("destroyed");
         }
         public void RestoreForDevelopment()
-        { PresentationGeneration++; Cancel("development-reset"); vitals.RestoreForDevelopment(); if(posture!=null) posture.ResetState(); brain.ResetDecision(SimulationTime); }
+        { GetComponent<ActionImpactMotor>()?.ResetState();PresentationGeneration++; Cancel("development-reset"); vitals.RestoreForDevelopment(); if(posture!=null) posture.ResetState(); brain.ResetDecision(SimulationTime); }
         public bool RespawnOnRest()
         {
             if (sideView == null || sideView.Kind == SideViewEnemyKind.Mother || vitals == null || vitals.IsAlive) return false;

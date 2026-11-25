@@ -182,7 +182,7 @@ namespace Ossastra.Characters
                 bool mainPose=main&&root.ActionActive&&view.CurrentSource=="action"&&
                     (!(view is Ossastra.CharacterAnimation.CharacterAnimationController controller)||controller.CapturedSource==Ossastra.CharacterAnimation.AnimationIntentSourceStateMachine.MainHand);
                 var semantic=own?(guarding?AnimationSemantic.Guard:AnimationSemantic.BasicAttack):mainPose?view.CurrentSemantic:
-                    view.CurrentSemantic==AnimationSemantic.BasicAttack||view.CurrentSemantic==AnimationSemantic.BasicAttackSecond?(root.DataBus.IsMoving?AnimationSemantic.Move:AnimationSemantic.Idle):view.CurrentSemantic;
+                    view.CurrentSemantic==AnimationSemantic.BasicAttack||view.CurrentSemantic==AnimationSemantic.BasicAttackSecond?(root.DataBus.PresentsLocomotion?AnimationSemantic.Move:AnimationSemantic.Idle):view.CurrentSemantic;
                 ExecutionId=own?execution:mainPose?root.DataBus.ActionId:Guid.Empty;
                 var bodyController=view as A.CharacterAnimationController;
                 ReplayId=ExecutionId!=Guid.Empty&&bodyController!=null&&bodyController.CapturedActionId==ExecutionId?bodyController.CapturedPhaseId:ExecutionId;

@@ -191,7 +191,8 @@ namespace Ossastra.Characters
         }
 
         private bool CanMove() => owner.StateFocused && !owner.IsPaused && owner.DataBus.AllowsMovement &&
-            (owner.DataBus.MoveReady || owner.DataBus.AbilityMotionActive);
+            (owner.DataBus.MoveReady || owner.DataBus.AbilityMotionActive ||
+             owner.CanSimulateIntent && owner.StateMovement != null && owner.StateMovement.Impact && owner.StateMovement.Impact.HasInputWindow);
 
         private bool TryTickSwitchRetreat(CharacterMovement motor, CharacterJumpProfile profile, float step)
         {

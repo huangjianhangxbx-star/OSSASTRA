@@ -97,6 +97,8 @@ namespace Ossastra.CharacterAnimation
                 CustomReleaseSound=signal.Binding.sound?signal.ActionId:Guid.Empty;
                 CustomReleaseEffect=signal.Binding.effect?signal.ActionId:Guid.Empty;
             }
+            if (signal.ActionId != Guid.Empty && root && signal.LifeGeneration == root.LifeGeneration)
+                root.StateArbitrator?.Combat?.OnImpactSpine(signal.ActionId, signal.PhaseId, signal.Name);
             SpineSignal?.Invoke(signal);
             if(signal.Calibrated && signal.Purpose==AnimationSignalPurpose.Effect) EffectRequested?.Invoke(this,signal);
             if(!signal.Calibrated || signal.Purpose!=AnimationSignalPurpose.Marker || signal.ActionId==Guid.Empty)return;
@@ -265,8 +267,8 @@ namespace Ossastra.CharacterAnimation
         private void SubmitMovement()
         {
             // 同一个片段可作临时回退，仍提交有身份的墙边语义，避免零速度被识别为站立。
-            var semantic = bus.IsMoving ? EAnimSemantic.Jog : EAnimSemantic.Idle;
-            if (bus.IsMoving && bus.IsGrounded && bus.IsWalking && config.baseMap.plansMovement.Exists(
+            var semantic = bus.PresentsLocomotion ? EAnimSemantic.Jog : EAnimSemantic.Idle;
+            if (bus.PresentsLocomotion && bus.IsGrounded && bus.IsWalking && config.baseMap.plansMovement.Exists(
                 e => e?.logicID == EAnimationLogicState.Walk && e.plan?.HasOperations == true))
                 semantic = EAnimSemantic.Walk;
             var logic = EAnimationLogicState.None;
@@ -283,7 +285,7 @@ namespace Ossastra.CharacterAnimation
                 }
             }
             bool traversing = logic != EAnimationLogicState.None;
-            Submit(AnimationIntentSourceStateMachine.Movement, semantic, traversing ? 12 : bus.IsMoving ? 10 : 0,
+            Submit(AnimationIntentSourceStateMachine.Movement, semantic, traversing ? 12 : bus.PresentsLocomotion ? 10 : 0,
                 Guid.Empty, logic:logic, replayId:traversing ? bus.TraversalRevision : 0);
             SubmitJump(traversing);
         }

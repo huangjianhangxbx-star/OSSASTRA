@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace Ossastra.Characters
 {
-    public enum SideMovementDriver { Locomotion, Traversal, Ability, Rebound, Reaction, SwitchRetreat }
+    public enum SideMovementDriver { Locomotion, Traversal, Ability, Rebound, Reaction, SwitchRetreat, ActionImpact }
 
     /// <summary>横版运动权威完成的一次物理步。显示插值和音频不会再推进模拟。</summary>
     public readonly struct SideMovementStep
@@ -30,13 +30,15 @@ namespace Ossastra.Characters
         public float ActualHorizontalSpeed => (WorldPosition.x - PreviousWorldPosition.x) / SimulatedSeconds;
         public float VerticalSpeed { get; }
         public float HorizontalInput { get; }
+        public float InputHorizontalSpeed { get; }
+        public float EffectHorizontalSpeed { get; }
 
         internal SideMovementStep(long stepId, long contactEpoch, bool groundedBefore,
             bool groundedAfter, bool launched, bool allowsFootstep, float horizontalDistance,
             float simulatedSeconds, float landingDownwardSpeed, Vector3 worldPosition, Collider supportCollider,
             Vector3? supportPosition, Collider launchSupportCollider, Vector3? launchSupportPosition,
             Vector3 previousWorldPosition, SideMovementDriver driver, bool hitHead, bool horizontalBlocked,
-            bool movingSupport, float requestedHorizontalSpeed, float verticalSpeed, float horizontalInput)
+            bool movingSupport, float requestedHorizontalSpeed, float verticalSpeed, float horizontalInput, float inputHorizontalSpeed = 0, float effectHorizontalSpeed = 0)
         {
             StepId = stepId;
             ContactEpoch = contactEpoch;
@@ -60,6 +62,8 @@ namespace Ossastra.Characters
             RequestedHorizontalSpeed = requestedHorizontalSpeed;
             VerticalSpeed = verticalSpeed;
             HorizontalInput = horizontalInput;
+            InputHorizontalSpeed = inputHorizontalSpeed;
+            EffectHorizontalSpeed = effectHorizontalSpeed;
         }
     }
 }

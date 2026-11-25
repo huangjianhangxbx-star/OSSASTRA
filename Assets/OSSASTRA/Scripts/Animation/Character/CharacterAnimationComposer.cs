@@ -76,7 +76,7 @@ namespace Ossastra.CharacterAnimation
         private string FactsKey()
         {
             var bus=characterRoot.DataBus;
-            return characterRoot.IsAlive+"|"+bus.IsMoving+"|"+bus.Velocity.magnitude.ToString("F2")+"|"+bus.ActionActive+"|"+bus.MoveReady+"|"+bus.AttackReady
+            return characterRoot.IsAlive+"|"+bus.PresentsLocomotion+"|"+bus.Velocity.magnitude.ToString("F2")+"|"+bus.ActionActive+"|"+bus.MoveReady+"|"+bus.AttackReady
                 +"|"+bus.AllowsAttack+"|"+bus.AllowsMovement+"|"+bus.VisualFacingX+"|"+characterRoot.HasPlayerInput+"|"+characterRoot.AttackStage
                 +"|"+characterRoot.Vitals?.Health.Current+"|"+bus.Stamina?.Current
                 +"|"+bus.TraversalMode+"|"+bus.TraversalRevision+"|"+bus.TraversalWallSide;
@@ -123,7 +123,7 @@ namespace Ossastra.CharacterAnimation
                 if(logic==EAnimationLogicState.None){LastResult="缺少语义路由："+intent.semantic;continue;}
                 var raw=intent.frozenPlan?.CloneFor(characterRoot)??configManager.ResolvePlan(logic,context);
                 if(raw==null||!raw.HasOperations){LastResult="缺少有效映射："+logic;continue;}
-                if (intent.frozenPlan != null && context.dataBus.IsMoving && raw.movingLoopClips.Length > 0)
+                if (intent.frozenPlan != null && context.dataBus.PresentsLocomotion && raw.movingLoopClips.Length > 0)
                 {
                     raw.clips.Clear();
                     raw.clips.AddRange(raw.movingLoopClips);

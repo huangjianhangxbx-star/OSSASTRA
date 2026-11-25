@@ -127,10 +127,11 @@ namespace Ossastra.Characters
             if(!string.IsNullOrEmpty(stage.Stage.SourceId)&&!state.Frost.Spend(1,state.EquippedTime))
             {LastResult="拒绝：凿冰释放需要 1 霜寒";return true;}
             var life=generation;var instance=weaponInstance;var t=stage.Phase.Timeline;
+            var impactRun = owner.StateArbitrator.Combat.ImpactFor(id);
             delivered = deliveries.Emit(owner.Vitals,id,fact.Release.EmissionIndex,new DeliveryParameters{mode=DeliveryMode.Sector,range=(float)stage.Stage.Range,arc=(float)stage.Stage.ArcDegrees,
                 activeDuration=stage.ContactDuration,followSource=true},t.Damage,(float)t.PostureImpact,transform.position,direction,transform.position,
                 ()=>this!=null&&isActiveAndEnabled&&owner!=null&&owner.IsAlive&&owner.LifeGeneration==life&&equipment.State.RightInstanceId==instance,
-                receipts=>Resolved?.Invoke(id,receipts.Any(r=>r.Reason==HitReason.Applied)),basicAttackStage:stage.BasicAttackStage,hitStop:fact.Release.HitStop);
+                receipts=>Resolved?.Invoke(id,receipts.Any(r=>r.Reason==HitReason.Applied)),basicAttackStage:stage.BasicAttackStage,hitStop:fact.Release.HitStop,bindRelease:impactRun == null ? null : impactRun.Bind);
             if(!string.IsNullOrEmpty(stage.Stage.SourceId))abilities?.ScheduleIceColumn(id,transform.position,transform.position+direction.normalized*1.5f,stage.Stage.SourceId);
             LastResult="已释放 "+stage.Stage.Id;return true;
         }

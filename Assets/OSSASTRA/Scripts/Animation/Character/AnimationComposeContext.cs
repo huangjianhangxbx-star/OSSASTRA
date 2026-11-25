@@ -29,8 +29,8 @@ namespace Ossastra.CharacterAnimation
             if (root == null || dataBus == null || string.IsNullOrEmpty(key)) return false;
             switch (key)
             {
-                case "IsMoving": case "isMoving": value = dataBus.IsMoving; break;
-                case "currentMoveSpeed": case "Speed": value = dataBus.Velocity.magnitude; break;
+                case "IsMoving": case "isMoving": value = dataBus.PresentsLocomotion; break;
+                case "currentMoveSpeed": case "Speed": value = dataBus.ImpactFacing != 0f ? 0f : dataBus.Velocity.magnitude; break;
                 case "ActionActive": value = dataBus.ActionActive; break;
                 case "MoveReady": value = dataBus.MoveReady; break;
                 case "AttackReady": value = dataBus.AttackReady; break;

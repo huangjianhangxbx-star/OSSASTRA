@@ -68,6 +68,8 @@ namespace Ossastra.Characters
             // 单次闪避是既有强制机动，不用当前摇杆把已接受的闪避反向。
             if(motion is ICharacterMotionAnimation&&motion.IsActive&&TryNormalize(motion.MotionVelocity,out var dodge))
             {SetPresentation(dodge,"闪避受理方向");return;}
+            if (bus.ImpactFacing != 0f)
+            { SetPresentation(Vector3.right * bus.ImpactFacing, "招式微移锁向"); return; }
             bool retain=bus.RetainsMainPose;
             var source=abilities as ICharacterActionDirectionSource;
             if(movementAim&&playerControl)

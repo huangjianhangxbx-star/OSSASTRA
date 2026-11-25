@@ -161,6 +161,7 @@ namespace Ossastra.Characters
                     var damage = Mathf.Max(1, Mathf.RoundToInt((float)Context.effects.Damage(Context.definition.damageChannel, node.Damage)));
                     release = AttackRelease.ForContactWindow(Context.id, 0, Context.owner.ActorId, damage,
                         Context.definition.posture[0], Context.definition.reclaimBudget, Context.definition.reclaimRate, Context.hitStop);
+                    Context.impactRun?.Bind(release, Context.definition.damageChannel);
                     phase = Phase.Diving;
                     CombatContactGateway.PublishSectorRelease(release, Context.owner.Vitals,
                         Geometry(Context.owner.transform.position), config.Height);

@@ -78,7 +78,11 @@ namespace Ossastra.Combat
                     if(!(target is ICombatReclaimPolicy reclaimPolicy)||reclaimPolicy.AllowsReclaim)source?.Recovery?.OnApplied(release,outcome);
                 }
                 if(outcome.Reason==HitReason.Guarded||outcome.Reason==HitReason.Evaded)defenses[target]?.OnDefenseResolved(outcome);
-                if (outcome.HpAfter <= 0 || component == null) continue;
+                if (outcome.HpAfter <= 0 || component == null)
+                {
+                    Ossastra.Characters.ActionImpactRun.Contact(release, source, component, outcome, channel);
+                    continue;
+                }
                 double impact = release.PostureImpact * outcome.PostureScale;
                 foreach (var receiver in component.GetComponents<MonoBehaviour>().OfType<ICombatPostureReceiver>())
                 {
@@ -88,6 +92,8 @@ namespace Ossastra.Combat
                     else if (outcome.PostureScale > 0)
                         receiver.ReceiveImpact(outcome, impact);
                 }
+                // 架势结算优先，普通推移由目标自己的运动器决定是否接受。
+                Ossastra.Characters.ActionImpactRun.Contact(release, source, component, outcome, channel);
             }
             if (source != null && release.HitStop.configured)
                 foreach (var outcome in outcomes)

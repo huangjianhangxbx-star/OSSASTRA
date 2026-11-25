@@ -13,6 +13,7 @@ namespace Ossastra.Characters
 {
     public sealed class AbilityRunContext
     {
+        internal ActionImpactRun impactRun;
         internal bool OpensSwitchLink { get; set; }
         internal SwitchLinkIdentity SwitchLinkIdentity { get; set; }
         public readonly CharacterRoot owner;
