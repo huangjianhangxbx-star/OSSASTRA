@@ -1,3 +1,4 @@
+// 职责：上传只读物质快照、维护旧诊断视图，并向手绘层共享 GPU 纹理和火光区。
 using System;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -5,7 +6,7 @@ using Object = UnityEngine.Object;
 
 namespace Ossastra.OSPhysics
 {
-    public enum MatterDisplay { Natural, Grid, Heat, Collision }
+    public enum MatterDisplay { Natural, Grid, Heat, Collision, Painted, PaintedWorldLight }
 
     [DisallowMultipleComponent]
     [RequireComponent(typeof(MeshFilter), typeof(MeshRenderer))]
@@ -36,6 +37,20 @@ namespace Ossastra.OSPhysics
         private FireRegion[] fires;
         private bool initialUpload;
         private bool useRegionalCopies;
+        private MatterPaintedStage painted;
+        private Vector2 stageOrigin;
+        private float stageCell;
+        private bool paintedFailed;
+        private string paintedError;
+        private MeshRenderer legacy;
+
+        public bool PaintedReady => painted != null;
+        public string PaintedArtStatus => painted?.ArtStatus ?? (paintedError ?? "使用原创配置");
+        public string PaintedLightStatus => painted?.LightStatus ?? "完整 D-New 需要正式角色与合成相机";
+        public bool WorldLightLive => painted != null && painted.SupportsWorldLight;
+        public int PaintedPrivateSlots => painted?.PrivateSlotCount ?? 0;
+        public int PaintedBatchCount => painted?.BatchCount ?? 0;
+        public int PaintedLightMaps => painted?.LightTextureCount ?? 0;
 
         public int LastUploadedChunks { get; private set; }
         public int LocalFireLightCount { get; private set; }
@@ -47,6 +62,9 @@ namespace Ossastra.OSPhysics
             if (!(cell > 0f) || float.IsInfinity(cell)) throw new ArgumentOutOfRangeException(nameof(cell));
             Release();
             world = source;
+            stageOrigin = origin;
+            stageCell = cell;
+            legacy = GetComponent<MeshRenderer>();
             var shader = Resources.Load<Shader>("OSPhysics/MatterSurface");
             if (shader == null || !shader.isSupported)
                 throw new InvalidOperationException("OSPhysics/MatterSurface is unavailable on this renderer.");
@@ -101,8 +119,36 @@ namespace Ossastra.OSPhysics
                 }
                 UploadFireLights();
             }
-            material.SetInt(DisplayId, (int)display);
+            material.SetInt(DisplayId, display > MatterDisplay.Collision ? 0 : (int)display);
             material.SetFloat(SecondsId, time);
+        }
+
+        // 此处共享现有纹理，不分配另一份状态贴图或建立第二个模拟器。
+        public void PresentPainted(Camera camera, MatterDisplay display, MatterPaintStyle style, bool local,
+            MatterPaintLayers layers, float time, float mood, float opacity, float effects, float lampX)
+        {
+            bool usePaint = display == MatterDisplay.Painted || display == MatterDisplay.PaintedWorldLight;
+            if (usePaint && painted == null && !paintedFailed)
+            {
+                try
+                {
+                    var grid = new Vector4(world.Width, world.Height, 1f / world.Width, 1f / world.Height);
+                    painted = new MatterPaintedStage(transform, camera, mesh, stateTexture, grid, stageOrigin, stageCell);
+                }
+                catch (InvalidOperationException e)
+                {
+                    paintedFailed = true;
+                    paintedError = e.Message;
+                    Debug.LogError(e.Message, this);
+                }
+            }
+
+            legacy.enabled = !usePaint || painted == null;
+            if (painted == null) return;
+            painted.SetVisible(usePaint);
+            if (!usePaint) return;
+            painted.ApplyProfile(style, local);
+            painted.Present(time, fireLights, mood, display == MatterDisplay.PaintedWorldLight, layers, opacity, effects, lampX);
         }
 
         private void UploadChunk(int chunkX, int chunkY, int index)
@@ -200,10 +246,16 @@ namespace Ossastra.OSPhysics
                 hideFlags = HideFlags.DontSave
             };
 
+        private void OnDisable() => painted?.SetVisible(false);
+
         private void OnDestroy() => Release();
 
         private void Release()
         {
+            painted?.Dispose();
+            painted = null;
+            paintedFailed = false;
+            paintedError = null;
             DestroyOwned(mesh);
             DestroyOwned(material);
             DestroyOwned(stateTexture);

@@ -1,3 +1,4 @@
+// 职责：维护实验室的固定步进、相机和 Input System 画笔，向旧视图及手绘视图发布同一状态。
 using System;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -22,7 +23,21 @@ namespace Ossastra.OSPhysics
 
         private MatterVisual visual;
         private MatterLabPreset currentPreset;
-        private MatterDisplay display = MatterDisplay.Natural;
+        private MatterDisplay display = MatterDisplay.Painted;
+        private MatterPaintStyle paintStyle = MatterPaintStyle.Ruins;
+        private MatterPaintLayers paintLayers = MatterPaintLayers.All;
+        private float paintMood = 1, waterOpacity = 1, effectGain = 1, lampX;
+        private bool privateArt;
+
+        public MatterPaintStyle PaintStyle => paintStyle;
+        public MatterPaintLayers PaintLayers => paintLayers;
+        public MatterVisual Visual => visual;
+
+        public void SetPaintStyle(MatterPaintStyle style) => paintStyle = style;
+        public void SetPrivateArt(bool enabled) => privateArt = enabled;
+        public void SetPaintMood(float value) => paintMood = Mathf.Clamp(value, 0, 2);
+        public void SetPreviewLamp(float worldX) => lampX = worldX;
+        public void TogglePaintLayer(MatterPaintLayers layer) => paintLayers ^= layer;
         private MatterBrush brush = MatterBrush.Water;
         private Func<int, int, int, int> strokeStamp;
         private double simDebt;
@@ -92,6 +107,8 @@ namespace Ossastra.OSPhysics
 
         private void Update()
         {
+            // 编辑器运行态重载会清空未序列化的网格。重新进入 Play 之前暂停驱动。
+            if (!Ready || visual == null) return;
             float dt = Time.unscaledDeltaTime;
             if (dt > 0f) fps = Mathf.Lerp(fps, 1f / dt, 1f - Mathf.Exp(-dt * 3));
             if (lastScreenSize.x != Screen.width || lastScreenSize.y != Screen.height) FrameWorld();
@@ -109,7 +126,11 @@ namespace Ossastra.OSPhysics
             if (!Running && MatterLabClock.Take(dt, 1, pendingStroke || paintHeld, out brushDebt, brushDebt) > 0)
                 PaintTick();
             if (barrierColliderDirty) RefreshPaintedCollider();
-            visual.Refresh(display, (float)(World.Tick * MatterLabClock.Interval));
+            // 以固定步 Tick 作为纹理和火烟的时钟，暂停后切图仍是同一时刻。
+            float appearanceTime = (float)(World.Tick * MatterLabClock.Interval);
+            visual.Refresh(display, appearanceTime);
+            visual.PresentPainted(labCamera, display, paintStyle, privateArt, paintLayers, appearanceTime,
+                paintMood, waterOpacity, effectGain, lampX);
         }
 
         public void StepOnce()

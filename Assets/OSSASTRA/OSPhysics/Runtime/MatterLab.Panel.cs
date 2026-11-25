@@ -1,3 +1,4 @@
+// 职责：绘制并命中实验室面板。画笔、视图比较、临时颜色值都在运行态，探针只读。
 using System;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -9,7 +10,9 @@ namespace Ossastra.OSPhysics
         Water, Oil, Sand, Grass, Wood, Heat, Erase, Barrier,
         Radius, Strength, Run, Step, Reset, SpeedHalf, SpeedNormal, SpeedFast,
         Gate, Clear, Frame, Flow, Layering, Combustion, Empty,
-        Natural, Grid, Temperature, Collision, Stats
+        Natural, Grid, Temperature, Collision, Stats,
+        Painted, WorldLight, Ruins, Moss, PrivateArt, Background, Body, Trim, Decor, Foreground,
+        PreviewDark, PreviewNormal, PreviewBright, LightLeft, LightRight, WaterOpacity, EffectGain, ResetLook
     }
 
     public sealed partial class MatterLab
@@ -44,10 +47,10 @@ namespace Ossastra.OSPhysics
         private string oilLine;
         private float nextUiRefresh;
 
-        private float PanelScale => Mathf.Clamp(Mathf.Min((Screen.height - 24) / 686f,
+        private float PanelScale => Mathf.Clamp(Mathf.Min((Screen.height - 24) / 885f,
             (Screen.width - 24) / 1020f), .45f, 1.25f);
         public Rect PanelRect => new Rect(Screen.width - 14 - 334 * PanelScale, 12,
-            334 * PanelScale, 686 * PanelScale);
+            334 * PanelScale, 885 * PanelScale);
 
         private Rect Item(float x, float y, float width, float height)
         {
@@ -77,11 +80,29 @@ namespace Ossastra.OSPhysics
                 MatterLabControl.Layering => Item(91, 403, 74, 31),
                 MatterLabControl.Combustion => Item(168, 403, 74, 31),
                 MatterLabControl.Empty => Item(245, 403, 74, 31),
-                MatterLabControl.Natural => Item(14, 473, 74, 31),
-                MatterLabControl.Grid => Item(91, 473, 74, 31),
-                MatterLabControl.Temperature => Item(168, 473, 74, 31),
-                MatterLabControl.Collision => Item(245, 473, 74, 31),
-                MatterLabControl.Stats => Item(14, 564, 306, 25),
+                MatterLabControl.Grid => Item(14, 473, 74, 31),
+                MatterLabControl.Natural => Item(91, 473, 74, 31),
+                MatterLabControl.Temperature => Item(14, 510, 74, 28),
+                MatterLabControl.Collision => Item(91, 510, 74, 28),
+                MatterLabControl.Stats => Item(14, 792, 306, 23),
+                MatterLabControl.Painted => Item(168, 473, 74, 31),
+                MatterLabControl.WorldLight => Item(245, 473, 74, 31),
+                MatterLabControl.Ruins => Item(168, 510, 74, 28),
+                MatterLabControl.Moss => Item(245, 510, 74, 28),
+                MatterLabControl.PrivateArt => Item(14, 544, 306, 28),
+                MatterLabControl.Background => Item(14, 578, 59, 26),
+                MatterLabControl.Body => Item(76, 578, 59, 26),
+                MatterLabControl.Trim => Item(138, 578, 59, 26),
+                MatterLabControl.Decor => Item(200, 578, 59, 26),
+                MatterLabControl.Foreground => Item(262, 578, 58, 26),
+                MatterLabControl.PreviewDark => Item(14, 610, 59, 26),
+                MatterLabControl.PreviewNormal => Item(76, 610, 59, 26),
+                MatterLabControl.PreviewBright => Item(138, 610, 59, 26),
+                MatterLabControl.LightLeft => Item(200, 610, 59, 26),
+                MatterLabControl.LightRight => Item(262, 610, 58, 26),
+                MatterLabControl.WaterOpacity => Item(114, 669, 162, 21),
+                MatterLabControl.EffectGain => Item(114, 697, 162, 21),
+                MatterLabControl.ResetLook => Item(14, 724, 306, 24),
                 _ => default
             };
         }
@@ -100,6 +121,8 @@ namespace Ossastra.OSPhysics
                 {
                     case MatterLabControl.Radius:
                     case MatterLabControl.Strength:
+                    case MatterLabControl.WaterOpacity:
+                    case MatterLabControl.EffectGain:
                         activeSlider = control;
                         UpdateSlider(point);
                         break;
@@ -121,6 +144,26 @@ namespace Ossastra.OSPhysics
                     case MatterLabControl.Temperature: SetDisplay(MatterDisplay.Heat); break;
                     case MatterLabControl.Collision: SetDisplay(MatterDisplay.Collision); break;
                     case MatterLabControl.Stats: showStats = !showStats; break;
+                    case MatterLabControl.Painted: SetDisplay(MatterDisplay.Painted); break;
+                    case MatterLabControl.WorldLight: SetDisplay(MatterDisplay.PaintedWorldLight); break;
+                    case MatterLabControl.Ruins: SetPaintStyle(MatterPaintStyle.Ruins); break;
+                    case MatterLabControl.Moss: SetPaintStyle(MatterPaintStyle.Moss); break;
+                    case MatterLabControl.PrivateArt: SetPrivateArt(!privateArt); break;
+                    case MatterLabControl.Background: TogglePaintLayer(MatterPaintLayers.Background); break;
+                    case MatterLabControl.Body: TogglePaintLayer(MatterPaintLayers.Body); break;
+                    case MatterLabControl.Trim: TogglePaintLayer(MatterPaintLayers.Trim); break;
+                    case MatterLabControl.Decor: TogglePaintLayer(MatterPaintLayers.Decoration); break;
+                    case MatterLabControl.Foreground: TogglePaintLayer(MatterPaintLayers.Foreground); break;
+                    case MatterLabControl.PreviewDark: SetPaintMood(.16f); break;
+                    case MatterLabControl.PreviewNormal: SetPaintMood(1f); break;
+                    case MatterLabControl.PreviewBright: SetPaintMood(1.72f); break;
+                    case MatterLabControl.LightLeft: SetPreviewLamp(-5.1f); break;
+                    case MatterLabControl.LightRight: SetPreviewLamp(5.1f); break;
+                    case MatterLabControl.ResetLook:
+                        paintLayers = MatterPaintLayers.All;
+                        paintMood = waterOpacity = effectGain = 1;
+                        lampX = 0;
+                        break;
                 }
                 return;
             }
@@ -131,8 +174,13 @@ namespace Ossastra.OSPhysics
             if (!activeSlider.HasValue) return;
             Rect rect = ControlRect(activeSlider.Value);
             float percent = Mathf.InverseLerp(rect.xMin, rect.xMax, point.x);
-            if (activeSlider == MatterLabControl.Radius) brushRadius = Mathf.RoundToInt(Mathf.Lerp(1, 16, percent));
-            else brushStrength = Mathf.RoundToInt(Mathf.Lerp(24, 255, percent));
+            switch (activeSlider)
+            {
+                case MatterLabControl.Radius: brushRadius = Mathf.RoundToInt(Mathf.Lerp(1, 16, percent)); break;
+                case MatterLabControl.Strength: brushStrength = Mathf.RoundToInt(Mathf.Lerp(24, 255, percent)); break;
+                case MatterLabControl.WaterOpacity: waterOpacity = Mathf.Lerp(.42f, 1.25f, percent); break;
+                case MatterLabControl.EffectGain: effectGain = Mathf.Lerp(0, 1.6f, percent); break;
+            }
         }
 
         private void OnGUI()
@@ -172,21 +220,44 @@ namespace Ossastra.OSPhysics
             Button(MatterLabControl.Empty, "自由创作", gui, currentPreset == MatterLabPreset.Empty);
 
             Section(448, "画面");
-            Button(MatterLabControl.Natural, "自然", gui, display == MatterDisplay.Natural);
-            Button(MatterLabControl.Grid, "网格", gui, display == MatterDisplay.Grid);
+            bool handPainted = display == MatterDisplay.Painted || display == MatterDisplay.PaintedWorldLight;
+            Button(MatterLabControl.Grid, "A · 网格", gui, display == MatterDisplay.Grid);
+            Button(MatterLabControl.Natural, "B · 程序", gui, display == MatterDisplay.Natural);
+            Button(MatterLabControl.Painted, "C · 手绘", gui, display == MatterDisplay.Painted);
+            Button(MatterLabControl.WorldLight, "世界灯图", gui, display == MatterDisplay.PaintedWorldLight);
             Button(MatterLabControl.Temperature, "温度", gui, display == MatterDisplay.Heat);
             Button(MatterLabControl.Collision, "碰撞", gui, display == MatterDisplay.Collision);
+            Button(MatterLabControl.Ruins, "雾蓝水渠", gui, paintStyle == MatterPaintStyle.Ruins);
+            Button(MatterLabControl.Moss, "苔光幽洞", gui, paintStyle == MatterPaintStyle.Moss);
+            Button(MatterLabControl.PrivateArt, privateArt ? "还原原创配置" : "载入本机素材映射", gui, privateArt, handPainted);
+            Button(MatterLabControl.Background, "背景", gui, HasPaintLayer(MatterPaintLayers.Background), handPainted);
+            Button(MatterLabControl.Body, "石体", gui, HasPaintLayer(MatterPaintLayers.Body), handPainted);
+            Button(MatterLabControl.Trim, "饰边", gui, HasPaintLayer(MatterPaintLayers.Trim), handPainted);
+            Button(MatterLabControl.Decor, "装饰", gui, HasPaintLayer(MatterPaintLayers.Decoration), handPainted);
+            Button(MatterLabControl.Foreground, "前景", gui, HasPaintLayer(MatterPaintLayers.Foreground), handPainted);
+            Button(MatterLabControl.PreviewDark, "偏暗", gui, paintMood < .5f, handPainted);
+            Button(MatterLabControl.PreviewNormal, "正常", gui, paintMood == 1, handPainted);
+            Button(MatterLabControl.PreviewBright, "偏亮", gui, paintMood > 1, handPainted);
+            bool mapSelected = display == MatterDisplay.PaintedWorldLight;
+            Button(MatterLabControl.LightLeft, "左灯", gui, lampX < 0, mapSelected);
+            Button(MatterLabControl.LightRight, "右灯", gui, lampX > 0, mapSelected);
+            string lookStatus = mapSelected ? visual.PaintedLightStatus : (handPainted ? visual.PaintedArtStatus : "诊断与旧程序视图");
+            Write(Item(14, 641, 306, 23), lookStatus, 12, mapSelected && !visual.WorldLightLive ? Amber : Muted);
+            Slider(MatterLabControl.WaterOpacity, "水体透明度", $"{waterOpacity:0.00}×", Mathf.InverseLerp(.42f, 1.25f, waterOpacity), 669);
+            Slider(MatterLabControl.EffectGain, "火烟强度", $"{effectGain:0.00}×", effectGain / 1.6f, 697);
+            Button(MatterLabControl.ResetLook, "恢复画面推荐值", gui);
 
             RefreshLabels(gui, pointer);
             string message = Time.unscaledTime < feedbackUntil && feedback != null ? feedback : probe;
-            Write(Item(14, 515, 306, 37), message, 12, feedback != null && Time.unscaledTime < feedbackUntil ? Amber : Muted);
+            Write(Item(14, 752, 306, 35), message, 12, feedback != null && Time.unscaledTime < feedbackUntil ? Amber : Muted);
             Button(MatterLabControl.Stats, showStats ? "▾ 步时与物质账本" : "▸ 步时与物质账本", gui);
             if (!showStats) return;
-            Write(Item(14, 592, 306, 32), metricsLine, 12, Text);
-            Write(Item(14, 628, 306, 17), waterLine, 11, BrushColors[0]);
-            Write(Item(14, 645, 306, 17), oilLine, 11, BrushColors[1]);
-            Write(Item(14, 663, 306, 16), "账本单位  ·  满格 255  ·  当前场域封闭", 11, Muted);
+            Write(Item(14, 817, 306, 29), metricsLine, 11, Text);
+            Write(Item(14, 848, 306, 15), waterLine, 11, BrushColors[0]);
+            Write(Item(14, 864, 306, 15), oilLine, 11, BrushColors[1]);
         }
+
+        private bool HasPaintLayer(MatterPaintLayers layer) => (paintLayers & layer) != 0;
 
         private void EnsureStyles()
         {
@@ -222,7 +293,7 @@ namespace Ossastra.OSPhysics
             var metrics = World.Metrics;
             string hz = Running ? $"{actualStepRate:0}/{MatterLabClock.Frequency * speed:0} Hz" : "暂停";
             metricsLine = $"{fps:0} FPS    {metrics.StepMilliseconds:0.00} ms/步    {hz}\n";
-            metricsLine += $"活跃 {metrics.ActiveChunks} 块 · {metrics.ActiveCells:N0}/{metrics.TotalCells:N0} 格";
+            metricsLine += $"活跃 {metrics.ActiveChunks} 块 · 上传 {visual.LastUploadedChunks} · 绘制 {visual.PaintedBatchCount} · 灯图 {visual.PaintedLightMaps}";
             waterLine = Ledger("水", Matter.Water);
             oilLine = Ledger("油", Matter.Oil);
         }

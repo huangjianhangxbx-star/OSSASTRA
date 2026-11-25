@@ -1,0 +1,46 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c943079fd828c4049ae91384eec99157, type: 3}
+  m_Name: Moss
+  m_EditorClassIdentifier: 
+  Style: 1
+  Title: "\u82D4\u5149\u5E7D\u6D1E"
+  Background: {fileID: 2800000, guid: c54e2ca9573a8ab40a67705c7d2d1551, type: 3}
+  Structure: {fileID: 0}
+  Foreground: {fileID: 0}
+  BackgroundTint: {r: 0.81960785, g: 0.8980392, b: 0.70980394, a: 1}
+  BackgroundParallax: 0.28
+  ForegroundParallax: 0.13
+  Stone: {fileID: 0}
+  Water: {fileID: 0}
+  WaterEdge: {fileID: 0}
+  Oil: {fileID: 0}
+  Plant: {fileID: 0}
+  Wood: {fileID: 0}
+  Flame: {fileID: 0}
+  Smoke: {fileID: 0}
+  Sand: {fileID: 0}
+  WaterColor: {r: 0.37254903, g: 0.8666667, b: 0.6431373, a: 1}
+  WaterDeep: {r: 0.08627451, g: 0.3372549, b: 0.2509804, a: 1}
+  OilColor: {r: 0.78039217, g: 0.52156866, b: 0.24705882, a: 1}
+  StoneColor: {r: 0.18431373, g: 0.23137255, b: 0.16862746, a: 1}
+  EdgeColor: {r: 0.53333336, g: 0.6039216, b: 0.3529412, a: 1}
+  PlantColor: {r: 0.49411765, g: 0.6313726, b: 0.27058825, a: 1}
+  WoodColor: {r: 0.52156866, g: 0.34901962, b: 0.22745098, a: 1}
+  SmokeColor: {r: 0.62352943, g: 0.67058825, b: 0.54901963, a: 1}
+  FlameColor: {r: 1, g: 0.5803922, b: 0.22745098, a: 1}
+  WaterAlpha: 0.81
+  SurfaceWidth: 0.27
+  WaveAmount: 0.18
+  TextureScale: 1.25
+  FireGain: 1
+  SmokeGain: 1

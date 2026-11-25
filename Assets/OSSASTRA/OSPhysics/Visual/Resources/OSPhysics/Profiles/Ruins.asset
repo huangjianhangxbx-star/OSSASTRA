@@ -1,0 +1,46 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c943079fd828c4049ae91384eec99157, type: 3}
+  m_Name: Ruins
+  m_EditorClassIdentifier: 
+  Style: 0
+  Title: "\u96FE\u84DD\u6C34\u6E20"
+  Background: {fileID: 2800000, guid: 817992471b8c47e49887610be55fe3a8, type: 3}
+  Structure: {fileID: 0}
+  Foreground: {fileID: 0}
+  BackgroundTint: {r: 0.77254903, g: 0.8392157, b: 0.92156863, a: 1}
+  BackgroundParallax: 0.28
+  ForegroundParallax: 0.13
+  Stone: {fileID: 0}
+  Water: {fileID: 0}
+  WaterEdge: {fileID: 0}
+  Oil: {fileID: 0}
+  Plant: {fileID: 0}
+  Wood: {fileID: 0}
+  Flame: {fileID: 0}
+  Smoke: {fileID: 0}
+  Sand: {fileID: 0}
+  WaterColor: {r: 0.38431373, g: 0.81960785, b: 0.9137255, a: 1}
+  WaterDeep: {r: 0.08235294, g: 0.28235295, b: 0.43529412, a: 1}
+  OilColor: {r: 0.8509804, g: 0.5568628, b: 0.2509804, a: 1}
+  StoneColor: {r: 0.14901961, g: 0.18431373, b: 0.2509804, a: 1}
+  EdgeColor: {r: 0.41960785, g: 0.53333336, b: 0.63529414, a: 1}
+  PlantColor: {r: 0.31764707, g: 0.5647059, b: 0.4392157, a: 1}
+  WoodColor: {r: 0.53333336, g: 0.3647059, b: 0.25490198, a: 1}
+  SmokeColor: {r: 0.58431375, g: 0.5764706, b: 0.63529414, a: 1}
+  FlameColor: {r: 1, g: 0.5529412, b: 0.23921569, a: 1}
+  WaterAlpha: 0.81
+  SurfaceWidth: 0.27
+  WaveAmount: 0.18
+  TextureScale: 1.25
+  FireGain: 1
+  SmokeGain: 1
