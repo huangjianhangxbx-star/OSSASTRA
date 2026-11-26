@@ -1,12 +1,16 @@
 /*
- * 功能：为动作和技能的托管引用效果列表提供同一套 Inspector 控件。
+ * 功能：为动作和技能的托管引用效果列表提供同一套 Inspector 控件与实际片段事件选择。
  * Unity SerializedProperty 记录修改和撤销，复制时重新分配词条身份，战斗只读正式接受快照。
  */
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using Ossastra.CharacterAnimation;
+using Ossastra.CharacterAnimation.Editor;
 using Ossastra.Characters;
 using UnityEditor;
 using UnityEngine;
+using RuntimeAnimationConfig = Ossastra.CharacterAnimation.CharacterAnimationConfigManager;
 
 namespace Ossastra.Development.Editor
 {
@@ -59,6 +63,9 @@ namespace Ossastra.Development.Editor
         }
 
         public override float GetPropertyHeight(SerializedProperty property, GUIContent label)
+            => Height(property);
+
+        private static float Height(SerializedProperty property)
         {
             if (!property.isExpanded) return Row;
             var list = property.FindPropertyRelative("entries");
@@ -73,6 +80,17 @@ namespace Ossastra.Development.Editor
         }
 
         public override void OnGUI(Rect position, SerializedProperty property, GUIContent label)
+            => Draw(position, property, null);
+
+        internal static void DrawForMove(SerializedObject so, Action changed)
+        {
+            var property = so.FindProperty("effects");
+            var rect = EditorGUILayout.GetControlRect(false, Height(property));
+            Draw(rect, property, changed);
+            if (so.ApplyModifiedProperties()) changed();
+        }
+
+        private static void Draw(Rect position, SerializedProperty property, Action changed)
         {
             var r = new Rect(position.x, position.y, position.width, EditorGUIUtility.singleLineHeight);
             property.isExpanded = EditorGUI.Foldout(r, property.isExpanded, "招式效果", true);
@@ -113,9 +131,10 @@ namespace Ossastra.Development.Editor
                 {
                     r.y += r.height + 3;
                     r.height = EditorGUI.GetPropertyHeight(field, true);
-                    var tooltip = field.name == "phaseClip" ? "填写角色换相后进入的主轨片段原名。留空匹配任意实际换相。" : field.tooltip;
-                    var caption = new GUIContent(Labels.TryGetValue(field.name,out var cn) ? cn : field.displayName,tooltip);
-                    EditorGUI.PropertyField(new Rect(r.x + 16, r.y, r.width - 16, r.height), field, caption,true);
+                    var caption = new GUIContent(Labels.TryGetValue(field.name,out var cn) ? cn : field.displayName, field.tooltip);
+                    var fieldRect = new Rect(r.x + 16, r.y, r.width - 16, r.height);
+                    if (field.name == "spineEvent" || field.name == "phaseClip") DrawAnimationChoice(fieldRect, entry, field);
+                    else EditorGUI.PropertyField(fieldRect, field, caption, true);
                 }
                 r.y += r.height - EditorGUIUtility.singleLineHeight;
                 r.height = EditorGUIUtility.singleLineHeight;
@@ -128,18 +147,92 @@ namespace Ossastra.Development.Editor
             for (int i = 0; i < Types.Length; i++)
             {
                 var type = Types[i];
-                menu.AddItem(new GUIContent(Names[i]), false, () =>
-                {
-                    if (!owner) return;
-                    using var so = new SerializedObject(owner);
-                    var entries = so.FindProperty(path);
-                    var element = (ActionEffectEntry)Activator.CreateInstance(type);
-                    entries.arraySize++;
-                    entries.GetArrayElementAtIndex(entries.arraySize - 1).managedReferenceValue = element;
-                    so.ApplyModifiedProperties();
-                });
+                menu.AddItem(new GUIContent(Names[i]), false, () => AddEntry(owner, path, type, changed));
             }
             menu.ShowAsContext();
+        }
+
+        private static void DrawAnimationChoice(Rect rect, SerializedProperty entry, SerializedProperty field)
+        {
+            bool phase = field.name == "phaseClip";
+            var prefix = phase ? "进入片段" : "Spine 事件";
+            var current = field.stringValue;
+            var clip = entry.FindPropertyRelative("spineEventClip")?.stringValue;
+            int occurrence = entry.FindPropertyRelative("spineEventOccurrence")?.intValue ?? -1;
+            string scope = phase || string.IsNullOrEmpty(clip) ? "" :
+                clip + " · " + (occurrence < 0 ? "全部 " : "第 " + (occurrence + 1) + " 次 ");
+            string display = string.IsNullOrEmpty(current) ? phase ? "任何阶段" : "选择源事件…" : scope + current;
+            if (!EditorGUI.DropdownButton(EditorGUI.PrefixLabel(rect, new GUIContent(prefix)),
+                    new GUIContent(display), FocusType.Keyboard)) return;
+
+            var menu = new GenericMenu();
+            var asset = field.serializedObject.targetObject;
+            string entryPath = entry.propertyPath;
+            void Select(string value, string sourceClip, int sourceOccurrence)
+            {
+                if (!asset) return;
+                using var so = new SerializedObject(asset);
+                var destination = so.FindProperty(entryPath);
+                if (destination == null) return;
+                destination.FindPropertyRelative(phase ? "phaseClip" : "spineEvent").stringValue = value;
+                if (!phase)
+                {
+                    destination.FindPropertyRelative("spineEventClip").stringValue = sourceClip;
+                    destination.FindPropertyRelative("spineEventOccurrence").intValue = sourceOccurrence;
+                }
+                so.ApplyModifiedProperties();
+            }
+            if (phase) menu.AddItem(new GUIContent("任何阶段"), string.IsNullOrEmpty(current), () => Select("", "", -1));
+            var ability = asset as AbilityDefinitionSO;
+            var stages = ability?.executor as SustainedAttackAbilitySO;
+            var owners = new[] { asset as ActionDefinitionSO ?? ability?.action, stages?.loopAction, stages?.endAction };
+            var logics = owners.Where(a => a).Select(a => a.animationLogicId).ToHashSet();
+            var sources = UnityEngine.Object.FindObjectsOfType<RuntimeAnimationConfig>(true);
+            bool found = false;
+            foreach (var owner in sources)
+            {
+                var actor = owner.GetComponentInParent<CharacterRoot>();
+                if (!actor) continue;
+                foreach (var match in AnimationAuthoredClips.ForCharacter(owner, actor.GetComponent<CharacterEquipment>()))
+                {
+                    if (!logics.Contains(match.Logic) || match.Clip == null || phase && match.Clip.track != 0) continue;
+                    var name = match.Clip.animaName;
+                    string context = actor.name + "/" + match.Source.name + "/" + name.Replace('/', '／');
+                    if (phase)
+                    {
+                        menu.AddItem(new GUIContent(context), current == name, () => Select(name, "", -1));
+                        found = true;
+                        continue;
+                    }
+                    var animation = match.Clip.skeletonDataAsset?.GetSkeletonData(true)?.FindAnimation(name);
+                    foreach (var group in AnimationCalibrationSO.Events(animation).GroupBy(e => e.Data.Name))
+                    {
+                        string eventName = group.Key;
+                        menu.AddItem(new GUIContent(context + "/" + eventName + "（全部同名）"),
+                            current == eventName && clip == name && occurrence < 0, () => Select(eventName, name, -1));
+                        int index = 0;
+                        foreach (var source in group)
+                        {
+                            int eventIndex = index++;
+                            menu.AddItem(new GUIContent(context + "/" + eventName + " #" + (eventIndex + 1) + $" · {source.Time:F3}s"),
+                                current == eventName && clip == name && occurrence == eventIndex, () => Select(eventName, name, eventIndex));
+                        }
+                        found = true;
+                    }
+                }
+            }
+            if (!found) menu.AddDisabledItem(new GUIContent("当前场景未找到此动作的 Mapping 片段"));
+            menu.ShowAsContext();
+        }
+
+        internal static void AddEntry(UnityEngine.Object owner, string listPath, Type type, Action changed)
+        {
+            if (!owner) return;
+            using var so = new SerializedObject(owner);
+            var entries = so.FindProperty(listPath);
+            int index = entries.arraySize++;
+            entries.GetArrayElementAtIndex(index).managedReferenceValue = (ActionEffectEntry)Activator.CreateInstance(type);
+            if (so.ApplyModifiedProperties()) changed?.Invoke();
         }
     }
 }

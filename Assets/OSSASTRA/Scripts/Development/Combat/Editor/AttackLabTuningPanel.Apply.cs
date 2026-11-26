@@ -1,3 +1,8 @@
+/*
+ * 脚本：AttackLabTuningPanel.Apply
+ * 功能：复位并应用手感候选，执行明确的字段写回与实验预设保存。
+ * 边界：运行覆盖只属于当前明示的角色和组件，不替换其他演员的配置。
+ */
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -56,13 +61,13 @@ namespace Ossastra.Development.Editor
             if(!actor||fields.Count==0){reason="尚未接到正式角色配置";return false;}
             if(Stamp()!=revision)
             {
-                var changed = fields.FirstOrDefault(f => f.writable && !Read(f.writable, f.path, f.integer).Equals(f.baseline));
+                var changed = fields.FirstOrDefault(f => f.writable && !Read(f.writable, f.path).Equals(f.baseline));
                 string details = changed == null ? "来源资产或引用的版本不同" :
-                    $"{changed.title} {Pretty(changed.baseline)} → {Pretty(Read(changed.writable, changed.path, changed.integer))}（{changed.Location}）";
+                    $"{changed.title} {Pretty(changed.baseline)} → {Pretty(Read(changed.writable, changed.path))}（{changed.Location}）";
                 reason="配置来源已变更："+details+"。候选已保留，可另存预设或重新读取基线。";
                 return false;
             }
-            var drift=fields.Find(f=>f.source is Component && !Read(f.source,f.path,f.integer).Equals(f.effective));
+            var drift=fields.Find(f=>f.source is Component && !Read(f.source,f.path).Equals(f.effective));
             if(drift!=null){reason="运行组件已被其他工具修改："+drift.title;return false;}
             reason=null;return true;
         }
@@ -91,12 +96,18 @@ namespace Ossastra.Development.Editor
                     active=new AttackLabBindings(actor,copies,library);
                     active.Activate();
                 }
-                foreach(var f in fields)
+                bool changedSceneCombo = false;
+                foreach (var f in fields)
                 {
-                    float next=candidate?f.pending:f.baseline;
-                    if(f.source is Component && next!=f.baseline)Set(f.source,f,next);
-                    f.effective=next;
+                    float next = candidate ? f.pending : f.baseline;
+                    if (f.source is Component && next != f.baseline)
+                    {
+                        Set(f.source, f, next);
+                        changedSceneCombo |= f.source is BasicChainProfile;
+                    }
+                    f.effective = next;
                 }
+                if (changedSceneCombo) actor.StateArbitrator?.Combat?.RebindLaboratorySequence();
                 reason=null;return true;
             }
             catch(Exception e){ReleaseOverrides();DestroyCopies(copies.Values);reason="应用失败，已恢复基线："+e.Message;return false;}
@@ -105,11 +116,21 @@ namespace Ossastra.Development.Editor
         {
             bool refreshAtIdle = active != null && actor && actor.ActionActive;
             active?.Dispose();active=null;
+            bool restoredSceneCombo = false;
             foreach(var f in fields)
             {
-                if(f.source && f.source is Component && f.effective!=f.baseline && Read(f.source,f.path,f.integer)==f.effective)
-                    Set(f.source,f,f.baseline);
+                if (f.source && f.source is Component && f.effective != f.baseline && Read(f.source,f.path) == f.effective)
+                {
+                    Set(f.source, f, f.baseline);
+                    restoredSceneCombo |= f.source is BasicChainProfile;
+                }
                 f.effective=f.baseline;
+            }
+            if (restoredSceneCombo && actor)
+            {
+                // 旧场实例也按空闲边界换快照，退出实验时不清空正在执行的连段。
+                if (actor.ActionActive) refreshAtIdle = true;
+                else actor.StateArbitrator?.Combat?.RebindLaboratorySequence();
             }
             var retired = liveCopies;
             liveCopies = new List<ScriptableObject>();
@@ -131,7 +152,7 @@ namespace Ossastra.Development.Editor
         }
         public void Dispose()
         {
-            ReleaseOverrides();fields.Clear();actor=null;equipment=null;abilities=null;skill=null;profile=null;library=null;
+            ReleaseOverrides();fields.Clear();timingSourceNotes.Clear();actor=null;equipment=null;abilities=null;skill=null;profile=null;library=null;
             binding=null;revision=null;message=null;
         }
 
@@ -192,7 +213,7 @@ namespace Ossastra.Development.Editor
             catch(Exception e){reason="仅写这些字段会导致无效配置："+e.Message;return false;}
             var targets=chosen.Select(f=>f.writable).Distinct().ToArray();
             var prior=fields.ToDictionary(f=>f.id,f=>f.pending);
-            var oldValues=chosen.Select(f=>Read(f.writable,f.path,f.integer)).ToArray();
+            var oldValues=chosen.Select(f=>Read(f.writable,f.path)).ToArray();
             var current=actor;
             Undo.IncrementCurrentGroup();
             int group=Undo.GetCurrentGroup();
@@ -202,7 +223,7 @@ namespace Ossastra.Development.Editor
                 Undo.RegisterCompleteObjectUndo(targets,"写回调试台所选参数");
                 foreach(var f in chosen){Set(f.writable,f,f.pending);EditorUtility.SetDirty(f.writable);}
                 foreach(var t in targets)SaveTarget(t);
-                foreach(var f in chosen) if(!Read(f.writable,f.path,f.integer).Equals(f.pending))throw new IOException("写回后值不一致："+f.title);
+                foreach(var f in chosen) if(!Read(f.writable,f.path).Equals(f.pending))throw new IOException("写回后值不一致："+f.title);
                 Undo.CollapseUndoOperations(group);
             }
             catch(Exception e)

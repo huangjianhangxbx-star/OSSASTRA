@@ -1,5 +1,5 @@
 /* 脚本：CharacterMainAction
- * 功能：独立主手动作组选择、接受快照、阶段突进及有效扇区投递。
+ * 功能：独立主手动作组选择及生效来源、接受快照、阶段突进及有效扇区投递。
  * 边界：不采设备、不拥有第二动作钟、不直接Move/写HP；选择保存在装备原实例。
  * 协作：Root显式刷新/接受/推进；实际投递结果用于连携出手判断；DataBus运动端口与CombatDeliveryQueue复用原权威。
  */
@@ -47,6 +47,8 @@ namespace Ossastra.Characters
         public bool IsActive=>MotionVelocity.sqrMagnitude>.000001f;
         public Vector3 MotionVelocity {get;private set;}
         public MainActionSequence Sequence=>profile?.Sequence;
+        public MainActionProfileSO ComboSource { get; private set; }
+        public string ComboFallbackReason { get; private set; }
         public string SelectedId=>equipment?.State?.RightRuntime.MainActionProfileId??"";
         public string FormLabel=>profileDefinition==null?"I":profileDefinition.formLabel;
         public MainActionProfileSO[] Choices=>equipment?.RightDefinition?.mainActionProfiles??Array.Empty<MainActionProfileSO>();
@@ -66,24 +68,52 @@ namespace Ossastra.Characters
             id=id??"";var choice=Choices.FirstOrDefault(p=>p!=null&&p.definitionId==id);
             if(id.Length>0&&choice==null)return Reject("当前装备未登记此动作组");
             try{choice?.Freeze(abilities?.SnapshotEffects());}catch(ArgumentException e){return Reject("动作组无效："+e.Message);}
-            equipment.State.RightRuntime.MainActionProfileId=id;LastResult="已选择"+(choice==null?"角色默认四段":choice.displayName);return true;
+            equipment.State.RightRuntime.MainActionProfileId = id;
+            LastResult = "已选择" + (choice == null ? "角色默认" : choice.displayName);
+            // 同帧还可能收到普攻边沿，先更新实际选择并丢弃旧组缓存。
+            owner.StateArbitrator?.Combat?.RefreshMainProfile();
+            return true;
         }
         /// <summary>只在身体空闲时重建候选；来源/槽位改变不追改已经接受的动作快照。</summary>
         public bool RefreshWhenIdle()
         {
             if(owner==null||owner.ActionActive||equipment?.State==null)return false;
-            if(!isActiveAndEnabled){var hadProfile=profile!=null;profile=null;profileDefinition=null;cachedSelection=null;return hadProfile;}
+            if (!isActiveAndEnabled)
+            {
+                bool hadProfile = profile != null;
+                profile = null;
+                profileDefinition = null;
+                cachedSelection = null;
+                ComboSource = null;
+                ComboFallbackReason = null;
+                return hadProfile;
+            }
             var state=equipment.State.RightRuntime;state.SkillSelections.TryGetValue(0,out var q);state.SkillSelections.TryGetValue(2,out var r);
             if(cachedSelection==SelectedId&&cachedWeapon==equipment.State.RightInstanceId&&sourceRevision==state.Sources.Revision&&cachedQ==q&&cachedR==r)return false;
             cachedSelection=SelectedId;cachedWeapon=equipment.State.RightInstanceId;sourceRevision=state.Sources.Revision;cachedQ=q;cachedR=r;
-            profileDefinition=Choices.FirstOrDefault(p=>p!=null&&p.definitionId==SelectedId);profile=null;
+            var source = Choices.FirstOrDefault(p => p != null && p.definitionId == SelectedId);
+            profileDefinition = source;
+            profile = null;
+            ComboSource = null;
+            ComboFallbackReason = source == null && !string.IsNullOrEmpty(SelectedId)
+                ? "当前主手未登记选中的动作组：" + SelectedId : null;
 #if UNITY_EDITOR
             profileDefinition = AttackLabBindings.Resolve(owner, profileDefinition);
 #endif
             if(profileDefinition!=null)
             {
-                try{profile=profileDefinition.Freeze(abilities?.SnapshotEffects(),owner.Definition?.eventCalibration);}
-                catch(ArgumentException e){LastResult="拒绝：动作组无效，使用角色默认："+e.Message;profileDefinition=null;}
+                try
+                {
+                    profile = profileDefinition.Freeze(abilities?.SnapshotEffects(), owner.Definition?.eventCalibration);
+                    // 调试候选可替换运行值，配置来源仍指向可定位的作者资产。
+                    ComboSource = source;
+                }
+                catch (ArgumentException e)
+                {
+                    ComboFallbackReason = e.Message;
+                    LastResult = "拒绝：动作组无效，使用角色默认：" + ComboFallbackReason;
+                    profileDefinition = null;
+                }
             }
             return true;
         }
@@ -97,9 +127,14 @@ namespace Ossastra.Characters
                     new CharacterAnimationPreparation(true, index + 1, useAuthoredLogic: true));
                 var t = stage.Timeline;
                 var impact = t.PostureImpact * profile.Sequence.PostureScale;
-                var timeline = animation.Timeline.EventDriven
+                // 真正选中的 Mapping 冻结开放与释放时序。装备组合仍只提供伤害和架势强度。
+                var timing = animation.Timeline;
+                if (!timing.EventDriven && stage.DashDistance > 0 && stage.DashAt + stage.DashDuration > timing.FinishAt)
+                    return Reject("突进超过动作结束：" + stage.Id);
+                var timeline = timing.EventDriven
                     ? BasicAttackDefinition.FromEvents(t.Damage, impact)
-                    : new BasicAttackDefinition(t.ReleaseAt,t.MoveReadyAt,t.AttackReadyAt,t.FinishAt,t.Damage,impact);
+                    : new BasicAttackDefinition(timing.ReleaseAt, timing.MoveReadyAt, timing.AttackReadyAt,
+                        timing.FinishAt, t.Damage, impact);
                 var phase=animation.WithTimeline(timeline);
                 prepared=new PreparedStage(stage,phase,definition,index+1,profileDefinition.contactDuration,index==profile.Sequence.Count-1,profile.Sequence.FullComboRecovery);return true;
             }

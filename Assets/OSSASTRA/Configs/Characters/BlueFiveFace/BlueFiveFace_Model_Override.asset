@@ -30,9 +30,98 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: 924091998383466282a6c9eaa62b8253
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides:
+          - action: {fileID: 11400000, guid: 0004d4930cc0b7342ae268f2b637c307, type: 2}
+            framesPerSecond: 30
+            drivesActionTiming: 1
+            responses:
+            - behavior: 
+              animation: a1
+              eventName: Hit
+              previousEvent: 
+              nextEvent: 
+              sourceString: 
+              anchor: 
+              track: 0
+              occurrence: 0
+              sourceInt: 0
+              sourceCount: 1
+              offsetFrames: 0
+              soundOffsetFrames: 0
+              effectOffsetFrames: 0
+              sourceTime: 0.03333333
+              sourceFloat: 0
+              volume: 1
+              scale: 1
+              lifetime: 1
+              rotation: 0
+              follow: 0
+              restorePosture: 0
+              localOffset: {x: 0, y: 0, z: 0}
+              semantic: 0
+              sound: {fileID: 0}
+              effect: {fileID: 0}
+            - behavior: 
+              animation: a1
+              eventName: Break
+              previousEvent: 
+              nextEvent: 
+              sourceString: 
+              anchor: 
+              track: 0
+              occurrence: 0
+              sourceInt: 0
+              sourceCount: 1
+              offsetFrames: 0
+              soundOffsetFrames: 0
+              effectOffsetFrames: 0
+              sourceTime: 0.2
+              sourceFloat: 0
+              volume: 1
+              scale: 1
+              lifetime: 1
+              rotation: 0
+              follow: 0
+              restorePosture: 1
+              localOffset: {x: 0, y: 0, z: 0}
+              semantic: 2
+              sound: {fileID: 0}
+              effect: {fileID: 0}
+            - behavior: 
+              animation: a1
+              eventName: End
+              previousEvent: 
+              nextEvent: 
+              sourceString: 
+              anchor: 
+              track: 0
+              occurrence: 0
+              sourceInt: 0
+              sourceCount: 1
+              offsetFrames: 0
+              soundOffsetFrames: 0
+              effectOffsetFrames: 0
+              sourceTime: 0.23333333
+              sourceFloat: 0
+              volume: 1
+              scale: 1
+              lifetime: 1
+              rotation: 0
+              follow: 0
+              restorePosture: 0
+              localOffset: {x: 0, y: 0, z: 0}
+              semantic: 1
+              sound: {fileID: 0}
+              effect: {fileID: 0}
         playbackRate: 1
         scalesWithAction: 1
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -50,9 +139,98 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: a26e6ca411ec4fe6a2a7a68c336b1796
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides:
+          - action: {fileID: 11400000, guid: e06c327f549235b418779cbca6436925, type: 2}
+            framesPerSecond: 30
+            drivesActionTiming: 1
+            responses:
+            - behavior: 
+              animation: a2
+              eventName: Hit
+              previousEvent: 
+              nextEvent: 
+              sourceString: 
+              anchor: 
+              track: 0
+              occurrence: 0
+              sourceInt: 0
+              sourceCount: 1
+              offsetFrames: 0
+              soundOffsetFrames: 0
+              effectOffsetFrames: 0
+              sourceTime: 0
+              sourceFloat: 0
+              volume: 1
+              scale: 1
+              lifetime: 1
+              rotation: 0
+              follow: 0
+              restorePosture: 0
+              localOffset: {x: 0, y: 0, z: 0}
+              semantic: 0
+              sound: {fileID: 0}
+              effect: {fileID: 0}
+            - behavior: 
+              animation: a2
+              eventName: Break
+              previousEvent: 
+              nextEvent: 
+              sourceString: 
+              anchor: 
+              track: 0
+              occurrence: 0
+              sourceInt: 0
+              sourceCount: 1
+              offsetFrames: 0
+              soundOffsetFrames: 0
+              effectOffsetFrames: 0
+              sourceTime: 0.2
+              sourceFloat: 0
+              volume: 1
+              scale: 1
+              lifetime: 1
+              rotation: 0
+              follow: 0
+              restorePosture: 1
+              localOffset: {x: 0, y: 0, z: 0}
+              semantic: 2
+              sound: {fileID: 0}
+              effect: {fileID: 0}
+            - behavior: 
+              animation: a2
+              eventName: End
+              previousEvent: 
+              nextEvent: 
+              sourceString: 
+              anchor: 
+              track: 0
+              occurrence: 0
+              sourceInt: 0
+              sourceCount: 1
+              offsetFrames: 0
+              soundOffsetFrames: 0
+              effectOffsetFrames: 0
+              sourceTime: 0.23333333
+              sourceFloat: 0
+              volume: 1
+              scale: 1
+              lifetime: 1
+              rotation: 0
+              follow: 0
+              restorePosture: 0
+              localOffset: {x: 0, y: 0, z: 0}
+              semantic: 1
+              sound: {fileID: 0}
+              effect: {fileID: 0}
         playbackRate: 1
         scalesWithAction: 1
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -70,9 +248,98 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: edb81df73a4142eb9e16d3a698892bb8
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides:
+          - action: {fileID: 11400000, guid: 3389f4d2c09545a4bbdb57b8b305c194, type: 2}
+            framesPerSecond: 30
+            drivesActionTiming: 1
+            responses:
+            - behavior: 
+              animation: a3
+              eventName: Hit
+              previousEvent: 
+              nextEvent: 
+              sourceString: 
+              anchor: 
+              track: 0
+              occurrence: 0
+              sourceInt: 0
+              sourceCount: 1
+              offsetFrames: 0
+              soundOffsetFrames: 0
+              effectOffsetFrames: 0
+              sourceTime: 0.03333333
+              sourceFloat: 0
+              volume: 1
+              scale: 1
+              lifetime: 1
+              rotation: 0
+              follow: 0
+              restorePosture: 0
+              localOffset: {x: 0, y: 0, z: 0}
+              semantic: 0
+              sound: {fileID: 0}
+              effect: {fileID: 0}
+            - behavior: 
+              animation: a3
+              eventName: Break
+              previousEvent: 
+              nextEvent: 
+              sourceString: 
+              anchor: 
+              track: 0
+              occurrence: 0
+              sourceInt: 0
+              sourceCount: 1
+              offsetFrames: 0
+              soundOffsetFrames: 0
+              effectOffsetFrames: 0
+              sourceTime: 0.2666667
+              sourceFloat: 0
+              volume: 1
+              scale: 1
+              lifetime: 1
+              rotation: 0
+              follow: 0
+              restorePosture: 1
+              localOffset: {x: 0, y: 0, z: 0}
+              semantic: 2
+              sound: {fileID: 0}
+              effect: {fileID: 0}
+            - behavior: 
+              animation: a3
+              eventName: End
+              previousEvent: 
+              nextEvent: 
+              sourceString: 
+              anchor: 
+              track: 0
+              occurrence: 0
+              sourceInt: 0
+              sourceCount: 1
+              offsetFrames: 0
+              soundOffsetFrames: 0
+              effectOffsetFrames: 0
+              sourceTime: 0.3
+              sourceFloat: 0
+              volume: 1
+              scale: 1
+              lifetime: 1
+              rotation: 0
+              follow: 0
+              restorePosture: 0
+              localOffset: {x: 0, y: 0, z: 0}
+              semantic: 1
+              sound: {fileID: 0}
+              effect: {fileID: 0}
         playbackRate: 1
         scalesWithAction: 1
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -90,9 +357,68 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: e02e2df3b04045a88c17cc52ff753e9a
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses:
+          - behavior: 
+            animation: _move
+            eventName: Footstep
+            previousEvent: 
+            nextEvent: 
+            sourceString: 
+            anchor: 
+            track: 0
+            occurrence: 0
+            sourceInt: 11
+            sourceCount: 2
+            offsetFrames: 0
+            soundOffsetFrames: 0
+            effectOffsetFrames: 0
+            sourceTime: 0.2666667
+            sourceFloat: 0
+            volume: 1
+            scale: 1
+            lifetime: 1
+            rotation: 0
+            follow: 0
+            restorePosture: 0
+            localOffset: {x: 0, y: 0, z: 0}
+            semantic: 3
+            sound: {fileID: 0}
+            effect: {fileID: 0}
+          - behavior: 
+            animation: _move
+            eventName: Footstep
+            previousEvent: 
+            nextEvent: 
+            sourceString: 
+            anchor: 
+            track: 0
+            occurrence: 1
+            sourceInt: 7
+            sourceCount: 2
+            offsetFrames: 0
+            soundOffsetFrames: 0
+            effectOffsetFrames: 0
+            sourceTime: 0.5333333
+            sourceFloat: 0
+            volume: 1
+            scale: 1
+            lifetime: 1
+            rotation: 0
+            follow: 0
+            restorePosture: 0
+            localOffset: {x: 0, y: 0, z: 0}
+            semantic: 3
+            sound: {fileID: 0}
+            effect: {fileID: 0}
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -110,9 +436,68 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: 4e1ab2c18bb04794983a9a833e062bdb
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses:
+          - behavior: 
+            animation: _move
+            eventName: Footstep
+            previousEvent: 
+            nextEvent: 
+            sourceString: 
+            anchor: 
+            track: 0
+            occurrence: 0
+            sourceInt: 11
+            sourceCount: 2
+            offsetFrames: 0
+            soundOffsetFrames: 0
+            effectOffsetFrames: 0
+            sourceTime: 0.2666667
+            sourceFloat: 0
+            volume: 1
+            scale: 1
+            lifetime: 1
+            rotation: 0
+            follow: 0
+            restorePosture: 0
+            localOffset: {x: 0, y: 0, z: 0}
+            semantic: 3
+            sound: {fileID: 0}
+            effect: {fileID: 0}
+          - behavior: 
+            animation: _move
+            eventName: Footstep
+            previousEvent: 
+            nextEvent: 
+            sourceString: 
+            anchor: 
+            track: 0
+            occurrence: 1
+            sourceInt: 7
+            sourceCount: 2
+            offsetFrames: 0
+            soundOffsetFrames: 0
+            effectOffsetFrames: 0
+            sourceTime: 0.5333333
+            sourceFloat: 0
+            volume: 1
+            scale: 1
+            lifetime: 1
+            rotation: 0
+            follow: 0
+            restorePosture: 0
+            localOffset: {x: 0, y: 0, z: 0}
+            semantic: 3
+            sound: {fileID: 0}
+            effect: {fileID: 0}
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -130,9 +515,68 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: 12ea634f8ebc4474ae8b08a7cd654cc6
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses:
+          - behavior: 
+            animation: _move
+            eventName: Footstep
+            previousEvent: 
+            nextEvent: 
+            sourceString: 
+            anchor: 
+            track: 0
+            occurrence: 0
+            sourceInt: 11
+            sourceCount: 2
+            offsetFrames: 0
+            soundOffsetFrames: 0
+            effectOffsetFrames: 0
+            sourceTime: 0.2666667
+            sourceFloat: 0
+            volume: 1
+            scale: 1
+            lifetime: 1
+            rotation: 0
+            follow: 0
+            restorePosture: 0
+            localOffset: {x: 0, y: 0, z: 0}
+            semantic: 3
+            sound: {fileID: 0}
+            effect: {fileID: 0}
+          - behavior: 
+            animation: _move
+            eventName: Footstep
+            previousEvent: 
+            nextEvent: 
+            sourceString: 
+            anchor: 
+            track: 0
+            occurrence: 1
+            sourceInt: 7
+            sourceCount: 2
+            offsetFrames: 0
+            soundOffsetFrames: 0
+            effectOffsetFrames: 0
+            sourceTime: 0.5333333
+            sourceFloat: 0
+            volume: 1
+            scale: 1
+            lifetime: 1
+            rotation: 0
+            follow: 0
+            restorePosture: 0
+            localOffset: {x: 0, y: 0, z: 0}
+            semantic: 3
+            sound: {fileID: 0}
+            effect: {fileID: 0}
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -150,9 +594,68 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: d49a96c8434f4f329a34a005d4d2fd92
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses:
+          - behavior: 
+            animation: _move
+            eventName: Footstep
+            previousEvent: 
+            nextEvent: 
+            sourceString: 
+            anchor: 
+            track: 0
+            occurrence: 0
+            sourceInt: 11
+            sourceCount: 2
+            offsetFrames: 0
+            soundOffsetFrames: 0
+            effectOffsetFrames: 0
+            sourceTime: 0.2666667
+            sourceFloat: 0
+            volume: 1
+            scale: 1
+            lifetime: 1
+            rotation: 0
+            follow: 0
+            restorePosture: 0
+            localOffset: {x: 0, y: 0, z: 0}
+            semantic: 3
+            sound: {fileID: 0}
+            effect: {fileID: 0}
+          - behavior: 
+            animation: _move
+            eventName: Footstep
+            previousEvent: 
+            nextEvent: 
+            sourceString: 
+            anchor: 
+            track: 0
+            occurrence: 1
+            sourceInt: 7
+            sourceCount: 2
+            offsetFrames: 0
+            soundOffsetFrames: 0
+            effectOffsetFrames: 0
+            sourceTime: 0.5333333
+            sourceFloat: 0
+            volume: 1
+            scale: 1
+            lifetime: 1
+            rotation: 0
+            follow: 0
+            restorePosture: 0
+            localOffset: {x: 0, y: 0, z: 0}
+            semantic: 3
+            sound: {fileID: 0}
+            effect: {fileID: 0}
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -170,9 +673,68 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: f15499b8bcb047c3917379bf11c4cc9b
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses:
+          - behavior: 
+            animation: _move
+            eventName: Footstep
+            previousEvent: 
+            nextEvent: 
+            sourceString: 
+            anchor: 
+            track: 0
+            occurrence: 0
+            sourceInt: 11
+            sourceCount: 2
+            offsetFrames: 0
+            soundOffsetFrames: 0
+            effectOffsetFrames: 0
+            sourceTime: 0.2666667
+            sourceFloat: 0
+            volume: 1
+            scale: 1
+            lifetime: 1
+            rotation: 0
+            follow: 0
+            restorePosture: 0
+            localOffset: {x: 0, y: 0, z: 0}
+            semantic: 3
+            sound: {fileID: 0}
+            effect: {fileID: 0}
+          - behavior: 
+            animation: _move
+            eventName: Footstep
+            previousEvent: 
+            nextEvent: 
+            sourceString: 
+            anchor: 
+            track: 0
+            occurrence: 1
+            sourceInt: 7
+            sourceCount: 2
+            offsetFrames: 0
+            soundOffsetFrames: 0
+            effectOffsetFrames: 0
+            sourceTime: 0.5333333
+            sourceFloat: 0
+            volume: 1
+            scale: 1
+            lifetime: 1
+            rotation: 0
+            follow: 0
+            restorePosture: 0
+            localOffset: {x: 0, y: 0, z: 0}
+            semantic: 3
+            sound: {fileID: 0}
+            effect: {fileID: 0}
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -190,9 +752,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: 35e206915dba4ff4b744c5c2727a3ff2
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -210,9 +779,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: 05e938ca0ced40a6a612c5f0a159b29a
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -230,9 +806,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: fb69e19d3cb64c11be47f25e9b19ed88
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -250,9 +833,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: 917be65165fd46a7a618140fa6965646
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -270,9 +860,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: e32cff6d27724e3c894a23c63785707c
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -290,9 +887,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: ee2189f7903b45638421865c90f42a52
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -310,9 +914,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: d2db0de9eb93434786f914d5e83ceaf2
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -330,9 +941,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: 097c7e4bdd1248609e6c2dbfb3630549
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -350,9 +968,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: bbb868284acb42c4bd1f196170b6d220
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -370,9 +995,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: 3a2da4d53d42414dab0a2830037baedb
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -390,9 +1022,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: 24122a30b2b24e1eb36ef01ce0bbf665
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -410,9 +1049,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: c464acd0d2564f78b3d3e40066e0f8a5
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -430,9 +1076,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: ceb247b2e34c4ff0a9fa1ea328f2f0e8
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -450,9 +1103,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: 1d1dcd7b6f6948a7ba3ef5d2ae4910ac
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -470,9 +1130,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: 361c4ff0b2044883b3c2273de3bd36c3
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -490,9 +1157,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: e0d66293f45e4abbaad377279cd14dbf
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -510,9 +1184,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: 62621147ca2847d0816be109583da2db
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -530,9 +1211,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: d3136b1a58894adc8778bf9457aff72f
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -550,9 +1238,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: ec752b612d1b4d09b40c2295556a48fb
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -570,9 +1265,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: 747b585ce5eb4f058ed6c4415904df39
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -590,9 +1292,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: 09ec06fb64d842edb0c9aa73e09dbf68
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -610,9 +1319,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: c83c085441424425a19bd16452f69016
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -630,9 +1346,68 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: dd3d7cb2ef6642fcad75cd80afcd43d2
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses:
+          - behavior: 
+            animation: _move
+            eventName: Footstep
+            previousEvent: 
+            nextEvent: 
+            sourceString: 
+            anchor: 
+            track: 0
+            occurrence: 0
+            sourceInt: 11
+            sourceCount: 2
+            offsetFrames: 0
+            soundOffsetFrames: 0
+            effectOffsetFrames: 0
+            sourceTime: 0.2666667
+            sourceFloat: 0
+            volume: 1
+            scale: 1
+            lifetime: 1
+            rotation: 0
+            follow: 0
+            restorePosture: 0
+            localOffset: {x: 0, y: 0, z: 0}
+            semantic: 3
+            sound: {fileID: 0}
+            effect: {fileID: 0}
+          - behavior: 
+            animation: _move
+            eventName: Footstep
+            previousEvent: 
+            nextEvent: 
+            sourceString: 
+            anchor: 
+            track: 0
+            occurrence: 1
+            sourceInt: 7
+            sourceCount: 2
+            offsetFrames: 0
+            soundOffsetFrames: 0
+            effectOffsetFrames: 0
+            sourceTime: 0.5333333
+            sourceFloat: 0
+            volume: 1
+            scale: 1
+            lifetime: 1
+            rotation: 0
+            follow: 0
+            restorePosture: 0
+            localOffset: {x: 0, y: 0, z: 0}
+            semantic: 3
+            sound: {fileID: 0}
+            effect: {fileID: 0}
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -650,9 +1425,68 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: f30f64bbbace4b6ebddf2a5183795d4e
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses:
+          - behavior: 
+            animation: _move
+            eventName: Footstep
+            previousEvent: 
+            nextEvent: 
+            sourceString: 
+            anchor: 
+            track: 0
+            occurrence: 0
+            sourceInt: 11
+            sourceCount: 2
+            offsetFrames: 0
+            soundOffsetFrames: 0
+            effectOffsetFrames: 0
+            sourceTime: 0.2666667
+            sourceFloat: 0
+            volume: 1
+            scale: 1
+            lifetime: 1
+            rotation: 0
+            follow: 0
+            restorePosture: 0
+            localOffset: {x: 0, y: 0, z: 0}
+            semantic: 3
+            sound: {fileID: 0}
+            effect: {fileID: 0}
+          - behavior: 
+            animation: _move
+            eventName: Footstep
+            previousEvent: 
+            nextEvent: 
+            sourceString: 
+            anchor: 
+            track: 0
+            occurrence: 1
+            sourceInt: 7
+            sourceCount: 2
+            offsetFrames: 0
+            soundOffsetFrames: 0
+            effectOffsetFrames: 0
+            sourceTime: 0.5333333
+            sourceFloat: 0
+            volume: 1
+            scale: 1
+            lifetime: 1
+            rotation: 0
+            follow: 0
+            restorePosture: 0
+            localOffset: {x: 0, y: 0, z: 0}
+            semantic: 3
+            sound: {fileID: 0}
+            effect: {fileID: 0}
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -670,9 +1504,68 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: a5513f20e20c4c8b966fcc1b6431fb25
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses:
+          - behavior: 
+            animation: _move
+            eventName: Footstep
+            previousEvent: 
+            nextEvent: 
+            sourceString: 
+            anchor: 
+            track: 0
+            occurrence: 0
+            sourceInt: 11
+            sourceCount: 2
+            offsetFrames: 0
+            soundOffsetFrames: 0
+            effectOffsetFrames: 0
+            sourceTime: 0.2666667
+            sourceFloat: 0
+            volume: 1
+            scale: 1
+            lifetime: 1
+            rotation: 0
+            follow: 0
+            restorePosture: 0
+            localOffset: {x: 0, y: 0, z: 0}
+            semantic: 3
+            sound: {fileID: 0}
+            effect: {fileID: 0}
+          - behavior: 
+            animation: _move
+            eventName: Footstep
+            previousEvent: 
+            nextEvent: 
+            sourceString: 
+            anchor: 
+            track: 0
+            occurrence: 1
+            sourceInt: 7
+            sourceCount: 2
+            offsetFrames: 0
+            soundOffsetFrames: 0
+            effectOffsetFrames: 0
+            sourceTime: 0.5333333
+            sourceFloat: 0
+            volume: 1
+            scale: 1
+            lifetime: 1
+            rotation: 0
+            follow: 0
+            restorePosture: 0
+            localOffset: {x: 0, y: 0, z: 0}
+            semantic: 3
+            sound: {fileID: 0}
+            effect: {fileID: 0}
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -690,9 +1583,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: b6c76c37f87e423da37081a6f6d37d7e
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -710,9 +1610,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: 08c5c4df06b349e2b282482ac99fdc29
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -730,9 +1637,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: abcae6d9e37c48a7af0d6eb36bbf69ff
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -750,9 +1664,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: dcba502dfec44b11a9785526dffc2432
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -770,9 +1691,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: c3ffd90a996a4007b70e3422a1a416d9
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -790,9 +1718,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: a010c939dd5e4573aa9bce2e3f8ee7d8
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -810,9 +1745,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: 578f9a67c0b341249adbec4c25eb6268
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -830,9 +1772,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: 5740f078a3874bab88980bf2a3acc32c
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -850,9 +1799,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: bf71e9872d99472b9043051b7e92d9fb
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -870,9 +1826,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: e7ec91d755774827b18f17e8ccde7085
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -890,9 +1853,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: 0792781c33444ee0bc3aed1b170dc470
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -910,9 +1880,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: e884190db9a0413d91d53eb375c23ca0
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -930,9 +1907,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: 304beb465c664532a204042b14ac5d43
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -950,9 +1934,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: 3309dada4ccf441fbc3fc19884fd63a2
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -970,9 +1961,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: b9d4dd411d4c4caf810d3d21c4c18272
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -990,9 +1988,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: a12408aee07449c794a438148aed8926
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -1010,9 +2015,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: 7cb70998f1104d20a6b78b99fbf10327
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -1030,9 +2042,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: 685d7f3e8a694eba82acd19dd1e09352
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -1050,9 +2069,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: fcb3ffe02f2542e987d4e35b0bced9a9
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -1070,9 +2096,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: 3c1bd5167ca24f5f9fa39f259093f62e
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -1090,9 +2123,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: 6597fd11569d446fa1ac7209d8cfb95f
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -1110,9 +2150,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: 7f219ad988ce4d7e961565593da8f5fc
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -1130,9 +2177,98 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: f1018f0c52be4e679c916b673d46b3cc
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides:
+          - action: {fileID: 11400000, guid: 76efe516bd536184fa52a91402705d4d, type: 2}
+            framesPerSecond: 30
+            drivesActionTiming: 1
+            responses:
+            - behavior: 
+              animation: a4
+              eventName: Hit
+              previousEvent: 
+              nextEvent: 
+              sourceString: 
+              anchor: 
+              track: 0
+              occurrence: 0
+              sourceInt: 0
+              sourceCount: 1
+              offsetFrames: 0
+              soundOffsetFrames: 0
+              effectOffsetFrames: 0
+              sourceTime: 0.13333334
+              sourceFloat: 0
+              volume: 1
+              scale: 1
+              lifetime: 1
+              rotation: 0
+              follow: 0
+              restorePosture: 0
+              localOffset: {x: 0, y: 0, z: 0}
+              semantic: 0
+              sound: {fileID: 0}
+              effect: {fileID: 0}
+            - behavior: 
+              animation: a4
+              eventName: Break
+              previousEvent: 
+              nextEvent: 
+              sourceString: 
+              anchor: 
+              track: 0
+              occurrence: 0
+              sourceInt: 0
+              sourceCount: 1
+              offsetFrames: 0
+              soundOffsetFrames: 0
+              effectOffsetFrames: 0
+              sourceTime: 0.5
+              sourceFloat: 0
+              volume: 1
+              scale: 1
+              lifetime: 1
+              rotation: 0
+              follow: 0
+              restorePosture: 1
+              localOffset: {x: 0, y: 0, z: 0}
+              semantic: 2
+              sound: {fileID: 0}
+              effect: {fileID: 0}
+            - behavior: 
+              animation: a4
+              eventName: End
+              previousEvent: 
+              nextEvent: 
+              sourceString: 
+              anchor: 
+              track: 0
+              occurrence: 0
+              sourceInt: 0
+              sourceCount: 1
+              offsetFrames: 0
+              soundOffsetFrames: 0
+              effectOffsetFrames: 0
+              sourceTime: 0.5
+              sourceFloat: 0
+              volume: 1
+              scale: 1
+              lifetime: 1
+              rotation: 0
+              follow: 0
+              restorePosture: 0
+              localOffset: {x: 0, y: 0, z: 0}
+              semantic: 1
+              sound: {fileID: 0}
+              effect: {fileID: 0}
         playbackRate: 1
         scalesWithAction: 1
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -1150,9 +2286,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: efc5c092b8864db394976fd62111794d
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 1
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -1170,9 +2313,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: 3872d3a1369f42e48d405f0939dd9ba1
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -1190,9 +2340,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: 45ccae0673674a31af06ab14edf91870
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -1210,9 +2367,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: 5ca3da3087cb4b70b62de48afd4d0549
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -1230,9 +2394,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: f055821282614aecaedb969031de0db0
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -1250,9 +2421,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: dae347f466fd4eaab0cf0cbc9e11b1c1
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 1
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -1270,9 +2448,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: eb75424c99824696a6ffe78b6adf0a0c
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 1
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -1290,9 +2475,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: 0dfa2519c383488e810d9b7320de349d
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 1
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -1310,9 +2502,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: 0f9d3a424a9145f9936efb77d179bbea
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 1
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -1330,9 +2529,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: 065712cecee94d9bbc78f4cd6fcc196e
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 1
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -1350,9 +2556,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: 43c44702ba534be4a0488de8c0aac9e7
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 1
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -1370,9 +2583,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: 3a1d6629da004c2fa072d79a6863575d
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 1
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -1390,9 +2610,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: c0acc5a2762040fa9073e534dcf67fc1
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 1
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -1410,9 +2637,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: 49a37e2e3a1043cbbb0b79da706095f5
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 1
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -1430,9 +2664,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: 2b24278791af4c44855bb2076cbdba00
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 1
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -1450,9 +2691,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: 57b3a7ab2a41491294489a005420b060
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 1
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -1470,9 +2718,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: 09f472be50b14507b272816156d4f7cf
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -1490,9 +2745,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: 971ef31245f148fa8b312a8b6f376aa3
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -1510,9 +2772,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: 8384bf7e90a341e5a009b14d1415b36b
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -1530,9 +2799,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: 40bddf5dcdc6441a8a2129a2bdbc3dbd
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}
@@ -1550,9 +2826,16 @@ MonoBehaviour:
         isAdditive: 0
         skeletonDataAsset: {fileID: 11400000, guid: f9c90ca26175d554a9906535d96e1031, type: 2}
         characterRoot: {fileID: 0}
+        eventClipId: fc15084710274f6aa6f1aa880df31785
+        eventResponses:
+          framesPerSecond: 30
+          drivesActionTiming: 0
+          responses: []
+          actionOverrides: []
         playbackRate: 1
         scalesWithAction: 0
         sourceDuration: 0
+      movingLoopClips: []
       queuedClips: []
       clearTracks: 
       characterRoot: {fileID: 0}

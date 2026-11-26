@@ -1,5 +1,5 @@
 /* 脚本：CharacterCombatStateMachine
- * 功能：注册战斗状态机，唯一拥有并推进BasicActionRuntime、连段、受理快照与主动作取消。
+ * 功能：注册战斗状态机，唯一拥有并推进 BasicActionRuntime、普攻预输入、受理快照与主动作取消。
  * 边界：不采设备、不写运动/HP；能力Run和费用账本仍由既有端口所有。
  * 协作：仲裁器按原阶段调用；投递完成后向队伍登记切换连携机会；Root公开方法仅转发，释放仍走同一战斗网关。
  */
@@ -14,12 +14,12 @@ namespace Ossastra.Characters
   private BasicActionRuntime runtime;
   private ActionImpactRun impactRun;
   internal ActionImpactRun ImpactFor(Guid id) => impactRun?.Id == id ? impactRun : null;
-  internal void OnImpactSpine(Guid action, Guid phase, string eventName)
+  internal void OnImpactSpine(Guid action, Guid phase, string eventName, int occurrence = -1, string animation = null)
   {
       if (owner.IsSimulationSuspended || runtime.ActionId != action || phase == Guid.Empty ||
           !(owner.StatePresentation is Ossastra.CharacterAnimation.CharacterAnimationController controller) ||
           controller.CapturedPhaseId != phase) return;
-      ImpactFor(action)?.Spine(eventName);
+      ImpactFor(action)?.Spine(eventName, occurrence, animation);
   }
   private BasicAttackDefinition definition,secondDefinition;
   private BasicAttackDefinition[] configuredAttacks;
@@ -30,8 +30,8 @@ namespace Ossastra.Characters
   private bool autonomousAction;
   private readonly AttackIntent intent=new AttackIntent();
   private bool readyPressDuringHitStop;
-  private bool hitStopInputTracked;
-  private int hitStopControlRevision, hitStopGestureGeneration;
+  private bool comboInputTracked;
+  private int comboControlRevision, comboGestureGeneration;
   private string lastFact="Idle";
   private int animationGeneration;
   public int AttackStage {get;private set;}
@@ -40,6 +40,8 @@ namespace Ossastra.Characters
   public string LastFact=>lastFact;
   public int AnimationGeneration=>animationGeneration;
   public bool HasBufferedAttack=>chain!=null&&chain.HasBuffer;
+  public UnityEngine.Object ComboSource { get; private set; }
+  public BasicComboSettings? EffectiveComboSettings { get; private set; }
   public double ComboWindowUntil=>chain==null?-1:chain.WindowUntil;
   public BasicActionRuntime Runtime=>runtime;
   public override string StateMachineName=>"CombatStateMachine";
@@ -50,7 +52,7 @@ namespace Ossastra.Characters
    reason=kind==CharacterActionKind.Main&&(!owner.DataBus.AllowsAttack||!owner.DataBus.AttackReady)?"main-not-ready":null;
    return reason==null;
   }
-  private bool ChainAvailable=>owner.StateCharacterDefinition!=null||(chainProfile!=null&&chainProfile.isActiveAndEnabled);
+  private bool ChainAvailable => ComboSource != null && (ComboSource != chainProfile || chainProfile.isActiveAndEnabled);
   private ActionDefinitionSO[] ActionLibrary
   {
       get
@@ -65,17 +67,16 @@ namespace Ossastra.Characters
   public override void Initialize(CharacterRoot root)
   {
    base.Initialize(root);
-   definition=new BasicAttackDefinition(root.StateReleaseAt,root.StateMoveReadyAt,root.StateAttackReadyAt,root.StateFinishAt,root.StateDamage,root.StatePostureImpact);
-   runtime=new BasicActionRuntime(root.ActorId);chainProfile=root.GetComponent<BasicChainProfile>();
-   var config=root.Definition;
-   if(config!=null){if(ActionLibrary.Length==0)throw new ArgumentException("Character basic attacks required");configuredAttacks=Array.ConvertAll(ActionLibrary,a=>a.FreezeTiming(root.Definition?.eventCalibration));definition=configuredAttacks[0];chain=new BasicChainState(config.preInput,config.bufferLifetime,config.continuationWindow,configuredAttacks.Length,config.requireHitForContinuation);}
-   else if(chainProfile!=null&&chainProfile.enabled){definition=chainProfile.stage1.Freeze();secondDefinition=chainProfile.stage2.Freeze();chain=chainProfile.CreateState();}
-   if(chain!=null){hitReceipts=root.StateMelee;hitReceipts.Resolved+=OnHitReceipt;}
+   runtime = new BasicActionRuntime(root.ActorId);
+   chainProfile = root.GetComponent<BasicChainProfile>();
+   RebuildMainSequence();
+   hitReceipts = root.StateMelee;
+   if (hitReceipts != null) hitReceipts.Resolved += OnHitReceipt;
   }
   public void ClearBuffer()
   {
       readyPressDuringHitStop = false;
-      hitStopInputTracked = false;
+      comboInputTracked = false;
       chain?.Clear();
   }
   public void SuppressInput()=>intent.SuppressUntilRelease();
@@ -95,7 +96,11 @@ namespace Ossastra.Characters
                 bool wasBuffered = HasBufferedAttack;
                 var stage=chain==null?1:chain.Request(runtime.SimulationTime,runtime.AttackReady,
                     owner.StateInput.HasPlayerInput && !owner.IsPaused && owner.StateAuthority.Allows(ControlChannel.Attack) && ChainAvailable && (owner.StateMainAction==null||owner.StateMainAction.AllowsBasicRequest));
-                if (HasBufferedAttack && !wasBuffered) trace?.Note("输入","普攻入缓冲","当前动作结束前的预输入",runtime.ActionId);
+                if (HasBufferedAttack)
+                {
+                    TrackComboInputContext();
+                    trace?.Note("输入", wasBuffered ? "普攻更新预输入" : "普攻入缓冲", "等待当前动作开放", runtime.ActionId);
+                }
                 else if (stage==0) trace?.Note("输入","未发起新普攻",$"再次攻击许可={runtime.AttackReady}，已有缓冲={HasBufferedAttack}，整套收尾许可={owner.StateMainAction?.AllowsBasicRequest}",runtime.ActionId);
                 if(stage>0) RequestStage(stage);
             }
@@ -107,40 +112,44 @@ namespace Ossastra.Characters
             if (!owner.HasPlayerInput || owner.IsSimulationSuspended || frame.attackRequestsBlocked || frame.attackPointerBlocked ||
                 owner.StateArbitrator.Movement.TraversalBlocksAttack || !owner.StateAuthority.Allows(ControlChannel.Attack))
             {
-                DiscardHitStopInput();
+                DiscardPendingComboInput();
                 if (frame.attackHeld) SuppressInput();
                 return;
             }
-            ClearStaleHitStopInput(frame);
+            ClearStaleComboInput(frame);
             if (!pressed || (owner.StateMainAction != null && !owner.StateMainAction.AllowsBasicRequest)) return;
 
             // 保留一条边沿，原动作时钟暂停。恢复后由既有主手请求路径检查当前资格。
-            bool hadBuffer = HasBufferedAttack;
             if (runtime.AttackReady) readyPressDuringHitStop = true;
             else if (ChainAvailable) chain?.Request(runtime.SimulationTime, false, true);
-            if (readyPressDuringHitStop || (!hadBuffer && HasBufferedAttack))
+            if (readyPressDuringHitStop || HasBufferedAttack)
             {
-                hitStopInputTracked = true;
-                hitStopControlRevision = owner.ActionControlRevision;
-                hitStopGestureGeneration = owner.StateInput.GestureGeneration;
+                TrackComboInputContext();
                 CombatTraceProbe.For(owner)?.Note("输入", "卡肉中记录攻击缓冲", "恢复后按原动作资格消费", runtime.ActionId);
             }
         }
 
-        private void ClearStaleHitStopInput(CharacterInputFrame frame)
+        private void TrackComboInputContext()
         {
-            if (!hitStopInputTracked) return;
-            if (frame.attackRequestsBlocked || frame.attackPointerBlocked ||
-                hitStopControlRevision != owner.ActionControlRevision || hitStopGestureGeneration != owner.StateInput.GestureGeneration)
-                DiscardHitStopInput();
-            else if (!HasBufferedAttack && !readyPressDuringHitStop)
-                hitStopInputTracked = false;
+            comboInputTracked = true;
+            comboControlRevision = owner.ActionControlRevision;
+            comboGestureGeneration = owner.StateInput.GestureGeneration;
         }
 
-        private void DiscardHitStopInput()
+        private void ClearStaleComboInput(CharacterInputFrame frame)
         {
-            if (!hitStopInputTracked) return;
-            hitStopInputTracked = readyPressDuringHitStop = false;
+            if (!comboInputTracked) return;
+            // UI 捕获或输入代次变化时，普通与卡肉期间的旧预输入都不能在恢复后消费。
+            if (frame.attackRequestsBlocked || frame.attackPointerBlocked ||
+                comboControlRevision != owner.ActionControlRevision || comboGestureGeneration != owner.StateInput.GestureGeneration)
+                DiscardPendingComboInput();
+            else if (!HasBufferedAttack && !readyPressDuringHitStop)
+                comboInputTracked = false;
+        }
+
+        private void DiscardPendingComboInput()
+        {
+            comboInputTracked = readyPressDuringHitStop = false;
             chain?.DiscardBufferedPress();
         }
   public void RequestCompanion()
@@ -216,7 +225,7 @@ namespace Ossastra.Characters
   {
       if (!owner.HasPlayerInput || owner.IsPaused || !owner.StateFocused) ClearBuffer();
       else if (chain != null && !ChainAvailable) chain.Clear();
-      ClearStaleHitStopInput(frame);
+      ClearStaleComboInput(frame);
   }
         public void ObserveFact(ActionFact fact) => ObserveFact(fact, null);
         private void ObserveFact(ActionFact fact, string phaseClip)
@@ -242,9 +251,10 @@ namespace Ossastra.Characters
         }
         private void BindPostureRecovery(Guid id, ConfiguredActionSnapshot phase, string marker)
         {
-            if (owner.UsesActionPosture && owner.StatePresentation is Ossastra.CharacterAnimation.CharacterAnimationController controller &&
-                controller.HasPostureRecoveryEvent(phase, marker))
-                owner.BindActionRecoveryEvent(id, marker);
+            if (!owner.UsesActionPosture ||
+                !(owner.StatePresentation is Ossastra.CharacterAnimation.CharacterAnimationController controller)) return;
+            var recovery = controller.ResolvePostureRecoveryEvent(phase, marker);
+            if (recovery != null) owner.BindActionRecoveryEvent(id, recovery);
         }
 
         private bool TryResolveConfiguredAction(ActionDefinitionSO config,out ConfiguredActionSnapshot frozen,out string reason,CharacterAnimationPreparation? preparation=null)
@@ -309,22 +319,54 @@ namespace Ossastra.Characters
 #endif
         private void RebuildMainSequence()
         {
-            var sequence=owner.StateMainAction?.Sequence;
-            if(sequence!=null)
+            ClearBuffer();
+            var main = owner.StateMainAction;
+            var sequence = main?.Sequence;
+            if (sequence != null)
             {
-                configuredAttacks=new BasicAttackDefinition[sequence.Count];
-                for(int i=0;i<sequence.Count;i++)configuredAttacks[i]=sequence.Stage(i).Timeline;
-                definition=configuredAttacks[0];chain=new BasicChainState(sequence.BufferSeconds,sequence.BufferSeconds,sequence.ContinuationSeconds,sequence.Count,false);
+                configuredAttacks = new BasicAttackDefinition[sequence.Count];
+                for (int i = 0; i < sequence.Count; i++) configuredAttacks[i] = sequence.Stage(i).Timeline;
+                definition = configuredAttacks[0];
+                SetCombo(main.ComboSource, new BasicComboSettings((float)sequence.BufferSeconds,
+                    (float)sequence.ContinuationSeconds, sequence.RequireHit), sequence.Count);
             }
-            else if(owner.StateCharacterDefinition!=null)
+            else if (owner.StateCharacterDefinition != null)
             {
-                configuredAttacks=Array.ConvertAll(ActionLibrary,a=>a.FreezeTiming(owner.Definition?.eventCalibration));definition=configuredAttacks[0];
-                var chainSource=owner.StateCharacterDefinition;
+                if (ActionLibrary.Length == 0) throw new ArgumentException("Character basic attacks required");
+                configuredAttacks = Array.ConvertAll(ActionLibrary, a => a.FreezeTiming(owner.Definition?.eventCalibration));
+                definition = configuredAttacks[0];
+                var chainSource = owner.StateCharacterDefinition;
+                var effective = chainSource;
 #if UNITY_EDITOR
-                chainSource=AttackLabBindings.Resolve(owner,chainSource);
+                effective = AttackLabBindings.Resolve(owner, chainSource);
 #endif
-                chain=new BasicChainState(chainSource.preInput,chainSource.bufferLifetime,chainSource.continuationWindow,configuredAttacks.Length,chainSource.requireHitForContinuation);
+                SetCombo(chainSource, effective.ComboSettings, configuredAttacks.Length);
             }
+            else
+            {
+                configuredAttacks = null;
+                if (chainProfile != null && chainProfile.isActiveAndEnabled)
+                {
+                    definition = chainProfile.stage1.Freeze();
+                    secondDefinition = chainProfile.stage2.Freeze();
+                    SetCombo(chainProfile, chainProfile.ComboSettings, 2);
+                }
+                else
+                {
+                    definition = new BasicAttackDefinition(owner.StateReleaseAt, owner.StateMoveReadyAt,
+                        owner.StateAttackReadyAt, owner.StateFinishAt, owner.StateDamage, owner.StatePostureImpact);
+                    chain = null;
+                    ComboSource = null;
+                    EffectiveComboSettings = null;
+                }
+            }
+        }
+
+        private void SetCombo(UnityEngine.Object source, BasicComboSettings settings, int stageCount)
+        {
+            chain = settings.CreateState(stageCount);
+            ComboSource = source;
+            EffectiveComboSettings = settings;
         }
         private void RequestStage(int stage, CombatVitals aiTarget = null)
         {
@@ -391,7 +433,7 @@ namespace Ossastra.Characters
             if (fact == null) return false;
             ((ICharacterConfiguredAnimation)owner.StatePresentation).CapturePhase(id, phase);
             // 仅绑定新阶段实际拥有的标记；切相本身继续持有同一份架势恢复锁。
-            if (!string.IsNullOrWhiteSpace(postureRecoveryEvent)) BindPostureRecovery(id, phase, postureRecoveryEvent);
+            BindPostureRecovery(id, phase, postureRecoveryEvent);
             ObserveFact(fact, phase.Clip);
             return true;
         }

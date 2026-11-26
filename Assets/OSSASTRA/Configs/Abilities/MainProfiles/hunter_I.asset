@@ -20,6 +20,11 @@ MonoBehaviour:
     trial-combo.ts, ability-trial.ts. Gameplay values retained; rozeul existing semantic
     mappings reused as PRESENTATION_PARTIAL. Ranger source declares dash event but
     has no active translation consumer: distance remains zero.'
+  comboSettings:
+    version: 1
+    retentionSeconds: 0.25
+    continuationSeconds: 0.625
+    requireHit: 0
   bufferSeconds: 0.25
   continuationSeconds: 0.625
   fullComboRecovery: 0.25

@@ -1,4 +1,4 @@
-/* 功能：普攻与技能共用的可选招式效果配置。曲线、ID和参数在接受时复制。
+/* 功能：普攻与技能共用的可选招式效果配置。曲线、事件选择、ID 和参数在接受时复制。
  * 边界：SO 只保存作者配置；角色、去重与计时属于 ActionImpactRun。
  */
 using System;
@@ -53,6 +53,8 @@ namespace Ossastra.Characters
         public ActionEffectTrigger trigger;
         public ActionEffectFrequency frequency;
         [Tooltip("指定已绑定动画事件的原名")] public string spineEvent;
+        [HideInInspector] public string spineEventClip;
+        [HideInInspector] public int spineEventOccurrence = -1;
         [Tooltip("仅换相时比对进入阶段的正式主片段名；留空允许任意换相。")] public string phaseClip;
         [Tooltip("-1 允许所有释放序号")] public int emissionIndex = -1;
         [Tooltip("留空允许任意投递通道")] public string channel;

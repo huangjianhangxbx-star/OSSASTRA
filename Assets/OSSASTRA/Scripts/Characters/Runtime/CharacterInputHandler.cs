@@ -1,6 +1,6 @@
 /*
  * 脚本：CharacterInputHandler
- * 功能：从Inspector配置的InputAction采样单角色输入快照。
+ * 功能：从 Inspector 的 InputAction 采样单角色输入快照，同一实体主手手势只交付一个按下边沿。
  * 边界：只采输入；不接受动作、不驱动物理或写HP；每实例管理Action生命周期。
  * 协作：选择器经接口读取；来源记忆归玩家会话，真实手势代际与背包访问代际分开。
  */
@@ -292,8 +292,10 @@ namespace Ossastra.Characters
                 }
                 held |= mainButton.Held && !weaponChord; offhand |= leftButton.Held && !weaponChord;
                 attackReleased |= mainButton.Released;
-                attackPressed |= !weaponChord && mainButton.Pressed;
-                if ((pad != null ? mainButton.Pressed : d.ConsumePress(rightHandAction, mainButton)) && !weaponChord)
+                // 普攻与俯冲沿用同一份已消费边沿。再次读取同一输入更新不会刷新普攻缓存。
+                bool mainPressed = (pad != null ? mainButton.Pressed : d.ConsumePress(rightHandAction, mainButton)) && !weaponChord;
+                attackPressed |= mainPressed;
+                if (mainPressed)
                 {
                     double time = pad?.EventTime(PostureInputCommand.MainHand) ?? d.Time(rightHandAction);
                     if (attackDevice == null || time > attackTime ||
@@ -319,7 +321,7 @@ namespace Ossastra.Characters
                 {
                     if (d.Device is Gamepad || d.Device is Pointer)
                     {
-                        RecordBattlePress(c, mainButton.Pressed, pad?.EventTime(PostureInputCommand.MainHand) ?? d.Time(rightHandAction));
+                        RecordBattlePress(c, mainPressed, pad?.EventTime(PostureInputCommand.MainHand) ?? d.Time(rightHandAction));
                         RecordBattlePress(c, leftButton.Pressed, pad?.EventTime(PostureInputCommand.Offhand) ?? d.Time(leftHandAction));
                     }
                     if (d.Device is Gamepad)

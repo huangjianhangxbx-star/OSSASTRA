@@ -1,3 +1,8 @@
+/*
+ * 脚本：AttackLabTuningPanel
+ * 功能：从正式角色的实控动作组读取连段与调参来源，组织试验候选。
+ * 边界：绘制与候选状态不成为正式运行配置，写回需通过现有明确保存入口。
+ */
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -19,11 +24,12 @@ namespace Ossastra.Development.Editor
             public string id, title, path, sourceId;
             public Object source, writable;
             public float baseline, effective, pending, min, max;
-            public bool integer, selected;
+            public bool integer, boolean, selected;
             public bool Changed => !pending.Equals(baseline);
             public string Location => (writable ? AssetDatabase.GetAssetPath(writable) : source.name + "（场内组件）") + " · " + path;
         }
         private readonly List<Field> fields = new List<Field>();
+        private readonly List<string> timingSourceNotes = new List<string>();
         private Ossastra.Characters.CharacterRoot actor;
         private CharacterEquipment equipment;
         private CharacterAbilities abilities;
@@ -47,17 +53,17 @@ namespace Ossastra.Development.Editor
         {
             if (target == null) { if (!ReferenceEquals(actor,null)) Dispose(); return; }
             var equip = target.GetComponent<CharacterEquipment>();
-            var main = target.GetComponent<CharacterMainAction>();
-            var nextProfile = main && main.isActiveAndEnabled ? main.Choices.FirstOrDefault(p => p && p.definitionId == main.SelectedId) : null;
+            var comboSource = target.StateArbitrator?.Combat?.ComboSource;
+            var nextProfile = comboSource as MainActionProfileSO;
             var skills = target.GetComponent<CharacterAbilities>();
             var nextSkill = skills && skills.isActiveAndEnabled && equip?.State != null
                 ? skills.SkillDefinition(ObservedSkillSlot) ?? Enumerable.Range(0,3).Select(skills.SkillDefinition).FirstOrDefault(s => s) : null;
             var right = equip?.RightDefinition;
             var nextLibrary = right && right.actions != null && right.actions.Length > 0 ? right.actions : target.Definition?.basicAttacks;
             string identity = target.ActorId + "|" + AssetId(target.Definition) + "|" + AssetId(right) + "|" + AssetId(nextProfile) + "|" + AssetId(nextSkill);
-            if (nextProfile && main.Sequence != null)
+            var sequence = target.GetComponent<CharacterMainAction>()?.Sequence;
+            if (nextProfile && sequence != null)
             {
-                var sequence = main.Sequence;
                 var stages = Enumerable.Range(0, sequence.Count).Select(sequence.Stage);
                 identity += "|" + string.Join(",", stages.Select(s => string.IsNullOrEmpty(s.SourceId) ? s.Id : s.Id + "=" + s.Timeline.Damage));
             }
@@ -67,13 +73,10 @@ namespace Ossastra.Development.Editor
             Dispose();
             actor = target; equipment = equip; abilities = skills; binding = identity;
             profile = nextProfile; skill = nextSkill; library = nextLibrary ?? Array.Empty<ActionDefinitionSO>();
-            if (!actor.Definition || library.Length == 0) { message = "等待角色与主手动作配置。"; return; }
+            AddCombo(comboSource);
             if (profile) AddProfile();
             else
             {
-                Add("basic.preInput","提前输入（秒）",actor.Definition,"preInput");
-                Add("basic.buffer","缓冲存活（秒）",actor.Definition,"bufferLifetime");
-                Add("basic.continuation","连段接续（秒）",actor.Definition,"continuationWindow");
                 for (int i=0; i<library.Length; i++) AddTiming(library[i],i+1);
                 var hit = actor.GetComponent<CombatMeleeHit>();
                 if (hit)
@@ -95,13 +98,22 @@ namespace Ossastra.Development.Editor
                 foreach (var f in fields) if (previous.TryGetValue(f.id,out var value)) f.pending = value;
         }
 
+        private void AddCombo(Object source)
+        {
+            if (!source) return;
+            using var serialized = new SerializedObject(source);
+            // 历史来源尚未迁移时由角色状态显示实际兼容值，保存前避免写到未生效的新字段。
+            if (serialized.FindProperty("comboSettings.version")?.intValue != 1) return;
+            Add("basic.buffer", "普攻预输入保留时间（秒）", source, "comboSettings.retentionSeconds");
+            Add("basic.continuation", "连段记忆时间（秒）", source, "comboSettings.continuationSeconds");
+            Add("basic.requireHit", "进入下一段需要命中", source, "comboSettings.requireHit", 0, 1);
+        }
+
         private void AddProfile()
         {
-            Add("basic.buffer","提前输入和缓冲（秒）",profile,"bufferSeconds");
-            Add("basic.continuation","连段接续（秒）",profile,"continuationSeconds");
             Add("basic.recovery","末段额外收尾（秒）",profile,"fullComboRecovery");
             Add("basic.contact","有效接触时长（秒）",profile,"contactDuration");
-            var frozen = profile.Freeze(abilities?.SnapshotEffects());
+            var frozen = profile.Freeze(abilities?.SnapshotEffects(), actor.Definition?.eventCalibration);
             for (int i=0;i<frozen.Sequence.Count;i++)
             {
                 string id = frozen.Sequence.Stage(i).Id;
@@ -133,6 +145,22 @@ namespace Ossastra.Development.Editor
         private void AddTiming(ActionDefinitionSO action,int stage,bool useActionDamage = true)
         {
             if (!action) return;
+            if (useActionDamage) Add($"basic.{stage}.damage", $"第 {stage} 段 基础伤害", action, "damage", 1, 1000000);
+            try
+            {
+                var phase = actor.FreezeAbilityPhase(action, new CharacterAnimationPreparation(true, stage, useAuthoredLogic: true));
+                if (phase.Timeline.EventDriven)
+                {
+                    timingSourceNotes.Add($"第 {stage} 段 · 动画事件 · {phase.Clip}");
+                    return;
+                }
+            }
+            catch (ArgumentException error)
+            {
+                timingSourceNotes.Add($"第 {stage} 段 · 动画配置错误 · {error.Message}");
+                return;
+            }
+            timingSourceNotes.Add($"第 {stage} 段 · 定时时序 · {action.name}");
             var markers = new[]{ActionFactKind.Released,ActionFactKind.MoveReady,ActionFactKind.AttackReady,ActionFactKind.Finished};
             string[] ids = {"release","move","ready","finish"}, labels = {"出手","移动许可","再攻击许可","结束"}, fallback = {"releaseAt","moveReadyAt","attackReadyAt","finishAt"};
             for (int i=0;i<markers.Length;i++)
@@ -141,7 +169,6 @@ namespace Ossastra.Development.Editor
                 if (n<0 && action.eventTimeline?.Length>0) continue;
                 Add($"basic.{stage}."+ids[i],$"第 {stage} 段 {labels[i]}（秒）",action,n<0?fallback[i]:$"eventTimeline.Array.data[{n}].seconds");
             }
-            if (useActionDamage) Add($"basic.{stage}.damage",$"第 {stage} 段 基础伤害",action,"damage",1,1000000);
         }
 
         private void Add(string id,string title,Object source,string path,float min=0,float max=float.MaxValue)
@@ -150,29 +177,43 @@ namespace Ossastra.Development.Editor
             using var so = new SerializedObject(source);
             var property = so.FindProperty(path);
             if (property==null) return;
-            bool integer = property.propertyType==SerializedPropertyType.Integer;
-            float value = integer?property.intValue:property.floatValue;
+            bool boolean = property.propertyType == SerializedPropertyType.Boolean;
+            bool integer = boolean || property.propertyType == SerializedPropertyType.Integer;
+            float value = ReadValue(property);
             Object persistent = EditorUtility.IsPersistent(source) ? source : null;
             if (!persistent && source is Component c && !property.prefabOverride)
             {
                 var prefab = PrefabUtility.GetCorrespondingObjectFromSource(c);
-                if (prefab && Read(prefab,path,integer)==value) persistent=prefab;
+                if (prefab && Read(prefab,path)==value) persistent=prefab;
             }
             fields.Add(new Field{id=id,title=title,path=path,source=source,writable=persistent,sourceId=persistent?AssetId(persistent):source.GetType().FullName,
-                baseline=value,effective=value,pending=value,min=min,max=max,integer=integer});
+                baseline=value,effective=value,pending=value,min=min,max=max,integer=integer,boolean=boolean});
         }
 
-        private static float Read(Object target,string path,bool integer)
+        private static float Read(Object target,string path)
         {
             using var so = new SerializedObject(target);
             var prop=so.FindProperty(path);
-            return prop==null ? float.NaN : integer?prop.intValue:prop.floatValue;
+            return prop == null ? float.NaN : ReadValue(prop);
         }
+
+        private static float ReadValue(SerializedProperty property)
+        {
+            switch (property.propertyType)
+            {
+                case SerializedPropertyType.Boolean: return property.boolValue ? 1 : 0;
+                case SerializedPropertyType.Integer: return property.intValue;
+                default: return property.floatValue;
+            }
+        }
+
         private static void Set(Object target,Field f,float value)
         {
             using var so = new SerializedObject(target);
             var prop=so.FindProperty(f.path);
-            if (f.integer) prop.intValue=(int)value; else prop.floatValue=value;
+            if (f.boolean) prop.boolValue = value != 0;
+            else if (f.integer) prop.intValue = (int)value;
+            else prop.floatValue = value;
             so.ApplyModifiedPropertiesWithoutUndo();
         }
         private static string AssetId(Object obj) => obj && AssetDatabase.TryGetGUIDAndLocalFileIdentifier(obj,out string guid,out long id)
@@ -183,7 +224,7 @@ namespace Ossastra.Development.Editor
         {
             var assets = fields.Where(f=>f.writable).Select(f=>AssetDatabase.GetAssetPath(f.writable)).Distinct().OrderBy(p=>p,StringComparer.Ordinal)
                 .Select(p=>p+"="+AssetDatabase.GetAssetDependencyHash(p));
-            var values = fields.Select(f=>f.sourceId+"."+f.path+"="+Number(f.writable ? Read(f.writable,f.path,f.integer) : f.baseline));
+            var values = fields.Select(f=>f.sourceId+"."+f.path+"="+Number(f.writable ? Read(f.writable,f.path) : f.baseline));
             return Hash128.Compute(binding+"|"+string.Join("|",assets)+"|"+string.Join("|",values)).ToString();
         }
         public string VersionFor(bool candidate)=> (candidate?"候选 ":"基线 ")+Hash128.Compute(revision+"|"+string.Join("|",fields.Select(f=>Number(candidate?f.pending:f.baseline)))).ToString().Substring(0,12);

@@ -1,3 +1,8 @@
+/*
+ * 脚本：MainActionProfileTests
+ * 功能：验证冻结主手动作组的资源参数、阶段替换、运动及连段规则。
+ * 边界：只运行纯冻结结构与来源组合，不加载 Unity 资产。
+ */
 using System;
 using Ossastra.CharacterCore;
 using Ossastra.CharacterCore.Abilities;
@@ -22,6 +27,15 @@ internal static class MainActionProfileTests
     {
         Test("Frozen stage array cannot be rewritten by author list",()=>{var items=Stages(Stage("A1"),Stage("A2"));dynamic s=Sequence(items);items.SetValue(Stage("changed",99),0);Assert(s.Stage(0).Id=="A1","input alias");});
         Test("No active rune leaves all four stages and resource metadata intact",()=>{dynamic s=Compose(Base(),Effects());Assert(s.Count==4&&s.Stage(2).Timeline.Damage==20,"unchanged base");Assert(s.BufferSeconds==.25&&s.ContinuationSeconds==.625&&s.FullComboRecovery==.25,"chain metadata");});
+        Test("Combo hit requirement and zero retention survive weapon composition", () =>
+        {
+            var first = new MainActionStage("first", new BasicAttackDefinition(.1, .2, .2, .5, 15), 1.8, 114.6);
+            var original = new MainActionSequence("explicit-hit", new[] { first }, 0, .625, .25, 1, true);
+            var result = original.Compose(null, null, null, Effects());
+            Assert(result.RequireHit && result.BufferSeconds == 0 && result.ContinuationSeconds == .625,
+                "组合后的动作组仍使用冻结的命中规则与合法零值");
+            Assert(!Base().RequireHit, "旧构造入口保持空挥允许");
+        });
         Test("Chisel replaces stage three and carries delayed source identity",()=>{dynamic s=Compose(Base(),Effects(chisel:true));Assert(s.Count==4&&s.Stage(2).Id=="chisel"&&s.Stage(2).Timeline.Damage==25&&s.Stage(2).SourceId=="held-chisel","replacement/source");});
         Test("Upgraded chisel changes frozen damage without changing template",()=>{dynamic s=Compose(Base(),Effects(chisel:true,upgraded:true));Assert(s.Stage(2).Timeline.Damage==40&&Stage("chisel",25).Timeline.Damage==25,"40 versus immutable25");});
         Test("Rapid prefix replaces two stages with three",()=>{dynamic s=Compose(Base(),Effects(rapid:true));Assert(s.Count==5&&s.Stage(0).Id=="R1"&&s.Stage(3).Id=="A3"&&s.Stage(4).Id=="A4","prefix topology");});

@@ -1,5 +1,5 @@
 /* 脚本：MainActionSequence
- * 功能：冻结主武器动作组、阶段几何/运动和连段规则，按来源组合凿冰与迅猛连击。
+ * 功能：冻结主武器动作组、阶段几何/运动和三项连段规则，按来源组合凿冰与迅猛连击。
  * 边界：不付款、不推进角色、不持有SO；组合只生成本次候选，不改共享定义或资源。
  * 协作：Root接受阶段后使用同一Timeline，运动/投递分别进入既有唯一端口。
  */
@@ -41,14 +41,20 @@ namespace Ossastra.CharacterCore
         public int Count=>stages.Length;
         public double BufferSeconds {get;}
         public double ContinuationSeconds {get;}
+        public bool RequireHit {get;}
         public double FullComboRecovery {get;}
         public double PostureScale {get;}
         public MainActionStage Stage(int index)=>stages[index];
-        public MainActionSequence(string id,MainActionStage[] stages,double bufferSeconds,double continuationSeconds,double fullComboRecovery,double postureScale=1)
+        public MainActionSequence(string id, MainActionStage[] stages, double bufferSeconds, double continuationSeconds,
+            double fullComboRecovery, double postureScale = 1)
+            : this(id, stages, bufferSeconds, continuationSeconds, fullComboRecovery, postureScale, false) { }
+
+        public MainActionSequence(string id, MainActionStage[] stages, double bufferSeconds, double continuationSeconds,
+            double fullComboRecovery, double postureScale, bool requireHit)
         {
             if(string.IsNullOrWhiteSpace(id)||stages==null||stages.Length<1||stages.Length>32||stages.Any(s=>s==null)||stages.Select(s=>s.Id).Distinct().Count()!=stages.Length||
                 new[]{bufferSeconds,continuationSeconds,fullComboRecovery,postureScale}.Any(v=>!BasicAttackDefinition.Finite(v)||v<0))throw new ArgumentException("Invalid main sequence: "+id);
-            Id=id;this.stages=(MainActionStage[])stages.Clone();BufferSeconds=bufferSeconds;ContinuationSeconds=continuationSeconds;FullComboRecovery=fullComboRecovery;PostureScale=postureScale;
+            Id=id;this.stages=(MainActionStage[])stages.Clone();BufferSeconds=bufferSeconds;ContinuationSeconds=continuationSeconds;FullComboRecovery=fullComboRecovery;PostureScale=postureScale;RequireHit=requireHit;
         }
         /// <summary>先替换第三段，再替换被标记的前缀；符合冻结原型trialBasic→applyTrialCombo顺序。</summary>
         public MainActionSequence Compose(MainActionStage chisel,MainActionStage[] rapid,MainActionStage[] rapidPlus,EffectSnapshot effects)
@@ -62,7 +68,7 @@ namespace Ossastra.CharacterCore
                 var entries=prefix.Definition.ComboPrefix=="rapid-plus"?rapidPlus:prefix.Definition.ComboPrefix=="rapid"?rapid:null;
                 if(entries!=null&&entries.Length>0)result=entries.Concat(result.Where(s=>!s.PrefixReplaceable)).ToArray();
             }
-            return new MainActionSequence(Id,result,BufferSeconds,ContinuationSeconds,FullComboRecovery,PostureScale);
+            return new MainActionSequence(Id,result,BufferSeconds,ContinuationSeconds,FullComboRecovery,PostureScale,RequireHit);
         }
     }
 }

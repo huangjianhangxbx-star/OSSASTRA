@@ -1,3 +1,8 @@
+/*
+ * 脚本：AttackLabTuningPanel.View
+ * 功能：显示手感试验的生效、候选和作者来源，将变更交给统一复位与写回。
+ * 边界：Inspector 起点来自战斗状态机实际已冻结的连段来源。
+ */
 using System;
 using System.Linq;
 using UnityEditor;
@@ -12,13 +17,41 @@ namespace Ossastra.Development.Editor
         {
             if (!actor || fields.Count==0) {EditorGUILayout.HelpBox("进入测试场的 Play 模式后读取当前实控角色与武器。",MessageType.Info);return;}
             EditorGUILayout.LabelField("本次实验",EditorStyles.boldLabel);
-            EditorGUILayout.LabelField("普通攻击",profile ? profile.displayName : (equipment?.RightDefinition ? equipment.RightDefinition.name : actor.Definition.name));
+            var combat = actor.StateArbitrator?.Combat;
+            var comboSource = combat?.ComboSource;
+            EditorGUILayout.LabelField("普通攻击", profile ? profile.displayName :
+                (equipment?.RightDefinition ? equipment.RightDefinition.name : actor.Definition?.name ?? "场内默认"));
+            if (comboSource && combat.EffectiveComboSettings.HasValue)
+            {
+                var settings = combat.EffectiveComboSettings.Value;
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    EditorGUILayout.LabelField("生效连段来源", comboSource.name);
+                    if (GUILayout.Button("定位", GUILayout.Width(52)))
+                    {
+                        Selection.activeObject = comboSource;
+                        EditorGUIUtility.PingObject(comboSource);
+                    }
+                }
+                EditorGUILayout.LabelField($"保留 {Pretty(settings.retentionSeconds)} 秒  ·  记忆 {Pretty(settings.continuationSeconds)} 秒  ·  " +
+                    (settings.requireHit ? "需命中" : "可空挥"), EditorStyles.wordWrappedMiniLabel);
+                if (!fields.Any(f => f.id == "basic.buffer"))
+                    EditorGUILayout.HelpBox("此来源仍使用兼容参数。可在来源 Inspector 中保存升级。", MessageType.Info);
+            }
+            var fallback = actor.GetComponent<Ossastra.Characters.CharacterMainAction>()?.ComboFallbackReason;
+            if (!string.IsNullOrEmpty(fallback))
+                EditorGUILayout.HelpBox("主手动作组已回退：" + fallback, MessageType.Warning);
             EditorGUILayout.LabelField("代表技能", skill ? skill.displayName : "当前主手没有已装配技能");
             section=GUILayout.Toolbar(section,new[]{"连段","分段动作","技能","命中反馈"});
             showSource=EditorGUILayout.Foldout(showSource,"查看参数来源和单位",true);
             var selected=fields.Where(f=>SectionOf(f)==section).ToArray();
             if(selected.Length==0)EditorGUILayout.HelpBox("当前角色没有接入这一类可调来源。",MessageType.None);
-            if(section==1) EditorGUILayout.LabelField("动作总时长也参与动画速度计算。修改在下一次受理动作时生效。",EditorStyles.wordWrappedMiniLabel);
+            if (section == 1)
+            {
+                foreach (var note in timingSourceNotes)
+                    EditorGUILayout.LabelField(note, EditorStyles.wordWrappedMiniLabel);
+                EditorGUILayout.LabelField("定时动作的总时长参与动画速度计算。修改在下一次受理时生效。", EditorStyles.wordWrappedMiniLabel);
+            }
             using(new EditorGUILayout.HorizontalScope())
             {
                 EditorGUILayout.LabelField("参数",GUILayout.MinWidth(90));
@@ -31,7 +64,10 @@ namespace Ossastra.Development.Editor
                     EditorGUILayout.LabelField(new GUIContent(f.title,f.Location),GUILayout.MinWidth(90));
                     GUILayout.Label(Pretty(f.baseline),GUILayout.Width(56));GUILayout.Label(Pretty(f.effective),GUILayout.Width(56));
                     EditorGUI.BeginChangeCheck();
-                    float next = f.integer ? EditorGUILayout.IntField((int)f.pending,GUILayout.Width(70)) : EditorGUILayout.FloatField(f.pending,GUILayout.Width(70));
+                    float next;
+                    if (f.boolean) next = EditorGUILayout.Toggle(f.pending != 0, GUILayout.Width(70)) ? 1 : 0;
+                    else if (f.integer) next = EditorGUILayout.IntField((int)f.pending, GUILayout.Width(70));
+                    else next = EditorGUILayout.FloatField(f.pending, GUILayout.Width(70));
                     if(EditorGUI.EndChangeCheck())f.pending=next;
                 }
                 if(showSource)EditorGUILayout.LabelField(f.Location,EditorStyles.wordWrappedMiniLabel);

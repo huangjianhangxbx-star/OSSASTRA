@@ -1,5 +1,5 @@
 /* 功能：本次正式 Accepted 的效果快照，消费动作事实及网关结算后的真实回执。
- * 边界：向运动所有者请求运动，不写 Transform / HP。离手投递按真实 Release 的引用持有快照。
+ * 边界：向运动所有者请求运动，不写 Transform / HP。离手投递保留快照，Spine 条目可限定实际片段及同名次序。
  */
 using System;
 using System.Runtime.CompilerServices;
@@ -106,7 +106,8 @@ namespace Ossastra.Characters
             }
         }
 
-        internal void Spine(string name) => Fire(ActionEffectTrigger.SpineEvent, namedEvent: name);
+        internal void Spine(string name, int occurrence, string animation)
+            => Fire(ActionEffectTrigger.SpineEvent, namedEvent: name, eventOccurrence: occurrence, eventAnimation: animation);
         internal void End()
         {
             if (ledger.Ended) return;
@@ -131,7 +132,7 @@ namespace Ossastra.Characters
         }
 
         private void Fire(ActionEffectTrigger trigger, AttackRelease release = null, string channel = null,
-            Component target = null, HitOutcome hit = null, string namedEvent = null)
+            Component target = null, HitOutcome hit = null, string namedEvent = null, int eventOccurrence = -1, string eventAnimation = null)
         {
             if (!owner || !vitals || !vitals.IsAvailable) return;
             if (player ? !player.isActiveAndEnabled || player.LifeGeneration != life :
@@ -139,7 +140,10 @@ namespace Ossastra.Characters
             for (int i = 0; i < entries.Length; ++i)
             {
                 var entry = entries[i];
-                if (entry.trigger != trigger || trigger == ActionEffectTrigger.SpineEvent && entry.spineEvent != namedEvent ||
+                if (entry.trigger != trigger ||
+                    trigger == ActionEffectTrigger.SpineEvent && (entry.spineEvent != namedEvent ||
+                        !string.IsNullOrEmpty(entry.spineEventClip) && (entry.spineEventClip != eventAnimation ||
+                            entry.spineEventOccurrence >= 0 && entry.spineEventOccurrence != eventOccurrence)) ||
                     trigger == ActionEffectTrigger.PhaseChanged && !string.IsNullOrEmpty(entry.phaseClip) && entry.phaseClip != namedEvent) continue;
                 if ((trigger == ActionEffectTrigger.SpineEvent || trigger == ActionEffectTrigger.PhaseChanged) && CombatTraceProbe.For(owner) != null)
                     (observedBindings ??= new bool[entries.Length])[i] = true;

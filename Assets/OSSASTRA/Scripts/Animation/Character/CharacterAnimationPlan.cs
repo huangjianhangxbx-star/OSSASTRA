@@ -1,4 +1,4 @@
-/* AM02：迁自旧代码原实现；保留作者字段和分组，生产类型/GUID独立。 */
+/* 保存角色动画的主轨、移动替换与排队片段，克隆时保持各片段独立的来源和播放参数。 */
 namespace Ossastra.CharacterAnimation
 {
 using CharacterRoot = Ossastra.Characters.CharacterRoot;
@@ -105,6 +105,41 @@ public class CharacterAnimationPlan
     public bool HasOperations => (clips != null && clips.Exists(c => c != null && c.track >= 0 && !string.IsNullOrEmpty(c.animaName)))
         || (clearTracks != null && clearTracks.Exists(t => t >= 0))
         || (queuedClips != null && queuedClips.Exists(q => q != null && q.clip != null && q.clip.track >= 0 && !string.IsNullOrEmpty(q.clip.animaName)));
+    public IEnumerable<CharacterAnimationClip> EnumerateClips()
+    {
+        if (clips != null)
+            foreach (var clip in clips)
+                if (clip != null) yield return clip;
+        if (movingLoopClips != null)
+            foreach (var clip in movingLoopClips)
+                if (clip != null) yield return clip;
+        if (queuedClips != null)
+            foreach (var item in queuedClips)
+                if (item?.clip != null) yield return item.clip;
+    }
+
+    internal void SetMappingSource(ScriptableObject mapping, EAnimationLogicState logic)
+    {
+        foreach (var clip in EnumerateClips())
+        {
+            clip.runtimeMapping = mapping;
+            clip.runtimeMappingLogic = logic;
+        }
+    }
+
+#if UNITY_EDITOR
+    internal void EnsureClipIdentities(HashSet<string> used)
+    {
+        foreach (var clip in EnumerateClips())
+        {
+            if (!string.IsNullOrEmpty(clip.eventClipId) && used.Add(clip.eventClipId)) continue;
+            // 排序与改名时保留原标识；新增或复制的重复条目取得新标识。
+            clip.eventClipId = System.Guid.NewGuid().ToString("N");
+            used.Add(clip.eventClipId);
+        }
+    }
+#endif
+
     public void SetSkeletonDataAsset(SkeletonDataAsset skeletonDataAsset)
     {
         if (movingLoopClips != null)

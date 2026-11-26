@@ -1,4 +1,4 @@
-/* AM02：迁自旧代码原实现；保留作者字段和分组，生产类型/GUID独立。 */
+/* 按装配和角色状态选择替换动画。返回实际覆写资产来源，供事件配置与播放冻结使用。 */
 namespace Ossastra.CharacterAnimation
 {
 using CharacterRoot = Ossastra.Characters.CharacterRoot;
@@ -245,6 +245,7 @@ public class AnimationPlanOverrideRuleSetSO : ScriptableObject
 
             var copy = rule.replacementPlan.CloneFor(context?.root);
             copy.SetSkeletonDataAsset(skeletonDataAsset);
+            copy.SetMappingSource(this, id);
             return copy;
         }
 
@@ -291,6 +292,9 @@ public class AnimationPlanOverrideRuleSetSO : ScriptableObject
     private void OnValidate()
     {
         Revision++;
+#if UNITY_EDITOR
+        var used = new HashSet<string>();
+#endif
         foreach (var rule in GetAllRules())
         {
             if (rule == null)
@@ -302,6 +306,9 @@ public class AnimationPlanOverrideRuleSetSO : ScriptableObject
             }
 
             rule.replacementPlan.SetSkeletonDataAsset(skeletonDataAsset);
+#if UNITY_EDITOR
+            rule.replacementPlan.EnsureClipIdentities(used);
+#endif
         }
     }
 }

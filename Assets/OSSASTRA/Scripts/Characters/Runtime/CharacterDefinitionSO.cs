@@ -1,5 +1,5 @@
 /* 脚本：CharacterDefinitionSO
- * 功能：角色基础动作库与表现配置引用；双角色可共享定义但独立执行。
+ * 功能：角色基础动作库、默认普攻连段及表现配置引用；双角色可共享定义但独立执行。
  * 边界：不持有HP、体力、动作、耐久与CD；SO替换在初始化时生效。
  */
 using System;
@@ -25,8 +25,19 @@ namespace Ossastra.Characters
         [Min(.01f)] public float dodgeDuration=.45f,dodgeDistance=2.4f;
         [Min(0)] public float actionPostureRecoveryMultiplier = 1;
         [Min(0)] public float dodgeCost=22,invulnerableFrom=.12f,invulnerableTo=.32f;
-        [Min(0)] public float preInput=.12f,bufferLifetime=.17f,continuationWindow=.45f;
-        [Tooltip("普通连段默认允许空挥接段；仅特殊设计开启命中接续要求。")]
-        public bool requireHitForContinuation;
+        [InspectorName("普攻连段（角色默认）")] public BasicComboSettings comboSettings;
+        [SerializeField, HideInInspector] private float preInput = .12f, bufferLifetime = .17f, continuationWindow = .45f;
+        [SerializeField, HideInInspector] private bool requireHitForContinuation;
+
+        // 旧资产升级前按相同迁移公式兼容读取；保存新值后只读新数据，合法的零也不回填。
+        public BasicComboSettings ComboSettings => comboSettings.IsMigrated
+            ? comboSettings : BasicComboSettings.FromLegacy(preInput, bufferLifetime, continuationWindow, requireHitForContinuation);
+
+        public bool MigrateComboSettings()
+        {
+            if (comboSettings.IsMigrated) return false;
+            comboSettings = ComboSettings;
+            return true;
+        }
     }
 }

@@ -15,6 +15,8 @@ namespace Ossastra.CharacterAnimation
         public int Cycle,Occurrence;
         public long Sequence;
         public bool Calibrated;
+        public bool MappingConfigured;
+        public bool CanDriveActionTiming;
         public AnimationEventMeaning Meaning;
         public AnimationSignalPurpose Purpose;
         public AnimationCalibrationBinding Binding;
@@ -24,7 +26,8 @@ namespace Ossastra.CharacterAnimation
         private Spine.AnimationState state;
         private AnimationHandleSystem handle;
         private readonly Queue<(TrackEntry entry, AnimationSignal signal)> pending=new Queue<(TrackEntry,AnimationSignal)>();
-        private readonly Dictionary<TrackEntry,Dictionary<string,int>> consumed=new Dictionary<TrackEntry,Dictionary<string,int>>();
+        private readonly Dictionary<TrackEntry, Dictionary<Spine.Event, int>> consumed =
+            new Dictionary<TrackEntry, Dictionary<Spine.Event, int>>();
         public event Action<AnimationSignal> Signal;
         public void Bind(AnimationHandleSystem owner,Spine.AnimationState next)
         {
@@ -34,12 +37,25 @@ namespace Ossastra.CharacterAnimation
         private void OnEvent(TrackEntry entry,Spine.Event e)
         {
             if(handle==null||!handle.IsCurrent(entry,out var clip)||handle.CollectMarker(entry,e))return;
-            var cycle=entry.Loop&&entry.Animation.Duration>0?(int)(entry.TrackTime/entry.Animation.Duration):0;
-            var key=e.Data.Name+"|"+e.Time;
-            if(!consumed.TryGetValue(entry,out var nodes)){nodes=new Dictionary<string,int>();consumed.Add(entry,nodes);}
-            if(nodes.TryGetValue(key,out var previous)&&previous==cycle)return;
-            nodes[key]=cycle;
-            pending.Enqueue((entry,new AnimationSignal{ActorId=clip.runtimeActor,Target=clip.runtimeTarget,ActionId=clip.runtimeActionId,PhaseId=clip.runtimePhaseId,Generation=clip.runtimeGeneration,LifeGeneration=clip.runtimeLifeGeneration,Source=clip.runtimeSourceStateMachine,ReplayId=clip.runtimeReplayId,Track=entry.TrackIndex,Name=e.Data.Name,Time=e.Time,Animation=entry.Animation.Name,EffectiveTime=e.Time,Cycle=cycle}));
+            float duration = entry.Animation.Duration;
+            var cycle = entry.Loop && duration > 0 ? Math.Max(0, (int)Math.Floor((entry.TrackTime - e.Time + 0.000001f) / duration)) : 0;
+            if (!consumed.TryGetValue(entry, out var nodes))
+            {
+                nodes = new Dictionary<Spine.Event, int>();
+                consumed.Add(entry, nodes);
+            }
+            // 同时同名的两次 Spine 事件仍有不同源对象，不折叠成一次。
+            if (nodes.TryGetValue(e, out var previous) && previous == cycle) return;
+            nodes[e] = cycle;
+            pending.Enqueue((entry, new AnimationSignal
+            {
+                ActorId = clip.runtimeActor, Target = clip.runtimeTarget, ActionId = clip.runtimeActionId,
+                PhaseId = clip.runtimePhaseId, Generation = clip.runtimeGeneration, LifeGeneration = clip.runtimeLifeGeneration,
+                Source = clip.runtimeSourceStateMachine, ReplayId = clip.runtimeReplayId, Track = entry.TrackIndex,
+                Name = e.Data.Name, Time = e.Time, Animation = entry.Animation.Name, EffectiveTime = e.Time, Cycle = cycle,
+                Occurrence = AnimationClipEventConfiguration.Occurrence(entry.Animation, e),
+                MappingConfigured = clip.runtimeMappingConfigured
+            }));
         }
         public void Flush()
         {

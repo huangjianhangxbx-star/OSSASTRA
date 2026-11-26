@@ -1,5 +1,5 @@
 /* 脚本：MainActionProfileSO
- * 功能：作者配置独立主手动作/形态组及凿冰、迅猛前缀；现有默认四段不被自动替换。
+ * 功能：作者配置独立主手动作/形态组、连段参数及凿冰、迅猛前缀。
  * 边界：SO只持定义和动画引用，不保存装备选择/资源/执行；Freeze后原数组编辑不影响动作拓扑。
  * 协作：装备实例保存选择ID，Root接受时冻结动作动画，再把阶段几何/运动交共享执行器。
  */
@@ -38,7 +38,20 @@ namespace Ossastra.Characters
         public string definitionId,displayName,professionId;
         public string formLabel="I";
         [TextArea] public string sourceEvidence;
-        [Min(0)] public float bufferSeconds=.25f,continuationSeconds=.625f,fullComboRecovery=.25f,postureScale=1;
+        [InspectorName("普攻连段（此主手组）")] public BasicComboSettings comboSettings;
+        [SerializeField, HideInInspector] private float bufferSeconds = .25f, continuationSeconds = .625f;
+        [Min(0)] public float fullComboRecovery = .25f, postureScale = 1;
+
+        // 旧武器组有完整的独立参数，固定允许空挥接段。
+        public BasicComboSettings ComboSettings => comboSettings.IsMigrated
+            ? comboSettings : BasicComboSettings.FromLegacy(bufferSeconds, bufferSeconds, continuationSeconds, false);
+
+        public bool MigrateComboSettings()
+        {
+            if (comboSettings.IsMigrated) return false;
+            comboSettings = ComboSettings;
+            return true;
+        }
         [Min(0)] public float contactDuration=.1f;
         public MainActionStageDefinition[] stages=Array.Empty<MainActionStageDefinition>();
         public MainActionStageDefinition chisel;
@@ -49,7 +62,10 @@ namespace Ossastra.Characters
             if(stages==null||rapidPrefix==null||rapidPlusPrefix==null)throw new ArgumentException(name+": missing main profile array");
             // Unity内联类重载后可能把null还原为空对象；空ID且无action才是缺省，半配置仍拒绝。
             var optionalChisel=chisel==null||chisel.action==null&&string.IsNullOrWhiteSpace(chisel.stageId)?null:chisel;
-            var sequence=new MainActionSequence(definitionId,stages.Select(s=>s?.Freeze(calibration)??throw new ArgumentException(name+": missing stage")).ToArray(),bufferSeconds,continuationSeconds,fullComboRecovery,postureScale);
+            var combo = ComboSettings;
+            var sequence = new MainActionSequence(definitionId,
+                stages.Select(s => s?.Freeze(calibration) ?? throw new ArgumentException(name + ": missing stage")).ToArray(),
+                combo.retentionSeconds, combo.continuationSeconds, fullComboRecovery, postureScale, combo.requireHit);
             var all=stages.Concat(optionalChisel==null?Array.Empty<MainActionStageDefinition>():new[]{optionalChisel}).Concat(rapidPrefix).Concat(rapidPlusPrefix).ToArray();
             if(all.Any(s=>s==null)||all.Select(s=>s.stageId).Distinct().Count()!=all.Length)throw new ArgumentException(name+": duplicate/missing stage identity");
             sequence=sequence.Compose(optionalChisel?.Freeze(calibration),rapidPrefix.Select(s=>s.Freeze(calibration)).ToArray(),rapidPlusPrefix.Select(s=>s.Freeze(calibration)).ToArray(),effects);

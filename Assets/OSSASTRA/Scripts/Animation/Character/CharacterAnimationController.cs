@@ -1,5 +1,5 @@
 /* 角色事实适配器：Root的表现端口→Intent/配置/Composer/Handle。
- * 不拥有玩法状态、动作钟或伤害。墙边语义和朝向只读运动事实，动画片段由SO配置。
+ * 在动作受理前冻结实际映射的事件响应，单独派发源事件和表现请求；玩法许可仍交给角色状态机。
  */
 using System;
 using System.Linq;
@@ -92,16 +92,22 @@ namespace Ossastra.CharacterAnimation
         }
         private void OnSignal(AnimationSignal signal)
         {
-            if(signal.Calibrated && signal.Purpose==AnimationSignalPurpose.Marker && signal.Meaning==AnimationEventMeaning.Release)
+            if (signal.ActionId != Guid.Empty && signal.ActionId == capturedId &&
+                signal.PhaseId != Guid.Empty && signal.PhaseId != phaseId) return;
+            if(signal.CanDriveActionTiming && signal.Purpose==AnimationSignalPurpose.Marker && signal.Meaning==AnimationEventMeaning.Release)
             {
                 CustomReleaseSound=signal.Binding.sound?signal.ActionId:Guid.Empty;
                 CustomReleaseEffect=signal.Binding.effect?signal.ActionId:Guid.Empty;
             }
-            if (signal.ActionId != Guid.Empty && root && signal.LifeGeneration == root.LifeGeneration)
-                root.StateArbitrator?.Combat?.OnImpactSpine(signal.ActionId, signal.PhaseId, signal.Name);
+            // 音画与标记由同一源事件派生，招式词条只消费一次逻辑源。
+            bool logicalSource = signal.Purpose == AnimationSignalPurpose.Source ||
+                (!signal.Calibrated && signal.Purpose == AnimationSignalPurpose.Marker);
+            if (logicalSource && signal.ActionId != Guid.Empty && root && signal.LifeGeneration == root.LifeGeneration)
+                root.StateArbitrator?.Combat?.OnImpactSpine(signal.ActionId, signal.PhaseId,
+                    signal.Name, signal.Occurrence, signal.Animation);
             SpineSignal?.Invoke(signal);
             if(signal.Calibrated && signal.Purpose==AnimationSignalPurpose.Effect) EffectRequested?.Invoke(this,signal);
-            if(!signal.Calibrated || signal.Purpose!=AnimationSignalPurpose.Marker || signal.ActionId==Guid.Empty)return;
+            if(!signal.CanDriveActionTiming || signal.Purpose!=AnimationSignalPurpose.Marker || signal.ActionId==Guid.Empty)return;
             switch(signal.Meaning)
             {
                 case AnimationEventMeaning.Release: root.ConsumeAnimationMarker(signal.ActionId,signal.PhaseId,ActionMarkerKind.Release);break;
@@ -120,9 +126,10 @@ namespace Ossastra.CharacterAnimation
                 clip.runtimeActionId!=capturedId || clip.runtimePhaseId!=phaseId)
                 root.CancelOwnedMainAction(capturedId,"calibrated-playback-lost");
         }
-        private CharacterAnimationPlan ResolveAction(Ossastra.Characters.ActionDefinitionSO definition,CharacterAnimationPreparation preparation)
+        /// <summary>返回实际装配、模型及状态路由选中的片段，并保留映射来源。</summary>
+        public CharacterAnimationPlan ResolveAction(ActionDefinitionSO definition, CharacterAnimationPreparation preparation)
         {
-            if(definition==null||definition.animationLogicId==EAnimationLogicState.None||!Enum.IsDefined(typeof(EAnimationLogicState),definition.animationLogicId))return null;
+            if(root==null||config==null||composer==null||definition==null||definition.animationLogicId==EAnimationLogicState.None||!Enum.IsDefined(typeof(EAnimationLogicState),definition.animationLogicId))return null;
             var source=preparation.MainHand.HasValue?(preparation.MainHand.Value?AnimationIntentSourceStateMachine.MainHand:AnimationIntentSourceStateMachine.OffHand):AnimationIntentSourceStateMachine.Skill;
             var index=preparation.Stage;
             if(index==0)index=definition.animationLogicId==EAnimationLogicState.Attack_Normal_1?1:definition.animationLogicId==EAnimationLogicState.Attack_Normal_2?2:definition.animationLogicId==EAnimationLogicState.Attack_Normal_3?3:definition.animationLogicId==EAnimationLogicState.Attack_Normal_4?4:0;
@@ -156,43 +163,131 @@ namespace Ossastra.CharacterAnimation
         public ConfiguredActionSnapshot PrepareAnimation(Ossastra.Characters.ActionDefinitionSO definition,CharacterAnimationPreparation preparation)
         {
             if(definition==null)throw new ArgumentException("missing-action-definition");
-            return FreezePlan(ResolveAction(definition,preparation),definition.FreezeTiming(handle.Profile),definition.definitionId);
+            return FreezePlan(ResolveAction(definition, preparation), null, definition.definitionId, definition);
         }
-        private ConfiguredActionSnapshot FreezePlan(CharacterAnimationPlan original,BasicAttackDefinition timeline,string behavior=null)
+
+        private readonly System.Collections.Generic.HashSet<string> eventDiagnostics = new System.Collections.Generic.HashSet<string>();
+
+#if UNITY_EDITOR
+        private ScriptableObject previewEventMapping;
+        private string previewEventClipId;
+        private AnimationClipEventConfiguration previewEventResponses;
+
+        /// <summary>把调试台候选限制在此角色和原映射的一条片段，只在下一次冻结读取。</summary>
+        public void SetEventResponsePreview(ScriptableObject mapping, string clipId, AnimationClipEventConfiguration responses)
         {
-            if(!ValidatePlan(original,out var reason))throw new ArgumentException(reason);
-            var plan=original.CloneFor(root);
-            var profile=handle.Profile;
-            var rules=profile?.bindings?.Where(b=>b!=null && behavior!=null && b.behavior==behavior).ToArray();
-            if(profile!=null && profile.Drives(behavior))
+            previewEventMapping = mapping;
+            previewEventClipId = clipId;
+            previewEventResponses = responses;
+        }
+
+        public void ClearEventResponsePreview()
+        {
+            previewEventMapping = null;
+            previewEventClipId = null;
+            previewEventResponses = null;
+        }
+#endif
+
+        private ConfiguredActionSnapshot FreezePlan(CharacterAnimationPlan original, BasicAttackDefinition timeline,
+            string behavior = null, ActionDefinitionSO action = null)
+        {
+            if (!ValidatePlan(original, out var reason)) throw new ArgumentException(reason);
+            var plan = original.CloneFor(root);
+            var primary = plan.clips.FirstOrDefault(clip => clip.track == 0);
+            var skeletonData = skeleton.Skeleton.Data;
+            bool drivesTiming = false;
+            foreach (var clip in plan.EnumerateClips())
             {
-                if(rules==null || rules.Length==0)throw new ArgumentException("已迁移动作没有绑定："+behavior);
-                if(!profile.MatchesSkeleton(skeleton.skeletonDataAsset))throw new ArgumentException("校准骨架失配："+behavior);
-                var carrier=plan.clips.FirstOrDefault(c=>c.track==0);
-                if(carrier==null)throw new ArgumentException("缺主轨："+behavior);
-                var rows=rules.Where(b=>b.animation==carrier.animaName && b.track==carrier.track).ToArray();
-                var animation=skeleton.Skeleton.Data.FindAnimation(carrier.animaName);
-                if(rows.Length==0 || rows.Any(b=>!profile.Valid(b,animation)) ||
-                    rows.GroupBy(b=>(b.eventName,b.occurrence,b.semantic)).Any(g=>g.Count()>1) ||
-                    rows.Count(b=>b.semantic==AnimationEventMeaning.Finish)!=1 || !rows.Any(b=>b.semantic==AnimationEventMeaning.Release))
-                    throw new ArgumentException("源事件或正式收尾失配："+behavior+" / "+carrier.animaName);
-                float Effective(AnimationCalibrationBinding b)=>b.sourceTime+(float)b.offsetFrames/profile.framesPerSecond;
-                var finish=rows.Single(b=>b.semantic==AnimationEventMeaning.Finish);
-                if(rows.Any(b=>b.semantic!=AnimationEventMeaning.Finish && Effective(b)>Effective(finish)))
-                    throw new ArgumentException("动作标记位于结束之后："+behavior);
-                carrier.runtimeMarkers=rows.Select(b=>b.Copy()).ToArray();
-                carrier.runtimeFps=profile.framesPerSecond;
-                carrier.runtimeBehavior=behavior;
-                timeline=timeline.AsEventDriven();
-            }
-            foreach(var clip in PlanClips(plan))
-                if(clip.scalesWithAction && !timeline.EventDriven)
+                var animation = skeletonData.FindAnimation(clip.animaName);
+                if (clip.scalesWithAction && clip.sourceDuration <= 0) clip.sourceDuration = animation.Duration;
+                string location = (clip.runtimeMapping != null ? clip.runtimeMapping.name + " / " : "") +
+                    clip.animaName + " / 轨 " + clip.track;
+                try
                 {
-                    var duration=clip.sourceDuration>0?clip.sourceDuration:skeleton.Skeleton.Data.FindAnimation(clip.animaName).Duration;
-                    clip.playbackRate=duration/(float)timeline.FinishAt;
+                    var configuration = clip.eventResponses;
+#if UNITY_EDITOR
+                    if (previewEventResponses != null && previewEventMapping != null &&
+                        previewEventMapping == clip.runtimeMapping && previewEventClipId == clip.eventClipId)
+                        configuration = previewEventResponses;
+#endif
+                    if (configuration == null || !configuration.TrySelect(action, out var fps, out var drives, out var rows))
+                        continue;
+                    if (drives && clip != primary)
+                        throw new ArgumentException("只有本动作的主播放片段可以驱动玩法时序");
+                    clip.runtimeMappingConfigured = true;
+                    clip.runtimeEventTimingCarrier = drives;
+                    clip.runtimeFps = fps;
+                    clip.runtimeMarkers = AnimationClipEventConfiguration.Freeze(animation, skeletonData,
+                        clip.track, fps, rows, drives, message =>
+                        {
+                            string detail = location + "：" + message;
+                            if (eventDiagnostics.Add(detail)) Debug.LogWarning(detail, this);
+                        });
+                    drivesTiming |= drives;
                 }
-            var primary=plan.clips.FirstOrDefault(c=>c.track==0);
-            return new ConfiguredActionSnapshot(timeline,primary?.animaName,primary?.mixDuration??0,primary?.playbackRate??1,primary?.loop??false,()=>plan.CloneFor(root),replacement=>FreezePlan(original,replacement,behavior));
+                catch (ArgumentException error)
+                {
+                    throw new ArgumentException(location + "：" + error.Message);
+                }
+            }
+
+            // 新配置和旧校准互斥。已明确配置的片段缺关键绑定时上方直接拒绝，不回读旧秒数。
+            var profile = handle.Profile;
+            if (primary?.runtimeMappingConfigured != true && profile != null && profile.Drives(behavior))
+            {
+                FreezeLegacyMarkers(primary, profile, behavior);
+                drivesTiming = true;
+            }
+            if (drivesTiming)
+                timeline = action != null ? BasicAttackDefinition.FromEvents(action.damage, action.postureImpact) :
+                    timeline.AsEventDriven();
+            else if (timeline == null)
+                timeline = action.Freeze();
+
+            return BuildSnapshot(plan, timeline);
+        }
+
+        private void FreezeLegacyMarkers(CharacterAnimationClip carrier, AnimationCalibrationSO profile, string behavior)
+        {
+            if (!profile.MatchesSkeleton(skeleton.skeletonDataAsset)) throw new ArgumentException("校准骨架失配：" + behavior);
+            if (carrier == null) throw new ArgumentException("缺主轨：" + behavior);
+            var rows = (profile.bindings ?? Array.Empty<AnimationCalibrationBinding>())
+                .Where(binding => binding != null && binding.behavior == behavior && binding.animation == carrier.animaName &&
+                    binding.track == carrier.track).ToArray();
+            var animation = skeleton.Skeleton.Data.FindAnimation(carrier.animaName);
+            if (rows.Any(binding => !profile.Valid(binding, animation)) ||
+                rows.GroupBy(binding => (binding.eventName, binding.occurrence, binding.semantic)).Any(group => group.Count() > 1) ||
+                rows.Count(binding => binding.semantic == AnimationEventMeaning.Finish) != 1 ||
+                !rows.Any(binding => binding.semantic == AnimationEventMeaning.Release))
+                throw new ArgumentException("源事件或正式收尾失配：" + behavior + " / " + carrier.animaName);
+
+            float Effective(AnimationCalibrationBinding binding) => binding.sourceTime + (float)binding.offsetFrames / profile.framesPerSecond;
+            var finish = rows.Single(binding => binding.semantic == AnimationEventMeaning.Finish);
+            if (rows.Any(binding => binding.semantic != AnimationEventMeaning.Finish && Effective(binding) > Effective(finish)))
+                throw new ArgumentException("动作标记位于结束之后：" + behavior);
+            carrier.runtimeMarkers = rows.Select(binding => binding.Copy()).ToArray();
+            carrier.runtimeFps = profile.framesPerSecond;
+            carrier.runtimeBehavior = behavior;
+            carrier.runtimeEventTimingCarrier = true;
+        }
+
+        private ConfiguredActionSnapshot BuildSnapshot(CharacterAnimationPlan frozen, BasicAttackDefinition timeline)
+        {
+            var plan = frozen.CloneFor(root);
+            if (!timeline.EventDriven)
+            {
+                foreach (var clip in plan.EnumerateClips().Where(clip => clip.scalesWithAction))
+                {
+                    clip.playbackRate = clip.sourceDuration / (float)timeline.FinishAt;
+                }
+            }
+            var primary = plan.clips.FirstOrDefault(clip => clip.track == 0);
+            // 能力阶段可能在受理前替换玩法时间线；继续使用同一份已冻结事件响应。
+            return new ConfiguredActionSnapshot(timeline, primary?.animaName, primary?.mixDuration ?? 0,
+                primary?.playbackRate ?? 1, primary?.loop ?? false, () => plan.CloneFor(root),
+                replacement => BuildSnapshot(frozen, timeline.EventDriven && !replacement.EventDriven ?
+                    replacement.AsEventDriven() : replacement));
         }
         public void CaptureAction(Guid id,Ossastra.Characters.ActionDefinitionSO definition)=>CapturePhase(id,FreezeAction(definition));
         public void CaptureDefaultAction(Guid id,BasicAttackDefinition timeline,int index)
@@ -206,28 +301,30 @@ namespace Ossastra.CharacterAnimation
         }
         public bool CanCapturePhase(ConfiguredActionSnapshot snapshot,out string reason)
             =>ValidatePlan(snapshot?.CopyPresentationPlan() as CharacterAnimationPlan,out reason);
-        public bool HasPostureRecoveryEvent(ConfiguredActionSnapshot phase, string marker)
+        public string ResolvePostureRecoveryEvent(ConfiguredActionSnapshot phase, string legacyMarker)
         {
-            if (phase == null || string.IsNullOrWhiteSpace(marker)) return false;
-            var plan = phase.CopyPresentationPlan() as CharacterAnimationPlan;
+            var plan = phase?.CopyPresentationPlan() as CharacterAnimationPlan;
             var primary = plan?.clips.FirstOrDefault(clip => clip != null && clip.track == 0);
-            if (primary == null) return false;
+            if (primary == null) return null;
+            if (primary.runtimeMappingConfigured)
+                return primary.runtimeMarkers.Where(row => row.restorePosture && row.semantic != AnimationEventMeaning.Ignore)
+                    .OrderBy(row => row.sourceTime + (float)row.offsetFrames / primary.runtimeFps).FirstOrDefault()?.eventName;
+            if (string.IsNullOrWhiteSpace(legacyMarker)) return null;
             var animation = skeleton?.Skeleton?.Data.FindAnimation(primary.animaName);
-            return animation != null && animation.Timelines.OfType<Spine.EventTimeline>()
-                .Any(timeline => timeline.Events.Any(node => node.Data.Name == marker));
+            return AnimationCalibrationSO.Events(animation).Any(node => node.Data.Name == legacyMarker) ? legacyMarker : null;
         }
+
+        public bool HasPostureRecoveryEvent(ConfiguredActionSnapshot phase, string marker)
+            => ResolvePostureRecoveryEvent(phase, marker) != null;
 
         private bool ValidatePlan(CharacterAnimationPlan plan,out string reason,string invalidClip = "invalid-frozen-animation-clip:")
         {
             reason=plan==null||!plan.HasOperations?"missing-frozen-animation-plan":null;
-            if(reason==null)foreach(var clip in PlanClips(plan))
+            if(reason==null)foreach(var clip in plan.EnumerateClips())
                 if(clip==null||clip.track<0||skeleton?.Skeleton?.Data.FindAnimation(clip.animaName)==null||!FinitePositive(clip.playbackRate)||float.IsNaN(clip.mixDuration)||float.IsInfinity(clip.mixDuration)||clip.mixDuration<0)
                 {reason=invalidClip+clip?.animaName;break;}
             return reason==null;
         }
-        private static System.Collections.Generic.IEnumerable<CharacterAnimationClip> PlanClips(CharacterAnimationPlan plan)
-            => plan.clips.Concat(plan.movingLoopClips ?? Array.Empty<CharacterAnimationClip>())
-                .Concat(plan.queuedClips.Where(queue => queue != null).Select(queue => queue.clip));
         public ConfiguredActionSnapshot PrepareDodge(float duration)
         {
             var plan = ResolveCandidate(EAnimationLogicState.Dodge, EAnimSemantic.Dodge,

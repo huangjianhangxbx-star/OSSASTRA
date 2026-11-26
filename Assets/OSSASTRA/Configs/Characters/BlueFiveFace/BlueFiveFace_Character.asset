@@ -28,6 +28,11 @@ MonoBehaviour:
   dodgeCost: 22
   invulnerableFrom: 0.12
   invulnerableTo: 0.32
+  comboSettings:
+    version: 1
+    retentionSeconds: 0.12
+    continuationSeconds: 0.45
+    requireHit: 0
   preInput: 0.12
   bufferLifetime: 0.17
   continuationWindow: 0.45

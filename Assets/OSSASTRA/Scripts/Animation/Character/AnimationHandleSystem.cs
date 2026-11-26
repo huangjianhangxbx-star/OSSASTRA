@@ -1,5 +1,5 @@
 /* 迁自原Handle的逐轨播放/排队/去重职责；本地派发替代全局EventCenter。
- * 一个目标一个实例。只写计划，不Update Skeleton；合法结构轨离散清旧链，不影响身体动作身份或时钟。
+ * 一个目标一个实例。播放已冻结的动作响应，移动呈现从实际片段登记响应。结构轨独立于身体动作身份或时钟。
  */
 using System;
 using System.Collections.Generic;
@@ -50,8 +50,9 @@ namespace Ossastra.CharacterAnimation
         internal bool CollectMarker(TrackEntry entry,Spine.Event e)=>markers.TryGetValue(entry,out var playback)&&playback.Collect(e,entry);
         public void FlushSignals()
         {
+            if (boundToActor && (owner == null || owner.IsSimulationSuspended)) return;
             signals?.Flush();
-            if(markers.Count==0 || (boundToActor && (owner==null || owner.IsSimulationSuspended)))return;
+            if (markers.Count == 0) return;
             foreach(var pair in markers.ToArray())
             {
                 var entry=pair.Key;
@@ -66,6 +67,7 @@ namespace Ossastra.CharacterAnimation
                         Track=entry.TrackIndex,ReplayId=clip.runtimeReplayId,Source=clip.runtimeSourceStateMachine,
                         Name=b.eventName,Time=b.sourceTime,Animation=b.animation,Calibrated=true,Binding=b,Meaning=b.semantic,
                         Cycle=cycle,Occurrence=b.occurrence,EffectiveTime=node.Time,Purpose=node.Purpose,Sequence=++sequence,
+                        MappingConfigured=clip.runtimeMappingConfigured, CanDriveActionTiming=clip.runtimeEventTimingCarrier,
                         CollectedTime=entry.TrackTime,ConsumedTime=Time.unscaledTime});
                 });
             }
@@ -96,6 +98,12 @@ namespace Ossastra.CharacterAnimation
             b.Append(Identity(c)).Append('|').Append(c.animaName).Append('|').Append(c.loop).Append('|').Append(c.isAdditive)
                 .Append('|').Append(c.runtimeStructural)
                 .Append('|').Append(c.playbackRate.ToString("R",CultureInfo.InvariantCulture)).Append('|').Append(c.mixDuration.ToString("R",CultureInfo.InvariantCulture));
+            // 移动态可在下一次提交响应编辑。当前动作使用已冻结的播放计划，不按作者的编辑版本重启。
+            if (c.runtimeActionId != Guid.Empty || !(c.eventResponses?.responses?.Length > 0)) return;
+            if (c.runtimeMapping is AnimationPlanMappingSO mapping)
+                b.Append('|').Append(mapping.GetInstanceID()).Append(':').Append(mapping.Revision);
+            if (c.runtimeMapping is AnimationPlanOverrideRuleSetSO rules)
+                b.Append('|').Append(rules.GetInstanceID()).Append(':').Append(rules.Revision);
         }
         public void ApplyPlan(CharacterAnimationPlan plan,int generation)
         {
@@ -147,18 +155,37 @@ namespace Ossastra.CharacterAnimation
         private void Configure(TrackEntry entry, CharacterAnimationClip clip)
         {
             entry.MixDuration=clip.mixDuration; entry.TimeScale=clip.playbackRate; entry.Additive=clip.isAdditive;
-            entries[entry]=clip.Clone();
+            var playbackClip = clip.Clone();
+            entries[entry] = playbackClip;
             markers.Remove(entry);
-            var nodes=clip.runtimeMarkers;
-            int fps=clip.runtimeFps;
-            var profile=Profile;
-            if(nodes==null && clip.runtimeActionId==Guid.Empty && profile!=null && profile.MatchesSkeleton(skeletonAnimation.skeletonDataAsset))
+            var nodes = clip.runtimeMarkers;
+            int fps = clip.runtimeFps;
+            if (nodes == null && clip.runtimeActionId == Guid.Empty)
             {
-                nodes=(profile.bindings??Array.Empty<AnimationCalibrationBinding>()).Where(b=>b!=null && b.semantic==AnimationEventMeaning.Footstep &&
-                    b.behavior==clip.animaName && b.track==clip.track && profile.Valid(b,entry.Animation)).Select(b=>b.Copy()).ToArray();
-                fps=profile.framesPerSecond;
+                if (clip.eventResponses != null && clip.eventResponses.TrySelect(null, out fps, out _, out var responses))
+                {
+                    playbackClip.runtimeMappingConfigured = true;
+                    try
+                    {
+                        nodes = AnimationClipEventConfiguration.Freeze(entry.Animation, skeletonAnimation.Skeleton.Data,
+                            clip.track, fps, responses, false, message => Reject(clip.animaName + "：" + message));
+                    }
+                    catch (ArgumentException error) { Reject(clip.animaName + "：" + error.Message); }
+                }
+                else
+                {
+                    var profile = Profile;
+                    if (profile != null && profile.MatchesSkeleton(skeletonAnimation.skeletonDataAsset))
+                    {
+                        nodes = (profile.bindings ?? Array.Empty<AnimationCalibrationBinding>()).Where(binding =>
+                            binding != null && binding.semantic == AnimationEventMeaning.Footstep &&
+                            binding.behavior == clip.animaName && binding.track == clip.track &&
+                            profile.Valid(binding, entry.Animation)).Select(binding => binding.Copy()).ToArray();
+                        fps = profile.framesPerSecond;
+                    }
+                }
             }
-            if(nodes!=null && nodes.Length>0)markers[entry]=new AnimationMarkerPlayback(nodes,fps,entry.Animation.Duration);
+            if (nodes != null && nodes.Length > 0) markers[entry] = new AnimationMarkerPlayback(nodes, fps, entry.Animation.Duration);
         }
         private void RemoveEntryRecords(int track,TrackEntry keep=null)
         { foreach(var entry in entries.Where(p=>p.Value.track==track&&!ReferenceEquals(p.Key,keep)).Select(p=>p.Key).ToArray()){signals?.Forget(entry);markers.Remove(entry);entries.Remove(entry);} }

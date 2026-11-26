@@ -1,3 +1,4 @@
+/* 旧逐动画校准资产与兼容校验。新的映射响应复用音画参数，基于当次真实片段冻结。 */
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -6,8 +7,8 @@ using Spine.Unity;
 using UnityEngine;
 namespace Ossastra.CharacterAnimation
 {
-    public enum AnimationEventMeaning { Release, Finish, DodgeCancel, Footstep }
-    public enum AnimationSignalPurpose { Marker, Sound, Effect }
+    public enum AnimationEventMeaning { Release, Finish, DodgeCancel, Footstep, Presentation, Ignore }
+    public enum AnimationSignalPurpose { Marker, Sound, Effect, Source }
     // 一项代表某个真实片段中一次同名事件。标记修正与音画补偿分别使用制作帧。
     [Serializable] public sealed class AnimationCalibrationBinding
     {
@@ -15,6 +16,7 @@ namespace Ossastra.CharacterAnimation
         public int track, occurrence, sourceInt, sourceCount, offsetFrames, soundOffsetFrames, effectOffsetFrames;
         public float sourceTime, sourceFloat, volume=1, scale=1, lifetime=1, rotation;
         public bool follow;
+        public bool restorePosture;
         public Vector3 localOffset;
         public AnimationEventMeaning semantic;
         public AudioClip sound;

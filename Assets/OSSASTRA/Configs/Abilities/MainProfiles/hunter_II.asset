@@ -21,6 +21,11 @@ MonoBehaviour:
     mappings reused as PRESENTATION_PARTIAL. Ranger source declares dash event but
     has no active translation consumer: distance remains zero. Form II is the source
     SAMPLE alternate group; trial-rune topology uses profile I explicitly.'
+  comboSettings:
+    version: 1
+    retentionSeconds: 0.25
+    continuationSeconds: 0.625
+    requireHit: 0
   bufferSeconds: 0.25
   continuationSeconds: 0.625
   fullComboRecovery: 0.4

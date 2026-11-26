@@ -1,4 +1,4 @@
-/* AM02：迁自旧代码原实现；保留作者字段和分组，生产类型/GUID独立。 */
+/* 保存映射内单个 Spine 片段及其事件响应。复制播放配置时保留映射来源与已冻结响应。 */
 namespace Ossastra.CharacterAnimation
 {
 using CharacterRoot = Ossastra.Characters.CharacterRoot;
@@ -40,6 +40,13 @@ public class CharacterAnimationClip
     public SkeletonDataAsset skeletonDataAsset;
 
     [HideInInspector] public CharacterRoot characterRoot;
+    [HideInInspector] public string eventClipId;
+    [HideInInspector] public AnimationClipEventConfiguration eventResponses = new AnimationClipEventConfiguration();
+
+    [System.NonSerialized] public ScriptableObject runtimeMapping;
+    [System.NonSerialized] public EAnimationLogicState runtimeMappingLogic;
+    [System.NonSerialized] public bool runtimeMappingConfigured;
+    [System.NonSerialized] public bool runtimeEventTimingCarrier;
 
     [System.NonSerialized]
     public AnimationIntentSourceStateMachine runtimeSourceStateMachine;
@@ -96,6 +103,12 @@ public class CharacterAnimationClip
         copy.isAdditive = isAdditive;
         copy.skeletonDataAsset = skeletonDataAsset;
         copy.characterRoot = characterRoot;
+        copy.eventClipId = eventClipId;
+        copy.eventResponses = eventResponses;
+        copy.runtimeMapping = runtimeMapping;
+        copy.runtimeMappingLogic = runtimeMappingLogic;
+        copy.runtimeMappingConfigured = runtimeMappingConfigured;
+        copy.runtimeEventTimingCarrier = runtimeEventTimingCarrier;
         copy.runtimeSourceStateMachine = runtimeSourceStateMachine;
         copy.runtimeBehavior=runtimeBehavior;copy.runtimeMarkers=runtimeMarkers;copy.runtimeFps=runtimeFps;
         copy.runtimeReplayId = runtimeReplayId;

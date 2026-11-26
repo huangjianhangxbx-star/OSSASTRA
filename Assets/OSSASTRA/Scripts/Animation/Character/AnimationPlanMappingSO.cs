@@ -1,4 +1,4 @@
-/* AM02：迁自旧代码原实现；保留作者字段和分组，生产类型/GUID独立。 */
+/* 保存角色基础动画映射。取出逻辑条目时保留实际资产与片段来源，供事件配置与播放冻结使用。 */
 namespace Ossastra.CharacterAnimation
 {
 using CharacterRoot = Ossastra.Characters.CharacterRoot;
@@ -203,6 +203,7 @@ public class AnimationPlanMappingSO : ScriptableObject
             if (!entry.plan.HasOperations) continue;
             var copy = entry.plan.CloneFor(null);
             copy.SetSkeletonDataAsset(skeletonDataAsset);
+            copy.SetMappingSource(this, id);
             return copy;
         }
 
@@ -212,6 +213,9 @@ public class AnimationPlanMappingSO : ScriptableObject
     private void OnValidate()
     {
         Revision++;
+#if UNITY_EDITOR
+        var used = new HashSet<string>();
+#endif
         foreach (var entry in GetAllEntries())
         {
             if (entry == null)
@@ -223,6 +227,9 @@ public class AnimationPlanMappingSO : ScriptableObject
             }
 
             entry.plan.SetSkeletonDataAsset(skeletonDataAsset);
+#if UNITY_EDITOR
+            entry.plan.EnsureClipIdentities(used);
+#endif
         }
     }
 }
