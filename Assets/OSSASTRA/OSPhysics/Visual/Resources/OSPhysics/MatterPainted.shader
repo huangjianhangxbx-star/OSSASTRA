@@ -67,7 +67,7 @@ Shader "Ossastra/OSPhysics/MatterPainted"
             float4 _SmokeColor, _FlameColor;
             float _WaterAlpha, _SurfaceWidth, _WaveAmount, _FireGain, _SmokeGain;
             float _PaintLayer, _Style, _VisualTime, _WorldMood, _UsePreviewFireLights;
-            float _UseOSLightWorldMap, _UseWaterEdgeTex;
+            float _UseOSLightWorldMap, _UseWaterEdgeTex, _AssetView;
             float4 _MatterFireLights[4];
 
             struct VertexInput
@@ -265,20 +265,30 @@ Shader "Ossastra/OSPhysics/MatterPainted"
             {
                 bool water = cell.kind == 1;
                 float2 world = mapping.world;
-                float phase = _VisualTime * (water ? 1.51 : .62);
+                float phase = _VisualTime * (_AssetView > .5 ? 1.1 : (water ? 1.51 : .62));
                 float brushCurve = Noise(float2(world.x * 2.7, .151 + phase * .1));
                 float wave = (sin(world.x * 9.7 + phase + brushCurve) * .63 +
                     sin(world.x * 19.3 - phase * .53) * .37) * _WaveAmount;
                 // 同类格之间借用高度，不直接过滤 ID。水油界面只画色层交接。
-                LiquidTrace shape = DescribeLiquid(cell, p, aa, wave);
+                LiquidTrace shape;
+                [branch] if (_AssetView > .5) shape = DescribeContinuousLiquid(cell, p, aa, wave);
+                else shape = DescribeLiquid(cell, p, aa, wave);
                 if (shape.coverage <= 0) return 0;
                 int2 index = (int2)floor(p);
                 float depth = max(0, shape.surfaceDepth);
-                [unroll] for (int sample = 1; sample <= 3; sample++)
+                if (_AssetView > .5)
                 {
-                    PaintedCell higher = ReadMatter(index + int2(0, sample));
-                    if (SameLiquid(cell, higher)) depth += higher.amount;
-                    else break;
+                    water = shape.kind == 1;
+                    phase = _VisualTime * (water ? 1.51 : .62);
+                }
+                else
+                {
+                    [unroll] for (int sample = 1; sample <= 3; sample++)
+                    {
+                        PaintedCell higher = ReadMatter(index + int2(0, sample));
+                        if (SameLiquid(cell, higher)) depth += higher.amount;
+                        else break;
+                    }
                 }
                 float2 brush = float2(world.x * 2.3, world.y * 11.5);
                 float rolls = Noise(brush + float2(phase * .26, -.12 * phase * shape.falling));
@@ -310,7 +320,8 @@ Shader "Ossastra/OSPhysics/MatterPainted"
                 tint *= 1 - shape.oilBoundary * .27;
                 if (shape.falling > .5)
                 {
-                    float glint = (1 - smoothstep(.018, .16, abs(shape.offset.x + .06))) *
+                    float center = _AssetView > .5 ? Noise(float2(world.x * 9 + rolls, world.y * 3)) - .5 : shape.offset.x;
+                    float glint = (1 - smoothstep(.018, .16, abs(center + .06))) *
                         smoothstep(.39, .82, Noise(float2(world.x * 10, world.y * 21 + phase * 4)));
                     tint += shallow * glint * (water ? .42 : .22);
                 }
@@ -415,6 +426,7 @@ Shader "Ossastra/OSPhysics/MatterPainted"
                     mist *= (.58 + turbulence * .42) * lerp(.38, 1, haze.a);
                     smokeColor = LitColor(Ink(_SmokeColor.rgb * (1.03 + turbulence * .23), haze), light);
                 }
+                if (_AssetView > .5) return float4(smokeColor, mist);
                 float damp = cell.kind == 1 ? smoothstep(.04, .63, cell.amount) : 0;
                 PaintedCell below = ReadMatter(index + int2(0, -1));
                 PaintedCell belowTwice = ReadMatter(index + int2(0, -2));
@@ -455,17 +467,17 @@ Shader "Ossastra/OSPhysics/MatterPainted"
                 mapping.deltaY = ddy(mapping.world);
                 float aa = clamp(max(fwidth(p.x), fwidth(p.y)) * .63, .012, .24);
                 PaintedCell cell = ReadMatter((int2)floor(p));
-                if (_PaintLayer < .5 && !IsBlocked(cell)) return 0;
+                if (_PaintLayer < .5 && (!IsBlocked(cell) || (_AssetView > .5 && cell.barrier == 0))) return 0;
                 if (_PaintLayer >= .5 && IsBlocked(cell)) return 0;
                 if (_PaintLayer >= .5 && _PaintLayer < 1.5 &&
-                    (cell.kind == 0 || cell.kind == 4 || cell.kind == 5)) return 0;
+                    ((cell.kind == 0 && _AssetView < .5) || cell.kind == 4 || cell.kind == 5)) return 0;
                 if (_PaintLayer >= 1.5 && _PaintLayer < 2.5 &&
                     (cell.kind == 1 || cell.kind == 2 || cell.kind == 3 || cell.kind == 6)) return 0;
                 float4 light = PaintLight(p, input.uv.x, input.position.xy);
                 [branch] if (_PaintLayer < .5) return Terrain(cell, p, mapping, aa, light);
                 [branch] if (_PaintLayer < 1.5)
                 {
-                    if (IsLiquid(cell)) return Liquid(cell, p, mapping, aa, light);
+                    if (IsLiquid(cell) || (_AssetView > .5 && cell.kind == 0)) return Liquid(cell, p, mapping, aa, light);
                     return DryGrain(cell, p, mapping, aa, light);
                 }
                 [branch] if (_PaintLayer < 2.5) return Plants(cell, p, mapping, aa, light);

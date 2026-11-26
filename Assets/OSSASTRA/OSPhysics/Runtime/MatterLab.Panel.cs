@@ -12,7 +12,9 @@ namespace Ossastra.OSPhysics
         Gate, Clear, Frame, Flow, Layering, Combustion, Empty,
         Natural, Grid, Temperature, Collision, Stats,
         Painted, WorldLight, Ruins, Moss, PrivateArt, Background, Body, Trim, Decor, Foreground,
-        PreviewDark, PreviewNormal, PreviewBright, LightLeft, LightRight, WaterOpacity, EffectGain, ResetLook
+        PreviewDark, PreviewNormal, PreviewBright, LightLeft, LightRight, WaterOpacity, EffectGain, ResetLook,
+        AssetStudy, AssetEmpty, AssetBlock, AssetGrass, AssetWood, AssetDelete, AssetView, AssetOverlay, AssetsOnly,
+        AssetFlip, AssetVariant0, AssetVariant1, AssetVariant2, AssetVariant3
     }
 
     public sealed partial class MatterLab
@@ -47,12 +49,15 @@ namespace Ossastra.OSPhysics
         private string oilLine;
         private float nextUiRefresh;
 
-        private float PanelScale => Mathf.Clamp(Mathf.Min((Screen.height - 24) / 885f,
+        private float PanelScale => Mathf.Clamp(Mathf.Min((Screen.height - 24) / 1045f,
             (Screen.width - 24) / 1020f), .45f, 1.25f);
         public Rect PanelRect => new Rect(Screen.width - 14 - 334 * PanelScale, 12,
-            334 * PanelScale, 885 * PanelScale);
+            334 * PanelScale, 1045 * PanelScale);
 
-        private Rect Item(float x, float y, float width, float height)
+        private Rect Item(float x, float y, float width, float height) =>
+            UiRect(x, y >= 448 ? y + 160 : y, width, height);
+
+        private Rect UiRect(float x, float y, float width, float height)
         {
             Rect panel = PanelRect;
             float scale = PanelScale;
@@ -62,6 +67,12 @@ namespace Ossastra.OSPhysics
         public Rect ControlRect(MatterLabControl control)
         {
             int code = (int)control;
+            if (control >= MatterLabControl.AssetVariant0)
+                return UiRect(14 + (code - (int)MatterLabControl.AssetVariant0) * 77, 544, 74, 35);
+            if (control >= MatterLabControl.AssetBlock && control <= MatterLabControl.AssetDelete)
+                return UiRect(14 + (code - (int)MatterLabControl.AssetBlock) * 77, 485, 74, 26);
+            if (control >= MatterLabControl.AssetView && control <= MatterLabControl.AssetFlip)
+                return UiRect(14 + (code - (int)MatterLabControl.AssetView) * 77, 514, 74, 25);
             if (code <= (int)MatterLabControl.Barrier) return Item(14 + code % 4 * 77, 95 + code / 4 * 37, 74, 33);
             return control switch
             {
@@ -84,6 +95,8 @@ namespace Ossastra.OSPhysics
                 MatterLabControl.Natural => Item(91, 473, 74, 31),
                 MatterLabControl.Temperature => Item(14, 510, 74, 28),
                 MatterLabControl.Collision => Item(91, 510, 74, 28),
+                MatterLabControl.AssetStudy => UiRect(14, 447, 150, 29),
+                MatterLabControl.AssetEmpty => UiRect(169, 447, 150, 29),
                 MatterLabControl.Stats => Item(14, 792, 306, 23),
                 MatterLabControl.Painted => Item(168, 473, 74, 31),
                 MatterLabControl.WorldLight => Item(245, 473, 74, 31),
@@ -114,11 +127,45 @@ namespace Ossastra.OSPhysics
                 if (!ControlRect(control).Contains(point)) continue;
                 if (control <= MatterLabControl.Barrier)
                 {
+                    SetAssetBrush(MatterAssetBrush.Matter);
                     brush = (MatterBrush)control;
+                    return;
+                }
+                if (control >= MatterLabControl.AssetBlock && control <= MatterLabControl.AssetDelete)
+                {
+                    SetAssetBrush((MatterAssetBrush)(1 + (int)control - (int)MatterLabControl.AssetBlock));
+                    return;
+                }
+                if (control >= MatterLabControl.AssetVariant0)
+                {
+                    int variant = (int)control - (int)MatterLabControl.AssetVariant0;
+                    if (assetStudy != null && (assetBrush == MatterAssetBrush.Grass || assetBrush == MatterAssetBrush.Wood) &&
+                        variant < assetStudy.Stamps(assetBrush).Count)
+                    {
+                        if (assetBrush == MatterAssetBrush.Grass) grassVariant = variant;
+                        else woodVariant = variant;
+                    }
                     return;
                 }
                 switch (control)
                 {
+                    case MatterLabControl.AssetStudy: SelectPreset(MatterLabPreset.AssetStudy); break;
+                    case MatterLabControl.AssetEmpty: SelectPreset(MatterLabPreset.AssetEmpty); break;
+                    case MatterLabControl.AssetView:
+                        if (assetStudy != null) SetDisplay(MatterDisplay.MapAssets);
+                        break;
+                    case MatterLabControl.AssetOverlay:
+                        if (assetStudy != null) assetOverlay = !assetOverlay;
+                        break;
+                    case MatterLabControl.AssetsOnly:
+                        if (assetStudy != null)
+                        {
+                            paintLayers = MatterPaintLayers.All & ~(MatterPaintLayers.Background | MatterPaintLayers.Foreground);
+                            paintMood = 1;
+                            SetDisplay(MatterDisplay.MapAssets);
+                        }
+                        break;
+                    case MatterLabControl.AssetFlip: assetFlip = !assetFlip; break;
                     case MatterLabControl.Radius:
                     case MatterLabControl.Strength:
                     case MatterLabControl.WaterOpacity:
@@ -145,7 +192,9 @@ namespace Ossastra.OSPhysics
                     case MatterLabControl.Collision: SetDisplay(MatterDisplay.Collision); break;
                     case MatterLabControl.Stats: showStats = !showStats; break;
                     case MatterLabControl.Painted: SetDisplay(MatterDisplay.Painted); break;
-                    case MatterLabControl.WorldLight: SetDisplay(MatterDisplay.PaintedWorldLight); break;
+                    case MatterLabControl.WorldLight:
+                        SetDisplay(assetStudy != null ? MatterDisplay.MapAssetsWorldLight : MatterDisplay.PaintedWorldLight);
+                        break;
                     case MatterLabControl.Ruins: SetPaintStyle(MatterPaintStyle.Ruins); break;
                     case MatterLabControl.Moss: SetPaintStyle(MatterPaintStyle.Moss); break;
                     case MatterLabControl.PrivateArt: SetPrivateArt(!privateArt); break;
@@ -191,15 +240,16 @@ namespace Ossastra.OSPhysics
             Vector2 pointer = mouse != null ? mouse.position.ReadValue() : Vector2.zero;
             Vector2 gui = new Vector2(pointer.x, Screen.height - pointer.y);
 
-            DrawRegions(gui, pointer);
+            if (assetStudy == null) DrawRegions(gui, pointer);
+            DrawAssetOverlay(pointer, gui);
             Box(PanelRect, Panel);
             Box(Item(0, 0, 334, 3), BlueGreen);
             Write(Item(14, 12, 306, 30), "动态物质实验室", 24, Text, true);
             Write(Item(14, 46, 308, 20), "左键绘制  ·  中键 / WASD 平移  ·  滚轮缩放", 12, Muted);
             Section(73, "画笔");
             for (int i = 0; i < BrushNames.Length; i++)
-                Button((MatterLabControl)i, BrushNames[i], gui, (int)brush == i, true, BrushColors[i], (i + 1).ToString());
-            Slider(MatterLabControl.Radius, "半径（格）", brushRadius.ToString(), (brushRadius - 1) / 15f, 183);
+                Button((MatterLabControl)i, BrushNames[i], gui, assetBrush == MatterAssetBrush.Matter && (int)brush == i, true, BrushColors[i], (i + 1).ToString());
+            Slider(MatterLabControl.Radius, "物质半径（格）", brushRadius.ToString(), (brushRadius - 1) / 15f, 183);
             Slider(MatterLabControl.Strength, brush == MatterBrush.Heat ? "热量 / 步" : "施加量 / 步",
                 Strength(brush).ToString(), (brushStrength - 24) / 231f, 213);
 
@@ -219,12 +269,13 @@ namespace Ossastra.OSPhysics
             Button(MatterLabControl.Combustion, "燃烧灭火", gui, currentPreset == MatterLabPreset.Combustion);
             Button(MatterLabControl.Empty, "自由创作", gui, currentPreset == MatterLabPreset.Empty);
 
+            DrawAssetPanel(gui);
             Section(448, "画面");
-            bool handPainted = display == MatterDisplay.Painted || display == MatterDisplay.PaintedWorldLight;
+            bool handPainted = display >= MatterDisplay.Painted;
             Button(MatterLabControl.Grid, "A · 网格", gui, display == MatterDisplay.Grid);
             Button(MatterLabControl.Natural, "B · 程序", gui, display == MatterDisplay.Natural);
-            Button(MatterLabControl.Painted, "C · 手绘", gui, display == MatterDisplay.Painted);
-            Button(MatterLabControl.WorldLight, "世界灯图", gui, display == MatterDisplay.PaintedWorldLight);
+            Button(MatterLabControl.Painted, "旧 C · 手绘", gui, display == MatterDisplay.Painted);
+            Button(MatterLabControl.WorldLight, "世界灯图", gui, display == MatterDisplay.PaintedWorldLight || display == MatterDisplay.MapAssetsWorldLight);
             Button(MatterLabControl.Temperature, "温度", gui, display == MatterDisplay.Heat);
             Button(MatterLabControl.Collision, "碰撞", gui, display == MatterDisplay.Collision);
             Button(MatterLabControl.Ruins, "雾蓝水渠", gui, paintStyle == MatterPaintStyle.Ruins);
@@ -238,10 +289,12 @@ namespace Ossastra.OSPhysics
             Button(MatterLabControl.PreviewDark, "偏暗", gui, paintMood < .5f, handPainted);
             Button(MatterLabControl.PreviewNormal, "正常", gui, paintMood == 1, handPainted);
             Button(MatterLabControl.PreviewBright, "偏亮", gui, paintMood > 1, handPainted);
-            bool mapSelected = display == MatterDisplay.PaintedWorldLight;
+            bool mapSelected = display == MatterDisplay.PaintedWorldLight || display == MatterDisplay.MapAssetsWorldLight;
             Button(MatterLabControl.LightLeft, "左灯", gui, lampX < 0, mapSelected);
             Button(MatterLabControl.LightRight, "右灯", gui, lampX > 0, mapSelected);
             string lookStatus = mapSelected ? visual.PaintedLightStatus : (handPainted ? visual.PaintedArtStatus : "诊断与旧程序视图");
+            if (display == MatterDisplay.MapAssets)
+                lookStatus = visual.UsesFallbackFire ? "资产画面 · 原创诊断火苗" : "资产画面 · 完整本机火苗";
             Write(Item(14, 641, 306, 23), lookStatus, 12, mapSelected && !visual.WorldLightLive ? Amber : Muted);
             Slider(MatterLabControl.WaterOpacity, "水体透明度", $"{waterOpacity:0.00}×", Mathf.InverseLerp(.42f, 1.25f, waterOpacity), 669);
             Slider(MatterLabControl.EffectGain, "火烟强度", $"{effectGain:0.00}×", effectGain / 1.6f, 697);
@@ -255,6 +308,47 @@ namespace Ossastra.OSPhysics
             Write(Item(14, 817, 306, 29), metricsLine, 11, Text);
             Write(Item(14, 848, 306, 15), waterLine, 11, BrushColors[0]);
             Write(Item(14, 864, 306, 15), oilLine, 11, BrushColors[1]);
+        }
+
+        private void DrawAssetPanel(Vector2 gui)
+        {
+            bool active = assetStudy != null;
+            Button(MatterLabControl.AssetStudy, "资产交互样板", gui, currentPreset == MatterLabPreset.AssetStudy);
+            Button(MatterLabControl.AssetEmpty, "空白资产区", gui, currentPreset == MatterLabPreset.AssetEmpty);
+            Button(MatterLabControl.AssetBlock, "画黑砖", gui, active && assetBrush == MatterAssetBrush.Block, active);
+            Button(MatterLabControl.AssetGrass, "完整草簇", gui, active && assetBrush == MatterAssetBrush.Grass, active);
+            Button(MatterLabControl.AssetWood, "木构件", gui, active && assetBrush == MatterAssetBrush.Wood, active);
+            Button(MatterLabControl.AssetDelete, "擦图件", gui, active && assetBrush == MatterAssetBrush.Delete, active);
+            Button(MatterLabControl.AssetView, "地图画面", gui,
+                display == MatterDisplay.MapAssets || display == MatterDisplay.MapAssetsWorldLight, active);
+            Button(MatterLabControl.AssetOverlay, "燃料叠线", gui, assetOverlay, active);
+            Button(MatterLabControl.AssetsOnly, "仅看资产", gui, false, active);
+            bool usingStamp = active && (assetBrush == MatterAssetBrush.Grass || assetBrush == MatterAssetBrush.Wood);
+            var options = usingStamp ? assetStudy.Stamps(assetBrush) : null;
+            int variant = assetBrush == MatterAssetBrush.Grass ? grassVariant : woodVariant;
+            bool canFlip = options != null && variant < options.Count && options[variant].Flip;
+            Button(MatterLabControl.AssetFlip, "镜像", gui, canFlip && assetFlip, canFlip);
+            if (usingStamp)
+            {
+                for (int i = 0; i < Mathf.Min(4, options.Count); i++)
+                {
+                    var control = (MatterLabControl)((int)MatterLabControl.AssetVariant0 + i);
+                    var rect = ControlRect(control);
+                    Box(rect, i == variant ? ButtonActive : ButtonBase);
+                    var art = options[i];
+                    if (art.Image != null)
+                    {
+                        float fit = Mathf.Min(rect.width * .8f / art.Size.x, rect.height * .85f / art.Size.y);
+                        Vector2 size = art.Size * fit;
+                        GUI.DrawTextureWithTexCoords(new Rect(rect.center - size * .5f, size), art.Image, art.UV, true);
+                    }
+                }
+            }
+            else Write(UiRect(14, 547, 306, 27), active ? "拖框画 / 擦地块，1–8 返回物质笔刷" : "进入资产区启用地编图件笔刷", 12, Muted);
+            string label = active ? $"{AssetStatus}  ·  {AssetCount} 件" : AssetStatus;
+            if (options != null && variant < options.Count)
+                label = $"{options[variant].Name}  ·  {options[variant].Size.x:0.00} × {options[variant].Size.y:0.00} U";
+            Write(UiRect(14, 581, 306, 22), label, 11, Muted);
         }
 
         private bool HasPaintLayer(MatterPaintLayers layer) => (paintLayers & layer) != 0;
@@ -275,6 +369,7 @@ namespace Ossastra.OSPhysics
 
         private void OnDestroy()
         {
+            ShutdownAssets();
             if (panelFont != null) Destroy(panelFont);
         }
 
@@ -293,7 +388,7 @@ namespace Ossastra.OSPhysics
             var metrics = World.Metrics;
             string hz = Running ? $"{actualStepRate:0}/{MatterLabClock.Frequency * speed:0} Hz" : "暂停";
             metricsLine = $"{fps:0} FPS    {metrics.StepMilliseconds:0.00} ms/步    {hz}\n";
-            metricsLine += $"活跃 {metrics.ActiveChunks} 块 · 上传 {visual.LastUploadedChunks} · 绘制 {visual.PaintedBatchCount} · 灯图 {visual.PaintedLightMaps}";
+            metricsLine += $"活跃 {metrics.ActiveChunks} 块 · 上传 {visual.LastUploadedChunks} · 绘制 {visual.PaintedBatchCount + AssetBatches} · 灯图 {visual.PaintedLightMaps}";
             waterLine = Ledger("水", Matter.Water);
             oilLine = Ledger("油", Matter.Oil);
         }

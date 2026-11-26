@@ -1,3 +1,4 @@
+// 职责：管理旧预设碰撞、闸门和原物质工具；资产样板持有自己的几何与物质阻挡。
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -12,6 +13,8 @@ namespace Ossastra.OSPhysics
         private const int GateHeight = 30;
 
         private GameObject terrain;
+        private List<Collider2D> baselineColliders;
+        private readonly List<Vector2Int> baselineCells = new List<Vector2Int>();
         private BoxCollider2D gate;
         private PolygonCollider2D paintedCollider;
         private bool[] paintedBarriers;
@@ -23,7 +26,7 @@ namespace Ossastra.OSPhysics
         {
             terrain = new GameObject("Lab Collision");
             terrain.transform.SetParent(transform, false);
-            var fixedColliders = new List<Collider2D>
+            baselineColliders = new List<Collider2D>
             {
                 Box("基岩", 0, 0, Width, 6),
                 Box("左侧界墙", 0, 6, 2, Height - 6),
@@ -53,15 +56,26 @@ namespace Ossastra.OSPhysics
             paintedCollider.enabled = false;
             paintedBarriers = new bool[Width * Height];
             Physics2D.SyncTransforms();
-            foreach (var collider in fixedColliders)
+            foreach (var collider in baselineColliders)
             {
                 Bounds bounds = collider.bounds;
                 WorldToCell(bounds.min, out int minX, out int minY);
                 WorldToCell(bounds.max, out int maxX, out int maxY);
                 for (int y = Mathf.Max(0, minY); y <= Mathf.Min(Height - 1, maxY); y++)
                 for (int x = Mathf.Max(0, minX); x <= Mathf.Min(Width - 1, maxX); x++)
-                    if (collider.OverlapPoint(CellToWorld(x, y))) World.SetFixed(x, y, true);
+                    if (collider.OverlapPoint(CellToWorld(x, y)))
+                    {
+                        World.SetFixed(x, y, true);
+                        baselineCells.Add(new Vector2Int(x, y));
+                    }
             }
+        }
+
+        private void SetBaselineTerrain(bool enabled)
+        {
+            foreach (var collider in baselineColliders) collider.enabled = enabled;
+            foreach (var cell in baselineCells) World.SetFixed(cell.x, cell.y, enabled);
+            if (!enabled) gate.enabled = false;
         }
 
         private GameObject Part(string title)
@@ -96,6 +110,12 @@ namespace Ossastra.OSPhysics
         public bool SetGate(bool open)
         {
             if (!Ready) return false;
+            if (assetStudy != null)
+            {
+                if (!assetStudy.SetGate(open)) return false;
+                GateOpen = open;
+                return true;
+            }
             if (!open)
             {
                 // The whole gate closes atomically. Refuse if there is anything in the doorway.
@@ -121,7 +141,7 @@ namespace Ossastra.OSPhysics
 
         private bool PaintBarrier(int x, int y, bool enabled)
         {
-            if (InGate(x, y)) return false;
+            if (assetStudy != null ? assetStudy.IsGate(x, y) : InGate(x, y)) return false;
             int index = y * Width + x;
             if (paintedBarriers[index] == enabled || !World.SetBarrier(x, y, enabled)) return false;
             paintedBarriers[index] = enabled;
@@ -177,6 +197,8 @@ namespace Ossastra.OSPhysics
         private void ResetLayout(bool leaveGateOpen)
         {
             World.ClearDynamic();
+            assetStudy?.ClearFuel();
+            assetGesture = assetRectangle = assetHasPoint = false;
             Array.Clear(paintedBarriers, 0, paintedBarriers.Length);
             PaintedBarrierCount = 0;
             if (paintedCollider.enabled || barrierColliderDirty) RefreshPaintedCollider();
@@ -189,6 +211,18 @@ namespace Ossastra.OSPhysics
         public void SelectPreset(MatterLabPreset value)
         {
             if (!Ready) return;
+            if (value == MatterLabPreset.AssetStudy || value == MatterLabPreset.AssetEmpty)
+            {
+                OpenAssetStudy(value == MatterLabPreset.AssetStudy);
+                return;
+            }
+            if (assetStudy != null)
+            {
+                ResetLayout(true);
+                CloseAssetStudy(true);
+                if (display == MatterDisplay.MapAssets || display == MatterDisplay.MapAssetsWorldLight)
+                    SetDisplay(MatterDisplay.Painted);
+            }
             currentPreset = value;
             ResetLayout(false);
             switch (value)

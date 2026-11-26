@@ -25,6 +25,10 @@ namespace Ossastra.OSPhysics
         private readonly Camera camera;
         private readonly Vector4 worldRect;
         private readonly float cellSize;
+        private readonly MatterWorld world;
+        private readonly Texture state;
+        private MatterSpriteFire fire;
+        private bool attemptedFire;
         private readonly Batch[] matter = new Batch[4];
         private readonly MatterLocalTextures local = new MatterLocalTextures();
         private readonly MatterPaintProfile[] profiles = new MatterPaintProfile[2];
@@ -44,17 +48,22 @@ namespace Ossastra.OSPhysics
         public int PrivateSlotCount => local.Count;
         public int BatchCount { get; private set; }
         public int LightTextureCount => lighting?.TextureCount ?? 0;
+        public int ActiveSpriteFires => fire?.ActiveCount ?? 0;
+        public bool UsesFallbackFire => fire?.UsesFallback ?? true;
         public string ArtStatus => local.Status;
         public string LightStatus => lighting == null ? lightReason :
             (lighting.IsLive ? "实机世界灯图 · 未接完整 D-New" : "世界灯图等待相机提交");
 
-        public MatterPaintedStage(Transform owner, Camera stageCamera, Mesh surface, Texture state, Vector4 grid, Vector2 origin, float cell)
+        public MatterPaintedStage(Transform owner, Camera stageCamera, Mesh surface, Texture state, Vector4 grid, Vector2 origin,
+            float cell, MatterWorld world)
         {
             var sourceShader = Resources.Load<Shader>("OSPhysics/MatterPainted");
             var sceneryShader = Resources.Load<Shader>("OSPhysics/MatterScenery");
             if (sourceShader == null || !sourceShader.isSupported || sceneryShader == null || !sceneryShader.isSupported)
                 throw new InvalidOperationException("手绘物质 Shader 不可用。");
             camera = stageCamera;
+            this.world = world;
+            this.state = state;
             cellSize = cell;
             worldRect = new Vector4(origin.x, origin.y, grid.x * cell, grid.y * cell);
             root = new GameObject("手绘物质分层") { hideFlags = HideFlags.DontSave }.transform;
@@ -145,6 +154,7 @@ namespace Ossastra.OSPhysics
             if (!show)
             {
                 BatchCount = 0;
+                fire?.Present(false, 0, null, Color.white, 0);
                 lighting?.Dispose();
                 lighting = null;
                 attemptedLight = false;
@@ -153,7 +163,7 @@ namespace Ossastra.OSPhysics
         }
 
         public void Present(float clock, Vector4[] fires, float mood, bool useWorldLighting, MatterPaintLayers visibility,
-            float opacity, float effects, float lampX)
+            float opacity, float effects, float lampX, bool assetView = false)
         {
             if (useWorldLighting && !attemptedLight)
             {
@@ -194,7 +204,8 @@ namespace Ossastra.OSPhysics
             Place(foreground, center + new Vector2(-10.8f, -5.75f) - pan * profile.ForegroundParallax, new Vector2(6.8f, 5.7f));
             DrawScenery(backdrop, Has(MatterPaintLayers.Background), mood, realMap);
             DrawScenery(poster, Has(MatterPaintLayers.Background) && HasTexture(poster), mood, realMap);
-            DrawScenery(structure, Has(MatterPaintLayers.Decoration) && HasTexture(structure), mood, realMap);
+            DrawScenery(structure, Has(MatterPaintLayers.Decoration) && HasTexture(structure) &&
+                (!assetView || Has(MatterPaintLayers.Background)), mood, realMap);
             bool foregroundOn = Has(MatterPaintLayers.Foreground);
             bool ceilingArt = HasTexture(ceilingFrame);
             bool floorArt = HasTexture(floorFrame);
@@ -203,15 +214,23 @@ namespace Ossastra.OSPhysics
             DrawScenery(floorFrame, foregroundOn && floorArt, mood, realMap);
             DrawScenery(foreground, Has(MatterPaintLayers.Foreground) && HasTexture(foreground), mood, realMap);
 
+            if (assetView && !attemptedFire)
+            {
+                attemptedFire = true;
+                MatterSpriteFire.TryCreate(root, world, state, new Vector2(worldRect.x, worldRect.y), cellSize, out fire);
+            }
+            fire?.Present(assetView, clock, local.Get("flame", profile.Flame), profile.FlameColor, profile.FireGain * fxGain);
+
             var mask = new Vector4(Has(MatterPaintLayers.Body) ? 1 : 0, Has(MatterPaintLayers.Trim) ? 1 : 0,
                 1, 0);
             for (int i = 0; i < matter.Length; i++)
             {
                 var batch = matter[i];
-                batch.Renderer.enabled = i != 0 || mask.x + mask.y + mask.z > 0;
+                batch.Renderer.enabled = (i != 0 || mask.x + mask.y + mask.z > 0) && (!assetView || i != 2);
                 if (batch.Renderer.enabled) BatchCount++;
                 var m = batch.Material;
                 m.SetFloat("_VisualTime", clock);
+                m.SetFloat("_AssetView", assetView ? 1 : 0);
                 m.SetFloat("_WorldMood", mood);
                 m.SetVector("_LayerVisibility", mask);
                 m.SetFloat("_WaterAlpha", Mathf.Clamp01(profile.WaterAlpha * waterOpacity));
@@ -323,6 +342,8 @@ namespace Ossastra.OSPhysics
 
         public void Dispose()
         {
+            fire?.Dispose();
+            fire = null;
             lighting?.Dispose();
             lighting = null;
             local.Dispose();

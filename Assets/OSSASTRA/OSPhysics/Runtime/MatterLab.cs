@@ -5,7 +5,7 @@ using UnityEngine.InputSystem;
 
 namespace Ossastra.OSPhysics
 {
-    public enum MatterLabPreset { Empty, Flow, Layering, Combustion }
+    public enum MatterLabPreset { Empty, Flow, Layering, Combustion, AssetStudy, AssetEmpty }
     public enum MatterBrush { Water, Oil, Sand, Grass, Wood, Heat, Erase, Barrier }
 
     [DisallowMultipleComponent]
@@ -131,6 +131,7 @@ namespace Ossastra.OSPhysics
             visual.Refresh(display, appearanceTime);
             visual.PresentPainted(labCamera, display, paintStyle, privateArt, paintLayers, appearanceTime,
                 paintMood, waterOpacity, effectGain, lampX);
+            PresentAssets();
         }
 
         public void StepOnce()
@@ -143,6 +144,7 @@ namespace Ossastra.OSPhysics
         private void Advance()
         {
             World.Step();
+            assetStudy?.Fuel.UpdateDamage();
             Stepped?.Invoke(World.Metrics);
         }
 
@@ -177,6 +179,7 @@ namespace Ossastra.OSPhysics
         {
             if (!Ready || !WorldToCell(worldPoint, out int x, out int y)) return 0;
             int accepted = Stamp(x, y, tool, Strength(tool));
+            if (tool == MatterBrush.Erase) assetStudy?.Fuel.UpdateDamage();
             if (barrierColliderDirty) RefreshPaintedCollider();
             return accepted;
         }
@@ -200,6 +203,13 @@ namespace Ossastra.OSPhysics
             var keyboard = Keyboard.current;
             if (keyboard != null)
             {
+                if (assetBrush != MatterAssetBrush.Matter)
+                    for (int i = 0; i < 8; i++)
+                        if (keyboard[(Key)((int)Key.Digit1 + i)].wasPressedThisFrame)
+                        {
+                            SetAssetBrush(MatterAssetBrush.Matter);
+                            break;
+                        }
                 if (keyboard.digit1Key.wasPressedThisFrame) brush = MatterBrush.Water;
                 else if (keyboard.digit2Key.wasPressedThisFrame) brush = MatterBrush.Oil;
                 else if (keyboard.digit3Key.wasPressedThisFrame) brush = MatterBrush.Sand;
@@ -245,6 +255,11 @@ namespace Ossastra.OSPhysics
             if (!insidePanel && onScreen)
             {
                 Zoom(pixels, mouse.scroll.ReadValue().y);
+            }
+            if (HandleAssetInput(pixels, !insidePanel && onScreen, mouse.leftButton.wasPressedThisFrame,
+                mouse.leftButton.isPressed, mouse.leftButton.wasReleasedThisFrame)) return;
+            if (!insidePanel && onScreen)
+            {
                 if (worldGesture && (mouse.leftButton.isPressed || mouse.leftButton.wasPressedThisFrame) &&
                     TryScreenPoint(pixels, out Vector2 position) && WorldToCell(position, out int x, out int y))
                 {
@@ -287,6 +302,7 @@ namespace Ossastra.OSPhysics
             if (!pendingStroke && !paintHeld) return;
             MatterStroke.Trace(previousStamp.x, previousStamp.y, strokeTarget.x, strokeTarget.y,
                 Mathf.Max(1, brushRadius / 2), Strength(brush), strokeStamp);
+            if (brush == MatterBrush.Erase) assetStudy?.Fuel.UpdateDamage();
             previousStamp = strokeTarget;
             pendingStroke = false;
         }
@@ -319,11 +335,21 @@ namespace Ossastra.OSPhysics
                         if (PaintBarrier(px, py, true)) accepted++;
                         break;
                     default:
+                        if ((tool == MatterBrush.Grass || tool == MatterBrush.Wood) &&
+                            assetStudy != null && assetStudy.Fuel.Owns(px, py)) break;
                         accepted += World.Add(px, py, (Matter)((int)tool + (int)Matter.Water), amount);
                         break;
                 }
             }
             return accepted;
+        }
+
+        private void OnApplicationFocus(bool focused)
+        {
+            if (focused) return;
+            assetGesture = assetRectangle = assetHasPoint = false;
+            pendingStroke = paintHeld = strokeHasStart = worldGesture = false;
+            activeSlider = null;
         }
 
         private void Notify(string message)

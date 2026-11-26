@@ -6,7 +6,7 @@ using Object = UnityEngine.Object;
 
 namespace Ossastra.OSPhysics
 {
-    public enum MatterDisplay { Natural, Grid, Heat, Collision, Painted, PaintedWorldLight }
+    public enum MatterDisplay { Natural, Grid, Heat, Collision, Painted, PaintedWorldLight, MapAssets, MapAssetsWorldLight }
 
     [DisallowMultipleComponent]
     [RequireComponent(typeof(MeshFilter), typeof(MeshRenderer))]
@@ -51,6 +51,8 @@ namespace Ossastra.OSPhysics
         public int PaintedPrivateSlots => painted?.PrivateSlotCount ?? 0;
         public int PaintedBatchCount => painted?.BatchCount ?? 0;
         public int PaintedLightMaps => painted?.LightTextureCount ?? 0;
+        public int ActiveSpriteFires => painted?.ActiveSpriteFires ?? 0;
+        public bool UsesFallbackFire => painted?.UsesFallbackFire ?? true;
 
         public int LastUploadedChunks { get; private set; }
         public int LocalFireLightCount { get; private set; }
@@ -127,13 +129,14 @@ namespace Ossastra.OSPhysics
         public void PresentPainted(Camera camera, MatterDisplay display, MatterPaintStyle style, bool local,
             MatterPaintLayers layers, float time, float mood, float opacity, float effects, float lampX)
         {
-            bool usePaint = display == MatterDisplay.Painted || display == MatterDisplay.PaintedWorldLight;
+            bool assetView = display == MatterDisplay.MapAssets || display == MatterDisplay.MapAssetsWorldLight;
+            bool usePaint = assetView || display == MatterDisplay.Painted || display == MatterDisplay.PaintedWorldLight;
             if (usePaint && painted == null && !paintedFailed)
             {
                 try
                 {
                     var grid = new Vector4(world.Width, world.Height, 1f / world.Width, 1f / world.Height);
-                    painted = new MatterPaintedStage(transform, camera, mesh, stateTexture, grid, stageOrigin, stageCell);
+                    painted = new MatterPaintedStage(transform, camera, mesh, stateTexture, grid, stageOrigin, stageCell, world);
                 }
                 catch (InvalidOperationException e)
                 {
@@ -148,7 +151,8 @@ namespace Ossastra.OSPhysics
             painted.SetVisible(usePaint);
             if (!usePaint) return;
             painted.ApplyProfile(style, local);
-            painted.Present(time, fireLights, mood, display == MatterDisplay.PaintedWorldLight, layers, opacity, effects, lampX);
+            bool useWorldLight = display == MatterDisplay.PaintedWorldLight || display == MatterDisplay.MapAssetsWorldLight;
+            painted.Present(time, fireLights, mood, useWorldLight, layers, opacity, effects, lampX, assetView);
         }
 
         private void UploadChunk(int chunkX, int chunkY, int index)
