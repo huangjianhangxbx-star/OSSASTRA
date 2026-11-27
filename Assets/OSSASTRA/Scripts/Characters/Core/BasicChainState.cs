@@ -1,12 +1,14 @@
 /*
  * 脚本：BasicChainState
  * 功能：以同一模拟时钟管理手动普攻接段资格与最后一次合法预输入。
- * 边界：只在动作运行时给出开放许可后返回接续段，不产生动作或伤害。
+ * 边界：按前驱身份锁存行为结果；不持有 Unity 目标、不产生动作或伤害。
  */
 using System;
 
 namespace Ossastra.CharacterCore
 {
+    public enum ChainBehaviorResult { None, Pending, Succeeded, Failed }
+
     public sealed class BasicChainState
     {
         private readonly double retentionSeconds, continuationSeconds;
@@ -18,8 +20,34 @@ namespace Ossastra.CharacterCore
         private double readyAt, bufferUntil;
 
         public bool HasBuffer => buffered;
-        private bool CanContinue => stage > 0 && stage < stageCount && (!requireHit || hit);
-        public double WindowUntil => CanContinue ? readyAt + continuationSeconds : -1;
+        public ChainBehaviorResult BehaviorResult { get; private set; }
+        public Guid PreviousActionId => actionId;
+        public bool AwaitingMarker => awaitingMarker;
+        private bool HasSuccessor => stage > 0 && stage < stageCount;
+        private bool CanBuffer => HasSuccessor && BehaviorResult != ChainBehaviorResult.Failed &&
+            (!requireHit || hit || BehaviorResult == ChainBehaviorResult.Pending);
+        private bool CanContinue => CanBuffer && BehaviorResult != ChainBehaviorResult.Pending && (!requireHit || hit);
+        public double WindowUntil => CanBuffer ? readyAt + continuationSeconds : -1;
+
+        public bool IsConnectionOpen(Guid id, double now) =>
+            id == actionId && HasSuccessor && BehaviorResult != ChainBehaviorResult.Failed &&
+            now <= readyAt + continuationSeconds;
+
+        // 旧投递和重复回执都不能把一次已判定的连接重新打开。
+        public bool ReportBehavior(Guid id, bool succeeded, double now)
+        {
+            if (BehaviorResult != ChainBehaviorResult.Pending || !IsConnectionOpen(id, now)) return false;
+            BehaviorResult = succeeded ? ChainBehaviorResult.Succeeded : ChainBehaviorResult.Failed;
+            if (!succeeded) buffered = false;
+            return true;
+        }
+
+        public void InvalidateBehavior(Guid id)
+        {
+            if (id != actionId || BehaviorResult == ChainBehaviorResult.None) return;
+            BehaviorResult = ChainBehaviorResult.Failed;
+            buffered = false;
+        }
 
         public BasicChainState(double retentionSeconds, double continuationSeconds, int stageCount, bool requireHit)
         {
@@ -57,7 +85,7 @@ namespace Ossastra.CharacterCore
 
         private void ExpireBuffer(double now)
         {
-            if (buffered && (!CanContinue || now > bufferUntil || now > WindowUntil))
+            if (buffered && (!CanBuffer || now > bufferUntil || now > WindowUntil))
                 buffered = false;
         }
 
@@ -70,12 +98,12 @@ namespace Ossastra.CharacterCore
                 return 0;
             }
             ExpireBuffer(now);
-            if (CanRequestNow(attackReady))
+            if (CanRequestNow(attackReady) && (BehaviorResult != ChainBehaviorResult.Pending || !IsConnectionOpen(actionId, now)))
             {
                 buffered = false;
                 return CanContinue && now <= WindowUntil ? stage + 1 : 1;
             }
-            if (CanContinue && now <= WindowUntil)
+            if (CanBuffer && now <= WindowUntil)
             {
                 buffered = true;
                 bufferUntil = now + retentionSeconds;
@@ -86,19 +114,21 @@ namespace Ossastra.CharacterCore
         public int Poll(double now, bool attackReady)
         {
             ExpireBuffer(now);
-            if (!buffered || !CanRequestNow(attackReady)) return 0;
+            if (!buffered || !CanContinue || !CanRequestNow(attackReady)) return 0;
             // 先消费再向外提交。即使费用或动作准入拒绝，也不逐帧重试。
             buffered = false;
             return stage + 1;
         }
 
-        public void Accepted(int stage, Guid id, double now, double attackReadyAt, bool eventDriven = false)
+        public void Accepted(int stage, Guid id, double now, double attackReadyAt, bool eventDriven = false,
+            bool requireBehaviorSuccess = false)
         {
             this.stage = stage;
             actionId = id;
             awaitingMarker = eventDriven;
             readyAt = eventDriven ? double.PositiveInfinity : now + attackReadyAt;
             hit = buffered = false;
+            BehaviorResult = requireBehaviorSuccess && HasSuccessor ? ChainBehaviorResult.Pending : ChainBehaviorResult.None;
         }
 
         public void MarkReady(Guid id, double now)
@@ -122,6 +152,7 @@ namespace Ossastra.CharacterCore
             actionId = Guid.Empty;
             hit = buffered = awaitingMarker = false;
             readyAt = 0;
+            BehaviorResult = ChainBehaviorResult.None;
         }
     }
 }

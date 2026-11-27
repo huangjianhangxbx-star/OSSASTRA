@@ -71,6 +71,30 @@ internal static class ChainTests
         hitRequired.Request(.625, false, true);
         Check(hitRequired.Poll(.75, true) == 2, "有效命中后可预输入第二段");
 
+        var gated = new BasicChainState(.25, .5, 4, false);
+        var gatedAction = Guid.NewGuid();
+        gated.Accepted(3, gatedAction, 0, 0, true, requireBehaviorSuccess: true);
+        Check(gated.Request(.125, false, true) == 0 && gated.HasBuffer, "前驱机制待定时保存真实输入");
+        gated.MarkReady(gatedAction, .25);
+        Check(gated.Poll(.25, true) == 0 && gated.HasBuffer, "只有动画开放无法接续");
+        Check(!gated.ReportBehavior(Guid.NewGuid(), true, .25), "旧回执不能开放新连接");
+        Check(gated.ReportBehavior(gatedAction, true, .375), "输入截止等号内记录到位");
+        Check(gated.Poll(.375, true) == 4 && gated.Poll(.375, true) == 0, "真实到位后只消费一次预输入");
+        gated.Accepted(3, gatedAction, 1, 0, true, requireBehaviorSuccess: true);
+        Check(gated.ReportBehavior(gatedAction, true, 1.125), "先到位再等待动作许可");
+        gated.MarkReady(gatedAction, 1.25);
+        Check(gated.Poll(1.25, true) == 0 && gated.Request(1.75, true, true) == 4, "成功绝不自动接段，窗口等号允许新输入");
+        gated.Accepted(3, gatedAction, 2, 0, true, requireBehaviorSuccess: true);
+        gated.MarkReady(gatedAction, 2.25);
+        gated.Request(2.375, true, true);
+        Check(!gated.ReportBehavior(gatedAction, true, 2.751) && gated.Poll(2.751, true) == 0, "晚到结果不能重开窗口");
+        gated.Accepted(3, gatedAction, 3, 0, true, requireBehaviorSuccess: true);
+        gated.Request(3.125, false, true);
+        gated.MarkReady(gatedAction, 3.25);
+        Check(gated.ReportBehavior(gatedAction, false, 3.125) && !gated.HasBuffer &&
+            !gated.ReportBehavior(gatedAction, true, 3.125) && gated.Poll(3.125, true) == 0 &&
+            gated.Request(3.25, true, true) == 1, "失败清除旧按下与晚到回执，新按下可重启");
+
         Console.WriteLine(count + " chain contracts passed");
     }
 }

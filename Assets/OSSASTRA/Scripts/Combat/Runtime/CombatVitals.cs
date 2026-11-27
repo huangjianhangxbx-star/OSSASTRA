@@ -123,6 +123,8 @@ namespace Ossastra.Combat
         public CombatFaction Faction => faction;
         internal CombatPlane SpatialPlane { get; set; }
         public int DeathCount { get; private set; }
+        // 同一组件的开发复位和返场会复用 Health，异步行为以此代际拒绝上一条生命的回执。
+        public int LifeRevision { get; private set; }
         public string LastResult { get; private set; }="尚未受击";
         public event Action<HitOutcome> Died;
 
@@ -149,7 +151,7 @@ namespace Ossastra.Combat
             recovery?.RecordLoss(outcome);
             if (IsAlive) { ShowHit(); return; }
             if (deathNotified) return;
-            ResetHitStop(); deathNotified=true; DeathCount++;
+            ResetHitStop(); deathNotified=true; DeathCount++; LifeRevision++;
             EndHitReaction();
             recovery?.ResetState();
             regeneration?.Clear();
@@ -180,7 +182,7 @@ namespace Ossastra.Combat
             if (hitReacting) hitFlash.Apply();
         }
 
-        private void OnDisable() { ResetHitStop(); EndHitReaction(); }
+        private void OnDisable() { LifeRevision++; ResetHitStop(); EndHitReaction(); }
 
         private void EndHitReaction()
         {
@@ -203,6 +205,7 @@ namespace Ossastra.Combat
         }
         private void RestoreBody(string reason)
         {
+            LifeRevision++;
             ResetHitStop(); deathNotified=false; LastResult=reason;
             EndHitReaction();
             recovery?.ResetState();

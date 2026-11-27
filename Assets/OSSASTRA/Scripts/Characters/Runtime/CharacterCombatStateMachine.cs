@@ -1,5 +1,5 @@
 /* 脚本：CharacterCombatStateMachine
- * 功能：注册战斗状态机，唯一拥有并推进 BasicActionRuntime、普攻预输入、受理快照与主动作取消。
+ * 功能：拥有 BasicActionRuntime、普攻预输入、受理快照、逐连接行为资格和主动作取消。
  * 边界：不采设备、不写运动/HP；能力Run和费用账本仍由既有端口所有。
  * 协作：仲裁器按原阶段调用；投递完成后向队伍登记切换连携机会；Root公开方法仅转发，释放仍走同一战斗网关。
  */
@@ -24,6 +24,7 @@ namespace Ossastra.Characters
   private BasicAttackDefinition definition,secondDefinition;
   private BasicAttackDefinition[] configuredAttacks;
   private BasicChainState chain;
+  private BasicBehaviorConnection behaviorConnection;
   private BasicChainProfile chainProfile;
   private ICombatHitReceiptSource hitReceipts;
   private CombatVitals autonomousTarget;
@@ -42,6 +43,12 @@ namespace Ossastra.Characters
   public bool HasBufferedAttack=>chain!=null&&chain.HasBuffer;
   public UnityEngine.Object ComboSource { get; private set; }
   public BasicComboSettings? EffectiveComboSettings { get; private set; }
+  public string BehaviorStatus { get; private set; } = "无专职行为";
+  public string BehaviorWait => DescribeBehaviorWait();
+#if UNITY_EDITOR
+  public static Func<CharacterRoot, UnityEngine.Object, int, ActionDefinitionSO, ActionDefinitionSO> EditorBehaviorActionOverride;
+  public static Func<CharacterRoot, UnityEngine.Object, BasicComboSettings, BasicComboSettings> EditorBehaviorComboOverride;
+#endif
   public double ComboWindowUntil=>chain==null?-1:chain.WindowUntil;
   public BasicActionRuntime Runtime=>runtime;
   public override string StateMachineName=>"CombatStateMachine";
@@ -77,6 +84,11 @@ namespace Ossastra.Characters
   {
       readyPressDuringHitStop = false;
       comboInputTracked = false;
+      if (behaviorConnection != null)
+      {
+          chain?.InvalidateBehavior(behaviorConnection.Id);
+          behaviorConnection = null;
+      }
       chain?.Clear();
   }
   public void SuppressInput()=>intent.SuppressUntilRelease();
@@ -91,6 +103,7 @@ namespace Ossastra.Characters
             if (pressed || frame.attackPressed)
                 trace?.Note("输入","主手输入交给战斗状态机",$"有效边沿={pressed}，界面捕获={frame.attackPointerBlocked}，请求封锁={frame.attackRequestsBlocked}，焦点={owner.StateFocused}，攀越限制={owner.StateArbitrator.Movement.TraversalBlocksAttack}，瞄准={frame.aimSource}");
             if(owner.StateArbitrator.Movement.TraversalBlocksAttack){ClearBuffer();if(frame.attackHeld)SuppressInput();return;}
+            CheckBehaviorConnection();
             if (pressed && !frame.attackRequestsBlocked && owner.StateFocused && !frame.attackPointerBlocked)
             {
                 bool wasBuffered = HasBufferedAttack;
@@ -193,7 +206,11 @@ namespace Ossastra.Characters
                     // 在释放当帧按值采样方向；不是接受动作时锁定，前摇中仍可重新瞄准。
                     var releaseDirection = switchAttack ? switchAttackDirection : owner.StateOrienter.AttackDirection;
                     owner.StateOrienter.FaceAttackDirection();
-                    if(owner.StateAbilities!=null&&owner.StateAbilities.OwnsRelease(fact.ActionId))return;
+                    if (owner.StateAbilities?.OwnsRelease(fact.ActionId) == true)
+                    {
+                        (owner.StateAbilities as CharacterAbilities)?.ReleaseBasicBehavior(fact, releaseDirection);
+                        return;
+                    }
                     if(owner.StateMainAction!=null&&owner.StateMainAction.TryRelease(fact,releaseDirection,out bool delivered))
                     {
                         if (delivered) RecordBasicRelease(fact.ActionId);
@@ -210,6 +227,7 @@ namespace Ossastra.Characters
   public void CompleteFrame(float deltaTime)
   {
             owner.StateMainAction?.TickEffects(owner.IsSimulationSuspended?0:deltaTime);
+            CheckBehaviorConnection();
             if(chain!=null && !owner.StateArbitrator.Movement.TraversalBlocksAttack &&
                 owner.StateInput.HasPlayerInput && !owner.IsPaused && owner.StateFocused && owner.StateAuthority.Allows(ControlChannel.Attack))
             {
@@ -223,13 +241,20 @@ namespace Ossastra.Characters
   }
   public void PrepareFrame(CharacterInputFrame frame)
   {
-      if (!owner.HasPlayerInput || owner.IsPaused || !owner.StateFocused) ClearBuffer();
+      if (!owner.HasPlayerInput || !owner.StateFocused) ClearBuffer();
+      else if (owner.IsPaused && behaviorConnection == null) ClearBuffer();
       else if (chain != null && !ChainAvailable) chain.Clear();
       ClearStaleComboInput(frame);
   }
         public void ObserveFact(ActionFact fact) => ObserveFact(fact, null);
         private void ObserveFact(ActionFact fact, string phaseClip)
         {
+            if (fact.Kind == ActionFactKind.Cancelled && behaviorConnection?.Id == fact.ActionId)
+            {
+                // 下一段在这之前已获准，成功资格已经被消费。普通取消则让本次旧输入和结果失效。
+                if (fact.Reason != "replaced-by-next-attack" || !behaviorConnection.HandedOff)
+                    InvalidateBehaviorConnection(fact.Reason);
+            }
             if(fact.Kind==ActionFactKind.Accepted)owner.StateVitals?.Recovery?.RetainParent(fact.ActionId);
             LastActionSource=fact.Source;
             lastFact = fact.Kind + " @" + fact.At.ToString("F3") + " " + fact.ActionId.ToString("N").Substring(0, 8);
@@ -327,7 +352,7 @@ namespace Ossastra.Characters
                 configuredAttacks = new BasicAttackDefinition[sequence.Count];
                 for (int i = 0; i < sequence.Count; i++) configuredAttacks[i] = sequence.Stage(i).Timeline;
                 definition = configuredAttacks[0];
-                SetCombo(main.ComboSource, new BasicComboSettings((float)sequence.BufferSeconds,
+                SetCombo(main.ComboSource, main.AuthoredComboSettings ?? new BasicComboSettings((float)sequence.BufferSeconds,
                     (float)sequence.ContinuationSeconds, sequence.RequireHit), sequence.Count);
             }
             else if (owner.StateCharacterDefinition != null)
@@ -364,6 +389,7 @@ namespace Ossastra.Characters
 
         private void SetCombo(UnityEngine.Object source, BasicComboSettings settings, int stageCount)
         {
+            settings = ResolveBehaviorComboSettings(source, settings);
             chain = settings.CreateState(stageCount);
             ComboSource = source;
             EffectiveComboSettings = settings;
@@ -375,6 +401,27 @@ namespace Ossastra.Characters
             CharacterMainAction.PreparedStage prepared=null;
             if(owner.StateMainAction?.Sequence!=null&&!owner.StateMainAction.TryPrepare(stage-1,out prepared)){lastFact=owner.StateMainAction.LastResult;return;}
             var actionConfig=prepared!=null?prepared.Definition:owner.StateCharacterDefinition==null?null:ActionLibrary[stage-1];
+            var effectiveAction = actionConfig;
+#if UNITY_EDITOR
+            if (actionConfig != null && EditorBehaviorActionOverride != null)
+                effectiveAction = EditorBehaviorActionOverride(owner, ComboSource, stage, actionConfig) ?? actionConfig;
+#endif
+            var abilities = owner.StateAbilities as CharacterAbilities;
+            var needsSuccess = aiTarget == null && EffectiveComboSettings.GetValueOrDefault().RequiresBehaviorSuccess(stage);
+            IAbilitySource behaviorSource = null;
+            CompiledAbilityExecutor executor = null;
+            if (effectiveAction?.executor != null)
+            {
+                if (abilities == null) { lastFact = "Rejected: 缺少专职行为宿主"; return; }
+                if (!abilities.PrepareBasicBehavior(effectiveAction, stage, prepared != null,
+                    out behaviorSource, out executor, out var behaviorError))
+                { lastFact = "Rejected: " + behaviorError; return; }
+            }
+            else if (needsSuccess)
+            {
+                lastFact = "Rejected: 接续条件缺少前驱行为";
+                return;
+            }
             var selected=stage==2?secondDefinition:definition;
             ConfiguredActionSnapshot phase=prepared?.Phase;
             if (phase == null && actionConfig != null && !TryResolveConfiguredAction(actionConfig, out phase,
@@ -399,6 +446,9 @@ namespace Ossastra.Characters
                 return request.Accepted?request.Fact.ActionId:Guid.Empty;
             },out var rejection);
             if(!accepted){lastFact="Rejected: "+rejection;return;}
+            if (behaviorConnection != null && stage == behaviorConnection.Stage + 1 &&
+                chain?.BehaviorResult == ChainBehaviorResult.Succeeded)
+                behaviorConnection.HandedOff = true;
             if(request.PreviousTerminal!=null)ObserveFact(request.PreviousTerminal);
             if(request.Accepted)
             {
@@ -413,11 +463,14 @@ namespace Ossastra.Characters
                 else if(phase!=null)(owner.StatePresentation as ICharacterConfiguredAnimation)?.CapturePhase(request.Fact.ActionId,phase);
                 AttackStage=stage; autonomousAction=aiTarget!=null; autonomousTarget=aiTarget;
                 if(autonomousAction) { chain?.Clear(); owner.StateCombatBrain.OnAccepted(); owner.StateOrienter.OrientTowards(aiTarget.transform.position); }
-                else chain?.Accepted(stage,request.Fact.ActionId,runtime.SimulationTime,selected.AttackReadyAt,selected.EventDriven);
+                else chain?.Accepted(stage,request.Fact.ActionId,runtime.SimulationTime,selected.AttackReadyAt,selected.EventDriven,needsSuccess);
                 TrackBasicAttack(request.Fact.ActionId, aiTarget == null);
                 var effectDefinition = actionConfig;
-                impactRun = ActionImpactRun.Accept(owner, effectDefinition, effectDefinition?.effects, request.Fact.ActionId,
+                impactRun = ActionImpactRun.Accept(owner, effectDefinition, effectiveAction?.effects, request.Fact.ActionId,
                     owner.StateOrienter.AttackDirection, $"{owner.StateEquipment?.State?.RightInstanceId}/段{stage}", prepared?.Stage.DashDistance > 0);
+                behaviorConnection = null;
+                if (executor != null)
+                    BeginBasicBehavior(abilities, effectiveAction, executor, behaviorSource, request.Fact.ActionId, stage, aiTarget != null, needsSuccess);
                 ObserveFact(request.Fact); owner.StateOrienter.FaceAttackDirection();
             }
             else lastFact="Rejected: "+request.Reason;

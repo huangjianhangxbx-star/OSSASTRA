@@ -18,6 +18,7 @@ namespace Ossastra.Combat
         public HitOutcome Outcome { get; }
         public CombatVitals Target { get; }
         public string TargetId { get; }
+        public int? TargetLifeRevision { get; }
         /// <summary>保持旧消费者使用的目标锚点语义，空间反馈改读Contact。</summary>
         public Vector3 Position { get; }
         public CombatContactPoint Contact { get; }
@@ -31,6 +32,7 @@ namespace Ossastra.Combat
         {
             Outcome = outcome ?? throw new ArgumentNullException(nameof(outcome));
             Target = target;
+            TargetLifeRevision = target == null ? (int?)null : target.LifeRevision;
             TargetId = outcome.TargetId;
             Position = position;
             Contact = contact ?? new CombatContactPoint(position, CombatContactPointQuality.TargetAnchor);

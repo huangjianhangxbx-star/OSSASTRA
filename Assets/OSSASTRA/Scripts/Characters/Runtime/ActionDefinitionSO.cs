@@ -20,6 +20,8 @@ namespace Ossastra.Characters
     {
         [Tooltip("新词条在下次动作接受时冻结；旁路保留原伤害、费用及能力内在运动。")]
         public ActionEffectList effects = new ActionEffectList();
+        [Tooltip("可选专职行为。接管本次正式释放，配置与每次运行状态独立。")]
+        public AbilityExecutorSO executor;
         public string definitionId;
         [HideInInspector] public string animationKey; // 历史资产读取兼容；正式作者只维护animationLogicId。
         [Tooltip("正式动画逻辑ID；animationKey仅保留未迁移旧资产的读取兼容。")]

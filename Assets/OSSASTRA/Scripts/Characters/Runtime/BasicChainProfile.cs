@@ -21,6 +21,12 @@ namespace Ossastra.Characters
         public float continuationSeconds;
         [InspectorName("进入下一段需要命中")]
         public bool requireHit;
+        [InspectorName("要求前驱行为成功的连接")]
+        [Tooltip("填写前驱段位，从 1 开始。例如 3 表示第三段成功才允许接第四段。")]
+        public int[] behaviorSuccessConnections;
+
+        public bool RequiresBehaviorSuccess(int fromStage) =>
+            behaviorSuccessConnections != null && Array.IndexOf(behaviorSuccessConnections, fromStage) >= 0;
 
         public bool IsMigrated => version != 0;
 
@@ -29,6 +35,7 @@ namespace Ossastra.Characters
             this.retentionSeconds = retentionSeconds;
             this.continuationSeconds = continuationSeconds;
             this.requireHit = requireHit;
+            behaviorSuccessConnections = null;
             version = 1;
         }
 

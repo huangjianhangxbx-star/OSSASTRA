@@ -1,9 +1,10 @@
 /*
  * 脚本：BasicComboSettingsDrawer
- * 功能：显示统一连段参数和版本未升级资产的实际兼容值。
+ * 功能：显示统一连段参数、逐连接行为要求和旧资产的实际兼容值。
  * 边界：仅通过明确迁移按钮修改作者资产，保留 Undo 与通常的 Inspector 保存流程。
  */
 using System;
+using System.Linq;
 using Ossastra.Characters;
 using UnityEditor;
 using UnityEngine;
@@ -19,7 +20,7 @@ namespace Ossastra.Development.Editor
         public override float GetPropertyHeight(SerializedProperty property, GUIContent label)
         {
             var version = property.FindPropertyRelative("version");
-            return Line * (NeedsMigration(version) ? 3 : 4) - EditorGUIUtility.standardVerticalSpacing;
+            return Line * (NeedsMigration(version) ? 3 : 4 + ConnectionCount(property)) - EditorGUIUtility.standardVerticalSpacing;
         }
 
         public override void OnGUI(Rect position, SerializedProperty property, GUIContent label)
@@ -38,9 +39,45 @@ namespace Ossastra.Development.Editor
                         row.y += Line;
                         EditorGUI.PropertyField(row, property.FindPropertyRelative(field));
                     }
+                    DrawConnections(row, property);
                 }
             }
             EditorGUI.EndProperty();
+        }
+
+        private static int ConnectionCount(SerializedProperty settings)
+        {
+            if (settings.serializedObject.isEditingMultipleObjects) return 0;
+            var source = settings.serializedObject.targetObject;
+            if (source is CharacterDefinitionSO character) return Math.Max(0, (character.basicAttacks?.Length ?? 0) - 1);
+            if (source is MainActionProfileSO profile) return Math.Max(0, (profile.stages?.Length ?? 0) - 1);
+            return 0;
+        }
+
+        private static void DrawConnections(Rect row, SerializedProperty settings)
+        {
+            var connections = settings.FindPropertyRelative("behaviorSuccessConnections");
+            int count = ConnectionCount(settings);
+            if (connections == null || count == 0) return;
+            var selected = Enumerable.Range(0, connections.arraySize)
+                .Select(index => connections.GetArrayElementAtIndex(index).intValue).ToHashSet();
+            var labels = new[] { "沿用普攻准入", "前段行为成功" };
+            bool changed = false;
+            for (int from = 1; from <= count; from++)
+            {
+                row.y += Line;
+                int current = selected.Contains(from) ? 1 : 0;
+                int next = EditorGUI.Popup(row, $"第 {from} 段 → 第 {from + 1} 段", current, labels);
+                if (current == next) continue;
+                if (next == 1) selected.Add(from);
+                else selected.Remove(from);
+                changed = true;
+            }
+            if (!changed) return;
+            connections.arraySize = selected.Count;
+            int position = 0;
+            foreach (int from in selected.OrderBy(index => index))
+                connections.GetArrayElementAtIndex(position++).intValue = from;
         }
 
         private static bool NeedsMigration(SerializedProperty version)

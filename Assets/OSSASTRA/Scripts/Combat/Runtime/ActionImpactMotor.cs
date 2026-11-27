@@ -2,6 +2,7 @@
  * 招式运动接收器：保存当前本体的短程曲线、输入窗口与击飞冲量。没有 Update，也不写 Transform。
  * 正式玩家或敌人运动器在自己的模拟步取样，结合既有重力、碰撞和平台，完成唯一的物理提交。
  * 主动、命中反冲、受击推移各占一条曲线。通道内按请求平均速率取强，等强按最近请求刷新。
+ * 带停靠点的目标请求持有独立句柄。在本体既有移动提交后按实际位置报告结果，后续取消只影响原请求。
  */
 using System;
 using System.Collections.Generic;
@@ -24,6 +25,49 @@ namespace Ossastra.Combat
         }
         public Vector2 LastRequestedStep { get; private set; }
         public Vector2 LastActualStep { get; private set; }
+
+        public enum TargetMotionStatus { Pending, Arrived, Failed, Cancelled }
+
+        /// <summary>确认本体实际到位的单次目标运动句柄，终结后的结果可继续供来源查询。</summary>
+        public sealed class TargetMotion
+        {
+            private ActionImpactMotor motor;
+            internal readonly Vector2 destination;
+            internal readonly float speed, timeout, horizontalTolerance, verticalTolerance;
+            internal float elapsed, stepSeconds, beforeDistance, stalled;
+
+            internal TargetMotion(ActionImpactMotor motor, Guid actionId, Vector2 destination, float speed,
+                float timeout, float horizontalTolerance, float verticalTolerance)
+            {
+                this.motor = motor;
+                ActionId = actionId;
+                this.destination = destination;
+                this.speed = speed;
+                this.timeout = timeout;
+                this.horizontalTolerance = horizontalTolerance;
+                this.verticalTolerance = verticalTolerance;
+            }
+
+            public Guid ActionId { get; }
+            public TargetMotionStatus Status { get; private set; }
+            public string Reason { get; private set; }
+            public Vector2 RequestedStep { get; internal set; }
+            public Vector2 ActualStep { get; internal set; }
+
+            public void Cancel()
+            {
+                if (motor && ReferenceEquals(motor.targetMotion, this))
+                    motor.EndTargetMotion(TargetMotionStatus.Cancelled, "来源取消");
+            }
+
+            internal void Finish(TargetMotionStatus status, string reason)
+            {
+                Status = status;
+                Reason = reason;
+                motor = null;
+            }
+        }
+
         private sealed class Travel
         {
             internal Guid owner;
@@ -51,12 +95,13 @@ namespace Ossastra.Combat
         }
 
         private Travel self, recoil, pushed;
+        private TargetMotion targetMotion;
         private readonly List<InputWindow> windows = new List<InputWindow>();
         private Vector2 launch;
         private float enemyVerticalSpeed;
         private Guid launchOwner;
         private bool pendingLaunch, flying;
-        public bool HasMotion => self != null || recoil != null || pushed != null || pendingLaunch || flying;
+        public bool HasMotion => self != null || recoil != null || pushed != null || pendingLaunch || flying || targetMotion != null;
         public bool HasInputWindow => windows.Count > 0;
         public float LockedFacing
         {
@@ -98,6 +143,30 @@ namespace Ossastra.Combat
             return true;
         }
 
+        public static bool TryMoveTarget(Component actor, Guid actionId, Vector2 destination, float horizontalSpeed,
+            float timeout, float horizontalTolerance, float verticalTolerance, out TargetMotion motion, out string reason)
+        {
+            motion = null;
+            reason = "停靠、速度或期限参数无效";
+            if (actionId == Guid.Empty || !Finite(destination) || !PositiveFinite(horizontalSpeed) ||
+                !PositiveFinite(timeout) || !PositiveFinite(horizontalTolerance) || !PositiveFinite(verticalTolerance)) return false;
+            if (!Resolve(actor, true, out var motor, out reason)) return false;
+            if (motor.HasMotion)
+            { reason = "已有招式运动"; return false; }
+            var position = motor.transform.position;
+            if (Mathf.Abs(position.y - destination.y) > verticalTolerance)
+            { reason = "目标与停靠点高差超限"; return false; }
+
+            motion = new TargetMotion(motor, actionId, destination, horizontalSpeed * (1 - motor.PushResistance),
+                timeout, horizontalTolerance, verticalTolerance);
+            motor.targetMotion = motion;
+            if (Mathf.Abs(position.x - destination.x) <= horizontalTolerance)
+                motor.EndTargetMotion(TargetMotionStatus.Arrived, "目标已在停靠范围");
+            return true;
+        }
+
+        private static bool PositiveFinite(float value) => value > 0 && !float.IsInfinity(value);
+
         public static bool TryDisplace(Component actor, Guid actionId, Vector2 distance, float seconds,
             AnimationCurve curve, bool target, bool replaceInput, out string reason, bool isRecoil = false)
         {
@@ -108,6 +177,7 @@ namespace Ossastra.Combat
             var old = target ? motor.pushed : isRecoil ? motor.recoil : motor.self;
             if (old != null && old.distance.magnitude / old.duration > distance.magnitude / seconds)
             { reason = "已有较强同类运动"; return false; }
+            motor.EndTargetMotion(TargetMotionStatus.Failed, "其他招式位移接管");
             var travel = new Travel { owner = actionId, distance = distance, duration = seconds, curve = curve, replaceInput = replaceInput };
             if (target) motor.pushed = travel;
             else if (isRecoil) motor.recoil = travel;
@@ -120,6 +190,7 @@ namespace Ossastra.Combat
             if (!Resolve(actor, target, out var motor, out reason)) return false;
             if (!Finite(velocity) || velocity.y <= 0) { reason = "击飞初速无效"; return false; }
             if (target) velocity *= 1 - motor.PushResistance;
+            motor.EndTargetMotion(TargetMotionStatus.Failed, "击飞接管");
             motor.launch = velocity;
             motor.launchOwner = target ? Guid.Empty : actionId;
             motor.pendingLaunch = true;
@@ -145,7 +216,7 @@ namespace Ossastra.Combat
 
         internal float InputScale(float signedInput, float previousScale)
         {
-            if (self != null && self.replaceInput) return 0;
+            if (targetMotion != null || self != null && self.replaceInput) return 0;
             foreach (var window in windows)
             {
                 if (window.direction * signedInput < 0) return 0;
@@ -190,7 +261,32 @@ namespace Ossastra.Combat
                 step += pushed.Step(dt);
                 if (pushed.elapsed >= pushed.duration) pushed = null;
             }
+            if (targetMotion != null) step += StepTargetMotion(dt);
             return step;
+        }
+
+        // 只在目标本体的有效模拟步前进。局部卡肉期间运动器不会来取样，命令时钟随本体暂停。
+        private Vector2 StepTargetMotion(float dt)
+        {
+            if (!Resolve(this, true, out _, out var reason))
+            {
+                EndTargetMotion(TargetMotionStatus.Failed, reason);
+                return Vector2.zero;
+            }
+            var motion = targetMotion;
+            var position = transform.position;
+            if (Mathf.Abs(position.y - motion.destination.y) > motion.verticalTolerance)
+            {
+                EndTargetMotion(TargetMotionStatus.Failed, "停靠高度超限");
+                return Vector2.zero;
+            }
+            motion.stepSeconds = Mathf.Min(dt, motion.timeout - motion.elapsed);
+            motion.elapsed += motion.stepSeconds;
+            float offset = motion.destination.x - position.x;
+            motion.beforeDistance = Mathf.Abs(offset);
+            float distance = motion.speed * motion.stepSeconds;
+            motion.RequestedStep = new Vector2(Mathf.Clamp(offset, -distance, distance), 0);
+            return motion.RequestedStep;
         }
 
         internal void Observe(Vector2 requested, Vector2 actual, bool landed)
@@ -198,6 +294,30 @@ namespace Ossastra.Combat
             LastRequestedStep = requested;
             LastActualStep = actual;
             if (landed) flying = false;
+            var motion = targetMotion;
+            if (motion == null || motion.stepSeconds <= 0) return;
+            motion.ActualStep = actual;
+            float remaining = Mathf.Abs(transform.position.x - motion.destination.x);
+            if (Mathf.Abs(transform.position.y - motion.destination.y) > motion.verticalTolerance)
+                EndTargetMotion(TargetMotionStatus.Failed, "停靠高度超限");
+            else if (remaining <= motion.horizontalTolerance)
+                EndTargetMotion(TargetMotionStatus.Arrived, "实际到位");
+            else
+            {
+                // 斜面与台阶可以吃掉部分行程。只有连续没有向目标靠近才判阻挡。
+                bool progressing = motion.beforeDistance - remaining > Mathf.Abs(motion.RequestedStep.x) * .05f;
+                motion.stalled = progressing ? 0 : motion.stalled + motion.stepSeconds;
+                if (motion.stalled >= .12f) EndTargetMotion(TargetMotionStatus.Failed, "目标运动受阻");
+                else if (motion.elapsed >= motion.timeout) EndTargetMotion(TargetMotionStatus.Failed, "目标运动超时");
+            }
+        }
+
+        private void EndTargetMotion(TargetMotionStatus status, string reason)
+        {
+            var motion = targetMotion;
+            if (motion == null) return;
+            targetMotion = null;
+            motion.Finish(status, reason);
         }
         // 敌人的飞行、爬墙和走路策略共用同一胶囊，冲量期间只接管垂直速度。
         // PhysX 贴地滑动会再次用 minMoveDistance 筛切线余量。高帧率下合法的持续轻推小于默认 1 mm。
@@ -214,6 +334,7 @@ namespace Ossastra.Combat
         internal Vector3 EnemyStep(Vector3 velocity, float delta, float gravity)
         {
             var offset = Step(delta, out var initial);
+            if (targetMotion != null) velocity.x = 0;
             if (initial.HasValue) enemyVerticalSpeed = initial.Value;
             if (flying)
             {
@@ -230,6 +351,7 @@ namespace Ossastra.Combat
 
         internal void ClearMotion()
         {
+            EndTargetMotion(TargetMotionStatus.Failed, "运动仲裁清退");
             self = recoil = pushed = null;
             pendingLaunch = flying = false;
             LastRequestedStep = LastActualStep = Vector2.zero;

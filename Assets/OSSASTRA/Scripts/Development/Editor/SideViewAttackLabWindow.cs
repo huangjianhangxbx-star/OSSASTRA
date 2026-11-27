@@ -1,4 +1,4 @@
-// 横版攻击调试台。管理试验条件、动作参数与招式效果候选的生命周期，实际运动和判定仍由正式链推进。
+// 横版攻击调试台。管理试验条件、动作参数、招式效果和连段行为候选，实际运动及判定由正式链推进。
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -46,6 +46,8 @@ namespace Ossastra.Development.Editor
         private AttackLabFeedbackPanel feedback;
         private AttackLabMovementPanel movement;
         private AttackLabImpactPanel impact;
+        private AttackLabBehaviorPanel behavior;
+        private int impactMode;
         private ActorRoot sceneMovementActor;
         private int workMode;
 
@@ -71,6 +73,8 @@ namespace Ossastra.Development.Editor
 
         private void OnDisable()
         {
+            behavior?.Dispose();
+            behavior = null;
             impact?.Dispose();
             impact = null;
             calibration?.Dispose();
@@ -133,7 +137,8 @@ namespace Ossastra.Development.Editor
                     if (swingView != null) previousSwingSuppression = swingView.SuppressLabSwing;
                 }
             }
-            impact?.Observe(session);
+            behavior?.Observe(session);
+            if (behavior?.Previewing != true) impact?.Observe(session);
             if (session == null) return;
             movement?.Observe(session);
             feedback?.Observe(session);
@@ -165,6 +170,8 @@ namespace Ossastra.Development.Editor
         {
             if (change == PlayModeStateChange.ExitingPlayMode)
             {
+                behavior?.Dispose();
+                behavior = null;
                 impact?.Dispose();
                 impact = null;
                 ReleaseInput();
@@ -263,8 +270,20 @@ namespace Ossastra.Development.Editor
                 DrawLoadout();
                 session.Condition = (AttackLabTargetMode)EditorGUILayout.Popup("目标条件", (int)session.Condition, Conditions);
                 session.Station = (AttackLabStation)EditorGUILayout.Popup("场地", (int)session.Station, Stations);
-                impact ??= new AttackLabImpactPanel();
-                impact.Draw(session, ResetImpactTrial);
+                impactMode = GUILayout.Toolbar(impactMode, new[] { "单个招式效果", "芙蕾链匕首连段" });
+                if (impactMode == 0)
+                {
+                    behavior?.Dispose();
+                    behavior = null;
+                    impact ??= new AttackLabImpactPanel();
+                    impact.Draw(session, ResetImpactTrial);
+                }
+                else
+                {
+                    impact?.ClearOverride();
+                    behavior ??= new AttackLabBehaviorPanel();
+                    behavior.Draw(session, ResetImpactTrial);
+                }
                 if (!string.IsNullOrEmpty(note)) EditorGUILayout.HelpBox(note, MessageType.Info);
                 return;
             }

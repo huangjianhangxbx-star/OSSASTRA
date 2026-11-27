@@ -55,6 +55,7 @@ namespace Ossastra.CharacterCore
         private HashSet<string> windowTargets;
         public string ActorId => actorId;
         public Guid ActionId => actionId;
+        public int Damage => damage;
         public double PostureImpact { get; }
         public Guid ParentExecutionId {get;private set;}
         public int EmissionIndex {get;private set;}

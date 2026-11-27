@@ -48,6 +48,7 @@ namespace Ossastra.Characters
         public Vector3 MotionVelocity {get;private set;}
         public MainActionSequence Sequence=>profile?.Sequence;
         public MainActionProfileSO ComboSource { get; private set; }
+        internal BasicComboSettings? AuthoredComboSettings => profileDefinition == null ? (BasicComboSettings?)null : profileDefinition.ComboSettings;
         public string ComboFallbackReason { get; private set; }
         public string SelectedId=>equipment?.State?.RightRuntime.MainActionProfileId??"";
         public string FormLabel=>profileDefinition==null?"I":profileDefinition.formLabel;

@@ -34,20 +34,34 @@ namespace Ossastra.Characters
         public readonly EffectSnapshot effects;
         public readonly ShotEnhancementSnapshot shot;
         public readonly AttackHitStop hitStop;
-        internal Action<AbilityRunContext,AbilityEmission,DeliveryParameters,string,float> deliveryPort;
+        internal Func<AbilityRunContext,AbilityEmission,DeliveryParameters,string,float,Action<Vector3>,bool> deliveryPort;
         internal Action<int,string,IReadOnlyList<HitOutcome>> onResolved;
         internal Action<Guid,string,Vector3> feedback;
         internal Func<AbilityRunContext,bool> commitSource;
+        internal Func<bool> behaviorValid;
+        internal Action<bool,string,CombatVitals> behaviorComplete;
+        internal Action<string,CombatVitals,string> behaviorReport;
+        internal bool isBasicBehavior;
+        internal int basicStage;
+        internal Action releaseDeferredDeliveries;
+        public AttackRelease FrozenBasicRelease { get; internal set; }
+        public Vector3 BasicReleaseDirection { get; internal set; }
+        public bool CanContinueBehavior => behaviorValid?.Invoke() ?? true;
+        public void CompleteBehavior(bool succeeded, string reason, CombatVitals target = null) => behaviorComplete?.Invoke(succeeded, reason, target);
+        public void ReportBehavior(string phase, CombatVitals target = null, string detail = null) => behaviorReport?.Invoke(phase, target, detail);
         public bool TryCommitSource()=>commitSource!=null&&commitSource(this);
         public void NotifyFeedback(string kind)=>feedback?.Invoke(id,kind,owner.transform.position);
         /// <summary>同一动作可提交不同投递节点；统一来源支付、命中和父预算仍归共享端口。</summary>
         public void Deliver(AbilityEmission emission,DeliveryParameters delivery,string channel,float posture=0)
-            =>deliveryPort(this,emission,delivery,channel,posture);
+            => TryDeliver(emission, delivery, channel, posture);
+        public bool TryDeliver(AbilityEmission emission, DeliveryParameters delivery, string channel, float posture = 0,
+            Action<Vector3> flightPosition = null) => deliveryPort(this, emission, delivery, channel, posture, flightPosition);
         public double ModifiedCooldown=>effects.Cooldown(definition.effectRoot,definition.cooldown);
         public bool SourceCommitted {get;private set;}
         internal void MarkSourceCommitted(){SourceCommitted=true;}
         public bool BeginCooldown()
         {
+            if (isBasicBehavior) return false;
             var state=source.RuntimeState;
             return state.Cooldowns.Commit(source.InstanceId+":"+definition.cooldownIdentity,id,state.Clock(definition.cooldownPolicy),ModifiedCooldown);
         }
@@ -72,6 +86,8 @@ namespace Ossastra.Characters
         public virtual bool RequiresWalk => false;
         public abstract void Tick(float delta,bool held);
         public virtual void OnResolved(int index,string channel,IReadOnlyList<HitOutcome> receipts) { }
+        public virtual void OnActionFact(ActionFact fact) { }
+        public virtual void OnContact(CombatContactBatch batch) { }
         public virtual void Cancel(){Context.source.CancelReservation();Ended=true;}
         protected AbilityRun(AbilityRunContext context){Context=context;}
     }

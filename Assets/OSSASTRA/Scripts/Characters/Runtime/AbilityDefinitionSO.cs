@@ -33,6 +33,7 @@ namespace Ossastra.Characters
         public readonly string id,displayName,cooldownIdentity;
         public readonly string effectRoot,damageChannel;
         internal readonly AbilityDefinitionSO author;
+        public AbilityOccupancy Occupancy => plan?.Occupancy ?? (AbilityOccupancy.Body | AbilityOccupancy.MainHand);
         public readonly AbilityPlan plan;
         public readonly float cost,cooldown,holdCost,releaseCost;
         public readonly bool wearOnRelease, opensSwitchLinkOnRelease;
@@ -42,6 +43,20 @@ namespace Ossastra.Characters
         public readonly float[] posture;
         public readonly ActionDefinitionSO animation;
         public readonly CompiledAbilityExecutor executor;
+        // 普攻使用真实动作快照和实际释放事实；没有另一份能力时间表、费用或作者资产。
+        internal CompiledAbility(ActionDefinitionSO action, CompiledAbilityExecutor executor)
+        {
+            animation = action;
+            this.executor = executor;
+            id = string.IsNullOrWhiteSpace(action.definitionId) ? action.name : action.definitionId;
+            displayName = action.name;
+            cooldownIdentity = id;
+            effectRoot = damageChannel = "basic-attack";
+            delivery = executor.AcceptanceDelivery;
+            reclaimBudget = .05f;
+            reclaimRate = .5f;
+        }
+
         internal CompiledAbility(AbilityDefinitionSO definition)
         {
             author=definition;

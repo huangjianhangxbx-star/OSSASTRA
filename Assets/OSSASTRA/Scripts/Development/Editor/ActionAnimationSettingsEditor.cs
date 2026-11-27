@@ -1,6 +1,6 @@
 /*
  * 功能：在动作定义中定位对应的实际 Mapping 片段，并按该片段的状态展示时序。
- * 边界：Mapping 负责已迁移事件。仅兼容时序在这里保留秒数和架势恢复选择。
+ * 边界：Mapping 负责已迁移事件。此页维护招式自有行为，兼容时序保留旧秒数和架势恢复选择。
  */
 using System;
 using System.Collections.Generic;
@@ -52,9 +52,11 @@ namespace Ossastra.Development.Editor
             else EditorGUILayout.HelpBox("在使用这项动作的场景中可查看对应的动画配置。", MessageType.Info);
 
             DrawPropertiesExcluding(serializedObject, events
-                ? new[] { "postureRecoveryEvent", "eventTimeline", "releaseAt", "moveReadyAt", "attackReadyAt", "finishAt", "timingEvidence" }
-                : new[] { "postureRecoveryEvent" });
+                ? new[] { "postureRecoveryEvent", "eventTimeline", "releaseAt", "moveReadyAt", "attackReadyAt", "finishAt", "timingEvidence", "executor" }
+                : new[] { "postureRecoveryEvent", "executor" });
             serializedObject.ApplyModifiedProperties();
+            serializedObject.Update();
+            AttackLabBehaviorAuthoring.DrawBinding(serializedObject, true);
         }
 
         private void DrawLegacyRecovery(Ossastra.CharacterAnimation.CharacterAnimationClip clip)
@@ -76,7 +78,10 @@ namespace Ossastra.Development.Editor
             return configs.SelectMany(config => AnimationAuthoredClips.ForCharacter(config,
                     config.GetComponentInParent<CharacterEquipment>()))
                 .Where(entry => entry.Logic == action.animationLogicId && entry.Clip.track == 0)
-                .Distinct();
+                .Distinct()
+                .OrderByDescending(entry => entry.Clip.eventResponses != null &&
+                    entry.Clip.eventResponses.actionOverrides != null &&
+                    entry.Clip.eventResponses.actionOverrides.Any(response => response != null && response.action == action));
         }
     }
 }

@@ -1,5 +1,5 @@
 /* 脚本：CharacterAbilities
- * 功能：按装备定义绑定语义操作，统一编译/校验/接受并调度每次能力执行与离手投递。
+ * 功能：按装备定义绑定语义操作，并为已获准的普通动作及技能共享 Run 调度、归属与离手投递。
  * 边界：不按盾/炸弹/技能名字分派，不新增HP/体力/Current；身体动作仍由根原Runtime管理。
  * 协作：Root按输入→原动作事实→效果顺序调用；执行器只读冻结上下文，来源端口分别提交耐久/数量。
  */
@@ -87,7 +87,7 @@ namespace Ossastra.Characters
         public bool IsBusy=>runs.Any(r=>!r.Ended);
         internal bool OccupiesTraversal => runs.Any(r => !r.Ended &&
             (r.Context.definition.executor.IsAttack ||
-            (r.Context.definition.plan.Occupancy & (AbilityOccupancy.Body | AbilityOccupancy.Motion)) != 0));
+            (r.Context.definition.Occupancy & (AbilityOccupancy.Body | AbilityOccupancy.Motion)) != 0));
         /// <summary>装备表现只读本槽已接受Run；不借另一手或身体Replay伪造执行身份。</summary>
         public bool TryGetHandPresentation(bool main,out Guid execution,out bool guarding,out bool usesBody)
         {
@@ -103,7 +103,7 @@ namespace Ossastra.Characters
         public bool IsActive=>isActiveAndEnabled&&ActiveMotion!=null;
         public Vector3 MotionVelocity=>ActiveMotion?.MotionVelocity??Vector3.zero;
         public bool IsEvading=>isActiveAndEnabled&&runs.Where(r=>!r.Ended).OfType<ICombatEvasion>().Any(r=>r.IsEvading);
-        public bool IsAccepting=>runs.Any(r=>!r.Ended&&(r.Context.definition.plan.Occupancy&AbilityOccupancy.OffHand)!=0);
+        public bool IsAccepting=>runs.Any(r=>!r.Ended&&(r.Context.definition.Occupancy&AbilityOccupancy.OffHand)!=0);
         private ICombatGuard ActiveGuard=>runs.OfType<ICombatGuard>().FirstOrDefault(g=>g.IsGuarding);
         public bool IsGuarding=>isActiveAndEnabled&&ActiveGuard!=null;
         public Vector3 GuardDirection=>ActiveGuard?.GuardDirection??Vector3.zero;
@@ -459,18 +459,14 @@ namespace Ossastra.Characters
             context.OpensSwitchLink = source == CharacterActionSource.Player &&
                 compiled.opensSwitchLinkOnRelease && executor.IsAttack;
             if (context.OpensSwitchLink) context.SwitchLinkIdentity = owner.StateArbitrator.Combat.CaptureSwitchIdentity();
-            context.commitSource=CommitSource;
-            context.deliveryPort=EmitDelivery;
+            ConfigureRunPorts(context);
             // 回调在CreateRun之前捕获接受上下文；即时执行器可在构造Run时同步反馈。
             var definitionId=compiled.id;var sourceInstanceId=port.InstanceId;
-            var requestSource=source.ToString();var requestedOperation=operation.ToString();var acceptedDelivery=compiled.delivery.mode.ToString();
+            var requestSource=source.ToString();var requestedOperation=operation.ToString();var acceptedDelivery=compiled.delivery?.mode.ToString() ?? "action-mapping";
             context.feedback=(execution,kind,position)=>PublishFeedback(new AbilityFeedbackFact(execution,definitionId,sourceInstanceId,kind,position,
                 requestSource:requestSource,operation:requestedOperation,deliveryMode:acceptedDelivery));
-            owner.Vitals?.Recovery?.RetainParent(id);
-            deliveries.RegisterParent(id);
-            var run=executor.CreateRun(context);context.onResolved=run.OnResolved;runs.Add(run);
+            RegisterRun(context, executor);
             if(source==CharacterActionSource.Player&&requestGesture.HasIdentity)runGestures[id]=requestGesture;
-            if(executor.UsesBodyAction)ownedBodyReleases.Add(id);
             if(executor.StartsCooldownOnAccept&&!resources.Cooldowns.Commit(key,id,resources.Clock(compiled.cooldownPolicy),context.ModifiedCooldown))throw new InvalidOperationException("Accepted ability cooldown conflict");
             AcceptedCount++;context.NotifyFeedback("accepted");LastResult="接受 "+compiled.displayName;return true;
         }
@@ -491,6 +487,12 @@ namespace Ossastra.Characters
         {
             foreach(var run in runs.Where(r=>r.Context.id==fact.ActionId).ToArray())
             {
+                if (run.Context.isBasicBehavior)
+                {
+                    if (fact.Kind == ActionFactKind.Cancelled) CancelBasicBehavior(run, fact.Reason);
+                    else if (fact.Kind == ActionFactKind.Finished && !run.Ended) run.OnActionFact(fact);
+                    continue;
+                }
                 if(fact.Kind==ActionFactKind.Cancelled){if(!run.Ended)run.Context.NotifyFeedback("cancel");run.Cancel();stamina?.CancelReservation(run.Context.releasePaymentId);}
                 else if(fact.Kind==ActionFactKind.Released||fact.Kind==ActionFactKind.Finished)run.Tick(0,Held(run));
             }
@@ -518,8 +520,19 @@ namespace Ossastra.Characters
             foreach(var run in runs)
             {
                 var controlValid=run.Context.requestSource==CharacterActionSource.Companion?!owner.GetComponent<CharacterInputHandler>().HasPlayerControl:owner.GetComponent<CharacterInputHandler>().HasPlayerControl;
+                if (run.Ended) continue;
                 if(run.Context.lifeGeneration!=owner.LifeGeneration||!run.Context.source.IsAvailable||!owner.CanSimulateIntent||!controlValid)
-                {run.Cancel();if(run.Context.definition.executor.UsesBodyAction)owner.CancelOwnedMainAction(run.Context.id,"ability-source-invalid");continue;}
+                {
+                    if (run.Context.isBasicBehavior) CancelBasicBehavior(run, "来源或控制已变更");
+                    else run.Cancel();
+                    if(run.Context.definition.executor.UsesBodyAction)owner.CancelOwnedMainAction(run.Context.id,"ability-source-invalid");
+                    continue;
+                }
+                if (run.Context.isBasicBehavior && !run.Context.CanContinueBehavior)
+                {
+                    CancelBasicBehavior(run, "接段资格失效或窗口已过期");
+                    continue;
+                }
                 run.Tick(delta,Held(run));
             }
             deliveries.Tick(delta);
@@ -534,17 +547,37 @@ namespace Ossastra.Characters
         private void ReleaseEndedRuns()
         {
             foreach(var run in runs.Where(r=>r.Ended))
-            {if (!run.Context.definition.executor.UsesBodyAction) run.Context.impactRun?.End();
-                runGestures.Remove(run.Context.id);run.Context.NotifyFeedback("end");owner.Vitals?.Recovery?.ReleaseParent(run.Context.id);run.Context.source.CancelReservation();stamina?.CancelReservation(run.Context.releasePaymentId);owner.EndActionExposure(run.Context.id);deliveries.CompleteParent(run.Context.id);}
+            {
+                var context = run.Context;
+                if (!context.definition.executor.UsesBodyAction) context.impactRun?.End();
+                runGestures.Remove(context.id);
+                contactRoutes.Remove(context.id);
+                context.NotifyFeedback("end");
+                owner.Vitals?.Recovery?.ReleaseParent(context.id);
+                context.source.CancelReservation();
+                stamina?.CancelReservation(context.releasePaymentId);
+                if (!context.isBasicBehavior) owner.EndActionExposure(context.id);
+                else deliveries.CancelParentFlights(context.id);
+                deliveries.CompleteParent(context.id);
+            }
             runs.RemoveAll(r=>r.Ended);
+            if (contactRoutes.Count == 0) CombatContactGateway.Resolved -= RouteBehaviorContact;
         }
         private void Emit(AbilityRunContext context,AbilityEmission emission)
-            =>EmitDelivery(context,emission,context.definition.delivery,context.definition.damageChannel,context.definition.posture[emission.Index]);
-        private void EmitDelivery(AbilityRunContext context,AbilityEmission emission,DeliveryParameters delivery,string channel,float posture)
         {
-            if(!CommitSource(context))return;
-            var power=context.effects.Damage(channel,emission.Damage);
-            if(channel=="ranged-shot")
+            var release = context.FrozenBasicRelease;
+            context.TryDeliver(emission, context.definition.delivery, context.definition.damageChannel,
+                release == null ? context.definition.posture[emission.Index] : (float)release.PostureImpact);
+        }
+
+        private bool EmitDelivery(AbilityRunContext context,AbilityEmission emission,DeliveryParameters delivery,string channel,
+            float posture, Action<Vector3> flightPosition)
+        {
+            if (delivery == null || (context.isBasicBehavior && (context.FrozenBasicRelease == null || !context.CanContinueBehavior)) ||
+                !CommitSource(context)) return false;
+            var release = context.FrozenBasicRelease;
+            var power=release == null ? context.effects.Damage(channel,emission.Damage) : release.Damage;
+            if(release == null && channel=="ranged-shot")
             {
                 var critical=context.shot.CriticalSource==null?1:2.25;
                 power=(power+emission.Damage*(context.shot.DamageMultiplier/critical-1))*critical;
@@ -553,9 +586,9 @@ namespace Ossastra.Characters
             // 仅新投递取当前政策；盾冲/火箭跃击按受理方向与落点执行，已发射弹体不追溯转弯。
             bool frozen=context.requestSource!=CharacterActionSource.Player||!owner.HasPlayerInput||
                 runs.Any(r=>ReferenceEquals(r.Context,context)&&r is ICharacterMotionOverride);
-            var direction=owner.DataBus.ResolveDeliveryDirection(context.direction,frozen);
+            var direction=release == null ? owner.DataBus.ResolveDeliveryDirection(context.direction,frozen) : context.BasicReleaseDirection;
             var landing=context.landing;
-            if(!frozen&&owner.DataBus.UsesMovementAim)
+            if(release == null && !frozen&&owner.DataBus.UsesMovementAim)
             {
                 var offset=DeliveryPlaneDelta(context.landing-context.acceptedPosition);
                 landing=owner.transform.position+direction*offset.magnitude;
@@ -567,19 +600,24 @@ namespace Ossastra.Characters
             var requestSource=context.requestSource.ToString();var operation=context.operation.ToString();var deliveryMode=delivery.mode.ToString();
             var releaseOrigin = owner.transform.position;
             var emitted=deliveries.Emit(owner.Vitals,context.id,emission.Index,delivery,damage,posture,
-                releaseOrigin,direction,landing,()=>this!=null&&isActiveAndEnabled&&owner!=null&&owner.IsAlive&&owner.LifeGeneration==context.lifeGeneration,
+                releaseOrigin,direction,landing,()=>this!=null&&isActiveAndEnabled&&owner!=null&&owner.IsAlive&&owner.LifeGeneration==context.lifeGeneration &&
+                    (!context.isBasicBehavior || (context.source.IsAvailable && context.CanContinueBehavior)),
                 receipts=>{LastResult="接触 "+receipts.Count+" #"+context.id.ToString("N");context.onResolved?.Invoke(emission.Index,channel,receipts);
                     PublishFeedback(new AbilityFeedbackFact(context.id,definitionId,sourceInstanceId,receipts.Any(r=>r.Reason==HitReason.Applied)?"hit":"miss",landing,
                         emission.Index,channel,deliveryMode,requestSource,operation));},context.projectileSprite,context.projectileScale,context.definition.reclaimBudget,context.definition.reclaimRate,
-                hitStop: context.hitStop, channel: channel, bindRelease: context.impactRun == null ? null : context.impactRun.Bind);
+                basicAttackStage: context.basicStage, hitStop: release?.HitStop ?? context.hitStop, channel: channel,
+                bindRelease: context.impactRun == null ? null : context.impactRun.Bind,
+                preparedRelease: release, flightPosition: flightPosition);
             if (emitted)
             {
                 EmittedCount++;
+                if (context.isBasicBehavior) owner.StateArbitrator.Combat.ObserveBehaviorRelease(context.id);
                 if (context.OpensSwitchLink)
                     owner.StateArbitrator.Combat.RecordOptInRelease(context.SwitchLinkIdentity, context.id);
                 PublishFeedback(new AbilityFeedbackFact(context.id,definitionId,sourceInstanceId,"release",releaseOrigin,
                     emission.Index,channel,deliveryMode,requestSource,operation,direction));
             }
+            return emitted;
         }
         private void PublishFeedback(AbilityFeedbackFact fact)
         {
@@ -603,7 +641,22 @@ namespace Ossastra.Characters
             }
             return true;
         }
-        public void CancelPending(string reason){foreach(var run in runs){run.Context.impactRun?.End();if(!run.Ended)run.Context.NotifyFeedback("cancel");run.Cancel();stamina?.CancelReservation(run.Context.releasePaymentId);owner?.EndActionExposure(run.Context.id);}foreach(var binding in bindings)binding.executor?.StopSource(binding.source);}
+        public void CancelPending(string reason)
+        {
+            foreach(var run in runs)
+            {
+                run.Context.impactRun?.End();
+                if (run.Context.isBasicBehavior) CancelBasicBehavior(run, reason);
+                else
+                {
+                    if (!run.Ended) run.Context.NotifyFeedback("cancel");
+                    run.Cancel();
+                }
+                stamina?.CancelReservation(run.Context.releasePaymentId);
+                owner?.EndActionExposure(run.Context.id);
+            }
+            foreach(var binding in bindings)binding.executor?.StopSource(binding.source);
+        }
         private void OnDisable()
         {if(owner!=null)foreach(var run in runs)if(run.Context.definition.executor.UsesBodyAction)owner.CancelOwnedMainAction(run.Context.id,"ability-disabled");CancelPending("disabled");equipment?.State?.RightRuntime.ShotEnhancements.Clear();deliveries.Clear();iceWorld?.Dispose();iceWorld=null;rocketMarks.Clear();rocketDirectReadyAt.Clear();if(owner!=null)ReleaseEndedRuns();}
     }
