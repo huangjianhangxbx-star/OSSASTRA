@@ -1,7 +1,7 @@
 /*
  * 脚本：AttackLabAnimationCalibration
  * 功能：在已有横版调试台定位角色的真实 Mapping 片段，展示实录及试听、试放。
- * 协作：用同一片段响应界面修改正式来源，试放只生成临时表现对象。
+ * 协作：用同一片段响应界面修改正式来源，组合特效试放共用正式播放时钟。
  */
 using System;
 using System.Collections.Generic;
@@ -9,6 +9,8 @@ using System.Linq;
 using Ossastra.CharacterAnimation;
 using Ossastra.CharacterAnimation.Editor;
 using Ossastra.Characters;
+using Ossastra.Combat;
+using Ossastra.Combat.Editor;
 using UnityEditor;
 using UnityEngine;
 using ActorRoot = Ossastra.Characters.CharacterRoot;
@@ -39,6 +41,7 @@ namespace Ossastra.Development.Editor
         private int clipIndex;
         private Vector2 scroll;
         private AudioSource preview;
+        private GameObject effectPreview;
         private AuthoredClip drawnClip;
         private AuthoredClip candidateClip;
         private CharacterAnimationController candidateDriver;
@@ -66,6 +69,7 @@ namespace Ossastra.Development.Editor
             if (actor != actors[selected])
             {
                 ClearCandidate();
+                ClearEffectPreview();
                 actor = actors[selected];
                 actionIndex = clipIndex = 0;
             }
@@ -108,6 +112,7 @@ namespace Ossastra.Development.Editor
             {
                 drawnClip = chosen.Clip;
                 ClearCandidate();
+                ClearEffectPreview();
                 events = new AnimationClipEventInspector();
             }
 
@@ -116,21 +121,60 @@ namespace Ossastra.Development.Editor
             {
                 scroll = scrollView.scrollPosition;
                 DrawPlayback(session, chosen, action.Definition, candidateActive ? candidateClip?.eventResponses : null);
+                DrawCombinedEffects(candidateClip ?? chosen.Clip, action.Definition);
                 if (candidateClip != null)
-                    events.Draw(null, candidateClip, action.Definition, PreviewSound, PreviewEffect);
+                    events.Draw(null, candidateClip, action.Definition, PreviewSound, binding => PreviewEffect(driver, binding));
                 else
-                    events.Draw(chosen.Source, chosen.Clip, action.Definition, PreviewSound, PreviewEffect);
+                    events.Draw(chosen.Source, chosen.Clip, action.Definition, PreviewSound, binding => PreviewEffect(driver, binding));
             }
 
-            void PreviewEffect(AnimationCalibrationBinding binding)
+        }
+
+        private void PreviewEffect(CharacterAnimationController driver, AnimationCalibrationBinding binding)
+        {
+            if (driver == null || driver.Skeleton?.Skeleton == null || binding.effect == null || !Application.isPlaying)
+                return;
+
+            ClearEffectPreview();
+            var instance = Object.Instantiate(binding.effect, driver.AnchorPosition(binding), driver.AnchorRotation(binding));
+            instance.transform.localScale *= binding.scale;
+            effectPreview = instance;
+            if (CombinedVfxPlayback.TryStart(instance, driver, binding, 0))
+                return;
+            Object.Destroy(instance, binding.lifetime);
+        }
+
+        private static void DrawCombinedEffects(AuthoredClip clip, ActionDefinitionSO action)
+        {
+            var config = clip.eventResponses;
+            if (config == null)
+                return;
+
+            var overrides = config.actionOverrides ?? Array.Empty<AnimationClipActionEvents>();
+            var defaults = config.responses ?? Array.Empty<AnimationCalibrationBinding>();
+            var actionResponse = action == null ? null : overrides.FirstOrDefault(entry => entry?.action == action);
+            var responses = action == null
+                ? defaults.Concat(overrides.Where(entry => entry != null)
+                    .SelectMany(entry => entry.responses ?? Array.Empty<AnimationCalibrationBinding>()))
+                : actionResponse == null ? defaults : actionResponse.responses ?? Array.Empty<AnimationCalibrationBinding>();
+            foreach (var prefab in responses.Select(binding => binding?.effect)
+                         .Where(prefab => prefab != null && prefab.TryGetComponent<CombinedVfx>(out _)).Distinct())
             {
-                if (driver == null || driver.Skeleton?.Skeleton == null || binding.effect == null || !Application.isPlaying)
-                    return;
-
-                var instance = Object.Instantiate(binding.effect, driver.AnchorPosition(binding), driver.AnchorRotation(binding));
-                instance.transform.localScale *= binding.scale;
-                Object.Destroy(instance, binding.lifetime);
+                if (GUILayout.Button($"编辑组合特效 · {prefab.name}"))
+                    CombinedVfxEditorWindow.Open(prefab);
             }
+        }
+
+        private void ClearEffectPreview()
+        {
+            if (effectPreview == null)
+                return;
+
+            if (Application.isPlaying)
+                Object.Destroy(effectPreview);
+            else
+                Object.DestroyImmediate(effectPreview);
+            effectPreview = null;
         }
 
         private void DrawCandidateControls(AnimationAuthoredClips.Entry chosen, CharacterAnimationController driver, bool isResolved)
@@ -368,6 +412,7 @@ namespace Ossastra.Development.Editor
         public void Dispose()
         {
             ClearCandidate();
+            ClearEffectPreview();
             if (preview != null)
                 Object.DestroyImmediate(preview.gameObject);
         }

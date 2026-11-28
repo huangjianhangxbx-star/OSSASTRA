@@ -1,5 +1,5 @@
 /* 脚本：CombatFeedbackView
- * 功能：组织当前场景的战斗反馈。横版使用正式命中批次及可配置效果池，旧场保留既有短时反馈。
+ * 功能：组织当前场景的战斗反馈。横版使用正式命中批次及可配置效果池，组合特效结束后按实例时间回收。
  * 边界：不读攻击按键、不接受动作、不执行命中；拒绝请求没有释放反馈。
  * 协作：根动作、能力释放及命中网关为事实源；相机接收冲击请求，声音仍由原适配器消费。
  */
@@ -141,6 +141,7 @@ namespace Ossastra.UserInterface
             internal CharacterAnimationController owner;
             internal AnimationCalibrationBinding binding;
             internal float remaining;
+            internal bool combined;
         }
         private readonly List<CalibratedEffect> calibratedEffects=new List<CalibratedEffect>();
         private Ossastra.Audio.SideViewLocomotionAudioAdapter locomotionAudio;
@@ -171,6 +172,11 @@ namespace Ossastra.UserInterface
             var effect=Instantiate(binding.effect,owner.AnchorPosition(binding),
                 owner.AnchorRotation(binding),transform);
             effect.transform.localScale*=binding.scale;
+            if (CombinedVfxPlayback.TryStart(effect, owner, binding, effect.GetInstanceID()))
+            {
+                calibratedEffects.Add(new CalibratedEffect { instance = effect, combined = true });
+                return;
+            }
             calibratedEffects.Add(new CalibratedEffect{instance=effect,owner=owner,binding=binding,remaining=binding.lifetime});
         }
         public bool SuppressLabSwing { get; set; }
@@ -193,7 +199,8 @@ namespace Ossastra.UserInterface
             LastReleaseGeometry = geometry;
             LastReleaseActionId = fact.ActionId;
             var actorAnimation=fact.Source==null?null:fact.Source.GetComponentInParent<Ossastra.Characters.CharacterRoot>()?.StatePresentation as CharacterAnimationController;
-            if(actorAnimation!=null && actorAnimation.CustomReleaseEffect==fact.ActionId)return;
+            // The authored animation cue owns the action execution. The sector has a separate emission ID.
+            if (actorAnimation != null && actorAnimation.CustomReleaseEffect == fact.ParentExecutionId) return;
             if (SuppressLabSwing)
             {
                 CombatTraceProbe.For(fact.Source)?.Note("反馈", "实验关闭挥击特效", "保留正式判定", fact.ActionId, fact.ParentExecutionId, fact.EmissionIndex);
@@ -380,6 +387,11 @@ namespace Ossastra.UserInterface
                 for(int i=calibratedEffects.Count-1;i>=0;i--)
                 {
                     var fx=calibratedEffects[i];
+                    if (fx.combined)
+                    {
+                        if (!fx.instance) calibratedEffects.RemoveAt(i);
+                        continue;
+                    }
                     fx.remaining-=Time.deltaTime;
                     if(!fx.instance || !fx.owner || fx.remaining<=0)
                     {

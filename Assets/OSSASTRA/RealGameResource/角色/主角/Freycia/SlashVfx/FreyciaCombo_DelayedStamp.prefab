@@ -1,0 +1,1264 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!1 &6141604498614653763
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 7
+  m_Component:
+  - component: {fileID: 3279412512367459817}
+  - component: {fileID: 67762356330881751}
+  - component: {fileID: 3532303691981159874}
+  - component: {fileID: 3048885394559641304}
+  m_Layer: 0
+  m_HasEditorInfo: 1
+  m_Name: FreyciaCombo_DelayedStamp
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &3279412512367459817
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6141604498614653763}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!33 &67762356330881751
+MeshFilter:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6141604498614653763}
+  m_Mesh: {fileID: 0}
+--- !u!23 &3532303691981159874
+MeshRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6141604498614653763}
+  m_Enabled: 1
+  m_CastShadows: 0
+  m_ReceiveShadows: 0
+  m_DynamicOccludee: 1
+  m_StaticShadowCaster: 0
+  m_MotionVectors: 1
+  m_LightProbeUsage: 0
+  m_ReflectionProbeUsage: 0
+  m_RayTracingMode: 2
+  m_RayTraceProcedural: 0
+  m_virtualGeometry: 0
+  m_ShadingRate: 0
+  m_ForceDisableGRD: 0
+  m_ForceDisableSmallMeshCull: 0
+  m_RenderingLayerMask: 1
+  m_RendererPriority: 0
+  m_Materials:
+  - {fileID: 2100000, guid: 0a068c5071155c345b4858109c89b7ea, type: 2}
+  m_StaticBatchInfo:
+    firstSubMesh: 0
+    subMeshCount: 0
+  m_StaticBatchRoot: {fileID: 0}
+  m_ProbeAnchor: {fileID: 0}
+  m_LightProbeVolumeOverride: {fileID: 0}
+  m_ScaleInLightmap: 1
+  m_ReceiveGI: 1
+  m_PreserveUVs: 0
+  m_IgnoreNormalsForChartDetection: 0
+  m_ImportantGI: 0
+  m_StitchLightmapSeams: 1
+  m_SelectedEditorRenderState: 3
+  m_MinimumChartSize: 4
+  m_AutoUVMaxDistance: 0.5
+  m_AutoUVMaxAngle: 89
+  m_LightmapBakeMesh: {fileID: 0}
+  m_LightmapParameters: {fileID: 0}
+  m_SortingLayerID: 0
+  m_SortingLayer: 0
+  m_SortingOrder: 2
+  m_AdditionalVertexStreams: {fileID: 0}
+  m_MaskInteraction: 0
+--- !u!114 &3048885394559641304
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6141604498614653763}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: df332c84435517d43902bcc1f66ed30e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  defaultTexture: {fileID: 2800000, guid: 129ab50c9da88db4d87cffa730d5027c, type: 3}
+  material: {fileID: 2100000, guid: 0a068c5071155c345b4858109c89b7ea, type: 2}
+  offset: {x: 0, y: 0}
+  rotation: 0
+  scale: {x: 1, y: 1}
+  sharedPath:
+    points:
+    - {x: -0.32365772, y: 0.78713524}
+    - {x: 0.29618058, y: 0.82648474}
+    - {x: 0.9386663, y: 0.59690654}
+    - {x: 1.2130309, y: 0.2380333}
+    - {x: 1.4873956, y: -0.12083989}
+    - {x: 1.317776, y: -0.5097776}
+    - {x: 0.80733675, y: -0.6922227}
+  layers:
+  - name: "\u6655\u5149"
+    visible: 1
+    kind: 0
+    texture: {fileID: 0}
+    columns: 4
+    rows: 2
+    tile: 3
+    order: 2
+    color: {r: 0.88, g: 0.15, b: 0.36, a: 0.23}
+    offset: {x: 0, y: 0}
+    rotation: 0
+    scale: {x: 1, y: 1}
+    anchorMode: 0
+    anchor: 
+    start: 0
+    duration: 0.215
+    useSharedPath: 1
+    path:
+      points:
+      - {x: 0, y: 0}
+      - {x: 0.6, y: 0}
+      - {x: 1.2, y: 0}
+      - {x: 1.8, y: 0}
+    startWidth: 0.44544
+    middleWidth: 0.92800003
+    endWidth: 0.44544
+    normalOffset: -0.095639996
+    flipWidthUv: 0
+    widthCurve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    size: {x: 1, y: 1}
+    expand:
+      enabled: 1
+      start: 0
+      end: 0.052
+    fade:
+      enabled: 1
+      start: 0
+      end: 0.215
+    fadeCurve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0.029069768
+        value: 0
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.24418603
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.44186044
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 0
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    erase:
+      enabled: 0
+      start: 0
+      end: 0
+    eraseFromEnd: 0
+    softness: 0.075
+    count: 6
+    emission: 0.04
+    direction: 0
+    spread: 60
+    speed: {x: 1, y: 3}
+    particleLife: {x: 0.12, y: 0.2}
+    particleSize: {x: 0.12, y: 0.22}
+    spin: 0
+    gravity: 0
+    particlesAlongPath: 0
+    particleAlpha:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 1
+        inSlope: 0
+        outSlope: -1
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 0
+        inSlope: -1
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+  - name: "\u6697\u5C3E"
+    visible: 1
+    kind: 0
+    texture: {fileID: 0}
+    columns: 4
+    rows: 2
+    tile: 0
+    order: 3
+    color: {r: 0.24, g: 0.039, b: 0.13, a: 0.93}
+    offset: {x: 0, y: 0}
+    rotation: 0
+    scale: {x: 1, y: 1}
+    anchorMode: 0
+    anchor: 
+    start: 0
+    duration: 0.25
+    useSharedPath: 1
+    path:
+      points:
+      - {x: 0, y: 0}
+      - {x: 0.6, y: 0}
+      - {x: 1.2, y: 0}
+      - {x: 1.8, y: 0}
+    startWidth: 0.362496
+    middleWidth: 0.75519997
+    endWidth: 0.362496
+    normalOffset: -0.21817599
+    flipWidthUv: 0
+    widthCurve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    size: {x: 1, y: 1}
+    expand:
+      enabled: 1
+      start: 0
+      end: 0.052
+    fade:
+      enabled: 1
+      start: 0
+      end: 0.25
+    fadeCurve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.15
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.4
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 0
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    erase:
+      enabled: 1
+      start: 0.078
+      end: 0.25
+    eraseFromEnd: 0
+    softness: 0.075
+    count: 6
+    emission: 0.04
+    direction: 0
+    spread: 60
+    speed: {x: 1, y: 3}
+    particleLife: {x: 0.12, y: 0.2}
+    particleSize: {x: 0.12, y: 0.22}
+    spin: 0
+    gravity: 0
+    particlesAlongPath: 0
+    particleAlpha:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 1
+        inSlope: 0
+        outSlope: -1
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 0
+        inSlope: -1
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+  - name: "\u4E3B\u58A8\u4F53"
+    visible: 1
+    kind: 0
+    texture: {fileID: 0}
+    columns: 4
+    rows: 2
+    tile: 0
+    order: 4
+    color: {r: 0.88, g: 0.15, b: 0.36, a: 0.96}
+    offset: {x: 0, y: 0}
+    rotation: 0
+    scale: {x: 1, y: 1}
+    anchorMode: 0
+    anchor: 
+    start: 0
+    duration: 0.17
+    useSharedPath: 1
+    path:
+      points:
+      - {x: 0, y: 0}
+      - {x: 0.6, y: 0}
+      - {x: 1.2, y: 0}
+      - {x: 1.8, y: 0}
+    startWidth: 0.30719998
+    middleWidth: 0.64
+    endWidth: 0.30719998
+    normalOffset: -0.08319999
+    flipWidthUv: 0
+    widthCurve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    size: {x: 1, y: 1}
+    expand:
+      enabled: 1
+      start: 0
+      end: 0.052
+    fade:
+      enabled: 1
+      start: 0
+      end: 0.17
+    fadeCurve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.1617647
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.4117647
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 0
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    erase:
+      enabled: 0
+      start: 0
+      end: 0
+    eraseFromEnd: 0
+    softness: 0.075
+    count: 6
+    emission: 0.04
+    direction: 0
+    spread: 60
+    speed: {x: 1, y: 3}
+    particleLife: {x: 0.12, y: 0.2}
+    particleSize: {x: 0.12, y: 0.22}
+    spin: 0
+    gravity: 0
+    particlesAlongPath: 0
+    particleAlpha:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 1
+        inSlope: 0
+        outSlope: -1
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 0
+        inSlope: -1
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+  - name: "\u65AD\u7B14"
+    visible: 1
+    kind: 0
+    texture: {fileID: 0}
+    columns: 4
+    rows: 2
+    tile: 2
+    order: 5
+    color: {r: 0.9256, g: 0.3666, b: 0.4474, a: 0.78}
+    offset: {x: 0, y: 0}
+    rotation: 0
+    scale: {x: 1, y: 1}
+    anchorMode: 0
+    anchor: 
+    start: 0
+    duration: 0.21
+    useSharedPath: 1
+    path:
+      points:
+      - {x: 0, y: 0}
+      - {x: 0.6, y: 0}
+      - {x: 1.2, y: 0}
+      - {x: 1.8, y: 0}
+    startWidth: 0.267264
+    middleWidth: 0.5568
+    endWidth: 0.267264
+    normalOffset: -0.107383996
+    flipWidthUv: 0
+    widthCurve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    size: {x: 1, y: 1}
+    expand:
+      enabled: 1
+      start: 0
+      end: 0.052
+    fade:
+      enabled: 1
+      start: 0
+      end: 0.21
+    fadeCurve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0.04761905
+        value: 0
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.22619048
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.4047619
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 0
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    erase:
+      enabled: 0
+      start: 0
+      end: 0
+    eraseFromEnd: 0
+    softness: 0.075
+    count: 6
+    emission: 0.04
+    direction: 0
+    spread: 60
+    speed: {x: 1, y: 3}
+    particleLife: {x: 0.12, y: 0.2}
+    particleSize: {x: 0.12, y: 0.22}
+    spin: 0
+    gravity: 0
+    particlesAlongPath: 0
+    particleAlpha:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 1
+        inSlope: 0
+        outSlope: -1
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 0
+        inSlope: -1
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+  - name: "\u9510\u8FB9"
+    visible: 1
+    kind: 0
+    texture: {fileID: 0}
+    columns: 4
+    rows: 2
+    tile: 1
+    order: 6
+    color: {r: 1, g: 0.72, b: 0.59, a: 0.98}
+    offset: {x: 0, y: 0}
+    rotation: 0
+    scale: {x: 1, y: 1}
+    anchorMode: 0
+    anchor: 
+    start: 0
+    duration: 0.0975
+    useSharedPath: 1
+    path:
+      points:
+      - {x: 0, y: 0}
+      - {x: 0.6, y: 0}
+      - {x: 1.2, y: 0}
+      - {x: 1.8, y: 0}
+    startWidth: 0.29491198
+    middleWidth: 0.61439997
+    endWidth: 0.29491198
+    normalOffset: -0.089871995
+    flipWidthUv: 0
+    widthCurve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    size: {x: 1, y: 1}
+    expand:
+      enabled: 1
+      start: 0
+      end: 0.052
+    fade:
+      enabled: 1
+      start: 0
+      end: 0.0975
+    fadeCurve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.16666667
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.43589747
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 0
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    erase:
+      enabled: 0
+      start: 0
+      end: 0
+    eraseFromEnd: 0
+    softness: 0.075
+    count: 6
+    emission: 0.04
+    direction: 0
+    spread: 60
+    speed: {x: 1, y: 3}
+    particleLife: {x: 0.12, y: 0.2}
+    particleSize: {x: 0.12, y: 0.22}
+    spin: 0
+    gravity: 0
+    particlesAlongPath: 0
+    particleAlpha:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 1
+        inSlope: 0
+        outSlope: -1
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 0
+        inSlope: -1
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+  - name: "\u5185\u4FA7\u64E6\u75D5"
+    visible: 1
+    kind: 1
+    texture: {fileID: 0}
+    columns: 4
+    rows: 2
+    tile: 5
+    order: 7
+    color: {r: 0.624, g: 0.10560001, b: 0.268, a: 0.56}
+    offset: {x: 1.0926602, y: 0.18449119}
+    rotation: -74.39922
+    scale: {x: 1, y: 1}
+    anchorMode: 0
+    anchor: 
+    start: 0
+    duration: 0.205
+    useSharedPath: 1
+    path:
+      points:
+      - {x: 0, y: 0}
+      - {x: 0.6, y: 0}
+      - {x: 1.2, y: 0}
+      - {x: 1.8, y: 0}
+    startWidth: 0.15
+    middleWidth: 0.5
+    endWidth: 0.05
+    normalOffset: 0
+    flipWidthUv: 0
+    widthCurve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    size: {x: 0.82, y: 0.22}
+    expand:
+      enabled: 1
+      start: 0
+      end: 0.06
+    fade:
+      enabled: 1
+      start: 0
+      end: 0.205
+    fadeCurve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0.12195122
+        value: 0
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.30487806
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.40243906
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 0
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    erase:
+      enabled: 0
+      start: 0
+      end: 0
+    eraseFromEnd: 0
+    softness: 0.06
+    count: 6
+    emission: 0.04
+    direction: 0
+    spread: 60
+    speed: {x: 1, y: 3}
+    particleLife: {x: 0.12, y: 0.2}
+    particleSize: {x: 0.12, y: 0.22}
+    spin: 0
+    gravity: 0
+    particlesAlongPath: 0
+    particleAlpha:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 1
+        inSlope: 0
+        outSlope: -1
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 0
+        inSlope: -1
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+  - name: "\u7A7A\u6325\u98DE\u7247"
+    visible: 1
+    kind: 2
+    texture: {fileID: 0}
+    columns: 4
+    rows: 2
+    tile: 4
+    order: 8
+    color: {r: 0.91359997, g: 0.30960003, b: 0.4244, a: 0.91}
+    offset: {x: 0, y: 0}
+    rotation: 0
+    scale: {x: 1, y: 1}
+    anchorMode: 0
+    anchor: 
+    start: 0.035
+    duration: 0.24
+    useSharedPath: 1
+    path:
+      points:
+      - {x: 0, y: 0}
+      - {x: 0.6, y: 0}
+      - {x: 1.2, y: 0}
+      - {x: 1.8, y: 0}
+    startWidth: 0.15
+    middleWidth: 0.5
+    endWidth: 0.05
+    normalOffset: 0
+    flipWidthUv: 0
+    widthCurve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    size: {x: 1, y: 0.3}
+    expand:
+      enabled: 1
+      start: 0
+      end: 0.06
+    fade:
+      enabled: 1
+      start: 0.08
+      end: 0.24
+    fadeCurve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 1
+        inSlope: 0
+        outSlope: -1
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 0
+        inSlope: -1
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    erase:
+      enabled: 0
+      start: 0
+      end: 0
+    eraseFromEnd: 0
+    softness: 0.06
+    count: 6
+    emission: 0.0475
+    direction: 37
+    spread: 39
+    speed: {x: 1.7546667, y: 3.697333}
+    particleLife: {x: 0.12, y: 0.1675}
+    particleSize: {x: 0.1, y: 0.23}
+    spin: 0
+    gravity: 0
+    particlesAlongPath: 1
+    particleAlpha:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.11
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.2
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 0
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+  - name: "\u5EF6\u8FDF\u64E6\u5149"
+    visible: 1
+    kind: 1
+    texture: {fileID: 0}
+    columns: 4
+    rows: 2
+    tile: 6
+    order: 9
+    color: {r: 1, g: 0.72, b: 0.59, a: 0.78}
+    offset: {x: 1.18, y: 0.08}
+    rotation: 0
+    scale: {x: 1, y: 1}
+    anchorMode: 1
+    anchor: 
+    start: 0.27
+    duration: 0.078
+    useSharedPath: 1
+    path:
+      points:
+      - {x: 0, y: 0}
+      - {x: 0.6, y: 0}
+      - {x: 1.2, y: 0}
+      - {x: 1.8, y: 0}
+    startWidth: 0.15
+    middleWidth: 0.5
+    endWidth: 0.05
+    normalOffset: 0
+    flipWidthUv: 0
+    widthCurve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    size: {x: 0.43, y: 0.29}
+    expand:
+      enabled: 1
+      start: 0
+      end: 0.06
+    fade:
+      enabled: 1
+      start: 0.018
+      end: 0.078
+    fadeCurve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.14
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.48
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 0
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    erase:
+      enabled: 0
+      start: 0
+      end: 0
+    eraseFromEnd: 0
+    softness: 0.06
+    count: 6
+    emission: 0.04
+    direction: 0
+    spread: 60
+    speed: {x: 1, y: 3}
+    particleLife: {x: 0.12, y: 0.2}
+    particleSize: {x: 0.12, y: 0.22}
+    spin: 0
+    gravity: 0
+    particlesAlongPath: 0
+    particleAlpha:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 1
+        inSlope: 0
+        outSlope: -1
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 0
+        inSlope: -1
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
