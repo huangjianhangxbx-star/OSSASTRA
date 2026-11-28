@@ -112,6 +112,9 @@ namespace Ossastra.Development.Editor
             }
             catch(Exception e){ReleaseOverrides();DestroyCopies(copies.Values);reason="应用失败，已恢复基线："+e.Message;return false;}
         }
+        // 招式效果独立试打只归还运行覆盖。手感候选仍可继续编辑或另存。
+        public void ReleasePreviewForImpactTrial() => ReleaseOverrides();
+
         private void ReleaseOverrides()
         {
             bool refreshAtIdle = active != null && actor && actor.ActionActive;

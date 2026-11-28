@@ -144,7 +144,11 @@ namespace Ossastra.Development.Editor
                 status = "另一个试验持有连段候选。";
                 return false;
             }
-            if (!reset(useCandidate ? "B · 芙蕾链匕首连段" : "A · 当前来源四段")) return false;
+            if (!reset(useCandidate ? "B · 芙蕾链匕首连段" : "A · 当前来源四段"))
+            {
+                status = "试打复位失败 · " + session.Status;
+                return false;
+            }
             ClearOverride(false);
             if (useCandidate)
             {
@@ -201,10 +205,16 @@ namespace Ossastra.Development.Editor
             }
             scroll = EditorGUILayout.BeginScrollView(scroll);
             EditorGUILayout.LabelField("芙蕾链匕首连段", EditorStyles.boldLabel);
-            EditorGUILayout.LabelField("试打版本", preview ? "B · 专用行为" : "A · 当前来源");
-            DrawLocate("当前连段来源", source);
-            DrawLocate("第三段来源", third);
-            DrawLocate("第四段来源", fourth);
+            EditorGUILayout.LabelField("试打版本", preview ? "B · 本机连段候选" : "A · 当前正式来源");
+            DrawLocate("连段原资产", source);
+            DrawLocate("第三段原资产", third);
+            DrawLocate("第四段原资产", fourth);
+            EditorGUILayout.LabelField(preview
+                ? "第三段运行锁链匕首。第四段推移在本页「第四段 B 候选效果」调整。"
+                : "当前试打读取原资产。下方参数供 B 候选使用。", EditorStyles.wordWrappedMiniLabel);
+            if (preview)
+                EditorGUILayout.LabelField("第四段 B 推移", DescribePush(draft.Fourth));
+            EditorGUILayout.LabelField("第四段原 SO 推移", DescribePush(fourth));
             current.Distance = EditorGUILayout.Slider("靶距（U）", current.Distance, .25f, 12);
             using (new EditorGUILayout.HorizontalScope())
             {
@@ -237,7 +247,7 @@ namespace Ossastra.Development.Editor
 
             using (var action = new SerializedObject(draft.Fourth))
             {
-                EditorGUILayout.LabelField("第四段近战与击退", EditorStyles.boldLabel);
+                EditorGUILayout.LabelField("第四段 B 候选效果", EditorStyles.boldLabel);
                 ActionEffectListDrawer.DrawForMove(action, () => changed = true);
             }
             if (changed) Persist();
@@ -267,14 +277,47 @@ namespace Ossastra.Development.Editor
         {
             var combat = actor.StateArbitrator.Combat;
             EditorGUILayout.Space();
-            EditorGUILayout.LabelField("本次执行", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("第三段回拉", EditorStyles.boldLabel);
             EditorGUILayout.LabelField(combat.BehaviorStatus ?? "尚无行为", EditorStyles.wordWrappedMiniLabel);
             EditorGUILayout.LabelField(combat.BehaviorWait ?? "尚无待接段", EditorStyles.wordWrappedMiniLabel);
+            DrawFourthOutcome(current);
             var target = current.Target;
             var motor = target ? target.GetComponent<Ossastra.Combat.ActionImpactMotor>() : null;
             if (motor)
-                EditorGUILayout.LabelField($"{target.name} · 请求 {motor.LastRequestedStep:F3} U · 实际 {motor.LastActualStep:F3} U",
+                EditorGUILayout.LabelField($"{target.name}最近运动步 · 请求 {motor.LastRequestedStep:F3} U · 实际 {motor.LastActualStep:F3} U",
                     EditorStyles.wordWrappedMiniLabel);
+        }
+
+        private static string DescribePush(ActionDefinitionSO move)
+        {
+            var settings = move.effects?.entries?.OfType<TargetKnockbackEffect>()
+                .Where(effect => effect.enabled)
+                .Select(effect => $"{effect.distance:0.##} U / {effect.duration:0.##} 秒").ToArray();
+            return settings == null || settings.Length == 0 ? "未启用" : string.Join("、", settings);
+        }
+
+        private static void DrawFourthOutcome(AttackLabSession current)
+        {
+            var trace = current.Trace;
+            if (!trace || trace.Frozen) return;
+            var rows = trace.Events;
+            var kick = rows.LastOrDefault(row => row.trial == current.Generation && row.stage == 4 &&
+                row.track == "状态" && row.label == "Accepted");
+            if (kick == null) return;
+
+            var contacts = rows.Where(row => row.parent == kick.action && row.track == "判定");
+            var outcome = contacts.LastOrDefault(row => !string.IsNullOrEmpty(row.outcome));
+            string hit = outcome?.outcome ?? (contacts.Any() ? "未碰到目标" : "等待命中结算");
+            var push = rows.LastOrDefault(row => row.parent == kick.action && row.track == "招式效果" &&
+                row.detail.Contains(" / " + nameof(TargetKnockbackEffect) + " / "));
+            string result = push?.label ?? "未触发";
+            if (push?.label == "拒绝")
+            {
+                int separator = push.detail.LastIndexOf(" / ", StringComparison.Ordinal);
+                result += " · " + push.detail.Substring(separator + 3);
+            }
+            EditorGUILayout.LabelField("第四段命中 · " + hit + "    目标推移 · " + result,
+                EditorStyles.wordWrappedMiniLabel);
         }
 
         private static void DrawLocate(string label, Object value)
@@ -282,7 +325,7 @@ namespace Ossastra.Development.Editor
             using (new EditorGUILayout.HorizontalScope())
             {
                 EditorGUILayout.LabelField(label, value.name);
-                if (GUILayout.Button("定位", GUILayout.Width(50)))
+                if (GUILayout.Button("定位原资产", GUILayout.Width(82)))
                 {
                     Selection.activeObject = value;
                     EditorGUIUtility.PingObject(value);

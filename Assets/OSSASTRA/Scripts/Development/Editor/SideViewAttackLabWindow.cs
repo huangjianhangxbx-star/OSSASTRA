@@ -489,12 +489,12 @@ namespace Ossastra.Development.Editor
 
         private bool ResetImpactTrial(string version)
         {
-            // 清理原参数页的覆盖，确保 A/B 只比较这一个招式的效果。
-            tuning.Bind(session.Actor);
-            if (!tuning.CanApply(false, out note)) return false;
             if (!session.ResetTrial(version)) { note = session.Status; return false; }
+            // 此试打只归还手感页的运行覆盖。手感候选的版本检查留给该页写入和应用。
+            tuning.ReleasePreviewForImpactTrial();
             candidate = false;
-            return tuning.ApplyAfterReset(session.Actor, false, out note);
+            note = null;
+            return true;
         }
 
         private void StartTrial(bool useCandidate)
