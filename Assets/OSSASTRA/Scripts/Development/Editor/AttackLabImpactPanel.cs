@@ -1,6 +1,5 @@
 /*
- * 手感调试台的招式页。选中实际装备来源后在内存副本编辑，复位后仅为该本体的下一次招式提供候选。
- * 保存只替换来源的效果字段；候选、复位、选择样板均与共享来源写回分开。
+ * 从测试场的当前装配定位正式招式。参数由该招式的 Inspector 编辑，测试台保留复位和诊断。
  */
 using System;
 using System.Collections.Generic;
@@ -16,64 +15,46 @@ namespace Ossastra.Development.Editor
 {
     internal sealed class AttackLabImpactPanel : IDisposable
     {
-        private sealed class Draft
-        {
-            public ScriptableObject copy;
-            public string sourceStamp;
-        }
-        private readonly Dictionary<(ActorRoot,ScriptableObject),Draft> drafts = new Dictionary<(ActorRoot,ScriptableObject),Draft>();
         private readonly AttackLabMovementTrace trace = new AttackLabMovementTrace();
-        private int selection, sample, generation, targetSlot;
+        private int targetSlot;
         private ActorRoot actor;
-        private ScriptableObject source, applied;
-        private AttackLabSession session;
+        private ScriptableObject inspectedMove;
+        private string inspectedMoveLabel;
         private AttackLabSawTrial sawTrial;
         private string status;
         private Vector2 scroll;
-
-        private ActionEffectList Resolve(ActorRoot receiver, ScriptableObject definition)
-            => applied && session && generation == session.Generation && receiver == actor && session.Actor == actor && definition == source
-                ? AttackLabImpactSamples.Read(applied) : null;
-
-        internal void ClearOverride()
-        {
-            if (ActionEffectList.EditorOverride == Resolve) ActionEffectList.EditorOverride = null;
-            if (applied) Object.DestroyImmediate(applied);
-            applied = null;
-        }
+        private bool showTrace;
 
         public void Observe(AttackLabSession current)
         {
             if (sawTrial != null && !sawTrial.BelongsTo(current)) ReturnSaw();
-            if (applied && (!current || generation != current.Generation || current.Actor != actor)) ClearOverride();
-            trace.Observe(current, applied);
+            trace.Observe(current, false);
         }
 
         public void Dispose()
         {
             ReturnSaw();
-            ClearOverride();
             trace.Dispose();
-            foreach (var item in drafts.Values) if (item.copy) Object.DestroyImmediate(item.copy);
-            drafts.Clear();
         }
 
         internal AbilityDefinitionSO EquipSaw(AttackLabSession current)
         {
             if (sawTrial != null) throw new InvalidOperationException("请先归还上次试装的圆锯");
             sawTrial = AttackLabSawTrial.Equip(current);
-            ClearOverride();
             actor = current.Actor;
-            source = null;
-            selection = Mathf.Max(0, Definitions(actor).FindIndex(c => c.asset == sawTrial.Sample));
-            sample = 4;
+            inspectedMove = sawTrial.Sample;
+            inspectedMoveLabel = null;
             return sawTrial.Sample;
         }
 
         internal void ReturnSaw()
         {
             if (sawTrial == null) return;
-            if (source == sawTrial.Sample) ClearOverride();
+            if (inspectedMove == sawTrial.Sample)
+            {
+                inspectedMove = null;
+                inspectedMoveLabel = null;
+            }
             sawTrial.Dispose();
             sawTrial = null;
         }
@@ -87,10 +68,13 @@ namespace Ossastra.Development.Editor
             }
             var equipment = owner.GetComponent<CharacterEquipment>();
             var main = owner.GetComponent<CharacterMainAction>();
-            var selected = main && main.Sequence != null ? main.Choices.FirstOrDefault(p => p && p.definitionId == main.SelectedId) : null;
+            var selected = main && main.Sequence != null ? main.ComboSource : null;
             if (selected)
             {
-                var stages = selected.stages.Concat(selected.rapidPrefix).Concat(selected.rapidPlusPrefix).Append(selected.chisel);
+                var stages = (selected.stages ?? Array.Empty<MainActionStageDefinition>())
+                    .Concat(selected.rapidPrefix ?? Array.Empty<MainActionStageDefinition>())
+                    .Concat(selected.rapidPlusPrefix ?? Array.Empty<MainActionStageDefinition>())
+                    .Append(selected.chisel);
                 for (int i = 0; i < main.Sequence.Count; i++)
                 {
                     string id = main.Sequence.Stage(i).Id;
@@ -123,7 +107,13 @@ namespace Ossastra.Development.Editor
 
         public void Draw(AttackLabSession current, Func<string,bool> reset)
         {
-            session = current;
+            if (actor != current.Actor)
+            {
+                actor = current.Actor;
+                inspectedMove = null;
+                inspectedMoveLabel = null;
+                status = null;
+            }
             if (sawTrial != null && !sawTrial.BelongsTo(current)) ReturnSaw();
             if (current.Actor.ActorId == "temporary-b")
             {
@@ -142,88 +132,36 @@ namespace Ossastra.Development.Editor
                 }
             }
             var choices = Definitions(current.Actor);
-            if (choices.Count == 0) { EditorGUILayout.HelpBox("当前角色尚未装配可编辑的动作。", MessageType.Info); return; }
-            if (actor != current.Actor) selection = 0;
-            selection = EditorGUILayout.Popup("招式与段位", Mathf.Clamp(selection,0,choices.Count-1), choices.Select(c => c.name).ToArray());
-            var selected = choices[selection].asset;
-            if (selected != source || actor != current.Actor)
+            if (choices.Count == 0)
             {
-                ClearOverride();
-                actor = current.Actor;
-                source = selected;
-                status = null;
-            }
-            if (!drafts.TryGetValue((actor,source), out var draft))
-            {
-                draft = new Draft();
-                Load(draft);
-                drafts.Add((actor, source),draft);
+                EditorGUILayout.HelpBox("当前装备没有可编辑的招式。", MessageType.Info);
+                return;
             }
 
-            EditorGUILayout.SelectableLabel(AssetDatabase.GetAssetPath(source),EditorStyles.miniLabel,GUILayout.Height(18));
-            scroll = EditorGUILayout.BeginScrollView(scroll);
-            if (source is AbilityDefinitionSO ability)
-            {
-                string channel = string.IsNullOrEmpty(ability.damageChannel) ? ability.effectRoot : ability.damageChannel;
-                EditorGUILayout.LabelField("定义投递通道", string.IsNullOrEmpty(channel) ? "未指定" : channel);
-                var nodes = ability.releases ?? Array.Empty<AbilityReleaseNode>();
-                EditorGUILayout.LabelField("定义释放序号", nodes.Length == 0 ? "由执行器决定" :
-                    string.Join("　",nodes.Select((node,index) => node == null ? index + "（缺失）" : $"{index} @ {node.at:0.###} s")),
-                    EditorStyles.wordWrappedMiniLabel);
-            }
+            // 同一招式可被几个槽位引用。优先保留所选槽位，重排后仍匹配原资源。
+            int selected = choices.FindIndex(choice => choice.asset == inspectedMove && choice.name == inspectedMoveLabel);
+            if (selected < 0) selected = choices.FindIndex(choice => choice.asset == inspectedMove);
+            var names = new[] { "请选择招式" }.Concat(choices.Select(choice => choice.name)).ToArray();
+            int next = EditorGUILayout.Popup("查看的招式", selected + 1, names) - 1;
+            (inspectedMoveLabel, inspectedMove) = next >= 0 ? choices[next] : (null, null);
+
             using (new EditorGUILayout.HorizontalScope())
             {
-                sample = EditorGUILayout.Popup("试验样板", sample, AttackLabImpactSamples.Labels);
-                if (GUILayout.Button("载入候选", GUILayout.Width(76)))
-                {
-                    Undo.RegisterCompleteObjectUndo(draft.copy, "载入招式效果样板");
-                    AttackLabImpactSamples.Configure(draft.copy, sample);
-                    EditorUtility.SetDirty(draft.copy);
-                    status = "样板已载入待试副本。";
-                }
+                using (new EditorGUI.DisabledScope(!inspectedMove))
+                    if (GUILayout.Button("打开正式招式")) EditorUtility.OpenPropertyEditor(inspectedMove);
+                if (GUILayout.Button("复位试打")) reset("正式招式 · " + (inspectedMove ? inspectedMove.name : "当前装备"));
             }
-            using (var so = new SerializedObject(draft.copy))
+            EditorGUILayout.LabelField("在 Inspector 调整招式效果，再到 Game 用原按键试打。调参会影响使用此招式的所有角色和装备。",
+                EditorStyles.wordWrappedMiniLabel);
+            if (!string.IsNullOrEmpty(status)) EditorGUILayout.HelpBox(status, MessageType.Info);
+
+            showTrace = EditorGUILayout.Foldout(showTrace, "试打记录", true);
+            if (showTrace)
             {
-                var field = so.FindProperty("effects");
-                EditorGUILayout.PropertyField(field,true);
-                so.ApplyModifiedProperties();
+                scroll = EditorGUILayout.BeginScrollView(scroll);
+                DrawTrace(current);
+                EditorGUILayout.EndScrollView();
             }
-            var error = AttackLabImpactSamples.Problems(AttackLabImpactSamples.Read(draft.copy));
-            if (error != null) EditorGUILayout.HelpBox(error,MessageType.Warning);
-            using (new EditorGUILayout.HorizontalScope())
-            {
-                if (GUILayout.Button("A · 来源并复位") && reset("招式效果 A · " + source.name))
-                { ClearOverride(); status = "已恢复来源 A，候选仍可编辑。"; }
-                using (new EditorGUI.DisabledScope(error != null))
-                    if (GUILayout.Button("B · 应用候选并复位"))
-                    {
-                        if (ActionEffectList.EditorOverride != null && ActionEffectList.EditorOverride != Resolve)
-                            status = "另一试验正持有效果覆盖。";
-                        else if (reset("招式效果 B · " + source.name))
-                        {
-                            ClearOverride();
-                            applied = Object.Instantiate(draft.copy);
-                            applied.hideFlags = HideFlags.HideAndDontSave;
-                            generation = current.Generation;
-                            ActionEffectList.EditorOverride = Resolve;
-                            status = "已应用 B。再次编辑后可重新应用。";
-                        }
-                    }
-            }
-            using (new EditorGUILayout.HorizontalScope())
-            {
-                if (GUILayout.Button("重读来源") && EditorUtility.DisplayDialog("重读来源","替换当前招式的待试副本？","重读","取消"))
-                { ClearOverride(); Load(draft); status = "待试副本已从所选来源重读。"; }
-                using (new EditorGUI.DisabledScope(error != null))
-                {
-                    if (GUILayout.Button("另存独立样板")) SaveCopy(draft);
-                    if (GUILayout.Button("写回所选招式")) Save(draft);
-                }
-            }
-            EditorGUILayout.LabelField("当前试验", current.Version);
-            DrawTrace(current);
-            if (!string.IsNullOrEmpty(status)) EditorGUILayout.HelpBox(status,MessageType.Info);
-            EditorGUILayout.EndScrollView();
         }
 
         private void DrawTrace(AttackLabSession current)
@@ -236,7 +174,7 @@ namespace Ossastra.Development.Editor
                 float request = step.RequestedHorizontalSpeed * step.SimulatedSeconds;
                 EditorGUILayout.LabelField("攻击者 · 最近运动步", step.Driver + "　XY " + ((Vector2)actual).ToString("F3"));
                 EditorGUILayout.LabelField($"X 请求 {request:F3} U　差值 {actual.x-request:F3} U　侧阻 {step.HorizontalBlocked}　碰顶 {step.HitHead}");
-                EditorGUILayout.LabelField($"输入 {step.InputHorizontalSpeed:F2} U/s　效果 {step.EffectHorizontalSpeed:F2} U/s");
+                EditorGUILayout.LabelField($"方向输入 {step.InputHorizontalSpeed:F2} U/s　主动位移 {step.EffectHorizontalSpeed:F2} U/s");
             }
             if (current.Actor && current.Actor.TryGetComponent<ActionImpactMotor>(out var actorMotor))
             {
@@ -265,38 +203,6 @@ namespace Ossastra.Development.Editor
             var rows = events.Where(e => e.trial == current.Generation && e.track != "输入").Reverse().Take(10).Reverse();
             foreach (var e in rows)
                 EditorGUILayout.LabelField($"{e.realMs:0} ms　{e.label}　{e.detail}",EditorStyles.wordWrappedMiniLabel);
-        }
-
-        private void Load(Draft draft)
-        {
-            if (draft.copy) Object.DestroyImmediate(draft.copy);
-            draft.copy = Object.Instantiate(source);
-            draft.copy.hideFlags = HideFlags.HideAndDontSave;
-            draft.sourceStamp = EditorJsonUtility.ToJson(source);
-        }
-
-        private void SaveCopy(Draft draft)
-        {
-            string path = EditorUtility.SaveFilePanelInProject("另存独立招式",source.name + "_Impact", "asset","保留原装配，新增可选用的独立招式。");
-            if (string.IsNullOrEmpty(path)) return;
-            if (AssetDatabase.LoadMainAssetAtPath(path)) { status = "请选择尚未使用的样板路径。"; return; }
-            var copy = Object.Instantiate(draft.copy);
-            copy.hideFlags = HideFlags.None;
-            copy.name = System.IO.Path.GetFileNameWithoutExtension(path);
-            AssetDatabase.CreateAsset(copy,path);
-            AssetDatabase.SaveAssetIfDirty(copy);
-            status = "独立样板已保存：" + path;
-        }
-
-        private void Save(Draft draft)
-        {
-            string path = AssetDatabase.GetAssetPath(source);
-            if (!AssetDatabase.IsOpenForEdit(source) || EditorUtility.IsDirty(source) || EditorJsonUtility.ToJson(source) != draft.sourceStamp)
-            { status = "来源有待保存修改、已变化或不可写。可另存候选，或重读来源。"; return; }
-            if (!EditorUtility.DisplayDialog("写回共享招式", path + "\n所有引用此 SO 的角色、武器或段位都会使用这些效果。", "写回效果字段","取消")) return;
-            WriteEffects(draft.copy, source);
-            draft.sourceStamp = EditorJsonUtility.ToJson(source);
-            status = "已写回 " + path;
         }
 
         internal static void WriteEffects(ScriptableObject draft, ScriptableObject selected)

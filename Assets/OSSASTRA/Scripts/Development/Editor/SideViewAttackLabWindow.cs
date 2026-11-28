@@ -73,7 +73,6 @@ namespace Ossastra.Development.Editor
 
         private void OnDisable()
         {
-            behavior?.Dispose();
             behavior = null;
             impact?.Dispose();
             impact = null;
@@ -137,8 +136,8 @@ namespace Ossastra.Development.Editor
                     if (swingView != null) previousSwingSuppression = swingView.SuppressLabSwing;
                 }
             }
-            behavior?.Observe(session);
-            if (behavior?.Previewing != true) impact?.Observe(session);
+            if (workMode == 5 && impactMode == 1) behavior?.Observe(session);
+            impact?.Observe(session);
             if (session == null) return;
             movement?.Observe(session);
             feedback?.Observe(session);
@@ -170,7 +169,6 @@ namespace Ossastra.Development.Editor
         {
             if (change == PlayModeStateChange.ExitingPlayMode)
             {
-                behavior?.Dispose();
                 behavior = null;
                 impact?.Dispose();
                 impact = null;
@@ -229,6 +227,7 @@ namespace Ossastra.Development.Editor
 
         private void OnGUI()
         {
+            int previousWorkMode = workMode;
             workMode = GUILayout.Toolbar(workMode, new[] { "试玩与对照", "动画与事件", "命中与受击", "移动与翻越", "运动接触", "招式效果" });
             if (workMode == 1)
             {
@@ -266,6 +265,11 @@ namespace Ossastra.Development.Editor
 
             if (workMode == 5)
             {
+                if (previousWorkMode != workMode)
+                {
+                    tuning.ReleasePreviewForImpactTrial();
+                    candidate = false;
+                }
                 DrawActors();
                 DrawLoadout();
                 session.Condition = (AttackLabTargetMode)EditorGUILayout.Popup("目标条件", (int)session.Condition, Conditions);
@@ -273,14 +277,12 @@ namespace Ossastra.Development.Editor
                 impactMode = GUILayout.Toolbar(impactMode, new[] { "单个招式效果", "芙蕾链匕首连段" });
                 if (impactMode == 0)
                 {
-                    behavior?.Dispose();
                     behavior = null;
                     impact ??= new AttackLabImpactPanel();
                     impact.Draw(session, ResetImpactTrial);
                 }
                 else
                 {
-                    impact?.ClearOverride();
                     behavior ??= new AttackLabBehaviorPanel();
                     behavior.Draw(session, ResetImpactTrial);
                 }
@@ -492,6 +494,7 @@ namespace Ossastra.Development.Editor
             if (!session.ResetTrial(version)) { note = session.Status; return false; }
             // 此试打只归还手感页的运行覆盖。手感候选的版本检查留给该页写入和应用。
             tuning.ReleasePreviewForImpactTrial();
+            session.Actor.StateArbitrator?.Combat?.RebindLaboratorySequence();
             candidate = false;
             note = null;
             return true;

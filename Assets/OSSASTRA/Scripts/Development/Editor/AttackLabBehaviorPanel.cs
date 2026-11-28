@@ -1,7 +1,6 @@
 /*
- * 功能：在原角色手感调试台编辑芙蕾链匕首的第三段、3→4 连接和第四段击退候选。
- * 边界：A 读取当前作者来源，B 只对本次试打角色和当前连段来源生效。已受理动作继续持有冻结值。
- * 协作：调试台负责复位及真实输入，序列宿主接受候选，场景仍推进正式战斗链。
+ * 手感台锁定实际装配的招式，编辑走正式 SO 的 Inspector。
+ * 复位与游戏输入继续使用既有手感场，已受理动作保留自己的快照。
  */
 using System;
 using System.Collections.Generic;
@@ -14,71 +13,61 @@ using ActorRoot = Ossastra.Characters.CharacterRoot;
 
 namespace Ossastra.Development.Editor
 {
-    internal sealed class AttackLabBehaviorPanel : IDisposable
+    internal sealed class AttackLabBehaviorPanel
     {
-        private AttackLabSession session;
         private Object source;
         private ActorRoot actor;
         private ActionDefinitionSO third, fourth;
-        private AttackLabBehaviorDraft draft;
-        private bool preview, appliedGate, thirdShared, fourthShared;
-        private string equipmentInstance;
-        private string status;
-        private string thirdStamp, fourthStamp, comboStamp;
+        private bool thirdShared;
         private Vector2 scroll;
-
-        internal bool Previewing => preview;
-        internal AttackLabBehaviorDraft Draft => draft;
 
         internal void Observe(AttackLabSession current)
         {
-            if (session && (!current || current != session || !current.Actor || current.Actor != actor ||
-                current.Actor.StateArbitrator?.Combat?.ComboSource != source ||
-                EquipmentInstance(current.Actor) != equipmentInstance))
-                ReleaseDraft();
+            if (!current || !actor || current.Actor != actor || actor.ActionActive) return;
+            var combat = actor.StateArbitrator?.Combat;
+            if (combat == null || combat.ComboSource != source) return;
+            var authored = source is CharacterDefinitionSO character
+                ? character.comboSettings : ((MainActionProfileSO)source).comboSettings;
+            bool required = authored.IsMigrated && authored.RequiresBehaviorSuccess(3);
+            if (combat.EffectiveComboSettings.GetValueOrDefault().RequiresBehaviorSuccess(3) != required)
+                combat.RebindLaboratorySequence();
         }
 
         internal bool BindSession(AttackLabSession current)
         {
-            Observe(current);
             var owner = current ? current.Actor : null;
-            if (!owner || owner.Definition?.definitionId != "temporary-b.vc02") return false;
+            var actualSource = owner && owner.Definition?.definitionId == "temporary-b.vc02"
+                ? owner.StateArbitrator?.Combat?.ComboSource : null;
+            var moves = actualSource ? ResolveStages(actualSource, owner) : null;
+            if (moves == null || moves.Length < 4 ||
+                moves[2] == moves[3] || !AssetDatabase.Contains(actualSource) ||
+                !AssetDatabase.Contains(moves[2]) || !AssetDatabase.Contains(moves[3]))
+            {
+                source = null;
+                actor = null;
+                third = fourth = null;
+                return false;
+            }
 
-            var combat = owner.StateArbitrator?.Combat;
-            var actualSource = combat?.ComboSource;
-            if (!actualSource) return false;
-            var main = owner.GetComponent<CharacterMainAction>();
-            var moves = ResolveStages(actualSource, main);
-            if (moves == null || moves.Length != 4 || moves.Any(move => !move) || moves[2] == moves[3]) return false;
-            if (source == actualSource && third == moves[2] && fourth == moves[3] && draft != null)
-                return true;
-
-            ReleaseDraft();
-            session = current;
             actor = owner;
             source = actualSource;
             third = moves[2];
             fourth = moves[3];
-            equipmentInstance = EquipmentInstance(owner);
             thirdShared = moves.Count(move => move == third) > 1;
-            fourthShared = moves.Count(move => move == fourth) > 1;
-            ReadSource();
-            try
-            {
-                if (AttackLabBehaviorPreset.Restore(actor.ActorId, source, third, fourth, draft))
-                    status = "已载入本机 B 候选。";
-            }
-            catch (Exception error)
-            {
-                status = "读取候选失败，当前显示初始候选 · " + error.Message;
-                ReadSource();
-            }
             return true;
         }
 
-        private static ActionDefinitionSO[] ResolveStages(Object origin, CharacterMainAction main)
+        internal ActionDefinitionSO FourthSource => fourth;
+
+        private static ActionDefinitionSO[] ResolveStages(Object origin, ActorRoot owner)
         {
-            if (origin is CharacterDefinitionSO character) return character.basicAttacks;
+            if (origin is CharacterDefinitionSO character)
+            {
+                var actions = owner.GetComponent<CharacterEquipment>()?.RightDefinition?.actions;
+                return actions != null && actions.Length > 0 ? actions : character.basicAttacks;
+            }
+
+            var main = owner.GetComponent<CharacterMainAction>();
             if (!(origin is MainActionProfileSO profile) || !main || main.Sequence == null) return null;
             var stages = (profile.stages ?? Array.Empty<MainActionStageDefinition>())
                 .Concat(profile.rapidPrefix ?? Array.Empty<MainActionStageDefinition>())
@@ -91,186 +80,93 @@ namespace Ossastra.Development.Editor
             }).ToArray();
         }
 
-        private static string EquipmentInstance(ActorRoot owner)
-            => owner.GetComponent<CharacterEquipment>()?.State?.RightInstanceId;
-
         private BasicComboSettings SourceSettings => source is CharacterDefinitionSO character
             ? character.ComboSettings : ((MainActionProfileSO)source).ComboSettings;
-
-        private static string Stamp(Object value) => Hash128.Compute(EditorJsonUtility.ToJson(value)).ToString();
-
-        private static string MoveStamp(ActionDefinitionSO move) => Stamp(move) +
-            (move.executor ? Stamp(move.executor) : "");
-
-        private void ReadSource()
-        {
-            draft?.Dispose();
-            var settings = SourceSettings;
-            draft = new AttackLabBehaviorDraft(third, fourth, settings.behaviorSuccessConnections, true);
-            thirdStamp = MoveStamp(third);
-            fourthStamp = MoveStamp(fourth);
-            comboStamp = Stamp(source);
-        }
-
-        private ActionDefinitionSO ResolveAction(ActorRoot owner, Object origin, int stage, ActionDefinitionSO original)
-        {
-            if (!preview || !Matches(owner, origin)) return original;
-            if (stage == 3 && original == third) return draft.Third;
-            if (stage == 4 && original == fourth) return draft.Fourth;
-            return original;
-        }
-
-        private BasicComboSettings ResolveCombo(ActorRoot owner, Object origin, BasicComboSettings settings)
-        {
-            if (preview && Matches(owner, origin))
-                settings.behaviorSuccessConnections = AttackLabBehaviorDraft.ResolveConnections(
-                    settings.behaviorSuccessConnections, appliedGate);
-            return settings;
-        }
-
-        private bool Matches(ActorRoot owner, Object origin)
-            => session && draft != null && owner == actor && session.Actor == actor && source == origin &&
-                EquipmentInstance(owner) == equipmentInstance;
-
-        internal bool Apply(bool useCandidate, Func<string, bool> reset)
-        {
-            if (draft == null || useCandidate && Problem() != null) return false;
-            if (useCandidate &&
-                (CharacterCombatStateMachine.EditorBehaviorActionOverride != null &&
-                    CharacterCombatStateMachine.EditorBehaviorActionOverride != ResolveAction ||
-                 CharacterCombatStateMachine.EditorBehaviorComboOverride != null &&
-                    CharacterCombatStateMachine.EditorBehaviorComboOverride != ResolveCombo))
-            {
-                status = "另一个试验持有连段候选。";
-                return false;
-            }
-            if (!reset(useCandidate ? "B · 芙蕾链匕首连段" : "A · 当前来源四段"))
-            {
-                status = "试打复位失败 · " + session.Status;
-                return false;
-            }
-            ClearOverride(false);
-            if (useCandidate)
-            {
-                preview = true;
-                appliedGate = draft.RequireSuccess;
-                CharacterCombatStateMachine.EditorBehaviorActionOverride = ResolveAction;
-                CharacterCombatStateMachine.EditorBehaviorComboOverride = ResolveCombo;
-            }
-            actor.StateArbitrator.Combat.RebindLaboratorySequence();
-            status = useCandidate ? "已应用 B。到 Game 视图使用原普攻按键。" : "已恢复 A。B 参数可继续编辑。";
-            return true;
-        }
-
-        private void ClearOverride(bool rebind)
-        {
-            bool wasActive = preview;
-            preview = false;
-            if (CharacterCombatStateMachine.EditorBehaviorActionOverride == ResolveAction)
-                CharacterCombatStateMachine.EditorBehaviorActionOverride = null;
-            if (CharacterCombatStateMachine.EditorBehaviorComboOverride == ResolveCombo)
-                CharacterCombatStateMachine.EditorBehaviorComboOverride = null;
-            if (!rebind || !wasActive || !actor || !Application.isPlaying) return;
-
-            // 运行中的动作保留接受时配置。身体空闲后回读原作者连接。
-            var previous = actor;
-            void Rebind()
-            {
-                if (Application.isPlaying && previous && previous.ActionActive) return;
-                EditorApplication.update -= Rebind;
-                if (Application.isPlaying && previous) previous.StateArbitrator?.Combat?.RebindLaboratorySequence();
-            }
-            Rebind();
-            if (previous && previous.ActionActive) EditorApplication.update += Rebind;
-        }
-
-        private void ReleaseDraft()
-        {
-            ClearOverride(true);
-            draft?.Dispose();
-            draft = null;
-            source = null;
-            actor = null;
-            session = null;
-        }
-
-        public void Dispose() => ReleaseDraft();
 
         internal void Draw(AttackLabSession current, Func<string, bool> reset)
         {
             if (!BindSession(current))
             {
-                EditorGUILayout.HelpBox("选中芙蕾和一个完整四段连段来源后，可以载入链匕首候选。", MessageType.Info);
+                EditorGUILayout.HelpBox("请选择芙蕾，并装配含第三段和第四段的普攻。", MessageType.Info);
                 return;
             }
+
             scroll = EditorGUILayout.BeginScrollView(scroll);
             EditorGUILayout.LabelField("芙蕾链匕首连段", EditorStyles.boldLabel);
-            EditorGUILayout.LabelField("试打版本", preview ? "B · 本机连段候选" : "A · 当前正式来源");
-            DrawLocate("连段原资产", source);
-            DrawLocate("第三段原资产", third);
-            DrawLocate("第四段原资产", fourth);
-            EditorGUILayout.LabelField(preview
-                ? "第三段运行锁链匕首。第四段推移在本页「第四段 B 候选效果」调整。"
-                : "当前试打读取原资产。下方参数供 B 候选使用。", EditorStyles.wordWrappedMiniLabel);
-            if (preview)
-                EditorGUILayout.LabelField("第四段 B 推移", DescribePush(draft.Fourth));
-            EditorGUILayout.LabelField("第四段原 SO 推移", DescribePush(fourth));
-            current.Distance = EditorGUILayout.Slider("靶距（U）", current.Distance, .25f, 12);
-            using (new EditorGUILayout.HorizontalScope())
+            EditorGUILayout.LabelField("试打读取下方列出的 SO。打开后直接调整，再到 Game 里出招。", EditorStyles.wordWrappedMiniLabel);
+            bool requireSuccess = SourceSettings.RequiresBehaviorSuccess(3);
+            DrawSource("第三段 · 投掷与回拉", third, third.executor ? third.executor.name : "尚未配置专用行为");
+            DrawSource("第四段 · 飞踢", FourthSource, "目标推移 " + DescribePush(FourthSource));
+            DrawSource("第三段 → 第四段", source, requireSuccess ? "回拉成功后才能接飞踢" : "沿用普攻接段规则");
+
+            if (!third.executor)
             {
-                current.FacingRight = EditorGUILayout.ToggleLeft("向右出招", current.FacingRight);
-                current.EnemyAttacks = EditorGUILayout.ToggleLeft("允许靶反击", current.EnemyAttacks);
+                if (thirdShared)
+                    EditorGUILayout.HelpBox("第三段和其他段共用同一个招式。配置链匕首前请为第三段指定独立招式。", MessageType.Info);
+                else if (GUILayout.Button("为第三段添加链匕首") &&
+                    EditorUtility.DisplayDialog("添加链匕首",
+                        $"在「{third.name}」加入投掷与回拉，并在「{source.name}」开启回拉成功后接飞踢。引用这些资产的装配会使用新配置。",
+                        "添加", "取消"))
+                {
+                    try
+                    {
+                        AddChainDagger();
+                        EditorUtility.OpenPropertyEditor(third);
+                    }
+                    catch (InvalidOperationException error)
+                    {
+                        EditorUtility.DisplayDialog("无法添加链匕首", error.Message, "关闭");
+                    }
+                }
             }
-            string error = Problem();
-            using (new EditorGUILayout.HorizontalScope())
-            {
-                if (GUILayout.Button("A · 来源并复位")) Apply(false, reset);
-                using (new EditorGUI.DisabledScope(error != null))
-                    if (GUILayout.Button("B · 链匕首并复位")) Apply(true, reset);
-            }
-            if (error != null) EditorGUILayout.HelpBox(error, MessageType.Warning);
-            if (!string.IsNullOrEmpty(status)) EditorGUILayout.HelpBox(status, MessageType.Info);
+
+            if (GUILayout.Button(new GUIContent("复位试打", "角色和目标回到起点，重新读取连段与装配。")))
+                reset("正式 SO · 芙蕾连段");
             DrawDiagnostics(current);
-            EditorGUILayout.Space();
-
-            bool changed = AttackLabBehaviorAuthoring.DrawParameters(draft.Third.executor);
-            using (var action = new SerializedObject(draft.Third))
-            {
-                EditorGUILayout.LabelField("第三段招式效果", EditorStyles.boldLabel);
-                ActionEffectListDrawer.DrawForMove(action, () => changed = true);
-            }
-
-            EditorGUILayout.LabelField("第三段 → 第四段", EditorStyles.boldLabel);
-            bool gate = EditorGUILayout.ToggleLeft("需要第三段回拉成功", draft.RequireSuccess);
-            changed |= gate != draft.RequireSuccess;
-            draft.RequireSuccess = gate;
-
-            using (var action = new SerializedObject(draft.Fourth))
-            {
-                EditorGUILayout.LabelField("第四段 B 候选效果", EditorStyles.boldLabel);
-                ActionEffectListDrawer.DrawForMove(action, () => changed = true);
-            }
-            if (changed) Persist();
-
-            if (preview && appliedGate != draft.RequireSuccess)
-                EditorGUILayout.LabelField("重新应用 B 后，连接规则生效。", EditorStyles.miniLabel);
-            using (new EditorGUILayout.HorizontalScope())
-            {
-                if (GUILayout.Button("保存本机 B 候选")) Persist();
-                if (GUILayout.Button("重读来源") && Apply(false, reset)) ReadSource();
-            }
-            using (new EditorGUI.DisabledScope(error != null))
-            using (new EditorGUILayout.HorizontalScope())
-            {
-                using (new EditorGUI.DisabledScope(thirdShared))
-                    if (GUILayout.Button("写回第三段")) Write(third, thirdStamp, "专用行为与第三段效果", SaveThird);
-                if (GUILayout.Button("写回 3→4 连接")) Write(source, comboStamp, "第三段 → 第四段的接段要求", SaveCombo);
-                using (new EditorGUI.DisabledScope(fourthShared))
-                    if (GUILayout.Button("写回第四段效果")) Write(fourth, fourthStamp, "第四段效果列表", SaveFourth);
-            }
-            if (thirdShared || fourthShared)
-                EditorGUILayout.HelpBox("此动作在当前连段还有其他引用。可用 B 试打，请先为该段准备独立动作再写回。", MessageType.Info);
             EditorGUILayout.EndScrollView();
+        }
+
+        private void AddChainDagger()
+        {
+            if (thirdShared || third.executor || !AssetDatabase.IsMainAsset(third) ||
+                !AssetDatabase.IsOpenForEdit(third) || !AssetDatabase.IsOpenForEdit(source))
+                throw new InvalidOperationException("第三段或连段来源当前不可写，请在 Inspector 检查这两份资产。");
+
+            var settings = SourceSettings;
+            if (!settings.RequiresBehaviorSuccess(3))
+                settings.behaviorSuccessConnections = (settings.behaviorSuccessConnections ?? Array.Empty<int>())
+                    .Append(3).ToArray();
+
+            const string undoLabel = "为第三段添加链匕首";
+            Undo.IncrementCurrentGroup();
+            int group = Undo.GetCurrentGroup();
+            Undo.SetCurrentGroupName(undoLabel);
+            try
+            {
+                var executor = AttackLabBehaviorAuthoring.CopyToOwner(third, null);
+                Undo.RegisterCompleteObjectUndo(new[] { (Object)third, source }, undoLabel);
+                third.executor = executor;
+                if (source is CharacterDefinitionSO character) character.comboSettings = settings;
+                else ((MainActionProfileSO)source).comboSettings = settings;
+                EditorUtility.SetDirty(third);
+                EditorUtility.SetDirty(source);
+                Undo.CollapseUndoOperations(group);
+            }
+            catch
+            {
+                Undo.RevertAllDownToGroup(group);
+                throw;
+            }
+        }
+
+        private static void DrawSource(string label, Object value, string detail)
+        {
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                EditorGUILayout.LabelField(label, detail);
+                if (GUILayout.Button(new GUIContent("打开 SO", AssetDatabase.GetAssetPath(value)), GUILayout.Width(76)))
+                    EditorUtility.OpenPropertyEditor(value);
+            }
         }
 
         private void DrawDiagnostics(AttackLabSession current)
@@ -320,84 +216,6 @@ namespace Ossastra.Development.Editor
                 EditorStyles.wordWrappedMiniLabel);
         }
 
-        private static void DrawLocate(string label, Object value)
-        {
-            using (new EditorGUILayout.HorizontalScope())
-            {
-                EditorGUILayout.LabelField(label, value.name);
-                if (GUILayout.Button("定位原资产", GUILayout.Width(82)))
-                {
-                    Selection.activeObject = value;
-                    EditorGUIUtility.PingObject(value);
-                }
-            }
-        }
-
-        private string Problem()
-        {
-            try
-            {
-                draft.Third.executor.CompileExecutor();
-                return AttackLabImpactSamples.Problems(draft.Third.effects) ??
-                    AttackLabImpactSamples.Problems(draft.Fourth.effects);
-            }
-            catch (ArgumentException error) { return error.Message; }
-        }
-
-        private void Persist()
-        {
-            try
-            {
-                AttackLabBehaviorPreset.Store(actor.ActorId, source, third, fourth, draft);
-                status = "已保存本机 B 候选。";
-            }
-            catch (Exception error) { status = "保存候选失败 · " + error.Message; }
-        }
-
-        private void Write(Object value, string expected, string scope, Action save)
-        {
-            string actual = value is ActionDefinitionSO move ? MoveStamp(move) : Stamp(value);
-            if (!AssetDatabase.IsMainAsset(value) || !AssetDatabase.IsOpenForEdit(value) || EditorUtility.IsDirty(value) || actual != expected)
-            {
-                status = "来源有待保存修改、已变化或不可写，可先保存本机候选。";
-                return;
-            }
-            if (!EditorUtility.DisplayDialog("写回选定来源",
-                AssetDatabase.GetAssetPath(value) + "\n写回范围 · " + scope + "\n引用该来源的所有装配将读到新值。", "写回所示字段", "取消"))
-                return;
-            try
-            {
-                Undo.RecordObject(value, scope);
-                save();
-                EditorUtility.SetDirty(value);
-                AssetDatabase.SaveAssetIfDirty(value);
-                status = "已写回 · " + value.name + " · " + scope;
-            }
-            catch (Exception error) { status = "写回失败 · " + error.Message; }
-        }
-
-        private void SaveThird()
-        {
-            third.executor = AttackLabBehaviorAuthoring.CopyToOwner(third, draft.Third.executor);
-            AttackLabImpactSamples.CopyEffects(draft.Third, third);
-            thirdStamp = MoveStamp(third);
-        }
-
-        private void SaveFourth()
-        {
-            if (fourth == third) throw new InvalidOperationException("两段使用同一招式。");
-            AttackLabImpactSamples.CopyEffects(draft.Fourth, fourth);
-            fourthStamp = MoveStamp(fourth);
-        }
-
-        private void SaveCombo()
-        {
-            var settings = SourceSettings;
-            settings.behaviorSuccessConnections = draft.ResolveConnections(settings.behaviorSuccessConnections);
-            if (source is CharacterDefinitionSO character) character.comboSettings = settings;
-            if (source is MainActionProfileSO profile) profile.comboSettings = settings;
-            comboStamp = Stamp(source);
-        }
     }
 
     internal sealed class AttackLabBehaviorDraft : IDisposable
